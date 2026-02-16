@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.base.org)",
+      "WebFetch(domain:tatum.io)",
+      "WebFetch(domain:blog.base.dev)",
+      "WebFetch(domain:mud.dev)"
+    ]
+  }
+}

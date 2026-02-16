@@ -1,0 +1,36 @@
+# Foundry
+out/
+cache/
+
+# Dependencies
+lib/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / Bun
+node_modules/
+bun.lockb
+
+# TypeScript
+dist/
+*.tsbuildinfo
+
+# Next.js
+.next/
+.vercel/
+
+# Drizzle
+drizzle/
+
+# Coverage
+coverage/
