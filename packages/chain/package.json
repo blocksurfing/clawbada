@@ -1,0 +1,15 @@
+{
+  "name": "@clawbada/chain",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "extract-abis": "bun run scripts/extract-abis.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  }
+}
