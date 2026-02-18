@@ -401,9 +401,11 @@ async function tryMatch(
 
   if (!opponent) return null;
 
-  // Remove both from queue
-  await db.delete(matchmakingQueue).where(eq(matchmakingQueue.address, address));
-  await db.delete(matchmakingQueue).where(eq(matchmakingQueue.address, opponent.address));
+  // Remove both from queue atomically
+  await db.transaction(async (tx) => {
+    await tx.delete(matchmakingQueue).where(eq(matchmakingQueue.address, address));
+    await tx.delete(matchmakingQueue).where(eq(matchmakingQueue.address, opponent.address));
+  });
 
   // Create battle on-chain via operator key (MATCHMAKER_ROLE)
   // This runs server-side with the operator's wallet
