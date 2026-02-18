@@ -102,6 +102,10 @@ breedingRoutes.post(
     const parentAId = BigInt(body.parentA);
     const parentBId = BigInt(body.parentB);
 
+    if (parentAId === parentBId) {
+      throw new ApiError('INVALID_INPUT', 'Cannot breed a lobster with itself');
+    }
+
     const [parentA, parentB] = await Promise.all([
       readLobster(parentAId),
       readLobster(parentBId),

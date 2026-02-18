@@ -229,15 +229,33 @@ function ActiveBattleView({
         )}
       </div>
 
-      <div className="text-sm">
-        <span className="text-muted-foreground">Phase: </span>
-        <span className="font-medium">
-          {settled
-            ? 'Settled'
-            : ws.lastEvent?.type === 'round_result'
-              ? `Round ${(ws.lastEvent.data as Record<string, unknown>).round}`
-              : ws.lastEvent?.type ?? 'Waiting...'}
-        </span>
+      <div className="text-sm space-y-1">
+        <div>
+          <span className="text-muted-foreground">Phase: </span>
+          <span className="font-medium">
+            {settled
+              ? 'Settled'
+              : ws.lastEvent?.type === 'round_result'
+                ? `Round ${(ws.lastEvent.data as Record<string, unknown>).round}`
+                : ws.lastEvent?.type ?? 'Waiting...'}
+          </span>
+        </div>
+        {battleData && (
+          <>
+            <div>
+              <span className="text-muted-foreground">Stake: </span>
+              <span className="font-mono">{formatClaw(String(battleData.chain?.stakeAmount ?? '0'))}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Opponent: </span>
+              <span className="font-mono">{formatAddress(
+                String(battleData.chain?.playerA ?? '').toLowerCase() === address.toLowerCase()
+                  ? String(battleData.chain?.playerB ?? '')
+                  : String(battleData.chain?.playerA ?? '')
+              )}</span>
+            </div>
+          </>
+        )}
       </div>
 
       {!settled && (

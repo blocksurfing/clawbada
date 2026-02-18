@@ -158,7 +158,11 @@ function ActiveExpeditionCard({
         <div className="text-sm font-medium font-mono">{formatClaw(expedition.reward)}</div>
       </div>
       {isComplete ? (
-        <Badge className="bg-coral text-white">Ready to claim</Badge>
+        <TransactionButton
+          label="Claim"
+          fetchSteps={(auth) => api.mining.claim(expedition.expeditionId, auth)}
+          onSuccess={onClaim}
+        />
       ) : (
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-mono">
           <Clock className="size-3" />
