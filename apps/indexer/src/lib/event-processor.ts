@@ -73,6 +73,7 @@ export abstract class EventWatcher {
 
   /**
    * Backfill events from a range of blocks.
+   * Block tracker is updated once per batch (not per-log) for performance.
    */
   private async backfill(client: any, fromBlock: bigint, toBlock: bigint): Promise<void> {
     console.log(`[${this.config.contractName}] Backfilling blocks ${fromBlock}-${toBlock}`);
@@ -88,8 +89,11 @@ export abstract class EventWatcher {
       });
 
       for (const log of logs) {
-        await this.processLog(log as Log);
+        await this.processLog(log as Log, false);
       }
+
+      // Update block tracker once per batch range
+      await this.blockTracker.setLastBlock(this.config.contractName, end);
 
       if (logs.length > 0) {
         console.log(`[${this.config.contractName}] Backfilled ${logs.length} events (blocks ${start}-${end})`);
@@ -98,9 +102,10 @@ export abstract class EventWatcher {
   }
 
   /**
-   * Process a single log: decode, store in events table, call handler, update block tracker.
+   * Process a single log: decode, store in events table, call handler.
+   * Block tracker update is optional (skipped during backfill, done per-log during live watching).
    */
-  private async processLog(log: Log): Promise<void> {
+  private async processLog(log: Log, updateBlockTracker = true): Promise<void> {
     // Store raw event
     await db.insert(onChainEvents).values({
       contractName: this.config.contractName,
@@ -114,8 +119,8 @@ export abstract class EventWatcher {
     // Let subclass handle the specific event
     await this.handleEvent(log);
 
-    // Update block tracker
-    if (log.blockNumber) {
+    // Update block tracker (live mode only — backfill updates per-batch)
+    if (updateBlockTracker && log.blockNumber) {
       await this.blockTracker.setLastBlock(this.config.contractName, log.blockNumber);
     }
   }
