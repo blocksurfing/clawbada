@@ -1,11 +1,7 @@
 'use client';
 
+import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { cn } from '@/lib/utils';
-
-const CLASS_NAMES = [
-  'Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter',
-  'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember',
-] as const;
 
 const BODY_PARTS = ['Carapace', 'Claws', 'Tail', 'Antennae', 'Eyes', 'Legs'] as const;
 const STAT_AFFINITY = ['HP', 'Attack', 'Speed', 'Critical', 'Armor', 'HP'] as const;
@@ -35,10 +31,10 @@ function AlleleChip({ allele, isMatch, label }: { allele: Allele; isMatch: boole
         'flex items-center gap-1 rounded px-1.5 py-0.5 text-xs',
         isMatch ? 'bg-primary/15 text-primary font-medium' : 'bg-muted text-muted-foreground',
       )}
-      title={`${label}: Class ${CLASS_NAMES[allele.classAffinity]}, Variant ${allele.variant}`}
+      title={`${label}: Class ${CLASS_NAMES_LIST[allele.classAffinity]}, Variant ${allele.variant}`}
     >
       <span className="font-mono text-[10px]">{label}</span>
-      <span>{CLASS_NAMES[allele.classAffinity]?.[0] ?? '?'}</span>
+      <span>{CLASS_NAMES_LIST[allele.classAffinity]?.[0] ?? '?'}</span>
       <span className="text-[10px] opacity-60">v{allele.variant}</span>
     </div>
   );

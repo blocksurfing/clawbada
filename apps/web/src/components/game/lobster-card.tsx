@@ -1,16 +1,12 @@
 'use client';
 
+import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { useLobsterImage } from '@/hooks/use-lobster-image';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { tierLabel } from '@/lib/format';
 import { Lock, AlertTriangle, Sparkles, Link as LinkIcon } from 'lucide-react';
-
-const CLASS_NAMES = [
-  'Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter',
-  'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember',
-] as const;
 
 const SIZE_MAP = { sm: 2, md: 4, lg: 8 } as const;
 const PX_MAP = { sm: 96, md: 192, lg: 384 } as const;
@@ -113,7 +109,7 @@ export function LobsterCard({
         </div>
         <div className="flex items-center justify-between">
           <Badge variant="outline" className="text-[10px] px-1 py-0">
-            {CLASS_NAMES[lobsterClass] ?? 'Unknown'}
+            {CLASS_NAMES_LIST[lobsterClass] ?? 'Unknown'}
           </Badge>
           <div className="flex gap-0.5" title={`Purity: ${purity}/6`}>
             {Array.from({ length: 6 }, (_, i) => (

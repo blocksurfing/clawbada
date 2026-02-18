@@ -1,5 +1,7 @@
 'use client';
 
+import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
+
 const CLASS_COLORS = [
   '#64748b', // 0 Bulwark  — slate
   '#22c55e', // 1 Mantis   — green
@@ -11,11 +13,6 @@ const CLASS_COLORS = [
   '#1e293b', // 7 Abyss    — dark slate
   '#06b6d4', // 8 Kraken   — cyan
   '#f97316', // 9 Ember    — orange
-] as const;
-
-const CLASS_NAMES = [
-  'Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter',
-  'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember',
 ] as const;
 
 const TIER_GLYPHS = ['', '\u2605', '\u2605\u2605', '\u2605\u2605\u2605'] as const;
@@ -44,7 +41,7 @@ export function useLobsterImage(
 
   const cls = extractClass(dna);
   const color = CLASS_COLORS[cls] ?? '#6B7280';
-  const name = CLASS_NAMES[cls] ?? '?';
+  const name = CLASS_NAMES_LIST[cls] ?? '?';
   const tier = TIER_GLYPHS[evolutionTier] ?? '';
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
