@@ -29,8 +29,5 @@ dist/
 .next/
 .vercel/
 
-# Drizzle
-drizzle/
-
 # Coverage
 coverage/
