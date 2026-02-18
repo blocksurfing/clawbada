@@ -17,6 +17,9 @@
     "forge:build": "forge build",
     "forge:test": "forge test"
   },
+  "overrides": {
+    "viem": "^2.21.0"
+  },
   "devDependencies": {
     "typescript": "^5.7.0",
     "@types/bun": "^1.2.0"

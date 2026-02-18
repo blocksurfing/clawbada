@@ -4,3 +4,8 @@ export * from './dna';
 export * from './battle-resolver';
 export * from './breeding';
 export * from './classes';
+export * from './hash';
+export * from './repair';
+export * from './evolution';
+export * from './gene-inheritance';
+export * from './battle-sim';

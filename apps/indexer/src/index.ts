@@ -1,3 +1,12 @@
+/**
+ * Clawbada Indexer
+ *
+ * Watches on-chain contract events and syncs state to the database.
+ * Each contract has a dedicated watcher that decodes events and
+ * writes to the appropriate tables.
+ *
+ * Block tracking ensures no events are missed across restarts.
+ */
 import { LobsterWatcher } from './watchers/lobster-watcher';
 import { TeamWatcher } from './watchers/team-watcher';
 import { MiningWatcher } from './watchers/mining-watcher';
@@ -19,25 +28,30 @@ async function main() {
     new TreasuryWatcher(),
   ];
 
-  // TODO: Start all watchers
-  // 1. Connect to database
-  // 2. Load last processed block per contract from indexer_state
-  // 3. Backfill any missed blocks
-  // 4. Start live event watching via viem watchContractEvent
-
+  // Start all watchers sequentially (each does its own backfill)
   for (const watcher of watchers) {
-    await watcher.start();
+    try {
+      await watcher.start();
+    } catch (err) {
+      console.error(`Failed to start ${watcher.config.contractName} watcher:`, err);
+    }
   }
 
   console.log(`Clawbada Indexer ready — ${watchers.length} watchers active`);
 
-  process.on('SIGINT', async () => {
+  const shutdown = async () => {
     console.log('Shutting down watchers...');
     for (const watcher of watchers) {
       await watcher.stop();
     }
     process.exit(0);
-  });
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error('Indexer fatal error:', err);
+  process.exit(1);
+});

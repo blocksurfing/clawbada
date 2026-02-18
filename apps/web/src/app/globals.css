@@ -1,1 +1,80 @@
 @import "tailwindcss";
+
+@theme inline {
+  --color-background: #1a1a1b;
+  --color-foreground: #e6edf3;
+  --color-card: #1a1a1b;
+  --color-card-foreground: #e6edf3;
+  --color-popover: #222224;
+  --color-popover-foreground: #e6edf3;
+  --color-primary: #f97066;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #222224;
+  --color-secondary-foreground: #d1d9e0;
+  --color-muted: #222224;
+  --color-muted-foreground: #7c7c7c;
+  --color-accent: #222224;
+  --color-accent-foreground: #d1d9e0;
+  --color-destructive: #f85149;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #333336;
+  --color-input: #333336;
+  --color-ring: #f97066;
+  --color-chart-1: #f97066;
+  --color-chart-2: #2dd4bf;
+  --color-chart-3: #fbbf24;
+  --color-chart-4: #8b5cf6;
+  --color-chart-5: #22c55e;
+  --color-sidebar: #1a1a1b;
+  --color-sidebar-foreground: #e6edf3;
+  --color-sidebar-primary: #f97066;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #222224;
+  --color-sidebar-accent-foreground: #d1d9e0;
+  --color-sidebar-border: #333336;
+  --color-sidebar-ring: #f97066;
+  --color-claw-gold: #fbbf24;
+  --color-ocean: #58a6ff;
+  --color-coral: #f97066;
+  --color-teal: #3fb9a0;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-gradient-gold {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .card-hover {
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
