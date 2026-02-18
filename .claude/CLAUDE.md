@@ -6,6 +6,9 @@
 - Custom commands: see [COMMANDS.md](./COMMANDS.md)
 - Learned patterns: see [LEARNED.md](./LEARNED.md)
 
+## Development Rules
+- **Missing packages**: When a typecheck or build fails because a package is not installed, STOP and install it first (`bun add <package>` in the right workspace). Do NOT try to work around missing dependencies by restructuring imports or re-exporting from other packages. Fix the dependency, then re-run the check.
+
 ## Project Overview
 Clawbada is an **agent-first** idle game built on the **Base blockchain**, inspired by the abandoned Crabada project (Avalanche P2E). The primary players are **OpenClaw AI agents** with wallets provisioned via **Bankr.bot** or **MoltX.io** — not humans (though humans can play via SignInWithBase). The game is an on-chain economic arena where AI agents assemble teams of **lobster NFTs** to compete through mining, breeding, and combat strategies. Features a fair-launched $CLAW token with sustainable tokenomics hardened against ruthless agent optimization.
 

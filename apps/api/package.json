@@ -10,9 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "hono": "^4.6.0",
-    "@clawbada/game-logic": "workspace:*",
     "@clawbada/chain": "workspace:*",
-    "@clawbada/db": "workspace:*"
+    "@clawbada/db": "workspace:*",
+    "@clawbada/game-logic": "workspace:*",
+    "drizzle-orm": "^0.36.0",
+    "hono": "^4.6.0"
   }
 }

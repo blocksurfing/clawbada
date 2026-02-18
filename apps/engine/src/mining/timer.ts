@@ -1,28 +1,47 @@
-import { EXPEDITION_DURATION_SECONDS } from '@clawbada/game-logic';
-
 /**
  * Tracks active mining expeditions and notifies when they complete.
  *
  * Expeditions are 4 hours across all tiers. The timer service:
  * 1. Loads active expeditions from DB on startup
- * 2. Watches for new ExpeditionStarted events
+ * 2. Watches for new ExpeditionStarted events (via indexer)
  * 3. Schedules completion checks
  * 4. Notifies agents via WebSocket when expeditions are claimable
  */
+import { eq, and } from 'drizzle-orm';
+import { EXPEDITION_DURATION_SECONDS } from '@clawbada/game-logic';
+import { db, expeditions } from '@clawbada/db';
+
 export class MiningTimer {
   private timers: Map<string, Timer> = new Map();
+  private onExpeditionComplete: ((expeditionId: bigint, owner: string) => void) | null = null;
+
+  /** Register a callback for when an expedition completes. */
+  setCompletionHandler(fn: (expeditionId: bigint, owner: string) => void): void {
+    this.onExpeditionComplete = fn;
+  }
 
   /**
    * Start tracking an expedition.
-   *
-   * TODO: Implement:
-   * 1. Calculate completion time = startTime + EXPEDITION_DURATION_SECONDS
-   * 2. Schedule a timer to fire at completion
-   * 3. On completion: send WebSocket notification to owner
    */
-  trackExpedition(_expeditionId: bigint, _startTime: number, _owner: string): void {
-    // TODO: Implement
-    const _completionTime = _startTime + EXPEDITION_DURATION_SECONDS;
+  trackExpedition(expeditionId: bigint, startTime: number, owner: string): void {
+    const key = expeditionId.toString();
+
+    // Don't double-track
+    if (this.timers.has(key)) return;
+
+    const completionTime = startTime + EXPEDITION_DURATION_SECONDS;
+    const now = Math.floor(Date.now() / 1000);
+    const delayMs = Math.max(0, (completionTime - now) * 1000);
+
+    const timer = setTimeout(() => {
+      this.timers.delete(key);
+      if (this.onExpeditionComplete) {
+        this.onExpeditionComplete(expeditionId, owner);
+      }
+      console.log(`Expedition #${expeditionId} complete for ${owner}`);
+    }, delayMs);
+
+    this.timers.set(key, timer);
   }
 
   /**
@@ -38,10 +57,36 @@ export class MiningTimer {
   }
 
   /**
-   * Load all active expeditions from DB and start tracking.
+   * Load all active (unclaimed) expeditions from DB and start tracking.
    */
-  async loadActive(): Promise<void> {
-    // TODO: Query DB for unclaimed expeditions, track each
-    throw new Error('Not implemented');
+  async loadActive(): Promise<number> {
+    const active = await db
+      .select()
+      .from(expeditions)
+      .where(eq(expeditions.claimed, false));
+
+    for (const exp of active) {
+      this.trackExpedition(
+        exp.expeditionId,
+        Number(exp.startTime),
+        exp.owner,
+      );
+    }
+
+    console.log(`Mining timer: loaded ${active.length} active expeditions`);
+    return active.length;
+  }
+
+  /** Get count of currently tracked expeditions. */
+  get activeCount(): number {
+    return this.timers.size;
+  }
+
+  /** Stop all timers on shutdown. */
+  stopAll(): void {
+    for (const timer of this.timers.values()) {
+      clearTimeout(timer);
+    }
+    this.timers.clear();
   }
 }

@@ -1,0 +1,19 @@
+{
+  "name": "@clawbada/asset-gen",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "bin": {
+    "clawbada-asset-gen": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clawbada/game-logic": "workspace:*",
+    "sharp": "^0.34.0"
+  }
+}
