@@ -244,14 +244,14 @@ function ActiveBattleView({
           <>
             <div>
               <span className="text-muted-foreground">Stake: </span>
-              <span className="font-mono">{formatClaw(String(battleData.chain?.stakeAmount ?? '0'))}</span>
+              <span className="font-mono">{formatClaw(battleData.chain.stakeAmount)}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Opponent: </span>
               <span className="font-mono">{formatAddress(
-                String(battleData.chain?.playerA ?? '').toLowerCase() === address.toLowerCase()
-                  ? String(battleData.chain?.playerB ?? '')
-                  : String(battleData.chain?.playerA ?? '')
+                battleData.chain.playerA.toLowerCase() === address.toLowerCase()
+                  ? battleData.chain.playerB
+                  : battleData.chain.playerA
               )}</span>
             </div>
           </>

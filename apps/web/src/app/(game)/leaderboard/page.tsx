@@ -4,19 +4,22 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { formatAddress } from '@/lib/format';
+import { formatAddress, formatClaw } from '@/lib/format';
 import { Trophy } from 'lucide-react';
 
 export default function LeaderboardPage() {
-  const { data: battleLeaderboard } = useQuery({
-    queryKey: ['leaderboard', 'battles'],
+  const { data: battleData } = useQuery({
+    queryKey: ['leaderboard', 'battle'],
     queryFn: () => api.leaderboard.battles(50),
   });
 
-  const { data: miningLeaderboard } = useQuery({
-    queryKey: ['leaderboard', 'miners'],
-    queryFn: () => api.leaderboard.miners(50),
+  const { data: miningData } = useQuery({
+    queryKey: ['leaderboard', 'mining'],
+    queryFn: () => api.leaderboard.mining(50),
   });
+
+  const battleEntries = battleData?.leaderboard ?? [];
+  const miningEntries = miningData?.leaderboard ?? [];
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
@@ -32,24 +35,25 @@ export default function LeaderboardPage() {
         </TabsList>
 
         <TabsContent value="battle" className="mt-4 space-y-1">
-          {(battleLeaderboard?.agents ?? []).length === 0 ? (
+          {battleEntries.length === 0 ? (
             <div className="border border-border rounded-md p-12 text-center">
               <p className="text-sm text-muted-foreground">No battle data yet.</p>
             </div>
           ) : (
-            (battleLeaderboard?.agents ?? []).map((agent, i) => (
-              <div key={agent.address as string} className="flex items-center justify-between border border-border rounded-md px-4 py-3">
+            battleEntries.map((entry) => (
+              <div key={entry.address} className="flex items-center justify-between border border-border rounded-md px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <RankBadge rank={i + 1} />
-                  <span className="font-mono text-sm">{formatAddress(agent.address as string)}</span>
+                  <RankBadge rank={entry.rank} />
+                  <span className="font-mono text-sm">{formatAddress(entry.address)}</span>
                 </div>
                 <div className="flex items-center gap-4 text-sm">
-                  <span className="font-mono font-semibold text-claw-gold">{agent.elo as number}</span>
+                  <span className="font-mono font-semibold text-claw-gold">{entry.elo}</span>
                   <span className="text-muted-foreground">
-                    <span className="text-teal">{agent.wins as number}W</span>
+                    <span className="text-teal">{entry.wins}W</span>
                     {' / '}
-                    <span className="text-destructive">{agent.losses as number}L</span>
+                    <span className="text-destructive">{entry.losses}L</span>
                   </span>
+                  <span className="text-muted-foreground text-xs">{entry.winRate}</span>
                 </div>
               </div>
             ))
@@ -57,18 +61,21 @@ export default function LeaderboardPage() {
         </TabsContent>
 
         <TabsContent value="mining" className="mt-4 space-y-1">
-          {(miningLeaderboard?.agents ?? []).length === 0 ? (
+          {miningEntries.length === 0 ? (
             <div className="border border-border rounded-md p-12 text-center">
               <p className="text-sm text-muted-foreground">No mining data yet.</p>
             </div>
           ) : (
-            (miningLeaderboard?.agents ?? []).map((agent, i) => (
-              <div key={agent.address as string} className="flex items-center justify-between border border-border rounded-md px-4 py-3">
+            miningEntries.map((entry) => (
+              <div key={entry.owner} className="flex items-center justify-between border border-border rounded-md px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <RankBadge rank={i + 1} />
-                  <span className="font-mono text-sm">{formatAddress(agent.address as string)}</span>
+                  <RankBadge rank={entry.rank} />
+                  <span className="font-mono text-sm">{formatAddress(entry.owner)}</span>
                 </div>
-                <span className="font-mono text-sm font-semibold">{agent.totalExpeditions as number}</span>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="font-mono font-semibold">{entry.totalExpeditions} runs</span>
+                  <span className="font-mono text-claw-gold">{formatClaw(entry.totalReward)}</span>
+                </div>
               </div>
             ))
           )}
