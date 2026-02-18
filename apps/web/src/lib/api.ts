@@ -297,9 +297,48 @@ interface QueueStatus {
   waitingSeconds?: number;
 }
 
+interface ChainBattleData {
+  battleId: string;
+  playerA: string;
+  playerB: string;
+  teamIdA: string;
+  teamIdB: string;
+  stakeAmount: string;
+  phase: number;
+  currentRound: number;
+  winner: string;
+  depositA: boolean;
+  depositB: boolean;
+  teamCommitA: string;
+  teamCommitB: string;
+  teamRevealedA: boolean;
+  teamRevealedB: boolean;
+  roundCommitA: string;
+  roundCommitB: string;
+  roundRevealedA: boolean;
+  roundRevealedB: boolean;
+}
+
+interface DbBattleData {
+  battleId: string;
+  playerA: string;
+  playerB: string;
+  teamA: string;
+  teamB: string;
+  stakeBracket: number;
+  stakeAmount: string;
+  phase: number;
+  winner: string | null;
+  protocolFee: string | null;
+  winnerPayout: string | null;
+  totalRounds: number | null;
+  createdAt: string;
+  settledAt: string | null;
+}
+
 interface BattleData {
-  chain: Record<string, unknown>;
-  db: Record<string, unknown>;
+  chain: ChainBattleData;
+  db: DbBattleData | null;
 }
 
 interface RoundData {
@@ -348,11 +387,39 @@ const combat = {
 
 // ── Leaderboard ──
 
+interface BattleLeaderboardEntry {
+  rank: number;
+  address: string;
+  elo: number;
+  wins: number;
+  losses: number;
+  totalBattles: number;
+  winRate: string;
+}
+
+interface MiningLeaderboardEntry {
+  rank: number;
+  owner: string;
+  totalExpeditions: number;
+  totalReward: string;
+}
+
+interface BreedingLeaderboardEntry {
+  rank: number;
+  breeder: string;
+  totalBreeds: number;
+  totalCost: string;
+}
+
 const leaderboard = {
-  battles: (limit = 20, offset = 0) =>
-    get<{ count: number; agents: Array<Record<string, unknown>> }>(`/api/leaderboard/battles?limit=${limit}&offset=${offset}`),
-  miners: (limit = 20, offset = 0) =>
-    get<{ count: number; agents: Array<Record<string, unknown>> }>(`/api/leaderboard/miners?limit=${limit}&offset=${offset}`),
+  battles: (limit = 50, sort: 'elo' | 'wins' = 'elo') =>
+    get<{ sort: string; count: number; leaderboard: BattleLeaderboardEntry[] }>(`/api/leaderboard/battle?limit=${limit}&sort=${sort}`),
+  mining: (limit = 50, season?: number) =>
+    get<{ season: string; count: number; leaderboard: MiningLeaderboardEntry[] }>(
+      `/api/leaderboard/mining?limit=${limit}${season != null ? `&season=${season}` : ''}`,
+    ),
+  breeding: (limit = 50) =>
+    get<{ count: number; leaderboard: BreedingLeaderboardEntry[] }>(`/api/leaderboard/breeding?limit=${limit}`),
 };
 
 // ── Exports ──
@@ -386,6 +453,11 @@ export type {
   QueueResponse,
   QueueStatus,
   BattleData,
+  ChainBattleData,
+  DbBattleData,
   RoundData,
   BattleHistoryItem,
+  BattleLeaderboardEntry,
+  MiningLeaderboardEntry,
+  BreedingLeaderboardEntry,
 };
