@@ -89,38 +89,35 @@ export async function readLobster(tokenId: bigint): Promise<ChainLobster> {
 }
 
 export async function readLobstersByOwner(ownerAddress: string): Promise<ChainLobster[]> {
-  const c = client();
-  const nft = getLobsterNFT(c);
-  const nextId = await nft.read.nextTokenId();
-  const lobsters: ChainLobster[] = [];
+  const { db, lobsters } = await import('@clawbada/db');
+  const { eq } = await import('drizzle-orm');
 
-  // Batch ownership checks (known perf concern — indexer replaces later)
-  const batchSize = 50;
-  for (let start = 1n; start < nextId; start += BigInt(batchSize)) {
-    const end = start + BigInt(batchSize) > nextId ? nextId : start + BigInt(batchSize);
-    const checks = [];
-    for (let id = start; id < end; id++) {
-      checks.push(
-        nft.read.ownerOf([id]).then(
-          (owner: string) => ({ id, owner: owner as string, exists: true }),
-          () => ({ id, owner: '', exists: false }),
-        ),
-      );
-    }
+  const rows = await db
+    .select()
+    .from(lobsters)
+    .where(eq(lobsters.owner, ownerAddress.toLowerCase()));
 
-    const results = await Promise.all(checks);
-    const owned = results.filter(
-      (r) => r.exists && r.owner.toLowerCase() === ownerAddress.toLowerCase(),
-    );
+  return rows.map((row) => {
+    const dna = BigInt(row.dna);
+    const decoded = decodeDNA(dna);
+    const baseStats = getBaseStats(decoded.class);
+    const stats = scaleStats(baseStats, row.evolutionTier as EvolutionTier, decoded.legend === LegendStatus.Legend);
 
-    if (owned.length > 0) {
-      const lobsterPromises = owned.map((r) => readLobster(r.id));
-      const batch = await Promise.all(lobsterPromises);
-      lobsters.push(...batch);
-    }
-  }
-
-  return lobsters;
+    return {
+      tokenId: row.tokenId,
+      owner: row.owner,
+      dna,
+      decoded,
+      evolutionTier: row.evolutionTier,
+      damage: row.damage,
+      breedCount: row.breedCount,
+      generation: row.generation,
+      soulbound: row.soulbound,
+      locked: row.locked,
+      purity: row.purity,
+      stats,
+    };
+  });
 }
 
 // ──────────── Teams ────────────
