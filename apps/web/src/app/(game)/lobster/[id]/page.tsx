@@ -13,12 +13,8 @@ import { StatBars } from '@/components/game/stat-bars';
 import { DNAViewer } from '@/components/game/dna-viewer';
 import { TransactionButton } from '@/components/game/transaction-button';
 import { formatClaw, tierLabel } from '@/lib/format';
+import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { Sparkles, Link as LinkIcon, Lock, ChevronLeft } from 'lucide-react';
-
-const CLASS_NAMES = [
-  'Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter',
-  'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember',
-] as const;
 
 export default function LobsterDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -122,7 +118,7 @@ export default function LobsterDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
-            <Badge className="bg-coral text-white text-xs">{CLASS_NAMES[lobster.class]}</Badge>
+            <Badge className="bg-coral text-white text-xs">{CLASS_NAMES_LIST[lobster.class]}</Badge>
             <Badge variant="outline" className="text-xs">{tierLabel(lobster.evolutionTier)}</Badge>
             <Badge variant="outline" className="text-xs">Gen {lobster.generation}</Badge>
             <Badge variant="outline" className="text-xs">Breeds: {lobster.breedCount}/5</Badge>

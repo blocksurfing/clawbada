@@ -15,12 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { LobsterCard } from '@/components/game/lobster-card';
 import { TransactionButton } from '@/components/game/transaction-button';
 import { formatClaw, formatAddress, tierLabel } from '@/lib/format';
+import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { Store } from 'lucide-react';
-
-const CLASS_NAMES = [
-  'Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter',
-  'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember',
-] as const;
 
 export default function MarketplacePage() {
   const { address } = useAccount();
@@ -71,7 +67,7 @@ export default function MarketplacePage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Classes</SelectItem>
-            {CLASS_NAMES.map((name, i) => (
+            {CLASS_NAMES_LIST.map((name, i) => (
               <SelectItem key={i} value={String(i)}>{name}</SelectItem>
             ))}
           </SelectContent>
@@ -131,7 +127,7 @@ export default function MarketplacePage() {
                   <div className="text-xs font-medium truncate">#{listing.tokenId}</div>
                   {listing.class != null && (
                     <Badge variant="outline" className="text-[10px] px-1 py-0 mt-1">
-                      {CLASS_NAMES[listing.class]}
+                      {CLASS_NAMES_LIST[listing.class]}
                     </Badge>
                   )}
                   <div className="text-sm font-semibold font-mono mt-1 text-claw-gold">{formatClaw(listing.price)}</div>

@@ -13,6 +13,9 @@ export const CLASS_NAMES: Record<LobsterClass, string> = {
   [LobsterClass.Ember]: 'Ember',
 };
 
+/** Array form of CLASS_NAMES for iteration (index = LobsterClass enum value). */
+export const CLASS_NAMES_LIST: readonly string[] = Array.from({ length: 10 }, (_, i) => CLASS_NAMES[i as LobsterClass]);
+
 export const CLASS_ROLES: Record<LobsterClass, string> = {
   [LobsterClass.Bulwark]: 'Tank',
   [LobsterClass.Mantis]: 'Assassin',
