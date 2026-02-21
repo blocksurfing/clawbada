@@ -13,6 +13,7 @@
     "db:generate": "bun run --filter @clawbada/db generate",
     "db:migrate": "bun run --filter @clawbada/db migrate",
     "db:studio": "bun run --filter @clawbada/db studio",
+    "sync-deploy": "bun run scripts/sync-deploy.ts",
     "extract-abis": "bun run packages/chain/scripts/extract-abis.ts",
     "forge:build": "forge build",
     "forge:test": "forge test"
