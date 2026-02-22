@@ -5,12 +5,12 @@
  * Filename convention: data/{bodyPart}/{className}.json
  */
 
-import { BODY_PART_NAMES, CLASS_NAMES, NUM_BODY_PARTS, NUM_CLASSES } from '../constants';
+import { BODY_PART_NAMES, CLASS_NAMES, NUM_BODY_PARTS, NUM_CLASSES, NATIVE_SIZE, V1_OFFSET } from '../constants';
 import { validateTemplate } from './schema';
 import type { PixelTemplate } from '../types';
 
-/** Cache: key = "bodyPart:classAffinity" */
-const templateCache = new Map<string, PixelTemplate>();
+/** Cache: key = "bodyPart:classAffinity". null = confirmed missing. */
+const templateCache = new Map<string, PixelTemplate | null>();
 
 function cacheKey(bodyPart: number, classAffinity: number): string {
   return `${bodyPart}:${classAffinity}`;
@@ -18,15 +18,15 @@ function cacheKey(bodyPart: number, classAffinity: number): string {
 
 /**
  * Load a template from the data/ directory.
+ * Returns null if the template file does not exist (graceful fallback for missing assets).
  *
  * @param bodyPart Body part index (0-5)
  * @param classAffinity Class affinity index (0-9)
- * @returns The validated PixelTemplate
+ * @returns The validated PixelTemplate, or null if missing
  */
-export async function loadTemplate(bodyPart: number, classAffinity: number): Promise<PixelTemplate> {
+export async function loadTemplate(bodyPart: number, classAffinity: number): Promise<PixelTemplate | null> {
   const key = cacheKey(bodyPart, classAffinity);
-  const cached = templateCache.get(key);
-  if (cached) return cached;
+  if (templateCache.has(key)) return templateCache.get(key)!;
 
   if (bodyPart < 0 || bodyPart >= NUM_BODY_PARTS) {
     throw new Error(`Invalid body part index: ${bodyPart}`);
@@ -42,9 +42,14 @@ export async function loadTemplate(bodyPart: number, classAffinity: number): Pro
   let data: unknown;
   try {
     const file = Bun.file(path);
+    if (!(await file.exists())) {
+      templateCache.set(key, null);
+      return null;
+    }
     data = await file.json();
   } catch {
-    throw new Error(`Failed to load template: ${partName}/${className}.json`);
+    templateCache.set(key, null);
+    return null;
   }
 
   const errors = validateTemplate(data);
@@ -53,17 +58,55 @@ export async function loadTemplate(bodyPart: number, classAffinity: number): Pro
     throw new Error(`Invalid template ${partName}/${className}.json:\n${msgs}`);
   }
 
-  const template = data as PixelTemplate;
+  const template = normalizeToV2(data as PixelTemplate);
   templateCache.set(key, template);
   return template;
 }
 
 /**
+ * Normalize a v1 template to v2 format.
+ * Centers 48x48 pixels in a 64x64 canvas (offset +8,+8), tags all pixels as tier 0.
+ * v2 templates pass through unchanged.
+ */
+function normalizeToV2(template: PixelTemplate): PixelTemplate {
+  if (template.version === 2) return template;
+
+  return {
+    ...template,
+    version: 2,
+    width: NATIVE_SIZE,
+    height: NATIVE_SIZE,
+    anchor: {
+      x: template.anchor.x + V1_OFFSET,
+      y: template.anchor.y + V1_OFFSET,
+    },
+    bounds: {
+      x: template.bounds.x + V1_OFFSET,
+      y: template.bounds.y + V1_OFFSET,
+      w: template.bounds.w,
+      h: template.bounds.h,
+    },
+    mutationZones: template.mutationZones.map((zone) => ({
+      ...zone,
+      x: zone.x + V1_OFFSET,
+      y: zone.y + V1_OFFSET,
+    })),
+    pixels: template.pixels.map((p) => ({
+      x: p.x + V1_OFFSET,
+      y: p.y + V1_OFFSET,
+      role: p.role,
+      tier: 0,
+    })),
+  };
+}
+
+/**
  * Load all 60 templates (6 body parts × 10 classes).
  * Returns a flat array indexed by bodyPart * 10 + classAffinity.
+ * Missing templates are null in the returned array.
  */
-export async function loadAllTemplates(): Promise<PixelTemplate[]> {
-  const templates: PixelTemplate[] = [];
+export async function loadAllTemplates(): Promise<(PixelTemplate | null)[]> {
+  const templates: (PixelTemplate | null)[] = new Array(NUM_BODY_PARTS * NUM_CLASSES).fill(null);
   const promises: Promise<void>[] = [];
 
   for (let bp = 0; bp < NUM_BODY_PARTS; bp++) {
@@ -87,7 +130,7 @@ export function registerTemplate(template: PixelTemplate): void {
   if (bodyPartIdx === -1) {
     throw new Error(`Unknown body part: ${template.bodyPart}`);
   }
-  templateCache.set(cacheKey(bodyPartIdx, template.classAffinity), template);
+  templateCache.set(cacheKey(bodyPartIdx, template.classAffinity), normalizeToV2(template));
 }
 
 /** Clear the template cache. */

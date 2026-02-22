@@ -42,6 +42,18 @@ export function dnaToRenderParams(dna: bigint, evolutionTier = 0): RenderParams 
   };
 }
 
+// ──────────── Tier Filtering ────────────
+
+/**
+ * Filter a template's pixels to only include those at or below the given evolution tier.
+ * Returns a new template (does not mutate the original).
+ */
+function filterTemplateByTier(template: PixelTemplate, evolutionTier: number): PixelTemplate {
+  const filtered = template.pixels.filter((p) => (p.tier ?? 0) <= evolutionTier);
+  if (filtered.length === template.pixels.length) return template; // No change
+  return { ...template, pixels: filtered };
+}
+
 // ──────────── Primary API ────────────
 
 /**
@@ -69,7 +81,12 @@ export async function renderLobster(
   for (const part of params.parts) {
     if (partsFilter && !partsFilter.includes(part.bodyPart)) continue;
 
-    const template = await loadTemplate(part.bodyPart, part.classAffinity);
+    const loaded = await loadTemplate(part.bodyPart, part.classAffinity);
+    if (!loaded) continue; // Skip missing templates gracefully
+
+    // Filter template pixels by evolution tier — only include pixels at ≤ evolutionTier
+    const template = filterTemplateByTier(loaded, evolutionTier);
+
     layers[part.bodyPart] = renderBodyPart(template, part.variant, params.breedType);
   }
 
@@ -123,8 +140,9 @@ export async function renderPart(
   classAffinity: number,
   variant: number,
   breedType = 0,
-): Promise<PixelGrid> {
+): Promise<PixelGrid | null> {
   const template = await loadTemplate(bodyPart, classAffinity);
+  if (!template) return null;
   return renderBodyPart(template, variant, breedType);
 }
 
@@ -188,6 +206,9 @@ export { PaletteRole } from './types';
 // Re-export constants
 export {
   NATIVE_SIZE,
+  LEGACY_SIZE,
+  V1_OFFSET,
+  TIER_SIZES,
   NUM_BODY_PARTS,
   NUM_CLASSES,
   VARIANTS_PER_TEMPLATE,

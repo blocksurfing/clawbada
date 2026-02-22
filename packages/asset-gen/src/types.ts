@@ -31,8 +31,10 @@ export enum PaletteRole {
 export interface TemplatePixel {
   x: number;
   y: number;
-  /** Palette role index (0-6). */
-  role: PaletteRole;
+  /** Palette role index (0-6 standard, 7+ custom). */
+  role: number;
+  /** Evolution tier this pixel appears at (0=Base, 1=Evolved, 2=Elite, 3=Apex). v2 only. */
+  tier?: number;
 }
 
 /** Allowed mutation operations within a zone. */
@@ -57,9 +59,9 @@ export interface MutationZone {
 export interface PixelTemplate {
   bodyPart: string;
   classAffinity: number;
-  version: 1;
-  width: 48;
-  height: 48;
+  version: 1 | 2;
+  width: number;
+  height: number;
   /** Anchor point for compositing alignment. */
   anchor: { x: number; y: number };
   /** Bounding box of non-transparent pixels (for optimization). */
@@ -68,6 +70,8 @@ export interface PixelTemplate {
   mutationZones: MutationZone[];
   /** Sparse pixel data: only non-transparent pixels. */
   pixels: TemplatePixel[];
+  /** Custom colors for roles 7+ (v2 only). Each entry is [R, G, B]. */
+  customColors?: [number, number, number][];
 }
 
 // ──────────── Palette types ────────────
@@ -96,7 +100,7 @@ export interface BreedTypeShift {
 
 /** Options for rendering a full lobster from DNA. */
 export interface RenderOptions {
-  /** Target output size (default: 48). Must be a multiple of 48. */
+  /** Target output size (default: 64). Must be a multiple of 64. */
   size?: number;
   /** If true, include evolution effects. Default: true. */
   evolutionEffects?: boolean;

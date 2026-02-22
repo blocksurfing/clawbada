@@ -13,6 +13,7 @@
       "name": "@clawbada/api",
       "version": "0.0.1",
       "dependencies": {
+        "@clawbada/asset-gen": "workspace:*",
         "@clawbada/chain": "workspace:*",
         "@clawbada/db": "workspace:*",
         "@clawbada/game-logic": "workspace:*",

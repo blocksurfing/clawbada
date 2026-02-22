@@ -27,7 +27,7 @@ export function renderBodyPart(
   breedType: number,
 ): PixelGrid {
   const roleGrid = generateVariant(template, variant);
-  return resolveColors(roleGrid, template.classAffinity, breedType);
+  return resolveColors(roleGrid, template.classAffinity, breedType, template.customColors);
 }
 
 /**
@@ -46,7 +46,7 @@ export function renderBodyPartFromRoleGrid(
  * Layers are composited in LAYER_ORDER (back to front).
  *
  * @param layers Map of bodyPart index → rendered PixelGrid
- * @returns Final composited 48×48 PixelGrid
+ * @returns Final composited 64×64 PixelGrid
  */
 export function compositeLayers(layers: Map<number, PixelGrid>): PixelGrid {
   const canvas = createGrid(NATIVE_SIZE, NATIVE_SIZE);
@@ -84,13 +84,14 @@ export function compositeLayerArray(layers: (PixelGrid | null)[]): PixelGrid {
  * @returns Composited PixelGrid
  */
 export function renderFromParams(
-  getTemplate: (bodyPart: number, classAffinity: number) => PixelTemplate,
+  getTemplate: (bodyPart: number, classAffinity: number) => PixelTemplate | null,
   params: RenderParams,
 ): PixelGrid {
   const layers: (PixelGrid | null)[] = new Array(NUM_BODY_PARTS).fill(null);
 
   for (const part of params.parts) {
     const template = getTemplate(part.bodyPart, part.classAffinity);
+    if (!template) continue; // Skip missing templates
     layers[part.bodyPart] = renderBodyPart(template, part.variant, params.breedType);
   }
 
