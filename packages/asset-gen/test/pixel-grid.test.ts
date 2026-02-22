@@ -14,11 +14,11 @@ import {
 import type { RGBA } from '../src/types';
 
 describe('createGrid()', () => {
-  test('creates grid with default 48x48 size', () => {
+  test('creates grid with default 64x64 size', () => {
     const grid = createGrid();
-    expect(grid.width).toBe(48);
-    expect(grid.height).toBe(48);
-    expect(grid.data.length).toBe(48 * 48 * 4);
+    expect(grid.width).toBe(64);
+    expect(grid.height).toBe(64);
+    expect(grid.data.length).toBe(64 * 64 * 4);
   });
 
   test('creates grid with custom size', () => {

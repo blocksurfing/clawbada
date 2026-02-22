@@ -6,6 +6,7 @@ import { teamRoutes } from './teams';
 import { marketRoutes } from './market';
 import { evolutionRoutes } from './evolution';
 import { repairRoutes } from './repair';
+import { renderRoutes } from './render';
 
 export const gameRoutes = new Hono();
 
@@ -16,3 +17,4 @@ gameRoutes.route('/teams', teamRoutes);
 gameRoutes.route('/market', marketRoutes);
 gameRoutes.route('/evolution', evolutionRoutes);
 gameRoutes.route('/repair', repairRoutes);
+gameRoutes.route('/render', renderRoutes);

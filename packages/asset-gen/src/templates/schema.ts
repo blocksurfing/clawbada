@@ -1,8 +1,9 @@
 /**
  * Template validation for PixelTemplate JSON files.
+ * Supports v1 (48x48, no tier) and v2 (64x64, tier-tagged pixels, custom colors).
  */
 
-import { NATIVE_SIZE, NUM_CLASSES, NUM_ROLES } from '../constants';
+import { NATIVE_SIZE, LEGACY_SIZE, NUM_CLASSES, NUM_ROLES } from '../constants';
 import type { MutationType, PixelTemplate, TemplatePixel, MutationZone } from '../types';
 
 const VALID_MUTATIONS: MutationType[] = [
@@ -33,16 +34,19 @@ export function validateTemplate(template: unknown): ValidationError[] {
   const t = template as Record<string, unknown>;
 
   // Version
-  if (t.version !== 1) {
-    errors.push({ path: 'version', message: `Expected version 1, got ${t.version}` });
+  const version = t.version;
+  if (version !== 1 && version !== 2) {
+    errors.push({ path: 'version', message: `Expected version 1 or 2, got ${version}` });
+    return errors; // Can't validate further without knowing version
   }
 
-  // Dimensions
-  if (t.width !== NATIVE_SIZE) {
-    errors.push({ path: 'width', message: `Expected ${NATIVE_SIZE}, got ${t.width}` });
+  // Dimensions — v1 uses 48x48, v2 uses 64x64
+  const expectedSize = version === 1 ? LEGACY_SIZE : NATIVE_SIZE;
+  if (t.width !== expectedSize) {
+    errors.push({ path: 'width', message: `Expected ${expectedSize} for v${version}, got ${t.width}` });
   }
-  if (t.height !== NATIVE_SIZE) {
-    errors.push({ path: 'height', message: `Expected ${NATIVE_SIZE}, got ${t.height}` });
+  if (t.height !== expectedSize) {
+    errors.push({ path: 'height', message: `Expected ${expectedSize} for v${version}, got ${t.height}` });
   }
 
   // Body part
@@ -76,6 +80,22 @@ export function validateTemplate(template: unknown): ValidationError[] {
     }
   }
 
+  // Custom colors (v2 only, optional)
+  const hasCustomColors = Array.isArray(t.customColors) && (t.customColors as unknown[]).length > 0;
+  if (version === 2 && t.customColors !== undefined) {
+    if (!Array.isArray(t.customColors)) {
+      errors.push({ path: 'customColors', message: 'customColors must be an array' });
+    } else {
+      for (let i = 0; i < t.customColors.length; i++) {
+        const c = t.customColors[i] as unknown;
+        if (!Array.isArray(c) || (c as number[]).length !== 3 ||
+            !(c as number[]).every((v) => typeof v === 'number' && v >= 0 && v <= 255)) {
+          errors.push({ path: `customColors[${i}]`, message: 'Must be [R, G, B] with values 0-255' });
+        }
+      }
+    }
+  }
+
   // Mutation zones
   if (!Array.isArray(t.mutationZones)) {
     errors.push({ path: 'mutationZones', message: 'mutationZones must be an array' });
@@ -86,7 +106,7 @@ export function validateTemplate(template: unknown): ValidationError[] {
           typeof zone.w !== 'number' || typeof zone.h !== 'number') {
         errors.push({ path: `mutationZones[${i}]`, message: 'Zone x/y/w/h must be numbers' });
       }
-      if (zone.x < 0 || zone.y < 0 || zone.x + zone.w > NATIVE_SIZE || zone.y + zone.h > NATIVE_SIZE) {
+      if (zone.x < 0 || zone.y < 0 || zone.x + zone.w > expectedSize || zone.y + zone.h > expectedSize) {
         errors.push({ path: `mutationZones[${i}]`, message: 'Zone exceeds canvas bounds' });
       }
       if (!Array.isArray(zone.allowed) || zone.allowed.length === 0) {
@@ -105,17 +125,24 @@ export function validateTemplate(template: unknown): ValidationError[] {
   if (!Array.isArray(t.pixels)) {
     errors.push({ path: 'pixels', message: 'pixels must be an array' });
   } else {
+    const maxCustomRole = hasCustomColors ? NUM_ROLES + (t.customColors as unknown[]).length : NUM_ROLES;
     for (let i = 0; i < t.pixels.length; i++) {
       const p = t.pixels[i] as TemplatePixel;
       if (typeof p.x !== 'number' || typeof p.y !== 'number' || typeof p.role !== 'number') {
         errors.push({ path: `pixels[${i}]`, message: 'Pixel x/y/role must be numbers' });
         continue;
       }
-      if (p.x < 0 || p.x >= NATIVE_SIZE || p.y < 0 || p.y >= NATIVE_SIZE) {
+      if (p.x < 0 || p.x >= expectedSize || p.y < 0 || p.y >= expectedSize) {
         errors.push({ path: `pixels[${i}]`, message: `Pixel (${p.x}, ${p.y}) out of bounds` });
       }
-      if (p.role < 0 || p.role >= NUM_ROLES) {
-        errors.push({ path: `pixels[${i}]`, message: `Invalid role ${p.role} (must be 0-${NUM_ROLES - 1})` });
+      if (p.role < 0 || p.role >= maxCustomRole) {
+        errors.push({ path: `pixels[${i}]`, message: `Invalid role ${p.role} (must be 0-${maxCustomRole - 1})` });
+      }
+      // v2: validate optional tier field
+      if (version === 2 && p.tier !== undefined) {
+        if (typeof p.tier !== 'number' || p.tier < 0 || p.tier > 3) {
+          errors.push({ path: `pixels[${i}].tier`, message: `Tier must be 0-3, got ${p.tier}` });
+        }
       }
     }
   }

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
 import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 
 const CLASS_COLORS = [
@@ -22,23 +23,8 @@ function extractClass(dna: string | bigint): number {
   return Number((n >> 252n) & 0xFn);
 }
 
-interface UseLobsterImageResult {
-  dataUrl: string | null;
-  loading: boolean;
-  error: string | null;
-}
-
-/**
- * Returns a placeholder SVG data-URL for a lobster based on its DNA.
- * TODO: Replace with server-rendered pixel art via API route.
- */
-export function useLobsterImage(
-  dna: string | bigint | undefined,
-  evolutionTier = 0,
-  _scale = 4,
-): UseLobsterImageResult {
-  if (!dna) return { dataUrl: null, loading: false, error: null };
-
+/** Generate a placeholder SVG data-URL (used as fallback while loading or on error). */
+function makePlaceholder(dna: string | bigint, evolutionTier: number): string {
   const cls = extractClass(dna);
   const color = CLASS_COLORS[cls] ?? '#6B7280';
   const name = CLASS_NAMES_LIST[cls] ?? '?';
@@ -51,6 +37,86 @@ export function useLobsterImage(
   ${tier ? `<text x="48" y="84" text-anchor="middle" fill="#fbbf24" font-size="12" font-family="system-ui,sans-serif">${tier}</text>` : ''}
 </svg>`;
 
-  const dataUrl = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-  return { dataUrl, loading: false, error: null };
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/** Map scale multiplier to actual pixel sizes. */
+const SCALE_TO_SIZE: Record<number, number> = { 1: 64, 2: 128, 4: 256, 8: 512 };
+
+interface UseLobsterImageResult {
+  dataUrl: string | null;
+  loading: boolean;
+  error: string | null;
+}
+
+/**
+ * Fetches a rendered lobster PNG from the API.
+ * Falls back to an SVG placeholder while loading or on error.
+ */
+export function useLobsterImage(
+  dna: string | bigint | undefined,
+  evolutionTier = 0,
+  scale = 4,
+): UseLobsterImageResult {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  // Stable key for memoization
+  const dnaStr = dna !== undefined ? String(dna) : undefined;
+  const size = SCALE_TO_SIZE[scale] ?? 256;
+
+  useEffect(() => {
+    if (!dnaStr) {
+      setDataUrl(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    // Show placeholder immediately while loading
+    setDataUrl(makePlaceholder(dnaStr, evolutionTier));
+    setLoading(true);
+    setError(null);
+
+    const controller = new AbortController();
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    const url = `${apiBase}/api/game/render/dna/${dnaStr}?tier=${evolutionTier}&size=${size}`;
+
+    fetch(url, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Render failed: ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        // Clean up previous object URL
+        if (objectUrlRef.current) {
+          URL.revokeObjectURL(objectUrlRef.current);
+        }
+        const objUrl = URL.createObjectURL(blob);
+        objectUrlRef.current = objUrl;
+        setDataUrl(objUrl);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (err.name === 'AbortError') return;
+        setError(err.message);
+        setLoading(false);
+        // Keep the placeholder visible on error
+      });
+
+    return () => {
+      controller.abort();
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, [dnaStr, evolutionTier, size]);
+
+  if (!dna) return { dataUrl: null, loading: false, error: null };
+
+  return { dataUrl, loading, error };
 }

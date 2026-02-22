@@ -30,11 +30,15 @@ function paletteToArray(palette: ResolvedPalette): RGBA[] {
 
 /**
  * Resolve a role grid to a colored PixelGrid using the given class palette.
+ *
+ * @param customColors Optional custom color array for roles 7+ (from v2 templates).
+ *   Each entry is [R, G, B]. Custom colors are NOT shifted by breed type.
  */
 export function resolveColors(
   roleGrid: RoleGrid,
   classAffinity: number,
   breedType: number,
+  customColors?: [number, number, number][],
 ): PixelGrid {
   const palette = getClassPalette(classAffinity);
   const paletteArr = paletteToArray(palette);
@@ -46,14 +50,22 @@ export function resolveColors(
       const role = roleGrid[y * NATIVE_SIZE + x];
       if (role === 0xFF) continue; // Transparent
 
-      let color = paletteArr[role] ?? paletteArr[2]; // Fallback to primaryBase
+      let color: RGBA;
 
-      // Apply breed type shift
-      color = shiftHSL(color, shift.hueRotation, shift.saturationMult, shift.lightnessMult);
+      if (role >= 7 && customColors && customColors[role - 7]) {
+        // Custom color roles (7+): use template-defined color, no breed shift
+        const cc = customColors[role - 7];
+        color = [cc[0], cc[1], cc[2], 255];
+      } else {
+        color = paletteArr[role] ?? paletteArr[2]; // Fallback to primaryBase
 
-      // Apply tint if present
-      if (shift.tint && shift.tintStrength) {
-        color = tintColor(color, shift.tint, shift.tintStrength);
+        // Apply breed type shift
+        color = shiftHSL(color, shift.hueRotation, shift.saturationMult, shift.lightnessMult);
+
+        // Apply tint if present
+        if (shift.tint && shift.tintStrength) {
+          color = tintColor(color, shift.tint, shift.tintStrength);
+        }
       }
 
       const i = (y * NATIVE_SIZE + x) * CHANNELS;

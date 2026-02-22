@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clawbada/asset-gen": "workspace:*",
     "@clawbada/chain": "workspace:*",
     "@clawbada/db": "workspace:*",
     "@clawbada/game-logic": "workspace:*",

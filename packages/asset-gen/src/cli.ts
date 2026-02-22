@@ -185,11 +185,13 @@ async function cmdVariant(args: string[]): Promise<void> {
   const output = values.output ?? `${BODY_PART_NAMES[part]}_${CLASS_NAMES[cls]}_v${variant}.png`;
 
   console.log(`Rendering ${BODY_PART_NAMES[part]} / ${CLASS_NAMES[cls]} / variant ${variant}`);
-  let grid = await renderPart(part, cls, variant, breedType);
-  if (size !== NATIVE_SIZE) {
-    grid = upscale(grid, size);
+  const grid = await renderPart(part, cls, variant, breedType);
+  if (!grid) {
+    console.error(`Template not found: ${BODY_PART_NAMES[part]}/${CLASS_NAMES[cls]}`);
+    process.exit(1);
   }
-  await saveGridAsPng(grid, output);
+  const output_grid = size !== NATIVE_SIZE ? upscale(grid, size) : grid;
+  await saveGridAsPng(output_grid, output);
   console.log(`Saved: ${output}`);
 }
 
@@ -223,13 +225,15 @@ async function cmdSheet(args: string[]): Promise<void> {
   console.log(`Generating 16-variant sheet for ${BODY_PART_NAMES[part]} / ${CLASS_NAMES[cls]}`);
 
   for (let v = 0; v < VARIANTS_PER_TEMPLATE; v++) {
-    let partGrid = await renderPart(part, cls, v);
-    if (cellSize !== NATIVE_SIZE) {
-      partGrid = upscale(partGrid, cellSize);
+    const partGrid = await renderPart(part, cls, v);
+    if (!partGrid) {
+      console.error(`Template not found: ${BODY_PART_NAMES[part]}/${CLASS_NAMES[cls]}`);
+      process.exit(1);
     }
+    const cell = cellSize !== NATIVE_SIZE ? upscale(partGrid, cellSize) : partGrid;
     const col = v % cols;
     const row = Math.floor(v / cols);
-    blitOver(sheet, partGrid, col * cellSize, row * cellSize);
+    blitOver(sheet, cell, col * cellSize, row * cellSize);
   }
 
   await saveGridAsPng(sheet, output);
@@ -268,10 +272,8 @@ async function cmdPreviewAll(args: string[]): Promise<void> {
 
   for (let bp = 0; bp < NUM_BODY_PARTS; bp++) {
     for (let cls = 0; cls < NUM_CLASSES; cls++) {
-      let template;
-      try {
-        template = await loadTemplate(bp, cls);
-      } catch {
+      const template = await loadTemplate(bp, cls);
+      if (!template) {
         console.log(`  Skipping ${BODY_PART_NAMES[bp]}/${CLASS_NAMES[cls]} (no template)`);
         continue;
       }
@@ -310,17 +312,17 @@ async function cmdValidateTemplates(args: string[]): Promise<void> {
 
       try {
         const template = await loadTemplate(bp, cls);
-        console.log(`  ✓ ${partName}/${className} (${template.pixels.length} pixels, ${template.mutationZones.length} zones)`);
-        valid++;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes('Failed to load')) {
+        if (!template) {
           console.log(`  - ${partName}/${className} (not found)`);
           missing++;
         } else {
-          console.error(`  ✗ ${partName}/${className}: ${msg}`);
-          invalid++;
+          console.log(`  ✓ ${partName}/${className} (${template.pixels.length} pixels, ${template.mutationZones.length} zones)`);
+          valid++;
         }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`  ✗ ${partName}/${className}: ${msg}`);
+        invalid++;
       }
     }
   }

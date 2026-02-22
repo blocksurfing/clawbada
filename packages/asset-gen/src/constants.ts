@@ -1,5 +1,11 @@
 /** Native pixel art resolution. */
-export const NATIVE_SIZE = 48;
+export const NATIVE_SIZE = 64;
+
+/** Legacy v1 template size (for v1→v2 normalization). */
+export const LEGACY_SIZE = 48;
+
+/** Offset to center a 48x48 v1 template within 64x64 v2 canvas. */
+export const V1_OFFSET = 8;
 
 /** Number of RGBA channels per pixel. */
 export const CHANNELS = 4;
@@ -22,8 +28,14 @@ export const TOTAL_ASSETS = NUM_BODY_PARTS * NUM_CLASSES * VARIANTS_PER_TEMPLATE
 /** Number of breed type color transforms. */
 export const NUM_BREED_TYPES = 64;
 
-/** Valid upscale target sizes (multiples of 48). */
-export const VALID_SIZES = [48, 96, 192, 384] as const;
+/** Valid upscale target sizes (multiples of 64). */
+export const VALID_SIZES = [64, 128, 256, 512] as const;
+
+/**
+ * Tier guide sizes matching the template editor v3 tier rings.
+ * Index = evolution tier (0=Base, 1=Evolved, 2=Elite, 3=Apex).
+ */
+export const TIER_SIZES = [42, 52, 58, 64] as const;
 
 /**
  * Layer compositing order (back to front).
@@ -70,15 +82,16 @@ export const ROLE_NAMES = [
 
 /**
  * Default anchor points per body part for compositing alignment.
- * Each part's anchor is its reference point on the shared 48x48 canvas.
+ * Each part's anchor is its reference point on the shared 64x64 canvas.
+ * (Rescaled from original 48x48 coords by adding V1_OFFSET=8.)
  */
 export const DEFAULT_ANCHORS: Record<number, { x: number; y: number }> = {
-  0: { x: 24, y: 20 }, // Carapace — center-back
-  1: { x: 12, y: 28 }, // Claws — front-center
-  2: { x: 34, y: 36 }, // Tail — back-low
-  3: { x: 18, y: 10 }, // Antennae — top-front
-  4: { x: 16, y: 18 }, // Eyes — front-high
-  5: { x: 24, y: 38 }, // Legs — bottom-center
+  0: { x: 32, y: 28 }, // Carapace — center-back
+  1: { x: 20, y: 36 }, // Claws — front-center
+  2: { x: 42, y: 44 }, // Tail — back-low
+  3: { x: 26, y: 18 }, // Antennae — top-front
+  4: { x: 24, y: 26 }, // Eyes — front-high
+  5: { x: 32, y: 46 }, // Legs — bottom-center
 };
 
 /** Salt prefix for deterministic variant generation. */
