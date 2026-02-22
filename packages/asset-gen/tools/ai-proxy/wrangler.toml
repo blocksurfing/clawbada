@@ -1,0 +1,19 @@
+name = "clawbada-ai-proxy"
+main = "worker.js"
+compatibility_date = "2024-12-01"
+
+# ── Environment Variables ──
+[vars]
+DAILY_LIMIT = "100"          # Max AI generations per token per day
+ALLOWED_ORIGINS = "*"        # Restrict to your domain in production
+
+# ── KV Namespace for Rate Limiting (optional) ──
+# Create with: npx wrangler kv:namespace create RATE_LIMIT
+# Then uncomment and paste the binding id:
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT"
+# id = "your-kv-namespace-id-here"
+
+# ── Secrets (set via CLI, never in this file) ──
+# npx wrangler secret put RD_API_KEY
+# npx wrangler secret put ACCESS_TOKENS
