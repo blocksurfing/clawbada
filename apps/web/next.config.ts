@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   transpilePackages: ['@clawbada/game-logic', '@clawbada/chain'],
   webpack: (config, { isServer }) => {
     if (!isServer) {
