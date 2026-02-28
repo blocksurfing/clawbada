@@ -127,9 +127,11 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
         // Pull full price from buyer
         clawToken.transferFrom(msg.sender, address(this), price);
 
-        // Route fee through Treasury
-        clawToken.approve(address(treasury), fee);
-        treasury.processFee(fee);
+        // Route fee through Treasury (skip if fee rounds to zero)
+        if (fee > 0) {
+            clawToken.approve(address(treasury), fee);
+            treasury.processFee(fee);
+        }
 
         // Pay seller
         clawToken.transfer(seller, sellerProceeds);
