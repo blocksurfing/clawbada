@@ -42,6 +42,11 @@ async function main() {
 
   // ──── Wire callbacks ────
 
+  // Season rollover → log new season
+  seasons.setRolloverHandler((season, emission, baseReward) => {
+    console.log(`NEW SEASON ${season}: emission=${emission}, baseReward=${baseReward}`);
+  });
+
   // When matchmaking finds a match → tell the state machine to track it
   matchmaking.setMatchHandler((battleId, playerA, playerB, stakeAmount) => {
     stateMachine.trackBattle(battleId, playerA, playerB, stakeAmount);
