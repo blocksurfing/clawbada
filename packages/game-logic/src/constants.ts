@@ -145,3 +145,10 @@ export const SEASON_EMISSIONS = [
   12_109_375n,
   7_750_000n, // Floor — S7+
 ] as const;
+
+/** Get emission budget for a given season number (1-indexed). S7+ returns the floor. */
+export function getSeasonEmission(season: number): bigint {
+  if (season < 1) throw new Error('Season must be >= 1');
+  const idx = Math.min(season - 1, SEASON_EMISSIONS.length - 1);
+  return SEASON_EMISSIONS[idx];
+}
