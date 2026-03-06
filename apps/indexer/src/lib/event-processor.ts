@@ -6,6 +6,8 @@ import type { Log } from 'viem';
 import { getPublicClient } from '@clawbada/chain';
 import { db, onChainEvents } from '@clawbada/db';
 import { BlockTracker } from './block-tracker';
+import type { Logger } from '@clawbada/logger';
+import { log as baseLog } from '../logger';
 
 export interface WatcherConfig {
   contractName: string;
@@ -21,6 +23,9 @@ export abstract class EventWatcher {
   protected running = false;
   protected unwatch?: () => void;
   private blockTracker: BlockTracker;
+  protected get log(): Logger {
+    return baseLog.child({ module: 'watcher', contract: this.config.contractName });
+  }
 
   constructor() {
     this.blockTracker = new BlockTracker();
@@ -40,7 +45,7 @@ export abstract class EventWatcher {
     const lastBlock = await this.blockTracker.getLastBlock(this.config.contractName);
     const currentBlock = await client.getBlockNumber();
 
-    console.log(`[${this.config.contractName}] Starting from block ${lastBlock}, current ${currentBlock}`);
+    this.log.info({ fromBlock: lastBlock.toString(), currentBlock: currentBlock.toString() }, 'Starting watcher');
 
     // Backfill missed blocks
     if (lastBlock > 0n && lastBlock < currentBlock) {
@@ -56,19 +61,19 @@ export abstract class EventWatcher {
           try {
             await this.processLog(log);
           } catch (err) {
-            console.error(`[${this.config.contractName}] Error processing log:`, err);
+            this.log.error({ err }, 'Error processing log');
           }
         }
       },
     });
 
-    console.log(`[${this.config.contractName}] Watcher active`);
+    this.log.info('Watcher active');
   }
 
   async stop(): Promise<void> {
     this.running = false;
     this.unwatch?.();
-    console.log(`[${this.config.contractName}] Watcher stopped`);
+    this.log.info('Watcher stopped');
   }
 
   /**
@@ -76,7 +81,7 @@ export abstract class EventWatcher {
    * Block tracker is updated once per batch (not per-log) for performance.
    */
   private async backfill(client: any, fromBlock: bigint, toBlock: bigint): Promise<void> {
-    console.log(`[${this.config.contractName}] Backfilling blocks ${fromBlock}-${toBlock}`);
+    this.log.info({ fromBlock: fromBlock.toString(), toBlock: toBlock.toString() }, 'Backfilling blocks');
 
     for (let start = fromBlock; start <= toBlock; start += BACKFILL_BATCH_SIZE) {
       const end = start + BACKFILL_BATCH_SIZE - 1n > toBlock ? toBlock : start + BACKFILL_BATCH_SIZE - 1n;
@@ -96,7 +101,7 @@ export abstract class EventWatcher {
       await this.blockTracker.setLastBlock(this.config.contractName, end);
 
       if (logs.length > 0) {
-        console.log(`[${this.config.contractName}] Backfilled ${logs.length} events (blocks ${start}-${end})`);
+        this.log.info({ count: logs.length, fromBlock: start.toString(), toBlock: end.toString() }, 'Backfilled events');
       }
     }
   }

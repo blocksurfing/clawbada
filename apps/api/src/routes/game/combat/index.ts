@@ -15,11 +15,14 @@ import {
   BattlePhase,
 } from '@clawbada/game-logic';
 import { db, battles, battleRounds, matchmakingQueue, agents } from '@clawbada/db';
+import { log as baseLog } from '../../../logger';
 import { walletAuth } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readTeam, readLobster, readBattle, serializeBigInts } from '../../../lib/chain';
 import { buildCalldata, singleStep, multiStep } from '../../../lib/calldata';
 import { battleWS } from '../../../lib/ws';
+
+const log = baseLog.child({ module: 'combat' });
 
 export const combatRoutes = new Hono();
 
@@ -445,7 +448,7 @@ async function tryMatch(
 
     return { battleId, opponent: opponent.address };
   } catch (err) {
-    console.error('Failed to create battle:', err);
+    log.error({ err }, 'Failed to create battle');
     // Put both back in queue
     await db.insert(matchmakingQueue).values({
       address,
@@ -463,7 +466,7 @@ function scheduleRoundResolution(battleId: bigint): void {
     try {
       await tryResolveRound(battleId);
     } catch (err) {
-      console.error(`Round resolution failed for battle ${battleId}:`, err);
+      log.error({ err, battleId: battleId.toString() }, 'Round resolution failed');
     }
   }, 2000); // Wait 2s for on-chain tx to confirm
 }

@@ -1,5 +1,8 @@
 import type { MiddlewareHandler } from 'hono';
+import { log as baseLog } from '../logger';
 import { ApiError } from '../lib/errors';
+
+const log = baseLog.child({ module: 'rate-limit' });
 
 // ─── Backend interface ───
 
@@ -74,15 +77,15 @@ async function getBackend(): Promise<RateLimitBackend> {
     try {
       await redis.connect();
       backend = new RedisBackend(redis);
-      console.log('[rate-limit] Using Redis backend');
+      log.info('Using Redis backend');
     } catch (err) {
-      console.warn('[rate-limit] Redis connection failed, falling back to in-memory:', (err as Error).message);
+      log.warn({ err }, 'Redis connection failed, falling back to in-memory');
       redis.disconnect();
       backend = new MemoryBackend();
     }
   } else {
     backend = new MemoryBackend();
-    console.log('[rate-limit] Using in-memory backend (set REDIS_URL for multi-instance)');
+    log.info('Using in-memory backend (set REDIS_URL for multi-instance)');
   }
 
   return backend;

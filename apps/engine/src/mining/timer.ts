@@ -10,6 +10,9 @@
 import { eq, and } from 'drizzle-orm';
 import { EXPEDITION_DURATION_SECONDS } from '@clawbada/game-logic';
 import { db, expeditions } from '@clawbada/db';
+import { log as baseLog } from '../logger';
+
+const log = baseLog.child({ module: 'mining' });
 
 export class MiningTimer {
   private timers: Map<string, Timer> = new Map();
@@ -38,7 +41,7 @@ export class MiningTimer {
       if (this.onExpeditionComplete) {
         this.onExpeditionComplete(expeditionId, owner);
       }
-      console.log(`Expedition #${expeditionId} complete for ${owner}`);
+      log.info({ expeditionId: expeditionId.toString(), owner }, 'Expedition complete');
     }, delayMs);
 
     this.timers.set(key, timer);
@@ -73,7 +76,7 @@ export class MiningTimer {
       );
     }
 
-    console.log(`Mining timer: loaded ${active.length} active expeditions`);
+    log.info({ count: active.length }, 'Mining timer loaded active expeditions');
     return active.length;
   }
 

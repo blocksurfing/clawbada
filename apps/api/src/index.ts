@@ -14,11 +14,13 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
+import { createHonoLogger } from '@clawbada/logger';
+import { log } from './logger';
 import { gameRoutes } from './routes/game';
 import { agentRoutes } from './routes/agent';
 import { faucetRoutes } from './routes/faucet';
 import { leaderboardRoutes } from './routes/leaderboard';
+import { activityRoutes } from './routes/activity';
 import { walletAuth } from './middleware/auth';
 import { rateLimit } from './middleware/rate-limit';
 import { ApiError } from './lib/errors';
@@ -26,7 +28,7 @@ import { battleWS } from './lib/ws';
 
 const app = new Hono();
 
-app.use('*', logger());
+app.use('*', createHonoLogger());
 app.use('*', cors());
 
 // Global error handler for ApiError thrown from middleware
@@ -34,7 +36,7 @@ app.onError((err, c) => {
   if (err instanceof ApiError) {
     return c.json({ error: err.code, message: err.message }, err.status as any);
   }
-  console.error('Unhandled error:', err);
+  log.error({ err }, 'Unhandled error');
   return c.json({ error: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }, 500);
 });
 
@@ -51,10 +53,11 @@ app.route('/api/game', gameRoutes);
 app.route('/api/agent', agentRoutes);
 app.route('/api/faucet', faucetRoutes);
 app.route('/api/leaderboard', leaderboardRoutes);
+app.route('/api/activity', activityRoutes);
 
 const port = Number(process.env.API_PORT ?? 3001);
 
-console.log(`Clawbada API starting on port ${port}`);
+log.info({ port }, 'Clawbada API starting');
 
 export default {
   port,

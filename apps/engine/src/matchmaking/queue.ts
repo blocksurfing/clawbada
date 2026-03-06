@@ -22,6 +22,9 @@ import {
 } from '@clawbada/chain';
 import { db, matchmakingQueue, battles, agents } from '@clawbada/db';
 import { BattlePhase } from '@clawbada/game-logic';
+import { log as baseLog } from '../logger';
+
+const log = baseLog.child({ module: 'matchmaking' });
 
 interface QueueEntry {
   address: string;
@@ -50,10 +53,10 @@ export class MatchmakingQueue {
   start(): void {
     this.matchInterval = setInterval(() => {
       this.scanAllBrackets().catch((err) =>
-        console.error('Matchmaking scan error:', err),
+        log.error({ err }, 'Matchmaking scan error'),
       );
     }, 2000);
-    console.log('Matchmaking queue started');
+    log.info('Matchmaking queue started');
   }
 
   stop(): void {
@@ -188,9 +191,9 @@ export class MatchmakingQueue {
         this.onMatch(battleId, playerA, playerB, stakeAmount);
       }
 
-      console.log(`Match created: ${playerA} vs ${playerB}, battle #${battleId}, bracket ${bracket}`);
+      log.info({ battleId: battleId.toString(), playerA, playerB, bracket }, 'Match created');
     } catch (err) {
-      console.error('Failed to create battle on-chain:', err);
+      log.error({ err }, 'Failed to create battle on-chain');
       // Put both back in queue
       const agentA = await db.select().from(agents).where(eq(agents.address, playerA)).limit(1);
       const agentB = await db.select().from(agents).where(eq(agents.address, playerB)).limit(1);

@@ -12,6 +12,7 @@
   "dependencies": {
     "@clawbada/asset-gen": "workspace:*",
     "@clawbada/chain": "workspace:*",
+    "@clawbada/logger": "workspace:*",
     "@clawbada/db": "workspace:*",
     "@clawbada/game-logic": "workspace:*",
     "drizzle-orm": "^0.36.0",

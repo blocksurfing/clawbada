@@ -30,6 +30,9 @@ import { db, battles, battleRounds, agents } from '@clawbada/db';
 import { CombatResolver, toLobster } from './resolver';
 import { DrandClient } from '../vrf/drand';
 import { calculateNewElo } from '../matchmaking/elo';
+import { log as baseLog } from '../logger';
+
+const log = baseLog.child({ module: 'combat' });
 
 export type BattleEvent =
   | { type: 'deposit'; player: string }
@@ -171,7 +174,7 @@ export class BattleStateMachine {
       try {
         await this.drand.submitToChain(beacon.round, beacon.randomness);
       } catch (err) {
-        console.error(`Failed to submit VRF beacon for battle ${battle.battleId}:`, err);
+        log.error({ err, battleId: battle.battleId.toString() }, 'Failed to submit VRF beacon');
       }
 
       this.broadcast(battle.battleId.toString(), 'battle_started', {
@@ -218,7 +221,7 @@ export class BattleStateMachine {
       try {
         await this.advanceRoundOnChain(battle.battleId);
       } catch (err) {
-        console.error(`Failed to advance round on-chain for battle ${battle.battleId}:`, err);
+        log.error({ err, battleId: battle.battleId.toString() }, 'Failed to advance round on-chain');
       }
     }
   }
@@ -288,7 +291,7 @@ export class BattleStateMachine {
         [0, 0, 0] as [number, number, number],
       );
     } catch (err) {
-      console.error(`Failed to settle battle ${battle.battleId} on-chain:`, err);
+      log.error({ err, battleId: battle.battleId.toString() }, 'Failed to settle battle on-chain');
     }
 
     this.broadcast(battle.battleId.toString(), 'battle_settled', {

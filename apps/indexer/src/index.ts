@@ -21,6 +21,7 @@
  *
  * Block tracking ensures no events are missed across restarts.
  */
+import { log } from './logger';
 import { LobsterWatcher } from './watchers/lobster-watcher';
 import { TeamWatcher } from './watchers/team-watcher';
 import { MiningWatcher } from './watchers/mining-watcher';
@@ -30,7 +31,7 @@ import { BreedingWatcher } from './watchers/breeding-watcher';
 import { TreasuryWatcher } from './watchers/treasury-watcher';
 
 async function main() {
-  console.log('Clawbada Indexer starting...');
+  log.info('Clawbada Indexer starting');
 
   const watchers = [
     new LobsterWatcher(),
@@ -47,14 +48,14 @@ async function main() {
     try {
       await watcher.start();
     } catch (err) {
-      console.error(`Failed to start ${watcher.config.contractName} watcher:`, err);
+      log.error({ err, contract: watcher.config.contractName }, 'Failed to start watcher');
     }
   }
 
-  console.log(`Clawbada Indexer ready — ${watchers.length} watchers active`);
+  log.info({ watcherCount: watchers.length }, 'Clawbada Indexer ready');
 
   const shutdown = async () => {
-    console.log('Shutting down watchers...');
+    log.info('Shutting down watchers');
     for (const watcher of watchers) {
       await watcher.stop();
     }
@@ -66,6 +67,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Indexer fatal error:', err);
+  log.fatal({ err }, 'Indexer fatal error');
   process.exit(1);
 });
