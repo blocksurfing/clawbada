@@ -22,6 +22,7 @@
  * - Season monitoring (budget tracking, warnings)
  * - VRF beacon polling (drand integration)
  */
+import { log } from './logger';
 import { CombatResolver } from './combat/resolver';
 import { BattleStateMachine } from './combat/state-machine';
 import { MatchmakingQueue } from './matchmaking/queue';
@@ -30,7 +31,7 @@ import { SeasonManager } from './seasons/manager';
 import { DrandClient } from './vrf/drand';
 
 async function main() {
-  console.log('Clawbada Engine starting...');
+  log.info('Clawbada Engine starting');
 
   // ──── Initialize services ────
   const drand = new DrandClient();
@@ -44,18 +45,18 @@ async function main() {
 
   // Season rollover → log new season
   seasons.setRolloverHandler((season, emission, baseReward) => {
-    console.log(`NEW SEASON ${season}: emission=${emission}, baseReward=${baseReward}`);
+    log.info({ season, emission: emission.toString(), baseReward: baseReward.toString() }, 'New season started');
   });
 
   // When matchmaking finds a match → tell the state machine to track it
   matchmaking.setMatchHandler((battleId, playerA, playerB, stakeAmount) => {
     stateMachine.trackBattle(battleId, playerA, playerB, stakeAmount);
-    console.log(`Battle #${battleId} tracked: ${playerA} vs ${playerB}`);
+    log.info({ battleId: battleId.toString(), playerA, playerB }, 'Battle tracked');
   });
 
   // When an expedition completes → log it (WebSocket notification in API layer)
   mining.setCompletionHandler((expeditionId, owner) => {
-    console.log(`Expedition #${expeditionId} ready to claim for ${owner}`);
+    log.info({ expeditionId: expeditionId.toString(), owner }, 'Expedition ready to claim');
   });
 
   // ──── Start services ────
@@ -64,7 +65,7 @@ async function main() {
   try {
     await mining.loadActive();
   } catch (err) {
-    console.warn('Mining timer: DB not available, skipping load', (err as Error).message);
+    log.warn({ err }, 'Mining timer: DB not available, skipping load');
   }
 
   // 2. Start matchmaking loop
@@ -76,9 +77,9 @@ async function main() {
   // 4. Verify drand connectivity
   try {
     const beacon = await drand.fetchLatest();
-    console.log(`drand connected: round ${beacon.round}`);
+    log.info({ round: beacon.round }, 'drand connected');
   } catch (err) {
-    console.warn('drand: not reachable, battles will fail until connectivity is restored');
+    log.warn({ err }, 'drand not reachable, battles will fail until connectivity is restored');
   }
 
   // 5. Log current season
@@ -86,26 +87,22 @@ async function main() {
     const season = await seasons.getCurrentSeason();
     if (season) {
       const budget = await seasons.checkBudget();
-      console.log(
-        `Season ${season.season}: ${budget?.percentUsed.toFixed(1)}% budget used, ` +
-          `~${budget?.estimatedDaysRemaining} days remaining`,
+      log.info(
+        { season: season.season, percentUsed: budget?.percentUsed.toFixed(1), estimatedDaysRemaining: budget?.estimatedDaysRemaining },
+        'Current season status',
       );
     } else {
-      console.log('No active season found in DB');
+      log.info('No active season found in DB');
     }
   } catch (err) {
-    console.warn('Season check: DB not available');
+    log.warn({ err }, 'Season check: DB not available');
   }
 
-  console.log('Clawbada Engine ready');
-  console.log('  - Combat resolver: active');
-  console.log('  - Matchmaking: active (2s poll interval)');
-  console.log(`  - Mining timer: ${mining.activeCount} expeditions tracked`);
-  console.log('  - Season monitor: active (5min poll interval)');
+  log.info({ activeExpeditions: mining.activeCount }, 'Clawbada Engine ready');
 
   // ──── Graceful shutdown ────
   const shutdown = () => {
-    console.log('Shutting down...');
+    log.info('Shutting down');
     matchmaking.stop();
     seasons.stop();
     mining.stopAll();
@@ -117,6 +114,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Engine fatal error:', err);
+  log.fatal({ err }, 'Engine fatal error');
   process.exit(1);
 });

@@ -18,6 +18,9 @@ import {
 } from '@clawbada/game-logic';
 import { getOperatorClient, getPublicClient, getMiningPool } from '@clawbada/chain';
 import { db, seasons } from '@clawbada/db';
+import { log as baseLog } from '../logger';
+
+const log = baseLog.child({ module: 'season' });
 
 export interface SeasonInfo {
   season: number;
@@ -110,14 +113,14 @@ export class SeasonManager {
     const emission = getSeasonEmission(nextSeason);
     const baseReward = S1_BASE_REWARD; // Admin tunes mid-season via setBaseReward()
 
-    console.log(
-      `Season ${current.season} ended. Starting season ${nextSeason} ` +
-        `(emission=${emission}, baseReward=${baseReward})...`,
+    log.info(
+      { currentSeason: current.season, nextSeason, emission: emission.toString(), baseReward: baseReward.toString() },
+      'Season ended, starting next',
     );
 
     try {
       const txHash = await this.executeStartSeason(emission, baseReward);
-      console.log(`Season ${nextSeason} started on-chain: tx=${txHash}`);
+      log.info({ season: nextSeason, txHash }, 'Season started on-chain');
 
       if (this.rolloverHandler) {
         this.rolloverHandler(nextSeason, emission, baseReward);
@@ -125,7 +128,7 @@ export class SeasonManager {
 
       return true;
     } catch (err) {
-      console.error(`Season rollover failed:`, err);
+      log.error({ err }, 'Season rollover failed');
       return false;
     }
   }
@@ -165,18 +168,17 @@ export class SeasonManager {
         if (!budget) return;
 
         if (budget.percentUsed >= 90) {
-          console.warn(
-            `SEASON BUDGET WARNING: ${budget.percentUsed.toFixed(1)}% used, ` +
-              `~${budget.estimatedDaysRemaining} days remaining, ` +
-              `${budget.remainingBudget} $CLAW left`,
+          log.warn(
+            { percentUsed: budget.percentUsed.toFixed(1), estimatedDaysRemaining: budget.estimatedDaysRemaining, remainingBudget: budget.remainingBudget.toString() },
+            'Season budget warning',
           );
         }
       } catch (err) {
-        console.error('Season monitor error:', err);
+        log.error({ err }, 'Season monitor error');
       }
     }, 5 * 60 * 1000); // Every 5 minutes
 
-    console.log('Season monitor started (with auto-rollover)');
+    log.info('Season monitor started (with auto-rollover)');
   }
 
   stop(): void {

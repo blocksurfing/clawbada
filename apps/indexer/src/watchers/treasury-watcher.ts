@@ -27,8 +27,9 @@ export class TreasuryWatcher extends EventWatcher {
       const burnAmount = BigInt(args.burnAmount ?? 0);
       const devAmount = BigInt(args.devAmount ?? 0);
       const total = burnAmount + devAmount;
-      console.log(
-        `[Treasury] Fee processed: ${total} $CLAW (${burnAmount} burned, ${devAmount} to dev)`,
+      this.log.info(
+        { total: total.toString(), burnAmount: burnAmount.toString(), devAmount: devAmount.toString() },
+        'Fee processed',
       );
     }
   }
