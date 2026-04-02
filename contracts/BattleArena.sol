@@ -458,8 +458,8 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         for (uint256 i = 0; i < 3; i++) {
             uint256 lobId = team.lobsterIds[i];
             uint8 currentDamage = lobsterNFT.getDamage(lobId);
-            uint8 newDamage = currentDamage + damages[i];
-            if (newDamage > 100) newDamage = 100;
+            uint256 sum = uint256(currentDamage) + uint256(damages[i]);
+            uint8 newDamage = sum > 100 ? 100 : uint8(sum);
             lobsterNFT.setDamage(lobId, newDamage);
             emit DamageApplied(battleId, lobId, damages[i]);
         }
@@ -591,7 +591,8 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         }
 
         // Not yet at forfeit threshold — resolver handles default moves.
-        // Reset round state and set new deadline for the resolver to advance.
+        // Reset round state and advance round counter, set new deadline for the resolver.
+        b.currentRound++;
         b.roundCommitA = bytes32(0);
         b.roundCommitB = bytes32(0);
         b.roundRevealedA = false;

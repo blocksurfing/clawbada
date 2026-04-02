@@ -61,6 +61,11 @@ contract Faucet is AccessControl {
 
     // ──────────── Eligibility ────────────
 
+    /// @notice Update the faucet close time. Admin can extend or shorten the faucet window.
+    function setCloseTime(uint256 newCloseTime) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        closeTime = newCloseTime;
+    }
+
     /// @notice Set eligibility for a single wallet.
     function setEligible(address account, bool eligible) external onlyRole(ELIGIBILITY_ROLE) {
         if (account == address(0)) revert ZeroAddress();
