@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Pre-commit hook: block commits that leak personal identity.
+# All commits must use the project identity (clawbada-dev).
+
+AUTHOR_NAME=$(git config user.name)
+AUTHOR_EMAIL=$(git config user.email)
+
+# Blocklist — add patterns here if needed
+BLOCKED_NAMES="Andy Lepore|alepore"
+BLOCKED_EMAILS="alepore@|Andys-MacBook"
+
+if echo "$AUTHOR_NAME" | grep -qEi "$BLOCKED_NAMES"; then
+  echo "ERROR: commit author name ('$AUTHOR_NAME') contains a blocked personal identifier."
+  echo "Set the correct identity:  git config user.name 'clawbada-dev'"
+  exit 1
+fi
+
+if echo "$AUTHOR_EMAIL" | grep -qEi "$BLOCKED_EMAILS"; then
+  echo "ERROR: commit author email ('$AUTHOR_EMAIL') contains a blocked personal identifier."
+  echo "Set the correct identity:  git config user.email 'support@clawbada.com'"
+  exit 1
+fi
