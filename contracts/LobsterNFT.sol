@@ -275,9 +275,7 @@ contract LobsterNFT is ERC1155, ERC1155Supply, AccessControl {
             }
         }
 
-        super._update(from, to, ids, values);
-
-        // Update ownership tracking
+        // Update ownership tracking before calling super (prevents stale state during callbacks)
         for (uint256 i = 0; i < ids.length; i++) {
             if (to == address(0)) {
                 delete _owners[ids[i]];
@@ -285,6 +283,8 @@ contract LobsterNFT is ERC1155, ERC1155Supply, AccessControl {
                 _owners[ids[i]] = to;
             }
         }
+
+        super._update(from, to, ids, values);
     }
 
     /// @dev Revert if token does not exist.
