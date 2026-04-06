@@ -7,8 +7,11 @@ import { api, type LobsterData } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { LobsterCard } from '@/components/game/lobster-card';
 import { TransactionButton } from '@/components/game/transaction-button';
+import { FrostedPanel } from '@/components/ui/frosted-panel';
+import { PageBackground } from '@/components/ui/page-background';
 import { formatClaw } from '@/lib/format';
-import { Heart } from 'lucide-react';
+import { BACKGROUNDS } from '@/lib/assets';
+import { Egg } from 'lucide-react';
 
 export default function BreedingPage() {
   const { address } = useAccount();
@@ -37,11 +40,13 @@ export default function BreedingPage() {
 
   if (!address) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-        <Heart className="size-8 text-muted-foreground mb-3" />
-        <h1 className="text-2xl font-bold mb-2">Breeding Lab</h1>
-        <p className="text-sm text-muted-foreground">Connect your wallet to breed lobsters.</p>
-      </div>
+      <PageBackground variant="reef" scene={BACKGROUNDS.breeding}>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+          <Egg className="size-8 text-text-secondary mb-3" />
+          <h1 className="font-pixel text-2xl text-foreground mb-2">Breeding Lab</h1>
+          <p className="text-sm text-text-secondary">Connect your wallet to breed lobsters.</p>
+        </div>
+      </PageBackground>
     );
   }
 
@@ -56,103 +61,105 @@ export default function BreedingPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold">Breeding Lab</h1>
-        <p className="text-sm text-muted-foreground mt-1">Pair two lobsters to breed new offspring</p>
-      </div>
-
-      {/* Parent selection */}
-      <div className="border border-border rounded-md p-6 space-y-5">
-        <h2 className="font-semibold">Select Parents</h2>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-muted-foreground mb-2">Parent A</p>
-            {parentA ? (
-              <SelectedParent lobster={lobsters.find((l) => l.tokenId === parentA)!} onClear={() => setParentA(null)} />
-            ) : (
-              <div className="h-28 border border-dashed border-border rounded-md flex items-center justify-center text-sm text-muted-foreground">
-                Select below
-              </div>
-            )}
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground mb-2">Parent B</p>
-            {parentB ? (
-              <SelectedParent lobster={lobsters.find((l) => l.tokenId === parentB)!} onClear={() => setParentB(null)} />
-            ) : (
-              <div className="h-28 border border-dashed border-border rounded-md flex items-center justify-center text-sm text-muted-foreground">
-                Select below
-              </div>
-            )}
-          </div>
+    <PageBackground variant="reef" scene={BACKGROUNDS.breeding}>
+      <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
+        <div>
+          <h1 className="font-pixel text-xl text-foreground">Breeding Lab</h1>
+          <p className="text-sm text-text-secondary mt-1">Pair two lobsters to breed new offspring</p>
         </div>
 
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-          {breedable.map((lob) => (
-            <LobsterCard
-              key={lob.tokenId}
-              tokenId={lob.tokenId}
-              dna={lob.dna}
-              lobsterClass={lob.class}
-              evolutionTier={lob.evolutionTier}
-              purity={lob.purity}
-              legend={lob.legend}
-              damage={lob.damage}
-              locked={lob.locked}
-              soulbound={lob.soulbound}
-              size="sm"
-              selected={lob.tokenId === parentA || lob.tokenId === parentB}
-              onClick={() => selectParent(lob.tokenId)}
+        {/* Parent selection */}
+        <FrostedPanel className="space-y-5">
+          <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Select Parents</h2>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-text-secondary mb-2">Parent A</p>
+              {parentA ? (
+                <SelectedParent lobster={lobsters.find((l) => l.tokenId === parentA)!} onClear={() => setParentA(null)} />
+              ) : (
+                <div className="h-28 border border-dashed border-border rounded-lg flex items-center justify-center text-sm text-text-secondary">
+                  Select below
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="text-sm text-text-secondary mb-2">Parent B</p>
+              {parentB ? (
+                <SelectedParent lobster={lobsters.find((l) => l.tokenId === parentB)!} onClear={() => setParentB(null)} />
+              ) : (
+                <div className="h-28 border border-dashed border-border rounded-lg flex items-center justify-center text-sm text-text-secondary">
+                  Select below
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+            {breedable.map((lob) => (
+              <LobsterCard
+                key={lob.tokenId}
+                tokenId={lob.tokenId}
+                dna={lob.dna}
+                lobsterClass={lob.class}
+                evolutionTier={lob.evolutionTier}
+                purity={lob.purity}
+                legend={lob.legend}
+                damage={lob.damage}
+                locked={lob.locked}
+                soulbound={lob.soulbound}
+                size="sm"
+                selected={lob.tokenId === parentA || lob.tokenId === parentB}
+                onClick={() => selectParent(lob.tokenId)}
+              />
+            ))}
+          </div>
+        </FrostedPanel>
+
+        {/* Preview */}
+        {preview && parentA && parentB && (
+          <FrostedPanel variant="highlight" className="space-y-4">
+            <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Breeding Preview</h2>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-text-secondary text-xs">Total Cost</span>
+                <div className="font-medium font-mono text-text-accent">{formatClaw(preview.totalCost)}</div>
+              </div>
+              <div>
+                <span className="text-text-secondary text-xs">Offspring Gen</span>
+                <div className="font-medium text-foreground">Gen {preview.offspringGeneration}</div>
+              </div>
+              <div>
+                <span className="text-text-secondary text-xs">Legend Chance</span>
+                <div className="font-medium text-claw-gold">{preview.legendChance}</div>
+              </div>
+              <div>
+                <span className="text-text-secondary text-xs">Parent A Breeds</span>
+                <div className="font-medium text-foreground">{preview.parentA.breedsRemaining}/5</div>
+              </div>
+            </div>
+
+            <div>
+              <span className="text-sm text-text-secondary">Class Probabilities</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {Object.entries(preview.classProbabilities).map(([cls, pct]) => (
+                  <Badge key={cls} className="bg-ocean-surface/50 text-text-secondary border-0 text-xs font-mono">
+                    {cls}: {Math.round(pct * 100)}%
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            <TransactionButton
+              label={`Breed — ${formatClaw(preview.totalCost)}`}
+              fetchSteps={(auth) => api.breeding.breed(parentA!, parentB!, auth)}
+              onSuccess={invalidate}
             />
-          ))}
-        </div>
+          </FrostedPanel>
+        )}
       </div>
-
-      {/* Preview */}
-      {preview && parentA && parentB && (
-        <div className="border border-border rounded-md p-6 space-y-4">
-          <h2 className="font-semibold">Breeding Preview</h2>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">Total Cost</span>
-              <div className="font-medium font-mono">{formatClaw(preview.totalCost)}</div>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Offspring Gen</span>
-              <div className="font-medium">Gen {preview.offspringGeneration}</div>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Legend Chance</span>
-              <div className="font-medium">{preview.legendChance}</div>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Parent A Breeds</span>
-              <div className="font-medium">{preview.parentA.breedsRemaining}/5</div>
-            </div>
-          </div>
-
-          <div>
-            <span className="text-sm text-muted-foreground">Class Probabilities</span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {Object.entries(preview.classProbabilities).map(([cls, pct]) => (
-                <Badge key={cls} variant="outline" className="text-xs font-mono">
-                  {cls}: {Math.round(pct * 100)}%
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          <TransactionButton
-            label={`Breed — ${formatClaw(preview.totalCost)}`}
-            fetchSteps={(auth) => api.breeding.breed(parentA!, parentB!, auth)}
-            onSuccess={invalidate}
-          />
-        </div>
-      )}
-    </div>
+    </PageBackground>
   );
 }
 
@@ -173,7 +180,7 @@ function SelectedParent({ lobster, onClear }: { lobster: LobsterData; onClear: (
         onClick={onClear}
         selected
       />
-      <div className="text-xs text-muted-foreground mt-1">
+      <div className="text-xs text-text-secondary mt-1">
         Breeds: {lobster.breedCount}/5 · Gen {lobster.generation}
       </div>
     </div>

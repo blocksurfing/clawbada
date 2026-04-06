@@ -2,11 +2,9 @@
 
 import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { useLobsterImage } from '@/hooks/use-lobster-image';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { tierLabel } from '@/lib/format';
-import { Lock, AlertTriangle, Sparkles, Link as LinkIcon } from 'lucide-react';
+import { Lock, Sparkles, Link as LinkIcon } from 'lucide-react';
 
 const SIZE_MAP = { sm: 2, md: 4, lg: 8 } as const;
 const PX_MAP = { sm: 96, md: 192, lg: 384 } as const;
@@ -44,23 +42,28 @@ export function LobsterCard({
 }: LobsterCardProps) {
   const { dataUrl, loading } = useLobsterImage(dna, evolutionTier, SIZE_MAP[size]);
   const px = PX_MAP[size];
+  const isLegend = legend > 0;
+  const isDamaged = damage > 0;
+  const isBlocked = damage >= 80;
 
   return (
-    <Card
+    <div
       className={cn(
-        'relative overflow-hidden transition-all',
-        onClick && 'cursor-pointer hover:ring-2 hover:ring-ring',
-        selected && 'ring-2 ring-primary',
+        'relative overflow-hidden rounded-lg transition-all frosted-panel p-0',
+        onClick && 'cursor-pointer hover:border-[rgba(255,210,128,0.3)]',
+        selected && 'ring-2 ring-coral border-coral/40',
+        isLegend && 'animate-pulse-glow',
         className,
       )}
       onClick={onClick}
     >
+      {/* Image area */}
       <div
-        className="relative bg-muted flex items-center justify-center"
+        className="relative bg-ocean-mid/50 flex items-center justify-center"
         style={{ width: px, height: px }}
       >
         {loading ? (
-          <div className="animate-pulse bg-muted-foreground/20 w-full h-full" />
+          <div className="animate-pulse bg-ocean-surface/40 w-full h-full" />
         ) : dataUrl ? (
           <img
             src={dataUrl}
@@ -71,59 +74,78 @@ export function LobsterCard({
             style={{ imageRendering: 'pixelated' }}
           />
         ) : (
-          <div className="text-muted-foreground text-xs">No image</div>
+          <div className="text-text-secondary text-xs">No image</div>
         )}
+
+        {/* Tier ribbon */}
+        <div className="absolute top-1 left-1">
+          <span className={cn(
+            'font-pixel text-[9px] px-1.5 py-0.5 rounded',
+            evolutionTier === 0 && 'bg-ocean-surface/80 text-text-secondary',
+            evolutionTier === 1 && 'bg-teal/20 text-teal',
+            evolutionTier === 2 && 'bg-ocean/20 text-ocean',
+            evolutionTier === 3 && 'bg-claw-gold/20 text-claw-gold',
+          )}>
+            {tierLabel(evolutionTier)}
+          </span>
+        </div>
 
         {/* Status icons */}
         <div className="absolute top-1 right-1 flex gap-1">
           {locked && (
-            <div className="bg-background/80 rounded p-0.5" title="Locked">
-              <Lock className="size-3 text-muted-foreground" />
+            <div className="bg-ocean-deep/70 rounded p-0.5" title="Locked">
+              <Lock className="size-3 text-text-secondary" />
             </div>
           )}
           {soulbound && (
-            <div className="bg-background/80 rounded p-0.5" title="Soulbound">
-              <LinkIcon className="size-3 text-muted-foreground" />
+            <div className="bg-ocean-deep/70 rounded p-0.5" title="Soulbound">
+              <LinkIcon className="size-3 text-text-secondary" />
             </div>
           )}
-          {legend > 0 && (
-            <div className="bg-yellow-500/80 rounded p-0.5" title="Legend">
+          {isLegend && (
+            <div className="bg-claw-gold/80 rounded p-0.5" title="Legend">
               <Sparkles className="size-3 text-white" />
             </div>
           )}
         </div>
 
-        {damage >= 80 && (
-          <div className="absolute bottom-1 right-1 bg-destructive/80 rounded p-0.5" title={`Damage: ${damage}/100`}>
-            <AlertTriangle className="size-3 text-white" />
+        {/* Damage bar at bottom of image */}
+        {isDamaged && (
+          <div className="absolute bottom-0 inset-x-0 h-1.5 bg-ocean-deep/60">
+            <div
+              className={cn(
+                'h-full transition-all',
+                isBlocked ? 'bg-destructive' : damage >= 40 ? 'bg-claw-gold' : 'bg-teal',
+              )}
+              style={{ width: `${Math.min(damage, 100)}%` }}
+            />
           </div>
         )}
       </div>
 
+      {/* Info area */}
       <div className="p-2 space-y-1">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium truncate">#{tokenId}</span>
-          <Badge variant="secondary" className="text-[10px] px-1 py-0">
-            {tierLabel(evolutionTier)}
-          </Badge>
-        </div>
-        <div className="flex items-center justify-between">
-          <Badge variant="outline" className="text-[10px] px-1 py-0">
+          <span className="text-xs font-medium text-foreground truncate">#{tokenId}</span>
+          <span className="text-[10px] text-text-secondary">
             {CLASS_NAMES_LIST[lobsterClass] ?? 'Unknown'}
-          </Badge>
-          <div className="flex gap-0.5" title={`Purity: ${purity}/6`}>
-            {Array.from({ length: 6 }, (_, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'size-1.5 rounded-full',
-                  i < purity ? 'bg-primary' : 'bg-muted-foreground/30',
-                )}
-              />
-            ))}
-          </div>
+          </span>
+        </div>
+        {/* Purity stars */}
+        <div className="flex gap-0.5" title={`Purity: ${purity}/6`}>
+          {Array.from({ length: 6 }, (_, i) => (
+            <span
+              key={i}
+              className={cn(
+                'text-[8px] leading-none',
+                i < purity ? 'text-claw-gold' : 'text-ocean-surface',
+              )}
+            >
+              ★
+            </span>
+          ))}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

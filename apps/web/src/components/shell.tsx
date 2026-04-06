@@ -30,10 +30,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="max-w-6xl mx-auto flex items-center h-14 px-4 gap-4">
           <Link href="/" className="flex items-center shrink-0">
             <Image
-              src="/assets/logo.png"
+              src="/assets/logo-text.png"
               alt="Clawbada"
               width={120}
-              height={48}
+              height={35}
               className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
             />
           </Link>

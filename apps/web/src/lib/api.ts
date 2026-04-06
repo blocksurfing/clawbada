@@ -422,6 +422,33 @@ const leaderboard = {
     get<{ count: number; leaderboard: BreedingLeaderboardEntry[] }>(`/api/leaderboard/breeding?limit=${limit}`),
 };
 
+// ── Activity ──
+
+export interface ActivityEvent {
+  id: string;
+  type: string;
+  contract: string;
+  txHash: string;
+  blockNumber: string;
+  timestamp: number;
+  data: Record<string, unknown>;
+}
+
+interface ActivityResponse {
+  events: ActivityEvent[];
+  nextCursor: string | null;
+}
+
+const activity = {
+  recent: (limit = 30, cursor?: string, type?: string) => {
+    const params = new URLSearchParams();
+    params.set('limit', String(limit));
+    if (cursor) params.set('cursor', cursor);
+    if (type) params.set('type', type);
+    return get<ActivityResponse>(`/api/activity/recent?${params.toString()}`);
+  },
+};
+
 // ── Exports ──
 
 export const api = {
@@ -435,6 +462,7 @@ export const api = {
   market,
   combat,
   leaderboard,
+  activity,
 };
 
 export type {
@@ -460,4 +488,5 @@ export type {
   BattleLeaderboardEntry,
   MiningLeaderboardEntry,
   BreedingLeaderboardEntry,
+  ActivityResponse,
 };
