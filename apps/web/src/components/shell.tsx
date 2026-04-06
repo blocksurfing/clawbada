@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { ConnectKitButton } from 'connectkit';
 import { cn } from '@/lib/utils';
@@ -15,6 +16,7 @@ const NAV_LINKS = [
   { href: '/game/teams', label: 'Teams' },
   { href: '/market', label: 'Market' },
   { href: '/leaderboard', label: 'Ranks' },
+  { href: '/activity', label: 'Activity' },
   { href: 'https://docs.clawbada.com', label: 'Docs', external: true },
 ] as const;
 
@@ -26,9 +28,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/60 sticky top-0 z-50 bg-background/95 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto flex items-center h-14 px-4 gap-4">
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <span className="text-xl">🦞</span>
-            <span className="font-bold text-foreground">clawbada</span>
+          <Link href="/" className="flex items-center shrink-0">
+            <Image
+              src="/assets/logo.png"
+              alt="Clawbada"
+              width={120}
+              height={48}
+              className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
+            />
           </Link>
 
           <nav className="hidden md:flex items-center gap-0.5 ml-2 text-sm">
