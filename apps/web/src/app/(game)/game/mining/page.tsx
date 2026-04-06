@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TransactionButton } from '@/components/game/transaction-button';
+import { FrostedPanel } from '@/components/ui/frosted-panel';
+import { PageBackground } from '@/components/ui/page-background';
+import { MineTierCard } from '@/components/game/mine-tier-card';
 import { formatClaw, formatCountdown, tierLabel } from '@/lib/format';
+import { MINE_BACKGROUNDS } from '@/lib/assets';
 import { Pickaxe, Clock } from 'lucide-react';
 
 const TIER_WEIGHTS = [1, 3, 10, 25] as const;
@@ -31,7 +34,7 @@ export default function MiningPage() {
   });
 
   const [selectedTeam, setSelectedTeam] = useState<string>('');
-  const [selectedTier, setSelectedTier] = useState<number>(0);
+  const [selectedTier, setSelectedTier] = useState<number | null>(null);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['expeditions'] });
@@ -40,11 +43,13 @@ export default function MiningPage() {
 
   if (!address) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-        <Pickaxe className="size-8 text-muted-foreground mb-3" />
-        <h1 className="text-2xl font-bold mb-2">Mining</h1>
-        <p className="text-sm text-muted-foreground">Connect your wallet to start mining.</p>
-      </div>
+      <PageBackground variant="reef" scene={MINE_BACKGROUNDS[0]} sceneDark>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+          <Pickaxe className="size-8 text-text-secondary mb-3" />
+          <h1 className="font-pixel text-2xl text-foreground mb-2">Mining</h1>
+          <p className="text-sm text-text-secondary">Connect your wallet to start mining.</p>
+        </div>
+      </PageBackground>
     );
   }
 
@@ -53,80 +58,92 @@ export default function MiningPage() {
   const availableTeams = (teamsData?.teams ?? []).filter((t) => !t.active);
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold">Mining</h1>
-        <p className="text-sm text-muted-foreground mt-1">Send teams on 4-hour expeditions to earn $CLAW</p>
+    <PageBackground variant="reef" scene={MINE_BACKGROUNDS[0]} sceneDark>
+      <div className="p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
+        <div>
+          <h1 className="font-pixel text-xl text-foreground">Mining</h1>
+          <p className="text-sm text-text-secondary mt-1">Send teams on 4-hour expeditions to earn $CLAW</p>
+        </div>
+
+        {/* Active expeditions */}
+        {activeExpeditions.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Active Expeditions</h2>
+            <div className="space-y-2">
+              {activeExpeditions.map((exp) => (
+                <ActiveExpeditionCard key={exp.expeditionId} expedition={exp} onClaim={invalidate} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Mine tier selection */}
+        <div className="space-y-3">
+          <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Choose Mine</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[0, 1, 2, 3].map((tier) => (
+              <MineTierCard
+                key={tier}
+                tier={tier}
+                reward={BASE_REWARD * TIER_WEIGHTS[tier]}
+                available={availableTeams.length > 0}
+                onSelect={() => setSelectedTier(tier)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Team picker (appears when mine is selected) */}
+        {selectedTier !== null && (
+          <FrostedPanel variant="highlight" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-pixel text-sm text-text-accent">
+                {tierLabel(selectedTier)} Mine — {formatClaw(BASE_REWARD * TIER_WEIGHTS[selectedTier])}
+              </h3>
+              <button
+                onClick={() => setSelectedTier(null)}
+                className="text-xs text-text-secondary hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-text-secondary">Select Team</label>
+              <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+                <SelectTrigger className="bg-ocean-mid/50 border-border">
+                  <SelectValue placeholder="Choose a team..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTeams.map((team) => (
+                    <SelectItem key={team.teamId} value={team.teamId}>
+                      Team #{team.teamId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {availableTeams.length === 0 && (
+                <p className="text-xs text-text-secondary">No available teams. Create one in Teams.</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-[rgba(255,210,128,0.1)]">
+              <div className="text-sm text-text-secondary">
+                Duration: <span className="text-foreground">4 hours</span>
+                <span className="mx-2">·</span>
+                Requires: <span className="text-foreground">{tierLabel(selectedTier)}+</span>
+              </div>
+              <TransactionButton
+                label="Start Expedition"
+                disabled={!selectedTeam}
+                fetchSteps={(auth) => api.mining.start(selectedTeam, selectedTier, auth)}
+                onSuccess={() => { invalidate(); setSelectedTier(null); setSelectedTeam(''); }}
+              />
+            </div>
+          </FrostedPanel>
+        )}
       </div>
-
-      {/* Active expeditions */}
-      {activeExpeditions.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Active Expeditions</h2>
-          {activeExpeditions.map((exp) => (
-            <ActiveExpeditionCard key={exp.expeditionId} expedition={exp} onClaim={invalidate} />
-          ))}
-        </div>
-      )}
-
-      {/* Start new expedition */}
-      <div className="border border-border rounded-md p-6 space-y-5">
-        <h2 className="font-semibold">Start Expedition</h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">Team</label>
-            <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select team" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableTeams.map((team) => (
-                  <SelectItem key={team.teamId} value={team.teamId}>
-                    Team #{team.teamId}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {availableTeams.length === 0 && (
-              <p className="text-xs text-muted-foreground">No available teams.</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">Mine Tier</label>
-            <Select value={String(selectedTier)} onValueChange={(v) => setSelectedTier(Number(v))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[0, 1, 2, 3].map((tier) => (
-                  <SelectItem key={tier} value={String(tier)}>
-                    {tierLabel(tier)} — {formatClaw(BASE_REWARD * TIER_WEIGHTS[tier])}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              All 3 lobsters must be {tierLabel(selectedTier)}+
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-2 border-t border-border">
-          <div className="text-sm">
-            <span className="text-muted-foreground">Reward: </span>
-            <span className="font-medium font-mono">{formatClaw(BASE_REWARD * TIER_WEIGHTS[selectedTier])}</span>
-            <span className="text-muted-foreground ml-3">Duration: 4h</span>
-          </div>
-          <TransactionButton
-            label="Start"
-            disabled={!selectedTeam}
-            fetchSteps={(auth) => api.mining.start(selectedTeam, selectedTier, auth)}
-            onSuccess={invalidate}
-          />
-        </div>
-      </div>
-    </div>
+    </PageBackground>
   );
 }
 
@@ -149,13 +166,13 @@ function ActiveExpeditionCard({
   }, [expedition.completionTime, isComplete]);
 
   return (
-    <div className="border border-border rounded-md p-4 flex items-center justify-between">
+    <FrostedPanel className="flex items-center justify-between p-3">
       <div>
         <div className="flex items-center gap-2 mb-0.5">
-          <Badge variant="outline" className="text-xs">{tierLabel(expedition.mineTier)} Mine</Badge>
-          <span className="text-xs text-muted-foreground">Team #{expedition.teamId}</span>
+          <span className="font-pixel text-[10px] text-text-accent">{tierLabel(expedition.mineTier)} Mine</span>
+          <span className="text-xs text-text-secondary">Team #{expedition.teamId}</span>
         </div>
-        <div className="text-sm font-medium font-mono">{formatClaw(expedition.reward)}</div>
+        <div className="text-sm font-medium text-text-accent font-mono">{formatClaw(expedition.reward)}</div>
       </div>
       {isComplete ? (
         <TransactionButton
@@ -164,11 +181,11 @@ function ActiveExpeditionCard({
           onSuccess={onClaim}
         />
       ) : (
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-mono">
+        <div className="flex items-center gap-1.5 text-sm text-text-secondary font-mono">
           <Clock className="size-3" />
           {countdown}
         </div>
       )}
-    </div>
+    </FrostedPanel>
   );
 }

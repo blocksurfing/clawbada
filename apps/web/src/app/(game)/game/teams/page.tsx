@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type LobsterData } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { LobsterCard } from '@/components/game/lobster-card';
 import { TransactionButton } from '@/components/game/transaction-button';
+import { FrostedPanel } from '@/components/ui/frosted-panel';
+import { PageBackground } from '@/components/ui/page-background';
+import { BACKGROUNDS } from '@/lib/assets';
 import { Plus, Users } from 'lucide-react';
 
 export default function TeamsPage() {
@@ -35,11 +37,13 @@ export default function TeamsPage() {
 
   if (!address) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-        <Users className="size-8 text-muted-foreground mb-3" />
-        <h1 className="text-2xl font-bold mb-2">Teams</h1>
-        <p className="text-sm text-muted-foreground">Connect your wallet to manage teams.</p>
-      </div>
+      <PageBackground variant="reef" scene={BACKGROUNDS.teams}>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+          <Users className="size-8 text-text-secondary mb-3" />
+          <h1 className="font-pixel text-2xl text-foreground mb-2">Teams</h1>
+          <p className="text-sm text-text-secondary">Connect your wallet to manage teams.</p>
+        </div>
+      </PageBackground>
     );
   }
 
@@ -47,65 +51,72 @@ export default function TeamsPage() {
   const availableLobsters = lobstersData?.lobsters.filter((l) => !l.locked) ?? [];
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Teams</h1>
-          <p className="text-sm text-muted-foreground mt-1">Assemble teams of 3 lobsters</p>
+    <PageBackground variant="reef" scene={BACKGROUNDS.teams}>
+      <div className="p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-pixel text-xl text-foreground">Teams</h1>
+            <p className="text-sm text-text-secondary mt-1">Assemble teams of 3 lobsters</p>
+          </div>
+          <CreateTeamDialog lobsters={availableLobsters} onSuccess={invalidate} />
         </div>
-        <CreateTeamDialog lobsters={availableLobsters} onSuccess={invalidate} />
-      </div>
 
-      {teams.length === 0 ? (
-        <div className="border border-border rounded-md p-12 text-center">
-          <p className="text-muted-foreground text-sm">No teams yet. Create a team of 3 lobsters to start mining or battling.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {teams.map((team) => (
-            <div key={team.teamId} className="border border-border rounded-md p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Team #{team.teamId}</span>
-                  {team.active && <Badge variant="outline" className="text-xs">Active</Badge>}
-                </div>
-                {!team.active && (
-                  <TransactionButton
-                    label="Disband"
-                    variant="destructive"
-                    size="sm"
-                    fetchSteps={(auth) => api.teams.disband(team.teamId, auth)}
-                    onSuccess={invalidate}
-                  />
-                )}
-              </div>
-              <div className="flex gap-2">
-                {(team.lobsters ?? []).map((lob) => (
-                  <LobsterCard
-                    key={lob.tokenId}
-                    tokenId={lob.tokenId}
-                    dna={lob.dna}
-                    lobsterClass={lob.class}
-                    evolutionTier={lob.evolutionTier}
-                    purity={lob.purity}
-                    legend={lob.legend}
-                    damage={lob.damage}
-                    locked={lob.locked}
-                    soulbound={lob.soulbound}
-                    size="sm"
-                  />
-                ))}
-                {!team.lobsters && team.lobsterIds.map((id) => (
-                  <div key={id} className="w-[96px] h-[120px] border border-border rounded flex items-center justify-center">
-                    <span className="text-xs text-muted-foreground">#{id}</span>
+        {teams.length === 0 ? (
+          <FrostedPanel className="py-12 text-center">
+            <Users className="size-6 mx-auto mb-3 text-text-secondary" />
+            <h2 className="font-pixel text-sm text-foreground mb-1">Assemble your crew</h2>
+            <p className="text-text-secondary text-sm mb-4">Create a team of 3 lobsters to start mining or battling.</p>
+            <CreateTeamDialog lobsters={availableLobsters} onSuccess={invalidate} />
+          </FrostedPanel>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {teams.map((team) => (
+              <FrostedPanel key={team.teamId} className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-pixel text-xs text-foreground">Team #{team.teamId}</span>
+                    {team.active && (
+                      <Badge className="bg-teal/15 text-teal border-0 text-[10px]">Active</Badge>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+                  {!team.active && (
+                    <TransactionButton
+                      label="Disband"
+                      variant="destructive"
+                      size="sm"
+                      fetchSteps={(auth) => api.teams.disband(team.teamId, auth)}
+                      onSuccess={invalidate}
+                    />
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {(team.lobsters ?? []).map((lob) => (
+                    <LobsterCard
+                      key={lob.tokenId}
+                      tokenId={lob.tokenId}
+                      dna={lob.dna}
+                      lobsterClass={lob.class}
+                      evolutionTier={lob.evolutionTier}
+                      purity={lob.purity}
+                      legend={lob.legend}
+                      damage={lob.damage}
+                      locked={lob.locked}
+                      soulbound={lob.soulbound}
+                      size="sm"
+                    />
+                  ))}
+                  {!team.lobsters && team.lobsterIds.map((id) => (
+                    <div key={id} className="w-[96px] h-[120px] frosted-panel flex items-center justify-center">
+                      <span className="text-xs text-text-secondary">#{id}</span>
+                    </div>
+                  ))}
+                </div>
+              </FrostedPanel>
+            ))}
+          </div>
+        )}
+      </div>
+    </PageBackground>
   );
 }
 
@@ -126,19 +137,19 @@ function CreateTeamDialog({ lobsters, onSuccess }: { lobsters: LobsterData[]; on
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSelected([]); }}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" className="bg-coral hover:bg-coral/90 text-white font-pixel text-xs">
           <Plus className="size-4 mr-1" /> Create Team
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-ocean-deep border-border">
         <DialogHeader>
-          <DialogTitle>Create Team — Select 3 Lobsters</DialogTitle>
+          <DialogTitle className="font-pixel text-sm text-foreground">Create Team — Select 3 Lobsters</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground mb-4">
-          Selected: {selected.length}/3
+        <p className="text-sm text-text-secondary mb-4">
+          Selected: <span className="text-text-accent font-mono">{selected.length}/3</span>
         </p>
         {lobsters.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8 text-sm">No available lobsters.</p>
+          <p className="text-text-secondary text-center py-8 text-sm">No available lobsters.</p>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {lobsters.map((lob) => (

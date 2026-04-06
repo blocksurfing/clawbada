@@ -3,8 +3,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+import { FrostedPanel } from '@/components/ui/frosted-panel';
+import { PageBackground } from '@/components/ui/page-background';
 import { formatAddress, formatClaw } from '@/lib/format';
+import { BACKGROUNDS } from '@/lib/assets';
 import { Trophy } from 'lucide-react';
 
 export default function LeaderboardPage() {
@@ -22,72 +24,101 @@ export default function LeaderboardPage() {
   const miningEntries = miningData?.leaderboard ?? [];
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold">Leaderboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Top agents and players by season</p>
+    <PageBackground variant="deep" scene={BACKGROUNDS.leaderboard}>
+      <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
+        <div>
+          <div className="flex items-center gap-2">
+            <Trophy className="size-5 text-claw-gold" />
+            <h1 className="font-pixel text-xl text-foreground">Leaderboard</h1>
+          </div>
+          <p className="text-sm text-text-secondary mt-1">Top agents and players by season</p>
+        </div>
+
+        <Tabs defaultValue="battle">
+          <TabsList>
+            <TabsTrigger value="battle">Battle (ELO)</TabsTrigger>
+            <TabsTrigger value="mining">Mining</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="battle" className="mt-4 space-y-1.5">
+            {battleEntries.length === 0 ? (
+              <FrostedPanel className="py-12 text-center">
+                <Trophy className="size-6 mx-auto mb-3 text-text-secondary" />
+                <p className="text-sm text-text-secondary">No battle data yet. Enter the arena to claim a rank.</p>
+              </FrostedPanel>
+            ) : (
+              battleEntries.map((entry) => (
+                <FrostedPanel key={entry.address} className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <RankBadge rank={entry.rank} />
+                    <span className="font-mono text-sm text-foreground">{formatAddress(entry.address)}</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="font-mono font-semibold text-claw-gold">{entry.elo}</span>
+                    <span className="text-text-secondary">
+                      <span className="text-teal">{entry.wins}W</span>
+                      {' / '}
+                      <span className="text-destructive">{entry.losses}L</span>
+                    </span>
+                    <span className="text-text-secondary text-xs">{entry.winRate}</span>
+                  </div>
+                </FrostedPanel>
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="mining" className="mt-4 space-y-1.5">
+            {miningEntries.length === 0 ? (
+              <FrostedPanel className="py-12 text-center">
+                <Trophy className="size-6 mx-auto mb-3 text-text-secondary" />
+                <p className="text-sm text-text-secondary">No mining data yet. Send your first expedition.</p>
+              </FrostedPanel>
+            ) : (
+              miningEntries.map((entry) => (
+                <FrostedPanel key={entry.owner} className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <RankBadge rank={entry.rank} />
+                    <span className="font-mono text-sm text-foreground">{formatAddress(entry.owner)}</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="font-mono font-medium text-foreground">{entry.totalExpeditions} runs</span>
+                    <span className="font-mono text-claw-gold">{formatClaw(entry.totalReward)}</span>
+                  </div>
+                </FrostedPanel>
+              ))
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
-
-      <Tabs defaultValue="battle">
-        <TabsList>
-          <TabsTrigger value="battle">Battle (ELO)</TabsTrigger>
-          <TabsTrigger value="mining">Mining</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="battle" className="mt-4 space-y-1">
-          {battleEntries.length === 0 ? (
-            <div className="border border-border rounded-md p-12 text-center">
-              <p className="text-sm text-muted-foreground">No battle data yet.</p>
-            </div>
-          ) : (
-            battleEntries.map((entry) => (
-              <div key={entry.address} className="flex items-center justify-between border border-border rounded-md px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <RankBadge rank={entry.rank} />
-                  <span className="font-mono text-sm">{formatAddress(entry.address)}</span>
-                </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="font-mono font-semibold text-claw-gold">{entry.elo}</span>
-                  <span className="text-muted-foreground">
-                    <span className="text-teal">{entry.wins}W</span>
-                    {' / '}
-                    <span className="text-destructive">{entry.losses}L</span>
-                  </span>
-                  <span className="text-muted-foreground text-xs">{entry.winRate}</span>
-                </div>
-              </div>
-            ))
-          )}
-        </TabsContent>
-
-        <TabsContent value="mining" className="mt-4 space-y-1">
-          {miningEntries.length === 0 ? (
-            <div className="border border-border rounded-md p-12 text-center">
-              <p className="text-sm text-muted-foreground">No mining data yet.</p>
-            </div>
-          ) : (
-            miningEntries.map((entry) => (
-              <div key={entry.owner} className="flex items-center justify-between border border-border rounded-md px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <RankBadge rank={entry.rank} />
-                  <span className="font-mono text-sm">{formatAddress(entry.owner)}</span>
-                </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="font-mono font-semibold">{entry.totalExpeditions} runs</span>
-                  <span className="font-mono text-claw-gold">{formatClaw(entry.totalReward)}</span>
-                </div>
-              </div>
-            ))
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
+    </PageBackground>
   );
 }
 
 function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) return <Badge className="bg-claw-gold text-black font-bold text-xs min-w-[24px] justify-center">1</Badge>;
-  if (rank === 2) return <Badge variant="secondary" className="text-xs min-w-[24px] justify-center">2</Badge>;
-  if (rank === 3) return <Badge className="bg-coral/80 text-white text-xs min-w-[24px] justify-center">3</Badge>;
-  return <span className="text-xs text-muted-foreground min-w-[24px] text-center">{rank}</span>;
+  if (rank === 1) {
+    return (
+      <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-claw-gold/20 font-pixel text-xs text-claw-gold">
+        1
+      </span>
+    );
+  }
+  if (rank === 2) {
+    return (
+      <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-ocean-surface/50 font-pixel text-xs text-text-secondary">
+        2
+      </span>
+    );
+  }
+  if (rank === 3) {
+    return (
+      <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-coral/15 font-pixel text-xs text-coral">
+        3
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center justify-center w-7 h-7 text-xs text-text-secondary font-mono">
+      {rank}
+    </span>
+  );
 }

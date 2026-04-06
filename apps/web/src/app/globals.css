@@ -1,50 +1,80 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #1a1a1b;
-  --color-foreground: #e6edf3;
-  --color-card: #1a1a1b;
-  --color-card-foreground: #e6edf3;
-  --color-popover: #222224;
-  --color-popover-foreground: #e6edf3;
+  /* ── Ocean depth backgrounds ── */
+  --color-ocean-deep: #0e1e35;
+  --color-ocean-mid: #142f4d;
+  --color-ocean-surface: #1b4568;
+  --color-ocean-light: #235a88;
+
+  /* ── Sandy warm containers ── */
+  --color-sand: #2a1f14;
+  --color-sand-light: #3d2e1f;
+  --color-driftwood: #4a3728;
+  --color-coral-warm: #c4553a;
+
+  /* ── Text hierarchy ── */
+  --color-text-primary: #f8f2e8;
+  --color-text-secondary: #c4d4e8;
+  --color-text-accent: #ffd280;
+
+  /* ── Game accent colors (preserved) ── */
+  --color-claw-gold: #fbbf24;
+  --color-ocean: #58a6ff;
+  --color-coral: #f97066;
+  --color-teal: #3fb9a0;
+
+  /* ── Semantic Tailwind tokens (mapped to ocean theme) ── */
+  --color-background: #0e1e35;
+  --color-foreground: #f8f2e8;
+  --color-card: #2a1f14;
+  --color-card-foreground: #f8f2e8;
+  --color-popover: #142f4d;
+  --color-popover-foreground: #f8f2e8;
   --color-primary: #f97066;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #222224;
-  --color-secondary-foreground: #d1d9e0;
-  --color-muted: #222224;
-  --color-muted-foreground: #7c7c7c;
-  --color-accent: #222224;
-  --color-accent-foreground: #d1d9e0;
+  --color-secondary: #1b4568;
+  --color-secondary-foreground: #c4d4e8;
+  --color-muted: #142f4d;
+  --color-muted-foreground: #c4d4e8;
+  --color-accent: #1b4568;
+  --color-accent-foreground: #f8f2e8;
   --color-destructive: #f85149;
   --color-destructive-foreground: #ffffff;
-  --color-border: #333336;
-  --color-input: #333336;
+  --color-border: rgba(255, 210, 128, 0.12);
+  --color-input: rgba(255, 210, 128, 0.12);
   --color-ring: #f97066;
   --color-chart-1: #f97066;
   --color-chart-2: #2dd4bf;
   --color-chart-3: #fbbf24;
   --color-chart-4: #8b5cf6;
   --color-chart-5: #22c55e;
-  --color-sidebar: #1a1a1b;
-  --color-sidebar-foreground: #e6edf3;
+
+  /* ── Sidebar tokens ── */
+  --color-sidebar: #183f62;
+  --color-sidebar-foreground: #f8f2e8;
   --color-sidebar-primary: #f97066;
   --color-sidebar-primary-foreground: #ffffff;
-  --color-sidebar-accent: #222224;
-  --color-sidebar-accent-foreground: #d1d9e0;
-  --color-sidebar-border: #333336;
+  --color-sidebar-accent: #225a8c;
+  --color-sidebar-accent-foreground: #f8f2e8;
+  --color-sidebar-border: rgba(255, 210, 128, 0.14);
   --color-sidebar-ring: #f97066;
-  --color-claw-gold: #fbbf24;
-  --color-ocean: #58a6ff;
-  --color-coral: #f97066;
-  --color-teal: #3fb9a0;
+
+  /* ── Radii ── */
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
+
+  /* ── Fonts ── */
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --font-pixel: var(--font-silkscreen), 'Silkscreen', cursive;
 }
 
 @layer base {
+  html {
+    font-size: 125%; /* 20px root — scales all rem-based sizing 25% larger */
+  }
   * {
     @apply border-border;
   }
@@ -72,9 +102,268 @@
   .animate-float {
     animation: float 3s ease-in-out infinite;
   }
+
+  /* ── Pixel art accent utilities ── */
+
+  .pixel-border {
+    border: 2px solid var(--color-border);
+    box-shadow:
+      inset -2px -2px 0 0 rgba(0, 0, 0, 0.2),
+      inset 2px 2px 0 0 rgba(255, 255, 255, 0.05);
+    image-rendering: pixelated;
+  }
+
+  .pixel-shadow {
+    box-shadow: 3px 3px 0 0 rgba(0, 0, 0, 0.4);
+  }
+
+  .pixel-press:active {
+    box-shadow: 1px 1px 0 0 rgba(0, 0, 0, 0.4);
+    transform: translate(2px, 2px);
+  }
+
+  .dither-bg {
+    background-image: radial-gradient(circle, var(--color-border) 1px, transparent 1px);
+    background-size: 4px 4px;
+  }
+
+  .scanline-overlay {
+    position: relative;
+  }
+  .scanline-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.08) 2px,
+      rgba(0, 0, 0, 0.08) 4px
+    );
+    pointer-events: none;
+  }
+
+  .animate-walk {
+    animation: walk 0.6s steps(4) infinite;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .animate-bubble {
+    animation: bubble 4s ease-out infinite;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 3s linear infinite;
+    background-size: 200% 100%;
+  }
+
+  .animate-idle-bob {
+    animation: idle-bob 3s ease-in-out infinite;
+  }
+
+  .animate-wave {
+    animation: wave 2.5s ease-in-out infinite;
+  }
+
+  /* ── Gold shimmer text for rewards ── */
+  .shimmer-gold {
+    background: linear-gradient(
+      90deg,
+      #fbbf24 0%,
+      #ffd280 40%,
+      #ffffff 50%,
+      #ffd280 60%,
+      #fbbf24 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+  }
+
+  /* ── Loading skeleton ── */
+  .frosted-skeleton {
+    backdrop-filter: blur(14px);
+    background: linear-gradient(
+      90deg,
+      rgba(14, 32, 52, 0.5) 25%,
+      rgba(14, 32, 52, 0.25) 50%,
+      rgba(14, 32, 52, 0.5) 75%
+    );
+    background-size: 200% 100%;
+    border: 1px solid rgba(255, 210, 128, 0.10);
+    border-radius: 0.5rem;
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* ── Ocean theme utilities ── */
+
+  .frosted-panel {
+    backdrop-filter: blur(14px);
+    background: rgba(18, 40, 65, 0.55);
+    border: 1px solid rgba(255, 210, 128, 0.20);
+    border-radius: 0.5rem;
+  }
+
+  .frosted-panel-highlight {
+    backdrop-filter: blur(14px);
+    background: rgba(18, 40, 65, 0.55);
+    border: 1px solid rgba(251, 191, 36, 0.40);
+    border-radius: 0.5rem;
+    box-shadow: 0 0 24px rgba(251, 191, 36, 0.12);
+  }
+
+  .frosted-panel-danger {
+    backdrop-filter: blur(14px);
+    background: rgba(18, 40, 65, 0.55);
+    border: 1px solid rgba(248, 81, 73, 0.40);
+    border-radius: 0.5rem;
+  }
+
+  .wood-texture {
+    background:
+      repeating-linear-gradient(
+        87deg,
+        transparent,
+        transparent 3px,
+        rgba(255, 210, 128, 0.03) 3px,
+        rgba(255, 210, 128, 0.03) 4px
+      ),
+      repeating-linear-gradient(
+        93deg,
+        transparent,
+        transparent 7px,
+        rgba(0, 0, 0, 0.06) 7px,
+        rgba(0, 0, 0, 0.06) 8px
+      );
+    background-color: var(--color-driftwood);
+  }
+
+  .ocean-gradient {
+    background: radial-gradient(
+      ellipse at 50% 0%,
+      rgba(88, 166, 255, 0.15) 0%,
+      rgba(22, 58, 92, 0.4) 50%,
+      transparent 80%
+    );
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 12px rgba(251, 191, 36, 0.25), 0 0 4px rgba(251, 191, 36, 0.15);
+  }
+
+  .font-pixel {
+    font-family: var(--font-pixel);
+  }
+
+  /* ── Scrollbar utilities ── */
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ── Pixel art asset utilities ── */
+
+  .pixel-art {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  /* Landing page — single combined background, seamless vertical scroll */
+  .landing-page {
+    background-size: 100% auto;
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-color: #0a3a6a;
+  }
+
+  /* Scene background overlay — used by PageBackground when a scene PNG is set */
+  .scene-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .scene-bg-dark {
+    opacity: 0.35;
+  }
+
+  /* Sprite sheet animation base — set --sprite-frames and --sprite-width */
+  .sprite-animate {
+    image-rendering: pixelated;
+    animation: sprite-step var(--sprite-duration, 0.8s) steps(var(--sprite-frames, 4)) infinite;
+  }
+
+  /* 9-slice panel frame container */
+  .nine-slice {
+    position: relative;
+    border: none;
+    border-image-slice: 24 fill;
+    border-image-width: 24px;
+    border-image-repeat: round;
+    image-rendering: pixelated;
+  }
 }
+
+/* ── Keyframe animations ── */
 
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
+}
+
+@keyframes walk {
+  from { background-position: 0 0; }
+  to { background-position: -100% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(249, 112, 102, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(249, 112, 102, 0.6); }
+}
+
+@keyframes bubble {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-120px) scale(0.4);
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes idle-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-3px) rotate(-1deg); }
+  75% { transform: translateY(2px) rotate(1deg); }
+}
+
+@keyframes wave {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-2px) rotate(-0.5deg); }
+  66% { transform: translateY(1px) rotate(0.5deg); }
+}
+
+@keyframes sprite-step {
+  from { background-position: 0 0; }
+  to { background-position: calc(var(--sprite-frames, 4) * var(--sprite-width, 32px) * -1) 0; }
 }

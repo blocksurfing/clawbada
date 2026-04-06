@@ -3,19 +3,24 @@
 import { useAccount } from 'wagmi';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import Image from 'next/image';
 import { api } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatClaw, formatCountdown } from '@/lib/format';
+import { FrostedPanel } from '@/components/ui/frosted-panel';
+import { FrostedSkeletonCard } from '@/components/ui/frosted-skeleton';
+import { PageBackground } from '@/components/ui/page-background';
+import { PixelIcon } from '@/components/ui/pixel-icon';
+import { ICONS, BACKGROUNDS } from '@/lib/assets';
+import { formatClaw, formatCountdown, tierLabel } from '@/lib/format';
 import {
   Pickaxe,
   Swords,
-  Heart,
-  Store,
+  Egg,
+  ShoppingBag,
   Clock,
-  Trophy,
   Users,
   ArrowRight,
+  ArrowUpCircle,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -44,78 +49,119 @@ export default function GameDashboard() {
 
   if (!address) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-        <span className="text-5xl mb-4">🦞</span>
-        <h1 className="text-2xl font-bold mb-2">Welcome to Clawbada</h1>
-        <p className="text-sm text-muted-foreground max-w-sm">
-          Connect your wallet to start mining, battling, and breeding lobsters.
-        </p>
-      </div>
+      <PageBackground variant="reef" scene={BACKGROUNDS.dashboard}>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+          <Image
+            src="/lobster-hero.png"
+            alt="Clawbada Lobster"
+            width={80}
+            height={80}
+            className="pixel-art mb-4"
+          />
+          <h1 className="font-pixel text-2xl text-foreground mb-2">Welcome to Clawbada</h1>
+          <p className="text-sm text-text-secondary max-w-sm">
+            Connect your wallet to start mining, battling, and breeding lobsters.
+          </p>
+        </div>
+      </PageBackground>
     );
   }
 
+  const isLoading = !profile && !lobstersData;
   const activeExpeditions = expeditionsData?.expeditions.filter((e) => !e.claimed) ?? [];
 
   return (
-    <div className="p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Your Clawbada overview</p>
-      </div>
+    <PageBackground variant="reef" scene={BACKGROUNDS.dashboard}>
+      <div className="p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
+        <div>
+          <h1 className="font-pixel text-xl text-foreground">Dashboard</h1>
+          <p className="text-sm text-text-secondary mt-1">Your Clawbada overview</p>
+        </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: 'Lobsters', value: lobstersData?.count ?? 0, icon: '🦞' },
-          { label: 'ELO', value: profile?.elo ?? 1000, mono: true },
-          { label: 'W / L', value: `${profile?.wins ?? 0} / ${profile?.losses ?? 0}` },
-          { label: 'Expeditions', value: profile?.totalExpeditions ?? 0 },
-        ].map(({ label, value, icon, mono }) => (
-          <div key={label} className="border border-border rounded-md p-4">
-            <div className="text-xs text-muted-foreground mb-1">{icon ? `${icon} ` : ''}{label}</div>
-            <div className={`text-2xl font-bold ${mono ? 'font-mono' : ''}`}>{value}</div>
+        {/* Stats — loading skeleton */}
+        {isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <FrostedSkeletonCard key={i} className="h-[76px]" />
+            ))}
           </div>
-        ))}
-      </div>
+        ) : lobstersData?.count === 0 ? (
+          /* Empty state — no lobsters */
+          <FrostedPanel variant="highlight" className="text-center py-8">
+            <PixelIcon src={ICONS.empty} alt="No lobsters" size={48} className="mx-auto mb-3" />
+            <h2 className="font-pixel text-sm text-foreground mb-1">Your ocean awaits</h2>
+            <p className="text-sm text-text-secondary mb-4 max-w-sm mx-auto">
+              Claim your free starter lobsters from the faucet, or browse the marketplace.
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <Link href="/faucet" className="frosted-panel-highlight px-4 py-2 text-xs font-pixel text-claw-gold hover:border-[rgba(255,210,128,0.3)] transition-colors">
+                Claim Free Lobsters
+              </Link>
+              <Link href="/market" className="frosted-panel px-4 py-2 text-xs text-text-secondary hover:text-foreground transition-colors">
+                Browse Market
+              </Link>
+            </div>
+          </FrostedPanel>
+        ) : null}
 
-      {/* Active expeditions */}
-      {activeExpeditions.length > 0 && (
+        {/* Stats */}
+        {!isLoading && (lobstersData?.count ?? 0) > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Lobsters', value: lobstersData?.count ?? 0, accent: 'text-foreground' },
+              { label: 'ELO', value: profile?.elo ?? 1000, accent: 'text-ocean', mono: true },
+              { label: 'W / L', value: `${profile?.wins ?? 0} / ${profile?.losses ?? 0}`, accent: 'text-coral' },
+              { label: 'Expeditions', value: profile?.totalExpeditions ?? 0, accent: 'text-claw-gold' },
+            ].map(({ label, value, accent, mono }) => (
+              <FrostedPanel key={label} className="p-3">
+                <div className="text-xs text-text-secondary mb-1">{label}</div>
+                <div className={`text-2xl font-bold ${accent} ${mono ? 'font-mono' : ''}`}>{value}</div>
+              </FrostedPanel>
+            ))}
+          </div>
+        )}
+
+        {/* Active expeditions */}
+        {activeExpeditions.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Active Expeditions</h2>
+            <div className="space-y-2">
+              {activeExpeditions.map((exp) => (
+                <ExpeditionCard key={exp.expeditionId} expedition={exp} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quick actions */}
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Active Expeditions</h2>
-          <div className="space-y-2">
-            {activeExpeditions.map((exp) => (
-              <ExpeditionCard key={exp.expeditionId} expedition={exp} />
+          <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Quick Actions</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[
+              { href: '/game/mining', icon: Pickaxe, label: 'Mining', desc: `${activeExpeditions.length} active`, iconBg: 'bg-claw-gold/15', color: 'text-claw-gold' },
+              { href: '/game/battle', icon: Swords, label: 'Battle', desc: 'PvP arena', iconBg: 'bg-coral/15', color: 'text-coral' },
+              { href: '/game/breeding', icon: Egg, label: 'Breeding', desc: 'Breed lobsters', iconBg: 'bg-teal/15', color: 'text-teal' },
+              { href: '/game/teams', icon: Users, label: 'Teams', desc: 'Manage teams', iconBg: 'bg-ocean/15', color: 'text-ocean' },
+              { href: '/game/evolution', icon: ArrowUpCircle, label: 'Evolve', desc: 'Power up', iconBg: 'bg-claw-gold/15', color: 'text-claw-gold' },
+              { href: '/market', icon: ShoppingBag, label: 'Market', desc: 'Buy & sell', iconBg: 'bg-ocean/15', color: 'text-ocean' },
+            ].map(({ href, icon: Icon, label, desc, iconBg, color }) => (
+              <Link key={href} href={href}>
+                <FrostedPanel className="card-hover hover:border-[rgba(255,210,128,0.3)] cursor-pointer group p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`size-8 rounded-lg flex items-center justify-center ${iconBg}`}>
+                      <Icon className={`size-4 ${color}`} />
+                    </div>
+                    <ArrowRight className="size-3 text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <div className="text-sm font-medium text-foreground">{label}</div>
+                  <div className="text-xs text-text-secondary">{desc}</div>
+                </FrostedPanel>
+              </Link>
             ))}
           </div>
         </div>
-      )}
-
-      {/* Quick actions */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {[
-            { href: '/game/mining', icon: Pickaxe, label: 'Mining', desc: `${activeExpeditions.length} active`, color: 'text-coral' },
-            { href: '/game/battle', icon: Swords, label: 'Battle', desc: 'PvP arena', color: 'text-destructive' },
-            { href: '/game/breeding', icon: Heart, label: 'Breeding', desc: 'Breed lobsters', color: 'text-teal' },
-            { href: '/game/teams', icon: Users, label: 'Teams', desc: 'Manage teams', color: 'text-ocean' },
-            { href: '/market', icon: Store, label: 'Market', desc: 'Buy & sell', color: 'text-claw-gold' },
-            { href: '/leaderboard', icon: Trophy, label: 'Leaderboard', desc: 'Rankings', color: 'text-muted-foreground' },
-          ].map(({ href, icon: Icon, label, desc, color }) => (
-            <Link key={href} href={href}>
-              <div className="border border-border rounded-md p-4 card-hover hover:border-muted-foreground/30 cursor-pointer group">
-                <div className="flex items-center justify-between mb-2">
-                  <Icon className={`size-4 ${color}`} />
-                  <ArrowRight className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <div className="text-sm font-medium">{label}</div>
-                <div className="text-xs text-muted-foreground">{desc}</div>
-              </div>
-            </Link>
-          ))}
-        </div>
       </div>
-    </div>
+    </PageBackground>
   );
 }
 
@@ -131,24 +177,22 @@ function ExpeditionCard({ expedition }: { expedition: { expeditionId: string; re
     return () => clearInterval(interval);
   }, [expedition.completionTime, isComplete]);
 
-  const tierNames = ['Base', 'Evolved', 'Elite', 'Apex'];
-
   return (
-    <div className="border border-border rounded-md p-4 flex items-center justify-between">
+    <FrostedPanel className="flex items-center justify-between p-3">
       <div>
         <div className="flex items-center gap-2 mb-0.5">
-          <Badge variant="outline" className="text-xs">{tierNames[expedition.mineTier]} Mine</Badge>
+          <span className="font-pixel text-[10px] text-text-accent">{tierLabel(expedition.mineTier)} Mine</span>
         </div>
-        <div className="text-sm font-medium">{formatClaw(expedition.reward)}</div>
+        <div className="text-sm font-medium text-text-accent font-mono">{formatClaw(expedition.reward)}</div>
       </div>
       {isComplete ? (
-        <Badge className="bg-coral text-white">Ready to claim</Badge>
+        <Badge className="bg-coral text-white font-pixel text-[10px]">Ready to claim</Badge>
       ) : (
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-mono">
+        <div className="flex items-center gap-1.5 text-sm text-text-secondary font-mono">
           <Clock className="size-3" />
           {countdown}
         </div>
       )}
-    </div>
+    </FrostedPanel>
   );
 }
