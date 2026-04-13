@@ -1,0 +1,66 @@
+# Git LFS configuration
+#
+# Binary assets inside the Unity project (packages/battle-engine/**) are tracked
+# via LFS. Everything else in the monorepo uses normal git — do NOT broaden these
+# patterns without also migrating existing binaries (packages/asset-gen PNGs,
+# apps/web/public/* assets, etc. are intentionally NOT in LFS).
+
+# --- Images ---
+packages/battle-engine/**/*.png   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.jpg   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.jpeg  filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.gif   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.bmp   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.tga   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.tif   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.tiff  filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.psd   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.psb   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.exr   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.hdr   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.webp  filter=lfs diff=lfs merge=lfs -text
+
+# --- 3D models / animations ---
+packages/battle-engine/**/*.fbx   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.obj   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.blend filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.3ds   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.dae   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.skp   filter=lfs diff=lfs merge=lfs -text
+
+# --- Audio ---
+packages/battle-engine/**/*.wav   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.mp3   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.ogg   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.aif   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.aiff  filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.flac  filter=lfs diff=lfs merge=lfs -text
+
+# --- Video ---
+packages/battle-engine/**/*.mp4   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.mov   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.avi   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.webm  filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.mkv   filter=lfs diff=lfs merge=lfs -text
+
+# --- Fonts ---
+packages/battle-engine/**/*.ttf   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.otf   filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.woff  filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.woff2 filter=lfs diff=lfs merge=lfs -text
+
+# --- Archives / Unity packages ---
+packages/battle-engine/**/*.zip          filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.7z           filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.rar          filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.unitypackage filter=lfs diff=lfs merge=lfs -text
+packages/battle-engine/**/*.bundle       filter=lfs diff=lfs merge=lfs -text
+
+# --- Unity scene / prefab merge hints (kept as text, Unity's smart merge) ---
+packages/battle-engine/**/*.unity  merge=unityyamlmerge eol=lf
+packages/battle-engine/**/*.prefab merge=unityyamlmerge eol=lf
+packages/battle-engine/**/*.asset  merge=unityyamlmerge eol=lf
+packages/battle-engine/**/*.meta   merge=unityyamlmerge eol=lf
+packages/battle-engine/**/*.mat    merge=unityyamlmerge eol=lf
+packages/battle-engine/**/*.anim   merge=unityyamlmerge eol=lf
+packages/battle-engine/**/*.controller merge=unityyamlmerge eol=lf
