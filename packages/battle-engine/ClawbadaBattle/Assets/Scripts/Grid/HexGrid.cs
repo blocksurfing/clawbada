@@ -2,7 +2,12 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Manages the 6×5 hex grid arena. Builds tiles, handles highlights, and placement.
+/// LKR-style hex grid manager. Hex tiles are runtime overlay GameObjects spawned on
+/// demand when a character is selected — there is no persistent grid of tiles in the
+/// scene. BuildGrid stores the arena's metadata (cols/rows/blocked/spawns) and
+/// ShowSelection spawns HexTile overlays for the current selection state: stone for
+/// in-range hexes, blue for the selected character's own hex, red for enemy targets,
+/// green for ally targets. The visual arena background is a separate SpriteRenderer.
 /// </summary>
 public class HexGrid : MonoBehaviour
 {
@@ -10,74 +15,154 @@ public class HexGrid : MonoBehaviour
     public float hexSize = 1.0f;
 
     [Header("Prefabs")]
+    [Tooltip("The animated HexTile overlay prefab. Spawned on demand by ShowSelection when a character is selected.")]
     public GameObject hexTilePrefab;
 
+    [Header("Timing")]
+    [Tooltip("Seconds to wait after ClearHighlights() before destroying spawned tiles — gives the fade-out animation time to play.")]
+    public float fadeOutDuration = 0.25f;
+
     [Header("Editor Preview")]
-    [Tooltip("Draw hex outlines in the Scene view before BuildGrid runs. Editor-only.")]
+    [Tooltip("Draw hex outlines in the Scene view for debugging. Editor-only, purely visual.")]
     public bool drawPreview = true;
     public int previewCols = 6;
     public int previewRows = 5;
 
     // Runtime state
-    private Dictionary<Vector2Int, HexTile> tiles = new();
     private ArenaLayout currentLayout;
+    private readonly List<HexTile> activeTiles = new();
 
-    /// <summary>Build the hex grid from an arena layout.</summary>
+    /// <summary>Store the arena layout and recenter the grid. Does NOT spawn any tiles —
+    /// overlay tiles are spawned on demand by ShowSelection.</summary>
     public void BuildGrid(ArenaLayout layout)
     {
-        // Clear existing tiles (Destroy in play mode, DestroyImmediate in edit mode)
-        foreach (var tile in tiles.Values)
-        {
-            if (tile == null) continue;
-            if (Application.isPlaying) Destroy(tile.gameObject);
-            else DestroyImmediate(tile.gameObject);
-        }
-        tiles.Clear();
+        ClearHighlightsImmediate();
         currentLayout = layout;
-
-        // Create hex tiles
-        for (int r = 0; r < layout.rows; r++)
-        {
-            for (int c = 0; c < layout.cols; c++)
-            {
-                Vector3 worldPos = HexCoord.HexToWorld(c, r, hexSize);
-                bool blocked = IsBlocked(c, r, layout);
-
-                GameObject tileObj;
-                if (hexTilePrefab != null)
-                {
-                    tileObj = Instantiate(hexTilePrefab, worldPos, Quaternion.identity, transform);
-                }
-                else
-                {
-                    // Fallback: create a simple placeholder
-                    tileObj = new GameObject($"Hex_{c}_{r}");
-                    tileObj.transform.position = worldPos;
-                    tileObj.transform.SetParent(transform);
-                }
-
-                var hexTile = tileObj.GetComponent<HexTile>();
-                if (hexTile == null) hexTile = tileObj.AddComponent<HexTile>();
-
-                hexTile.Initialize(c, r, blocked);
-                tiles[new Vector2Int(c, r)] = hexTile;
-            }
-        }
-
-        // Center the grid in the scene
         CenterGrid(layout);
-
-        Debug.Log($"[HexGrid] Built {layout.cols}x{layout.rows} grid, {tiles.Count} tiles, {layout.blockedHexes?.Length ?? 0} blocked");
+        Debug.Log($"[HexGrid] Loaded layout {layout.layoutId} ({layout.cols}x{layout.rows}, " +
+                  $"{layout.blockedHexes?.Length ?? 0} blocked, tier: {layout.tier})");
     }
 
-    private bool IsBlocked(int col, int row, ArenaLayout layout)
+    // ─── Highlight API (called from React via BattleBridge) ───
+
+    /// <summary>Show the full highlight state for the currently selected character.
+    /// Atomic: clears prior highlights, then spawns the blue origin tile plus the three
+    /// target arrays with dedupe precedence enemy &gt; ally &gt; in-range. A hex that
+    /// appears in both rangeHexes and enemyTargets renders as red only — the more
+    /// actionable state always wins. React builds the payload per phase:
+    ///   • Phase 1 positioning  → rangeHexes populated; enemy/ally arrays empty
+    ///   • Phase 2 attack/defend → rangeHexes + enemyTargets populated
+    ///   • Phase 2 heal/buff     → rangeHexes + allyTargets populated
+    /// JSON shape: HexListData.</summary>
+    public void ShowSelection(string json)
     {
-        if (layout.blockedHexes == null) return false;
-        foreach (var b in layout.blockedHexes)
+        var data = ParseHexList(json);
+        if (data == null) return;
+
+        ClearHighlights();
+        SpawnOrigin(data);
+
+        // Track cells already claimed by a higher-precedence highlight so we don't
+        // stack two overlay tiles on the same hex. Precedence: origin > enemy > ally > range.
+        var claimed = new HashSet<(int, int)>();
+        if (data.originCol >= 0 && data.originRow >= 0)
+            claimed.Add((data.originCol, data.originRow));
+
+        foreach (var h in data.enemyTargets)
+        {
+            if (claimed.Add((h.col, h.row)))
+                SpawnTile(h.col, h.row, HexHighlight.EnemyTarget);
+        }
+        foreach (var h in data.allyTargets)
+        {
+            if (claimed.Add((h.col, h.row)))
+                SpawnTile(h.col, h.row, HexHighlight.AllyTarget);
+        }
+        foreach (var h in data.rangeHexes)
+        {
+            if (claimed.Add((h.col, h.row)))
+                SpawnTile(h.col, h.row, HexHighlight.InRange);
+        }
+    }
+
+    /// <summary>Clear all currently spawned highlight tiles. Plays fade-out via
+    /// HexTile.FadeOutAndDestroy before destroying each tile.</summary>
+    public void ClearHighlights()
+    {
+        if (activeTiles.Count == 0) return;
+        foreach (var tile in activeTiles)
+        {
+            if (tile != null) tile.FadeOutAndDestroy(fadeOutDuration);
+        }
+        activeTiles.Clear();
+    }
+
+    // ─── Private helpers ───
+
+    private HexListData ParseHexList(string json)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            Debug.LogWarning("[HexGrid] Empty JSON passed to highlight API.");
+            return null;
+        }
+        try
+        {
+            var data = JsonUtility.FromJson<HexListData>(json);
+            if (data == null) return null;
+            if (data.rangeHexes == null)   data.rangeHexes   = System.Array.Empty<HexPosition>();
+            if (data.enemyTargets == null) data.enemyTargets = System.Array.Empty<HexPosition>();
+            if (data.allyTargets == null)  data.allyTargets  = System.Array.Empty<HexPosition>();
+            return data;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[HexGrid] Failed to parse highlight JSON: {e.Message}\n{json}");
+            return null;
+        }
+    }
+
+    private void SpawnOrigin(HexListData data)
+    {
+        if (data.originCol < 0 || data.originRow < 0) return;
+        SpawnTile(data.originCol, data.originRow, HexHighlight.SelectedLobster);
+    }
+
+    private HexTile SpawnTile(int col, int row, HexHighlight highlight)
+    {
+        if (!InBounds(col, row)) return null;
+        if (hexTilePrefab == null)
+        {
+            Debug.LogWarning($"[HexGrid] hexTilePrefab not assigned — cannot spawn overlay at ({col},{row}).");
+            return null;
+        }
+
+        GameObject go = Instantiate(hexTilePrefab, transform);
+        go.transform.localPosition = HexCoord.HexToWorld(col, row, hexSize);
+
+        var tile = go.GetComponent<HexTile>();
+        if (tile == null) tile = go.AddComponent<HexTile>();
+
+        tile.Initialize(col, row, IsBlocked(col, row));
+        tile.SetHighlight(highlight);
+        activeTiles.Add(tile);
+        return tile;
+    }
+
+    private bool IsBlocked(int col, int row)
+    {
+        if (currentLayout?.blockedHexes == null) return false;
+        foreach (var b in currentLayout.blockedHexes)
         {
             if (b.col == col && b.row == row) return true;
         }
         return false;
+    }
+
+    private bool InBounds(int col, int row)
+    {
+        if (currentLayout == null) return true;
+        return col >= 0 && col < currentLayout.cols && row >= 0 && row < currentLayout.rows;
     }
 
     private void CenterGrid(ArenaLayout layout)
@@ -86,38 +171,18 @@ public class HexGrid : MonoBehaviour
         float h = 2f * hexSize;
         float gridWidth = (layout.cols - 1) * w + w * 0.5f;
         float gridHeight = (layout.rows - 1) * (h * 0.75f);
-        transform.position = new Vector3(-gridWidth / 2f, gridHeight / 2f, 0);
+        transform.position = new Vector3(-gridWidth / 2f, -gridHeight / 2f, 0);
     }
 
-    public HexTile GetTile(int col, int row)
+    private void ClearHighlightsImmediate()
     {
-        tiles.TryGetValue(new Vector2Int(col, row), out var tile);
-        return tile;
-    }
-
-    /// <summary>Show movement range highlights from JSON.</summary>
-    public void ShowMoveRange(string json)
-    {
-        ClearHighlights();
-        // TODO: Parse json, highlight reachable hexes in blue
-        Debug.Log($"[HexGrid] ShowMoveRange: {json}");
-    }
-
-    /// <summary>Show attack range highlights with distance modifiers from JSON.</summary>
-    public void ShowAttackRange(string json)
-    {
-        ClearHighlights();
-        // TODO: Parse json, highlight targets with distance-based colors
-        Debug.Log($"[HexGrid] ShowAttackRange: {json}");
-    }
-
-    /// <summary>Clear all hex highlights.</summary>
-    public void ClearHighlights()
-    {
-        foreach (var tile in tiles.Values)
+        foreach (var tile in activeTiles)
         {
-            tile.SetHighlight(HexHighlight.None);
+            if (tile == null) continue;
+            if (Application.isPlaying) Destroy(tile.gameObject);
+            else DestroyImmediate(tile.gameObject);
         }
+        activeTiles.Clear();
     }
 
 #if UNITY_EDITOR
@@ -150,22 +215,21 @@ public class HexGrid : MonoBehaviour
         }
     }
 
-    [ContextMenu("Debug Build Test Grid")]
-    private void DebugBuildTestGrid()
+    [ContextMenu("Debug Load Test Layout")]
+    private void DebugLoadTestLayout()
     {
-        var layout = new ArenaLayout
+        BuildGrid(new ArenaLayout
         {
+            layoutId = "arena_debug_test",
             cols = 6,
             rows = 5,
             tier = "evolved",
             blockedHexes = new HexPosition[]
             {
                 new HexPosition { col = 2, row = 1 },
-                new HexPosition { col = 3, row = 2 },
-                new HexPosition { col = 1, row = 3 },
-                new HexPosition { col = 4, row = 0 },
-                new HexPosition { col = 4, row = 4 },
-                new HexPosition { col = 2, row = 4 },
+                new HexPosition { col = 3, row = 1 },
+                new HexPosition { col = 2, row = 3 },
+                new HexPosition { col = 3, row = 3 },
             },
             teamASpawns = new HexPosition[]
             {
@@ -179,21 +243,60 @@ public class HexGrid : MonoBehaviour
                 new HexPosition { col = 5, row = 2 },
                 new HexPosition { col = 5, row = 4 },
             },
-        };
-        BuildGrid(layout);
+        });
     }
 
-    [ContextMenu("Debug Clear Grid")]
-    private void DebugClearGrid()
+    [ContextMenu("Debug Show Move Phase From (0,2)")]
+    private void DebugShowMovePhase()
     {
-        var children = new System.Collections.Generic.List<GameObject>();
-        foreach (Transform child in transform) children.Add(child.gameObject);
-        foreach (var go in children)
-        {
-            if (Application.isPlaying) Destroy(go);
-            else DestroyImmediate(go);
-        }
-        tiles.Clear();
+        if (currentLayout == null) DebugLoadTestLayout();
+        string json = "{\"originCol\":0,\"originRow\":2," +
+                      "\"rangeHexes\":[" +
+                        "{\"col\":1,\"row\":1},{\"col\":1,\"row\":2},{\"col\":1,\"row\":3}," +
+                        "{\"col\":0,\"row\":1},{\"col\":0,\"row\":3}]," +
+                      "\"enemyTargets\":[]," +
+                      "\"allyTargets\":[]}";
+        ShowSelection(json);
+    }
+
+    [ContextMenu("Debug Show Attack Phase From (0,2)")]
+    private void DebugShowAttackPhase()
+    {
+        if (currentLayout == null) DebugLoadTestLayout();
+        // Stone in-range + one enemy on (1,2) — exercises the enemy > range dedupe.
+        string json = "{\"originCol\":0,\"originRow\":2," +
+                      "\"rangeHexes\":[" +
+                        "{\"col\":1,\"row\":1},{\"col\":1,\"row\":2},{\"col\":1,\"row\":3}," +
+                        "{\"col\":0,\"row\":1},{\"col\":0,\"row\":3}]," +
+                      "\"enemyTargets\":[{\"col\":1,\"row\":2}]," +
+                      "\"allyTargets\":[]}";
+        ShowSelection(json);
+    }
+
+    [ContextMenu("Debug Clear Highlights")]
+    private void DebugClearHighlights()
+    {
+        ClearHighlightsImmediate();
     }
 #endif
+}
+
+[System.Serializable]
+public class HexListData
+{
+    /// <summary>Selected character's own hex (spawned as SelectedLobster / blue).
+    /// Use -1,-1 to skip the origin tile.</summary>
+    public int originCol = -1;
+    public int originRow = -1;
+
+    /// <summary>In-range hexes (stone). Phase 1: movement range. Phase 2: attack max range.</summary>
+    public HexPosition[] rangeHexes;
+
+    /// <summary>Enemy-occupied hexes within attack / defend / special range (red).
+    /// Only populated in phase 2 when an enemy-targeted move is being selected.</summary>
+    public HexPosition[] enemyTargets;
+
+    /// <summary>Friendly hexes targetable by heal / buff specials (green).
+    /// Only populated in phase 2 for moves like Sentinel Rally.</summary>
+    public HexPosition[] allyTargets;
 }
