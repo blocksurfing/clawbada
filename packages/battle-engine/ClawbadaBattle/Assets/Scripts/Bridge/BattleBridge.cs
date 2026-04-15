@@ -86,19 +86,15 @@ public class BattleBridge : MonoBehaviour
         if (battleManager != null) battleManager.OnBattleEnd(data);
     }
 
-    /// <summary>Show movement range highlights for a lobster.</summary>
-    public void ShowMoveRange(string json)
+    /// <summary>Show the hex highlight state for the currently selected character.
+    /// Atomic: stone in-range hexes, blue origin hex, red enemy targets, green ally
+    /// targets. See HexGrid.ShowSelection for precedence and payload shape.</summary>
+    public void ShowSelection(string json)
     {
-        if (hexGrid != null) hexGrid.ShowMoveRange(json);
+        if (hexGrid != null) hexGrid.ShowSelection(json);
     }
 
-    /// <summary>Show attack range highlights with distance modifiers.</summary>
-    public void ShowAttackRange(string json)
-    {
-        if (hexGrid != null) hexGrid.ShowAttackRange(json);
-    }
-
-    /// <summary>Clear all hex highlights.</summary>
+    /// <summary>Clear all hex highlights (fades them out and destroys).</summary>
     public void ClearHighlights()
     {
         if (hexGrid != null) hexGrid.ClearHighlights();
@@ -157,6 +153,7 @@ public class HexPosition
 [System.Serializable]
 public class ArenaLayout
 {
+    public string layoutId;
     public int cols;
     public int rows;
     public HexPosition[] blockedHexes;
