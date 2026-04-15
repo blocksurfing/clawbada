@@ -38,14 +38,17 @@ public static class HexCoord
         return Distance(a.col, a.row, b.col, b.row);
     }
 
-    /// <summary>Get world position for a hex tile (pointy-top, odd-row-right offset).</summary>
+    /// <summary>Get world position for a hex tile (pointy-top, odd-row-right offset).
+    /// Row 0 sits at local Y=0 and rows grow upward in world space, matching Unity's
+    /// built-in hex Grid/Tilemap paint direction so runtime coords stay aligned with
+    /// designer-painted layouts.</summary>
     public static Vector3 HexToWorld(int col, int row, float hexSize)
     {
         float w = Mathf.Sqrt(3f) * hexSize;
         float h = 2f * hexSize;
         float x = col * w + (row % 2 == 1 ? w * 0.5f : 0f);
         float y = row * (h * 0.75f);
-        return new Vector3(x, -y, 0); // negative Y because Unity 2D Y-up
+        return new Vector3(x, y, 0);
     }
 
     /// <summary>Get all hex positions within a given range from center.</summary>
