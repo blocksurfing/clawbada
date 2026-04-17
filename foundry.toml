@@ -17,6 +17,36 @@ fs_permissions = [
 runs = 256
 max_test_rejects = 65536
 
+[profile.default.invariant]
+runs = 256
+depth = 50
+call_override = false
+shrink_run_limit = 5000
+fail_on_revert = false
+
+[profile.ci.fuzz]
+runs = 10000
+max_test_rejects = 65536
+
+[profile.ci.invariant]
+runs = 500
+depth = 100
+call_override = false
+shrink_run_limit = 5000
+fail_on_revert = false
+
+[profile.deep.fuzz]
+runs = 50000
+max_test_rejects = 1000000
+seed = "0xc1a88ada"
+
+[profile.deep.invariant]
+runs = 2000
+depth = 200
+call_override = false
+shrink_run_limit = 5000
+fail_on_revert = false
+
 [rpc_endpoints]
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 base = "${BASE_RPC_URL}"
