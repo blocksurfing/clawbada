@@ -17,6 +17,7 @@ contract Faucet is AccessControl {
     uint256 public constant LOBSTERS_PER_CLAIM = 5;
     uint256 public constant CLAW_DRIP_AMOUNT = 7_000e18;
     uint256 public constant MIN_ETH_BALANCE = 0.001 ether;
+    uint256 public constant MAX_BATCH_SIZE = 500;
 
     // ──────────── State ────────────
     LobsterNFT public lobsterNFT;
@@ -42,6 +43,8 @@ contract Faucet is AccessControl {
     error ClawAlreadyClaimed();
     error LobstersNotClaimed();
     error ZeroAddress();
+    error InsufficientFaucetBalance();
+    error BatchTooLarge(uint256 length, uint256 max);
 
     // ──────────── Constructor ────────────
 
@@ -75,6 +78,7 @@ contract Faucet is AccessControl {
 
     /// @notice Batch set eligibility for multiple wallets.
     function setEligibleBatch(address[] calldata accounts, bool eligible) external onlyRole(ELIGIBILITY_ROLE) {
+        if (accounts.length > MAX_BATCH_SIZE) revert BatchTooLarge(accounts.length, MAX_BATCH_SIZE);
         for (uint256 i = 0; i < accounts.length; i++) {
             if (accounts[i] == address(0)) revert ZeroAddress();
             isEligible[accounts[i]] = eligible;
@@ -114,7 +118,8 @@ contract Faucet is AccessControl {
         hasClaimedClaw[msg.sender] = true;
         totalClawClaimed += CLAW_DRIP_AMOUNT;
 
-        clawToken.mint(msg.sender, CLAW_DRIP_AMOUNT);
+        if (clawToken.balanceOf(address(this)) < CLAW_DRIP_AMOUNT) revert InsufficientFaucetBalance();
+        clawToken.transfer(msg.sender, CLAW_DRIP_AMOUNT);
         emit ClawClaimed(msg.sender, CLAW_DRIP_AMOUNT);
     }
 

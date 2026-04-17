@@ -8,13 +8,15 @@ import "../helpers/BaseSetup.t.sol";
 contract FuzzBreedingLab is BaseSetup {
     address internal alice = makeAddr("alice");
 
-    // Helper: approve treasury + breed
+    // Helper: approve treasury + 2-step breed (requestBreed + roll + finalizeBreed).
+    // finalizeBreed is permissionless so we don't re-prank for it.
     function _breed(address caller, uint256 parentA, uint256 parentB) internal returns (uint256) {
         vm.startPrank(caller);
         claw.approve(address(breedingLab), type(uint256).max);
-        uint256 offspringId = breedingLab.breed(parentA, parentB);
+        uint256 requestId = breedingLab.requestBreed(parentA, parentB);
         vm.stopPrank();
-        return offspringId;
+        vm.roll(block.number + breedingLab.FINALIZE_MIN_BLOCKS() + 1);
+        return breedingLab.finalizeBreed(requestId);
     }
 
     // ── Breed cost formula ────────────────────────────────────────
@@ -43,7 +45,7 @@ contract FuzzBreedingLab is BaseSetup {
         vm.startPrank(alice);
         claw.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(BreedingLab.SameParent.selector);
-        breedingLab.breed(parentA, parentA);
+        breedingLab.requestBreed(parentA, parentA);
         vm.stopPrank();
     }
 
@@ -111,7 +113,7 @@ contract FuzzBreedingLab is BaseSetup {
         vm.startPrank(alice);
         claw.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(BreedingLab.BreedLimitReached.selector, parentA));
-        breedingLab.breed(parentA, freshPartner);
+        breedingLab.requestBreed(parentA, freshPartner);
         vm.stopPrank();
     }
 
@@ -129,7 +131,7 @@ contract FuzzBreedingLab is BaseSetup {
         vm.startPrank(alice);
         claw.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(); // BreedOnCooldown
-        breedingLab.breed(parentA, parentC);
+        breedingLab.requestBreed(parentA, parentC);
         vm.stopPrank();
     }
 
@@ -165,7 +167,7 @@ contract FuzzBreedingLab is BaseSetup {
         vm.startPrank(alice);
         claw.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(BreedingLab.LobsterIsLocked.selector, parentA));
-        breedingLab.breed(parentA, parentB);
+        breedingLab.requestBreed(parentA, parentB);
         vm.stopPrank();
     }
 
@@ -180,7 +182,7 @@ contract FuzzBreedingLab is BaseSetup {
         vm.startPrank(bob);
         claw.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(BreedingLab.NotLobsterOwner.selector, parentA));
-        breedingLab.breed(parentA, parentB);
+        breedingLab.requestBreed(parentA, parentB);
         vm.stopPrank();
     }
 

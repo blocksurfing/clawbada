@@ -11,7 +11,10 @@ import {TeamManager} from "./TeamManager.sol";
 /// @notice Manages expeditions across Base/Evolved/Elite/Apex mines. Each expedition earns
 ///         a fixed reward = baseReward × tierWeight, locked at start. Season has a total
 ///         emission cap; mining stops when the budget is exhausted.
-/// @dev Admin calls startSeason(totalEmission, baseReward) each season. Rewards minted at claim time.
+/// @dev Admin calls startSeason(totalEmission, baseReward) each season. Rewards are minted into
+///      MiningPool escrow at expedition start and transferred to the user at claim time. This
+///      ensures startExpedition() fails immediately if ClawToken.MAX_SUPPLY headroom is insufficient,
+///      preventing teams from becoming permanently locked by a later mint failure.
 contract MiningPool is AccessControl, ReentrancyGuard {
     // ──────────── Roles ────────────
     bytes32 public constant SEASON_ADMIN_ROLE = keccak256("SEASON_ADMIN_ROLE");
@@ -31,13 +34,14 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         uint256 totalEmission; // season budget cap
         uint256 baseReward; // $CLAW per Base expedition (×tierWeight for higher tiers)
         uint256 startTime;
-        uint256 totalMinted; // tracks reserved/minted this season
+        uint256 totalMinted; // tracks budget allocated and minted into escrow this season
     }
 
     // ──────────── Constants ────────────
     uint256 public constant EXPEDITION_DURATION = 4 hours;
     uint256 public constant SEASON_DURATION = 60 days;
     uint256 public constant NUM_TIERS = 4;
+    uint256 public constant ADMIN_RELEASE_GRACE = 7 days;
 
     // ──────────── Immutable Config ────────────
     uint256[4] public TIER_WEIGHTS = [uint256(1), 3, 10, 25];
@@ -72,12 +76,17 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     error TeamDoesNotExist(uint256 teamId);
     error NotTeamOwner(uint256 teamId);
     error TeamAlreadyMining(uint256 teamId);
+    error TeamIsActive(uint256 teamId);
     error TierRequirementNotMet(uint256 lobsterId, uint8 requiredTier, uint8 actualTier);
     error InvalidMineTier(uint8 tier);
     error ExpeditionDoesNotExist(uint256 expeditionId);
     error ExpeditionNotComplete(uint256 expeditionId);
     error ExpeditionAlreadyClaimed(uint256 expeditionId);
     error NotExpeditionOwner(uint256 expeditionId);
+    error AdminReleaseTooEarly(uint256 expeditionId, uint256 availableAt);
+
+    // ──────────── Events (admin) ────────────
+    event ExpeditionAdminReleased(uint256 indexed expeditionId, uint256 indexed teamId, uint256 rewardReturned);
 
     // ──────────── Constructor ────────────
 
@@ -149,6 +158,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         if (!teamManager.teamExists(teamId)) revert TeamDoesNotExist(teamId);
         TeamManager.Team memory team = teamManager.getTeam(teamId);
         if (team.owner != msg.sender) revert NotTeamOwner(teamId);
+        if (team.active) revert TeamIsActive(teamId);
         if (_teamToExpedition[teamId] != 0) revert TeamAlreadyMining(teamId);
 
         // Validate tier gate: all 3 lobsters must meet minimum tier
@@ -165,6 +175,9 @@ contract MiningPool is AccessControl, ReentrancyGuard {
 
         if (season.totalMinted + reward > season.totalEmission) revert SeasonBudgetExhausted();
         season.totalMinted += reward;
+
+        // Mint reward into escrow now — reverts with ExceedsMaxSupply if global cap insufficient
+        clawToken.mint(address(this), reward);
 
         expeditionId = nextExpeditionId++;
         _expeditions[expeditionId] = Expedition({
@@ -204,10 +217,38 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         // Mark team as inactive
         teamManager.setTeamActive(expedition.teamId, false);
 
-        // Mint locked reward
-        clawToken.mint(msg.sender, expedition.reward);
+        // Transfer escrowed reward to claimer
+        clawToken.transfer(msg.sender, expedition.reward);
 
         emit ExpeditionClaimed(expeditionId, expedition.teamId, msg.sender, expedition.reward);
+    }
+
+    // ──────────── Admin Emergency ────────────
+
+    /// @notice Emergency release a stuck expedition (e.g., owner lost keys).
+    /// @dev Only callable by DEFAULT_ADMIN_ROLE after expedition completes + ADMIN_RELEASE_GRACE (7 days).
+    ///      Releases the team and burns the escrowed reward (returns to protocol, not claimable).
+    ///      This prevents permanent team/lobster lock from key loss.
+    /// @param expeditionId The stuck expedition to release
+    function adminReleaseExpedition(uint256 expeditionId) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        Expedition storage expedition = _expeditions[expeditionId];
+        if (expedition.owner == address(0)) revert ExpeditionDoesNotExist(expeditionId);
+        if (expedition.claimed) revert ExpeditionAlreadyClaimed(expeditionId);
+
+        // Must be well past completion: expedition duration + grace period
+        uint256 availableAt = expedition.startTime + EXPEDITION_DURATION + ADMIN_RELEASE_GRACE;
+        if (block.timestamp < availableAt) {
+            revert AdminReleaseTooEarly(expeditionId, availableAt);
+        }
+
+        expedition.claimed = true;
+        _teamToExpedition[expedition.teamId] = 0;
+        teamManager.setTeamActive(expedition.teamId, false);
+
+        // Burn the escrowed reward rather than sending to admin
+        clawToken.burn(expedition.reward);
+
+        emit ExpeditionAdminReleased(expeditionId, expedition.teamId, expedition.reward);
     }
 
     // ──────────── View Functions ────────────

@@ -10,29 +10,58 @@ import {DNALib} from "./libraries/DNALib.sol";
 /// @title BreedingLab — Lobster breeding for Clawbada
 /// @notice Breeds 2 parent lobsters to produce 1 offspring with DNA inheritance, gene ordering, and legend rolls.
 ///         Fees routed through Treasury.sol (85% burn / 15% dev).
-/// @dev Offspring is always Base tier, never soulbound. Parents are preserved (not consumed).
-///      5 breeds max per lobster, 48h cooldown per parent. Cost scales by breed count × generation.
+/// @dev Uses a 2-step commit-reveal flow (requestBreed → finalizeBreed) to prevent same-block
+///      randomness sniping. Offspring is always Base tier, never soulbound. Parents are preserved
+///      (not consumed). 5 breeds max per lobster, 48h cooldown per parent. Cost scales by breed
+///      count × generation.
 contract BreedingLab is ReentrancyGuard {
     // ──────────── Constants ────────────
     uint256 public constant BREED_COOLDOWN = 48 hours;
     uint256 public constant BASE_BREED_COST = 500e18;
     uint256 public constant MAX_BREEDS = 5;
     uint256 public constant LEGEND_THRESHOLD = 3; // 0.3% = 3/1000
+    uint256 public constant FINALIZE_MIN_BLOCKS = 2;
+    uint256 public constant FINALIZE_WINDOW = 256; // EVM blockhash lookback limit
 
     // Breed multipliers ×10 scaled: [1.0, 1.5, 2.5, 4.0, 8.0] → [10, 15, 25, 40, 80]
     uint256[5] public BREED_MULTIPLIERS = [uint256(10), 15, 25, 40, 80];
+
+    // ──────────── Types ────────────
+    struct BreedRequest {
+        address requester;
+        uint8 genA;
+        uint8 genB;
+        bool finalized;
+        uint256 dnaA;
+        uint256 dnaB;
+        uint256 targetBlock;
+        uint256 cost;
+        uint256 parentA; // F-01: stored for expired request recovery
+        uint256 parentB; // F-01: stored for expired request recovery
+    }
 
     // ──────────── State ────────────
     IERC20 public clawToken;
     LobsterNFT public lobsterNFT;
     Treasury public treasury;
 
+    uint256 public nextRequestId = 1;
+    mapping(uint256 => BreedRequest) private _breedRequests;
     mapping(uint256 => uint256) private _lastBreedTime; // lobsterId → timestamp
 
     // ──────────── Events ────────────
-    event LobsterBred(
-        uint256 indexed parentA, uint256 indexed parentB, uint256 indexed offspringId, uint256 offspringDna, uint256 cost
+    event BreedRequested(
+        uint256 indexed requestId,
+        address indexed requester,
+        uint256 parentA,
+        uint256 parentB,
+        uint256 cost,
+        uint256 targetBlock
     );
+    event LobsterBred(
+        uint256 indexed requestId, uint256 indexed offspringId, uint256 offspringDna, uint256 cost
+    );
+    event BreedRequestExpired(uint256 indexed requestId, uint256 parentA, uint256 parentB);
 
     // ──────────── Errors ────────────
     error ZeroAddress();
@@ -41,6 +70,12 @@ contract BreedingLab is ReentrancyGuard {
     error LobsterIsLocked(uint256 lobsterId);
     error BreedLimitReached(uint256 lobsterId);
     error BreedOnCooldown(uint256 lobsterId, uint256 availableAt);
+    error RequestDoesNotExist(uint256 requestId);
+    error RequestAlreadyFinalized(uint256 requestId);
+    error TooEarlyToFinalize(uint256 requestId, uint256 targetBlock);
+    error RequestExpired(uint256 requestId);
+    error MaxGenerationReached();
+    error RequestNotExpired(uint256 requestId);
 
     // ──────────── Constructor ────────────
 
@@ -58,22 +93,111 @@ contract BreedingLab is ReentrancyGuard {
 
     // ──────────── Core ────────────
 
-    /// @notice Breed two parent lobsters to produce one offspring.
+    /// @notice Step 1: Request a breed. Validates parents, charges fee, sets cooldowns.
+    /// @dev Fee is committed immediately and cannot be refunded. Breed count is incremented.
+    ///      The offspring will be generated in finalizeBreed using future-block entropy.
     /// @param parentA First parent lobster ID
     /// @param parentB Second parent lobster ID
-    /// @return offspringId The newly minted offspring token ID
-    function breed(uint256 parentA, uint256 parentB) external nonReentrant returns (uint256 offspringId) {
+    /// @return requestId The breed request ID
+    function requestBreed(uint256 parentA, uint256 parentB) external nonReentrant returns (uint256 requestId) {
         if (parentA == parentB) revert SameParent();
 
         // Validate both parents
         _validateParent(parentA);
         _validateParent(parentB);
 
+        // Cache parent data before state changes
+        uint256 dnaA = lobsterNFT.getDNA(parentA);
+        uint256 dnaB = lobsterNFT.getDNA(parentB);
+        uint8 genA = lobsterNFT.getGeneration(parentA);
+        uint8 genB = lobsterNFT.getGeneration(parentB);
+
+        // Check offspring generation won't overflow
+        uint8 maxGen = genA > genB ? genA : genB;
+        if (maxGen >= 255) revert MaxGenerationReached();
+
         // Calculate and collect fee, update parent state
         uint256 totalCost = _collectFeeAndUpdateParents(parentA, parentB);
 
-        // Generate offspring
-        offspringId = _createOffspring(parentA, parentB, totalCost);
+        // Store request
+        requestId = nextRequestId++;
+        uint256 targetBlock = block.number + FINALIZE_MIN_BLOCKS;
+
+        _breedRequests[requestId] = BreedRequest({
+            requester: msg.sender,
+            genA: genA,
+            genB: genB,
+            finalized: false,
+            dnaA: dnaA,
+            dnaB: dnaB,
+            targetBlock: targetBlock,
+            cost: totalCost,
+            parentA: parentA,
+            parentB: parentB
+        });
+
+        emit BreedRequested(requestId, msg.sender, parentA, parentB, totalCost, targetBlock);
+    }
+
+    /// @notice Step 2: Finalize a breed request. Generates offspring using future-block entropy.
+    /// @dev Callable by anyone after the target block. Offspring is minted to the original requester.
+    ///      This prevents sniping: a smart contract cannot simulate the outcome and revert
+    ///      selectively because anyone else can finalize the request.
+    /// @param requestId The breed request ID from requestBreed
+    /// @return offspringId The newly minted offspring token ID
+    function finalizeBreed(uint256 requestId) external nonReentrant returns (uint256 offspringId) {
+        BreedRequest storage req = _breedRequests[requestId];
+        if (req.requester == address(0)) revert RequestDoesNotExist(requestId);
+        if (req.finalized) revert RequestAlreadyFinalized(requestId);
+        if (block.number < req.targetBlock) revert TooEarlyToFinalize(requestId, req.targetBlock);
+
+        bytes32 blockHash = blockhash(req.targetBlock);
+        if (blockHash == bytes32(0)) revert RequestExpired(requestId);
+
+        req.finalized = true;
+
+        // Generate offspring using future-block entropy (unknown at request time)
+        uint256 seed = uint256(keccak256(abi.encodePacked(blockHash, requestId)));
+        uint256 offspringDna = _generateOffspringDNA(req.dnaA, req.dnaB, seed);
+
+        // Generation overflow already checked in requestBreed; safe to add without overflow
+        uint8 offspringGen = (req.genA > req.genB ? req.genA : req.genB) + 1;
+        offspringId = lobsterNFT.mintWithGeneration(req.requester, offspringDna, offspringGen);
+
+        emit LobsterBred(requestId, offspringId, offspringDna, req.cost);
+    }
+
+    /// @notice Cancel an expired breed request and restore parent breed counts.
+    /// @dev Callable by anyone after the blockhash window expires (~256 blocks / ~8.5 min on Base).
+    ///      The $CLAW fee is irrecoverable (already burned via Treasury), but breed counts are
+    ///      restored so parents don't permanently lose a lifetime breed slot.
+    /// @param requestId The breed request ID
+    function cancelExpiredRequest(uint256 requestId) external nonReentrant {
+        BreedRequest storage req = _breedRequests[requestId];
+        if (req.requester == address(0)) revert RequestDoesNotExist(requestId);
+        if (req.finalized) revert RequestAlreadyFinalized(requestId);
+
+        // Must be past the target block (can't cancel before finalization window opens)
+        if (block.number < req.targetBlock) revert TooEarlyToFinalize(requestId, req.targetBlock);
+
+        // Must actually be expired (blockhash returns 0 after 256 blocks)
+        if (blockhash(req.targetBlock) != bytes32(0)) revert RequestNotExpired(requestId);
+
+        req.finalized = true;
+
+        // Restore breed counts on both parents (fee is irrecoverable — already burned)
+        uint256 pA = req.parentA;
+        uint256 pB = req.parentB;
+
+        // Only decrement if the parent still exists (may have been burned as evolution fuel)
+        if (lobsterNFT.exists(pA)) {
+            lobsterNFT.decrementBreedCount(pA);
+        }
+        if (lobsterNFT.exists(pB)) {
+            lobsterNFT.decrementBreedCount(pB);
+        }
+
+        emit BreedRequestExpired(requestId, pA, pB);
     }
 
     function _collectFeeAndUpdateParents(uint256 parentA, uint256 parentB) internal returns (uint256 totalCost) {
@@ -95,20 +219,13 @@ contract BreedingLab is ReentrancyGuard {
         _lastBreedTime[parentB] = block.timestamp;
     }
 
-    function _createOffspring(uint256 parentA, uint256 parentB, uint256 totalCost) internal returns (uint256 offspringId) {
-        uint8 genA = lobsterNFT.getGeneration(parentA);
-        uint8 genB = lobsterNFT.getGeneration(parentB);
-        uint8 offspringGen = genA > genB ? genA + 1 : genB + 1;
-
-        uint256 seed = uint256(keccak256(abi.encodePacked(block.prevrandao, parentA, parentB, msg.sender, block.timestamp)));
-        uint256 offspringDna = _generateOffspringDNA(lobsterNFT.getDNA(parentA), lobsterNFT.getDNA(parentB), seed);
-
-        offspringId = lobsterNFT.mintWithGeneration(msg.sender, offspringDna, offspringGen);
-
-        emit LobsterBred(parentA, parentB, offspringId, offspringDna, totalCost);
-    }
-
     // ──────────── View ────────────
+
+    /// @notice Get a breed request.
+    function getBreedRequest(uint256 requestId) external view returns (BreedRequest memory) {
+        if (_breedRequests[requestId].requester == address(0)) revert RequestDoesNotExist(requestId);
+        return _breedRequests[requestId];
+    }
 
     /// @notice Get the cooldown expiry time for a lobster.
     function getCooldownEnd(uint256 lobsterId) external view returns (uint256) {
@@ -140,7 +257,8 @@ contract BreedingLab is ReentrancyGuard {
         uint256[5] memory multipliers = [uint256(10), 15, 25, 40, 80];
         uint256 cost = BASE_BREED_COST * multipliers[breedCount] / 10;
 
-        // ×1.5 per generation: cost * 3/2 for each gen
+        // ×1.5 per generation: cost * 3 / 2 each step.
+        // Truncation error is at most 0.5 wei per step — negligible on 18-decimal token.
         for (uint8 i = 0; i < generation; i++) {
             cost = cost * 3 / 2;
         }

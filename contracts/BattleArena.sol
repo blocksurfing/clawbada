@@ -13,6 +13,19 @@ import {BattleVRF} from "./BattleVRF.sol";
 /// @notice Manages the full battle lifecycle: stake escrow, team commit-reveal, per-round
 ///         move commit-reveal, settlement, timeouts, and forfeit. Zero-sum PvP with protocol fee.
 /// @dev Uses MATCHMAKER_ROLE (off-chain matchmaker) and RESOLVER_ROLE (off-chain combat engine).
+///
+/// TRUST MODEL: This contract operates under an operator-trust assumption.
+/// The RESOLVER_ROLE supplies the winner address and damage arrays at settlement.
+/// Settlement is gated to require at least one fully verified round (both commits +
+/// both reveals posted on-chain), but the resolver controls round progression and
+/// final outcome determination after that point.
+///
+/// If the battle system is intended to become trustless, outcome verification must
+/// move on-chain: bind settlement to the committed/revealed move transcript, bind
+/// randomness to BattleVRF, enforce round sequencing and terminal conditions before
+/// payout, and compute damage from verified state instead of accepting calldata.
+///
+/// See: docs/audits/2026-03-06-manual-contract-audit.md (H-01)
 contract BattleArena is AccessControl, ReentrancyGuard {
     // ──────────── Roles ────────────
     bytes32 public constant MATCHMAKER_ROLE = keccak256("MATCHMAKER_ROLE");
@@ -25,16 +38,18 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     uint256 public constant DEPOSIT_WINDOW = 2 minutes;
     uint256 public constant TEAM_COMMIT_WINDOW = 30 seconds;
     uint256 public constant TEAM_REVEAL_WINDOW = 20 seconds;
-    uint256 public constant COMMIT_WINDOW = 15 seconds;
-    uint256 public constant REVEAL_WINDOW = 10 seconds;
+    uint256 public constant COMMIT_WINDOW = 60 seconds; // per phase (positioning + combat)
+    uint256 public constant REVEAL_WINDOW = 15 seconds;
     uint8 public constant AUTO_FORFEIT_THRESHOLD = 3;
     uint8 public constant MIN_EVOLUTION_TIER = 1; // Evolved+
     uint8 public constant MAX_DAMAGE_FOR_BATTLE = 79; // <80 to enter
+    uint8 public constant MAX_ROUNDS = 7;
     uint256 public constant NUM_STAKE_BRACKETS = 3;
+    uint256 public constant EMERGENCY_WITHDRAW_DELAY = 24 hours;
 
     // ──────────── Types ────────────
     enum BattlePhase { None, Deposit, TeamCommit, TeamReveal, Active, Settled, Cancelled }
-    enum CancelReason { DepositTimeout, ForfeitA, ForfeitB, MutualTimeout }
+    enum CancelReason { DepositTimeout, ForfeitA, ForfeitB, MutualTimeout, StaleBattle }
 
     struct Battle {
         address playerA;
@@ -44,9 +59,11 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         uint256 stakeAmount;
         BattlePhase phase;
         uint8 currentRound; // 0=pre-combat, 1-7 during combat
+        uint8 lastVerifiedRound; // highest round where both move reveals were posted on-chain
         uint8 consecutiveTimeoutsA;
         uint8 consecutiveTimeoutsB;
         uint256 phaseDeadline;
+        uint256 lastProgressAt; // last meaningful state advance (for emergency withdraw)
         address winner; // address(0) until settled
         // Deposit tracking
         bool depositA;
@@ -107,6 +124,10 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     error BothRevealsRequired(uint256 battleId);
     error PlayerCannotBeSelf();
     error InvalidWinner(uint256 battleId);
+    error SettlementRequiresVerifiedRound(uint256 battleId);
+    error EmergencyWithdrawTooEarly(uint256 battleId, uint256 availableAt);
+    error BothCommitsRequired(uint256 battleId);
+    error MaxRoundsReached(uint256 battleId);
 
     // ──────────── Constructor ────────────
 
@@ -258,6 +279,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         if (b.teamRevealedA && b.teamRevealedB) {
             b.phase = BattlePhase.Active;
             b.currentRound = 1;
+            b.lastProgressAt = block.timestamp;
             b.phaseDeadline = block.timestamp + COMMIT_WINDOW;
             emit RoundStarted(battleId, 1);
         }
@@ -286,11 +308,16 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         }
     }
 
-    /// @notice Reveal moves for the current round.
+    /// @notice Reveal moves for the current round. Both commits must be present before any reveal.
     function revealMoves(uint256 battleId, bytes calldata moveData, bytes32 salt) external {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Active);
         _requireParticipant(battleId, msg.sender);
+
+        // F-02: Prevent early reveals that leak move data before both commits are locked
+        if (b.roundCommitA == bytes32(0) || b.roundCommitB == bytes32(0)) {
+            revert BothCommitsRequired(battleId);
+        }
 
         bool isA = msg.sender == b.playerA;
         bytes32 expected = keccak256(abi.encodePacked(battleId, b.currentRound, msg.sender, moveData, salt));
@@ -306,6 +333,11 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         }
 
         emit MoveRevealed(battleId, b.currentRound, msg.sender, moveData);
+
+        // A round becomes settlement-eligible only once both moves have been revealed on-chain.
+        if (b.roundRevealedA && b.roundRevealedB) {
+            b.lastVerifiedRound = b.currentRound;
+        }
     }
 
     // ──────────── Resolver (Server) ────────────
@@ -316,9 +348,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         _requirePhase(battleId, BattlePhase.Active);
         if (!b.roundRevealedA || !b.roundRevealedB) revert BothRevealsRequired(battleId);
 
+        // F-03: Enforce max round cap on-chain (design spec: 7 rounds max)
+        if (b.currentRound >= MAX_ROUNDS) revert MaxRoundsReached(battleId);
+
         b.currentRound++;
-        b.consecutiveTimeoutsA = 0;
-        b.consecutiveTimeoutsB = 0;
+        b.lastProgressAt = block.timestamp;
+        // NOTE: consecutiveTimeouts counters are NOT reset — they are cumulative
+        // across all rounds so agents cannot alternate cooperate/timeout to avoid forfeit.
 
         // Reset round commit-reveal state
         b.roundCommitA = bytes32(0);
@@ -339,6 +375,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     ) external onlyRole(RESOLVER_ROLE) nonReentrant {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Active);
+        if (b.lastVerifiedRound == 0) revert SettlementRequiresVerifiedRound(battleId);
         if (winner != b.playerA && winner != b.playerB) revert InvalidWinner(battleId);
 
         // State updates first (CEI)
@@ -397,6 +434,26 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         } else if (b.phase == BattlePhase.Active) {
             _handleActiveTimeout(battleId);
         }
+    }
+
+    // ──────────── Emergency ────────────
+
+    /// @notice Emergency neutral exit for stalled Active battles.
+    /// @dev Callable by either participant when the resolver has not advanced the battle
+    ///      for EMERGENCY_WITHDRAW_DELAY (24 hours). Returns stakes + anti-grief to both
+    ///      players. No winner, no damage, no slashing. This is an operational fallback,
+    ///      not part of standard battle resolution.
+    function emergencyWithdraw(uint256 battleId) external nonReentrant {
+        Battle storage b = _battles[battleId];
+        _requirePhase(battleId, BattlePhase.Active);
+        _requireParticipant(battleId, msg.sender);
+
+        uint256 availableAt = b.lastProgressAt + EMERGENCY_WITHDRAW_DELAY;
+        if (block.timestamp < availableAt) {
+            revert EmergencyWithdrawTooEarly(battleId, availableAt);
+        }
+
+        _cancelBattle(battleId, CancelReason.StaleBattle);
     }
 
     // ──────────── View ────────────
@@ -558,17 +615,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
                 _cancelBattle(battleId, CancelReason.MutualTimeout);
                 return;
             } else if (!aRevealed) {
-                b.consecutiveTimeoutsA++;
-                if (b.consecutiveTimeoutsA >= AUTO_FORFEIT_THRESHOLD) {
-                    _forfeit(battleId, b.playerA);
-                    return;
-                }
+                // Immediate forfeit: withholding a reveal after committing leaks
+                // the other player's revealed move data, so we don't allow retries.
+                _forfeit(battleId, b.playerA);
+                return;
             } else if (!bRevealed) {
-                b.consecutiveTimeoutsB++;
-                if (b.consecutiveTimeoutsB >= AUTO_FORFEIT_THRESHOLD) {
-                    _forfeit(battleId, b.playerB);
-                    return;
-                }
+                _forfeit(battleId, b.playerB);
+                return;
             }
         } else {
             // Commit phase timeout

@@ -138,6 +138,9 @@ contract LobsterNFT is ERC1155, ERC1155Supply, AccessControl {
     // ──────────── Burning ────────────
 
     /// @notice Burn a lobster (for evolution fuel). Must not be locked.
+    /// @dev BURNER_ROLE holders MUST verify that the caller owns or is authorized to burn the
+    ///      token before calling this function. This contract trusts the role holder to perform
+    ///      ownership validation (e.g., EvolutionLab checks msg.sender == ownerOf before burning fuel).
     function burn(uint256 tokenId) external onlyRole(BURNER_ROLE) {
         _requireExists(tokenId);
         if (_lobsters[tokenId].locked) revert LobsterIsLocked(tokenId);
@@ -184,6 +187,15 @@ contract LobsterNFT is ERC1155, ERC1155Supply, AccessControl {
         _requireExists(tokenId);
         if (_lobsters[tokenId].breedCount >= MAX_BREED_COUNT) revert BreedCountExceeded(tokenId);
         _lobsters[tokenId].breedCount++;
+        emit LobsterBred(tokenId, _lobsters[tokenId].breedCount);
+    }
+
+    /// @notice Decrement the breed count of a lobster (for expired breed request recovery).
+    /// @dev Only callable by BREED_ROLE. Reverts if breed count is already 0.
+    function decrementBreedCount(uint256 tokenId) external onlyRole(BREED_ROLE) {
+        _requireExists(tokenId);
+        if (_lobsters[tokenId].breedCount == 0) revert BreedCountExceeded(tokenId);
+        _lobsters[tokenId].breedCount--;
         emit LobsterBred(tokenId, _lobsters[tokenId].breedCount);
     }
 

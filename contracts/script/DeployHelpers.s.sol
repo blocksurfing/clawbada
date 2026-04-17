@@ -25,6 +25,9 @@ abstract contract DeployHelpers is Script {
     // ── Deployment parameters ──
     address internal deployer;
     address internal devWallet;
+    address internal matchmakerAddress;
+    address internal resolverAddress;
+    address internal vrfOperatorAddress;
     uint256 internal deployerKey;
 
     // ── Constants ──
@@ -32,21 +35,54 @@ abstract contract DeployHelpers is Script {
     uint256 internal constant FAUCET_DURATION = 7 days;
 
     // Season 1 parameters
-    uint256 internal constant S1_EMISSION = 387_500_000e18;
+    uint256 internal constant S1_EMISSION = 352_500_000e18;
     uint256 internal constant S1_BASE_REWARD = 1_250e18;
+
+    // Faucet: pre-minted allocation (covers ~10K wallets × 7,000 $CLAW)
+    uint256 internal constant FAUCET_CLAW_ALLOCATION = 70_000_000e18;
 
     // ── JSON serialization key ──
     string internal constant JSON_KEY = "deployment";
 
-    /// @notice Load environment variables and set deployer/devWallet.
+    /// @notice Load environment variables and set deployer/devWallet/role addresses.
+    /// @dev On mainnet (chain ID 8453), MATCHMAKER_ADDRESS, RESOLVER_ADDRESS, and VRF_OPERATOR_ADDRESS
+    ///      are required — deployer must not hold operational roles. On testnet/local they fall back to deployer.
     function _loadEnv() internal {
         deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         deployer = vm.addr(deployerKey);
         devWallet = vm.envAddress("DEV_WALLET");
 
+        // Role addresses: required on mainnet, optional (fallback to deployer) on testnet/local
+        bool isMainnet = block.chainid == 8453;
+
+        matchmakerAddress = vm.envOr("MATCHMAKER_ADDRESS", address(0));
+        resolverAddress = vm.envOr("RESOLVER_ADDRESS", address(0));
+        vrfOperatorAddress = vm.envOr("VRF_OPERATOR_ADDRESS", address(0));
+
+        if (isMainnet) {
+            require(matchmakerAddress != address(0), "MATCHMAKER_ADDRESS required for mainnet");
+            require(resolverAddress != address(0), "RESOLVER_ADDRESS required for mainnet");
+            require(vrfOperatorAddress != address(0), "VRF_OPERATOR_ADDRESS required for mainnet");
+
+            // Enforce separation of duties: no operational role may equal deployer or each other
+            require(matchmakerAddress != deployer, "MATCHMAKER_ADDRESS must differ from deployer on mainnet");
+            require(resolverAddress != deployer, "RESOLVER_ADDRESS must differ from deployer on mainnet");
+            require(vrfOperatorAddress != deployer, "VRF_OPERATOR_ADDRESS must differ from deployer on mainnet");
+            require(matchmakerAddress != resolverAddress, "MATCHMAKER and RESOLVER must be different addresses");
+            require(matchmakerAddress != vrfOperatorAddress, "MATCHMAKER and VRF_OPERATOR must be different addresses");
+            require(resolverAddress != vrfOperatorAddress, "RESOLVER and VRF_OPERATOR must be different addresses");
+        } else {
+            if (matchmakerAddress == address(0)) matchmakerAddress = deployer;
+            if (resolverAddress == address(0)) resolverAddress = deployer;
+            if (vrfOperatorAddress == address(0)) vrfOperatorAddress = deployer;
+        }
+
         console2.log("=== Clawbada Deployment ===");
         console2.log("Deployer:", deployer);
         console2.log("Dev Wallet:", devWallet);
+        console2.log("Matchmaker:", matchmakerAddress);
+        console2.log("Resolver:", resolverAddress);
+        console2.log("VRF Operator:", vrfOperatorAddress);
         console2.log("Chain ID:", block.chainid);
         console2.log("");
     }

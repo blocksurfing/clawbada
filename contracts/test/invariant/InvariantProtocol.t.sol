@@ -126,10 +126,15 @@ contract ProtocolHandler is BaseSetup {
 
         vm.startPrank(actor);
         claw.approve(address(breedingLab), type(uint256).max);
-        try breedingLab.breed(parentA, parentB) returns (uint256 offspringId) {
-            mintedIds.push(offspringId);
-        } catch {}
-        vm.stopPrank();
+        try breedingLab.requestBreed(parentA, parentB) returns (uint256 requestId) {
+            vm.stopPrank();
+            vm.roll(block.number + breedingLab.FINALIZE_MIN_BLOCKS() + 1);
+            try breedingLab.finalizeBreed(requestId) returns (uint256 offspringId) {
+                mintedIds.push(offspringId);
+            } catch {}
+        } catch {
+            vm.stopPrank();
+        }
     }
 
     // ── Handler: evolve ───────────────────────────────────────────
