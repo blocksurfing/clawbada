@@ -41,7 +41,7 @@ contract Configure is DeployHelpers {
         vm.stopBroadcast();
 
         console2.log("=== Configuration complete ===");
-        console2.log("Total: 6 Treasury authorizations, 16 role grants, 1 season start");
+        console2.log("Total: 6 Treasury authorizations, 15 role grants, 1 season start, 1 faucet pre-mint");
     }
 
     function _configureTreasury(Deployment memory d) internal {
@@ -75,9 +75,6 @@ contract Configure is DeployHelpers {
 
         clawToken.grantRole(minter, d.miningPool);
         console2.log("  MINTER_ROLE -> MiningPool");
-
-        clawToken.grantRole(minter, d.faucet);
-        console2.log("  MINTER_ROLE -> Faucet");
         console2.log("");
     }
 
@@ -132,7 +129,7 @@ contract Configure is DeployHelpers {
         console2.log("  SEASON_ADMIN_ROLE -> deployer");
 
         pool.startSeason(S1_EMISSION, S1_BASE_REWARD);
-        console2.log("  startSeason(387.5M, 1250)");
+        console2.log("  startSeason(352.5M, 1250)");
         console2.log("");
     }
 
@@ -140,11 +137,11 @@ contract Configure is DeployHelpers {
         console2.log("--- BattleArena Roles ---");
         BattleArena arena = BattleArena(d.battleArena);
 
-        arena.grantRole(arena.MATCHMAKER_ROLE(), deployer);
-        console2.log("  MATCHMAKER_ROLE -> deployer");
+        arena.grantRole(arena.MATCHMAKER_ROLE(), matchmakerAddress);
+        console2.log("  MATCHMAKER_ROLE ->", matchmakerAddress);
 
-        arena.grantRole(arena.RESOLVER_ROLE(), deployer);
-        console2.log("  RESOLVER_ROLE -> deployer");
+        arena.grantRole(arena.RESOLVER_ROLE(), resolverAddress);
+        console2.log("  RESOLVER_ROLE ->", resolverAddress);
         console2.log("");
     }
 
@@ -152,17 +149,25 @@ contract Configure is DeployHelpers {
         console2.log("--- BattleVRF Role ---");
         BattleVRF vrf = BattleVRF(d.battleVRF);
 
-        vrf.grantRole(vrf.OPERATOR_ROLE(), deployer);
-        console2.log("  OPERATOR_ROLE -> deployer");
+        vrf.grantRole(vrf.OPERATOR_ROLE(), vrfOperatorAddress);
+        console2.log("  OPERATOR_ROLE ->", vrfOperatorAddress);
         console2.log("");
     }
 
     function _configureFaucet(Deployment memory d) internal {
-        console2.log("--- Faucet Role ---");
+        console2.log("--- Faucet Setup ---");
         Faucet faucet = Faucet(d.faucet);
 
         faucet.grantRole(faucet.ELIGIBILITY_ROLE(), deployer);
         console2.log("  ELIGIBILITY_ROLE -> deployer");
+
+        // Pre-mint faucet $CLAW allocation (Faucet distributes via transfer, not mint)
+        ClawToken clawToken = ClawToken(d.clawToken);
+        bytes32 minter = clawToken.MINTER_ROLE();
+        clawToken.grantRole(minter, deployer);
+        clawToken.mint(d.faucet, FAUCET_CLAW_ALLOCATION);
+        clawToken.revokeRole(minter, deployer);
+        console2.log("  Pre-minted 70M $CLAW to Faucet");
         console2.log("");
     }
 }

@@ -185,7 +185,7 @@ contract FuzzMiningPool is BaseSetup {
         miningPool.startExpedition(teamId, 0);
 
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(MiningPool.TeamAlreadyMining.selector, teamId));
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.TeamIsActive.selector, teamId));
         miningPool.startExpedition(teamId, 0);
     }
 

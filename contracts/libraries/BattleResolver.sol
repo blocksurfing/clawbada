@@ -232,7 +232,9 @@ library BattleResolver {
     // ──────────── Internal ────────────
 
     /// @dev Calculate atk/armor ratio capped at STAT_RATIO_CAP (2.2×), scaled ×1000.
+    ///      Returns cap if armor is 0 (defensive hardening for future on-chain use).
     function _cappedRatio(uint256 atk, uint256 armor) private pure returns (uint256) {
+        if (armor == 0) return STAT_RATIO_CAP;
         uint256 ratio = atk * MULT_DENOM / armor;
         return ratio > STAT_RATIO_CAP ? STAT_RATIO_CAP : ratio;
     }

@@ -52,6 +52,28 @@ contract FuzzBattleArena is BaseSetup {
         teamId = teamMgr.createTeam(ids);
     }
 
+    // Runs one full commit+reveal cycle for the current round so that
+    // lastVerifiedRound is set — a precondition for settle().
+    function _playRound(uint256 battleId, bytes memory moveDataA, bytes memory moveDataB) internal {
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        uint8 round = b.currentRound;
+        bytes32 saltA = keccak256(abi.encodePacked("playRound:A", round));
+        bytes32 saltB = keccak256(abi.encodePacked("playRound:B", round));
+
+        bytes32 hashA = keccak256(abi.encodePacked(battleId, round, b.playerA, moveDataA, saltA));
+        bytes32 hashB = keccak256(abi.encodePacked(battleId, round, b.playerB, moveDataB, saltB));
+
+        vm.prank(b.playerA);
+        battleArena.commitMoves(battleId, hashA);
+        vm.prank(b.playerB);
+        battleArena.commitMoves(battleId, hashB);
+
+        vm.prank(b.playerA);
+        battleArena.revealMoves(battleId, moveDataA, saltA);
+        vm.prank(b.playerB);
+        battleArena.revealMoves(battleId, moveDataB, saltB);
+    }
+
     // ── Invalid stake reverts ─────────────────────────────────────
 
     function testFuzz_invalid_stake_reverts(uint256 amount) public {
@@ -142,6 +164,9 @@ contract FuzzBattleArena is BaseSetup {
         _commitTeam(bob, battleId, teamB, saltB);
         _revealTeam(alice, battleId, teamA, saltA);
         _revealTeam(bob, battleId, teamB, saltB);
+
+        // settle() now requires lastVerifiedRound > 0, so run one round end-to-end.
+        _playRound(battleId, hex"01", hex"02");
 
         uint256 aliceBefore = claw.balanceOf(alice);
         uint256 bobBefore   = claw.balanceOf(bob);
@@ -314,6 +339,9 @@ contract FuzzBattleArena is BaseSetup {
         _commitTeam(bob, battleId, teamB, saltB);
         _revealTeam(alice, battleId, teamA, saltA);
         _revealTeam(bob, battleId, teamB, saltB);
+
+        // settle() now requires lastVerifiedRound > 0, so run one round end-to-end.
+        _playRound(battleId, hex"01", hex"02");
 
         // 60 + 200 = 260 overflows uint8 — old code panicked, new code caps at 100
         uint8[3] memory winnerDmg = [uint8(200), 200, 200];
