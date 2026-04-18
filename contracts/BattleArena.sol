@@ -645,6 +645,25 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
         // Not yet at forfeit threshold — resolver handles default moves.
         // Reset round state and advance round counter, set new deadline for the resolver.
+        //
+        // N-01: `advanceRound()` got the MAX_ROUNDS cap via F-03, but this neighbor
+        // path didn't. At the final round we can't just `currentRound++`, so:
+        //   - if one side missed its commit, they forfeit (a stronger version of
+        //     AUTO_FORFEIT_THRESHOLD — the final round gives no second chance);
+        //   - if both reveals landed, the battle is settlement-ready and the
+        //     resolver should call settle() instead of timing the phase out.
+        if (b.currentRound >= MAX_ROUNDS) {
+            if (!aCommitted) {
+                _forfeit(battleId, b.playerA);
+                return;
+            }
+            if (!bCommitted) {
+                _forfeit(battleId, b.playerB);
+                return;
+            }
+            revert MaxRoundsReached(battleId);
+        }
+
         b.currentRound++;
         b.roundCommitA = bytes32(0);
         b.roundCommitB = bytes32(0);

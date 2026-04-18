@@ -395,4 +395,102 @@ contract FuzzBattleArena is BaseSetup {
         uint256 burnedFee = antiGrief * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR();
         assertEq(supplyBefore - claw.totalSupply(), burnedFee, "antiGrief burned");
     }
+
+    // ── N-01: _handleActiveTimeout must respect MAX_ROUNDS ────────
+    //
+    // F-03 added the MAX_ROUNDS cap to advanceRound() (line ~352) but missed
+    // the neighbor path in _handleActiveTimeout() (line ~648). On an Active-
+    // phase timeout at the final round, the fall-through branch used to
+    // increment currentRound to 8. The fix: at MAX_ROUNDS we either forfeit
+    // the side that missed its commit, or revert (both-revealed case is
+    // settlement territory — the resolver must call settle()).
+    //
+    // Two scenarios covered:
+    //   (a) both revealed + deadline passed → handleTimeout reverts
+    //       MaxRoundsReached; currentRound stays at MAX_ROUNDS
+    //   (b) one side missed commit at final round → forfeit, battle settles
+    // In both cases, currentRound must never exceed MAX_ROUNDS.
+
+    function test_N01_handleTimeout_at_maxRounds_bothRevealed_reverts() public {
+        uint256 battleId = _playToFinalRound_bothReveal();
+        uint8 maxRounds = battleArena.MAX_ROUNDS();
+
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        vm.warp(b.phaseDeadline + 1);
+
+        // Pre-fix: silently advanced currentRound to 8. Post-fix: reverts,
+        // signalling the resolver should call settle() instead.
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.MaxRoundsReached.selector, battleId));
+        battleArena.handleTimeout(battleId);
+
+        b = battleArena.getBattle(battleId);
+        assertLe(
+            b.currentRound,
+            maxRounds,
+            "N-01: currentRound must never exceed MAX_ROUNDS"
+        );
+    }
+
+    function test_N01_handleTimeout_at_maxRounds_oneMissedCommit_forfeits() public {
+        uint256 battleId = _playToFinalRound_noCommits();
+        uint8 maxRounds = battleArena.MAX_ROUNDS();
+
+        // Bob commits, Alice doesn't. Before the fix, once the COMMIT_WINDOW
+        // expires `_handleActiveTimeout` would stretch currentRound to 8
+        // (alice is below AUTO_FORFEIT_THRESHOLD at this point). Post-fix:
+        // alice gets force-forfeited at the final round.
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        bytes32 hashB = keccak256(abi.encodePacked(battleId, b.currentRound, bob, hex"02", bytes32(uint256(99))));
+        vm.prank(bob);
+        battleArena.commitMoves(battleId, hashB);
+
+        vm.warp(block.timestamp + battleArena.COMMIT_WINDOW() + 1);
+        battleArena.handleTimeout(battleId);
+
+        b = battleArena.getBattle(battleId);
+        assertLe(
+            b.currentRound,
+            maxRounds,
+            "N-01: currentRound must never exceed MAX_ROUNDS"
+        );
+        assertEq(
+            uint8(b.phase),
+            uint8(BattleArena.BattlePhase.Cancelled),
+            "missed-commit side must forfeit at MAX_ROUNDS (battle cancelled via _forfeit)"
+        );
+    }
+
+    // Helper: drive a battle to the final round with both sides revealing
+    // round `MAX_ROUNDS` (so the fall-through "both revealed, timeout" case
+    // applies).
+    function _playToFinalRound_bothReveal() internal returns (uint256 battleId) {
+        battleId = _playToFinalRound_noCommits();
+        _playRound(battleId, hex"AA", hex"BB");
+    }
+
+    // Helper: drive a battle through rounds 1..MAX_ROUNDS-1 and advance to
+    // round MAX_ROUNDS without committing for the final round yet.
+    function _playToFinalRound_noCommits() internal returns (uint256 battleId) {
+        battleId = _createBattle();
+        _bothDeposit(battleId);
+
+        uint256 teamA = _createEvolvedTeam(alice);
+        uint256 teamB = _createEvolvedTeam(bob);
+        bytes32 teamSaltA = bytes32(uint256(111));
+        bytes32 teamSaltB = bytes32(uint256(222));
+        _commitTeam(alice, battleId, teamA, teamSaltA);
+        _commitTeam(bob,   battleId, teamB, teamSaltB);
+        _revealTeam(alice, battleId, teamA, teamSaltA);
+        _revealTeam(bob,   battleId, teamB, teamSaltB);
+
+        uint8 maxRounds = battleArena.MAX_ROUNDS();
+        for (uint8 i = 1; i < maxRounds; i++) {
+            _playRound(battleId, hex"01", hex"02");
+            vm.prank(admin);
+            battleArena.advanceRound(battleId);
+        }
+
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        require(b.currentRound == maxRounds, "setup: at MAX_ROUNDS");
+    }
 }
