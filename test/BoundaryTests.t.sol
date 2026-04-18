@@ -145,7 +145,7 @@ contract BoundaryTests is Test {
     address bob = makeAddr("bob");
 
     uint256 validDNA;
-    uint256 constant S1_EMISSION = 387_500_000e18;
+    uint256 constant S1_EMISSION = 352_500_000e18;
     uint256 constant BASE_REWARD = 1_250e18;
     uint256 constant STAKE_LOW = 2_500e18;
     uint256 constant STAKE_MID = 10_000e18;
@@ -571,9 +571,11 @@ contract BoundaryTests is Test {
         uint256 protocolFee = combinedPot * 1000 / 10_000;
         uint256 winnerPayout = combinedPot - protocolFee;
 
-        // Bob wins (not alice)
+        // Bob wins (not alice) — H-01: settle proposes, finalize pays
         vm.prank(resolver);
         arena.settle(battleId, bob, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        vm.warp(block.timestamp + arena.DISPUTE_WINDOW() + 1);
+        arena.finalizeBattle(battleId);
 
         assertEq(claw.balanceOf(bob), bobBalBefore + winnerPayout + antiGrief);
         assertEq(arena.getBattle(battleId).winner, bob);
@@ -592,8 +594,11 @@ contract BoundaryTests is Test {
         _revealBattleMoves(battleId, movesA, movesB, sA, sB);
 
         // Settle with 15 more damage → 90 + 15 = 105, but should cap at 100
+        // H-01: damage application now happens in finalizeBattle, not settle
         vm.prank(resolver);
         arena.settle(battleId, alice, [uint8(15), 5, 8], [uint8(30), 25, 35]);
+        vm.warp(block.timestamp + arena.DISPUTE_WINDOW() + 1);
+        arena.finalizeBattle(battleId);
 
         assertEq(nft.getDamage(teamA.lobsterIds[0]), 100); // capped
         assertEq(nft.getDamage(teamA.lobsterIds[1]), 5);
@@ -688,7 +693,9 @@ contract BoundaryTests is Test {
         vm.startPrank(alice);
         claw.approve(address(breeding), 100_000e18);
         for (uint256 i = 0; i < 4; i++) {
-            breeding.breed(a, dummy);
+            uint256 rid = breeding.requestBreed(a, dummy);
+            vm.roll(block.number + 3);
+            breeding.finalizeBreed(rid);
             vm.warp(block.timestamp + 48 hours + 1);
         }
 
@@ -697,7 +704,9 @@ contract BoundaryTests is Test {
         assertEq(nft.getBreedCount(b), 0);
 
         // 5th breed of A with B should succeed
-        breeding.breed(a, b);
+        uint256 rid5 = breeding.requestBreed(a, b);
+        vm.roll(block.number + 3);
+        breeding.finalizeBreed(rid5);
         assertEq(nft.getBreedCount(a), 5);
         assertEq(nft.getBreedCount(b), 1);
 
@@ -705,7 +714,7 @@ contract BoundaryTests is Test {
 
         // 6th breed of A should revert
         vm.expectRevert(abi.encodeWithSelector(BreedingLab.BreedLimitReached.selector, a));
-        breeding.breed(a, b);
+        breeding.requestBreed(a, b);
         vm.stopPrank();
     }
 
@@ -868,6 +877,13 @@ contract BoundaryTests is Test {
     function test_boundary_statRatioJustOverCap() public view {
         // atk/armor = 2.21 → 221/100 = 2210/1000, capped to 2200
         uint256 dmg = resolverHarness.calculateAttackDamage(221, 100, 1000, false, 1000);
+        // 100 × 2.2 (capped) × 1.0 × 1.0 × 1.0 = 220
+        assertEq(dmg, 220);
+    }
+
+    function test_boundary_statRatioArmorZeroReturnsCap() public view {
+        // S-03 fix: armor=0 should return cap (2200), not revert
+        uint256 dmg = resolverHarness.calculateAttackDamage(100, 0, 1000, false, 1000);
         // 100 × 2.2 (capped) × 1.0 × 1.0 × 1.0 = 220
         assertEq(dmg, 220);
     }
