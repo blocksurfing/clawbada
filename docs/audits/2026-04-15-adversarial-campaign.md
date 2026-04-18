@@ -43,6 +43,7 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 
 | ID | Severity | Status | Contract | Title |
 |----|----------|--------|----------|-------|
+| **H-01** | High | **Mitigated via challenge window** | BattleArena | Resolver-trusted settlement (from 2026-03-06 audit) |
 | **N-01** | Low | **Fixed** | BattleArena | `_handleActiveTimeout` advances `currentRound` past `MAX_ROUNDS` |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
@@ -171,7 +172,43 @@ Next: Phase 1 sprint — BattleArena per-contract attack loop.
 
 Populated as each contract is audited.
 
-### BattleArena.sol — pending Phase 1
+### BattleArena.sol — Phase 1 in progress
+
+**Read pass (2026-04-17)**. Top attack angles identified:
+
+- **A. Resolver omnipotence** (→ H-01 mitigation) — `settle()` trusted `winner` + `damage[]` calldata with only a `lastVerifiedRound > 0` gate. A compromised resolver could declare either player winner and apply arbitrary damage.
+- **B. Settlement enabled after 1 round** — `lastVerifiedRound > 0` gate means rounds 2-7 are not required for settlement. Intended but worth an invariant that at least one round's moves were revealed on-chain.
+- **C. `_handleActiveTimeout` cumulative-counter bypass** — a griefer can time out 2 of every 3 rounds without hitting AUTO_FORFEIT_THRESHOLD. Post-N-01 bounded by MAX_ROUNDS, so worst case ~14 timeouts over 7 rounds.
+- **D. `emergencyWithdraw` starvation** — `lastProgressAt` only updates on `advanceRound`; a malicious resolver could advance every 23h59m to block the 24h emergency exit. H-01's challenge window partially addresses this (stakes can't be seized, only delayed).
+- **E. Team-lock race on `revealTeam`** — `setTeamActive(true)` called before phase→Active (Slither flagged as cross-function reentrancy candidate). Non-exploitable with current NFT/ERC20 (no callbacks).
+- **F. Consent-less `createBattle`** — matchmaker can create battles for arbitrary pairs. Benign (unwilling player can't be harmed), but bounded by MATCHMAKER_ROLE trust.
+
+**H-01 challenge window implementation (2026-04-17)**.
+
+- Added `BattlePhase.AwaitingFinalize` between `Active` and `Settled`.
+- Added `DISPUTE_WINDOW = 5 minutes` constant.
+- Added `Battle` struct fields: `proposedWinner`, `proposedWinnerDamage`, `proposedLoserDamage`, `payoutDeadline`, `disputed`.
+- Refactored `settle()` (RESOLVER_ROLE): records the proposed outcome + transitions to `AwaitingFinalize` + sets `payoutDeadline`. No transfers, no damage, no team release. Emits `BattleProposed(battleId, proposedWinner, payoutDeadline)`.
+- New `disputeBattle(battleId, bytes evidence)`: either participant, within DISPUTE_WINDOW. Sets `disputed=true`. Evidence is emitted, not verified on-chain. Reverts: `DisputeWindowClosed`, `AlreadyDisputed`, `NotBattleParticipant`.
+- New `finalizeBattle(battleId)`: permissionless, after `payoutDeadline`, if `!disputed`. Executes the payout. Reverts: `DisputeWindowOpen`, `BattleIsDisputed`.
+- New `adminResolveDispute(battleId, winner, winnerDmg, loserDmg)`: `DEFAULT_ADMIN_ROLE` only, for disputed battles. Admin can override the resolver's winner AND damage arrays. Reverts: `NotDisputed`, `InvalidWinner`. Emits `BattleAdminResolved(battleId, winner)`.
+- `handleTimeout`: extended to cover `AwaitingFinalize`. Undisputed + deadline elapsed = permissionless auto-finalize. Disputed = revert `DisputedBattleRequiresAdmin` (admin must use `adminResolveDispute`).
+- `_executePayout` extracted from old `settle()`: handles the actual transfers + damage + team release. Called by both `finalizeBattle` and `adminResolveDispute`.
+- Trust NatSpec rewritten to document the new flow.
+
+**Open risk documented in NatSpec**: if admin is AWOL while a battle is disputed, stakes stay escrowed indefinitely. A future "long-dispute auto-cancel" (e.g., 7 days → refund both, treat as MutualTimeout) can mitigate; admin liveness is the S1 assumption.
+
+**Test coverage added**:
+- 12 H-01 tests (`test_H01_*`) in `FuzzBattleArena.t.sol`: happy-path finalize, settle side-effect checks, early finalize, late dispute, non-participant dispute, double dispute, finalize-on-disputed, admin override, admin-without-dispute, admin invalid-winner, handleTimeout auto-finalize, handleTimeout-disputed revert.
+- Existing tests migrated for the two-step flow: 11 in `test/BattleArena.t.sol`, 2 in `test/BoundaryTests.t.sol`, 2 in `contracts/test/fuzz/FuzzBattleArena.t.sol`. Added helper `_settleAndFinalize`.
+
+**Suite state**: 689/689 passing (677 before H-01 + 12 new H-01 tests).
+
+**Open for Phase 1 follow-up** (not done yet):
+- BattleArena invariants (task 15): phase monotonicity, lastVerifiedRound monotonic, escrow sum = contract CLAW balance - accrued fees, forfeit accounting, teamInBattle↔phase consistency.
+- Adversarial fuzz tests (task 16): one per attack angle above.
+- Deep profile run (task 17).
+- Codex red-team passes (tasks 18-19).
 
 ### BattleResolver.sol — pending Phase 1
 
