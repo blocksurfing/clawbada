@@ -719,4 +719,213 @@ contract FuzzBattleArena is BaseSetup {
         vm.expectRevert(abi.encodeWithSelector(BattleArena.DisputedBattleRequiresAdmin.selector, battleId));
         battleArena.handleTimeout(battleId);
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Adversarial fuzz tests for attack angles identified in the
+    // 2026-04-17 BattleArena read pass. Each targets a specific
+    // concrete property rather than "doesn't revert".
+    // ─────────────────────────────────────────────────────────────
+
+    // Attack angle: dispute window boundary. `disputeBattle` must accept
+    // calls at exactly `payoutDeadline` (<=) and reject anything past it.
+    // Fuzz the deadline offset within a generous range.
+    function testFuzz_disputeWindow_boundaryInside_accepted(uint256 offsetInto) public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice);
+
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        uint256 maxOffset = b.payoutDeadline - block.timestamp;
+        offsetInto = bound(offsetInto, 0, maxOffset);
+        vm.warp(block.timestamp + offsetInto);
+
+        vm.prank(bob);
+        battleArena.disputeBattle(battleId, hex"");
+
+        b = battleArena.getBattle(battleId);
+        assertTrue(b.disputed, "dispute at or before deadline must be accepted");
+    }
+
+    function testFuzz_disputeWindow_pastDeadline_rejected(uint256 offsetPast) public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice);
+
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        offsetPast = bound(offsetPast, 1, 365 days);
+        vm.warp(b.payoutDeadline + offsetPast);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.DisputeWindowClosed.selector, battleId, b.payoutDeadline));
+        battleArena.disputeBattle(battleId, hex"");
+    }
+
+    // Attack angle: commit-hash round binding. If the player crafts a
+    // commit hash using a round number other than the current round, the
+    // reveal must fail with InvalidCommitHash. Prevents precommit/replay
+    // across rounds.
+    function testFuzz_commitHash_wrongRound_revealFails(uint8 wrongRound) public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        // Settle clears the round commit state, so we need a battle still in Active.
+        // Start a new battle to explicitly test the round-binding.
+        vm.prank(admin);
+        uint256 battleId2 = battleArena.createBattle(alice, bob, LOW_STAKE);
+        _deposit(alice, battleId2);
+        _deposit(bob,   battleId2);
+
+        uint256 teamA = _createEvolvedTeam(alice);
+        uint256 teamB = _createEvolvedTeam(bob);
+        bytes32 saltA = keccak256(abi.encodePacked("fuzz-teamA", battleId2));
+        bytes32 saltB = keccak256(abi.encodePacked("fuzz-teamB", battleId2));
+        _commitTeam(alice, battleId2, teamA, saltA);
+        _commitTeam(bob,   battleId2, teamB, saltB);
+        _revealTeam(alice, battleId2, teamA, saltA);
+        _revealTeam(bob,   battleId2, teamB, saltB);
+
+        // Battle is now Active at currentRound == 1. Craft a commit hash
+        // that binds to a DIFFERENT round.
+        BattleArena.Battle memory b = battleArena.getBattle(battleId2);
+        wrongRound = uint8(bound(wrongRound, 0, 20));
+        vm.assume(wrongRound != b.currentRound);
+
+        bytes memory moveData = hex"AA";
+        bytes32 moveSalt = bytes32(uint256(42));
+        bytes32 bogusHash = keccak256(abi.encodePacked(battleId2, wrongRound, alice, moveData, moveSalt));
+
+        vm.prank(alice);
+        battleArena.commitMoves(battleId2, bogusHash);
+
+        // Bob submits a valid commit so reveals are unblocked.
+        bytes32 validHashB = keccak256(abi.encodePacked(battleId2, b.currentRound, bob, moveData, moveSalt));
+        vm.prank(bob);
+        battleArena.commitMoves(battleId2, validHashB);
+
+        // Alice's reveal must fail because the commit binds the wrong round.
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId2));
+        battleArena.revealMoves(battleId2, moveData, moveSalt);
+    }
+
+    // Attack angle D: resolver can indefinitely block emergencyWithdraw by
+    // calling advanceRound just before the 24h EMERGENCY_WITHDRAW_DELAY.
+    // This test documents the intended behavior AND the starvation vector.
+    // Post-H-01: players have disputeBattle as a complementary recourse
+    // once the resolver calls settle(); during the Active phase this gap
+    // remains and is called out in the trust NatSpec.
+    function test_attack_emergencyWithdraw_blockedByResolverAdvance() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+
+        // _setupSettleableBattle leaves round 1 fully revealed but not yet
+        // advanced. Advance to round 2 so the starvation loop can run
+        // commit+reveal cycles from a clean commit slot.
+        vm.prank(admin);
+        battleArena.advanceRound(battleId);
+
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        uint256 delay = battleArena.EMERGENCY_WITHDRAW_DELAY();
+
+        // Starvation loop: advance round every (delay - 1s). lastProgressAt
+        // resets on each advance so emergencyWithdraw never unlocks while
+        // the battle still has rounds to play.
+        while (b.currentRound < battleArena.MAX_ROUNDS()) {
+            // Skip ahead in time but stay just under the delay.
+            vm.warp(b.lastProgressAt + delay - 1);
+
+            vm.prank(alice);
+            vm.expectRevert();
+            battleArena.emergencyWithdraw(battleId);
+
+            // Resolver plays the round to advance.
+            _playRound(battleId, hex"AA", hex"BB");
+            vm.prank(admin);
+            battleArena.advanceRound(battleId);
+            b = battleArena.getBattle(battleId);
+        }
+        // At MAX_ROUNDS the starvation ends because advanceRound reverts;
+        // the player can wait out the delay and reclaim. Property still
+        // holds: emergencyWithdraw was blocked for the entire duration.
+    }
+
+    // N-02: _handleActiveTimeout fall-through advances currentRound but
+    // forgets to refresh lastProgressAt. That lets a griefer time out every
+    // round, watch the arena advance via timeout, and trigger
+    // emergencyWithdraw 24h after the INITIAL revealTeam — effectively
+    // cancelling (not settling) a battle that had been progressing all
+    // along, escaping a losing position without paying the protocol fee.
+    //
+    // Discovered by Codex red-team pass, 2026-04-18.
+    function test_N02_handleActiveTimeout_refreshesLastProgressAt() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+
+        // After _setupSettleableBattle, round 1 is fully revealed (via
+        // _playRound) and lastProgressAt was set by revealTeam only.
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        uint256 lastProgressAtBefore = b.lastProgressAt;
+
+        // Advance to round 2 cleanly so we have a fresh commit window.
+        vm.prank(admin);
+        battleArena.advanceRound(battleId);
+
+        // Exercise the _handleActiveTimeout fall-through: Bob commits,
+        // Alice doesn't, phase times out (below AUTO_FORFEIT_THRESHOLD so
+        // we fall through to the non-terminal round advance).
+        b = battleArena.getBattle(battleId);
+        bytes32 saltB = bytes32(uint256(42));
+        bytes memory moveB = hex"BB";
+        bytes32 hashB = keccak256(abi.encodePacked(battleId, b.currentRound, bob, moveB, saltB));
+        vm.prank(bob);
+        battleArena.commitMoves(battleId, hashB);
+
+        uint256 timestampBeforeTimeout = block.timestamp;
+        vm.warp(block.timestamp + battleArena.COMMIT_WINDOW() + 1);
+        battleArena.handleTimeout(battleId);
+
+        b = battleArena.getBattle(battleId);
+        // Battle must still be Active (fall-through, not forfeit path).
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Active), "fall-through kept battle active");
+        // The round advanced — and lastProgressAt MUST have advanced with it.
+        assertGt(
+            b.lastProgressAt,
+            lastProgressAtBefore,
+            "N-02: lastProgressAt must refresh when _handleActiveTimeout advances a round"
+        );
+        assertGe(
+            b.lastProgressAt,
+            timestampBeforeTimeout,
+            "N-02: lastProgressAt must reflect the timeout-driven advance"
+        );
+    }
+
+    // Attack angle C variation: consecutive-timeout counters are cumulative
+    // across rounds (per NatSpec comment). Fuzz a sequence of commit-A-only
+    // timeouts and assert the counter increments monotonically until the
+    // forfeit threshold.
+    function testFuzz_consecutiveTimeoutCounter_monotonic(uint8 nTimeouts) public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        nTimeouts = uint8(bound(nTimeouts, 1, battleArena.AUTO_FORFEIT_THRESHOLD() - 1));
+
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        // After _setupSettleableBattle, round 1 already has both reveals
+        // and the round commit state has NOT been reset (advanceRound not
+        // called yet). Force advance so we're in a fresh commit window.
+        vm.prank(admin);
+        battleArena.advanceRound(battleId);
+
+        uint8 prevCounter = 0;
+        for (uint8 i = 0; i < nTimeouts; i++) {
+            b = battleArena.getBattle(battleId);
+            // Only bob commits; alice times out.
+            bytes32 hashB = keccak256(abi.encodePacked(battleId, b.currentRound, bob, hex"BB", bytes32(uint256(i + 1))));
+            vm.prank(bob);
+            battleArena.commitMoves(battleId, hashB);
+
+            vm.warp(block.timestamp + battleArena.COMMIT_WINDOW() + 1);
+            battleArena.handleTimeout(battleId);
+
+            b = battleArena.getBattle(battleId);
+            assertGt(b.consecutiveTimeoutsA, prevCounter, "counter must strictly increment on each timeout");
+            prevCounter = b.consecutiveTimeoutsA;
+
+            // Stop if battle became terminal (shouldn't happen below threshold).
+            if (b.phase == BattleArena.BattlePhase.Cancelled) break;
+        }
+    }
 }
