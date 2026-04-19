@@ -45,6 +45,7 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 |----|----------|--------|----------|-------|
 | **H-01** | High | **Mitigated via challenge window** | BattleArena | Resolver-trusted settlement (from 2026-03-06 audit) |
 | **N-01** | Low | **Fixed** | BattleArena | `_handleActiveTimeout` advances `currentRound` past `MAX_ROUNDS` |
+| **N-02** | Medium | **Fixed** | BattleArena | `_handleActiveTimeout` forgets to refresh `lastProgressAt` — griefer can force cheap `emergencyWithdraw` cancel |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -86,6 +87,44 @@ Regression tests:
 Pre-fix both tests failed (the first with `8 > 7`, the second with a round-8 advance). Post-fix both pass. Full suite: 677/677.
 
 Discovery: planning-session contract exploration, 2026-04-16. Fixed: 2026-04-17.
+
+### N-02: `_handleActiveTimeout` forgets to refresh `lastProgressAt`
+
+Severity: Medium (griefing path — denies protocol fee and forces cancel)
+
+Status: **Fixed** 2026-04-18. Regression test `test_N02_handleActiveTimeout_refreshesLastProgressAt` in `contracts/test/fuzz/FuzzBattleArena.t.sol`.
+
+Affected files:
+- `contracts/BattleArena.sol` — fall-through at the end of `_handleActiveTimeout`
+
+Summary:
+
+`lastProgressAt` gates `emergencyWithdraw`: after `EMERGENCY_WITHDRAW_DELAY` (24h) of no progress since `lastProgressAt`, either participant can cancel the battle for a full refund (both stakes + anti-grief back to both sides). `lastProgressAt` is written in two "normal" progress paths:
+1. `revealTeam` when the second team is revealed and phase → Active (line 325)
+2. `advanceRound` on clean round progression (line 398)
+
+But the **timeout-driven** round advance in `_handleActiveTimeout` (line 667, the N-01-neighbor fall-through) incremented `currentRound` without touching `lastProgressAt`. So a griefer could time out every round — letting the timeout handler walk the round counter up while `lastProgressAt` stayed frozen at the initial `revealTeam` timestamp. 24 hours after the first reveal, either side could call `emergencyWithdraw` and cancel a battle that had been actively progressing via timeouts — escaping a losing position without paying the 10% protocol fee, and denying the opponent their pending win.
+
+Discovery: Codex red-team pre-fix pass, 2026-04-18. This is exactly the "neighboring bug near N-01's fix" class the campaign's second-pass step was designed to catch.
+
+Fix (1 line):
+```solidity
+// In _handleActiveTimeout fall-through, after b.currentRound++:
+b.lastProgressAt = block.timestamp;
+```
+
+Regression test: drives a battle into Active phase round 2, exercises the fall-through (Bob commits, Alice times out, below AUTO_FORFEIT_THRESHOLD), asserts `b.lastProgressAt` strictly increases post-timeout.
+
+Codex red-team pre-fix pass (2026-04-18) also cleared the following as non-bugs under current state:
+- `currentRound` cap (only two increment sites, both now guarded)
+- `teamInBattle` ↔ phase consistency post-terminal
+- `disputeBattle` evidence blob not a log-storage DOS (block gas limit bounds it; only emitted, not stored)
+- Fee-accounting allowance race between settle/finalize — Treasury pulls from msg.sender, no reachable third-party drain
+- Stale `consecutiveTimeouts` counters after settle — persist but never read post-Active
+- `_executePayout` reentrancy — `nonReentrant` + CEI preserved
+- `_applyDamage` arithmetic — uint256 widen then cap-at-100
+- Team-lock callback race on `revealTeam` — NFT/TeamManager have no callbacks today
+- AwaitingFinalize + admin AWOL — matches documented open risk
 
 ### T-01: Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'`
 
@@ -204,11 +243,30 @@ Populated as each contract is audited.
 
 **Suite state**: 689/689 passing (677 before H-01 + 12 new H-01 tests).
 
-**Open for Phase 1 follow-up** (not done yet):
-- BattleArena invariants (task 15): phase monotonicity, lastVerifiedRound monotonic, escrow sum = contract CLAW balance - accrued fees, forfeit accounting, teamInBattle↔phase consistency.
-- Adversarial fuzz tests (task 16): one per attack angle above.
-- Deep profile run (task 17).
-- Codex red-team passes (tasks 18-19).
+**Invariants landed (2026-04-18, task 15)** — `contracts/test/invariant/InvariantBattleArena.t.sol` with a dedicated `BattleArenaHandler` at `contracts/test/invariant/handlers/BattleArenaHandler.sol`:
+
+- **I-1 `invariant_currentRoundBounded`** — `currentRound <= MAX_ROUNDS` across every tracked battle. Direct continuous-regression guard for N-01.
+- **I-2 `invariant_lastVerifiedRoundLeCurrentRound`** — `lastVerifiedRound <= currentRound`. Ensures the settlement-gating counter never overtakes the round counter.
+- **I-3 `invariant_escrowCoversActiveBattles`** — arena CLAW balance ≥ sum of deposited stake+antigrief across all non-terminal battles. Catches any leak path that drains escrow without transitioning the phase.
+- **I-4 `invariant_teamInBattleMatchesPhase`** — terminal battles have released `teamInBattle[teamId]` for both teams. Catches leaked team locks.
+- **I-5 `invariant_winnerIsParticipant`** — whenever `b.winner != address(0)`, it's a battle participant. Any path that writes a non-participant winner trips this.
+- **I-6 `invariant_awaitingFinalizeHasProposal`** — battles in AwaitingFinalize always have a valid `proposedWinner` and non-zero `payoutDeadline`. Protects the H-01 flow against writes that land a battle in the veto window without a usable proposal.
+
+Handler restricts `targetSelector` to only the `handler_*` entry points (13 total) so the fuzzer can't re-invoke the inherited `BaseSetup.setUp()` and orphan the ghost arrays.
+
+**Adversarial fuzz tests landed (2026-04-18, task 16)** — 5 new tests in `FuzzBattleArena.t.sol`:
+
+- `testFuzz_disputeWindow_boundaryInside_accepted` — fuzzes `block.timestamp` across `[now, payoutDeadline]`; asserts dispute is accepted at the boundary (<=).
+- `testFuzz_disputeWindow_pastDeadline_rejected` — fuzzes `payoutDeadline + [1s .. 365d]`; asserts `DisputeWindowClosed`.
+- `testFuzz_commitHash_wrongRound_revealFails` — fuzz-commits a hash bound to the wrong round; asserts reveal fails with `InvalidCommitHash`. Prevents precommit/replay across rounds.
+- `test_attack_emergencyWithdraw_blockedByResolverAdvance` — demonstrates attack angle D: a resolver calling `advanceRound` just under `EMERGENCY_WITHDRAW_DELAY` (24h) indefinitely blocks `emergencyWithdraw`. Starvation ends at `MAX_ROUNDS` (advanceRound then reverts). Documents the trust-model gap; post-H-01 the player has `disputeBattle` as recourse once settlement is proposed, but the Active-phase gap remains in the trust NatSpec.
+- `testFuzz_consecutiveTimeoutCounter_monotonic` — fuzzes the number of successive commit-only-from-B timeouts; asserts `consecutiveTimeoutsA` strictly increases on each timeout until the forfeit threshold.
+
+**Deep profile run (task 17)** — in progress 2026-04-18. Invoked as `FOUNDRY_PROFILE=deep forge test --match-path 'contracts/test/{fuzz,invariant}/*BattleArena*'` (50k fuzz runs, 2000 invariant runs × depth 200, seed-pinned `0xc1a88ada`). Results will be appended here.
+
+**Remaining for Phase 1**:
+- Codex red-team pass on BattleArena (task 18).
+- Triage + post-fix second Codex pass (task 19).
 
 ### BattleResolver.sol — pending Phase 1
 

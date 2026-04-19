@@ -788,6 +788,11 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         }
 
         b.currentRound++;
+        // N-02: keep the emergencyWithdraw clock honest. advanceRound() refreshes
+        // lastProgressAt; this timeout-driven twin must too, otherwise a griefer
+        // can force cheap cancel-by-emergencyWithdraw after 24h of time-outs by
+        // never letting lastProgressAt move past revealTeam.
+        b.lastProgressAt = block.timestamp;
         b.roundCommitA = bytes32(0);
         b.roundCommitB = bytes32(0);
         b.roundRevealedA = false;
