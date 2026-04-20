@@ -214,8 +214,15 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         // Clear active expedition tracking
         _teamToExpedition[expedition.teamId] = 0;
 
-        // Mark team as inactive
-        teamManager.setTeamActive(expedition.teamId, false);
+        // Mark team as inactive — but tolerate a deleted team record.
+        // M-01 (2026-04-20): under compromised ACTIVITY_ROLE, an attacker could
+        // force-unlock the team mid-expedition and the owner could disband it,
+        // leaving the expedition permanently stuck because setTeamActive on a
+        // non-existent team reverts. Guarding with teamExists keeps the payout
+        // path terminal even if the team record is gone.
+        if (teamManager.teamExists(expedition.teamId)) {
+            teamManager.setTeamActive(expedition.teamId, false);
+        }
 
         // Transfer escrowed reward to claimer
         clawToken.transfer(msg.sender, expedition.reward);
@@ -243,7 +250,13 @@ contract MiningPool is AccessControl, ReentrancyGuard {
 
         expedition.claimed = true;
         _teamToExpedition[expedition.teamId] = 0;
-        teamManager.setTeamActive(expedition.teamId, false);
+        // M-01: same deleted-team tolerance as claimExpedition. Admin release
+        // must always terminate even if the team record has been disbanded
+        // under a compromised-role path, otherwise the escrowed reward is
+        // permanently stuck.
+        if (teamManager.teamExists(expedition.teamId)) {
+            teamManager.setTeamActive(expedition.teamId, false);
+        }
 
         // Burn the escrowed reward rather than sending to admin
         clawToken.burn(expedition.reward);
