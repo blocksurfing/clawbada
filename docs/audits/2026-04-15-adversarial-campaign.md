@@ -53,6 +53,8 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **R-05** | Low | Documented (NatSpec) | BattleResolver | `scaleStats` trusts caller-supplied `base` stat magnitudes (caller contract) |
 | **R-06** | Medium | **Fixed** (capped) | BattleResolver | `enhancedProcChance` returns > 10_000 BPS at purity > 19 (semantic contract break) |
 | **R-07** | Low | Documented (NatSpec) | BattleResolver | `critChance` overflows for huge `critStat` (caller contract) |
+| **M-01** | Medium | **Fixed** | MiningPool | ACTIVITY_ROLE compromise + team disband leaves expedition permanently stuck |
+| **M-02** | Medium | Documented (C-05 instance) | MiningPool | Compromised SEASON_ADMIN can redirect full remaining season budget via `setBaseReward` |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -311,7 +313,111 @@ Pure math library (241 LOC, all `internal pure`). Currently consumed only by the
 
 **Final verdict on BattleResolver (Codex post-fix)**: the R-03 change fixes the `_cappedRatio` overflow panic; R-06 fix preserves the BPS-is-probability contract. Library is clean for its stated off-chain-only usage with the documented caller contract. Not fully clean as a generic permissive primitive — but explicitly documented as such.
 
-### MiningPool.sol — pending Phase 1
+### MiningPool.sol — Phase 1 in progress 2026-04-20
+
+297-LOC contract managing seasonal emissions: fixed per-expedition rewards (`baseReward × TIER_WEIGHTS[tier]`), `totalMinted` ledger capped at `totalEmission`, 4-hour expeditions, 60-day seasons, and an admin-only emergency release (F-06) for stuck expeditions.
+
+**Read pass (task 27)** — key attack angles identified:
+- **A. Season rollover**: `startSeason` resets `totalMinted` to 0. Unclaimed expeditions from prior seasons stay in escrow and remain claimable (tested).
+- **B. Tier-gate at start-only**: once started, reward + tier are locked in the expedition struct; lobster evolution mid-expedition can't retroactively affect the tier gate.
+- **C. Admin release vs user claim race**: both set `claimed = true`. Admin can only release after `EXPEDITION_DURATION + 7d` grace; user can claim any time after `EXPEDITION_DURATION`. If user doesn't claim within 7 days, admin can burn the reward. This is F-06 design tradeoff — documents a trust-based grief vector.
+- **D. `setBaseReward` admin lever**: admin can change baseReward mid-season; affects future expeditions only (locked at start for in-flight). In a compromised-admin scenario, this is a favoritism vector (raise reward, let crony start, lower back) — bounded by per-season budget cap.
+- **E. CLAW supply exhaustion at start**: `clawToken.mint` at expedition start (not at claim) — reverts `ExceedsMaxSupply` loudly rather than silently locking teams. This is the M-02 fix.
+- **F. Budget-exhaustion dust**: per-season `totalMinted` can approach but never exceed `totalEmission`; residual dust surfaced via `getSeasonUnspent`, not a bug.
+
+**Slither scoped triage (task 28)**:
+- `unchecked-transfer` at line 221 (overlaps prior I-04 SafeERC20 work).
+- `reentrancy-no-eth` on `startExpedition.clawToken.mint` before `_teamToExpedition[teamId] = expId`. False positive: `startExpedition` is `nonReentrant`, and `clawToken` has no callbacks.
+- `calls-loop` on `lobsterNFT.getEvolutionTier` inside the 3-iteration tier-gate loop. Bounded, not a DoS.
+- `timestamp` comparisons: all legitimate for time-gated mechanics.
+
+No new actionable findings from Slither.
+
+**New invariants landed (task 29)** — `contracts/test/invariant/InvariantMiningPool.t.sol` with handler at `contracts/test/invariant/handlers/MiningPoolHandler.sol`:
+- **I-1 `invariant_seasonBudgetCap`** — for every season ever started, `totalMinted <= totalEmission`. `SeasonBudgetExhausted` enforces at write time; invariant confirms under arbitrary sequences.
+- **I-2 `invariant_escrowMatchesUnclaimedRewards`** — `clawToken.balanceOf(MiningPool) == sum(reward over unclaimed expeditions)`. Strongest invariant: catches lost escrow, double-mint, or burn-before-clear in `adminReleaseExpedition`.
+- **I-3 `invariant_seasonMonotonic`** — `currentSeason` is non-decreasing across handler sequences. Trivially true today; regression guard for future admin functions.
+- **I-4 `invariant_rewardIsTierWeightMultiple`** — every expedition's reward is a multiple of its tier weight ∈ {1, 3, 10, 25} and non-zero. Breaks if reward math ever drifts to fractional logic.
+- **I-5 `invariant_teamExpeditionLinkConsistent`** — unclaimed expedition implies `_teamToExpedition[teamId] == expId` AND `teamManager.isTeamActive(teamId) == true`.
+
+Handler `targetSelector`-restricts to 6 `handler_*` entrypoints to prevent the fuzzer from calling inherited `BaseSetup.setUp()` mid-run.
+
+**New adversarial fuzz tests (task 30)** — 9 added to `FuzzMiningPool.t.sol`:
+- `test_adminRelease_happyPath` — F-06 feature test (previously untested!): after grace, burns reward, unlocks team.
+- `testFuzz_adminRelease_beforeGrace_reverts` — any warp `< EXPEDITION_DURATION + 7d` reverts.
+- `test_adminRelease_afterUserClaim_reverts` — user-first wins the race.
+- `test_claim_afterAdminRelease_reverts` — admin-first wins the race; user can't claim burned reward.
+- `test_adminRelease_onlyDefaultAdmin` — access control enforcement.
+- `test_season_rollover_preservesUnclaimedExpeditions` — unclaimed S1 expedition still claimable in S2.
+- `test_season_budgetIsolation` — S2's `totalMinted` starts at 0; S1 accounting unchanged.
+- `testFuzz_startSeason_beforePriorEnds_reverts` — `SeasonStillActive` at every timestamp strictly before the 60-day mark.
+- `testFuzz_setBaseReward_doesNotAffectInflight` — in-flight reward locked across arbitrary new baseReward values.
+
+**Deep profile run (task 31, 2026-04-20)**: 24/24 passing. Invariants run 2M handler calls each (2000 runs × depth 200 with seed `0xc1a88ada`); fuzz tests run 50k × 19. Total wall-clock 145s.
+
+**Codex red-team pre-fix pass (task 32, 2026-04-20)** — 2 Medium findings:
+
+### M-01: ACTIVITY_ROLE compromise + team disband permanently locks an expedition
+
+Severity: Medium (defense-in-depth — requires ACTIVITY_ROLE compromise, but outcome is permanent fund lock)
+
+Status: **Fixed** 2026-04-20 (guard `setTeamActive` with `teamExists` in both `claimExpedition` and `adminReleaseExpedition`).
+
+Sequence:
+1. User calls `startExpedition`; MiningPool records `_teamToExpedition[teamId] = expId` and calls `teamManager.setTeamActive(teamId, true)`.
+2. Compromised `ACTIVITY_ROLE` on TeamManager calls `setTeamActive(teamId, false)` directly. MiningPool's `_teamToExpedition` is unchanged.
+3. Team owner calls `TeamManager.disbandTeam(teamId)` — TeamManager only checks `team.active == false`, so disband succeeds and deletes the team record.
+4. Later, `claimExpedition` or `adminReleaseExpedition` reaches `teamManager.setTeamActive(expedition.teamId, false)` → reverts `TeamDoesNotExist`.
+5. Pre-fix: the whole tx rolls back including `expedition.claimed = true` and the `_teamToExpedition` clear. Escrowed CLAW is permanently stuck; no path reaches terminal state.
+
+Impact: permanent CLAW lockup and permanently non-terminal expedition state if ACTIVITY_ROLE is ever compromised (or if a future admin action accidentally revokes the team while an expedition is live). The season budget also stays consumed — it can't roll over because `totalMinted` isn't refunded.
+
+Fix (both paths):
+```solidity
+if (teamManager.teamExists(expedition.teamId)) {
+    teamManager.setTeamActive(expedition.teamId, false);
+}
+```
+
+Regression tests: `test_M01_claim_toleratesDeletedTeam`, `test_M01_adminRelease_toleratesDeletedTeam`. Both drive alice-as-compromised-ACTIVITY_ROLE to force-unlock + disband the team mid-expedition, then assert the terminal path still delivers reward / burns as expected.
+
+Not a fix to the root cause (TeamManager allows disband of teams with external attached state). The deeper fix lives in TeamManager or a cross-contract registry — deferred; adding that now would create a cyclic `MiningPool ↔ TeamManager` dependency. MiningPool-side resilience is the cheap, correct defense.
+
+### M-02: SEASON_ADMIN can redirect 100% of remaining season budget to a chosen team
+
+Severity: Medium (trust-boundary)
+
+Status: Documented as a concrete instance of the prior audit's open **C-05** ("admin god-key, no multisig / timelock"). No runtime fix.
+
+Sequence:
+1. Let `R = totalEmission - totalMinted` (remaining budget).
+2. Compromised SEASON_ADMIN sets `baseReward = R`.
+3. Tier weight for Base is 1, so any team can start a Base expedition with `reward = R × 1 = R`.
+4. The `totalMinted + reward > totalEmission` check allows exact equality, so the expedition consumes the full remainder in one shot.
+5. 4 hours later, the owner claims the entire season's remaining emissions.
+
+Impact: SEASON_ADMIN is not just "tune rewards" — it's "instantly allocate the entire remaining season budget to yourself or cronies." Bounded by the per-season budget cap (not global supply).
+
+Mitigation strategy: this is addressed by the C-05 work (multisig + timelock on admin roles) planned for Phase 4 rather than runtime enforcement here. Adding a cap on `setBaseReward` delta (e.g., ±2× per call) would harden it further but breaks legitimate tuning (e.g., if Season 1 data suggests a 5× increase, admin currently needs one call). The S1 stance: trust SEASON_ADMIN as multisig-operated; document the blast radius.
+
+Deploy-day runbook item (task C-05 follow-up): `SEASON_ADMIN_ROLE` must be held by the same multisig as `DEFAULT_ADMIN_ROLE`, with explicit governance review for any mid-season `setBaseReward` call that would exceed `2 × current baseReward`.
+
+**Cleared by Codex pass (not bugs)**:
+- Budget-cap precision — no bypass; zero-reward expeditions impossible (`baseReward > 0` enforced).
+- Season-end boundary — consistent at `startTime + 60 days`.
+- Escrow-drain / insufficient-balance drift — OZ ERC20 reverts on insufficient balance for both `transfer` and `burn`.
+- Multi-season carry-over — clean isolation.
+- `team.active` race at start — no reentrancy window with current CLAW (no hooks).
+- Tier gate timing — start-only snapshot is correct (reward/tier locked in struct).
+- Terminal path `_teamToExpedition` cleanup — correct in honest flows (with M-01 fix, resilient to compromised-role paths).
+
+**Codex post-fix pass (task 33, 2026-04-20)**: verdict on M-01 fix: **correct**. Confirmed `teamExists` is a view with no side effects; deleted-team path is semantically correct (no stale `active` bit to clean up because `disbandTeam` deletes the entire record); the guard doesn't mask legitimate failures (missing ACTIVITY_ROLE still reverts when the team exists); no new divergence between `_teamToExpedition` and `team.active`. Start-path (`startExpedition`) doesn't need the same guard — team lifecycle is atomic within a non-reentrant call. Final verdict: "`MiningPool.sol` looks clean in the reviewed post-M-01 scope."
+
+No new findings from the post-fix pass.
+
+### Treasury.sol — pending Phase 1
+
+
 
 ### Treasury.sol — pending Phase 1
 
