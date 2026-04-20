@@ -138,18 +138,20 @@ contract TreasuryTest is Test {
         assertEq(claw.balanceOf(address(treasury)), treasuryBalBefore);
     }
 
-    function test_processFeeSmallAmount() public {
-        // 1 wei — burn = 0, dev = 1
+    function test_processFeeSmallAmount_reverts() public {
+        // T-03 (2026-04-20): processFee now rejects amount < BPS_DENOMINATOR.
+        // Previously 1 wei would split as burn=0, dev=1 — sending 100% to
+        // dev instead of the advertised 85/15. Rejection restores the
+        // contract.
         uint256 feeAmount = 1;
-        uint256 expectedBurn = 0; // (1 * 8500) / 10000 = 0
-        uint256 expectedDev = 1;
 
         vm.startPrank(authorizedCaller);
         claw.approve(address(treasury), feeAmount);
+        vm.expectRevert(
+            abi.encodeWithSelector(Treasury.AmountBelowMinimum.selector, feeAmount, treasury.BPS_DENOMINATOR())
+        );
         treasury.processFee(feeAmount);
         vm.stopPrank();
-
-        assertEq(claw.balanceOf(devWallet), expectedDev);
     }
 
     function test_processFeeUnauthorizedReverts() public {
@@ -216,7 +218,8 @@ contract TreasuryTest is Test {
     // ──────────── Fuzz ────────────
 
     function testFuzz_processFeeSplitIsExact(uint256 amount) public {
-        amount = bound(amount, 1, 1_000_000e18);
+        // T-03: min amount is BPS_DENOMINATOR (10_000 wei).
+        amount = bound(amount, treasury.BPS_DENOMINATOR(), 1_000_000e18);
 
         // Ensure caller has enough
         vm.prank(lpAddress);

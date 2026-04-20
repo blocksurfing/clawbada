@@ -28,7 +28,10 @@ contract FuzzMarketplace is BaseSetup {
     // ── Buy: seller and buyer balances correct ────────────────────
 
     function testFuzz_buy_balances(uint256 price) public {
-        price = bound(price, 100, 1_000_000e18);
+        // T-03 (2026-04-20): Treasury requires fee >= BPS_DENOMINATOR
+        // (10_000 wei). Marketplace fee = price × FEE_BPS / BPS_DENOMINATOR;
+        // at 2.5% fee, minimum price that yields fee >= 10_000 is 400_000.
+        price = bound(price, 400_000, 1_000_000e18);
 
         uint256 lobsterId = _mintLobster(alice, 0);
         _giveClaw(bob, price);
@@ -161,7 +164,8 @@ contract FuzzMarketplace is BaseSetup {
     // ── Price update ──────────────────────────────────────────────
 
     function testFuzz_price_update(uint256 newPrice) public {
-        newPrice = bound(newPrice, 1, type(uint128).max);
+        // T-05: updatePrice also enforces MIN_LISTING_PRICE (400_000 wei).
+        newPrice = bound(newPrice, marketplace.MIN_LISTING_PRICE(), type(uint128).max);
         uint256 lobsterId = _mintLobster(alice, 0);
         uint256 listingId = _list(alice, lobsterId, 100e18);
 
@@ -170,6 +174,19 @@ contract FuzzMarketplace is BaseSetup {
 
         Marketplace.Listing memory l = marketplace.getListing(listingId);
         assertEq(l.price, newPrice);
+    }
+
+    // T-05 regression: updatePrice rejects sub-minimum prices.
+    function testFuzz_price_update_belowMin_reverts(uint256 dustPrice) public {
+        dustPrice = bound(dustPrice, 1, marketplace.MIN_LISTING_PRICE() - 1);
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 listingId = _list(alice, lobsterId, 100e18);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(Marketplace.PriceBelowMinimum.selector, dustPrice, marketplace.MIN_LISTING_PRICE())
+        );
+        vm.prank(alice);
+        marketplace.updatePrice(listingId, dustPrice);
     }
 
     function test_update_price_zero_reverts() public {

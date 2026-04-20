@@ -55,6 +55,9 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **R-07** | Low | Documented (NatSpec) | BattleResolver | `critChance` overflows for huge `critStat` (caller contract) |
 | **M-01** | Medium | **Fixed** | MiningPool | ACTIVITY_ROLE compromise + team disband leaves expedition permanently stuck |
 | **M-02** | Medium | Documented (C-05 instance) | MiningPool | Compromised SEASON_ADMIN can redirect full remaining season budget via `setBaseReward` |
+| **T-03** | Low | **Fixed** | Treasury | `processFee` accepts amounts below `BPS_DENOMINATOR`, adversarial chunking can skew 85/15 split |
+| **T-04** | Low | **Fixed** | Treasury | `setDevWallet(address(this))` traps the 15% leg inside Treasury (no accumulation invariant violated) |
+| **T-05** | Low | **Fixed** | Marketplace | Dust listings pass price > 0 check but produce Treasury-rejected fees (T-03 knock-on) |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -415,11 +418,39 @@ Deploy-day runbook item (task C-05 follow-up): `SEASON_ADMIN_ROLE` must be held 
 
 No new findings from the post-fix pass.
 
-### Treasury.sol — pending Phase 1
+### Treasury.sol — Phase 1 done 2026-04-20
 
+104-LOC fee splitter. `processFee(amount)` pulls via `transferFrom`, burns 85% via `clawToken.burn`, forwards 15% to `devWallet`. Atomic pull-split-burn — no token accumulation. Owner (Ownable2Step) can update devWallet and toggle authorized callers.
 
+**Read pass**: fee-split math under small amounts, `setClawToken` one-time setup, `setDevWallet` race, authorization revocation DoS, reentrancy paths (nonReentrant guard active), `devWallet = address(this)` self-routing.
 
-### Treasury.sol — pending Phase 1
+**Slither**: 2 `unchecked-transfer` findings on `transferFrom`/`transfer` — false positives (OZ ERC20 reverts on failure). Overlaps prior I-04.
+
+**New tests (10 added to `FuzzTreasury.t.sol`)**: zero-delta single/multi-call invariants, setDevWallet routing, setAuthorized revoke, Ownable2Step 2-step flow, max-supply math, 2 T-03 regressions, 2 T-04 regressions.
+
+**Deep profile**: 14/14 passing at 50k fuzz runs, 6s.
+
+**Codex pre-fix findings** (2 Low):
+
+- **T-03** (Fixed): `processFee` accepted amounts below `BPS_DENOMINATOR`, letting an adversarial caller chunk a fee total into tiny pieces that all round the burn leg to 0 and send 100% to dev. Fix: `require(amount >= BPS_DENOMINATOR)` — minimum 10_000 wei (1e-14 CLAW), far below any realistic in-protocol fee.
+
+- **T-04** (Fixed): `setDevWallet(address(this))` would transfer the 15% leg to Treasury itself (an OZ ERC20 self-transfer no-op in balance terms), silently accumulating inside Treasury with no sweep path. Fix: reject at both constructor and `setDevWallet`.
+
+**Codex post-fix pass**: verdict T-03 `correct-but-incomplete` because of a Marketplace knock-on regression (fixed as T-05 below in the same commit); T-04 `correct`, no edge cases; no further findings.
+
+### T-05: Marketplace dust listings unbuyable post-T-03 (knock-on)
+
+Severity: Low (caller alignment with Treasury T-03)
+
+Status: **Fixed** 2026-04-20.
+
+Under T-03, Marketplace listings cheap enough to produce a fee in `[1, 9_999]` (i.e., prices in `[40, 399_999]` at the 2.5% fee rate) landed in a broken state: the listing was valid at creation but `buyLobster` would revert `AmountBelowMinimum` on the subsequent `treasury.processFee(fee)` call.
+
+Fix: `Marketplace.MIN_LISTING_PRICE = 400_000` enforced at both `listLobster` and `updatePrice` via `PriceBelowMinimum(price, minimum)` error. Derivation: `price × FEE_BPS / BPS_DENOMINATOR >= Treasury.BPS_DENOMINATOR → price >= 400_000`. At 18-decimal CLAW this is 4 × 10^-13 CLAW, well below any realistic listing.
+
+**Listing state**: pre-fix, dust listings could be created but not bought — stuck with escrowed NFT. Post-fix, they're rejected at creation. No existing listings are affected at launch (repo has no deployed state).
+
+Regression tests: `test_boundary_marketplace_dustPriceList_reverts` (BoundaryTests), `test_boundary_marketplaceLowPriceZeroFee_rejected` (retargeted from prior success expectation), `testFuzz_price_update_belowMin_reverts` (FuzzMarketplace).
 
 ### BreedingLab.sol — pending Phase 2
 

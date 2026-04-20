@@ -722,38 +722,54 @@ contract BoundaryTests is Test {
     // 6. Marketplace — Low price fee boundary
     // ════════════════════════════════════════════════════════════════
 
-    function test_boundary_marketplaceLowPriceZeroFeeSucceeds() public {
-        // Price = 39 → fee = (39 * 250) / 10000 = 0
-        // Fee rounds to zero → skipped, full price goes to seller
+    function test_boundary_marketplaceLowPriceZeroFee_rejected() public {
+        // T-05 (2026-04-20): pre-fix, price=39 produced fee=0 which was
+        // silently skipped, and the listing was buyable with no protocol
+        // fee. Post-fix, the listing is rejected at listLobster time
+        // because price < MIN_LISTING_PRICE. This makes the marketplace's
+        // fee contract honest: every sale pays the 2.5% protocol fee.
         uint256 id = _mintLobster(alice);
         vm.prank(alice);
         nft.setApprovalForAll(address(market), true);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(Marketplace.PriceBelowMinimum.selector, 39, market.MIN_LISTING_PRICE())
+        );
         vm.prank(alice);
-        uint256 listingId = market.listLobster(id, 39);
-
-        uint256 aliceBefore = claw.balanceOf(alice);
-        vm.prank(bob);
-        claw.approve(address(market), 39);
-
-        vm.prank(bob);
-        market.buyLobster(listingId);
-
-        // Seller receives full price (no fee deducted)
-        assertEq(claw.balanceOf(alice), aliceBefore + 39);
-        // Buyer now owns the lobster
-        assertEq(nft.balanceOf(bob, id), 1);
+        market.listLobster(id, 39);
     }
 
-    function test_boundary_marketplaceMinPriceWithFee() public {
-        // Price = 40 → fee = (40 * 250) / 10000 = 1 → processFee(1) succeeds
+    function test_boundary_marketplace_dustPriceList_reverts() public {
+        // T-05 (2026-04-20): Marketplace rejects listings cheap enough to
+        // produce a sub-Treasury-minimum fee at list time, rather than
+        // letting the listing land and then fail on buy. Pre-fix: price=40
+        // listed fine, fee=1, buyLobster reverted AmountBelowMinimum.
+        // Post-fix: listLobster reverts PriceBelowMinimum immediately.
+        uint256 id = _mintLobster(alice);
+        vm.prank(alice);
+        nft.setApprovalForAll(address(market), true);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(Marketplace.PriceBelowMinimum.selector, 40, market.MIN_LISTING_PRICE())
+        );
+        vm.prank(alice);
+        market.listLobster(id, 40);
+    }
+
+    // Marketplace listings large enough to produce fee >= 10_000 wei still
+    // settle normally. Min listing price for marketplace: fee_rate × price
+    // = 0.025 × price >= 10_000 → price >= 400_000. At 18-decimal CLAW
+    // this is 4e-13 CLAW, well below any realistic listing.
+    function test_boundary_marketplaceMinPriceAtTreasuryMin() public {
+        uint256 minPrice = 400_000; // yields fee = 10_000 exactly
         uint256 id = _mintLobster(alice);
         vm.prank(alice);
         nft.setApprovalForAll(address(market), true);
         vm.prank(alice);
-        uint256 listingId = market.listLobster(id, 40);
+        uint256 listingId = market.listLobster(id, minPrice);
 
         vm.prank(bob);
-        claw.approve(address(market), 40);
+        claw.approve(address(market), minPrice);
 
         vm.prank(bob);
         market.buyLobster(listingId);
@@ -1120,20 +1136,19 @@ contract BoundaryTests is Test {
     // 12. Treasury — Small fee boundary
     // ════════════════════════════════════════════════════════════════
 
-    function test_boundary_processFeeAmount2() public {
-        // amount=2: burn = (2 * 8500) / 10000 = 1, dev = 2 - 1 = 1
+    function test_boundary_processFeeAmount2_reverts() public {
+        // T-03 (2026-04-20): amounts below BPS_DENOMINATOR are rejected to
+        // preserve the 85/15 split contract. Pre-fix behavior: amount=2
+        // produced burn=1, dev=1 — a 50/50 split. Now: AmountBelowMinimum.
         vm.prank(admin);
         treasury.setAuthorized(alice, true);
 
         vm.prank(alice);
         claw.approve(address(treasury), 2);
 
-        uint256 devBalBefore = claw.balanceOf(devWallet);
-
+        vm.expectRevert(abi.encodeWithSelector(Treasury.AmountBelowMinimum.selector, 2, treasury.BPS_DENOMINATOR()));
         vm.prank(alice);
         treasury.processFee(2);
-
-        assertEq(claw.balanceOf(devWallet), devBalBefore + 1);
     }
 
     function test_boundary_processFeeExactBPS() public {
