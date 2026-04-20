@@ -46,6 +46,13 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **H-01** | High | **Mitigated via challenge window** | BattleArena | Resolver-trusted settlement (from 2026-03-06 audit) |
 | **N-01** | Low | **Fixed** | BattleArena | `_handleActiveTimeout` advances `currentRound` past `MAX_ROUNDS` |
 | **N-02** | Medium | **Fixed** | BattleArena | `_handleActiveTimeout` forgets to refresh `lastProgressAt` — griefer can force cheap `emergencyWithdraw` cancel |
+| **R-01** | Low | Documented (NatSpec) | BattleResolver | `classMult` outside {800,1000,1250} silently zeroes damage (caller contract) |
+| **R-02** | Low | Documented (NatSpec) | BattleResolver | Out-of-spec `purity` / `vrfRoll` inflate or overflow damage (caller contract) |
+| **R-03** | Info | **Fixed** (hardened) | BattleResolver | `_cappedRatio` overflows for extreme `atk > type(uint256).max / 1000` |
+| **R-04** | Low | Documented (NatSpec) | BattleResolver | `calculateSpecialDamage` trusts caller-supplied `basePower` (caller contract) |
+| **R-05** | Low | Documented (NatSpec) | BattleResolver | `scaleStats` trusts caller-supplied `base` stat magnitudes (caller contract) |
+| **R-06** | Medium | **Fixed** (capped) | BattleResolver | `enhancedProcChance` returns > 10_000 BPS at purity > 19 (semantic contract break) |
+| **R-07** | Low | Documented (NatSpec) | BattleResolver | `critChance` overflows for huge `critStat` (caller contract) |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -268,7 +275,41 @@ Handler restricts `targetSelector` to only the `handler_*` entry points (13 tota
 - Codex red-team pass on BattleArena (task 18).
 - Triage + post-fix second Codex pass (task 19).
 
-### BattleResolver.sol — pending Phase 1
+### BattleResolver.sol — Phase 1 done 2026-04-18
+
+Pure math library (241 LOC, all `internal pure`). Currently consumed only by the off-chain battle engine; `BattleArena` stores externally-computed damage arrays rather than recomputing them on-chain. Attack surface is therefore the caller-boundary more than the library itself.
+
+**Read pass**: identified precision/overflow edge cases, input-domain abuse (classMult, purity, vrfRoll), and the `_cappedRatio` extreme-atk overflow. Existing fuzz suite already covered 17 angles (damage bounds, crit monotonicity, class advantage graph, anti-symmetry, legend bonus, crit chance, purity scaling, etc.).
+
+**New fuzz tests (task 23, 7 added)**:
+- `test_tournament_graph_four_four_two` — every class has exactly 4 adv / 4 disadv / 2 neutral matchups
+- `testFuzz_scaleStats_tier_monotonic` — tier progression is weak-monotonic across all 5 stats
+- `testFuzz_hp_battle_scale_at_base_tier` — confirms HP × 5 scaling at tier 0 non-legend
+- `testFuzz_ratio_cap_clamps_extreme_attacks` — atk/armor pairs past 2.2× cap produce identical damage
+- `testFuzz_purity_above_spec_scales_predictably` — documents that library does NOT bound purity (caller responsibility)
+- `testFuzz_deriveRandom_deterministic` / `testFuzz_deriveRandom_saltSensitivity` — hash determinism + salt sensitivity
+- `testFuzz_cappedRatio_overflowGuard` — R-03 regression
+
+**Deep profile (task 24)**: 23/23 passing at 50k fuzz runs each, 3.2s.
+
+**Codex red-team pre-fix pass (task 25, 2026-04-18)**: 3 findings, all caller-boundary:
+- R-01 (Low): `classMult` outside {800, 1000, 1250} silently zeroes damage. No runtime check.
+- R-02 (Low): out-of-spec `purity` or `vrfRoll` inflate damage or overflow.
+- R-03 (Info): `_cappedRatio` still overflows on `atk > type(uint256).max / MULT_DENOM` — S-03 hardened the `armor == 0` path but not the absurd-atk path.
+
+**Response**:
+- **R-03 fixed** via short-circuit: `if (atk > type(uint256).max / MULT_DENOM) return STAT_RATIO_CAP;` before the multiply. Regression test `testFuzz_cappedRatio_overflowGuard` asserts huge-atk damage equals past-cap damage.
+- **R-01 and R-02 documented** in a new "CALLER-BOUNDARY CONTRACT" NatSpec block at the top of the library. Runtime guards not added: library is currently off-chain-only, `BattleArena` stores externally-computed damage arrays. If `BattleResolver` is ever imported for on-chain verification, callers MUST enforce classMult ∈ {800, 1000, 1250}, purity ≤ 6, and vrfRoll ∈ [VRF_MIN, VRF_MAX] before calling. An alternative hardening (adding runtime `require` guards to the three damage functions) was considered but rejected for S1 scope — it forces every caller to route through the library's specific error selectors even for off-chain-computed paths that already validate upstream.
+
+**Codex post-fix pass (task 26, 2026-04-18)**: verdict on R-03 fix: **correct-but-incomplete** — threshold is off-by-one correct, no new bugs, but it's a saturating approximation (returns cap for `atk > uint256.max / MULT_DENOM` with extreme armor even when the true ratio would be below cap). Acceptable: in-spec stats never approach that regime; documented in NatSpec.
+
+**Second-pass findings** (4 additional caller-boundary issues):
+- **R-04 (Low, NatSpec)**: `calculateSpecialDamage` trusts caller-supplied `basePower`. Must be from `getSpecialBasePower()`. Documented.
+- **R-05 (Low, NatSpec)**: `scaleStats` trusts caller-supplied `base` stat magnitudes. Must be from `getBaseStats()`. Documented.
+- **R-06 (Medium, FIXED)**: `enhancedProcChance` returns BPS above 10_000 when purity > 19 (e.g., 128_000 at purity=255). Callers using the result against a 0..9999 roll get unconditional procs. Fix: cap result at 10_000 BPS inside the function. Regression test `testFuzz_enhancedProcChance_capped_at_100pct` + `test_enhancedProcChance_capAtHighPurity` cover the cap. This is a *real* semantic contract bug (probability must be ≤ 100%), hence the cap rather than NatSpec-only.
+- **R-07 (Low, NatSpec)**: `critChance` numerator `critStat * 10_000` overflows for huge `critStat`. Spec stats cap at ~270 post-scale; documented as caller contract.
+
+**Final verdict on BattleResolver (Codex post-fix)**: the R-03 change fixes the `_cappedRatio` overflow panic; R-06 fix preserves the BPS-is-probability contract. Library is clean for its stated off-chain-only usage with the documented caller contract. Not fully clean as a generic permissive primitive — but explicitly documented as such.
 
 ### MiningPool.sol — pending Phase 1
 

@@ -4,6 +4,40 @@ pragma solidity ^0.8.24;
 /// @title BattleResolver — Pure combat math library for Clawbada
 /// @notice Provides damage formulas, class stats, advantage graph, and purity mechanics.
 /// @dev All functions internal pure. Used on-chain (verification) and off-chain (simulation).
+///
+///      CALLER-BOUNDARY CONTRACT. The damage functions trust their fixed-point
+///      input ranges because the library is currently consumed only by the
+///      trusted off-chain battle engine. If a future integration calls these
+///      functions with untrusted calldata, the caller MUST enforce:
+///
+///        - `classMult` ∈ {CLASS_DISADV_MULT, CLASS_NEUTRAL_MULT, CLASS_ADV_MULT}
+///          (i.e. 800, 1000, or 1250 — derive from `getClassAdvantage()`).
+///          Passing `classMult = 1` silently zeroes damage.
+///        - `purity` ≤ 6. Higher values produce runaway Special damage
+///          (purityMult grows linearly) and can overflow when combined with
+///          large `vrfRoll`. `enhancedProcChance` has a built-in 10_000 BPS
+///          cap so callers can't get >100% proc rates, but the damage
+///          multiplier in `calculateSpecialDamage` remains uncapped.
+///        - `vrfRoll` ∈ [VRF_MIN, VRF_MAX] (850..1150). Values outside scale
+///          damage proportionally and can overflow the uint256 numerator when
+///          combined with large basePower × purity.
+///        - `basePower` for `calculateSpecialDamage` must come from
+///          `getSpecialBasePower()` (≤ 200 today). Arbitrary `basePower`
+///          combined with max caller-controlled inputs can overflow.
+///        - `base` stats passed to `scaleStats` must come from `getBaseStats()`
+///          (HP ≤ 700, other stats ≤ 140 today). Arbitrary `base.hp` combined
+///          with `tierMult × legendMult × HP_BATTLE_SCALE` can overflow.
+///        - `critStat` passed to `critChance` is bounded by caller (stat table
+///          caps at 130 today, scaled ≤ ~270). `type(uint256).max` overflows
+///          the numerator multiply — no runtime guard.
+///
+///      `_cappedRatio` is hardened against both `armor == 0` (S-03) and
+///      absurdly large `atk` values that would otherwise overflow the ratio
+///      multiplication (R-03). Note: R-03's short-circuit is a saturating
+///      approximation — for `atk > type(uint256).max / MULT_DENOM` combined
+///      with extremely large `armor`, it returns STAT_RATIO_CAP even when
+///      the true ratio would be below cap. In-spec stats never approach
+///      this regime.
 library BattleResolver {
     // ──────────── Damage Formula Constants ────────────
     uint256 internal constant ATTACK_BASE_POWER = 100;
@@ -217,9 +251,16 @@ library BattleResolver {
     // ──────────── Purity ────────────
 
     /// @notice Returns the enhanced Special proc chance in BPS.
-    /// @param purity Purity score 0-6
+    /// @param purity Purity score 0-6 (per spec). Callers passing higher values
+    ///               get a result capped at 10_000 BPS (100%) to preserve the
+    ///               function's semantic contract as a probability.
+    /// @dev R-06: the raw formula `500 + purity × 500` exceeds 10_000 at
+    ///      purity > 19 (returns 128_000 at purity = 255). That breaks the
+    ///      "BPS is a probability" contract if a caller uses the result
+    ///      against a 0..9999 roll (proc becomes unconditional). Cap here.
     function enhancedProcChance(uint8 purity) internal pure returns (uint256) {
-        return PURITY_ENHANCED_BASE_BPS + uint256(purity) * PURITY_ENHANCED_PER_BPS;
+        uint256 raw = PURITY_ENHANCED_BASE_BPS + uint256(purity) * PURITY_ENHANCED_PER_BPS;
+        return raw > 10_000 ? 10_000 : raw;
     }
 
     // ──────────── Randomness ────────────
@@ -232,9 +273,14 @@ library BattleResolver {
     // ──────────── Internal ────────────
 
     /// @dev Calculate atk/armor ratio capped at STAT_RATIO_CAP (2.2×), scaled ×1000.
-    ///      Returns cap if armor is 0 (defensive hardening for future on-chain use).
+    ///      Returns cap if armor is 0 (S-03 hardening) or if atk is so large
+    ///      that `atk * MULT_DENOM` would overflow (R-03 hardening — any such
+    ///      atk value dwarfs any realistic armor and would cap anyway).
     function _cappedRatio(uint256 atk, uint256 armor) private pure returns (uint256) {
         if (armor == 0) return STAT_RATIO_CAP;
+        // Short-circuit before the multiplication overflows. atk would have
+        // to exceed ~1.16e74 to trigger; current scaled stats are < 1e5.
+        if (atk > type(uint256).max / MULT_DENOM) return STAT_RATIO_CAP;
         uint256 ratio = atk * MULT_DENOM / armor;
         return ratio > STAT_RATIO_CAP ? STAT_RATIO_CAP : ratio;
     }
