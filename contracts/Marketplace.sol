@@ -17,6 +17,20 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     uint256 public constant FEE_BPS = 250; // 2.5%
     uint256 public constant BPS_DENOMINATOR = 10_000;
 
+    // T-05 (knock-on from Treasury T-03, 2026-04-20): minimum listing price
+    // such that the computed protocol fee clears Treasury's `BPS_DENOMINATOR`
+    // floor. Without this, dust listings would pass our own price check but
+    // the subsequent `treasury.processFee(fee)` call would revert
+    // `AmountBelowMinimum`, leaving the listing un-buyable.
+    //
+    //   fee = price * FEE_BPS / BPS_DENOMINATOR >= Treasury.BPS_DENOMINATOR
+    //   price >= Treasury.BPS_DENOMINATOR * BPS_DENOMINATOR / FEE_BPS
+    //   price >= 10_000 * 10_000 / 250 = 400_000 wei
+    //
+    // At 18-decimal CLAW this is 4 × 10^-13 CLAW — well below any realistic
+    // listing, so in practice no honest flow is affected.
+    uint256 public constant MIN_LISTING_PRICE = 400_000;
+
     // ──────────── Types ────────────
     struct Listing {
         address seller;
@@ -50,6 +64,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     // ──────────── Errors ────────────
     error ZeroAddress();
     error ZeroPrice();
+    error PriceBelowMinimum(uint256 price, uint256 minimum);
     error NotListingSeller(uint256 listingId);
     error ListingNotActive(uint256 listingId);
     error LobsterAlreadyListed(uint256 lobsterId);
@@ -79,6 +94,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     /// @return listingId The newly created listing ID
     function listLobster(uint256 lobsterId, uint256 price) external nonReentrant returns (uint256 listingId) {
         if (price == 0) revert ZeroPrice();
+        if (price < MIN_LISTING_PRICE) revert PriceBelowMinimum(price, MIN_LISTING_PRICE);
         if (lobsterToListing[lobsterId] != 0) revert LobsterAlreadyListed(lobsterId);
         if (lobsterNFT.ownerOf(lobsterId) != msg.sender) revert NotLobsterOwner(lobsterId);
 
@@ -147,6 +163,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     /// @param newPrice The new price in $CLAW
     function updatePrice(uint256 listingId, uint256 newPrice) external {
         if (newPrice == 0) revert ZeroPrice();
+        if (newPrice < MIN_LISTING_PRICE) revert PriceBelowMinimum(newPrice, MIN_LISTING_PRICE);
         Listing storage listing = _listings[listingId];
         if (!listing.active) revert ListingNotActive(listingId);
         if (listing.seller != msg.sender) revert NotListingSeller(listingId);

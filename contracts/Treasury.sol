@@ -35,6 +35,8 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
     error ZeroAddress();
     error ZeroAmount();
     error TokenAlreadySet();
+    error AmountBelowMinimum(uint256 amount, uint256 minimum);
+    error InvalidDevWallet();
 
     // ──────────── Modifiers ────────────
     modifier onlyAuthorized() {
@@ -48,6 +50,9 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
     /// @param devWallet_ The dev wallet receiving 15% of fees
     constructor(address initialOwner, address devWallet_) Ownable(initialOwner) {
         if (devWallet_ == address(0)) revert ZeroAddress();
+        // T-04: devWallet must not be this contract — self-routing traps the
+        // 15% leg inside Treasury and breaks the "no accumulation" invariant.
+        if (devWallet_ == address(this)) revert InvalidDevWallet();
         devWallet = devWallet_;
     }
 
@@ -65,6 +70,10 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
     /// @notice Update the dev wallet address.
     function setDevWallet(address newDevWallet) external onlyOwner {
         if (newDevWallet == address(0)) revert ZeroAddress();
+        // T-04: reject self-routing. Under OZ ERC20, Treasury transferring to
+        // itself is a no-op in balance terms, so the 15% leg would silently
+        // accumulate inside Treasury with no sweep path.
+        if (newDevWallet == address(this)) revert InvalidDevWallet();
         address oldWallet = devWallet;
         devWallet = newDevWallet;
         emit DevWalletUpdated(oldWallet, newDevWallet);
@@ -84,6 +93,14 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
     /// @param amount The total fee amount in CLAW
     function processFee(uint256 amount) external onlyAuthorized nonReentrant {
         if (amount == 0) revert ZeroAmount();
+        // T-03: reject amounts below the BPS denominator. The burn leg rounds
+        // down and the remainder goes to dev, so at amounts < 10_000 wei the
+        // split skews dramatically toward dev (at amount=1, dev gets 100%).
+        // An authorized contract splitting a fee into many tiny calls could
+        // bleed the burn share toward dev past the advertised 85/15 contract.
+        // In-protocol fees are always orders of magnitude above this floor
+        // (smallest realistic fee ≈ 5 × 10^18 wei); the guard is defensive.
+        if (amount < BPS_DENOMINATOR) revert AmountBelowMinimum(amount, BPS_DENOMINATOR);
 
         uint256 burnAmount = (amount * BURN_BPS) / BPS_DENOMINATOR;
         uint256 devAmount = amount - burnAmount; // remainder to dev, avoids rounding dust
