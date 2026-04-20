@@ -257,4 +257,154 @@ contract FuzzBattleResolver is Test {
         // Counter base power is 30, attack base power is 100 → counter always < attack (same stats)
         assertLe(counterDmg, attackDmg, "defend counter <= attack damage");
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Phase 1 BattleResolver pass — additional property tests
+    // ─────────────────────────────────────────────────────────────
+
+    // Tournament graph balance: every class must have exactly 4 adv / 4
+    // disadv / 2 neutral matchups (self + opposite in 10-ring). The
+    // existing anti-symmetry test doesn't guarantee this count property.
+    // Design spec (CLAUDE.md): "each class beats 4, loses to 4, neutral 2".
+    function test_tournament_graph_four_four_two() public pure {
+        for (uint8 atk = 0; atk < 10; atk++) {
+            uint8 adv = 0;
+            uint8 disadv = 0;
+            uint8 neutral = 0;
+            for (uint8 def = 0; def < 10; def++) {
+                uint256 mult = BattleResolver.getClassAdvantage(atk, def);
+                if (mult == BattleResolver.CLASS_ADV_MULT) adv++;
+                else if (mult == BattleResolver.CLASS_DISADV_MULT) disadv++;
+                else if (mult == BattleResolver.CLASS_NEUTRAL_MULT) neutral++;
+                else revert("unknown class multiplier");
+            }
+            assertEq(adv,     4, "class must have exactly 4 advantages");
+            assertEq(disadv,  4, "class must have exactly 4 disadvantages");
+            assertEq(neutral, 2, "class must have exactly 2 neutrals (self + opposite)");
+        }
+    }
+
+    // scaleStats monotonic across tiers — tier 3 > tier 2 > tier 1 > tier 0
+    // for every stat (except when base stat is so small that integer
+    // division floors to the same value — we assert weak monotonic).
+    function testFuzz_scaleStats_tier_monotonic(uint8 classId, bool legend) public pure {
+        classId = uint8(classId % 10);
+        BattleResolver.Stats memory base = BattleResolver.getBaseStats(classId);
+
+        BattleResolver.Stats memory t0 = BattleResolver.scaleStats(base, 0, legend);
+        BattleResolver.Stats memory t1 = BattleResolver.scaleStats(base, 1, legend);
+        BattleResolver.Stats memory t2 = BattleResolver.scaleStats(base, 2, legend);
+        BattleResolver.Stats memory t3 = BattleResolver.scaleStats(base, 3, legend);
+
+        assertGe(t1.attack, t0.attack, "tier1 attack >= tier0");
+        assertGe(t2.attack, t1.attack, "tier2 attack >= tier1");
+        assertGe(t3.attack, t2.attack, "tier3 attack >= tier2");
+
+        assertGe(t1.hp, t0.hp, "tier1 hp >= tier0");
+        assertGe(t2.hp, t1.hp, "tier2 hp >= tier1");
+        assertGe(t3.hp, t2.hp, "tier3 hp >= tier2");
+
+        assertGe(t1.armor,    t0.armor,    "tier1 armor >= tier0");
+        assertGe(t1.speed,    t0.speed,    "tier1 speed >= tier0");
+        assertGe(t1.critical, t0.critical, "tier1 critical >= tier0");
+    }
+
+    // HP battle scaling factor of 5× is baked into scaleStats. At tier 0
+    // with no legend, scaled HP should equal base HP × HP_BATTLE_SCALE.
+    function testFuzz_hp_battle_scale_at_base_tier(uint8 classId) public pure {
+        classId = uint8(classId % 10);
+        BattleResolver.Stats memory base = BattleResolver.getBaseStats(classId);
+        BattleResolver.Stats memory scaled = BattleResolver.scaleStats(base, 0, false);
+        assertEq(
+            scaled.hp,
+            base.hp * BattleResolver.HP_BATTLE_SCALE,
+            "scaled HP at tier 0 non-legend = base HP x 5"
+        );
+    }
+
+    // Attack/Armor stat ratio cap: any two atk/armor pairs that both
+    // overshoot the 2.2x cap must produce identical damage, because
+    // _cappedRatio clamps both to STAT_RATIO_CAP before multiplying.
+    function testFuzz_ratio_cap_clamps_extreme_attacks(uint256 extremeAtk, uint256 armor, uint256 vrfSeed) public pure {
+        armor = bound(armor, 1, 1_000);
+        // Two atk values both guaranteed past the 2.2x cap.
+        extremeAtk = bound(extremeAtk, 3 * armor, type(uint128).max);
+        uint256 referenceAtk = 3 * armor; // lowest possible value that still hits the cap
+        uint256 vrfRoll = BattleResolver.VRF_MIN + (vrfSeed % (BattleResolver.VRF_RANGE + 1));
+        uint256 classMult = BattleResolver.CLASS_NEUTRAL_MULT;
+
+        uint256 extremeDmg   = _attackDamage(extremeAtk,   armor, classMult, false, vrfRoll);
+        uint256 referenceDmg = _attackDamage(referenceAtk, armor, classMult, false, vrfRoll);
+
+        assertEq(extremeDmg, referenceDmg, "past-cap atk/armor pairs must produce identical damage");
+    }
+
+    // Out-of-spec purity values (> 6) produce valid but scaled output —
+    // the library itself does NOT validate purity ≤ 6. This documents
+    // caller-responsibility for bounds and prevents silent ambiguity.
+    function testFuzz_purity_above_spec_scales_predictably(uint8 purity, uint256 vrfSeed) public pure {
+        purity = uint8(bound(purity, 7, 50)); // intentionally above spec
+        uint256 atk = 100;
+        uint256 armor = 100;
+        uint256 vrfRoll = BattleResolver.VRF_MIN + (vrfSeed % (BattleResolver.VRF_RANGE + 1));
+
+        uint256 dmgAtSpec = _specialDamage(100, atk, armor, BattleResolver.CLASS_NEUTRAL_MULT, 6, vrfRoll);
+        uint256 dmgBeyond = _specialDamage(100, atk, armor, BattleResolver.CLASS_NEUTRAL_MULT, purity, vrfRoll);
+
+        // Documents: library happily scales past spec. Callers (BattleArena,
+        // off-chain engine) are responsible for bounding purity ≤ 6.
+        assertGt(dmgBeyond, dmgAtSpec, "out-of-spec purity produces larger damage (caller bounds input)");
+    }
+
+    // deriveRandom is deterministic: same (seed, salt) always returns the
+    // same output. Sanity check — protects against accidental migration
+    // to block-data randomness in this pure helper.
+    function testFuzz_deriveRandom_deterministic(uint256 seed, bytes32 salt) public pure {
+        uint256 a = BattleResolver.deriveRandom(seed, salt);
+        uint256 b = BattleResolver.deriveRandom(seed, salt);
+        assertEq(a, b, "deriveRandom must be deterministic");
+    }
+
+    // Varying salt must vary output (otherwise hash collision).
+    function testFuzz_deriveRandom_saltSensitivity(uint256 seed, bytes32 salt1, bytes32 salt2) public pure {
+        vm.assume(salt1 != salt2);
+        uint256 a = BattleResolver.deriveRandom(seed, salt1);
+        uint256 b = BattleResolver.deriveRandom(seed, salt2);
+        assertTrue(a != b, "different salts must produce different outputs (keccak collision would be catastrophic)");
+    }
+
+    // R-06: enhancedProcChance must cap at 10_000 BPS to preserve its
+    // probability contract. Raw formula crosses 100% at purity > 19.
+    // Pre-fix: callers using the BPS against a 0..9999 roll got unconditional
+    // procs at high purity. Post-fix: result is clamped to 10_000.
+    function testFuzz_enhancedProcChance_capped_at_100pct(uint8 purity) public pure {
+        uint256 chance = BattleResolver.enhancedProcChance(purity);
+        assertLe(chance, 10_000, "R-06: enhancedProcChance must never exceed 100% BPS");
+    }
+
+    function test_enhancedProcChance_capAtHighPurity() public pure {
+        // Raw formula would give 128_000 at purity=255; clamped to 10_000.
+        assertEq(BattleResolver.enhancedProcChance(255), 10_000, "R-06: clamp at max uint8 purity");
+        // At purity=19 (exactly at cap boundary): raw = 500 + 19*500 = 10_000. No clamp needed.
+        assertEq(BattleResolver.enhancedProcChance(19), 10_000, "R-06: boundary at purity=19");
+        // At purity=20: raw = 500 + 20*500 = 10_500; clamped to 10_000.
+        assertEq(BattleResolver.enhancedProcChance(20), 10_000, "R-06: clamp at purity=20");
+        // In-spec still correct: purity=6 → 3500 BPS
+        assertEq(BattleResolver.enhancedProcChance(6), 3500, "in-spec purity unaffected");
+    }
+
+    // R-03: _cappedRatio must short-circuit before `atk * MULT_DENOM` overflows.
+    // Pre-fix: atk > type(uint256).max / 1000 caused arithmetic panic.
+    // Post-fix: the cap kicks in without touching the overflow-prone multiply.
+    function testFuzz_cappedRatio_overflowGuard(uint256 armor, uint256 vrfSeed) public pure {
+        armor = bound(armor, 1, type(uint128).max);
+        uint256 atk = type(uint256).max; // guaranteed beyond the overflow-safe threshold
+        uint256 vrfRoll = BattleResolver.VRF_MIN + (vrfSeed % (BattleResolver.VRF_RANGE + 1));
+
+        // Should not revert, and should produce the same damage as any other
+        // past-cap atk (since both clamp to STAT_RATIO_CAP before multiplying).
+        uint256 hugeDmg = _attackDamage(atk, armor, BattleResolver.CLASS_NEUTRAL_MULT, false, vrfRoll);
+        uint256 cappedDmg = _attackDamage(3 * armor, armor, BattleResolver.CLASS_NEUTRAL_MULT, false, vrfRoll);
+        assertEq(hugeDmg, cappedDmg, "past-cap atk must match regardless of magnitude (no overflow panic)");
+    }
 }
