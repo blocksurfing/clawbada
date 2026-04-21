@@ -62,6 +62,10 @@ contract BreedingLab is ReentrancyGuard {
         uint256 indexed requestId, uint256 indexed offspringId, uint256 offspringDna, uint256 cost
     );
     event BreedRequestExpired(uint256 indexed requestId, uint256 parentA, uint256 parentB);
+    /// @notice Emitted when the offspring mint is rejected by a contract requester's
+    ///         onERC1155Received hook. The request is still consumed (finalized +
+    ///         breed counts burned). See B-02.
+    event LobsterBredRejected(uint256 indexed requestId, uint256 offspringDna, uint256 cost);
 
     // ──────────── Errors ────────────
     error ZeroAddress();
@@ -76,6 +80,10 @@ contract BreedingLab is ReentrancyGuard {
     error RequestExpired(uint256 requestId);
     error MaxGenerationReached();
     error RequestNotExpired(uint256 requestId);
+    /// @notice BreedingLab lacks LobsterNFT.MINTER_ROLE — operator must re-grant
+    ///         before finalize can proceed. B-03: surfaces role misconfiguration
+    ///         loudly rather than silently burning the request via try/catch.
+    error NotAuthorizedToMint();
 
     // ──────────── Constructor ────────────
 
@@ -149,10 +157,24 @@ contract BreedingLab is ReentrancyGuard {
         BreedRequest storage req = _breedRequests[requestId];
         if (req.requester == address(0)) revert RequestDoesNotExist(requestId);
         if (req.finalized) revert RequestAlreadyFinalized(requestId);
-        if (block.number < req.targetBlock) revert TooEarlyToFinalize(requestId, req.targetBlock);
+        // B-01: `<=` (not `<`) — at `block.number == targetBlock`, blockhash(targetBlock)
+        // is still 0 (current block has no completed hash yet). Pre-fix, that row
+        // let `cancelExpiredRequest` treat the request as expired and let any outsider
+        // race to cancel-and-burn the fee before the user could finalize.
+        if (block.number <= req.targetBlock) revert TooEarlyToFinalize(requestId, req.targetBlock);
 
         bytes32 blockHash = blockhash(req.targetBlock);
         if (blockHash == bytes32(0)) revert RequestExpired(requestId);
+
+        // B-03: pre-flight MINTER_ROLE check. If BreedingLab has lost
+        // MINTER_ROLE (operational error — role revocation, new NFT
+        // contract wiring bug), revert before consuming the request so
+        // the user can retry after the role is restored. The bare
+        // try/catch below only legitimately absorbs recipient-hook
+        // reverts; protocol-side failures should surface loudly.
+        if (!lobsterNFT.hasRole(lobsterNFT.MINTER_ROLE(), address(this))) {
+            revert NotAuthorizedToMint();
+        }
 
         req.finalized = true;
 
@@ -162,9 +184,18 @@ contract BreedingLab is ReentrancyGuard {
 
         // Generation overflow already checked in requestBreed; safe to add without overflow
         uint8 offspringGen = (req.genA > req.genB ? req.genA : req.genB) + 1;
-        offspringId = lobsterNFT.mintWithGeneration(req.requester, offspringDna, offspringGen);
 
-        emit LobsterBred(requestId, offspringId, offspringDna, req.cost);
+        // B-02: try/catch the mint so a contract requester with a reverting
+        // onERC1155Received hook can't roll finalize back and farm rare
+        // rolls via the cancel-refund path. A rejected mint still consumes
+        // the request (finalized = true above) and the breed counts stay
+        // burned — attack becomes strictly -EV.
+        try lobsterNFT.mintWithGeneration(req.requester, offspringDna, offspringGen) returns (uint256 _offspringId) {
+            offspringId = _offspringId;
+            emit LobsterBred(requestId, offspringId, offspringDna, req.cost);
+        } catch {
+            emit LobsterBredRejected(requestId, offspringDna, req.cost);
+        }
     }
 
     /// @notice Cancel an expired breed request and restore parent breed counts.
@@ -177,8 +208,11 @@ contract BreedingLab is ReentrancyGuard {
         if (req.requester == address(0)) revert RequestDoesNotExist(requestId);
         if (req.finalized) revert RequestAlreadyFinalized(requestId);
 
-        // Must be past the target block (can't cancel before finalization window opens)
-        if (block.number < req.targetBlock) revert TooEarlyToFinalize(requestId, req.targetBlock);
+        // Must be past the target block (can't cancel before finalization window opens).
+        // B-01: `<=` (not `<`) — at `block.number == targetBlock`, blockhash(targetBlock)
+        // is 0, which the next check below would otherwise interpret as "expired" and
+        // let an outsider burn the fee at the exact block the user tries to finalize.
+        if (block.number <= req.targetBlock) revert TooEarlyToFinalize(requestId, req.targetBlock);
 
         // Must actually be expired (blockhash returns 0 after 256 blocks)
         if (blockhash(req.targetBlock) != bytes32(0)) revert RequestNotExpired(requestId);

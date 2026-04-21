@@ -58,6 +58,9 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **T-03** | Low | **Fixed** | Treasury | `processFee` accepts amounts below `BPS_DENOMINATOR`, adversarial chunking can skew 85/15 split |
 | **T-04** | Low | **Fixed** | Treasury | `setDevWallet(address(this))` traps the 15% leg inside Treasury (no accumulation invariant violated) |
 | **T-05** | Low | **Fixed** | Marketplace | Dust listings pass price > 0 check but produce Treasury-rejected fees (T-03 knock-on) |
+| **B-01** | High | **Fixed** | BreedingLab | Off-by-one in finalize/cancel time gates lets anyone grief every breed at exact targetBlock |
+| **B-02** | Medium | **Fixed** | BreedingLab | Contract requesters can veto unfavorable offspring via `onERC1155Received` and farm rare rolls via cancel-refund |
+| **B-03** | Medium | **Fixed** | BreedingLab | Bare `catch {}` silently burns requests on protocol-side mint failures (role revoke) |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -452,7 +455,77 @@ Fix: `Marketplace.MIN_LISTING_PRICE = 400_000` enforced at both `listLobster` an
 
 Regression tests: `test_boundary_marketplace_dustPriceList_reverts` (BoundaryTests), `test_boundary_marketplaceLowPriceZeroFee_rejected` (retargeted from prior success expectation), `testFuzz_price_update_belowMin_reverts` (FuzzMarketplace).
 
-### BreedingLab.sol — pending Phase 2
+### BreedingLab.sol — Phase 2 done 2026-04-21
+
+390-LOC 2-step breeding: `requestBreed` charges fee, increments breed counts, sets cooldown, stores request with `targetBlock = block.number + 2`. `finalizeBreed` (permissionless after targetBlock) uses `blockhash(targetBlock)` as entropy to generate offspring DNA. `cancelExpiredRequest` (permissionless after 256-block lookback) refunds breed counts.
+
+**Read pass (task 39)**: checked randomness, cost formula precision at high generations, cooldown gaming, burn-mid-flow handling, allele ordering determinism, hardcoded vs public `BREED_MULTIPLIERS`.
+
+**Slither (task 40)**: 6 weak-prng flags (all false positives — P-03 commit-reveal), divide-before-multiply (S-06 documented), uninitialized-local false positive. No new actionable findings.
+
+**New fuzz tests (task 41)** — 12 added to `FuzzBreedingLab.t.sol` covering the 2-step flow: permissionless finalize mints to requester, finalize-beforeTarget/afterExpiry/double, cancel-expired-restores-counts, cancel-beforeTarget/notExpired/afterFinalize, cancel-with-burned-parent-tolerates, offspring-class-from-parents (fuzz), offspring-legend-bit-valid, cost-no-overflow-at-high-gen.
+
+**Deep profile (task 42)**: 23/23 passing at 50k fuzz runs each, 18s.
+
+**Codex red-team pre-fix pass (task 43, 2026-04-21)** — 2 real findings:
+
+### B-01: Off-by-one in finalize/cancel time gates
+
+Severity: High (system-wide griefing vector)
+
+Status: **Fixed** 2026-04-21.
+
+At `block.number == targetBlock`, `blockhash(targetBlock)` returns 0 (current block has no completed hash). Pre-fix, both entrypoints used `if (block.number < req.targetBlock) revert TooEarlyToFinalize`. At exactly `targetBlock`:
+- `finalizeBreed`: time gate passes (`<` is false), blockhash = 0 → reverts `RequestExpired`. User can't finalize.
+- `cancelExpiredRequest`: time gate passes, blockhash check `!= 0` fails (hash is 0) → cancel proceeds and burns the request.
+
+Impact: any outsider (grief bot) can race to cancel every breed request at the user's targetBlock. Fee is already burned via Treasury; user loses it. A persistent griefer effectively disables breeding protocol-wide.
+
+Fix (1 line each, both entrypoints): `<` → `<=`. The valid window shifts to `targetBlock + 1 .. targetBlock + 256` for finalize, `targetBlock + 257+` for cancel. At `targetBlock` both revert TooEarlyToFinalize.
+
+Regression tests: `test_B01_cancel_atExactTargetBlock_reverts`, `test_B01_finalize_atExactTargetBlock_reverts`, `test_B01_finalize_atTargetPlusOne_succeeds`.
+
+### B-02: Contract requesters can veto unfavorable offspring via `onERC1155Received` hook
+
+Severity: Medium (scarcity/anti-sniping bypass)
+
+Status: **Fixed** 2026-04-21.
+
+Sequence:
+1. Attacker deploys a contract with a conditionally-reverting `onERC1155Received` (e.g., "revert if offspring DNA lacks legend bit").
+2. Contract calls `requestBreed`.
+3. Someone calls `finalizeBreed`. It computes DNA + calls `lobsterNFT.mintWithGeneration(requester, ...)`. OZ ERC-1155 `_mint` invokes `onERC1155Received` on the contract requester. Hook reverts.
+4. Whole finalize tx reverts; `req.finalized = true` rolls back.
+5. Attacker waits 256 blocks. Calls `cancelExpiredRequest` — breed counts are refunded.
+6. Fee is burned but breed count is recoverable. Attacker farms legends/high-purity rolls at ~fee per attempt instead of ~fee per breed-slot.
+
+Weakens the 5-breed-per-lobster scarcity gate. Legend farming becomes cheap in CLAW terms.
+
+Fix: wrap the mint in `try { } catch { }` in `finalizeBreed`. `req.finalized = true` is committed before the mint, so a rejected mint still consumes the request. Attack becomes -EV (fee burned, breed count burned, no offspring). Emits `LobsterBredRejected(requestId, offspringDna, cost)` for off-chain visibility.
+
+Regression test: `test_B02_contractRequester_cannotVetoAndRefund` — drives a `MaliciousRequester` contract with a hook that rejects only offspring mints (operator == BreedingLab). Asserts offspring mint returns 0, request is finalized, `cancelExpiredRequest` reverts RequestAlreadyFinalized, and breed counts are NOT refunded.
+
+### B-03: Bare `catch {}` silently burns requests on protocol-side mint failures
+
+Severity: Medium (fail-open on role misconfiguration)
+
+Status: **Fixed** 2026-04-21.
+
+Codex post-fix pass flagged a knock-on: the B-02 `catch {}` is a blanket catch that absorbs ANY mint revert, including legitimate protocol failures like `AccessControlUnauthorizedAccount` (BreedingLab lost MINTER_ROLE). In that case, the user's fee + breed count get silently burned with no offspring, and no way to retry after role restoration.
+
+Fix: pre-flight MINTER_ROLE check BEFORE committing `req.finalized = true`:
+```solidity
+if (!lobsterNFT.hasRole(lobsterNFT.MINTER_ROLE(), address(this))) {
+    revert NotAuthorizedToMint();
+}
+```
+Now: role missing → revert loudly (no state change, user can retry). Role present but recipient hook reverts (B-02 case) → try/catch consumes request as intended. New error `NotAuthorizedToMint()`.
+
+Regression test: `test_B03_missingMinterRole_revertsBeforeConsuming` — admin revokes MINTER_ROLE, finalize reverts `NotAuthorizedToMint`, request is NOT consumed, admin regrants, finalize succeeds.
+
+**Codex post-fix verdict on all three**: "ship with caveats" → "ship" after B-03 landed. B-01 correct, B-02 correct, B-03 covers the bare-catch surface.
+
+**Cleared**: off-by-one in finalize vs cancel boundary (confirmed correct at targetBlock+1, +256, +257); cost formula overflow unreachable; concurrent-transfer race clean; parent burn mid-flow handled; allele ordering deterministic via strict `<` in bubble sort; class inheritance unbiased; no other `blockhash(future)` usage in the codebase.
 
 ### LobsterNFT.sol — pending Phase 2
 
