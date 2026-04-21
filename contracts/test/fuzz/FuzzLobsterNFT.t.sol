@@ -245,4 +245,262 @@ contract FuzzLobsterNFT is Test {
         nft.safeTransferFrom(alice, bob, tokenId, 1, "");
         assertEq(nft.ownerOf(tokenId), bob);
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Phase 2 LobsterNFT pass — additional coverage
+    // ─────────────────────────────────────────────────────────────
+
+    // MED-04 regression (prior audit): _owners must be updated BEFORE
+    // super._update, so a transfer-recipient callback reading ownerOf
+    // sees the new owner rather than stale state.
+    function test_MED04_ownerOf_consistentInCallback() public {
+        uint256 tokenId = _mint(alice, 0);
+
+        CallbackProbe probe = new CallbackProbe(address(nft), tokenId);
+        vm.prank(alice);
+        nft.safeTransferFrom(alice, address(probe), tokenId, 1, "");
+
+        // Probe recorded the ownerOf result during its onERC1155Received.
+        assertEq(probe.observedOwner(), address(probe), "callback saw new owner (MED-04)");
+        assertEq(probe.observedBalance(), 1, "callback saw new balance");
+    }
+
+    // Soulbound lobsters CAN be burned (by design — evolution fuel).
+    // Only unlocked soulbound lobsters; locked still reverts.
+    function test_soulbound_canBeBurned() public {
+        vm.prank(admin);
+        uint256 tokenId = nft.mint(alice, _dna(0), true);
+        assertTrue(nft.isSoulbound(tokenId));
+
+        vm.prank(admin);
+        nft.burn(tokenId);
+
+        assertFalse(nft.exists(tokenId), "soulbound burn succeeds");
+    }
+
+    // Soulbound + locked: burn reverts LobsterIsLocked (lock check first).
+    function test_soulbound_locked_burnReverts() public {
+        vm.prank(admin);
+        uint256 tokenId = nft.mint(alice, _dna(0), true);
+
+        vm.prank(admin);
+        nft.setLocked(tokenId, true);
+
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.LobsterIsLocked.selector, tokenId));
+        nft.burn(tokenId);
+    }
+
+    // decrementBreedCount reverts at 0.
+    function test_decrementBreedCount_atZero_reverts() public {
+        uint256 tokenId = _mint(alice, 0);
+        assertEq(nft.getBreedCount(tokenId), 0);
+
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.BreedCountExceeded.selector, tokenId));
+        nft.decrementBreedCount(tokenId);
+    }
+
+    // decrementBreedCount after increment reduces count correctly.
+    function test_decrementBreedCount_reducesCount() public {
+        uint256 tokenId = _mint(alice, 0);
+
+        vm.prank(admin);
+        nft.incrementBreedCount(tokenId);
+        vm.prank(admin);
+        nft.incrementBreedCount(tokenId);
+        assertEq(nft.getBreedCount(tokenId), 2);
+
+        vm.prank(admin);
+        nft.decrementBreedCount(tokenId);
+        assertEq(nft.getBreedCount(tokenId), 1);
+    }
+
+    // Batch transfer: if any token in the batch is soulbound or locked,
+    // the whole batch reverts. Can't smuggle a restricted token inside
+    // a mixed batch.
+    function test_batchTransfer_mixedSoulbound_reverts() public {
+        uint256 normal = _mint(alice, 0);
+        vm.prank(admin);
+        uint256 soulbound = nft.mint(alice, _dna(1), true);
+
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = normal;
+        ids[1] = soulbound;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+
+        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.LobsterIsSoulbound.selector, soulbound));
+        vm.prank(alice);
+        nft.safeBatchTransferFrom(alice, bob, ids, amounts, "");
+    }
+
+    function test_batchTransfer_mixedLocked_reverts() public {
+        uint256 normal = _mint(alice, 0);
+        uint256 locked = _mint(alice, 1);
+        vm.prank(admin);
+        nft.setLocked(locked, true);
+
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = normal;
+        ids[1] = locked;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+
+        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.LobsterIsLocked.selector, locked));
+        vm.prank(alice);
+        nft.safeBatchTransferFrom(alice, bob, ids, amounts, "");
+    }
+
+    // Unauthorized setEvolutionTier / burn / BREED_ROLE paths.
+    function testFuzz_unauthorized_setEvolutionTier_reverts(address caller) public {
+        vm.assume(caller != admin);
+        uint256 tokenId = _mint(alice, 0);
+        vm.prank(caller);
+        vm.expectRevert();
+        nft.setEvolutionTier(tokenId, 1);
+    }
+
+    function testFuzz_unauthorized_burn_reverts(address caller) public {
+        vm.assume(caller != admin);
+        uint256 tokenId = _mint(alice, 0);
+        vm.prank(caller);
+        vm.expectRevert();
+        nft.burn(tokenId);
+    }
+
+    function testFuzz_unauthorized_incrementBreed_reverts(address caller) public {
+        vm.assume(caller != admin);
+        uint256 tokenId = _mint(alice, 0);
+        vm.prank(caller);
+        vm.expectRevert();
+        nft.incrementBreedCount(tokenId);
+    }
+
+    function testFuzz_unauthorized_decrementBreed_reverts(address caller) public {
+        vm.assume(caller != admin);
+        uint256 tokenId = _mint(alice, 0);
+        vm.prank(caller);
+        vm.expectRevert();
+        nft.decrementBreedCount(tokenId);
+    }
+
+    // After burn, _owners mapping is cleared. ownerOf() reverts TokenDoesNotExist.
+    function test_ownerOf_afterBurn_reverts() public {
+        uint256 tokenId = _mint(alice, 0);
+        vm.prank(admin);
+        nft.burn(tokenId);
+
+        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.TokenDoesNotExist.selector, tokenId));
+        nft.ownerOf(tokenId);
+    }
+
+    // Transfer to zero-address is blocked by ERC-1155 base (not the
+    // soulbound/locked branch, since `to == address(0)` skips our check).
+    // Verify the base standard still rejects.
+    function test_transferTo_zeroAddress_reverts() public {
+        uint256 tokenId = _mint(alice, 0);
+
+        vm.prank(alice);
+        vm.expectRevert();
+        nft.safeTransferFrom(alice, address(0), tokenId, 1, "");
+    }
+
+    // L-01: pre-fix, a zero-value transfer passed the soulbound/locked
+    // checks and wrote `_owners[id] = attacker` while moving no balance.
+    // Any unlocked, non-soulbound lobster could have its convenience owner
+    // hijacked by anyone. Downstream contracts (TeamManager, BreedingLab,
+    // BattleArena) trust ownerOf for gameplay authority, so the attacker
+    // could lock victim lobsters into attacker teams, breed them, or enter
+    // them into battles. Post-fix, `_update` rejects any value != 1.
+    function test_L01_zeroValueTransfer_cannotHijackOwnerOf() public {
+        uint256 tokenId = _mint(alice, 0);
+        address attacker = makeAddr("L01-attacker");
+
+        // Pre-fix this call would have updated `_owners[tokenId] = attacker`
+        // while leaving balanceOf(alice, tokenId) == 1.
+        vm.prank(attacker);
+        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.InvalidTransferAmount.selector, tokenId, 0));
+        nft.safeTransferFrom(attacker, attacker, tokenId, 0, "");
+
+        // Alice retains both balance and ownerOf.
+        assertEq(nft.balanceOf(alice, tokenId), 1, "alice balance unchanged");
+        assertEq(nft.ownerOf(tokenId), alice, "alice still recorded owner");
+    }
+
+    // L-01: even the victim themselves can't zero-transfer their own lobster
+    // (would be pointless but also rejected, uniformly enforcing supply=1).
+    function test_L01_zeroValueSelfTransfer_reverts() public {
+        uint256 tokenId = _mint(alice, 0);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.InvalidTransferAmount.selector, tokenId, 0));
+        nft.safeTransferFrom(alice, alice, tokenId, 0, "");
+    }
+
+    // L-01: fuzz values > 1 — all rejected. The value=0 case is covered
+    // by the explicit test above; here we verify the supply=1 guard
+    // catches arbitrary overflow attempts from 2 upward.
+    function testFuzz_L01_nonUnitTransfer_reverts(uint256 amount) public {
+        amount = bound(amount, 2, 100);
+        uint256 tokenId = _mint(alice, 0);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.InvalidTransferAmount.selector, tokenId, amount));
+        nft.safeTransferFrom(alice, bob, tokenId, amount, "");
+    }
+
+    // L-01 regression also blocks zero-value batch transfers.
+    function test_L01_zeroValueBatchTransfer_reverts() public {
+        uint256 t1 = _mint(alice, 0);
+        uint256 t2 = _mint(alice, 1);
+
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = t1;
+        ids[1] = t2;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 0; // <-- the invalid one
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.InvalidTransferAmount.selector, t2, 0));
+        nft.safeBatchTransferFrom(alice, bob, ids, amounts, "");
+    }
+}
+
+/// @dev ERC-1155 receiver that snapshots ownerOf + balanceOf during the
+///      acceptance callback. Used to verify MED-04: the overridden _update
+///      writes `_owners[id] = to` BEFORE super._update, so a callback
+///      reading ownerOf during the post-_update hook sees the new owner.
+contract CallbackProbe {
+    LobsterNFT internal immutable nft;
+    uint256 internal immutable tokenId;
+    address public observedOwner;
+    uint256 public observedBalance;
+
+    constructor(address nft_, uint256 tokenId_) {
+        nft = LobsterNFT(nft_);
+        tokenId = tokenId_;
+    }
+
+    function onERC1155Received(address, address, uint256 id, uint256, bytes calldata)
+        external
+        returns (bytes4)
+    {
+        observedOwner = nft.ownerOf(id);
+        observedBalance = nft.balanceOf(address(this), id);
+        return this.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+        external
+        pure
+        returns (bytes4)
+    {
+        return this.onERC1155BatchReceived.selector;
+    }
+
+    function supportsInterface(bytes4) external pure returns (bool) {
+        return true;
+    }
 }

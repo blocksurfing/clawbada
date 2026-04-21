@@ -62,6 +62,12 @@ contract LobsterNFT is ERC1155, ERC1155Supply, AccessControl {
     error InvalidEvolutionTier(uint8 tier);
     error BreedCountExceeded(uint256 tokenId);
     error ZeroAddress();
+    /// @notice LobsterNFT enforces supply=1 per tokenId. Any update with
+    ///         value != 1 would corrupt the `_owners` mirror without moving
+    ///         balance (e.g., zero-value self-transfer would leave
+    ///         ownerOf pointing at the attacker while balanceOf still
+    ///         credited the real owner). L-01 fix.
+    error InvalidTransferAmount(uint256 tokenId, uint256 amount);
 
     // ──────────── Constructor ────────────
 
@@ -273,21 +279,32 @@ contract LobsterNFT is ERC1155, ERC1155Supply, AccessControl {
 
     // ──────────── Internal ────────────
 
-    /// @dev Override _update to enforce soulbound/locked restrictions and track ownership.
+    /// @dev Override _update to enforce supply=1 amounts, soulbound/locked
+    ///      restrictions, and `_owners` tracking. The amount guard (L-01) is
+    ///      critical: without it, a zero-value transfer passes soulbound /
+    ///      locked checks, writes a new `_owners[id]`, and moves no balance —
+    ///      effectively hijacking `ownerOf` downstream for any unlocked,
+    ///      non-soulbound lobster.
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
         internal
         override(ERC1155, ERC1155Supply)
     {
-        // Enforce transfer restrictions (skip for mints and burns)
-        if (from != address(0) && to != address(0)) {
-            for (uint256 i = 0; i < ids.length; i++) {
+        for (uint256 i = 0; i < ids.length; i++) {
+            // L-01: every transfer/mint/burn in this contract moves exactly 1
+            // unit (supply=1 per tokenId). Reject anything else before it can
+            // corrupt the ownership mirror.
+            if (values[i] != 1) revert InvalidTransferAmount(ids[i], values[i]);
+
+            // Enforce transfer restrictions (skip for mints and burns)
+            if (from != address(0) && to != address(0)) {
                 Lobster storage lob = _lobsters[ids[i]];
                 if (lob.soulbound) revert LobsterIsSoulbound(ids[i]);
                 if (lob.locked) revert LobsterIsLocked(ids[i]);
             }
         }
 
-        // Update ownership tracking before calling super (prevents stale state during callbacks)
+        // Update ownership tracking before calling super (prevents stale state during callbacks).
+        // See MED-04 (2026-03-06 audit) — callbacks that read ownerOf must see the new owner.
         for (uint256 i = 0; i < ids.length; i++) {
             if (to == address(0)) {
                 delete _owners[ids[i]];

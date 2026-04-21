@@ -61,6 +61,8 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **B-01** | High | **Fixed** | BreedingLab | Off-by-one in finalize/cancel time gates lets anyone grief every breed at exact targetBlock |
 | **B-02** | Medium | **Fixed** | BreedingLab | Contract requesters can veto unfavorable offspring via `onERC1155Received` and farm rare rolls via cancel-refund |
 | **B-03** | Medium | **Fixed** | BreedingLab | Bare `catch {}` silently burns requests on protocol-side mint failures (role revoke) |
+| **L-01** | High | **Fixed** | LobsterNFT | Zero-value transfer hijacks `ownerOf` without moving balance — attacker can steal downstream gameplay authority on any unlocked/non-soulbound lobster |
+| **L-02** | Low | Documented (forward-compat) | DNALib | `isValid` accepts reserved-bit nonzero + legend values 2/3 (intentional per spec) |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -527,7 +529,69 @@ Regression test: `test_B03_missingMinterRole_revertsBeforeConsuming` — admin r
 
 **Cleared**: off-by-one in finalize vs cancel boundary (confirmed correct at targetBlock+1, +256, +257); cost formula overflow unreachable; concurrent-transfer race clean; parent burn mid-flow handled; allele ordering deterministic via strict `<` in bubble sort; class inheritance unbiased; no other `blockhash(future)` usage in the codebase.
 
-### LobsterNFT.sol — pending Phase 2
+### LobsterNFT.sol — Phase 2 done 2026-04-21
+
+316-LOC ERC-1155 + ERC1155Supply + AccessControl. Each tokenId is supply=1. Six granular roles (MINTER, LOCKER, EVOLVER, DAMAGE, BURNER, BREED). Per-token state: DNA, evolutionTier, damage, breedCount, generation, soulbound, locked. Separate `_owners` mapping provides `ownerOf(tokenId)` convenience. Soulbound + locked transfer rejection enforced via `_update` override.
+
+**Read pass (task 44)**: checked ERC-1155 override correctness, `_owners` ↔ `balanceOf` consistency (MED-04 fix), soulbound-burn-by-design (evolution fuel), locked-burn rejection, role enforcement on all mutators, DNA validation, batch-transfer restrictions.
+
+**Slither (task 45)**: no LobsterNFT-specific findings. Cleanest contract of the campaign.
+
+**New fuzz tests (task 46)** — 13 added to `FuzzLobsterNFT.t.sol`:
+- `test_MED04_ownerOf_consistentInCallback` — `CallbackProbe` recipient snapshots `ownerOf` + `balanceOf` during `onERC1155Received`; both must reflect post-update state
+- `test_soulbound_canBeBurned` / `test_soulbound_locked_burnReverts` — confirms evolution-fuel burn path
+- `test_decrementBreedCount_atZero_reverts` / `test_decrementBreedCount_reducesCount`
+- `test_batchTransfer_mixedSoulbound_reverts` / `test_batchTransfer_mixedLocked_reverts`
+- `testFuzz_unauthorized_{setEvolutionTier,burn,incrementBreed,decrementBreed}_reverts`
+- `test_ownerOf_afterBurn_reverts`
+- `test_transferTo_zeroAddress_reverts`
+
+**Deep profile (task 47)**: 30/30 passing at 50k fuzz runs, 17.65s.
+
+**Codex red-team pre-fix pass (task 48)** — 1 **High** + 1 Low:
+
+### L-01: Zero-value transfer hijacks `ownerOf` without moving balance
+
+Severity: **High** (cross-contract ownership forgery, affects every unlocked non-soulbound lobster)
+
+Status: **Fixed** 2026-04-21.
+
+Sequence:
+1. Alice owns lobster `id`; `balanceOf(alice, id) == 1`, `ownerOf(id) == alice`.
+2. Attacker calls `safeTransferFrom(attacker, attacker, id, 0, "")`. OZ ERC-1155 allows this: `from == msg.sender` passes the approval gate.
+3. Pre-fix, `LobsterNFT._update` checked only soulbound/locked (neither applies) and wrote `_owners[id] = to` unconditionally. OZ subtracted/added zero, so Alice still held the ERC-1155 balance.
+4. `ownerOf(id)` now returns attacker. `balanceOf(alice, id)` still returns 1 (mirror desync).
+5. Attacker passes `TeamManager.createTeam` ownership check, locks Alice's lobster into an attacker-owned team, starts mining / enters battles that apply damage to Alice's NFT, or breeds Alice's lobster as a parent and takes the offspring.
+
+Downstream contracts trusting `ownerOf` (TeamManager, BreedingLab, BattleArena, MiningPool, EvolutionLab) become attack vectors. Any unlocked non-soulbound lobster is stealable.
+
+Fix: in `_update`, require every `values[i] == 1` before the soulbound/locked check and before writing `_owners[id]`. New error `InvalidTransferAmount(tokenId, amount)`. Supply=1 is enforced as a structural invariant.
+
+Tradeoff: stricter than ERC-1155 spec (which allows value=0 transfers as no-ops). Documented as intentional. No in-protocol flow relies on zero-value transfers.
+
+Regression tests: `test_L01_zeroValueTransfer_cannotHijackOwnerOf`, `test_L01_zeroValueSelfTransfer_reverts`, `testFuzz_L01_nonUnitTransfer_reverts` (fuzz amounts 2-100), `test_L01_zeroValueBatchTransfer_reverts`.
+
+Post-fix Codex verdict: `correct`. "Every live tokenId has supply exactly one, so no legitimate current path needs amount other than 1." Check happens before soulbound/locked. No new bugs introduced.
+
+### L-02: `DNALib.isValid` accepts non-canonical DNA
+
+Severity: Low (documented forward-compat)
+
+Status: Documented, not fixed.
+
+`DNALib.isValid` checks class (`< 10`) and allele affinities (`< 10`) but does not reject:
+- Legend values 2-3 (reserved for future features per DNA encoding spec in CLAUDE.md)
+- Reserved bits at [243:240] and [95:0] (explicitly reserved for future mechanics)
+
+In-protocol mints go through `DNALib.encode` which produces canonical DNA (legend 0/1, reserved bits zero). The non-canonical inputs only reach storage via direct `MINTER_ROLE` calls with hand-crafted DNA — a trusted-role misuse surface.
+
+Not fixed: the spec explicitly reserves legend 2-3 and the reserved bits for future features (e.g., achievement legends, higher tiers). Rejecting them now would break forward-compatibility. If S2+ plans diverge, revisit.
+
+**Cleared** (Codex post-fix): `TeamManager._lobsterToTeam`, `BattleArena.teamInBattle`, `MiningPool._teamToExpedition`, `Marketplace.lobsterToListing` are written by protocol logic, not ERC-1155 transfer amounts — no zero-value path can forge them. Batch transfers with duplicate ids don't create mirror desync (OZ balance update reverts). Mint/burn/single/batch transfer paths all use amount = 1.
+
+**Coverage gaps Codex recommended** (deferred to Phase 3 aggregate invariants):
+- Stateful invariant: `exists(id) => balanceOf(ownerOf(id), id) == 1`
+- Aggregate uniqueness: for tracked actors, at most one address has balance 1 for a live id
 
 ### EvolutionLab.sol — pending Phase 2
 
