@@ -200,4 +200,157 @@ contract FuzzEvolutionLab is BaseSetup {
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Phase 2 EvolutionLab pass — gap coverage
+    // ─────────────────────────────────────────────────────────────
+
+    // Not-owner of fuel1 — caller owns target but not fuel1.
+    function test_not_owner_fuel1_reverts() public {
+        address bob = makeAddr("evo-bob");
+        uint256 target = _mintLobster(alice, 0);
+        uint256 fuel1  = _mintLobster(bob, 1);   // bob owns
+        uint256 fuel2  = _mintLobster(alice, 2);
+        _giveClaw(alice, 10_000e18);
+
+        vm.startPrank(alice);
+        claw.approve(address(evolutionLab), type(uint256).max);
+        vm.expectRevert(abi.encodeWithSelector(EvolutionLab.NotLobsterOwner.selector, fuel1));
+        evolutionLab.evolve(target, fuel1, fuel2);
+        vm.stopPrank();
+    }
+
+    function test_not_owner_fuel2_reverts() public {
+        address bob = makeAddr("evo-bob2");
+        uint256 target = _mintLobster(alice, 0);
+        uint256 fuel1  = _mintLobster(alice, 1);
+        uint256 fuel2  = _mintLobster(bob, 2);   // bob owns
+        _giveClaw(alice, 10_000e18);
+
+        vm.startPrank(alice);
+        claw.approve(address(evolutionLab), type(uint256).max);
+        vm.expectRevert(abi.encodeWithSelector(EvolutionLab.NotLobsterOwner.selector, fuel2));
+        evolutionLab.evolve(target, fuel1, fuel2);
+        vm.stopPrank();
+    }
+
+    // Locked fuel reverts (fuel1 and fuel2 variants).
+    function test_locked_fuel1_reverts() public {
+        uint256 target = _mintLobster(alice, 0);
+        uint256 fuel1  = _mintLobster(alice, 1);
+        uint256 fuel2  = _mintLobster(alice, 2);
+        _giveClaw(alice, 10_000e18);
+
+        vm.prank(admin);
+        nft.setLocked(fuel1, true);
+
+        vm.startPrank(alice);
+        claw.approve(address(evolutionLab), type(uint256).max);
+        vm.expectRevert(abi.encodeWithSelector(EvolutionLab.LobsterIsLocked.selector, fuel1));
+        evolutionLab.evolve(target, fuel1, fuel2);
+        vm.stopPrank();
+    }
+
+    function test_locked_fuel2_reverts() public {
+        uint256 target = _mintLobster(alice, 0);
+        uint256 fuel1  = _mintLobster(alice, 1);
+        uint256 fuel2  = _mintLobster(alice, 2);
+        _giveClaw(alice, 10_000e18);
+
+        vm.prank(admin);
+        nft.setLocked(fuel2, true);
+
+        vm.startPrank(alice);
+        claw.approve(address(evolutionLab), type(uint256).max);
+        vm.expectRevert(abi.encodeWithSelector(EvolutionLab.LobsterIsLocked.selector, fuel2));
+        evolutionLab.evolve(target, fuel1, fuel2);
+        vm.stopPrank();
+    }
+
+    // Soulbound fuel CAN be evolved (by design — faucet lobsters are
+    // evolution fuel per tokenomics). The LobsterNFT.burn() path accepts
+    // soulbound tokens (only locked is rejected).
+    function test_soulbound_fuel_canBeBurned() public {
+        uint256 target = _mintLobster(alice, 0);
+        vm.prank(admin); uint256 fuel1 = nft.mint(alice, _pureDNA(1), true); // soulbound
+        vm.prank(admin); uint256 fuel2 = nft.mint(alice, _pureDNA(2), true); // soulbound
+        _giveClaw(alice, 10_000e18);
+
+        assertTrue(nft.isSoulbound(fuel1));
+        assertTrue(nft.isSoulbound(fuel2));
+
+        _doEvolve(target, fuel1, fuel2);
+
+        assertEq(nft.getEvolutionTier(target), 1, "target evolved");
+        assertFalse(nft.exists(fuel1), "soulbound fuel1 burned");
+        assertFalse(nft.exists(fuel2), "soulbound fuel2 burned");
+    }
+
+    // Soulbound target CAN be evolved but STAYS soulbound. Can't launder
+    // a soulbound lobster into a tradeable one via evolution.
+    function test_soulbound_target_staysSoulbound() public {
+        vm.prank(admin); uint256 target = nft.mint(alice, _pureDNA(0), true); // soulbound
+        uint256 fuel1  = _mintLobster(alice, 1);
+        uint256 fuel2  = _mintLobster(alice, 2);
+        _giveClaw(alice, 10_000e18);
+
+        assertTrue(nft.isSoulbound(target));
+
+        _doEvolve(target, fuel1, fuel2);
+
+        assertEq(nft.getEvolutionTier(target), 1);
+        assertTrue(nft.isSoulbound(target), "soulbound flag preserved across evolution");
+    }
+
+    // Fee routed through Treasury: supply burns 85% of cost, dev gets 15%.
+    function test_evolve_feeRoutedToTreasury() public {
+        uint256 target = _mintLobster(alice, 0);
+        uint256 fuel1  = _mintLobster(alice, 1);
+        uint256 fuel2  = _mintLobster(alice, 2);
+        _giveClaw(alice, 10_000e18);
+
+        uint256 cost = 2_000e18;
+        uint256 supplyBefore = claw.totalSupply();
+        uint256 devBefore = claw.balanceOf(devWallet);
+
+        _doEvolve(target, fuel1, fuel2);
+
+        uint256 burned = supplyBefore - claw.totalSupply();
+        uint256 devGot = claw.balanceOf(devWallet) - devBefore;
+        uint256 expectedBurn = cost * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR();
+        uint256 expectedDev = cost - expectedBurn;
+
+        assertEq(burned, expectedBurn, "85% burned");
+        assertEq(devGot, expectedDev, "15% to dev");
+        assertEq(burned + devGot, cost, "full fee accounted");
+    }
+
+    // Insufficient CLAW balance reverts from ERC20 (not a custom error).
+    function test_evolve_insufficientClaw_reverts() public {
+        uint256 target = _mintLobster(alice, 0);
+        uint256 fuel1  = _mintLobster(alice, 1);
+        uint256 fuel2  = _mintLobster(alice, 2);
+        // Alice has only 100 CLAW — less than the 2,000 cost
+        _giveClaw(alice, 100e18);
+
+        vm.startPrank(alice);
+        claw.approve(address(evolutionLab), type(uint256).max);
+        vm.expectRevert();
+        evolutionLab.evolve(target, fuel1, fuel2);
+        vm.stopPrank();
+    }
+
+    // Target and fuel can belong to different generations — evolution
+    // doesn't care about generation, only tier.
+    function test_evolve_mixedGeneration_works() public {
+        // Alice has a Gen-0 target and Gen-5 fuel (via direct mint).
+        // Only tier matters for evolution — not generation.
+        vm.prank(admin); uint256 target = nft.mintWithGeneration(alice, _pureDNA(0), 5);
+        uint256 fuel1  = _mintLobster(alice, 1);
+        uint256 fuel2  = _mintLobster(alice, 2);
+        _giveClaw(alice, 10_000e18);
+
+        _doEvolve(target, fuel1, fuel2);
+        assertEq(nft.getEvolutionTier(target), 1);
+    }
 }
