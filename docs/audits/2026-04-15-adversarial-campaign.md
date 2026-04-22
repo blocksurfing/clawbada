@@ -593,9 +593,57 @@ Not fixed: the spec explicitly reserves legend 2-3 and the reserved bits for fut
 - Stateful invariant: `exists(id) => balanceOf(ownerOf(id), id) == 1`
 - Aggregate uniqueness: for tracked actors, at most one address has balance 1 for a live id
 
-### EvolutionLab.sol — pending Phase 2
+### EvolutionLab.sol — Phase 2 done 2026-04-22 (no findings)
 
-### Marketplace.sol — pending Phase 2
+99-LOC single-function contract: `evolve(lobsterId, fuelId1, fuelId2)`. Burns 2 fuel lobsters of the same tier as target + CLAW fee (2K / 10K / 50K at Base→Evolved / Evolved→Elite / Elite→Apex). Routes fee through Treasury. `nonReentrant` guard.
+
+**Read pass (task 49)** — confirmed the checks align with the attack surface:
+- Duplicate-id check first (line 58-59): target ≠ fuel, fuel1 ≠ fuel2.
+- Ownership + locked + tier-match + tier-cap checks on all three lobsters.
+- Fee pulled + processed BEFORE burns, so any burn failure rolls back the fee.
+- Atomic: all three LobsterNFT mutations + fee processing in one tx via `nonReentrant`.
+
+L-01 interaction: with L-01 fixed, `ownerOf(fuelId)` in `_validateFuel` is trusted. Pre-L-01, a zero-value transfer could have forged ownership of fuel lobsters — attacker evolves victim's lobster. Now closed.
+
+T-03 interaction: minimum evolution cost is 2_000e18 wei, far above Treasury's 10_000 wei minimum. Safe.
+
+**New fuzz tests (task 50)** — 9 added to `FuzzEvolutionLab.t.sol`:
+- `test_not_owner_fuel1_reverts` / `test_not_owner_fuel2_reverts`
+- `test_locked_fuel1_reverts` / `test_locked_fuel2_reverts`
+- `test_soulbound_fuel_canBeBurned` (evolution fuel design path)
+- `test_soulbound_target_staysSoulbound` (prevents laundering a soulbound lobster tradeable via evolution)
+- `test_evolve_feeRoutedToTreasury` (85/15 split verified)
+- `test_evolve_insufficientClaw_reverts`
+- `test_evolve_mixedGeneration_works` (evolution cares about tier, not generation)
+
+**Deep profile (task 51)**: 20/20 passing at 50k runs, 11.3s.
+
+**Codex red-team pass (task 51, 2026-04-22)**: **no findings, ship**.
+
+Every angle probed was cleared:
+- Duplicate-id aliasing — rejected before any state change
+- Target-as-own-fuel — impossible through the entry path
+- Soulbound target/fuel — intentional and code-supported per tokenomics spec
+- Tier mismatch / cap / cost indexing — guarded and atomic
+- Fee-before-burn — no partial-loss path
+- Burn1→burn2 atomicity — no persisted single-burn scenario
+- Tier bump after burns — no fuel-burn-without-evolution scenario
+- Reentrancy via CLAW / Treasury / LobsterNFT burn — blocked at every layer (no hooks on CLAW, `nonReentrant` on Treasury, burn skips receiver callback)
+- Role-revocation mid-flight — atomic revert, fee refunded
+- Gas griefing — no unbounded loops; fixed 3-iteration check surface
+- Arithmetic — 0.8 checked + tier cap
+- L-01 ownerOf — fixed; value=1 enforcement prevents ownerOf forgery
+- CLAW approval residual — exactly `cost` approved, fully consumed by `transferFrom`
+- Treasury split rounding — min cost 2K CLAW, comfortably above T-03 floor
+- Listed/locked races — re-read on every call, no stale-validation path
+- Event-sequence — state changes precede all emits
+
+**Coverage gaps deferred** (Codex flagged but not sprint-blocking):
+- Adversarial mock-token / mock-Treasury tests (current suite uses production ClawToken)
+- Listed-token race (target is on Marketplace escrow during evolve attempt)
+- Event-sequence assertions spanning Treasury + LobsterNFT + EvolutionLab
+
+### Marketplace.sol — pending Phase 2 (T-05 + review remaining surface)
 
 ### Faucet.sol — pending Phase 2
 
