@@ -47,7 +47,7 @@ contract FuzzMarketplace is BaseSetup {
 
         vm.startPrank(bob);
         claw.approve(address(marketplace), price);
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
         vm.stopPrank();
 
         uint256 fee           = (price * marketplace.FEE_BPS()) / marketplace.BPS_DENOMINATOR();
@@ -157,7 +157,7 @@ contract FuzzMarketplace is BaseSetup {
         vm.startPrank(bob);
         claw.approve(address(marketplace), 100e18);
         vm.expectRevert(abi.encodeWithSelector(Marketplace.ListingNotActive.selector, listingId));
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -209,9 +209,318 @@ contract FuzzMarketplace is BaseSetup {
 
         vm.startPrank(bob);
         claw.approve(address(marketplace), 100e18);
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
         vm.stopPrank();
 
         assertEq(marketplace.lobsterToListing(lobsterId), 0, "mapping cleared after sale");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Phase 2 Marketplace pass — gap coverage
+    // ─────────────────────────────────────────────────────────────
+
+    // I-01 (prior audit, known-open design): seller can buy their own
+    // listing (wash trade). This test DOCUMENTS the behavior — the only
+    // cost is the 2.5% protocol fee, and the NFT ends up back with seller.
+    // If we ever want to forbid self-purchase, flip this to `expectRevert`.
+    function test_I01_selfPurchase_allowed_cost_is_fee() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 price = 100_000e18;
+        uint256 listingId = _list(alice, lobsterId, price);
+
+        _giveClaw(alice, price);
+        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 supplyBefore = claw.totalSupply();
+
+        vm.startPrank(alice);
+        claw.approve(address(marketplace), price);
+        marketplace.buyLobster(listingId, type(uint256).max);
+        vm.stopPrank();
+
+        // Alice paid the fee (burned + dev), received her own proceeds.
+        // Net CLAW cost = fee = price × 2.5% = 2500 CLAW.
+        uint256 expectedFee = price * marketplace.FEE_BPS() / marketplace.BPS_DENOMINATOR();
+        assertEq(aliceBefore - claw.balanceOf(alice), expectedFee, "wash trade costs seller the 2.5% fee");
+
+        // NFT owned by alice again, 85% of fee burned.
+        assertEq(nft.ownerOf(lobsterId), alice, "wash trade returns NFT to seller");
+        uint256 burned = supplyBefore - claw.totalSupply();
+        uint256 expectedBurn = expectedFee * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR();
+        assertEq(burned, expectedBurn, "85% of fee burned");
+    }
+
+    // After listLobster, `ownerOf` returns the Marketplace contract (NFT is
+    // escrowed). Verifies the L-01 fix didn't break escrow accounting.
+    function test_listLobster_escrowsTokenToMarketplace() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        assertEq(nft.ownerOf(lobsterId), alice, "initial owner");
+
+        _list(alice, lobsterId, 500_000e18);
+
+        assertEq(nft.ownerOf(lobsterId), address(marketplace), "escrowed to marketplace");
+        assertEq(nft.balanceOf(address(marketplace), lobsterId), 1, "marketplace holds balance");
+        assertEq(nft.balanceOf(alice, lobsterId), 0, "seller balance cleared");
+    }
+
+    // Cancel returns NFT to seller and clears the listing, leaving it
+    // relistable at a new price.
+    function test_cancel_thenRelist_succeeds() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 firstListing = _list(alice, lobsterId, 500_000e18);
+
+        vm.prank(alice);
+        marketplace.cancelListing(firstListing);
+
+        assertEq(nft.ownerOf(lobsterId), alice, "returned to seller");
+        assertEq(marketplace.lobsterToListing(lobsterId), 0, "link cleared");
+
+        // Re-list at a different price.
+        uint256 newListing = _list(alice, lobsterId, 2_000_000e18);
+        assertTrue(newListing != firstListing, "new listing id");
+
+        Marketplace.Listing memory l = marketplace.getListing(newListing);
+        assertTrue(l.active);
+        assertEq(l.price, 2_000_000e18);
+    }
+
+    // Double-cancel reverts ListingNotActive.
+    function test_doubleCancel_reverts() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 listingId = _list(alice, lobsterId, 500_000e18);
+
+        vm.prank(alice);
+        marketplace.cancelListing(listingId);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.ListingNotActive.selector, listingId));
+        marketplace.cancelListing(listingId);
+    }
+
+    // After a successful buy, cancel reverts ListingNotActive.
+    function test_cancel_afterBuy_reverts() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 price = 500_000e18;
+        uint256 listingId = _list(alice, lobsterId, price);
+        _giveClaw(bob, price);
+
+        vm.startPrank(bob);
+        claw.approve(address(marketplace), price);
+        marketplace.buyLobster(listingId, type(uint256).max);
+        vm.stopPrank();
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.ListingNotActive.selector, listingId));
+        marketplace.cancelListing(listingId);
+    }
+
+    // Non-seller cannot update price.
+    function test_updatePrice_nonSeller_reverts() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 listingId = _list(alice, lobsterId, 500_000e18);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.NotListingSeller.selector, listingId));
+        marketplace.updatePrice(listingId, 1_000_000e18);
+    }
+
+    // updatePrice on inactive listing reverts.
+    function test_updatePrice_inactiveListing_reverts() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 listingId = _list(alice, lobsterId, 500_000e18);
+
+        vm.prank(alice);
+        marketplace.cancelListing(listingId);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.ListingNotActive.selector, listingId));
+        marketplace.updatePrice(listingId, 1_000_000e18);
+    }
+
+    // Buy with insufficient approval reverts (ERC20 bubble).
+    function test_buy_insufficientApproval_reverts() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 price = 500_000e18;
+        uint256 listingId = _list(alice, lobsterId, price);
+        _giveClaw(bob, price);
+
+        // Bob approves less than price
+        vm.startPrank(bob);
+        claw.approve(address(marketplace), price - 1);
+        vm.expectRevert();
+        marketplace.buyLobster(listingId, type(uint256).max);
+        vm.stopPrank();
+    }
+
+    // M-04: seller front-run with updatePrice cannot extract more CLAW from
+    // a buyer holding a standing allowance. buyLobster now requires a
+    // maxPrice parameter; if the listing's current price exceeds maxPrice
+    // at execution time, the tx reverts PriceExceedsMaximum.
+    function test_M04_sellerFrontRun_maxPrice_protectsBuyer() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 initialPrice = 500_000e18;
+        uint256 listingId = _list(alice, lobsterId, initialPrice);
+
+        // Bob holds a standing infinite allowance + enough CLAW to cover a
+        // raised price. He submits buyLobster with maxPrice = initialPrice.
+        _giveClaw(bob, 2_000_000e18);
+        vm.prank(bob);
+        claw.approve(address(marketplace), type(uint256).max);
+
+        // Seller front-runs with updatePrice to a higher value.
+        uint256 raisedPrice = 1_500_000e18;
+        vm.prank(alice);
+        marketplace.updatePrice(listingId, raisedPrice);
+
+        // Bob's buy reverts — his maxPrice guard kicks in.
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(Marketplace.PriceExceedsMaximum.selector, raisedPrice, initialPrice)
+        );
+        marketplace.buyLobster(listingId, initialPrice);
+
+        // NFT still escrowed, listing still active — Bob's CLAW not spent.
+        assertEq(nft.ownerOf(lobsterId), address(marketplace));
+        assertTrue(marketplace.getListing(listingId).active);
+        assertEq(claw.balanceOf(bob), 2_000_000e18, "buyer CLAW untouched");
+    }
+
+    // M-04: passing type(uint256).max as maxPrice opts out of slippage
+    // protection — buyer explicitly accepts any price (legacy pre-fix
+    // behavior). Documents the opt-out semantics.
+    function test_M04_maxPriceMax_acceptsAnyPrice() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 initialPrice = 500_000e18;
+        uint256 listingId = _list(alice, lobsterId, initialPrice);
+
+        // Seller raises price; buyer accepts any price.
+        vm.prank(alice);
+        marketplace.updatePrice(listingId, 2_000_000e18);
+
+        _giveClaw(bob, 2_000_000e18);
+        vm.startPrank(bob);
+        claw.approve(address(marketplace), type(uint256).max);
+        marketplace.buyLobster(listingId, type(uint256).max);
+        vm.stopPrank();
+
+        assertEq(nft.ownerOf(lobsterId), bob, "buyer accepted raised price");
+    }
+
+    // M-04: maxPrice at exactly the listing price is allowed (boundary).
+    function test_M04_maxPriceExact_allowed() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 price = 500_000e18;
+        uint256 listingId = _list(alice, lobsterId, price);
+
+        _giveClaw(bob, price);
+        vm.startPrank(bob);
+        claw.approve(address(marketplace), price);
+        marketplace.buyLobster(listingId, price);
+        vm.stopPrank();
+
+        assertEq(nft.ownerOf(lobsterId), bob);
+    }
+
+    // M-05: direct ERC-1155 transfers to Marketplace are rejected — the
+    // Marketplace only accepts NFT deposits initiated by its own
+    // listLobster flow. Prevents users from accidentally blackholing
+    // lobsters by sending them directly to the contract.
+    function test_M05_directTransfer_rejected() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+
+        vm.startPrank(alice);
+        nft.setApprovalForAll(address(marketplace), true);
+        // Pre-M-05 this succeeded silently, stranding the NFT. Post-fix
+        // the onERC1155Received hook rejects non-Marketplace-initiated
+        // transfers.
+        vm.expectRevert();
+        nft.safeTransferFrom(alice, address(marketplace), lobsterId, 1, "");
+        vm.stopPrank();
+
+        // Alice still owns the NFT; nothing stranded.
+        assertEq(nft.ownerOf(lobsterId), alice, "alice retained NFT after rejected direct transfer");
+    }
+
+    // M-05: batch transfers to Marketplace are also rejected outright
+    // (Marketplace only handles single-token listings).
+    function test_M05_directBatchTransfer_rejected() public {
+        uint256 t1 = _mintLobster(alice, 0);
+        uint256 t2 = _mintLobster(alice, 1);
+
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = t1;
+        ids[1] = t2;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+
+        vm.startPrank(alice);
+        nft.setApprovalForAll(address(marketplace), true);
+        vm.expectRevert();
+        nft.safeBatchTransferFrom(alice, address(marketplace), ids, amounts, "");
+        vm.stopPrank();
+    }
+
+    // M-05: listLobster's internal safeTransferFrom still works (operator
+    // equals Marketplace, so the hook passes). Re-verifies the happy path
+    // isn't broken by the new guard.
+    function test_M05_listLobster_stillWorks() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 listingId = _list(alice, lobsterId, 500_000e18);
+
+        assertEq(nft.ownerOf(lobsterId), address(marketplace));
+        Marketplace.Listing memory l = marketplace.getListing(listingId);
+        assertTrue(l.active);
+    }
+
+    // A buyer contract with a reverting onERC1155Received can't force
+    // the Marketplace to leave an NFT stranded — the whole tx reverts.
+    function test_buy_receiverRevert_wholeTxReverts() public {
+        RejectingReceiver evilBuyer = new RejectingReceiver();
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 price = 500_000e18;
+        uint256 listingId = _list(alice, lobsterId, price);
+
+        _giveClaw(address(evilBuyer), price);
+        evilBuyer.approve(claw, address(marketplace), price);
+
+        vm.expectRevert();
+        evilBuyer.buy(marketplace, listingId);
+
+        // Listing still active; NFT still in marketplace escrow; no partial state.
+        Marketplace.Listing memory l = marketplace.getListing(listingId);
+        assertTrue(l.active, "listing still active");
+        assertEq(nft.ownerOf(lobsterId), address(marketplace), "NFT still escrowed");
+    }
+}
+
+/// @dev Contract buyer that rejects ERC-1155 receipts — used to verify
+///      Marketplace's buy path reverts atomically on hook rejection.
+contract RejectingReceiver {
+    function approve(ClawToken claw, address spender, uint256 amount) external {
+        claw.approve(spender, amount);
+    }
+
+    function buy(Marketplace market, uint256 listingId) external {
+        market.buyLobster(listingId, type(uint256).max);
+    }
+
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
+        external
+        pure
+        returns (bytes4)
+    {
+        revert("RejectingReceiver: no thanks");
+    }
+
+    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+        external
+        pure
+        returns (bytes4)
+    {
+        revert("RejectingReceiver: no batch");
+    }
+
+    function supportsInterface(bytes4) external pure returns (bool) {
+        return true;
     }
 }

@@ -772,7 +772,7 @@ contract BoundaryTests is Test {
         claw.approve(address(market), minPrice);
 
         vm.prank(bob);
-        market.buyLobster(listingId);
+        market.buyLobster(listingId, type(uint256).max);
 
         assertEq(nft.ownerOf(id), bob);
     }

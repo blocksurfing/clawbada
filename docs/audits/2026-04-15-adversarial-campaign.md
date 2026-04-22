@@ -63,6 +63,10 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **B-03** | Medium | **Fixed** | BreedingLab | Bare `catch {}` silently burns requests on protocol-side mint failures (role revoke) |
 | **L-01** | High | **Fixed** | LobsterNFT | Zero-value transfer hijacks `ownerOf` without moving balance — attacker can steal downstream gameplay authority on any unlocked/non-soulbound lobster |
 | **L-02** | Low | Documented (forward-compat) | DNALib | `isValid` accepts reserved-bit nonzero + legend values 2/3 (intentional per spec) |
+| **M-03** | Medium | Documented (C-05 instance) | Marketplace | Locked NFT in escrow strands active listing — role-compromise grief, same class as M-01 |
+| **M-04** | Medium | **Fixed** | Marketplace | Seller can front-run `buyLobster` with `updatePrice` to drain buyer's standing allowance |
+| **M-05** | Low | **Fixed** | Marketplace | Direct ERC-1155 transfers blackhole in escrow without a listing (accidental loss / phishing) |
+| **I-01** | Info | Documented (design) | Marketplace | Self-purchase allowed — wash trading costs seller the full 2.5% fee |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -643,7 +647,92 @@ Every angle probed was cleared:
 - Listed-token race (target is on Marketplace escrow during evolve attempt)
 - Event-sequence assertions spanning Treasury + LobsterNFT + EvolutionLab
 
-### Marketplace.sol — pending Phase 2 (T-05 + review remaining surface)
+### Marketplace.sol — Phase 2 done 2026-04-22
+
+166-LOC escrow marketplace. `listLobster(id, price)` escrows the NFT, stores the listing. `buyLobster(listingId, maxPrice)` pulls CLAW, routes 2.5% fee through Treasury (85/15), sends seller proceeds, transfers NFT. `cancelListing` returns NFT; `updatePrice` lets seller adjust. Already touched via T-05 (min listing price = 400_000 wei) during the Treasury sprint.
+
+**Read pass**: checked escrow lifecycle, listing state vs lobster-locked state, buy/cancel/updatePrice atomicity, fee math at T-05 boundary, receiver-hook handling.
+
+**New fuzz tests (9 added)**: wash-trade-cost-is-fee, escrowsTokenToMarketplace, cancel-then-relist, double-cancel-reverts, cancel-after-buy-reverts, updatePrice-nonSeller-reverts, updatePrice-inactiveListing-reverts, buy-insufficientApproval-reverts, receiver-revert-tx-reverts (with `RejectingReceiver` helper).
+
+**Deep profile**: 22/22 at 50k runs, 10s.
+
+**Codex red-team pre-fix pass** — 3 findings:
+
+### M-04: Seller can front-run `buyLobster` with `updatePrice` to extract extra CLAW
+
+Severity: Medium (real MEV/slippage vector)
+
+Status: **Fixed** 2026-04-22.
+
+Sequence:
+1. Buyer holds a standing CLAW allowance on Marketplace (common pattern — `approve(market, max)` once, buy many times).
+2. Buyer submits `buyLobster(listingId)` based on the UI-displayed price `P`.
+3. Seller observes the pending tx in the mempool and front-runs with `updatePrice(listingId, Q)` where `Q > P` but `Q <= buyer_allowance`.
+4. Pre-fix, `buyLobster` reads `listing.price` at execution time, pulls `Q` CLAW from buyer, transfers `Q - fee` to seller.
+
+Impact: seller extracts up to the buyer's standing allowance. No upper bound beyond the allowance cap.
+
+Fix: change signature to `buyLobster(uint256 listingId, uint256 maxPrice)`. Revert `PriceExceedsMaximum(currentPrice, maxPrice)` if the listing's current price exceeds the buyer's maxPrice. Callers pass the UI-displayed price (or `type(uint256).max` to explicitly accept any).
+
+Breaking change: all 20+ internal callers updated to pass `maxPrice`. Tests mostly use `type(uint256).max` (they don't exercise slippage scenarios); M-04 regressions explicitly test the `listing.price > maxPrice` revert, the exact-boundary allow, and the max-max opt-out.
+
+**Downstream drift (known, deferred)**: `apps/api/src/routes/game/market.ts` and `packages/chain/src/abis/marketplace.ts` still encode the single-arg `buyLobster` signature. The frontend/API team needs to regenerate typed bindings and pass `maxPrice` before deploying. Not in contracts scope; out of this commit.
+
+### M-03: Locked NFT in Marketplace escrow strands the listing
+
+Severity: Medium (role-compromise grief, C-05 instance)
+
+Status: Documented, not runtime-fixed.
+
+Sequence:
+1. Seller lists an unlocked, non-soulbound lobster. NFT escrowed; listing active.
+2. Compromised `LOCKER_ROLE` calls `LobsterNFT.setLocked(lobsterId, true)`. Nothing checks that the token is in escrow.
+3. Later, `cancelListing` and `buyLobster` both call `lobsterNFT.safeTransferFrom(address(this), ...)`. LobsterNFT's `_update` rejects locked transfers. Both revert.
+4. NFT is stranded in escrow until admin unlocks via `setLocked(id, false)`.
+
+Not a fund-loss vulnerability — buyer's CLAW is never pulled (buy reverts atomically). But the seller's NFT is frozen until operational recovery.
+
+Marketplace-side fix options considered:
+- Preflight `isLocked` check in cancel/buy (adds clearer error but doesn't enable recovery) — deferred as diagnostic-only improvement
+- Admin-rescue path (introduces admin trust surface)
+- LobsterNFT-side escape hatch whitelisting Marketplace as a trusted `from` for locked transfers (expands LobsterNFT trust model)
+
+Decision: treat as C-05 operational runbook item. Production deploy runbook addition: if a locked NFT lands in Marketplace escrow, `DEFAULT_ADMIN_ROLE` holder (via LOCKER_ROLE grant path) can call `setLocked(id, false)` to unblock the seller's cancel/buy path.
+
+### M-05: Direct ERC-1155 transfers to Marketplace blackhole the NFT
+
+Severity: Low (user-error / phishing hardening)
+
+Status: **Fixed** 2026-04-22.
+
+Pre-fix, Marketplace inherited `ERC1155Holder` which accepts any ERC-1155 receipt via the default `onERC1155Received` hook. A user accidentally calling `nft.safeTransferFrom(alice, marketplace, id, 1, "")` directly (instead of `marketplace.listLobster(id, price)`) would have the NFT silently escrowed with no listing entry. No rescue path.
+
+Fix: override `onERC1155Received` to require:
+- `msg.sender == address(lobsterNFT)` (only accept from the configured LobsterNFT)
+- `operator == address(this)` (only accept transfers initiated by Marketplace itself, i.e. via `listLobster`)
+- `value == 1` (supply=1 invariant, matches LobsterNFT L-01)
+
+Batch transfers always reject. Legitimate `listLobster` flow still works because its internal `lobsterNFT.safeTransferFrom` passes `address(this)` as the operator.
+
+Regression tests: `test_M05_directTransfer_rejected`, `test_M05_directBatchTransfer_rejected`, `test_M05_listLobster_stillWorks`.
+
+### I-01: Self-purchase allowed (wash trading)
+
+Severity: Info (documented design tradeoff from prior audit)
+
+Status: Documented, not fixed. Cost of self-purchase = 2.5% fee; the seller ends up with their own NFT and paid the fee. Not a bypass of any protocol guarantee — just a volume-inflation vector that the protocol doesn't attempt to prevent.
+
+**Cleared** (Codex pre/post-fix): CEI ordering in buyLobster, no batch-listing helper, zero-proceeds impossible at T-05 min, updatePrice T-05 boundary, approval-race (pre-M-04 was real — now fixed), cancel-after-updatePrice, relist guard, cancel/buy race atomicity, CLAW/Treasury/NFT reentrancy, gas-griefing surface, Treasury auth revoke = graceful DoS.
+
+**Post-fix Codex verdict on M-04**: "correct, including the equality boundary" — `test_M04_maxPriceExact_allowed` covers `listing.price == maxPrice` passing through.
+
+**Analogous vectors checked in neighboring contracts (all clean)**:
+- `BreedingLab`: cost from parents' breedCount + generation (both increase-only, user-owned) — no counterparty manipulation surface
+- `EvolutionLab`: cost is fixed constant per tier
+- `RepairShop`: cost is `pointsToRepair × tier_rate`, damage increases don't affect a fixed points debit
+- `Treasury`: split ratios are constants; only `devWallet` is admin-settable (redirects fees but doesn't inflate user debit)
+- `MiningPool`: admin-tunable `baseReward` but reward-side, locked per expedition at start
 
 ### Faucet.sol — pending Phase 2
 
