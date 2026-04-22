@@ -69,6 +69,10 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     error ListingNotActive(uint256 listingId);
     error LobsterAlreadyListed(uint256 lobsterId);
     error NotLobsterOwner(uint256 lobsterId);
+    /// @notice The listing's current price exceeds the buyer's `maxPrice`.
+    ///         M-04: prevents a seller from front-running a buyer's `buyLobster`
+    ///         with `updatePrice` to extract more CLAW than the buyer intended.
+    error PriceExceedsMaximum(uint256 currentPrice, uint256 maxPrice);
 
     // ──────────── Constructor ────────────
 
@@ -126,9 +130,16 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     /// @notice Buy a listed lobster. Pays full price in $CLAW; 2.5% fee to Treasury.
     /// @dev CEI pattern: state changes before external calls.
     /// @param listingId The listing to buy
-    function buyLobster(uint256 listingId) external nonReentrant {
+    /// @param maxPrice The maximum price the buyer is willing to pay. M-04 slippage
+    ///        guard: if the seller front-runs with `updatePrice` to raise the price
+    ///        before the buyer's tx lands, this reverts `PriceExceedsMaximum` instead
+    ///        of pulling the higher amount from the buyer's standing allowance.
+    ///        Callers should pass the price they saw in the UI (or
+    ///        `type(uint256).max` to explicitly accept any price).
+    function buyLobster(uint256 listingId, uint256 maxPrice) external nonReentrant {
         Listing storage listing = _listings[listingId];
         if (!listing.active) revert ListingNotActive(listingId);
+        if (listing.price > maxPrice) revert PriceExceedsMaximum(listing.price, maxPrice);
 
         // CEI: update state before external calls
         listing.active = false;
@@ -179,5 +190,37 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     /// @notice Get listing details.
     function getListing(uint256 listingId) external view returns (Listing memory) {
         return _listings[listingId];
+    }
+
+    // ──────────── ERC-1155 Receiver (M-05 hardening) ────────────
+
+    /// @dev Accept only ERC-1155 transfers initiated by Marketplace itself
+    ///      (via `listLobster`'s internal `safeTransferFrom`). Direct transfers
+    ///      from arbitrary callers — including approved operators of the token
+    ///      owner — are rejected to prevent NFTs from being blackholed in
+    ///      Marketplace escrow without a corresponding listing. Also enforces
+    ///      the supply=1 invariant and rejects non-LobsterNFT token contracts.
+    ///      M-05 (Codex red-team, 2026-04-22).
+    function onERC1155Received(address operator, address, uint256, uint256 value, bytes memory)
+        public
+        view
+        override
+        returns (bytes4)
+    {
+        if (msg.sender != address(lobsterNFT)) revert ZeroAddress(); // foreign token
+        if (operator != address(this)) revert NotLobsterOwner(0);    // not via listLobster
+        if (value != 1) revert ZeroPrice();                           // supply=1 invariant
+        return this.onERC1155Received.selector;
+    }
+
+    /// @dev Always reject batch transfers — Marketplace only handles single-
+    ///      token listings. M-05 hardening.
+    function onERC1155BatchReceived(address, address, uint256[] memory, uint256[] memory, bytes memory)
+        public
+        pure
+        override
+        returns (bytes4)
+    {
+        revert ZeroAddress();
     }
 }

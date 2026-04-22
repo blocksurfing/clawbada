@@ -253,7 +253,7 @@ contract MarketplaceTest is Test {
         _approveClaw(bob, price);
 
         vm.prank(bob);
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
 
         // Buyer gets NFT
         assertEq(nft.ownerOf(lobsterId), bob);
@@ -276,7 +276,7 @@ contract MarketplaceTest is Test {
         vm.prank(bob);
         vm.expectEmit(true, true, true, true);
         emit Marketplace.LobsterSold(listingId, alice, bob, lobsterId, price, expectedFee);
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
     }
 
     function test_buyLobsterFeeCalculation() public {
@@ -292,7 +292,7 @@ contract MarketplaceTest is Test {
         uint256 aliceBefore = claw.balanceOf(alice);
 
         vm.prank(bob);
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
 
         uint256 aliceAfter = claw.balanceOf(alice);
         assertEq(aliceAfter - aliceBefore, expectedSellerProceeds);
@@ -313,7 +313,7 @@ contract MarketplaceTest is Test {
         uint256 supplyBefore = claw.totalSupply();
 
         vm.prank(bob);
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
 
         uint256 devAfter = claw.balanceOf(devWallet);
         uint256 supplyAfter = claw.totalSupply();
@@ -341,7 +341,7 @@ contract MarketplaceTest is Test {
 
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(Marketplace.ListingNotActive.selector, listingId));
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
     }
 
     function test_buyLobsterInsufficientClawReverts() public {
@@ -353,7 +353,7 @@ contract MarketplaceTest is Test {
 
         vm.prank(bob);
         vm.expectRevert(); // ERC20 insufficient balance
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
     }
 
     function test_buyLobsterSellerCanBuyOwn() public {
@@ -365,7 +365,7 @@ contract MarketplaceTest is Test {
         _approveClaw(alice, price);
 
         vm.prank(alice);
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
 
         // Alice gets her NFT back (and paid the fee)
         assertEq(nft.ownerOf(lobsterId), alice);
@@ -381,7 +381,7 @@ contract MarketplaceTest is Test {
         _approveClaw(bob, 1_000e18);
 
         vm.prank(bob);
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
 
         assertEq(marketplace.lobsterToListing(lobsterId), 0);
     }
@@ -455,7 +455,7 @@ contract MarketplaceTest is Test {
         _giveClaw(bob, price);
         _approveClaw(bob, price);
         vm.prank(bob);
-        marketplace.buyLobster(listingId1);
+        marketplace.buyLobster(listingId1, type(uint256).max);
         assertEq(nft.ownerOf(lobsterId), bob);
 
         // Bob relists at higher price
@@ -496,7 +496,7 @@ contract MarketplaceTest is Test {
         _giveClaw(bob, 2_000e18);
         _approveClaw(bob, 2_000e18);
         vm.prank(bob);
-        marketplace.buyLobster(listing2);
+        marketplace.buyLobster(listing2, type(uint256).max);
 
         vm.prank(alice);
         marketplace.cancelListing(listing1);
@@ -531,7 +531,7 @@ contract MarketplaceTest is Test {
         uint256 aliceBefore = claw.balanceOf(alice);
 
         vm.prank(bob);
-        marketplace.buyLobster(listingId);
+        marketplace.buyLobster(listingId, type(uint256).max);
 
         assertEq(claw.balanceOf(alice) - aliceBefore, expectedSellerProceeds);
     }
