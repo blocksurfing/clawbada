@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {ClawToken} from "./ClawToken.sol";
 import {DNALib} from "./libraries/DNALib.sol";
@@ -9,7 +10,7 @@ import {DNALib} from "./libraries/DNALib.sol";
 /// @title Faucet — Temporary onboarding for Clawbada
 /// @notice Gives eligible wallets 5 soulbound lobsters + 7,000 $CLAW. Closes ~7 days after launch.
 /// @dev Eligibility is set by admin (off-chain verification of wallet age/txs). ETH balance checked on-chain.
-contract Faucet is AccessControl {
+contract Faucet is AccessControl, ReentrancyGuard {
     // ──────────── Roles ────────────
     bytes32 public constant ELIGIBILITY_ROLE = keccak256("ELIGIBILITY_ROLE");
 
@@ -90,7 +91,14 @@ contract Faucet is AccessControl {
 
     /// @notice Claim 5 random soulbound lobsters.
     /// @return tokenIds The 5 minted token IDs
-    function claimLobsters() external returns (uint256[5] memory tokenIds) {
+    /// @dev L-05: `nonReentrant` — the ERC-1155 mints inside this function call
+    ///      `onERC1155Received` on the claimer if it's a contract. Without the
+    ///      guard, a contract claimer could re-enter (e.g. into `claimClaw`)
+    ///      mid-flow. The current code already sets `hasClaimedLobsters = true`
+    ///      before the mint loop so claimLobsters re-entry is blocked by the
+    ///      flag, but adding `nonReentrant` is defence in depth and matches
+    ///      the pattern in every other external state-mutating entrypoint.
+    function claimLobsters() external nonReentrant returns (uint256[5] memory tokenIds) {
         if (block.timestamp >= closeTime) revert FaucetIsClosed();
         if (!isEligible[msg.sender]) revert NotEligible();
         if (msg.sender.balance < MIN_ETH_BALANCE) revert InsufficientETHBalance();
@@ -108,7 +116,11 @@ contract Faucet is AccessControl {
     }
 
     /// @notice Claim 7,000 $CLAW. Must have claimed lobsters first.
-    function claimClaw() external {
+    /// @dev L-05: `nonReentrant`. ClawToken has no callbacks today, so no
+    ///      active re-entry vector, but the guard matches the defence-in-
+    ///      depth posture of the rest of the protocol and future-proofs
+    ///      against any token-side hooks.
+    function claimClaw() external nonReentrant {
         if (block.timestamp >= closeTime) revert FaucetIsClosed();
         if (!isEligible[msg.sender]) revert NotEligible();
         if (msg.sender.balance < MIN_ETH_BALANCE) revert InsufficientETHBalance();

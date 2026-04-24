@@ -29,10 +29,14 @@ contract FaucetTest is Test {
         claw = new ClawToken(admin, lpAddress, treasuryAddress);
         faucet = new Faucet(admin, address(nft), address(claw), closeTime);
 
-        // Grant roles to faucet
+        // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), address(faucet));
-        claw.grantRole(claw.MINTER_ROLE(), address(faucet));
         faucet.grantRole(faucet.ELIGIBILITY_ROLE(), eligibilityAdmin);
+
+        // Pre-fund faucet with $CLAW (replaces MINTER_ROLE grant — S-01 fix)
+        claw.grantRole(claw.MINTER_ROLE(), admin);
+        claw.mint(address(faucet), 70_000_000e18);
+        claw.revokeRole(claw.MINTER_ROLE(), admin);
         vm.stopPrank();
 
         // Give alice and bob some ETH
@@ -123,6 +127,29 @@ contract FaucetTest is Test {
         vm.prank(eligibilityAdmin);
         vm.expectRevert(Faucet.ZeroAddress.selector);
         faucet.setEligibleBatch(accounts, true);
+    }
+
+    function test_setEligibleBatchTooLargeReverts() public {
+        address[] memory accounts = new address[](501);
+        for (uint256 i = 0; i < 501; i++) {
+            accounts[i] = address(uint160(i + 1));
+        }
+
+        vm.prank(eligibilityAdmin);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.BatchTooLarge.selector, 501, 500));
+        faucet.setEligibleBatch(accounts, true);
+    }
+
+    function test_setEligibleBatchAtMaxSizeSucceeds() public {
+        address[] memory accounts = new address[](500);
+        for (uint256 i = 0; i < 500; i++) {
+            accounts[i] = address(uint160(i + 1));
+        }
+
+        vm.prank(eligibilityAdmin);
+        faucet.setEligibleBatch(accounts, true);
+        assertTrue(faucet.isEligible(address(uint160(1))));
+        assertTrue(faucet.isEligible(address(uint160(500))));
     }
 
     function test_setEligibleEmitsEvent() public {
@@ -313,6 +340,57 @@ contract FaucetTest is Test {
 
     // ──────────── Fuzz ────────────
 
+    // ──────────── S-01: Pre-funded faucet (no mint) ────────────
+
+    function test_claimClawTransfersFromFaucetBalance() public {
+        uint256 faucetBalanceBefore = claw.balanceOf(address(faucet));
+        uint256 totalSupplyBefore = claw.totalSupply();
+
+        _claimLobsters(alice);
+        vm.prank(alice);
+        faucet.claimClaw();
+
+        // Faucet balance decreased by drip amount
+        assertEq(claw.balanceOf(address(faucet)), faucetBalanceBefore - 7_000e18);
+        // Total supply unchanged — no new minting occurred
+        assertEq(claw.totalSupply(), totalSupplyBefore);
+        // Alice received the drip
+        assertEq(claw.balanceOf(alice), 7_000e18);
+    }
+
+    function test_claimClawRevertsWhenFaucetBalanceInsufficient() public {
+        // Deploy a faucet with no pre-funded balance
+        vm.startPrank(admin);
+        Faucet emptyFaucet = new Faucet(admin, address(nft), address(claw), closeTime);
+        nft.grantRole(nft.MINTER_ROLE(), address(emptyFaucet));
+        emptyFaucet.grantRole(emptyFaucet.ELIGIBILITY_ROLE(), eligibilityAdmin);
+        vm.stopPrank();
+
+        vm.prank(eligibilityAdmin);
+        emptyFaucet.setEligible(alice, true);
+
+        vm.prank(alice);
+        emptyFaucet.claimLobsters();
+
+        vm.prank(alice);
+        vm.expectRevert(Faucet.InsufficientFaucetBalance.selector);
+        emptyFaucet.claimClaw();
+    }
+
+    function test_faucetClaimDoesNotAffectMiningSupply() public {
+        // Record remaining mintable before faucet claim
+        uint256 remainableBefore = claw.remainingMintable();
+
+        _claimLobsters(alice);
+        vm.prank(alice);
+        faucet.claimClaw();
+
+        // Remaining mintable unchanged — faucet claim is a transfer, not a mint
+        assertEq(claw.remainingMintable(), remainableBefore);
+    }
+
+    // ──────────── Fuzz ────────────
+
     function testFuzz_claimLobstersProducesValidDNA(uint256 seed) public {
         // Use seed to set prevrandao
         vm.prevrandao(bytes32(seed));
@@ -330,5 +408,71 @@ contract FaucetTest is Test {
             assertEq(DNALib.decodeLegend(dna), 0);
             assertLt(DNALib.decodeClass(dna), 10);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Phase 2 Faucet pass — L-05 regression + coverage
+    // ─────────────────────────────────────────────────────────────
+
+    // L-05: re-entrant claimers cannot re-enter into the faucet mid-flow.
+    // The ERC-1155 mints inside claimLobsters invoke onERC1155Received on
+    // contract claimers; a malicious contract could try to re-enter.
+    // Pre-fix, the hasClaimedLobsters flag was set before mints so
+    // claimLobsters re-entry was blocked by the flag — but claimClaw
+    // could still be re-entered. Post-fix, nonReentrant on both
+    // entrypoints blocks same-tx re-entry uniformly.
+    function test_L05_nonReentrant_blocksReentryIntoClaimClaw() public {
+        ReentrantClaimer attacker = new ReentrantClaimer(faucet);
+        vm.deal(address(attacker), 1 ether);
+
+        vm.prank(eligibilityAdmin);
+        faucet.setEligible(address(attacker), true);
+
+        // Attacker's onERC1155Received re-enters claimClaw during the
+        // first mint. Pre-fix (no guard): re-entry into claimClaw would
+        // succeed, granting CLAW before claimLobsters even finished.
+        // Post-fix: ReentrancyGuard in claimLobsters reverts the re-enter.
+        vm.prank(address(attacker));
+        vm.expectRevert(); // ReentrancyGuardReentrantCall
+        attacker.attack();
+    }
+}
+
+/// @dev Contract claimer that re-enters claimClaw during the ERC-1155
+///      mint callback. Used to verify L-05 nonReentrant guard blocks
+///      reentry in the faucet claim flow.
+contract ReentrantClaimer {
+    Faucet internal immutable faucet;
+
+    constructor(Faucet faucet_) {
+        faucet = faucet_;
+    }
+
+    function attack() external {
+        faucet.claimLobsters();
+    }
+
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
+        external
+        returns (bytes4)
+    {
+        // Attempt to re-enter claimClaw during the mint callback. Under the
+        // L-05 nonReentrant guard on claimLobsters, this MUST revert — and
+        // the revert propagates up, reverting the acceptance check, the
+        // mint, and the outer claimLobsters call.
+        faucet.claimClaw();
+        return this.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+        external
+        pure
+        returns (bytes4)
+    {
+        return this.onERC1155BatchReceived.selector;
+    }
+
+    function supportsInterface(bytes4) external pure returns (bool) {
+        return true;
     }
 }

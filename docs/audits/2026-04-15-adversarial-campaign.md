@@ -67,6 +67,9 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **M-04** | Medium | **Fixed** | Marketplace | Seller can front-run `buyLobster` with `updatePrice` to drain buyer's standing allowance |
 | **M-05** | Low | **Fixed** | Marketplace | Direct ERC-1155 transfers blackhole in escrow without a listing (accidental loss / phishing) |
 | **I-01** | Info | Documented (design) | Marketplace | Self-purchase allowed — wash trading costs seller the full 2.5% fee |
+| **L-05** | Low | **Fixed** | Faucet | Missing `ReentrancyGuard` on claim functions (prior audit item) |
+| **F-01** | Low | Documented (operational policy) | Faucet | Contract claimers can reroll DNA via reverting `onERC1155Received` — admin must whitelist EOAs only |
+| **F-02** | Low | Documented (tokenomics) | Faucet | No sweep path for unused faucet pre-mint CLAW — unclaimed budget stays in contract |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -734,7 +737,36 @@ Status: Documented, not fixed. Cost of self-purchase = 2.5% fee; the seller ends
 - `Treasury`: split ratios are constants; only `devWallet` is admin-settable (redirects fees but doesn't inflate user debit)
 - `MiningPool`: admin-tunable `baseReward` but reward-side, locked per expedition at start
 
-### Faucet.sol — pending Phase 2
+### Faucet.sol — Phase 2 done 2026-04-23
+
+165-LOC onboarding drop. Eligible wallets claim 5 soulbound lobsters + 7,000 CLAW, once each. ELIGIBILITY_ROLE maintains the whitelist (off-chain verification of wallet age/tx history); admin can adjust closeTime. Faucet is pre-funded with 70M CLAW (10K wallets × 7K) and self-closes ~7 days after launch.
+
+**Read pass**: checked L-05 reentrancy, sybil surface, flash-loan ETH balance bypass, randomness for DNA, close-time races, double-claim paths, faucet-balance depletion.
+
+**L-05 (Low, Fixed)**: prior-audit item. Added `ReentrancyGuard` inheritance + `nonReentrant` on both `claimLobsters` and `claimClaw`. `claimLobsters`'s ERC-1155 mints trigger `onERC1155Received` on contract claimers — without the guard, a contract could re-enter `claimClaw` during the mint loop to get CLAW before the outer flow even finished. The flag-ordering already prevented duplicate claims, but the guard is defence-in-depth uniform with the rest of the protocol.
+
+Regression test: `test_L05_nonReentrant_blocksReentryIntoClaimClaw`. The helper `ReentrantClaimer` contract tries to call `faucet.claimClaw()` from its `onERC1155Received`; the revert propagates through the acceptance check and reverts the whole `claimLobsters` call, asserting the guard fired.
+
+**Codex red-team pre-fix pass (2026-04-23)** — 2 new Low findings, both operational-policy:
+
+**F-01 (Low, documented)**: contract claimers with a conditionally-reverting `onERC1155Received` can reject unfavorable DNA rolls. The whole `claimLobsters` tx reverts, rolling back `hasClaimedLobsters = true` alongside the mints. The attacker's contract can retry next block with fresh `block.prevrandao`. Cost per attempt: gas only (admin already whitelisted the contract).
+
+Economic leverage is bounded — faucet lobsters are soulbound and non-legend — but CAN be used as breeding parents. A grinder could reroll for high-variant dominant alleles and breed tradeable offspring inheriting the good genes. Not an immediate exploit but an economic edge.
+
+Mitigation: operational. Per `CLAUDE.md` tokenomics, eligibility requires on-chain history (wallet age ≥ 7 days, ≥ 3 prior txs, ≥ 0.001 ETH). The spec implicitly treats wallets as EOAs; admin should only whitelist EOAs. Runtime `tx.origin == msg.sender` check would fully close the vector but would also block smart-wallet users (Bankr.bot server wallets, ERC-4337 accounts) who are legitimate target users per the agent-first design. Given the admin-trust layer already gates eligibility, runtime fix is unnecessary.
+
+Runbook addition: `ELIGIBILITY_ROLE` holder verifies wallet is an EOA (or an explicitly-vetted smart wallet with a conforming ERC-1155 receiver) before calling `setEligible` / `setEligibleBatch`.
+
+**F-02 (Low, documented)**: no admin sweep path for residual pre-mint CLAW. If campaign uptake is below the 70M allocation, the unspent balance is permanently stuck in the Faucet contract. Only `claimClaw` can remove CLAW, and only eligible first-time claimers can trigger it.
+
+Tokenomics interpretation: the 70M was "committed" to faucet in the allocation. Under-distribution effectively reduces circulating supply — a deflationary side-effect, not a bug. If future ops wants a sweep, add `sweepUnclaimed(address to)` gated to DEFAULT_ADMIN_ROLE + `block.timestamp >= closeTime + grace`. Not sprint-blocking; tokenomics decision.
+
+**Cleared** (Codex): `hasClaimedLobsters` / `hasClaimedClaw` flag desync on revert (atomic), mid-tx close-time interference (impossible across txs), dual-claim in one tx (flags still gate), faucet-balance depletion at the 10_001st claimer (clean revert), batch-eligibility griefing (bounded at 500), repeat `setEligible` idempotent, multiple re-entry contracts no multiplier (guard is global).
+
+**Coverage gaps Codex flagged** (deferred):
+- `test_contractClaimerCanRerollFaucetDNAByRevertingReceiverHook` — demonstrate F-01 attack surface explicitly
+- `test_claimClaw_exactAllocationBoundary` — 70M drain then 10_001st reverts cleanly
+- `test_contractClaimer_withTransientEthStillPassesMinBalanceCheck` — documents flash-loan ETH bypass (caller-trust concern, not a runtime fix)
 
 ### RepairShop.sol — pending Phase 2
 
