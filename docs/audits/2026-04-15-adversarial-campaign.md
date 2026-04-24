@@ -70,6 +70,7 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **L-05** | Low | **Fixed** | Faucet | Missing `ReentrancyGuard` on claim functions (prior audit item) |
 | **F-01** | Low | Documented (operational policy) | Faucet | Contract claimers can reroll DNA via reverting `onERC1155Received` — admin must whitelist EOAs only |
 | **F-02** | Low | Documented (tokenomics) | Faucet | No sweep path for unused faucet pre-mint CLAW — unclaimed budget stays in contract |
+| **RP-01** | Low | Documented (state-machine caveat) | RepairShop | Repair callable during Active/AwaitingFinalize battle phases — damage not frozen across `settle()`→`finalize` window |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -768,7 +769,49 @@ Tokenomics interpretation: the 70M was "committed" to faucet in the allocation. 
 - `test_claimClaw_exactAllocationBoundary` — 70M drain then 10_001st reverts cleanly
 - `test_contractClaimer_withTransientEthStillPassesMinBalanceCheck` — documents flash-loan ETH bypass (caller-trust concern, not a runtime fix)
 
-### RepairShop.sol — pending Phase 2
+### RepairShop.sol — Phase 2 done 2026-04-23
+
+85-LOC single-function contract. `repair(lobsterId, pointsToRepair)` pulls `pointsToRepair × REPAIR_RATES[tier]` CLAW (Evolved 5 / Elite 15 / Apex 40; Base = 0 rejected), routes the fee through Treasury, decrements damage. `nonReentrant`, owner-only.
+
+**Read pass**: cost formula overflow (unreachable — damage ≤ 100, max rate 40e18, max cost 4e21 << uint256.max), rate-table mutability (initialized at declaration, no setter — effectively immutable), ordering atomicity (CLAW pull → fee → setDamage, atomic revert on any step), role-compromise blast radius.
+
+**New fuzz tests (6 added)**: locked-lobster-repair-allowed (mining lock doesn't block repair), soulbound-lobster-repair-allowed, fee-routed-to-Treasury (85/15 verified), insufficient-CLAW-reverts, max-damage-Apex (100 pts × 40e18 = 4,000 CLAW), exact-damage-sets-to-zero.
+
+**Deep profile**: 14/14 passing at 50k fuzz runs, 7s.
+
+**Codex red-team pre-fix pass (2026-04-23)** — 1 Low finding, cross-contract state-machine:
+
+### RP-01: Repair is callable during Active / AwaitingFinalize battle window
+
+Severity: Low (state-machine consistency, not an economic exploit)
+
+Status: Documented, no runtime fix.
+
+Sequence:
+1. Player's lobster is in an Active battle (team locked via `setTeamActive`).
+2. Resolver calls `BattleArena.settle(battleId, winner, winnerDmg, loserDmg)`. Post-H-01, `settle()` only RECORDS the proposed damage arrays; actual application happens in `_executePayout` during `finalizeBattle` or `adminResolveDispute`.
+3. During the 5-minute AwaitingFinalize window (or during Active prior to settle), the player calls `RepairShop.repair(lobsterId, N)`, which is NOT blocked — repair only checks owner + damage + tier, not team.active or battle participation.
+4. `finalizeBattle` later runs `_executePayout` → `_applyDamage`, which adds the proposed damage delta to `getDamage()` (the live, now-repaired value).
+
+Impact:
+- "Damage is frozen during battle" is an implicit, unstated invariant that the current code does not enforce.
+- Economic analysis: paying to repair mid-window does NOT save CLAW vs. normal post-battle repair. For any lifetime damage target, exploit cost ≥ normal cost (the `_applyDamage` cap at 100 doesn't create a free rescue — any "cap wastage" in the normal flow is matched by equal or larger up-front repair cost in the exploit flow).
+- Remaining concern: off-chain systems (UI, battle replay, leaderboard) that assume damage is immutable post-settle may display stale or inconsistent state.
+
+Mitigation options considered:
+- **(A) Reject repair when team is active**: RepairShop would need `teamManager` reference (currently unwired) and would also block repairs during mining (per tokenomics, mining allows repair — `test_repair_lockedLobster_allowed` asserts this). Not a net UX win.
+- **(B) Reject repair when team is in an active battle** (distinct from general lock): RepairShop would need `battleArena` reference + query `teamInBattle[teamId]`. Surface area expansion without economic justification.
+- **(C) Change `_applyDamage` to absolute-damage semantics**: store proposed final damage in the struct instead of delta, apply directly. Requires H-01 refactor. Big scope for a documented non-exploit.
+- **(D) Document and accept**: current choice. If off-chain systems need frozen-during-battle semantics, add guard in S2 with TeamManager wiring.
+
+Regression coverage gaps (deferred):
+- Test repairing a lobster during Active battle phase
+- Test repairing during AwaitingFinalize window
+- Assert lifetime cost is non-decreasing under exploit flow
+
+**Cleared** (Codex): cost-formula overflow unreachable, rate-table effectively immutable, call ordering atomic, reentrancy via CLAW/Treasury/LobsterNFT safe, `setDamage` role-gated state-write with no callback, burned-lobster race impossible (atomic tx), cross-contract repair-then-evolve reduces to ordinary tx ordering, L-01 `ownerOf` check trusted, no M-04-style slippage (REPAIR_RATES has no setter, tier is monotonic), cost rounding exact.
+
+**Final verdict** (Codex): "ship with caveats" — no fee-bypass, overflow, or reentrancy bug. State-machine gap documented.
 
 ### TeamManager.sol — pending Phase 2
 
