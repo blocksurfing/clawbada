@@ -26,8 +26,10 @@ contract ProtocolHandler is BaseSetup {
     function getTeamMgr()    external view returns (TeamManager)  { return teamMgr; }
     function getTreasury()   external view returns (Treasury)     { return treasury; }
     function getMiningPool() external view returns (MiningPool)   { return miningPool; }
+    function getMarketplace() external view returns (Marketplace) { return marketplace; }
     function getMintedIds()  external view returns (uint256[] memory) { return mintedIds; }
     function mintedIdsLength() external view returns (uint256)    { return mintedIds.length; }
+    function getActors() external view returns (address[] memory) { return actors; }
 
     constructor() {
         setUp(); // deploy all contracts via BaseSetup
@@ -374,6 +376,90 @@ contract InvariantProtocol is Test {
                     nft6.isLocked(id),
                     "lobster assigned to team must be locked"
                 );
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Phase 3: cross-contract conservation invariants
+    // ─────────────────────────────────────────────────────────────────────
+
+    // ── Marketplace ↔ NFT custody consistency ─────────────────────
+    // Every active listing must have its NFT held by the Marketplace contract.
+    // Catches: listing/escrow desync, NFT teleporting out of Marketplace mid-listing,
+    // cancel/buy paths that fail to restore NFT custody to seller/buyer.
+    function invariant_marketplace_listing_custody() public view {
+        Marketplace mp = handler.getMarketplace();
+        LobsterNFT nft7 = handler.getNft();
+        uint256 next = mp.nextListingId();
+
+        for (uint256 listingId = 1; listingId < next; listingId++) {
+            Marketplace.Listing memory l = mp.getListing(listingId);
+            if (!l.active) continue;
+            assertEq(
+                nft7.ownerOf(l.lobsterId),
+                address(mp),
+                "active listing NFT must be in Marketplace custody"
+            );
+        }
+    }
+
+    // ── lobsterToListing reverse-map consistency ──────────────────
+    // If lobsterToListing[id] == L, then _listings[L].lobsterId must equal id
+    // AND the listing must be active. Catches stale reverse-map after cancel/buy.
+    function invariant_marketplace_listing_reverse_map() public view {
+        Marketplace mp = handler.getMarketplace();
+        uint256[] memory ids = handler.getMintedIds();
+        LobsterNFT nft8 = handler.getNft();
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            if (!nft8.exists(id)) continue;
+            uint256 listingId = mp.lobsterToListing(id);
+            if (listingId == 0) continue;
+            Marketplace.Listing memory l = mp.getListing(listingId);
+            assertEq(l.lobsterId, id, "reverse-map points to listing for different lobster");
+            assertTrue(l.active, "lobsterToListing points to non-active listing");
+        }
+    }
+
+    // ── Lobster owner is non-zero for every existing token ───────
+    // Defense against any path that drains an owner without burning the token.
+    function invariant_lobster_owner_nonzero() public view {
+        uint256[] memory ids = handler.getMintedIds();
+        LobsterNFT nft9 = handler.getNft();
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            if (!nft9.exists(id)) continue;
+            assertNotEq(nft9.ownerOf(id), address(0), "existing lobster has zero owner");
+        }
+    }
+
+    // ── Team owner consistency ──────────────────────────────────
+    // For every existing team, all 3 lobsters' on-chain owner must equal team.owner.
+    // This is a stronger statement than `team_lobsters_locked`: catches scenarios
+    // where a transfer slipped through without disbanding the team (e.g., locker
+    // role compromise, missing isLocked check on a transfer path).
+    function invariant_team_owner_consistency() public view {
+        TeamManager mgr = handler.getTeamMgr();
+        LobsterNFT nft10 = handler.getNft();
+        address[] memory actors_ = handler.getActors();
+
+        for (uint256 a = 0; a < actors_.length; a++) {
+            uint256[] memory teams = mgr.getTeamsByOwner(actors_[a]);
+            for (uint256 t = 0; t < teams.length; t++) {
+                uint256 teamId = teams[t];
+                if (!mgr.teamExists(teamId)) continue;
+                TeamManager.Team memory team = mgr.getTeam(teamId);
+                for (uint256 j = 0; j < 3; j++) {
+                    uint256 id = team.lobsterIds[j];
+                    if (!nft10.exists(id)) continue;
+                    assertEq(
+                        nft10.ownerOf(id),
+                        team.owner,
+                        "team lobster owner desynced from team.owner"
+                    );
+                }
             }
         }
     }
