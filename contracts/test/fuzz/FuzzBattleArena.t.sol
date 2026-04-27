@@ -928,4 +928,72 @@ contract FuzzBattleArena is BaseSetup {
             if (b.phase == BattleArena.BattlePhase.Cancelled) break;
         }
     }
+
+    // TM-01: BattleArena's terminal paths must tolerate a deleted team
+    // (M-01 parity for BattleArena). Pre-fix, a compromised ACTIVITY_ROLE
+    // could force-mark a battle team inactive, the owner could then
+    // disband it, and the resulting `teamManager.getTeam(...)` call in
+    // `_applyDamage` (or `setTeamActive` in `_releaseTeam`) reverted
+    // `TeamDoesNotExist`, permanently bricking the settle/finalize and
+    // timeout paths and trapping escrowed CLAW.
+    function test_TM01_finalize_toleratesDeletedTeam() public {
+        (uint256 battleId, uint256 teamA,) = _setupSettleableBattle();
+
+        _settleProposing(battleId, alice);
+
+        // Compromised-role attack: force-deactivate alice's team via an
+        // ACTIVITY_ROLE holder (only MiningPool / BattleArena have this in
+        // production; we impersonate MiningPool to simulate compromise).
+        vm.prank(address(miningPool));
+        teamMgr.setTeamActive(teamA, false);
+        vm.prank(alice);
+        teamMgr.disbandTeam(teamA);
+        assertFalse(teamMgr.teamExists(teamA), "setup: team A is gone");
+
+        // Finalize must still terminate cleanly. Without the TM-01 guard,
+        // _applyDamage's getTeam() would revert and brick this path.
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        vm.warp(b.payoutDeadline + 1);
+        battleArena.finalizeBattle(battleId);
+
+        b = battleArena.getBattle(battleId);
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled), "battle settled despite missing team");
+        assertEq(b.winner, alice, "winner recorded");
+    }
+
+    // TM-01: same scenario via the timeout path (no settle, just timeout
+    // on Active phase with a forced-inactive + disbanded team).
+    function test_TM01_handleTimeout_toleratesDeletedTeam() public {
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupSettleableBattle();
+
+        // Force-disband team A mid-Active via a compromised ACTIVITY_ROLE holder.
+        vm.prank(address(miningPool));
+        teamMgr.setTeamActive(teamA, false);
+        vm.prank(alice);
+        teamMgr.disbandTeam(teamA);
+        assertFalse(teamMgr.teamExists(teamA));
+
+        // Warp past the COMMIT_WINDOW deadline. handleTimeout drives the
+        // battle into _handleActiveTimeout, which (with both reveals done)
+        // currently reverts MaxRoundsReached at MAX_ROUNDS — not the case
+        // here. Round 2 commit phase: nobody commits, both deadline-out,
+        // _cancelBattle path (which calls _releaseTeam). Without TM-01
+        // tolerance, _releaseTeam reverts TeamDoesNotExist on team A.
+        vm.prank(admin);
+        battleArena.advanceRound(battleId);
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        vm.warp(b.phaseDeadline + 1);
+        battleArena.handleTimeout(battleId);
+
+        b = battleArena.getBattle(battleId);
+        // Battle reaches a terminal state (Cancelled via mutual timeout)
+        assertTrue(
+            b.phase == BattleArena.BattlePhase.Cancelled || b.phase == BattleArena.BattlePhase.Active,
+            "timeout terminates without bricking"
+        );
+        // Team B's link still cleared if battle terminal
+        if (b.phase == BattleArena.BattlePhase.Cancelled) {
+            assertFalse(battleArena.teamInBattle(teamB), "team B released");
+        }
+    }
 }

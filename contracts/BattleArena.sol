@@ -634,6 +634,15 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     }
 
     function _applyDamage(uint256 battleId, uint256 teamId, uint8[3] memory damages) internal {
+        // TM-01 (M-01 parity): tolerate a deleted team. Under compromised
+        // ACTIVITY_ROLE, a battle team can be force-marked inactive and then
+        // disbanded by the owner, vaporising `_teams[teamId]`. Without this
+        // guard, `teamManager.getTeam(...)` reverts `TeamDoesNotExist` here
+        // and permanently bricks the settlement/timeout path, trapping
+        // escrowed stakes. Skip damage application instead — lobsters
+        // (if they still exist) keep their pre-battle damage.
+        if (!teamManager.teamExists(teamId)) return;
+
         TeamManager.Team memory team = teamManager.getTeam(teamId);
         for (uint256 i = 0; i < 3; i++) {
             uint256 lobId = team.lobsterIds[i];
@@ -647,7 +656,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     function _releaseTeam(uint256 teamId) internal {
         teamInBattle[teamId] = false;
-        teamManager.setTeamActive(teamId, false);
+        // TM-01 (M-01 parity): same deleted-team tolerance as _applyDamage.
+        // If the team record is gone, skip the cross-contract setTeamActive
+        // call so the settlement/timeout path still terminates and releases
+        // the escrowed CLAW.
+        if (teamManager.teamExists(teamId)) {
+            teamManager.setTeamActive(teamId, false);
+        }
     }
 
     function _cancelBattle(uint256 battleId, CancelReason reason) internal {
