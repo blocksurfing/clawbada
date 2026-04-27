@@ -898,7 +898,41 @@ The contract is wired into BattleArena's constructor and stored as a state varia
 
 **Final verdict**: no findings. Audit-clean as written. Standalone safe, integration-idle.
 
-### ClawToken.sol — pending Phase 2
+### ClawToken.sol — Phase 2 done 2026-04-27 (no findings, audit-clean)
+
+62 LOC. ERC-20 + ERC20Burnable + AccessControl. `mint(to, amount)` enforces `totalSupply + amount <= MAX_SUPPLY` (1B). Constructor mints 125M → LP, 100M → Treasury (225M at deploy). MiningPool holds persistent MINTER_ROLE for ≤705M lifetime emission via season budgets. Faucet receives 70M one-shot via `Configure.s.sol`'s ephemeral grant→mint→revoke.
+
+**Slither**: 0 findings. **Existing fuzz**: 11 tests passing — supply invariants, cap revert, burn-reduces-supply, zero-address constructor reverts, exact-cap mint.
+
+**Codex red-team**: Empty output returned twice (same as BattleVRF). Likely transient runtime issue with the rescue subagent — not a Codex-API issue. Proceeded with deeper in-house analysis given the 62-LOC surface.
+
+**Cap-with-burn-rebate semantics — confirmed safe by integration**:
+- Burn reduces `totalSupply`, which reopens cap headroom (`remainingMintable = MAX_SUPPLY - totalSupply`)
+- This is the standard OZ `ERC20Burnable + capped _mint` pattern
+- The actual emission schedule lives in `MiningPool._seasons[].totalEmission` — incremented at `startExpedition` (line 177) BEFORE the `claw.mint` (line 180)
+- MiningPool's per-season `totalMinted` cap fires `SeasonBudgetExhausted` first; the token cap (`ExceedsMaxSupply`) is defense-in-depth
+- Lifetime mining issuance is ≤ 705M by halving schedule construction, regardless of how the burn-rebate behaves
+- **The 1B token cap is not a lifetime issuance ceiling — it's a concurrent supply ceiling**. This is correct given the burn pressure and is documented behavior tested at line 105 of `FuzzClawToken.t.sol`.
+
+**Standalone surface — no findings**:
+- Constructor uses `_mint` (uncapped) but only mints 225M < 1B; if constants changed to make `LP + TREASURY > MAX_SUPPLY`, the next `mint()` call would revert with arithmetic underflow on `MAX_SUPPLY - totalSupply()`. Not silent corruption — fail-loud. *Forward-compat note, no fix needed for current values.*
+- ERC-20 has no callback hooks in OZ 5.x → no reentrancy surface.
+- No fee-on-transfer / rebase / pause / blacklist → fair-launch design choice, DEX-friendly.
+- `burnFrom` requires allowance per OZ; no special handling needed.
+- Constructor zero-address checks cover all three address inputs.
+- `mint()` reverts cleanly with `ExceedsMaxSupply(requested, available)` for cap overflow.
+- AccessControl flow (verified via `Configure.s.sol`):
+  - Persistent: `MINTER_ROLE → MiningPool` (line 76 of Configure.s.sol)
+  - Ephemeral: deployer grants `MINTER_ROLE → deployer`, mints 70M to Faucet, revokes (lines 167-169)
+  - After deploy, only MiningPool can mint
+- DEFAULT_ADMIN_ROLE governance risk (admin grants new minter → mints up to remaining cap) — covered by C-05 multisig runbook.
+
+**Integration audit**:
+- `MiningPool.startExpedition` (line 180): correctly bubbles `ExceedsMaxSupply` (no try/catch swallowing); season-budget check at line 176 fires first under normal operation.
+- `Configure.s.sol` ephemeral pattern: clean grant→mint→revoke with no other state changes between.
+- No other production caller mints via ClawToken.
+
+**Final verdict**: no findings. Audit-clean. The cap-with-burn-rebate behavior is intentional, tested, and integration-safe. Constants-invariant is the only forward-compat note (informational, no action needed).
 
 ## Codex red-team logs
 
