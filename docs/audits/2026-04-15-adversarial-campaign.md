@@ -874,7 +874,29 @@ The existing test `test_disband_burnedLobster_revertsOnSetLocked` documents the 
 
 **Final verdict** (Codex): "TeamManager is locally solid — duplicate detection, lobster exclusivity, and owner-list bookkeeping are correct. Residual risk is architectural — `team.active` is a single shared bit with no subsystem provenance. Unlike MiningPool (M-01 fix landed), BattleArena was still brickable" — addressed in this commit.
 
-### BattleVRF.sol — pending Phase 2 (or delete?)
+### BattleVRF.sol — Phase 2 done 2026-04-27 (no findings, dead-code state documented)
+
+75-LOC drand beacon store. `submitBeacon(round, value)` (OPERATOR_ROLE), `getBeacon`, `hasBeacon`, `deriveRandomness(round, salt) = keccak256(beacon, salt)`. Storage-only, no reentrancy surface, no arithmetic, no external calls.
+
+**Read pass + standalone analysis** (Codex returned empty twice on this prompt — likely transient runtime issue; analysis done in-house):
+
+**Dead-code verdict** — CONFIRMED via grep:
+```
+grep -rn "battleVRF\." contracts/ → 0 method invocations
+```
+The contract is wired into BattleArena's constructor and stored as a state variable but no contract code calls any of its methods. The H-01 challenge-window settle model takes the resolver-supplied damage arrays from calldata; drand is not in the post-H-01 critical path.
+
+**Recommendation**: keep deployed (don't delete). Per `CLAUDE.md` tokenomics, drand-based VRF is the planned battle-randomness model for a future trustless settle path; the contract NatSpec also says "S1: trusted operator. Future: on-chain BLS12-381 verification." Wired-but-idle is a forward-compatibility decision, not a bug. Deletion would be premature.
+
+**Standalone findings** (none):
+- Operator trust (compromised operator → predictable beacons) is the documented design tradeoff for S1; not a bug.
+- Sentinel collisions (`round = 0`, `value = 0`) both rejected at write time. Zero-valued real drand beacons have ~2^-256 probability — safe.
+- No rate limiting on beacon submission; operator pays own gas, self-grief only.
+- `latestRound` correctly non-strictly-monotonic — handles out-of-order submission.
+- No reentrancy, no arithmetic edges, no external calls — purely storage.
+- 14 existing tests in `test/BattleVRF.t.sol` cover the full happy + revert surface.
+
+**Final verdict**: no findings. Audit-clean as written. Standalone safe, integration-idle.
 
 ### ClawToken.sol — pending Phase 2
 
