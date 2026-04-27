@@ -180,4 +180,150 @@ contract FuzzTeamManager is BaseSetup {
         vm.expectRevert(abi.encodeWithSelector(TeamManager.TeamDoesNotExist.selector, teamId));
         teamMgr.disbandTeam(teamId);
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Phase 2 TeamManager pass — gap coverage
+    // ─────────────────────────────────────────────────────────────
+
+    // createTeam with a non-existent lobster reverts LobsterDoesNotExist.
+    function test_createTeam_nonExistentLobster_reverts() public {
+        uint256 lob1 = _mintLobster(alice, 0);
+        uint256 lob2 = _mintLobster(alice, 1);
+        uint256 ghost = 99_999_999; // never minted
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(TeamManager.LobsterDoesNotExist.selector, ghost));
+        teamMgr.createTeam([lob1, lob2, ghost]);
+    }
+
+    // disbandTeam clears _lobsterToTeam for every member, unlocking all 3.
+    function test_disband_clears_lobsterToTeam_forAll() public {
+        uint256[3] memory ids = _mint3(alice);
+
+        vm.prank(alice);
+        uint256 teamId = teamMgr.createTeam(ids);
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(teamMgr.getLobsterTeam(ids[i]), teamId);
+        }
+
+        vm.prank(alice);
+        teamMgr.disbandTeam(teamId);
+
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(teamMgr.getLobsterTeam(ids[i]), 0, "lobster-to-team cleared after disband");
+            assertFalse(nft.isLocked(ids[i]), "unlocked after disband");
+        }
+    }
+
+    // Swap-and-pop on a mid-list team keeps the remaining teams consistent
+    // with their owner-list indices.
+    function test_disband_midList_swapAndPop_consistency() public {
+        // Create 3 teams for alice
+        uint256[3] memory a = _mint3(alice);
+        uint256[3] memory b = _mint3(alice);
+        uint256[3] memory c = _mint3(alice);
+
+        vm.prank(alice); uint256 t1 = teamMgr.createTeam(a);
+        vm.prank(alice); uint256 t2 = teamMgr.createTeam(b);
+        vm.prank(alice); uint256 t3 = teamMgr.createTeam(c);
+
+        uint256[] memory teams = teamMgr.getTeamsByOwner(alice);
+        assertEq(teams.length, 3);
+
+        // Disband the middle team (t2)
+        vm.prank(alice);
+        teamMgr.disbandTeam(t2);
+
+        teams = teamMgr.getTeamsByOwner(alice);
+        assertEq(teams.length, 2, "one team removed");
+
+        // Remaining: t1 + t3 (in some order via swap-and-pop)
+        bool foundT1 = false;
+        bool foundT3 = false;
+        for (uint256 i = 0; i < teams.length; i++) {
+            if (teams[i] == t1) foundT1 = true;
+            if (teams[i] == t3) foundT3 = true;
+        }
+        assertTrue(foundT1, "t1 preserved");
+        assertTrue(foundT3, "t3 preserved");
+
+        // Can still disband the remaining teams cleanly (no stale index).
+        vm.prank(alice); teamMgr.disbandTeam(t1);
+        vm.prank(alice); teamMgr.disbandTeam(t3);
+
+        assertEq(teamMgr.getTeamsByOwner(alice).length, 0);
+    }
+
+    // setTeamActive requires ACTIVITY_ROLE.
+    function testFuzz_setTeamActive_unauthorized_reverts(address caller) public {
+        vm.assume(caller != admin && caller != address(miningPool) && caller != address(battleArena));
+
+        uint256[3] memory ids = _mint3(alice);
+        vm.prank(alice);
+        uint256 teamId = teamMgr.createTeam(ids);
+
+        vm.prank(caller);
+        vm.expectRevert();
+        teamMgr.setTeamActive(teamId, true);
+    }
+
+    // setTeamActive on nonexistent team reverts. ACTIVITY_ROLE holder
+    // is MiningPool/BattleArena in production; we impersonate MiningPool
+    // to pass the role gate and hit the TeamDoesNotExist check beneath.
+    function testFuzz_setTeamActive_nonExistentTeam_reverts(uint256 teamId) public {
+        vm.assume(!teamMgr.teamExists(teamId));
+        vm.prank(address(miningPool));
+        vm.expectRevert(abi.encodeWithSelector(TeamManager.TeamDoesNotExist.selector, teamId));
+        teamMgr.setTeamActive(teamId, true);
+    }
+
+    // I-05 scenario (prior audit): disbandTeam uses team.owner for auth,
+    // not current ownerOf(lobster). Since lobsters are locked on team
+    // creation and cannot be transferred, team.owner remains authoritative.
+    // This test documents the invariant: the original creator disbands
+    // even though current NFT ownership is identical (locked prevents
+    // transfer), and the setLocked(false) call succeeds on every lobster.
+    function test_I05_disbandAuthByTeamOwner_lobsterLockPreservesInvariant() public {
+        uint256[3] memory ids = _mint3(alice);
+        vm.prank(alice);
+        uint256 teamId = teamMgr.createTeam(ids);
+
+        // Lobsters are locked. ownerOf is still alice (locked doesn't change
+        // ERC-1155 ownership, just blocks transfer). Confirm.
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(nft.ownerOf(ids[i]), alice);
+            assertTrue(nft.isLocked(ids[i]));
+        }
+
+        // Alice disbands (team.owner matches msg.sender).
+        vm.prank(alice);
+        teamMgr.disbandTeam(teamId);
+
+        for (uint256 i = 0; i < 3; i++) {
+            assertFalse(nft.isLocked(ids[i]));
+        }
+    }
+
+    // Disband reverts if a team lobster was burned (defence-in-depth:
+    // today this can't happen because team lobsters are locked, but if
+    // LOCKER_ROLE + BURNER_ROLE are ever both compromised, disband would
+    // try to setLocked on a non-existent lobster and revert. This test
+    // pins the current behavior.)
+    function test_disband_burnedLobster_revertsOnSetLocked() public {
+        uint256[3] memory ids = _mint3(alice);
+        vm.prank(alice);
+        uint256 teamId = teamMgr.createTeam(ids);
+
+        // Admin has both LOCKER_ROLE (to unlock) and BURNER_ROLE (to burn)
+        // in BaseSetup — simulate a compromised-role scenario.
+        vm.prank(admin);
+        nft.setLocked(ids[0], false);
+        vm.prank(admin);
+        nft.burn(ids[0]);
+
+        // Alice tries to disband. setLocked on the burned lobster reverts.
+        vm.prank(alice);
+        vm.expectRevert(); // TokenDoesNotExist from LobsterNFT._requireExists
+        teamMgr.disbandTeam(teamId);
+    }
 }

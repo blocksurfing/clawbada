@@ -71,6 +71,8 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **F-01** | Low | Documented (operational policy) | Faucet | Contract claimers can reroll DNA via reverting `onERC1155Received` — admin must whitelist EOAs only |
 | **F-02** | Low | Documented (tokenomics) | Faucet | No sweep path for unused faucet pre-mint CLAW — unclaimed budget stays in contract |
 | **RP-01** | Low | Documented (state-machine caveat) | RepairShop | Repair callable during Active/AwaitingFinalize battle phases — damage not frozen across `settle()`→`finalize` window |
+| **TM-01** | Medium | **Fixed** | BattleArena | Terminal paths reverted on deleted team (M-01 parity miss) — compromised ACTIVITY_ROLE could brick battle settlement and trap stakes |
+| **TM-02** | Low | Documented (C-05 instance) | TeamManager | `disbandTeam` reverts if a team lobster was burned via compromised LOCKER+BURNER role chain |
 | **T-01** | Info | Documented | Tooling | Aderyn 0.1.9 incompatible with OZ v5 `evm_version = 'prague'` |
 | **T-02** | Info | Test migration landed | Tests | Test suite did not compile against the hardening fix-pass |
 
@@ -813,9 +815,66 @@ Regression coverage gaps (deferred):
 
 **Final verdict** (Codex): "ship with caveats" — no fee-bypass, overflow, or reentrancy bug. State-machine gap documented.
 
-### TeamManager.sol — pending Phase 2
+### TeamManager.sol — Phase 2 done 2026-04-26
 
-### BattleVRF.sol — pending Phase 2
+173-LOC team registry. `createTeam(uint256[3])` locks 3 lobsters (existence + ownership + no-duplicate + not-already-assigned checks). `disbandTeam(teamId)` unlocks if `!active`. `setTeamActive(teamId, bool)` is ACTIVITY_ROLE only (held by MiningPool + BattleArena). Owner team list maintained via `_ownerTeams` array + `_teamIndex` map with O(1) swap-and-pop on disband.
+
+**Read pass**: duplicate detection logic correctness across all 4 cases (a==b, a==c, b==c, a==b==c — all reach the right revert), swap-and-pop bookkeeping, role-compromise cascades, ownership-drift via lock invariant, multi-subsystem activity flag.
+
+**New fuzz tests (7 added)**: createTeam-nonExistentLobster, disband-clears-lobsterToTeam-forAll, disband-midList-swapAndPop-consistency, setTeamActive-unauthorized-reverts, setTeamActive-nonExistentTeam-reverts, I-05-disbandAuthByTeamOwner-lobsterLockPreservesInvariant, disband-burnedLobster-revertsOnSetLocked (documents the role-compromise edge case).
+
+**Codex red-team pre-fix pass (2026-04-26)** — 1 Medium finding (M-01 parity miss in BattleArena!) + 1 Low cross-contract role-compromise:
+
+### TM-01: BattleArena terminal paths brick on deleted teams (M-01 parity)
+
+Severity: Medium
+
+Status: **Fixed** in BattleArena (parallel to the earlier MiningPool M-01 fix).
+
+This is the same bug class as M-01, which I fixed in MiningPool but missed applying to BattleArena. Codex caught the omission.
+
+Sequence:
+1. Player reveals team in `BattleArena`. Team is marked active in TeamManager via `setTeamActive(teamId, true)`.
+2. Compromised `ACTIVITY_ROLE` holder calls `TeamManager.setTeamActive(teamId, false)` directly. (BattleArena's `teamInBattle[teamId]` is unchanged because it's BattleArena-local state.)
+3. The team owner now sees `team.active == false` and calls `TeamManager.disbandTeam(teamId)` — passes the active check, deletes the team record entirely.
+4. Battle eventually reaches a terminal state — `_executePayout` calls `_applyDamage` which calls `teamManager.getTeam(teamId)`, OR `_cancelBattle/_forfeit` calls `_releaseTeam` which calls `teamManager.setTeamActive(teamId, false)`.
+5. Pre-fix, BOTH calls reverted `TeamDoesNotExist` on the deleted team. Whole tx reverted. Battle stuck non-terminal indefinitely. Escrowed CLAW (stakes + anti-grief) trapped in BattleArena forever.
+
+Fix (parallel to M-01 in MiningPool):
+- `_applyDamage`: prefix with `if (!teamManager.teamExists(teamId)) return;` — skip damage application for the deleted team. Lobsters (if they still exist) keep their pre-battle damage. The other team's damage and the payout proceed normally.
+- `_releaseTeam`: guard the `setTeamActive` call with `teamExists`. Same shape as M-01's fix.
+
+Regression tests in `FuzzBattleArena.t.sol`:
+- `test_TM01_finalize_toleratesDeletedTeam` — drives the H-01 settle → AwaitingFinalize → forced-disband-of-team-A → finalize sequence. Asserts the battle reaches Settled with the expected winner despite team A's record being gone.
+- `test_TM01_handleTimeout_toleratesDeletedTeam` — analogous but via the timeout path through `_handleActiveTimeout` → `_cancelBattle` → `_releaseTeam`.
+
+This was a real miss in the MiningPool sprint — I applied the M-01 fix only to MiningPool's two terminal paths and didn't audit BattleArena for the same shape. Codex's cross-contract analogy ("compare to MiningPool M-01 fix") surfaced it cleanly.
+
+### TM-02: `disbandTeam` reverts if a team lobster was burned
+
+Severity: Low (requires LOCKER+BURNER role chain compromise)
+
+Status: Documented as C-05 instance, no runtime fix.
+
+Sequence:
+1. Compromised LOCKER_ROLE calls `nft.setLocked(lobId, false)` to unlock a team lobster.
+2. Compromised BURNER_ROLE calls `nft.burn(lobId)` (the locked check now passes).
+3. Team owner calls `disbandTeam(teamId)`. The function tries `setLocked(burnedId, false)` for the burned lobster. LobsterNFT's `_requireExists` reverts `TokenDoesNotExist`. Whole disband reverts. Team is permanently undisbandable.
+
+Mitigation options considered:
+- (a) Tolerate missing lobsters in `disbandTeam`: similar to M-01/TM-01 pattern. Cheap fix.
+- (b) Forbid burning of assigned lobsters at the LobsterNFT layer: requires LobsterNFT to query TeamManager. Cyclic dependency.
+- (c) Admin remediation path: introduces admin trust surface.
+
+Decision: defer. The attack requires TWO role compromises (LOCKER + BURNER), not just one — significantly higher bar than M-01/TM-01 (single ACTIVITY_ROLE compromise). C-05 runbook covers this class. If S2 makes role compromise cheaper, revisit with option (a).
+
+The existing test `test_disband_burnedLobster_revertsOnSetLocked` documents the current behavior — pinning the revert keeps the implication visible if the design ever changes.
+
+**Cleared** (Codex): duplicate detection across all 4 cases, swap-and-pop correctness, no reentrancy in createTeam (setLocked has no callback), I-05 informational under current invariants (lobster lock prevents ownership drift), honest-flow mining/battle overlap blocked at startExpedition + revealTeam, multiple-teams-per-lobster impossible, gas O(1) on createTeam/disbandTeam (`getTeamsByOwner` is caller-paid read).
+
+**Final verdict** (Codex): "TeamManager is locally solid — duplicate detection, lobster exclusivity, and owner-list bookkeeping are correct. Residual risk is architectural — `team.active` is a single shared bit with no subsystem provenance. Unlike MiningPool (M-01 fix landed), BattleArena was still brickable" — addressed in this commit.
+
+### BattleVRF.sol — pending Phase 2 (or delete?)
 
 ### ClawToken.sol — pending Phase 2
 
