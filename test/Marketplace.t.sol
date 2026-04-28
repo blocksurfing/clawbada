@@ -356,7 +356,9 @@ contract MarketplaceTest is Test {
         marketplace.buyLobster(listingId, type(uint256).max);
     }
 
-    function test_buyLobsterSellerCanBuyOwn() public {
+    // I-01 closed: self-purchase now reverts with `SelfPurchase`. Pre-fix
+    // this test verified that wash trading was allowed (cost = 2.5% fee).
+    function test_buyLobsterSellerSelfPurchaseReverts() public {
         uint256 lobsterId = _mintLobster(alice, false);
         uint256 price = 1_000e18;
         uint256 listingId = _listLobster(alice, lobsterId, price);
@@ -365,10 +367,8 @@ contract MarketplaceTest is Test {
         _approveClaw(alice, price);
 
         vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.SelfPurchase.selector, alice));
         marketplace.buyLobster(listingId, type(uint256).max);
-
-        // Alice gets her NFT back (and paid the fee)
-        assertEq(nft.ownerOf(lobsterId), alice);
     }
 
     function test_buyLobsterClearsLobsterToListing() public {

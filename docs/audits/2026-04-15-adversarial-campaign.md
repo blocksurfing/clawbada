@@ -1056,6 +1056,18 @@ setUp                 44362
 
 This is the campaign's strongest signal: 5.6M random adversarial sequences could not violate any of the 14 cross-contract conservation properties. Combined with the per-contract Phase 1-2 fuzz suites and the H-01 challenge-window structural fix, the protocol's economic, state machine, and trust boundary surfaces are all green.
 
+## Phase 4 — prior-audit close-out (2026-04-27)
+
+Closing the remaining open items from `2026-03-06-manual-contract-audit.md`. Each Phase 4 commit lands one cluster.
+
+### I-01 — Marketplace self-purchase wash trade — **CLOSED** (commit 19)
+
+`Marketplace.buyLobster` now reverts `SelfPurchase(msg.sender)` if the buyer is the listing's seller. Closes the wash-trading vector (artificial volume / fake social proof at cost of 2.5% fee). Two regression tests: `test_I01_selfPurchase_reverts` (positive) and `test_I01_thirdPartyPurchase_stillWorks` (negative control). Legacy `test/Marketplace.t.sol::test_buyLobsterSellerCanBuyOwn` updated to `test_buyLobsterSellerSelfPurchaseReverts`.
+
+### I-02 — BattleArena redundant `teamInBattle` clear — **CLOSED** (commit 19)
+
+`_executePayout` previously pre-cleared `teamInBattle[A]` and `teamInBattle[B]` immediately after the phase update, then `_releaseTeam` cleared them again at the end (~200 gas waste per settlement). Removed the pre-clear; `_releaseTeam` is now the canonical clear point, mirroring the `_cancelBattle` pattern. Reentrancy is already blocked via `nonReentrant` on every public entrypoint that reaches `_executePayout`. No new tests required — existing battle settlement tests cover the path; all 818 still pass.
+
 ## Codex red-team logs
 
 Each contract pass produces two Codex transcripts (pre-fix and post-fix). Logged here as added.
