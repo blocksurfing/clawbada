@@ -219,35 +219,10 @@ contract FuzzMarketplace is BaseSetup {
     // Phase 2 Marketplace pass — gap coverage
     // ─────────────────────────────────────────────────────────────
 
-    // I-01 (prior audit, known-open design): seller can buy their own
-    // listing (wash trade). This test DOCUMENTS the behavior — the only
-    // cost is the 2.5% protocol fee, and the NFT ends up back with seller.
-    // If we ever want to forbid self-purchase, flip this to `expectRevert`.
-    function test_I01_selfPurchase_allowed_cost_is_fee() public {
-        uint256 lobsterId = _mintLobster(alice, 0);
-        uint256 price = 100_000e18;
-        uint256 listingId = _list(alice, lobsterId, price);
-
-        _giveClaw(alice, price);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 supplyBefore = claw.totalSupply();
-
-        vm.startPrank(alice);
-        claw.approve(address(marketplace), price);
-        marketplace.buyLobster(listingId, type(uint256).max);
-        vm.stopPrank();
-
-        // Alice paid the fee (burned + dev), received her own proceeds.
-        // Net CLAW cost = fee = price × 2.5% = 2500 CLAW.
-        uint256 expectedFee = price * marketplace.FEE_BPS() / marketplace.BPS_DENOMINATOR();
-        assertEq(aliceBefore - claw.balanceOf(alice), expectedFee, "wash trade costs seller the 2.5% fee");
-
-        // NFT owned by alice again, 85% of fee burned.
-        assertEq(nft.ownerOf(lobsterId), alice, "wash trade returns NFT to seller");
-        uint256 burned = supplyBefore - claw.totalSupply();
-        uint256 expectedBurn = expectedFee * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR();
-        assertEq(burned, expectedBurn, "85% of fee burned");
-    }
+    // I-01 closed by SelfPurchase guard — see test_I01_selfPurchase_reverts
+    // and test_I01_thirdPartyPurchase_stillWorks below for the post-fix
+    // assertions. Pre-fix behavior (wash trade cost 2.5% fee, returned NFT
+    // to seller) is no longer reachable.
 
     // After listLobster, `ownerOf` returns the Marketplace contract (NFT is
     // escrowed). Verifies the L-01 fix didn't break escrow accounting.
@@ -490,6 +465,43 @@ contract FuzzMarketplace is BaseSetup {
         Marketplace.Listing memory l = marketplace.getListing(listingId);
         assertTrue(l.active, "listing still active");
         assertEq(nft.ownerOf(lobsterId), address(marketplace), "NFT still escrowed");
+    }
+
+    // I-01: seller cannot buy their own listing — closes the wash-trading
+    // vector (artificial volume / fake social proof at cost of 2.5% fee).
+    function test_I01_selfPurchase_reverts() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 price = 500_000e18;
+        uint256 listingId = _list(alice, lobsterId, price);
+
+        _giveClaw(alice, price);
+
+        vm.startPrank(alice);
+        claw.approve(address(marketplace), price);
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.SelfPurchase.selector, alice));
+        marketplace.buyLobster(listingId, price);
+        vm.stopPrank();
+
+        // Listing remains active; nothing changed.
+        Marketplace.Listing memory l = marketplace.getListing(listingId);
+        assertTrue(l.active, "listing still active after self-purchase revert");
+        assertEq(nft.ownerOf(lobsterId), address(marketplace));
+    }
+
+    // I-01: a third party can still buy the listing (negative control —
+    // verifies the seller-only check doesn't accidentally block legitimate buyers).
+    function test_I01_thirdPartyPurchase_stillWorks() public {
+        uint256 lobsterId = _mintLobster(alice, 0);
+        uint256 price = 500_000e18;
+        uint256 listingId = _list(alice, lobsterId, price);
+
+        _giveClaw(bob, price);
+        vm.startPrank(bob);
+        claw.approve(address(marketplace), price);
+        marketplace.buyLobster(listingId, price);
+        vm.stopPrank();
+
+        assertEq(nft.ownerOf(lobsterId), bob);
     }
 }
 

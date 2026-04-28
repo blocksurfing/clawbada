@@ -604,9 +604,10 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         uint256 winnerTeam = winner == b.playerA ? b.teamIdA : b.teamIdB;
         uint256 loserTeam = winner == b.playerA ? b.teamIdB : b.teamIdA;
 
-        // Clear team battle status
-        teamInBattle[b.teamIdA] = false;
-        teamInBattle[b.teamIdB] = false;
+        // I-02 (gas): teamInBattle cleared inside _releaseTeam below; no need
+        // for redundant pre-clear here. Reentrancy is already blocked via the
+        // `nonReentrant` modifier on every public entrypoint that reaches
+        // _executePayout. Mirrors the _cancelBattle pattern.
 
         // Calculate payouts
         uint256 combinedPot = b.stakeAmount * 2;

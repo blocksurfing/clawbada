@@ -73,6 +73,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     ///         M-04: prevents a seller from front-running a buyer's `buyLobster`
     ///         with `updatePrice` to extract more CLAW than the buyer intended.
     error PriceExceedsMaximum(uint256 currentPrice, uint256 maxPrice);
+    error SelfPurchase(address seller);
 
     // ──────────── Constructor ────────────
 
@@ -140,6 +141,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
         Listing storage listing = _listings[listingId];
         if (!listing.active) revert ListingNotActive(listingId);
         if (listing.price > maxPrice) revert PriceExceedsMaximum(listing.price, maxPrice);
+        if (listing.seller == msg.sender) revert SelfPurchase(msg.sender);
 
         // CEI: update state before external calls
         listing.active = false;
