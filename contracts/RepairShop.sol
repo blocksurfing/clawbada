@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
 
@@ -12,6 +13,8 @@ import {Treasury} from "./Treasury.sol";
 /// @dev Repair rates scale by evolution tier: Evolved 5, Elite 15, Apex 40 $CLAW per damage point.
 ///      Base tier lobsters cannot accumulate battle damage and have a rate of 0.
 contract RepairShop is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     // ──────────── Constants ────────────
     uint256[4] public REPAIR_RATES = [0, 5e18, 15e18, 40e18]; // per damage point: Base/Evolved/Elite/Apex
 
@@ -69,11 +72,11 @@ contract RepairShop is ReentrancyGuard {
         // Calculate cost
         uint256 cost = uint256(pointsToRepair) * rate;
 
-        // Pull $CLAW from user
-        clawToken.transferFrom(msg.sender, address(this), cost);
+        // Pull $CLAW from user (I-04 SafeERC20)
+        clawToken.safeTransferFrom(msg.sender, address(this), cost);
 
-        // Route fee through Treasury
-        clawToken.approve(address(treasury), cost);
+        // Route fee through Treasury (I-03 forceApprove)
+        clawToken.forceApprove(address(treasury), cost);
         treasury.processFee(cost);
 
         // Set new damage

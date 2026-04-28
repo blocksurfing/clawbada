@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
 
@@ -12,6 +13,8 @@ import {Treasury} from "./Treasury.sol";
 /// @dev Base→Evolved (2K $CLAW), Evolved→Elite (10K), Elite→Apex (50K).
 ///      Fuel lobsters are permanently burned. Soulbound lobsters can be evolved and used as fuel.
 contract EvolutionLab is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     // ──────────── Constants ────────────
     uint256[3] public EVOLUTION_COSTS = [2_000e18, 10_000e18, 50_000e18];
 
@@ -69,12 +72,12 @@ contract EvolutionLab is ReentrancyGuard {
         _validateFuel(fuelId1, currentTier);
         _validateFuel(fuelId2, currentTier);
 
-        // Pull $CLAW from user
+        // Pull $CLAW from user (I-04 SafeERC20)
         uint256 cost = EVOLUTION_COSTS[currentTier];
-        clawToken.transferFrom(msg.sender, address(this), cost);
+        clawToken.safeTransferFrom(msg.sender, address(this), cost);
 
-        // Route fee through Treasury
-        clawToken.approve(address(treasury), cost);
+        // Route fee through Treasury (I-03 forceApprove)
+        clawToken.forceApprove(address(treasury), cost);
         treasury.processFee(cost);
 
         // Burn fuel lobsters

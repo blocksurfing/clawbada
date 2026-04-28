@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {ClawToken} from "./ClawToken.sol";
 import {DNALib} from "./libraries/DNALib.sol";
@@ -11,6 +13,8 @@ import {DNALib} from "./libraries/DNALib.sol";
 /// @notice Gives eligible wallets 5 soulbound lobsters + 7,000 $CLAW. Closes ~7 days after launch.
 /// @dev Eligibility is set by admin (off-chain verification of wallet age/txs). ETH balance checked on-chain.
 contract Faucet is AccessControl, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     // ──────────── Roles ────────────
     bytes32 public constant ELIGIBILITY_ROLE = keccak256("ELIGIBILITY_ROLE");
 
@@ -131,7 +135,9 @@ contract Faucet is AccessControl, ReentrancyGuard {
         totalClawClaimed += CLAW_DRIP_AMOUNT;
 
         if (clawToken.balanceOf(address(this)) < CLAW_DRIP_AMOUNT) revert InsufficientFaucetBalance();
-        clawToken.transfer(msg.sender, CLAW_DRIP_AMOUNT);
+        // I-04 SafeERC20: clawToken is typed as ClawToken for the constructor
+        // contract reference; cast at the boundary for safeTransfer.
+        IERC20(address(clawToken)).safeTransfer(msg.sender, CLAW_DRIP_AMOUNT);
         emit ClawClaimed(msg.sender, CLAW_DRIP_AMOUNT);
     }
 

@@ -1068,6 +1068,20 @@ Closing the remaining open items from `2026-03-06-manual-contract-audit.md`. Eac
 
 `_executePayout` previously pre-cleared `teamInBattle[A]` and `teamInBattle[B]` immediately after the phase update, then `_releaseTeam` cleared them again at the end (~200 gas waste per settlement). Removed the pre-clear; `_releaseTeam` is now the canonical clear point, mirroring the `_cancelBattle` pattern. Reentrancy is already blocked via `nonReentrant` on every public entrypoint that reaches `_executePayout`. No new tests required — existing battle settlement tests cover the path; all 818 still pass.
 
+### I-03 + I-04 — SafeERC20 migration — **CLOSED** (commit 20)
+
+All bare `IERC20` `transfer` / `transferFrom` / `approve` calls migrated to OpenZeppelin's `SafeERC20`:
+- `safeTransfer` / `safeTransferFrom` — handle non-standard tokens that revert without a string or return `false` instead of `true`.
+- `forceApprove` — handle tokens that revert on non-zero-to-non-zero allowance changes.
+
+Contracts migrated: BattleArena (9 calls), BreedingLab (2), EvolutionLab (2), Marketplace (3), RepairShop (2), MiningPool (1), Faucet (1), Treasury (2). Total: **22 call sites across 8 contracts**.
+
+Storage typing: BattleArena, BreedingLab, EvolutionLab, Marketplace, RepairShop already use `IERC20 public clawToken` — direct `using SafeERC20 for IERC20;` directive applies. MiningPool and Faucet retain `ClawToken` typing for the `mint` / contract-reference paths and cast `IERC20(address(clawToken))` at SafeERC20 call sites. Treasury retains `IClawBurnable` typing for the `burn` call and casts at the safeTransfer call sites.
+
+Although `ClawToken` is well-behaved (returns `true` on every path; standard non-zero approve handling), the migration future-proofs against other tokens entering the system later (e.g., a swap module accepting non-standard ERC20s) and aligns with current OZ v5.5+ defensive coding.
+
+Verification: full suite **818/818 pass**, invariant suite **14/14 pass on ci profile** post-migration.
+
 ## Codex red-team logs
 
 Each contract pass produces two Codex transcripts (pre-fix and post-fix). Logged here as added.
