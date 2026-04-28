@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
@@ -13,6 +14,8 @@ import {Treasury} from "./Treasury.sol";
 /// @dev Escrow model: NFT transferred to contract on listing, returned on cancel.
 ///      LobsterNFT._update() automatically rejects soulbound and locked transfers.
 contract Marketplace is ReentrancyGuard, ERC1155Holder {
+    using SafeERC20 for IERC20;
+
     // ──────────── Constants ────────────
     uint256 public constant FEE_BPS = 250; // 2.5%
     uint256 public constant BPS_DENOMINATOR = 10_000;
@@ -153,17 +156,18 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
         uint256 fee = (price * FEE_BPS) / BPS_DENOMINATOR;
         uint256 sellerProceeds = price - fee;
 
-        // Pull full price from buyer
-        clawToken.transferFrom(msg.sender, address(this), price);
+        // Pull full price from buyer (I-04 SafeERC20)
+        clawToken.safeTransferFrom(msg.sender, address(this), price);
 
-        // Route fee through Treasury (skip if fee rounds to zero)
+        // Route fee through Treasury (I-03 forceApprove). Skip if fee rounds
+        // to zero (T-03 minimum is 10_000 wei; below that processFee reverts).
         if (fee > 0) {
-            clawToken.approve(address(treasury), fee);
+            clawToken.forceApprove(address(treasury), fee);
             treasury.processFee(fee);
         }
 
         // Pay seller
-        clawToken.transfer(seller, sellerProceeds);
+        clawToken.safeTransfer(seller, sellerProceeds);
 
         // Transfer NFT to buyer
         lobsterNFT.safeTransferFrom(address(this), msg.sender, lobsterId, 1, "");

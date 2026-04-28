@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {TeamManager} from "./TeamManager.sol";
 import {Treasury} from "./Treasury.sol";
@@ -43,6 +44,8 @@ import {BattleVRF} from "./BattleVRF.sol";
 /// See: docs/audits/2026-03-06-manual-contract-audit.md (H-01),
 ///      docs/audits/2026-04-15-adversarial-campaign.md (H-01 challenge window).
 contract BattleArena is AccessControl, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     // ──────────── Roles ────────────
     bytes32 public constant MATCHMAKER_ROLE = keccak256("MATCHMAKER_ROLE");
     bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
@@ -255,7 +258,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
         uint256 antiGrief = b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
         uint256 total = b.stakeAmount + antiGrief;
-        clawToken.transferFrom(msg.sender, address(this), total);
+        clawToken.safeTransferFrom(msg.sender, address(this), total);
 
         emit StakeDeposited(battleId, msg.sender);
 
@@ -615,13 +618,15 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         uint256 winnerPayout = combinedPot - protocolFee;
         uint256 antiGrief = b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
 
-        // Route protocol fee through Treasury
-        clawToken.approve(address(treasury), protocolFee);
+        // Route protocol fee through Treasury (I-03/I-04: forceApprove +
+        // safeTransfer; ClawToken is well-behaved but the migration future-
+        // proofs against tokens that revert on non-zero-to-non-zero approve).
+        clawToken.forceApprove(address(treasury), protocolFee);
         treasury.processFee(protocolFee);
 
         // Transfer payouts: winner gets pot - fee + their anti-grief, loser gets anti-grief back
-        clawToken.transfer(winner, winnerPayout + antiGrief);
-        clawToken.transfer(loser, antiGrief);
+        clawToken.safeTransfer(winner, winnerPayout + antiGrief);
+        clawToken.safeTransfer(loser, antiGrief);
 
         // Apply damage to lobsters
         _applyDamage(battleId, winnerTeam, winnerDamage);
@@ -673,12 +678,12 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         uint256 antiGrief = b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
         uint256 depositTotal = b.stakeAmount + antiGrief;
 
-        // Refund any deposits
+        // Refund any deposits (I-04: safeTransfer)
         if (b.depositA) {
-            clawToken.transfer(b.playerA, depositTotal);
+            clawToken.safeTransfer(b.playerA, depositTotal);
         }
         if (b.depositB) {
-            clawToken.transfer(b.playerB, depositTotal);
+            clawToken.safeTransfer(b.playerB, depositTotal);
         }
 
         // Release any committed teams
@@ -695,15 +700,16 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         address other = forfeiter == b.playerA ? b.playerB : b.playerA;
         uint256 antiGrief = b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
 
-        // Forfeiter loses anti-grief → Treasury (burned)
-        clawToken.approve(address(treasury), antiGrief);
+        // Forfeiter loses anti-grief → Treasury (burned). I-03/I-04: forceApprove
+        // + safeTransfer migration.
+        clawToken.forceApprove(address(treasury), antiGrief);
         treasury.processFee(antiGrief);
         emit AntiGriefSlashed(battleId, forfeiter, antiGrief);
 
         // Forfeiter gets stake back (no anti-grief)
-        clawToken.transfer(forfeiter, b.stakeAmount);
+        clawToken.safeTransfer(forfeiter, b.stakeAmount);
         // Other player gets stake + their anti-grief back
-        clawToken.transfer(other, b.stakeAmount + antiGrief);
+        clawToken.safeTransfer(other, b.stakeAmount + antiGrief);
 
         // Release any committed teams
         if (b.teamRevealedA) _releaseTeam(b.teamIdA);

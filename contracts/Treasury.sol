@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title Treasury — Protocol fee splitter for Clawbada
 /// @notice Receives $CLAW fees from game contracts and splits: 85% burn / 15% dev wallet.
@@ -14,6 +15,8 @@ interface IClawBurnable is IERC20 {
 }
 
 contract Treasury is Ownable2Step, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     // ──────────── Constants ────────────
     uint256 public constant BURN_BPS = 8500;
     uint256 public constant DEV_BPS = 1500;
@@ -105,15 +108,17 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
         uint256 burnAmount = (amount * BURN_BPS) / BPS_DENOMINATOR;
         uint256 devAmount = amount - burnAmount; // remainder to dev, avoids rounding dust
 
-        // Pull tokens from caller
-        clawToken.transferFrom(msg.sender, address(this), amount);
+        // I-04 (SafeERC20): pull, burn, distribute. ClawToken is well-behaved
+        // (returns true on every path), but Safe* future-proofs against tokens
+        // that revert without a revert string or that return false instead.
+        IERC20(address(clawToken)).safeTransferFrom(msg.sender, address(this), amount);
 
-        // Burn 85%
+        // Burn 85% (ClawToken-specific; not part of IERC20)
         clawToken.burn(burnAmount);
 
         // Send 15% to dev wallet
         if (devAmount > 0) {
-            clawToken.transfer(devWallet, devAmount);
+            IERC20(address(clawToken)).safeTransfer(devWallet, devAmount);
         }
 
         emit FeeProcessed(msg.sender, amount, burnAmount, devAmount);

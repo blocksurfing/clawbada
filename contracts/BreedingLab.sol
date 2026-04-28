@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
 import {DNALib} from "./libraries/DNALib.sol";
@@ -15,6 +16,8 @@ import {DNALib} from "./libraries/DNALib.sol";
 ///      (not consumed). 5 breeds max per lobster, 48h cooldown per parent. Cost scales by breed
 ///      count × generation.
 contract BreedingLab is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     // ──────────── Constants ────────────
     uint256 public constant BREED_COOLDOWN = 48 hours;
     uint256 public constant BASE_BREED_COST = 500e18;
@@ -239,11 +242,11 @@ contract BreedingLab is ReentrancyGuard {
         uint256 costB = _breedCostPerParent(lobsterNFT.getBreedCount(parentB), lobsterNFT.getGeneration(parentB));
         totalCost = costA + costB;
 
-        // Pull $CLAW from user
-        clawToken.transferFrom(msg.sender, address(this), totalCost);
+        // Pull $CLAW from user (I-04 SafeERC20)
+        clawToken.safeTransferFrom(msg.sender, address(this), totalCost);
 
-        // Route fee through Treasury
-        clawToken.approve(address(treasury), totalCost);
+        // Route fee through Treasury (I-03 forceApprove)
+        clawToken.forceApprove(address(treasury), totalCost);
         treasury.processFee(totalCost);
 
         // Update parent state

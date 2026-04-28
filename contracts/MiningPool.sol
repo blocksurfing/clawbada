@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ClawToken} from "./ClawToken.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {TeamManager} from "./TeamManager.sol";
@@ -16,6 +18,8 @@ import {TeamManager} from "./TeamManager.sol";
 ///      ensures startExpedition() fails immediately if ClawToken.MAX_SUPPLY headroom is insufficient,
 ///      preventing teams from becoming permanently locked by a later mint failure.
 contract MiningPool is AccessControl, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     // ──────────── Roles ────────────
     bytes32 public constant SEASON_ADMIN_ROLE = keccak256("SEASON_ADMIN_ROLE");
 
@@ -224,8 +228,9 @@ contract MiningPool is AccessControl, ReentrancyGuard {
             teamManager.setTeamActive(expedition.teamId, false);
         }
 
-        // Transfer escrowed reward to claimer
-        clawToken.transfer(msg.sender, expedition.reward);
+        // Transfer escrowed reward to claimer (I-04 SafeERC20; clawToken is
+        // typed as ClawToken for the .mint() call, so cast at the boundary).
+        IERC20(address(clawToken)).safeTransfer(msg.sender, expedition.reward);
 
         emit ExpeditionClaimed(expeditionId, expedition.teamId, msg.sender, expedition.reward);
     }
