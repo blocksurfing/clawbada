@@ -1,0 +1,79 @@
+name: Contracts Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+      - 'foundry.toml'
+      - '.github/workflows/contracts-audit.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+      - 'foundry.toml'
+      - '.github/workflows/contracts-audit.yml'
+  schedule:
+    # Nightly deep-profile invariant run at 02:00 UTC.
+    - cron: '0 2 * * *'
+
+jobs:
+  forge-fuzz:
+    name: Foundry fuzz (ci profile, 10k runs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Build
+        run: forge build --sizes
+      - name: Run fuzz suite (ci profile)
+        run: FOUNDRY_PROFILE=ci forge test --match-path 'contracts/test/fuzz/**'
+      - name: Run hardening test suite
+        run: forge test --match-path 'test/**'
+
+  forge-invariant:
+    name: Foundry invariants (ci profile, 500x100)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Run invariant suite (ci profile)
+        run: FOUNDRY_PROFILE=ci forge test --match-contract 'Invariant'
+
+  slither:
+    name: Slither static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Build (Slither needs build artifacts)
+        run: forge build
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Slither
+        run: pip install slither-analyzer
+      - name: Run Slither on all contracts
+        run: slither contracts --filter-paths "lib/|node_modules/|test/" --fail-medium
+        # --fail-medium: fail CI on Medium+ findings. Suppress via slither-disable comments
+        # at the call site (with a written justification) for known-safe patterns.
+
+  forge-invariant-deep:
+    name: Foundry invariants (deep profile, nightly)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Run deep invariant suite (50k fuzz, 2000x200 invariant, seed pinned)
+        run: FOUNDRY_PROFILE=deep forge test --match-contract 'Invariant'
