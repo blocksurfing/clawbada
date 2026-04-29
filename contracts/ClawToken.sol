@@ -8,6 +8,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 /// @title ClawToken — $CLAW ERC-20 token for Clawbada
 /// @notice Fixed max supply of 1B tokens. Fair launch: 70.5% mining emissions, 12.5% LP, 10% treasury, 7% faucet.
 /// @dev Constructor mints: 125M to LP, 100M to Treasury. Faucet receives 70M via Configure.s.sol post-deploy. Remaining 705M minted by MiningPool.
+/// @custom:security-contact security@clawbada.com
 contract ClawToken is ERC20, ERC20Burnable, AccessControl {
     // ──────────── Constants ────────────
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");

@@ -11,6 +11,7 @@ import {DNALib} from "./libraries/DNALib.sol";
 /// @notice Each lobster is a unique token (supply=1) with on-chain DNA, evolution tier, damage, and breeding state.
 /// @dev Uses AccessControl with 6 granular roles for game contract integration.
 ///      Soulbound and locked restrictions enforced via _update override.
+/// @custom:security-contact security@clawbada.com
 contract LobsterNFT is ERC1155, ERC1155Supply, AccessControl {
     using Strings for uint256;
 

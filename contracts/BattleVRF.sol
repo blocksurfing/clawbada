@@ -6,6 +6,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 /// @title BattleVRF — drand beacon store for Clawbada battle randomness
 /// @notice Operator-submitted drand beacon values. S1: trusted operator. Future: on-chain BLS12-381 verification.
 /// @dev Beacon values are stored by OPERATOR_ROLE and used to derive per-action randomness.
+/// @custom:security-contact security@clawbada.com
 contract BattleVRF is AccessControl {
     // ──────────── Roles ────────────
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");

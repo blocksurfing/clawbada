@@ -1068,6 +1068,22 @@ Closing the remaining open items from `2026-03-06-manual-contract-audit.md`. Eac
 
 `_executePayout` previously pre-cleared `teamInBattle[A]` and `teamInBattle[B]` immediately after the phase update, then `_releaseTeam` cleared them again at the end (~200 gas waste per settlement). Removed the pre-clear; `_releaseTeam` is now the canonical clear point, mirroring the `_cancelBattle` pattern. Reentrancy is already blocked via `nonReentrant` on every public entrypoint that reaches `_executePayout`. No new tests required — existing battle settlement tests cover the path; all 818 still pass.
 
+### I-05 — TeamManager.disbandTeam ownership re-check — **DOCUMENTED** (no contract change)
+
+`disbandTeam()` unlocks all 3 lobsters without re-verifying current ownership. This is structurally safe because (a) locked lobsters can't be transferred, and (b) `_lobsterToTeam` is updated atomically with the unlock. The pre-audit concern was about a `LOCKER_ROLE` holder externally unlocking a lobster mid-team, transferring it, then the original team owner calling `disbandTeam()` and calling unlock for the wrong owner — a no-op in practice because the new owner never locked anything. Captured under the C-05 multisig runbook (LOCKER_ROLE holders are TeamManager only in current Configure.s.sol; expansion of LOCKER_ROLE to other contracts requires runbook review).
+
+### C-02 — ReentrancyGuardTransient — **DEFERRED** (gas optimization, not security)
+
+OpenZeppelin's `ReentrancyGuardTransient` (uses transient storage instead of slot writes) saves ~2,300 gas per protected call vs `ReentrancyGuard`. Not a security improvement — purely gas. Defer to a separate gas-optimization sweep; out of scope for the adversarial campaign. Affected contracts: BattleArena, BreedingLab, EvolutionLab, Faucet, Marketplace, MiningPool, RepairShop, Treasury.
+
+### C-03 — Contract-prefixed error names — **DEFERRED** (refactor scope)
+
+ABI-level: two contracts can both export `error ZeroAddress();` and produce identical 4-byte selectors, which makes off-chain decoders pick whichever came first when parsing arbitrary tx revert data. Not a runtime issue — every revert site is contract-scoped on-chain — but a debuggability/observability concern at the indexer layer. Closing this requires renaming ~30 errors across the codebase and updating every `expectRevert(<Contract>.<Error>.selector)` test site. Defer to a dedicated refactor PR; out of scope for the adversarial campaign.
+
+### C-04 — No invariant or stateful fuzz tests — **CLOSED** by Phase 3 (commit 18)
+
+The Phase 3 cross-contract invariant suite (14 invariants × 9 handlers, deep profile 5.6M adversarial calls) closes this item. See the Phase 3 section above.
+
 ### I-03 + I-04 — SafeERC20 migration — **CLOSED** (commit 20)
 
 All bare `IERC20` `transfer` / `transferFrom` / `approve` calls migrated to OpenZeppelin's `SafeERC20`:
@@ -1081,6 +1097,10 @@ Storage typing: BattleArena, BreedingLab, EvolutionLab, Marketplace, RepairShop 
 Although `ClawToken` is well-behaved (returns `true` on every path; standard non-zero approve handling), the migration future-proofs against other tokens entering the system later (e.g., a swap module accepting non-standard ERC20s) and aligns with current OZ v5.5+ defensive coding.
 
 Verification: full suite **818/818 pass**, invariant suite **14/14 pass on ci profile** post-migration.
+
+### C-01 — `@custom:security-contact` NatSpec — **CLOSED** (commit 21)
+
+Added `/// @custom:security-contact security@clawbada.com` to all 12 production contracts (BattleArena, BattleVRF, BreedingLab, ClawToken, EvolutionLab, Faucet, LobsterNFT, Marketplace, MiningPool, RepairShop, TeamManager, Treasury). Triggers OZ-style security tooling (e.g., Wizard) to surface the contact, and gives bug-bounty platforms a stable reporting address.
 
 ## Codex red-team logs
 

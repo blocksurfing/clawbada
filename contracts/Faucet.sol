@@ -12,6 +12,7 @@ import {DNALib} from "./libraries/DNALib.sol";
 /// @title Faucet — Temporary onboarding for Clawbada
 /// @notice Gives eligible wallets 5 soulbound lobsters + 7,000 $CLAW. Closes ~7 days after launch.
 /// @dev Eligibility is set by admin (off-chain verification of wallet age/txs). ETH balance checked on-chain.
+/// @custom:security-contact security@clawbada.com
 contract Faucet is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 

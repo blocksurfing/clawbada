@@ -12,6 +12,7 @@ import {Treasury} from "./Treasury.sol";
 ///         Fees routed through Treasury.sol (85% burn / 15% dev).
 /// @dev Base→Evolved (2K $CLAW), Evolved→Elite (10K), Elite→Apex (50K).
 ///      Fuel lobsters are permanently burned. Soulbound lobsters can be evolved and used as fuel.
+/// @custom:security-contact security@clawbada.com
 contract EvolutionLab is ReentrancyGuard {
     using SafeERC20 for IERC20;
 

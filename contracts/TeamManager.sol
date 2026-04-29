@@ -7,6 +7,7 @@ import {LobsterNFT} from "./LobsterNFT.sol";
 /// @title TeamManager — Team registry for Clawbada
 /// @notice Manages teams of 3 lobsters. Handles assignment, locking, and activity status.
 /// @dev External game contracts (MiningPool, BattleArena) set team activity via ACTIVITY_ROLE.
+/// @custom:security-contact security@clawbada.com
 contract TeamManager is AccessControl {
     // ──────────── Roles ────────────
     bytes32 public constant ACTIVITY_ROLE = keccak256("ACTIVITY_ROLE");

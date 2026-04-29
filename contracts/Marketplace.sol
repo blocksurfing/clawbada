@@ -13,6 +13,7 @@ import {Treasury} from "./Treasury.sol";
 ///         2.5% protocol fee on each sale routed through Treasury (85% burn / 15% dev).
 /// @dev Escrow model: NFT transferred to contract on listing, returned on cancel.
 ///      LobsterNFT._update() automatically rejects soulbound and locked transfers.
+/// @custom:security-contact security@clawbada.com
 contract Marketplace is ReentrancyGuard, ERC1155Holder {
     using SafeERC20 for IERC20;
 

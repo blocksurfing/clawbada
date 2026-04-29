@@ -43,6 +43,7 @@ import {BattleVRF} from "./BattleVRF.sol";
 ///
 /// See: docs/audits/2026-03-06-manual-contract-audit.md (H-01),
 ///      docs/audits/2026-04-15-adversarial-campaign.md (H-01 challenge window).
+/// @custom:security-contact security@clawbada.com
 contract BattleArena is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
