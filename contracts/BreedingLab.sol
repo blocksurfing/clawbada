@@ -15,6 +15,7 @@ import {DNALib} from "./libraries/DNALib.sol";
 ///      randomness sniping. Offspring is always Base tier, never soulbound. Parents are preserved
 ///      (not consumed). 5 breeds max per lobster, 48h cooldown per parent. Cost scales by breed
 ///      count × generation.
+/// @custom:security-contact security@clawbada.com
 contract BreedingLab is ReentrancyGuard {
     using SafeERC20 for IERC20;
 

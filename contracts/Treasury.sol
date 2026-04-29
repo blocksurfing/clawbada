@@ -14,6 +14,7 @@ interface IClawBurnable is IERC20 {
     function burn(uint256 amount) external;
 }
 
+/// @custom:security-contact security@clawbada.com
 contract Treasury is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 

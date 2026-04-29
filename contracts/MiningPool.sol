@@ -17,6 +17,7 @@ import {TeamManager} from "./TeamManager.sol";
 ///      MiningPool escrow at expedition start and transferred to the user at claim time. This
 ///      ensures startExpedition() fails immediately if ClawToken.MAX_SUPPLY headroom is insufficient,
 ///      preventing teams from becoming permanently locked by a later mint failure.
+/// @custom:security-contact security@clawbada.com
 contract MiningPool is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 

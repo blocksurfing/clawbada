@@ -12,6 +12,7 @@ import {Treasury} from "./Treasury.sol";
 ///         Fees routed through Treasury.sol (85% burn / 15% dev).
 /// @dev Repair rates scale by evolution tier: Evolved 5, Elite 15, Apex 40 $CLAW per damage point.
 ///      Base tier lobsters cannot accumulate battle damage and have a rate of 0.
+/// @custom:security-contact security@clawbada.com
 contract RepairShop is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
