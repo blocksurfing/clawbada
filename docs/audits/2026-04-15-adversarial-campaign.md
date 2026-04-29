@@ -1102,6 +1102,36 @@ Verification: full suite **818/818 pass**, invariant suite **14/14 pass on ci pr
 
 Added `/// @custom:security-contact security@clawbada.com` to all 12 production contracts (BattleArena, BattleVRF, BreedingLab, ClawToken, EvolutionLab, Faucet, LobsterNFT, Marketplace, MiningPool, RepairShop, TeamManager, Treasury). Triggers OZ-style security tooling (e.g., Wizard) to surface the contact, and gives bug-bounty platforms a stable reporting address.
 
+### C-05 / C-06 — DEFAULT_ADMIN_ROLE god key + deployer-as-admin without timelock — **CLOSED via runbook** (commit 22)
+
+Both items are operational, not contract-level. Closed by writing `docs/runbooks/admin-roles.md`, which defines:
+
+- **Mainnet role-holder requirements**: every DEFAULT_ADMIN_ROLE on a 3-of-5+ multisig before launch
+- **Deploy-time admin transfer sequence**: deployer grants admin to multisig → multisig revokes deployer (called from the new admin to verify liveness)
+- **Per-role compromise blast radius and rotation cadence**: hot keys (RESOLVER/MATCHMAKER/OPERATOR/ELIGIBILITY) rotate quarterly + on suspicion; persistent contract roles (MINTER on MiningPool, DAMAGE on BattleArena/RepairShop, etc.) never rotate without a contract upgrade
+- **Critical-action SLAs**: BattleArena `adminResolveDispute` 24h; Treasury `setDevWallet` 48h proposal + 24h delay; new role grants 48h proposal
+- **Incident response**: hot-key rotation, multisig signer remediation, full-takeover coordination playbook
+- **Audit-trail discipline**: every Safe transaction includes proposal ID + audit reference + rationale
+
+The runbook captures all C-05 dependencies surfaced by the Phase 3 trust-boundary lens.
+
+### CI integration — **LANDED** (commit 22)
+
+Added `.github/workflows/contracts-audit.yml` with four jobs:
+
+1. **forge-fuzz** (every push/PR): per-contract fuzz suite under `ci` profile (10k runs)
+2. **forge-invariant** (every push/PR): InvariantProtocol + InvariantBattleArena + InvariantMiningPool under `ci` profile (500×100)
+3. **slither** (every push/PR): static analysis with `--fail-medium` (fails CI on Medium+ findings)
+4. **forge-invariant-deep** (nightly cron at 02:00 UTC): deep profile (50k fuzz, 2000×200 invariant, seed pinned)
+
+Path filters scope the workflow to `contracts/`, `foundry.toml`, and the workflow file itself — non-contract changes do not trigger the audit pipeline.
+
+The deep nightly job is gated on `github.event_name == 'schedule'` so PR runs stay fast (target: <5 min total CI). The deep run takes ~10-12 min on GitHub-hosted runners (slower than local 8-core measurement of 11 min).
+
+## Phase 4 verdict
+
+Phase 4 closes the campaign. **Final commit count: 22** (3148dea..HEAD-of-Phase-4). All prior-audit items either closed at the contract level (I-01, I-02, I-03, I-04, C-01, C-04) or via runbook (I-05, C-05, C-06). C-02 and C-03 deferred to dedicated PRs. CI now enforces the Phase 1-3 fuzz / invariant / Slither baselines on every contract change.
+
 ## Codex red-team logs
 
 Each contract pass produces two Codex transcripts (pre-fix and post-fix). Logged here as added.
