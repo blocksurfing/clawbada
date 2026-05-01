@@ -1,13 +1,21 @@
 import type { Metadata } from 'next';
-import { Silkscreen } from 'next/font/google';
+import { Black_Han_Sans, Titillium_Web } from 'next/font/google';
 import { Web3Provider } from '@/providers/web3-provider';
 import { MusicToggle } from '@/components/music-toggle';
+import { CursorPressTracker } from '@/components/cursor-press-tracker';
 import './globals.css';
 
-const silkscreen = Silkscreen({
-  weight: ['400', '700'],
+const blackHanSans = Black_Han_Sans({
+  weight: '400',
   subsets: ['latin'],
-  variable: '--font-silkscreen',
+  variable: '--font-heading',
+  display: 'swap',
+});
+
+const titillium = Titillium_Web({
+  weight: ['300', '400', '600', '700', '900'],
+  subsets: ['latin'],
+  variable: '--font-body',
   display: 'swap',
 });
 
@@ -23,8 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Figma capture script — remove after design handoff */}
         <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async />
       </head>
-      <body className={silkscreen.variable}>
+      <body className={`${blackHanSans.variable} ${titillium.variable}`}>
         <Web3Provider>
+          <CursorPressTracker />
           {children}
           <MusicToggle />
         </Web3Provider>
