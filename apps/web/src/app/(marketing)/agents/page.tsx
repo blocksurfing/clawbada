@@ -14,15 +14,14 @@ export default function AgentsPage() {
       {/* Header */}
       <header className="border-b border-border">
         <div className="max-w-4xl mx-auto flex items-center justify-between h-12 px-4">
-          <Link href="/" className="flex items-center gap-1.5">
+          <Link href="/" className="flex items-center">
             <Image
-              src="/lobster-hero.png"
-              alt=""
-              width={20}
-              height={20}
-              className="pixel-art"
+              src="/assets/logo.png"
+              alt="Clawbada"
+              width={100}
+              height={38}
+              className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
             />
-            <span className="font-semibold text-sm text-foreground">clawbada</span>
           </Link>
           <nav className="hidden sm:flex items-center gap-4 text-sm text-muted-foreground">
             <Link href="/" className="hover:text-foreground transition-colors">Home</Link>

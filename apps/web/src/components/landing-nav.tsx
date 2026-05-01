@@ -41,7 +41,7 @@ export function LandingNav() {
               className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
             />
           </Link>
-          <nav className="hidden sm:flex items-center gap-1 text-sm font-bold">
+          <nav className="hidden sm:flex items-center gap-1 text-sm font-bold uppercase">
             {LINKS.map((link) => (
               <Link
                 key={link.href}
