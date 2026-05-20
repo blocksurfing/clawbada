@@ -262,8 +262,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 18d869e108e8e400aa27cfc4756b7bfe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ArenaAuthoringTool
-  layoutId: arena_elite_02
-  tier: elite
+  layoutId: arena_apex_01
+  tier: apex
   cols: 6
   rows: 5
   sourceTilemap: {fileID: 853280210}
@@ -271,15 +271,15 @@ MonoBehaviour:
   teamASpawnTile: {fileID: 11400000, guid: 6bb396f1e52fc314399e385030507eea, type: 2}
   teamBSpawnTile: {fileID: 11400000, guid: f16c48dc93e706940a9cb65b7a1e37cd, type: 2}
   blockedHexes:
-  - col: 2
-    row: 0
   - col: 4
     row: 0
+  - col: 1
+    row: 1
   - col: 3
     row: 2
-  - col: 2
-    row: 4
   - col: 4
+    row: 3
+  - col: 2
     row: 4
   teamASpawns:
   - col: 0
@@ -300,12 +300,12 @@ MonoBehaviour:
     row: 0
   - col: 1
     row: 0
+  - col: 2
+    row: 0
   - col: 3
     row: 0
   - col: 5
     row: 0
-  - col: 1
-    row: 1
   - col: 2
     row: 1
   - col: 3
@@ -323,14 +323,14 @@ MonoBehaviour:
   - col: 2
     row: 3
   - col: 3
-    row: 3
-  - col: 4
     row: 3
   - col: 0
     row: 4
   - col: 1
     row: 4
   - col: 3
+    row: 4
+  - col: 4
     row: 4
   - col: 5
     row: 4
@@ -793,8 +793,8 @@ Tilemap:
   - first: {x: 2, y: 0, z: 0}
     second:
       serializedVersion: 2
-      m_TileIndex: 6
-      m_TileSpriteIndex: 6
+      m_TileIndex: 7
+      m_TileSpriteIndex: 7
       m_TileMatrixIndex: 0
       m_TileColorIndex: 0
       m_TileObjectToInstantiateIndex: 65535
@@ -843,8 +843,8 @@ Tilemap:
   - first: {x: 1, y: 1, z: 0}
     second:
       serializedVersion: 2
-      m_TileIndex: 7
-      m_TileSpriteIndex: 7
+      m_TileIndex: 6
+      m_TileSpriteIndex: 6
       m_TileMatrixIndex: 0
       m_TileColorIndex: 0
       m_TileObjectToInstantiateIndex: 65535
@@ -993,8 +993,8 @@ Tilemap:
   - first: {x: 4, y: 3, z: 0}
     second:
       serializedVersion: 2
-      m_TileIndex: 7
-      m_TileSpriteIndex: 7
+      m_TileIndex: 6
+      m_TileSpriteIndex: 6
       m_TileMatrixIndex: 0
       m_TileColorIndex: 0
       m_TileObjectToInstantiateIndex: 65535
@@ -1053,8 +1053,8 @@ Tilemap:
   - first: {x: 4, y: 4, z: 0}
     second:
       serializedVersion: 2
-      m_TileIndex: 6
-      m_TileSpriteIndex: 6
+      m_TileIndex: 7
+      m_TileSpriteIndex: 7
       m_TileMatrixIndex: 0
       m_TileColorIndex: 0
       m_TileObjectToInstantiateIndex: 65535
