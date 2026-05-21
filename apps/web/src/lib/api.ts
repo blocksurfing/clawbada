@@ -280,21 +280,101 @@ const market = {
 
 // ── Combat ──
 
-interface QueueResponse {
-  status: 'matched' | 'queued';
-  battleId?: string;
-  opponent?: string;
-  bracket?: string;
-  elo?: number;
+/** Half-width sentinel used by the matchmaker server: `'all'` = "any power within
+ *  stake bracket". Numeric values represent ±halfWidth from the seeker's power. */
+export type RadiusHalfWidth = number | 'all';
+
+export interface PowerRadiusPayload {
+  low: number;
+  high: number;
+  /** Present on tick-emitted events; absent on initial /queue response (which
+   *  always starts at halfWidth=0). */
+  halfWidth?: RadiusHalfWidth;
 }
 
-interface QueueStatus {
+/** V3 S1 queue join response. Two flavors discriminated by `status`. */
+export interface QueueResponse {
+  status: 'matched' | 'queued';
+  /** Always present — what bracket the player joined / matched into. */
+  bracket?: number;
+  /** Always present — the team's snapshotted power score (3..9). */
+  power?: number;
+  // — `queued` flavor —
+  initialRadius?: PowerRadiusPayload;
+  /** F-16-a: server's queue-row `enqueuedAt.getTime()`. Client uses this
+   *  for `state.since` so the WS stale-event filter compares like-clocks. */
+  enqueuedAtMs?: number;
+  /** F-Y3: queue row PK (bigint stringified). Collision-proof session id.
+   *  Client prefers this over `enqueuedAtMs` for stale-event filtering. */
+  queueId?: string;
+  // — `matched` flavor —
+  battleId?: string;
+  opponent?: string;
+  yourPower?: number;
+  opponentPower?: number;
+}
+
+/** F-15-b: response shape for DELETE /queue when the matchmaker won the
+ *  cancel-vs-match race. The client must transition to `matched` instead
+ *  of `cancelled` since the user is now in a battle. */
+export interface LeaveQueueResponse {
+  removed?: boolean;
+  matched?: boolean;
+  battleId?: string;
+  bracket?: number;
+  opponent?: string;
+  yourPower?: number;
+  opponentPower?: number;
+}
+
+export interface QueueStatus {
   inQueue: boolean;
-  teamId?: string;
-  stakeBracket?: string;
+  /** Present iff inQueue=true. */
+  bracket?: number;
+  power?: number;
   elo?: number;
-  enqueuedAt?: number;
+  teamId?: string;
+  enqueuedAt?: string;
+  /** F-Y3: queue row PK as collision-proof session id for rehydration. */
+  queueId?: string;
   waitingSeconds?: number;
+  radius?: PowerRadiusPayload;
+  /** F-X1 (PR 6): when not in queue, surfaces a recent matched battle so the
+   *  client can rehydrate to `matched` state after a WS reconnect that
+   *  missed the original `match_found` event. */
+  recentBattle?: {
+    battleId: string;
+    bracket: number;
+    opponent: string;
+    yourPower: number;
+    opponentPower: number;
+    /** PR-B X1: operator-worker lifecycle. 0=pending_create (on-chain
+     *  createBattle in flight), 1=created (battle live). Null for
+     *  pre-PR-B rows. status=4 (create_failed) is surfaced as
+     *  `failedRecentBattle` instead. */
+    status: number | null;
+  };
+  /** Codex PR-B FU-2 (MEDIUM): explicit signal that the engine's
+   *  create_battle job died (`battles.status=4`) for a recent matchmaking
+   *  decision involving this address. Surfaced as a separate field so the
+   *  queued reducer can transition out of `queued` without rehydrating
+   *  into a non-existent battle. */
+  failedRecentBattle?: {
+    battleId: string;
+    bracket: number;
+  };
+}
+
+/** Single-bucket pool-depth response shape. */
+export interface PoolDepthSingle {
+  bracket: number;
+  power: number;
+  depth: number;
+}
+
+/** All-buckets pool-depth response shape. */
+export interface PoolDepthAll {
+  pools: PoolDepthSingle[];
 }
 
 interface ChainBattleData {
@@ -317,6 +397,17 @@ interface ChainBattleData {
   roundCommitB: string;
   roundRevealedA: boolean;
   roundRevealedB: boolean;
+  /** X13: Unix-seconds deadlines (stringified bigint). `phaseDeadline`
+   *  applies to Deposit/TeamCommit/TeamReveal/Active; `payoutDeadline`
+   *  applies to AwaitingFinalize. The frontend compares against
+   *  `Date.now() / 1000` to decide whether to surface the handleTimeout
+   *  button. */
+  phaseDeadline: string;
+  payoutDeadline: string;
+  /** X13 LOW-01: H-01 dispute flag. `handleTimeout` reverts on disputed
+   *  AwaitingFinalize battles (requires admin resolution), so the CTA is
+   *  hidden in that state. */
+  disputed: boolean;
 }
 
 interface DbBattleData {
@@ -328,6 +419,11 @@ interface DbBattleData {
   stakeBracket: number;
   stakeAmount: string;
   phase: number;
+  /** PR-B X1: operator-worker lifecycle. 0=pending_create, 1=created,
+   *  2=settled, 3=cancelled, 4=create_failed. Null for pre-PR-B rows. */
+  status: number | null;
+  powerA: number | null;
+  powerB: number | null;
   winner: string | null;
   protocolFee: string | null;
   winnerPayout: string | null;
@@ -337,7 +433,10 @@ interface DbBattleData {
 }
 
 interface BattleData {
-  chain: ChainBattleData;
+  /** PR-B X1: null while battles.status=0 (pending_create) — on-chain
+   *  createBattle hasn't landed yet, so readBattle would throw NOT_FOUND.
+   *  Frontend should render a pending-create UI while chain is null. */
+  chain: ChainBattleData | null;
   db: DbBattleData | null;
 }
 
@@ -358,21 +457,51 @@ interface RoundData {
 
 interface BattleHistoryItem {
   battleId: string;
-  opponent: string;
-  result: 'win' | 'loss';
-  payout: string;
-  bracket: string;
-  timestamp: number;
+  /** BattlePhase numeric value: 0=None, 1=Deposit, 2=TeamCommit, 3=TeamReveal,
+   *  4=Active, 5=AwaitingFinalize, 6=Settled, 7=Cancelled.
+   *  In-progress battles have phase 1-5; consumers querying for "active battles
+   *  to resume" should filter for that range. */
+  phase: number;
+  playerA: string;
+  playerB: string;
+  stakeBracket: number;
+  stakeAmount: string;
+  winner: string | null;
+  // Optional UI-derived fields (some legacy callers expect these; the server
+  // currently doesn't compute them — kept optional to avoid lying about types):
+  opponent?: string;
+  result?: 'win' | 'loss';
+  payout?: string;
+  bracket?: string;
+  timestamp?: number;
 }
 
 const combat = {
   joinQueue: (teamId: string, stakeAmount: string, auth: AuthHeaders) =>
     post<QueueResponse>('/api/game/combat/queue', { teamId, stakeAmount }, auth),
   queueStatus: (auth: AuthHeaders) => get<QueueStatus>('/api/game/combat/queue/status', auth),
-  leaveQueue: (auth: AuthHeaders) => del<{ removed: true }>('/api/game/combat/queue', auth),
+  leaveQueue: (auth: AuthHeaders) => del<LeaveQueueResponse>('/api/game/combat/queue', auth),
+  /** Returns active queue counts per (stake, power) sub-pool. With both query
+   *  params, returns the single bucket's depth; without them, returns all
+   *  non-empty buckets. Public — no auth. */
+  poolDepth: (bracket?: number, power?: number) => {
+    const params = new URLSearchParams();
+    if (bracket !== undefined) params.set('bracket', String(bracket));
+    if (power !== undefined) params.set('power', String(power));
+    const qs = params.toString();
+    const url = `/api/game/combat/pool-depth${qs ? `?${qs}` : ''}`;
+    return bracket !== undefined && power !== undefined
+      ? get<PoolDepthSingle>(url)
+      : get<PoolDepthAll>(url);
+  },
   history: (address: string, limit = 20) =>
     get<{ address: string; count: number; battles: BattleHistoryItem[] }>(`/api/game/combat/history?address=${address}&limit=${limit}`),
   getBattle: (battleId: string) => get<BattleData>(`/api/game/combat/${battleId}`),
+  /** A2: caller-private endpoint returning the requesting wallet's queued
+   *  team ID. Returns 404 for non-participants and unknown battles. Used by
+   *  the commit-reveal flow because `chain.teamIdA/B` are 0 pre-reveal. */
+  getMyTeam: (battleId: string, auth: AuthHeaders) =>
+    get<{ battleId: string; myTeamId: string | null }>(`/api/game/combat/${battleId}/my-team`, auth),
   getRounds: (battleId: string) => get<{ battleId: string; count: number; rounds: RoundData[] }>(`/api/game/combat/${battleId}/rounds`),
   deposit: (battleId: string, auth: AuthHeaders) => post<StepsResponse>(`/api/game/combat/${battleId}/deposit`, undefined, auth),
   commitTeam: (battleId: string, commitHash: string, auth: AuthHeaders) =>
@@ -383,6 +512,12 @@ const combat = {
     post<StepsResponse>(`/api/game/combat/${battleId}/commit-moves`, { commitHash }, auth),
   revealMoves: (battleId: string, moveData: string, salt: string, auth: AuthHeaders) =>
     post<StepsResponse>(`/api/game/combat/${battleId}/reveal-moves`, { moveData, salt }, auth),
+  /** X13: permissionless handleTimeout — the frontend exposes this when
+   *  the chain phase deadline has elapsed and nobody (engine / counterparty)
+   *  has progressed the battle. Routes to cancel / finalize / emergency-exit
+   *  per the contract's phase-specific logic. */
+  handleTimeout: (battleId: string, auth: AuthHeaders) =>
+    post<StepsResponse>(`/api/game/combat/${battleId}/handle-timeout`, undefined, auth),
 };
 
 // ── Leaderboard ──
@@ -478,8 +613,7 @@ export type {
   ListingData,
   ListingsResponse,
   MarketFilters,
-  QueueResponse,
-  QueueStatus,
+  // QueueResponse + QueueStatus moved to inline `export interface` above.
   BattleData,
   ChainBattleData,
   DbBattleData,

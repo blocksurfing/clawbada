@@ -4,7 +4,7 @@ import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { cn } from '@/lib/utils';
 
 const BODY_PARTS = ['Carapace', 'Claws', 'Tail', 'Antennae', 'Eyes', 'Legs'] as const;
-const STAT_AFFINITY = ['HP', 'Attack', 'Speed', 'Critical', 'Armor', 'HP'] as const;
+
 
 interface Allele {
   classAffinity: number;
@@ -62,10 +62,7 @@ export function DNAViewer({ lobsterClass, bodyParts, purity, className }: DNAVie
           const domMatch = bp.dominant.classAffinity === lobsterClass;
           return (
             <div key={i} className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">{BODY_PARTS[i]}</span>
-                <span className="text-xs text-muted-foreground">{STAT_AFFINITY[i]}</span>
-              </div>
+              <span className="text-sm font-medium text-foreground">{BODY_PARTS[i]}</span>
               <div className="flex flex-wrap gap-1.5">
                 <AlleleChip allele={bp.dominant} isMatch={domMatch} label="D" />
                 <AlleleChip allele={bp.r1} isMatch={bp.r1.classAffinity === lobsterClass} label="R1" />

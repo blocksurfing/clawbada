@@ -36,7 +36,7 @@ export default function ActivityPage() {
       <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
         <div>
           <div className="flex items-center gap-2">
-            <Activity className="size-5 text-teal" />
+            <img src="/assets/icons/Activity.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
             <h1 className="font-pixel text-xl text-foreground">Activity</h1>
           </div>
           <p className="text-sm text-text-secondary mt-1">

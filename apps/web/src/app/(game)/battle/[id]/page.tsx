@@ -6,7 +6,7 @@ import { api, type RoundData } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
-import { formatAddress, formatClaw } from '@/lib/format';
+import { formatAddress, formatClaw, formatClawWei } from '@/lib/format';
 import { BattleViewer } from '@/components/game/battle-viewer';
 import type { BattleLobsterConfig } from '@/lib/battle-anim/types';
 import type { LobsterData, TeamData } from '@/lib/api';
@@ -62,9 +62,15 @@ export default function BattleSpectatorPage() {
     refetchInterval: 3_000,
   });
 
+  // PR-B X1: when battles.status=0 (pending_create), the API returns chain=null
+  // until the engine operator worker confirms createBattle on chain. Render a
+  // "Creating battle..." UI in that window; the polling above (5s) will pick up
+  // the status=1 flip and re-render the live battle.
+  const pendingCreate = battleData?.db?.status === 0 || battleData?.chain == null;
+
   // Fetch team data for both sides (needed for battle animation viewer)
-  const teamIdA = battleData?.chain.teamIdA;
-  const teamIdB = battleData?.chain.teamIdB;
+  const teamIdA = battleData?.chain?.teamIdA;
+  const teamIdB = battleData?.chain?.teamIdB;
 
   const { data: teamA } = useQuery({
     queryKey: ['team', teamIdA],
@@ -89,6 +95,40 @@ export default function BattleSpectatorPage() {
     );
   }
 
+  // Codex PR-B MEDIUM-3: status=4 (create_failed) check MUST fire before the
+  // generic chain==null pending branch — otherwise users with a failed
+  // create see the "Creating battle..." spinner forever instead of the
+  // re-queue instruction.
+  if (battleData?.db?.status === 4) {
+    return (
+      <PageBackground variant="deep">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+          <Swords className="size-8 text-coral mb-3" />
+          <h1 className="font-pixel text-2xl text-foreground mb-2">Match Couldn't Be Created</h1>
+          <p className="text-sm text-text-secondary">
+            The on-chain createBattle didn't succeed. Please re-queue when ready.
+          </p>
+        </div>
+      </PageBackground>
+    );
+  }
+
+  // PR-B X1: db exists with status=0 OR chain still null — operator worker
+  // is mid-flight submitting createBattle. ~3s typical.
+  if (battleData && (battleData.db?.status === 0 || battleData.chain == null)) {
+    return (
+      <PageBackground variant="deep">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+          <Loader2 className="size-6 animate-spin text-text-secondary mb-3" />
+          <h1 className="font-pixel text-xl text-foreground mb-2">Creating battle</h1>
+          <p className="text-sm text-text-secondary">
+            Finalizing match on chain. This usually takes a few seconds.
+          </p>
+        </div>
+      </PageBackground>
+    );
+  }
+
   if (battleError || !battleData) {
     return (
       <PageBackground variant="deep">
@@ -104,6 +144,10 @@ export default function BattleSpectatorPage() {
   }
 
   const { chain, db } = battleData;
+  // Defensive — the pending-create early-return above covers `chain == null`,
+  // but TS doesn't narrow the disjunctive condition. Re-guard so the rest of
+  // the page can dereference `chain` freely.
+  if (!chain) return null;
   const rounds = roundsData?.rounds ?? [];
   const isSettled = chain.winner && chain.winner !== '0x0000000000000000000000000000000000000000';
   const winnerSide =
@@ -120,7 +164,7 @@ export default function BattleSpectatorPage() {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <Swords className="size-5 text-coral" />
+              <img src="/assets/icons/Battle.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
               <h1 className="font-pixel text-xl text-foreground">Battle #{battleId}</h1>
             </div>
             <p className="text-sm text-text-secondary mt-1">
@@ -148,7 +192,11 @@ export default function BattleSpectatorPage() {
 
         {/* Battle info */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <InfoCard label="Stake" value={formatClaw(chain.stakeAmount)} accent />
+          {/* F-12-a: chain.stakeAmount is wei (read directly from contract).
+              `formatClaw` would render it 1e18× larger; use the wei-aware
+              variant. The DB-side `db.stakeAmount` is now display semantics
+              after the F-12 column-semantics fix. */}
+          <InfoCard label="Stake" value={formatClawWei(chain.stakeAmount)} accent />
           <InfoCard label="Phase" value={isSettled ? 'Settled' : `Phase ${chain.phase}`} />
           <InfoCard label="Round" value={String(chain.currentRound)} />
           {db?.winnerPayout && (
