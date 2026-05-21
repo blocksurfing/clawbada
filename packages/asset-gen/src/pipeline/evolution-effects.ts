@@ -68,7 +68,7 @@ export function applyEvolutionEffects(
 
   // Energy trails (Apex only)
   if (tier === 3) {
-    const trailColor: RGBA = [...palette.accent] as RGBA;
+    const trailColor: RGBA = [...palette.accentBase] as RGBA;
     trailColor[3] = 140;
     addEnergyTrails(result, trailColor, seed);
   }

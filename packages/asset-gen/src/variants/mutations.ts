@@ -220,7 +220,7 @@ export function thicken(grid: RoleGrid, zone: MutationZone, seed: bigint): void 
  */
 export function patternFill(grid: RoleGrid, zone: MutationZone, seed: bigint): void {
   const patternType = randInt(seed, 'pattern_type', 0, 2);
-  const targetRole: PaletteRole = randPick(seed, 'pattern_role', [4, 5, 6]) as PaletteRole;
+  const targetRole: PaletteRole = randPick(seed, 'pattern_role', [4, 5, 6, 7, 8, 9]) as PaletteRole;
 
   for (let y = zone.y; y < zone.y + zone.h; y++) {
     for (let x = zone.x; x < zone.x + zone.w; x++) {
@@ -256,7 +256,7 @@ export function patternFill(grid: RoleGrid, zone: MutationZone, seed: bigint): v
  */
 export function detailOverlay(grid: RoleGrid, zone: MutationZone, seed: bigint): void {
   const count = randInt(seed, 'detail_count', 1, 2);
-  const detailRole: PaletteRole = randPick(seed, 'detail_role', [4, 5, 6]) as PaletteRole;
+  const detailRole: PaletteRole = randPick(seed, 'detail_role', [4, 5, 6, 7, 8, 9]) as PaletteRole;
 
   for (let i = 0; i < count; i++) {
     const s = subSeed(seed, `detail_${i}`);

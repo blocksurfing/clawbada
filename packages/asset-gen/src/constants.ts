@@ -11,7 +11,7 @@ export const V1_OFFSET = 8;
 export const CHANNELS = 4;
 
 /** Number of palette roles in template system. */
-export const NUM_ROLES = 7;
+export const NUM_ROLES = 11;
 
 /** Number of body parts per lobster. */
 export const NUM_BODY_PARTS = 6;
@@ -75,9 +75,13 @@ export const ROLE_NAMES = [
   'primaryShadow',
   'primaryBase',
   'primaryHighlight',
+  'secondaryShadow',
   'secondaryBase',
   'secondaryHighlight',
-  'accent',
+  'accentShadow',
+  'accentBase',
+  'accentHighlight',
+  'universalOutline',
 ] as const;
 
 /**

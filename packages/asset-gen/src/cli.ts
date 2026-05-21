@@ -337,11 +337,42 @@ async function cmdValidateTemplates(args: string[]): Promise<void> {
 
 // ──────────── Main ────────────
 
+async function cmdIdle(args: string[]): Promise<void> {
+  const { renderIdleSpriteSheetPng } = await import('./animation/sprite-sheet');
+  const { values, positionals } = parseArgs({
+    args,
+    options: {
+      size: { type: 'string', short: 's', default: '192' },
+      tier: { type: 'string', short: 't', default: '0' },
+      frames: { type: 'string', short: 'f', default: '16' },
+      output: { type: 'string', short: 'o', default: 'idle-sheet.png' },
+    },
+    allowPositionals: true,
+  });
+
+  if (positionals.length < 1) {
+    console.error('Usage: clawbada-asset-gen idle <dna> [--frames 16] [--size 192] [--tier 0] [--output idle-sheet.png]');
+    process.exit(1);
+  }
+
+  const dna = parseDNA(positionals[0]);
+  const size = parseInt(values.size!, 10);
+  const tier = parseInt(values.tier!, 10);
+  const frames = parseInt(values.frames!, 10);
+
+  console.log(`Rendering idle sprite sheet: ${frames} frames at ${size}×${size}, tier ${tier}`);
+  const png = await renderIdleSpriteSheetPng(dna, tier, { frames, size });
+  const outPath = resolve(values.output!);
+  await Bun.write(outPath, png);
+  console.log(`Saved: ${outPath} (${(png.length / 1024).toFixed(1)}KB, ${frames * size}×${size})`);
+}
+
 const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
   render: cmdRender,
   batch: cmdBatch,
   variant: cmdVariant,
   sheet: cmdSheet,
+  idle: cmdIdle,
   'preview-all': cmdPreviewAll,
   'validate-templates': cmdValidateTemplates,
 };
@@ -375,6 +406,12 @@ Commands:
   sheet <part> <class>              16-variant sprite sheet
     --size, -s <n>                  Cell size (default: 96)
     --output, -o <path>             Output file
+
+  idle <dna>                        Render idle animation sprite sheet
+    --frames, -f <n>                Number of frames (default: 16)
+    --size, -s <n>                  Frame size (default: 192)
+    --tier, -t <n>                  Evolution tier 0-3 (default: 0)
+    --output, -o <path>             Output file (default: idle-sheet.png)
 
   preview-all                       Grid of all templates × variants
     --output, -o <path>             Output file (default: preview_all.png)
