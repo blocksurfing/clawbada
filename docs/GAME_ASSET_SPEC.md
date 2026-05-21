@@ -93,8 +93,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | Tank |
 | **Identity** | The immovable wall. Survives everything, threatens nothing. Ancient and patient. |
-| **Primary Palette** | Steel blue (#4682B4), slate gray (#708090), titanium white accents |
-| **Secondary Palette** | Ice blue highlights, gunmetal shadows |
+| **Primary** | Steel blue (#4682B4 / highlight #78AAD2 / shadow #294F75) |
+| **Secondary** | Slate gray (#708090 / highlight #96A5AF / shadow #434D57) |
+| **Accent** | Titanium white (#E8E8E8 / highlight #FAFAFA / shadow #B5B5B5) |
 | **Silhouette** | Broad, heavy, low-slung stance. Widest body of all classes. Oversized carapace that hunches over the body like a fortress. Short, thick legs planted wide. Small claws relative to body. |
 | **Special Move** | **Fortify** — Protective dome effect; team-wide defense buff |
 | **Special VFX Theme** | Blue energy barrier, shield shimmer, crystalline protection |
@@ -114,8 +115,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | Assassin |
 | **Identity** | The precision killer. Strikes first, crits often, shatters like glass. Cold and calculated. |
-| **Primary Palette** | Jade green (#00A86B), black (#1A1A1A), venomous yellow accents |
-| **Secondary Palette** | Emerald highlights, obsidian shadows |
+| **Primary** | Jade green (#00A86B / highlight #32D28C / shadow #006E46) |
+| **Secondary** | Dark teal (#20282A / highlight #2B353B / shadow #171C1E) |
+| **Accent** | Warm yellow (#FFE017 / highlight #FDFF6B / shadow #D7A22F) |
 | **Silhouette** | Sleek, elongated body. Tallest and thinnest class. Angular limbs like blade edges. Oversized, razor-sharp claws held forward in a mantis prayer stance. Long, swept-back antennae. |
 | **Special Move** | **Ambush** — Armor-piercing strike; ignores 50% of target's Armor |
 | **Special VFX Theme** | Triple slash marks, speed lines, shadow afterimages |
@@ -135,8 +137,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | Bruiser |
 | **Identity** | Raw power incarnate. Hits hardest, acts last. An underwater apex predator. |
-| **Primary Palette** | Deep navy (#000080), bronze (#CD7F32), dark iron accents |
-| **Secondary Palette** | Ocean midnight highlights, corroded copper shadows |
+| **Primary** | Deep navy (#000080 / highlight #2828AA / shadow #000052) |
+| **Secondary** | Bronze (#CD7F32 / highlight #E1A55A / shadow #7B4C1E) |
+| **Accent** | Dark iron (#707070 / highlight #888888 / shadow #4A4A4A) |
 | **Silhouette** | Massive, imposing frame. Second widest after Bulwark but taller. Thick, powerful limbs. Oversized claws with heavy crushing surfaces. Heavy jaw/mandible area. Overall impression of weight and force. |
 | **Special Move** | **Crush** — Devastating single-target slam; highest base power (180) |
 | **Special VFX Theme** | Ground-pound shockwave, debris particles, impact crater |
@@ -156,8 +159,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | Nuker |
 | **Identity** | Living storm. Unleashes devastating area attacks. Crackling with barely-contained energy. |
-| **Primary Palette** | Electric blue (#7DF9FF), white (#F0F8FF), arc-flash cyan accents |
-| **Secondary Palette** | Lightning white highlights, thundercloud gray shadows |
+| **Primary** | Storm gray (#3C505A / highlight #4D6B77 / shadow #1A3A3D) |
+| **Secondary** | Electric blue (#48BEC8 / highlight #7DF9FF / shadow #5596B9) |
+| **Accent** | Arc-flash purple (#392BFF / highlight #3D51FF / shadow #2C21C4) |
 | **Silhouette** | Angular, jagged body lines like lightning bolts. Medium build with sharp protrusions. Tail and antennae have forked, crackling shapes. Spiny carapace with ridge patterns suggesting storm clouds. Claws have branching, electrical shapes. |
 | **Special Move** | **Maelstrom** — AoE tornado hitting all 3 enemies (90 base power each) |
 | **Special VFX Theme** | Tornado vortex, wind particles, lightning arcs |
@@ -177,8 +181,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | Debuffer |
 | **Identity** | Haunting presence. Weakens enemies before they can act. Eerie and otherworldly. |
-| **Primary Palette** | Ghost purple (#7B68EE), ethereal teal (#008B8B), spectral white accents |
-| **Secondary Palette** | Phantom lavender highlights, void indigo shadows |
+| **Primary** | Ghost purple (#7B68EE / highlight #A591FF / shadow #4F3CAA) |
+| **Secondary** | Deep teal (#116777 / highlight #008B8B / shadow #184767) |
+| **Accent** | Spectral green (#59D388 / highlight #75E76A / shadow #40AC83) |
 | **Silhouette** | Wispy, translucent-looking body. Edges fade and feather rather than having hard lines. Elongated eye stalks with large, glowing eyes. Trailing tail that dissolves into mist-like wisps. Thin, ghostly legs that barely seem to touch ground. |
 | **Special Move** | **Haunt** — Debuff attack; damage + target Atk/Armor -20% for 2 rounds |
 | **Special VFX Theme** | Ghost form projection, purple curse marks, ethereal wisps |
@@ -198,8 +203,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | Support |
 | **Identity** | Noble guardian. Keeps the team alive. Dignified and protective. |
-| **Primary Palette** | Gold (#FFD700), warm white (#FFFAF0), pearl accents |
-| **Secondary Palette** | Sunlight amber highlights, warm bronze shadows |
+| **Primary** | Mint sage (#A9D8C3 / highlight #CEF9EA / shadow #82B3AD) |
+| **Secondary** | Lime chartreuse (#D4E77F / highlight #E6F7B4 / shadow #BFB55F) |
+| **Accent** | Teal aqua (#66D0BC / highlight #7DFFE6 / shadow #5EAFC3) |
 | **Silhouette** | Noble, upright posture — tallest-standing class. Symmetrical, balanced proportions. Protective shield-like carapace plates. Medium claws held in a guarding position. Regal antennae like a crown. Overall impression of a protector or paladin. |
 | **Special Move** | **Rally** — Heal + cleanse an ally; restores 30% max HP |
 | **Special VFX Theme** | Golden light burst, green healing numbers, cleanse sparkle |
@@ -219,8 +225,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | DPS |
 | **Identity** | Relentless predator. Bleed stacks are brutal. Aggressive and hungry. |
-| **Primary Palette** | Crimson (#DC143C), dark red (#8B0000), bone-white accents |
-| **Secondary Palette** | Blood orange highlights, maroon shadows |
+| **Primary** | Bright red (#DC1400 / highlight #FF2200 / shadow #960A23) |
+| **Secondary** | Near-black (#20282A / highlight #2B353B / shadow #14191A) |
+| **Accent** | Gold orange (#FFA317 / highlight #FFD120 / shadow #FF6C00) |
 | **Silhouette** | Spiky, predatory outline. Forward-leaning aggressive stance. Serrated claw edges with jagged teeth-like ridges. Spined carapace with protruding barbs. Tail with sharp, hook-like tip. Everything about this lobster says "I will cut you." |
 | **Special Move** | **Rend** — Bleed attack; 70 hit + 40 bleed/round for 3 rounds (190 total) |
 | **Special VFX Theme** | Multi-slash marks, red blood-drip particles, serrated impact |
@@ -240,8 +247,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | Lifesteal |
 | **Identity** | Deep-sea horror. Feeds on enemies to sustain itself. Dark and parasitic. |
-| **Primary Palette** | Void black (#0D0D0D), toxic green (#39FF14), deep-sea bioluminescent accents |
-| **Secondary Palette** | Sickly chartreuse highlights, abyssal black shadows |
+| **Primary** | Dark teal (#1F2C2C / highlight #1F3E39 / shadow #0E1B26) |
+| **Secondary** | Dark gray-blue (#282C3B / highlight #323B3B / shadow #151628) |
+| **Accent** | Neon green (#00D616 / highlight #4DFF00 / shadow #00A811) |
 | **Silhouette** | Shadowy, amorphous body shape. Smooth, rounded carapace like a deep-sea creature. Tendril-like antennae that seem to reach and grasp. Claws with sucker-like internal details. Bioluminescent spots/patches that punctuate the dark body. Overall: alien, parasitic, deep-ocean. |
 | **Special Move** | **Devour** — Drain attack; 120 damage dealt also heals self |
 | **Special VFX Theme** | Dark tendrils from caster to target, green life-drain stream |
@@ -261,8 +269,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | Controller |
 | **Identity** | Master of the battlefield. Bind decides rounds. Tentacled and inescapable. |
-| **Primary Palette** | Dark teal (#008080), bioluminescent blue (#00BFFF), ink-black accents |
-| **Secondary Palette** | Cyan bioluminescent highlights, deep ocean shadows |
+| **Primary** | Dark teal (#008080 / highlight #32AAAA / shadow #005A5A) |
+| **Secondary** | Bronze (#CD7F32 / highlight #E1A55A / shadow #9F5423) |
+| **Accent** | Coral (#E1674F / highlight #FD9460 / shadow #D44240) |
 | **Silhouette** | Tentacled, writhing outline — the most "alien" class. Extra appendage-like protrusions on claws and legs suggesting tentacles. Elongated, squid-like body proportions. Large, intelligent eyes. Fluid, undulating shapes rather than hard angles. Most unique silhouette of all 10 classes. |
 | **Special Move** | **Bind** — CC attack; 60 damage + stun target for 1 round |
 | **Special VFX Theme** | Tentacle wrap around target, blue stun flash, constriction |
@@ -282,8 +291,9 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 |----------|-------|
 | **Role** | Glass Cannon |
 | **Identity** | Barely-contained explosion. Highest burst in the game. Fragile and volatile. |
-| **Primary Palette** | Orange (#FF6600), molten red (#FF2400), magma yellow accents |
-| **Secondary Palette** | White-hot highlights, char-black shadows |
+| **Primary** | Dark brown (#381E18 / highlight #451E1C / shadow #291B16) |
+| **Secondary** | Dark purple-gray (#26232A / highlight #3F353B / shadow #1E1922) |
+| **Accent** | Amber (#CD7000 / highlight #E9AA17 / shadow #B43C00) |
 | **Silhouette** | Smallest, most fragile-looking body. Cracks and fissures in the carapace revealing internal glow. Thin limbs that look like they might snap. Large, dramatic claws disproportionate to the body (all offense, no defense). Tail flickers like a flame tip. Overall: volatile, unstable, dangerous. |
 | **Special Move** | **Inferno** — Maximum burst (200 base); caster takes 25% of damage dealt as self-damage |
 | **Special VFX Theme** | Massive explosion, fire burst outward, self-damage red flash on caster |
@@ -299,20 +309,41 @@ Each class has a distinct identity expressed through color palette, silhouette, 
 
 ### Class Palette Quick Reference
 
-| ID | Class | Primary 1 | Primary 2 | Accent |
-|----|-------|-----------|-----------|--------|
-| 0 | Bulwark | Steel blue #4682B4 | Slate gray #708090 | Titanium white |
-| 1 | Mantis | Jade green #00A86B | Black #1A1A1A | Venomous yellow |
-| 2 | Leviathan | Deep navy #000080 | Bronze #CD7F32 | Dark iron |
-| 3 | Tempest | Electric blue #7DF9FF | White #F0F8FF | Arc-flash cyan |
-| 4 | Specter | Ghost purple #7B68EE | Ethereal teal #008B8B | Spectral white |
-| 5 | Sentinel | Gold #FFD700 | Warm white #FFFAF0 | Pearl |
-| 6 | Reaver | Crimson #DC143C | Dark red #8B0000 | Bone white |
-| 7 | Abyss | Void black #0D0D0D | Toxic green #39FF14 | Bioluminescent |
-| 8 | Kraken | Dark teal #008080 | Bio-blue #00BFFF | Ink black |
-| 9 | Ember | Orange #FF6600 | Molten red #FF2400 | Magma yellow |
+Each class defines 10 explicit palette roles: outline + 3 triplets (primary, secondary, accent) each with shadow/base/highlight. All values are designer-specified.
+
+| ID | Class | Primary | Secondary | Accent | Outline |
+|----|-------|---------|-----------|--------|---------|
+| 0 | Bulwark | Steel blue #4682B4 | Slate gray #708090 | Titanium white #E8E8E8 | #1A2533 |
+| 1 | Mantis | Jade green #00A86B | Dark teal #20282A | Warm yellow #FFE017 | #002E1D |
+| 2 | Leviathan | Deep navy #000080 | Bronze #CD7F32 | Dark iron #707070 | #000030 |
+| 3 | Tempest | Storm gray #3C505A | Electric blue #48BEC8 | Arc-flash purple #392BFF | #0D1D1F |
+| 4 | Specter | Ghost purple #7B68EE | Deep teal #116777 | Spectral green #59D388 | #1E1840 |
+| 5 | Sentinel | Mint sage #A9D8C3 | Lime chartreuse #D4E77F | Teal aqua #66D0BC | #2A3E3B |
+| 6 | Reaver | Bright red #DC1400 | Near-black #20282A | Gold orange #FFA317 | #3D0510 |
+| 7 | Abyss | Dark teal #1F2C2C | Dark gray-blue #282C3B | Neon green #00D616 | #060D13 |
+| 8 | Kraken | Dark teal #008080 | Bronze #CD7F32 | Coral #E1674F | #002020 |
+| 9 | Ember | Dark brown #381E18 | Dark purple-gray #26232A | Amber #CD7000 | #150E0B |
 
 All 10 palettes are designed for maximum mutual distinction, including under color-blind simulation. Each class also has a unique silhouette shape for identification without color.
+
+### Template Color Roles (10 Roles)
+
+Each class defines **10 explicit palette roles** for template authoring. All shadow and highlight values are designer-specified (no auto-derivation).
+
+| Role | Index | Name | Description |
+|------|-------|------|-------------|
+| Outline | 0 | `outline` | Near-black, class-tinted border color |
+| Primary Shadow | 1 | `primaryShadow` | Dark shade of primary |
+| Primary Base | 2 | `primaryBase` | Main primary color |
+| Primary Highlight | 3 | `primaryHighlight` | Light shade of primary |
+| Secondary Shadow | 4 | `secondaryShadow` | Dark shade of secondary |
+| Secondary Base | 5 | `secondaryBase` | Main secondary color |
+| Secondary Highlight | 6 | `secondaryHighlight` | Light shade of secondary |
+| Accent Shadow | 7 | `accentShadow` | Dark shade of accent |
+| Accent Base | 8 | `accentBase` | Main accent color |
+| Accent Highlight | 9 | `accentHighlight` | Light shade of accent |
+
+Each color group (primary, secondary, accent) follows a consistent **shadow / base / highlight** triplet pattern. This gives the artist 3 tonal values per color for shading, base fills, and highlights. Custom colors (role indices 10+) can be added per-template for special details.
 
 ---
 
@@ -362,7 +393,7 @@ A Bulwark-class lobster might have:
 - Claws: Ember affinity, variant 6 (moderate fiery claws)
 - Tail: Specter affinity, variant 3 (simple ghostly tail)
 - Eyes: Mantis affinity, variant 14 (elaborate jade eyes)
-- Antennae: Sentinel affinity, variant 0 (simple golden antennae)
+- Antennae: Sentinel affinity, variant 0 (simple purple antennae)
 - Legs: Kraken affinity, variant 9 (detailed tentacle-like legs)
 
 This means:
@@ -383,7 +414,7 @@ For each of the 10 affinities, the body part carries that class's visual DNA:
 | **2: Leviathan** | Massive, cracked-stone texture | Enormous, crusher-type | Heavy, powerful, segmented | Large, deep, ancient | Thick, horn-like, curving | Thick, column-like, powerful |
 | **3: Tempest** | Jagged ridges, lightning-bolt patterns | Forked, branching, electric | Zigzag shape, crackling edges | Bright, flickering, electric | Forked like lightning rods | Angular, jagged, sparking |
 | **4: Specter** | Translucent-looking, ethereal edges | Wispy, fading at edges | Trailing, mist-like | Oversized, glowing orbs | Long, ghostly, floating | Fading, translucent, spectral |
-| **5: Sentinel** | Ornate, heraldic, golden trim | Shield-shaped, protective | Flowing, banner-like | Wise, warm, steady gaze | Crown-like, regal | Sturdy, ceremonial, polished |
+| **5: Sentinel** | Ornate, heraldic, purple-plated | Shield-shaped, protective | Flowing, banner-like | Wise, glowing yellow, steady gaze | Crown-like, regal | Sturdy, ceremonial, polished |
 | **6: Reaver** | Spiked, barbed, battle-scarred | Serrated, hook-tipped | Barbed, spined, hook-ended | Red-tinted, aggressive | Thorny, menacing, sharp | Spiked, predatory, gripping |
 | **7: Abyss** | Smooth, dark, bioluminescent spots | Sucker-lined, tentacle-like | Tendril-like, grasping | Large, luminous, alien | Tendril, reaching, organic | Sucker-tipped, creeping |
 | **8: Kraken** | Smooth, iridescent, oceanic | Tentacle-shaped, wrapping | Coiled, sinuous, aquatic | Intelligent, large pupil | Tentacle-like, undulating | Multiple, writhing, flexible |
@@ -476,7 +507,7 @@ Legends are rare lobsters (~0.3% chance per breed) with unique visual treatments
 | 2 | Leviathan | **Titan** | Crackling energy veins across entire body, like contained lightning under the shell. Thunderstorm aura — dark clouds with miniature lightning arcs around the lobster. Deep rumbling glow. |
 | 3 | Tempest | **Storm Sovereign** | Lightning corona — continuous electrical arc crown above the head. Electric arc particles chain between extremities (claws, antennae, tail). Body pulses with white-blue energy. |
 | 4 | Specter | **Spirit Form** | Entire body becomes translucent/semi-transparent with a shimmer effect. Ethereal wisps constantly drift upward from the body. Faint afterimage/echo of the lobster follows movements. |
-| 5 | Sentinel | **Divine Protector** | Radiant halo of warm light behind the head. Celestial light particles descend slowly around the body. Golden illumination emanates from within, giving the lobster a saintly appearance. |
+| 5 | Sentinel | **Divine Protector** | Radiant golden halo behind the head, contrasting the purple body. Celestial light particles descend slowly around the body. Golden illumination emanates from within, sun-yellow energy glowing through the purple armor. |
 | 6 | Reaver | **Crimson Terror** | Blood-red stained overlay — as if the lobster is drenched in crimson. Dark, menacing red-black aura pulses outward. Dripping particle effect (red droplets fall from claws and body). |
 | 7 | Abyss | **Abyssal Horror** | Void-black glow — body radiates darkness rather than light (inverted glow effect). Bioluminescent eyes intensified to piercing brightness. Tendrils of dark energy reach outward from the body. |
 | 8 | Kraken | **Deep One** | Full-body iridescent shimmer — colors shift through the spectrum like an oil slick or deep-sea creature. Bioluminescent patterns pulse rhythmically across the shell. Hypnotic, otherworldly. |
@@ -959,10 +990,11 @@ The most complex UI screen. Split-screen layout with real-time combat display.
 - 3 lobster battle slots per side (128x128 lobster images) with HP bars below each
 - Round counter display (1-7, current round highlighted)
 - Turn order bar: 6 small lobster icons (48x48) sorted left-to-right by Speed. Current actor highlighted. Dead lobsters grayed/crossed out.
-- Move selection panel: 3 buttons (Attack, Defend, Special). Special button grayed if charge < 3. Charge counter (yellow orbs) shown.
-- Target selector: click/tap on enemy lobster to select target. Selected target has highlight ring.
+- Move selection panel: 4 action types (Attack, Defend, Move, Special). Special button grayed if charge < 3. Charge counter (yellow orbs) shown. Move committed in positioning phase; Attack/Defend/Special in combat phase.
+- Hex grid: 6×5 pointy-top offset grid with blocked terrain. Movement range highlights, attack range indicators with distance-based color coding (green = 100%, yellow = 75%, red = 50%).
+- Target selector: click/tap on enemy lobster or destination hex. Selected target/hex has highlight ring.
 - Damage popup numbers: float upward from damaged lobster. White = normal, yellow = critical, red = self-damage, green = healing. Font size scales with damage amount.
-- Timer bar: countdown for commit window (15s) and reveal window (10s). Changes color as time runs low (green → yellow → red).
+- Timer bar: countdown for each phase (60s positioning, 60s combat). Changes color as time runs low (green → yellow → red). Phase label shown (POSITIONING / COMBAT).
 - Victory banner: "VICTORY!" text with confetti particle effect, gold border
 - Defeat banner: "DEFEAT" text with dark overlay, muted colors
 
@@ -1185,7 +1217,7 @@ One high-detail, full-body illustration per class for marketing, loading screens
 | Leviathan | Rising from below, massive, shadows falling on viewer |
 | Tempest | Surrounded by lightning arcs, crackling with energy |
 | Specter | Half-faded, ghostly, one eye glowing through mist |
-| Sentinel | Standing tall, golden light behind, protective stance |
+| Sentinel | Standing tall in purple armor, sun-yellow energy glowing, protective stance |
 | Reaver | Lunging forward, claws dripping, teeth bared |
 | Abyss | Emerging from darkness, only glowing spots visible |
 | Kraken | Tentacles spreading in all directions, commanding |
@@ -1299,9 +1331,10 @@ Z=6  Claws        (front — most prominent)
 
 ### Color Constraints
 
-- Each class affinity has a defined primary palette (see Section 2)
+- Each class affinity defines 4 base colors (primary, secondary, accent, outline) expanded into a **10-role palette** with auto-derived shadow/highlight variants (see Section 2, Template Color Roles)
 - Body parts use the palette of their **affinity** (gene's class), NOT the lobster's overall class
 - Mixed-affinity lobsters will have mixed palettes — this is intentional and expected
+- Artists paint with **role indices 0-9** (not raw colors); the pipeline resolves roles to RGBA at render time
 - Breed type palettes (Section 6) apply as color shifts **on top of** the affinity palette
 - Evolution tier effects (Section 4) apply **on top of** everything else
 - Legend effects (Section 5) are the final layer

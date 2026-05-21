@@ -33,7 +33,7 @@ The `baseReward` (currently 1,250 $CLAW) is admin-tunable and may be adjusted mi
 
 ## Season Budget
 
-Each season has a total emission budget. Once the budget is exhausted, mining stops until the next season begins. Season 1 has 387.5M $CLAW in total emissions.
+Each season has a total emission budget. Once the budget is exhausted, mining stops until the next season begins. Season 1 has 352.5M $CLAW in total emissions.
 
 ## Teams
 

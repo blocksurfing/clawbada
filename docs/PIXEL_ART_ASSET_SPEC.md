@@ -11,7 +11,7 @@
 2. [How the System Works](#2-how-the-system-works)
 3. [Template JSON Format](#3-template-json-format)
 4. [Palette Roles (The 7 "Colors" You Paint With)](#4-palette-roles)
-5. [Class Palettes (10 Classes × 7 Colors)](#5-class-palettes)
+5. [Class Palettes (10 Classes × 10 Colors)](#5-class-palettes)
 6. [Body Part Specifications](#6-body-part-specifications)
 7. [Mutation Zones](#7-mutation-zones)
 8. [Asset Checklist (60 Templates)](#8-asset-checklist)
@@ -68,7 +68,7 @@ Optional legend effects (per-class special treatment for rare legends)
 Upscale to display size (nearest-neighbor, stays crisp)
 ```
 
-**Critical concept**: You paint with **role indices** (numbers 0-6), not actual colors. The same template renders in any of the 10 class color schemes. Role 2 is always "primary base color" — it becomes steel blue for Bulwark, jade green for Mantis, crimson for Reaver, etc.
+**Critical concept**: You paint with **role indices** (numbers 0-9), not actual colors. The same template renders in any of the 10 class color schemes. Role 2 is always "primary base color" — it becomes steel blue for Bulwark, jade green for Mantis, bright red for Reaver, etc.
 
 ---
 
@@ -165,129 +165,159 @@ Light source is from the **top-left**:
 
 ## 5. Class Palettes
 
-Each of the 10 classes has a distinct color scheme. Your template roles map to these colors:
+Each of the 10 classes has a distinct color scheme with **10 explicit palette roles**. All shadow and highlight values are designer-specified (no auto-derivation). Your template roles map to these colors:
 
 ### 0: Bulwark — Tank (Steel Blue / Slate Gray / Titanium White)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
 | 0 Outline | Dark navy | `#1A2533` | Near-black blue |
-| 1 Shadow | Dark steel | `#385E90` | Darkened steel blue |
-| 2 Base | Steel blue | `#4682B4` | Main body color |
-| 3 Highlight | Light steel | `#6BA0D0` | Brightened steel blue |
-| 4 Secondary | Slate gray | `#708090` | Gray markings |
-| 5 Sec. Highlight | Light slate | `#8898A7` | Lighter gray |
-| 6 Accent | Titanium white | `#E8E8E8` | Near-white accents |
+| 1 Prim Shadow | Dark steel | `#294F75` | Deep steel blue |
+| 2 Prim Base | Steel blue | `#4682B4` | Main body color |
+| 3 Prim Highlight | Light steel | `#78AAD2` | Brightened steel blue |
+| 4 Sec Shadow | Dark slate | `#434D57` | Deep slate gray |
+| 5 Sec Base | Slate gray | `#708090` | Gray markings |
+| 6 Sec Highlight | Light slate | `#96A5AF` | Lighter gray |
+| 7 Acc Shadow | Medium gray | `#B5B5B5` | Muted white |
+| 8 Acc Base | Light gray | `#E8E8E8` | Near-white |
+| 9 Acc Highlight | Titanium white | `#FAFAFA` | Brightest white |
 
-### 1: Mantis — Assassin (Jade Green / Black / Venomous Yellow)
+### 1: Mantis — Assassin (Jade Green / Dark Teal / Warm Yellow)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
 | 0 Outline | Dark forest | `#002E1D` | Very dark green |
-| 1 Shadow | Dark jade | `#008656` | Darkened jade |
-| 2 Base | Jade green | `#00A86B` | Main body color |
-| 3 Highlight | Light jade | `#33C98F` | Brightened jade |
-| 4 Secondary | Black | `#1A1A1A` | Dark markings |
-| 5 Sec. Highlight | Dark gray | `#3D3D3D` | Subtle lightened black |
-| 6 Accent | Venomous yellow | `#FFFF00` | Bright yellow accents |
+| 1 Prim Shadow | Dark jade | `#006E46` | Deep jade |
+| 2 Prim Base | Jade green | `#00A86B` | Main body color |
+| 3 Prim Highlight | Light jade | `#32D28C` | Brightened jade |
+| 4 Sec Shadow | Near-black | `#171C1E` | Very dark teal |
+| 5 Sec Base | Dark teal | `#20282A` | Dark markings |
+| 6 Sec Highlight | Muted teal | `#2B353B` | Subtle dark teal |
+| 7 Acc Shadow | Dark gold | `#D7A22F` | Deep warm yellow |
+| 8 Acc Base | Warm yellow | `#FFE017` | Golden yellow |
+| 9 Acc Highlight | Bright yellow | `#FDFF6B` | Pale lemon |
 
 ### 2: Leviathan — Bruiser (Deep Navy / Bronze / Dark Iron)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
 | 0 Outline | Abyss blue | `#000030` | Nearly pure black-blue |
-| 1 Shadow | Dark navy | `#000066` | Darkened navy |
-| 2 Base | Deep navy | `#000080` | Main body color |
-| 3 Highlight | Medium blue | `#3333A6` | Brightened navy |
-| 4 Secondary | Bronze | `#CD7F32` | Warm metallic markings |
-| 5 Sec. Highlight | Light bronze | `#DAA04D` | Lighter bronze |
-| 6 Accent | Dark iron | `#4A4A4A` | Gray-metal accents |
+| 1 Prim Shadow | Dark navy | `#000052` | Deep navy |
+| 2 Prim Base | Deep navy | `#000080` | Main body color |
+| 3 Prim Highlight | Medium blue | `#2828AA` | Brightened navy |
+| 4 Sec Shadow | Dark bronze | `#7B4C1E` | Deep bronze |
+| 5 Sec Base | Bronze | `#CD7F32` | Warm metallic markings |
+| 6 Sec Highlight | Light bronze | `#E1A55A` | Lighter bronze |
+| 7 Acc Shadow | Dark iron | `#4A4A4A` | Deep gray-metal |
+| 8 Acc Base | Iron | `#707070` | Medium gray |
+| 9 Acc Highlight | Light iron | `#888888` | Lighter gray |
 
-### 3: Tempest — Nuker (Electric Blue / White / Arc-flash Cyan)
+### 3: Tempest — Nuker (Storm Gray / Electric Blue / Arc-flash Purple)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
-| 0 Outline | Storm gray | `#1A3A3D` | Dark teal-gray |
-| 1 Shadow | Muted electric | `#64C7CC` | Darkened electric blue |
-| 2 Base | Electric blue | `#7DF9FF` | Bright, vibrant blue |
-| 3 Highlight | Ice blue | `#A4FBFF` | Near-white blue |
-| 4 Secondary | White | `#F0F8FF` | Almost pure white |
-| 5 Sec. Highlight | Pure white | `#F5FAFF` | Brightest white |
-| 6 Accent | Cyan | `#00FFFF` | Arc-flash cyan |
+| 0 Outline | Deep storm | `#0D1D1F` | Very dark teal-black |
+| 1 Prim Shadow | Dark storm | `#1A3A3D` | Dark teal-gray |
+| 2 Prim Base | Storm gray | `#3C505A` | Main body color |
+| 3 Prim Highlight | Light storm | `#4D6B77` | Brightened storm |
+| 4 Sec Shadow | Muted blue | `#5596B9` | Deep electric blue |
+| 5 Sec Base | Electric blue | `#48BEC8` | Vibrant teal-blue |
+| 6 Sec Highlight | Ice blue | `#7DF9FF` | Bright electric |
+| 7 Acc Shadow | Dark purple | `#2C21C4` | Deep violet |
+| 8 Acc Base | Arc-flash | `#392BFF` | Vivid purple-blue |
+| 9 Acc Highlight | Light flash | `#3D51FF` | Bright purple-blue |
 
-### 4: Specter — Debuffer (Ghost Purple / Ethereal Teal / Spectral White)
+### 4: Specter — Debuffer (Ghost Purple / Deep Teal / Spectral Green)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
 | 0 Outline | Void purple | `#1E1840` | Very dark purple |
-| 1 Shadow | Dark purple | `#6253BE` | Darkened purple |
-| 2 Base | Ghost purple | `#7B68EE` | Medium slate blue |
-| 3 Highlight | Light purple | `#9F93F3` | Brightened purple |
-| 4 Secondary | Teal | `#008B8B` | Ethereal teal |
-| 5 Sec. Highlight | Light teal | `#33A9A9` | Lighter teal |
-| 6 Accent | Spectral white | `#E0E0FF` | Pale lavender |
+| 1 Prim Shadow | Dark purple | `#4F3CAA` | Deep purple |
+| 2 Prim Base | Ghost purple | `#7B68EE` | Medium slate blue |
+| 3 Prim Highlight | Light purple | `#A591FF` | Brightened purple |
+| 4 Sec Shadow | Dark ocean | `#184767` | Deep blue-teal |
+| 5 Sec Base | Deep teal | `#116777` | Teal markings |
+| 6 Sec Highlight | Teal | `#008B8B` | Classic teal |
+| 7 Acc Shadow | Dark emerald | `#40AC83` | Deep green |
+| 8 Acc Base | Spectral green | `#59D388` | Medium green |
+| 9 Acc Highlight | Bright green | `#75E76A` | Vivid green |
 
-### 5: Sentinel — Support (Gold / Warm White / Pearl)
+### 5: Sentinel — Support (Mint Sage / Lime Chartreuse / Teal Aqua)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
-| 0 Outline | Dark gold | `#3D3200` | Near-black gold |
-| 1 Shadow | Dark gold | `#CCAC00` | Darkened gold |
-| 2 Base | Gold | `#FFD700` | Rich gold |
-| 3 Highlight | Bright gold | `#FFE54D` | Light gold |
-| 4 Secondary | Warm white | `#FFFAF0` | Floral white |
-| 5 Sec. Highlight | Pure warm | `#FFFCF5` | Near-white |
-| 6 Accent | Pearl | `#F0E6D0` | Pearlescent cream |
+| 0 Outline | Dark sage | `#2A3E3B` | Very dark teal |
+| 1 Prim Shadow | Muted sage | `#82B3AD` | Deep sage |
+| 2 Prim Base | Mint sage | `#A9D8C3` | Main body color |
+| 3 Prim Highlight | Light mint | `#CEF9EA` | Pale mint |
+| 4 Sec Shadow | Dark chartreuse | `#BFB55F` | Olive-gold |
+| 5 Sec Base | Lime | `#D4E77F` | Chartreuse |
+| 6 Sec Highlight | Light lime | `#E6F7B4` | Pale lime |
+| 7 Acc Shadow | Steel teal | `#5EAFC3` | Muted teal |
+| 8 Acc Base | Teal aqua | `#66D0BC` | Medium aqua |
+| 9 Acc Highlight | Bright aqua | `#7DFFE6` | Vivid aqua |
 
-### 6: Reaver — DPS (Crimson / Dark Red / Bone White)
+### 6: Reaver — DPS (Bright Red / Near-Black / Gold Orange)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
 | 0 Outline | Blood black | `#3D0510` | Very dark red-black |
-| 1 Shadow | Dark crimson | `#B01030` | Darkened crimson |
-| 2 Base | Crimson | `#DC143C` | Vivid red |
-| 3 Highlight | Bright crimson | `#E5506A` | Lightened crimson |
-| 4 Secondary | Dark red | `#8B0000` | Deep blood red |
-| 5 Sec. Highlight | Medium red | `#AD3333` | Lighter dark red |
-| 6 Accent | Bone white | `#F5F0E0` | Off-white |
+| 1 Prim Shadow | Dark crimson | `#960A23` | Deep red |
+| 2 Prim Base | Bright red | `#DC1400` | Vivid red |
+| 3 Prim Highlight | Hot red | `#FF2200` | Bright scarlet |
+| 4 Sec Shadow | Near-black | `#14191A` | Very dark |
+| 5 Sec Base | Dark | `#20282A` | Dark markings |
+| 6 Sec Highlight | Muted dark | `#2B353B` | Subtle dark |
+| 7 Acc Shadow | Deep orange | `#FF6C00` | Vivid orange |
+| 8 Acc Base | Gold orange | `#FFA317` | Amber-orange |
+| 9 Acc Highlight | Bright gold | `#FFD120` | Golden yellow |
 
-### 7: Abyss — Lifesteal (Void Black / Toxic Green / Bioluminescent)
+### 7: Abyss — Lifesteal (Dark Teal / Dark Gray-Blue / Neon Green)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
-| 0 Outline | True black | `#000000` | Pure black |
-| 1 Shadow | Near black | `#0A0A0A` | Barely distinguishable from outline |
-| 2 Base | Void black | `#0D0D0D` | Almost black (very dark) |
-| 3 Highlight | Dark gray | `#3D3D3D` | Subtle light on darkness |
-| 4 Secondary | Toxic green | `#39FF14` | Neon green |
-| 5 Sec. Highlight | Light toxic | `#6BFF4E` | Bright neon green |
-| 6 Accent | Bioluminescent | `#00FF80` | Green glow |
+| 0 Outline | Void | `#060D13` | Near-black blue |
+| 1 Prim Shadow | Deep abyss | `#0E1B26` | Very dark blue |
+| 2 Prim Base | Dark teal | `#1F2C2C` | Main body color |
+| 3 Prim Highlight | Muted teal | `#1F3E39` | Subtle dark green |
+| 4 Sec Shadow | Deep night | `#151628` | Very dark purple |
+| 5 Sec Base | Dark gray-blue | `#282C3B` | Dark markings |
+| 6 Sec Highlight | Muted gray | `#323B3B` | Subtle gray-teal |
+| 7 Acc Shadow | Dark green | `#00A811` | Deep neon |
+| 8 Acc Base | Neon green | `#00D616` | Bright green |
+| 9 Acc Highlight | Toxic green | `#4DFF00` | Maximum neon |
 
-**Special note for Abyss**: The primary colors are extremely dark. The visual interest comes almost entirely from the secondary (toxic green) and accent (bioluminescent). Use more secondary/accent pixels than other classes — secondary markings should be prominent.
+**Special note for Abyss**: The primary and secondary colors are extremely dark. The visual interest comes almost entirely from the accent (neon green). Use more accent pixels than other classes — accent markings should be prominent.
 
-### 8: Kraken — Controller (Dark Teal / Bio-blue / Ink Black)
+### 8: Kraken — Controller (Dark Teal / Bronze / Coral)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
 | 0 Outline | Deep teal | `#002020` | Very dark teal |
-| 1 Shadow | Dark teal | `#006666` | Darkened teal |
-| 2 Base | Teal | `#008080` | Classic teal |
-| 3 Highlight | Light teal | `#33A6A6` | Brightened teal |
-| 4 Secondary | Bio-blue | `#00BFFF` | Bright deep sky blue |
-| 5 Sec. Highlight | Light bio | `#33CFFF` | Lighter sky blue |
-| 6 Accent | Ink black | `#0A0A0A` | Near-black ink |
+| 1 Prim Shadow | Dark teal | `#005A5A` | Deep teal |
+| 2 Prim Base | Teal | `#008080` | Classic teal |
+| 3 Prim Highlight | Light teal | `#32AAAA` | Brightened teal |
+| 4 Sec Shadow | Dark bronze | `#9F5423` | Deep bronze |
+| 5 Sec Base | Bronze | `#CD7F32` | Warm metallic |
+| 6 Sec Highlight | Light bronze | `#E1A55A` | Lighter bronze |
+| 7 Acc Shadow | Dark coral | `#D44240` | Deep red |
+| 8 Acc Base | Coral | `#E1674F` | Warm coral |
+| 9 Acc Highlight | Light coral | `#FD9460` | Pale salmon |
 
-### 9: Ember — Glass Cannon (Orange / Molten Red / Magma Yellow)
+### 9: Ember — Glass Cannon (Dark Brown / Dark Purple-Gray / Amber)
 
 | Role | Color | Hex | Visual |
 |------|-------|-----|--------|
-| 0 Outline | Burnt umber | `#3D1A00` | Dark brown-black |
-| 1 Shadow | Dark orange | `#CC5200` | Darkened orange |
-| 2 Base | Orange | `#FF6600` | Vivid orange |
-| 3 Highlight | Light orange | `#FF8F40` | Brightened orange |
-| 4 Secondary | Molten red | `#FF2400` | Scarlet red |
-| 5 Sec. Highlight | Light scarlet | `#FF5533` | Lighter red |
-| 6 Accent | Magma yellow | `#FFFF00` | Bright yellow |
+| 0 Outline | Charcoal | `#150E0B` | Near-black brown |
+| 1 Prim Shadow | Dark brown | `#291B16` | Deep brown |
+| 2 Prim Base | Brown | `#381E18` | Main body color |
+| 3 Prim Highlight | Warm brown | `#451E1C` | Reddish brown |
+| 4 Sec Shadow | Deep purple | `#1E1922` | Very dark purple |
+| 5 Sec Base | Dark purple-gray | `#26232A` | Dark markings |
+| 6 Sec Highlight | Muted purple | `#3F353B` | Subtle dark |
+| 7 Acc Shadow | Dark amber | `#B43C00` | Deep orange |
+| 8 Acc Base | Amber | `#CD7000` | Main glow color |
+| 9 Acc Highlight | Bright amber | `#E9AA17` | Golden glow |
 
 ---
 
