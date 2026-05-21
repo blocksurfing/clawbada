@@ -64,7 +64,10 @@ export default function BreedingPage() {
     <PageBackground variant="reef" scene={BACKGROUNDS.breeding}>
       <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
         <div>
-          <h1 className="font-pixel text-xl text-foreground">Breeding Lab</h1>
+          <div className="flex items-center gap-2">
+            <img src="/assets/icons/Breeding.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
+            <h1 className="font-pixel text-xl text-foreground">Breeding Lab</h1>
+          </div>
           <p className="text-sm text-text-secondary mt-1">Pair two lobsters to breed new offspring</p>
         </div>
 

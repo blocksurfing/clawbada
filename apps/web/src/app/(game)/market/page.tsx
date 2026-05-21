@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { LobsterCard } from '@/components/game/lobster-card';
+import { AnimatedLobster } from '@/components/game/animated-lobster';
 import { StatPills } from '@/components/game/stat-pills';
 import { BodyPartsGrid } from '@/components/game/body-parts-grid';
 import { DNAViewer } from '@/components/game/dna-viewer';
@@ -345,13 +346,22 @@ export default function MarketplacePage() {
   );
 
   return (
-    <div className="min-h-screen landing-page" style={{ backgroundImage: "url('/assets/backgrounds/landing-combined.png')" }}>
+    <div
+      className="min-h-screen w-full"
+      style={{
+        backgroundImage:
+          "linear-gradient(rgba(7,16,32,0.55), rgba(7,16,32,0.55)), url('/marketing/gutter.png')",
+        backgroundSize: '100vw auto',
+        backgroundRepeat: 'repeat-y',
+        backgroundPosition: 'center top',
+      }}
+    >
       <div className="p-4 md:p-8 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="flex items-center gap-2">
-              <Store className="size-6 text-claw-gold" />
+              <img src="/assets/icons/Market.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
               <h1 className="font-pixel text-2xl text-foreground">Marketplace</h1>
             </div>
             <p className="text-text-secondary mt-1">
@@ -437,34 +447,40 @@ export default function MarketplacePage() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-3 mt-8">
+                  <div className="flex items-center justify-center gap-4 mt-8">
                     <button
                       onClick={() => { setPage(Math.max(0, safePage - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       disabled={safePage === 0}
                       className={cn(
-                        'frosted-panel px-4 py-2 text-sm font-medium transition-colors',
-                        safePage === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:border-[rgba(255,210,128,0.3)] cursor-pointer',
+                        'font-pixel text-base px-6 py-2.5 rounded-lg transition-all',
+                        safePage === 0
+                          ? 'opacity-30 cursor-not-allowed bg-ocean-surface/40 text-text-secondary'
+                          : 'cursor-pointer text-white hover:translate-y-[1px] hover:brightness-110',
                       )}
+                      style={safePage === 0 ? undefined : {
+                        background: 'linear-gradient(to bottom, #e8824a 0%, #d4673a 50%, #c25a30 100%)',
+                        border: '2px solid #5c2a14',
+                        boxShadow: '0 3px 0 #5c2a14, inset 0 1px 0 rgba(255,255,255,0.25)',
+                      }}
                     >
                       Previous
                     </button>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       {Array.from({ length: totalPages }, (_, i) => {
-                        // Show first, last, and pages around current
                         const show = i === 0 || i === totalPages - 1 || Math.abs(i - safePage) <= 2;
                         const showEllipsis = !show && (i === 1 || i === totalPages - 2);
-                        if (showEllipsis) return <span key={i} className="text-text-secondary px-1">...</span>;
+                        if (showEllipsis) return <span key={i} className="font-pixel text-base text-text-secondary px-1">...</span>;
                         if (!show) return null;
                         return (
                           <button
                             key={i}
                             onClick={() => { setPage(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                             className={cn(
-                              'w-9 h-9 rounded-md text-sm font-medium transition-colors',
+                              'font-pixel text-base w-10 h-10 rounded-lg transition-colors',
                               i === safePage
-                                ? 'bg-coral/20 text-coral border border-coral/30'
-                                : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
+                                ? 'bg-coral text-white border-2 border-[#a03020] shadow-[0_2px_0_#8b2518]'
+                                : 'text-white/70 hover:text-white hover:bg-ocean-surface/50',
                             )}
                           >
                             {i + 1}
@@ -477,16 +493,23 @@ export default function MarketplacePage() {
                       onClick={() => { setPage(Math.min(totalPages - 1, safePage + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       disabled={safePage >= totalPages - 1}
                       className={cn(
-                        'frosted-panel px-4 py-2 text-sm font-medium transition-colors',
-                        safePage >= totalPages - 1 ? 'opacity-40 cursor-not-allowed' : 'hover:border-[rgba(255,210,128,0.3)] cursor-pointer',
+                        'font-pixel text-base px-6 py-2.5 rounded-lg transition-all',
+                        safePage >= totalPages - 1
+                          ? 'opacity-30 cursor-not-allowed bg-ocean-surface/40 text-text-secondary'
+                          : 'cursor-pointer text-white hover:translate-y-[1px] hover:brightness-110',
                       )}
+                      style={safePage >= totalPages - 1 ? undefined : {
+                        background: 'linear-gradient(to bottom, #e8824a 0%, #d4673a 50%, #c25a30 100%)',
+                        border: '2px solid #5c2a14',
+                        boxShadow: '0 3px 0 #5c2a14, inset 0 1px 0 rgba(255,255,255,0.25)',
+                      }}
                     >
                       Next
                     </button>
                   </div>
                 )}
 
-                <p className="text-center text-sm text-text-secondary mt-3">
+                <p className="text-center font-pixel text-sm text-text-secondary mt-3">
                   Showing {safePage * perPage + 1}-{Math.min((safePage + 1) * perPage, totalListings)} of {totalListings} listings
                 </p>
               </>
@@ -691,10 +714,10 @@ function ExpandedView({
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="fixed inset-4 md:inset-y-8 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:max-w-4xl md:w-full z-50 overflow-y-auto scrollbar-hide">
-        <FrostedPanel className="p-0 overflow-hidden">
+      <div className="fixed inset-4 md:inset-y-8 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:max-w-4xl md:w-full z-50 flex flex-col">
+        <FrostedPanel className="p-0 overflow-hidden flex flex-col flex-1 min-h-0">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
             <button onClick={onClose} className="flex items-center gap-1.5 text-text-secondary hover:text-foreground transition-colors">
               <ChevronLeft className="size-5" />
               <span className="text-sm font-medium">Back to Market</span>
@@ -707,7 +730,7 @@ function ExpandedView({
             </Link>
           </div>
 
-          <div className="md:flex">
+          <div className="md:flex flex-1 min-h-0 overflow-y-auto">
             {/* Left: Character Spotlight */}
             <div className="md:w-[42%] p-6 flex flex-col items-center">
               <div
@@ -716,14 +739,25 @@ function ExpandedView({
                   background: `radial-gradient(ellipse at 50% 60%, ${classColor}40 0%, ${classColor}15 50%, transparent 80%)`,
                 }}
               >
-                <Image
-                  src={listing.isEgg ? '/assets/characters/egg.png' : marketLobsterImage(listing.tokenId)}
-                  alt={lobster.className}
-                  width={384}
-                  height={384}
-                  className="w-[85%] h-[85%] object-contain drop-shadow-[0_6px_24px_rgba(0,0,0,0.5)] animate-idle-bob"
-                  style={{ imageRendering: 'pixelated' }}
-                />
+                {listing.isEgg ? (
+                  <Image
+                    src="/assets/characters/egg.png"
+                    alt="Egg"
+                    width={384}
+                    height={384}
+                    className="w-[85%] h-[85%] object-contain drop-shadow-[0_6px_24px_rgba(0,0,0,0.5)] animate-idle-bob"
+                    style={{ imageRendering: 'pixelated' }}
+                  />
+                ) : (
+                  <AnimatedLobster
+                    dna={lobster.dna}
+                    evolutionTier={lobster.evolutionTier}
+                    displaySize={320}
+                    frameSize={160}
+                    frames={16}
+                    className="drop-shadow-[0_6px_24px_rgba(0,0,0,0.5)]"
+                  />
+                )}
                 {isLegend && (
                   <div className="absolute top-3 right-3 bg-claw-gold/90 rounded-md px-2.5 py-1 flex items-center gap-1.5 animate-pulse-glow">
                     <Sparkles className="size-4 text-white" />
@@ -773,39 +807,6 @@ function ExpandedView({
                 <span className="text-sm px-3 py-1 rounded-md bg-ocean-surface/20 text-text-secondary">
                   Breed {lobster.breedCount}/5
                 </span>
-              </div>
-
-              {/* Buy / Delist */}
-              <div className="w-full mt-6">
-                <div className="frosted-panel-highlight p-4 rounded-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm text-text-secondary">Price</span>
-                    <span className="text-2xl font-bold text-claw-gold font-mono">
-                      {Number(listing.price).toLocaleString()}
-                      <span className="text-sm text-claw-gold/60 ml-1">$CLAW</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-text-secondary mb-3">
-                    <span>Seller</span>
-                    <span className="font-mono">{formatAddress(listing.seller)}</span>
-                  </div>
-                  {isOwner ? (
-                    <TransactionButton
-                      label="Delist"
-                      variant="outline"
-                      className="w-full"
-                      fetchSteps={(auth) => api.market.delist(listing.listingId, auth)}
-                      onSuccess={() => { onClose(); onAction(); }}
-                    />
-                  ) : (
-                    <TransactionButton
-                      label="Buy Now"
-                      className="w-full"
-                      fetchSteps={(auth) => api.market.buy(listing.listingId, auth)}
-                      onSuccess={() => { onClose(); onAction(); }}
-                    />
-                  )}
-                </div>
               </div>
             </div>
 
@@ -911,6 +912,42 @@ function ExpandedView({
                     <p className="text-text-secondary font-medium">Trading history coming soon</p>
                     <p className="text-sm text-text-secondary/60 mt-1">Sales, breeds, and evolution records</p>
                   </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sticky footer: always-visible price + Buy/Delist CTA */}
+          <div className="shrink-0 border-t border-border bg-ocean-deep/95 backdrop-blur-md px-5 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="text-[10px] sm:text-xs text-text-secondary uppercase tracking-wider">Price</span>
+                  <span className="text-xl sm:text-2xl font-bold text-claw-gold font-mono leading-none">
+                    {Number(listing.price).toLocaleString()}
+                  </span>
+                  <span className="text-xs sm:text-sm text-claw-gold/60 font-mono">$CLAW</span>
+                </div>
+                <span className="text-[11px] sm:text-xs text-text-secondary truncate">
+                  Seller <span className="font-mono">{formatAddress(listing.seller)}</span>
+                </span>
+              </div>
+              <div className="shrink-0">
+                {isOwner ? (
+                  <TransactionButton
+                    label="Delist"
+                    variant="outline"
+                    size="lg"
+                    fetchSteps={(auth) => api.market.delist(listing.listingId, auth)}
+                    onSuccess={() => { onClose(); onAction(); }}
+                  />
+                ) : (
+                  <TransactionButton
+                    label="Buy Now"
+                    size="lg"
+                    fetchSteps={(auth) => api.market.buy(listing.listingId, auth)}
+                    onSuccess={() => { onClose(); onAction(); }}
+                  />
                 )}
               </div>
             </div>
