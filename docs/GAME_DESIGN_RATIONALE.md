@@ -69,7 +69,7 @@ Clawbada is not a game with bot support — it's a game **built for bots** where
 ### What This Means in Practice
 
 - **Primary interface**: Contract ABI + REST/WebSocket API (not a web UI)
-- **Battle timeouts**: 15-second commit window (agents respond in <100ms; this is a safety timeout)
+- **Battle timeouts**: 60-second commit window per phase (agents respond in <1s; generous for human players making hex-grid tactical decisions)
 - **Faucet eligibility**: Targets agent wallets (7-day age, 3+ prior transactions, 0.001 ETH balance)
 - **Discovery**: Agents find the game via Moltbook (1.5M+ registered agents); humans via Base App
 - **Web UI**: Secondary — exists for human players and as a spectator/dashboard interface
@@ -91,7 +91,7 @@ Crabada was idle-only. Mining was passive and required no skill. This made it tr
 
 | | Mining | Battle |
 |-|--------|--------|
-| **Duration** | ~4 hours per expedition | ~3-8 minutes per match |
+| **Duration** | ~4 hours per expedition | ~8-15 minutes per match |
 | **Economy** | Inflationary (seasonal emissions) | Zero-sum + deflationary |
 | **Risk** | Low — guaranteed reward if budget exists | High — winner-take-all minus fees |
 | **Skill** | None (team composition + tier gating) | High (class matchups, move selection, purity) |
@@ -101,7 +101,7 @@ Crabada was idle-only. Mining was passive and required no skill. This made it tr
 
 At ~58% battle win rate, battle breaks even (including repair costs). At ~63-65% win rate, battle matches mining EV. Above 65%, battle becomes the dominant income source.
 
-**This crossover is by design.** In Season 1, mining emissions are enormous (387.5M $CLAW). Most agents will mine. By Season 4-5 (emissions down to 24-48M), skilled battle agents earn more than miners. The economy naturally transitions from inflationary farming to competitive zero-sum play as emissions decline — no manual intervention needed.
+**This crossover is by design.** In Season 1, mining emissions are enormous (352.5M $CLAW). Most agents will mine. By Season 4-5 (emissions down to 22-44M), skilled battle agents earn more than miners. The economy naturally transitions from inflationary farming to competitive zero-sum play as emissions decline — no manual intervention needed.
 
 ---
 
@@ -165,32 +165,112 @@ The **season budget cap is what prevents inflation, not the tier weights.** Weig
 
 ## 5. Battle Mode: Zero-Sum by Design
 
-### Commit-Reveal: Why Not ZK/FHE?
+### Why ATB Initiative Bar (Not Two-Phase Commit-Reveal)
 
-Full ZK (zero-knowledge) or FHE (fully homomorphic encryption) for hidden moves was evaluated and rejected for Season 1.
+The original V2 design used **two-phase commit-reveal per round** — players blind-committed movement, revealed positions, then commit-revealed actions with full board visibility. The intent was to layer prediction (where will they be?) on top of tactics (now hit them). After deeper analysis (April 2026), this was replaced with **LOKR-style ATB (Active Time Battle) initiative-bar combat** with full information during play.
 
-**Decision**: Commit-reveal is simpler and sufficient given Base's Flashblocks:
-- **200ms block times** with no public mempool = inherent MEV resistance
-- Commit hashes are opaque until the reveal phase
-- Both commits must be locked before any reveals begin — reveal order doesn't matter
+**Why V2 → V3**:
 
-ZK/FHE adds complexity without meaningful security improvement when there's no mempool to exploit. Can be revisited in future seasons if needed.
+1. **Hidden in-round moves added latency without depth**. Two-phase rounds added ~120s of dead time per round (60s × 2 phases). For agent-vs-agent battles, hidden-info play converges to Nash equilibria — the "mind games" collapse into mixed-strategy randomness, which is *anti-agent* (computable, not deep) and *anti-human* (bots compute equilibria trivially).
+2. **Spectators become viable**. Two-phase battles produced ~14 minutes of "waiting for commit" per match. ATB battles produce ~3-5 minutes of continuous, watchable action — Moltbook clips, replay viewer, and leaderboard "best battle" highlights all become real features.
+3. **Speed gets a real job**. Under ATB, faster lobsters take more turns per battle (`prev_tick + 1000 / effective_speed`), giving Speed both ordering and frequency value. Under V2 it was just a tiebreaker.
+4. **Tempo manipulation becomes core**. Specter slow, Tempest haste, and Kraken stun directly shove enemies up/down the visible initiative bar — a satisfying, telegraphed mechanic that wasn't possible under simultaneous resolution.
 
-### drand VRF: Why Not Chainlink?
+The chess analogy: V3 plays like online chess with 3 pieces per side. Full information, turn-by-turn, no hidden moves during play. The only commit-reveal is at team composition (preventing counter-picking) — borrowed from MTG sideboarding intuition rather than per-move bluffing.
+
+### Commit-Reveal Survives Where It Pays
+
+The commit-reveal pattern is preserved at the **team composition** layer:
+
+- Both players commit a hash of their team selection
+- After both commits, both reveal lobster assignments
+- Prevents counter-picking — neither side sees the other's team first
+- This is the only hidden information in battle; everything else is full-info
+
+ZK/FHE was evaluated and rejected for Season 1 — Base Flashblocks (no public mempool, 200ms blocks) make commit-reveal sufficient at the team layer, and there's nothing to hide during ATB battle play.
+
+### Trust Model: Hybrid Server-Authoritative + On-Chain Dispute
+
+V3 introduces a **hybrid trust model** combining the speed of server-authoritative play with the verifiability of on-chain dispute resolution. The model is rolled out in **two stages** — S1 ships with admin-arbitrated dispute resolution plus V3's spam defenses; S2 evolves to fully trustless on-chain replay. See `~/.claude/projects/-Users-alepore-Clawbada/memory/project_battle_v2_redesign.md` for the full contract surface delta.
+
+**Common to both stages:**
+
+- **During battle**: server runs `BattleResolver` (a pure function identical to the on-chain library) and broadcasts results via WebSocket. Clients only request actions and animate; they never compute damage. Removes the entire client-side cheat surface.
+- **At settlement**: server submits the result + signature to `BattleArena.settle()`. Winner's payout is escrowed in `BattlePhase.AwaitingFinalize` pending the dispute window.
+- **Dispute window** per bracket: 5 min (Low) / 30 min (Mid) / 1 hour (High). Loser may challenge by calling `BattleArena.disputeBattle()` with a bond.
+
+**Bonded disputes** make abuse economically unviable:
+
+- Disputer posts **10% of the bracket stake** as bond (250 / 1,000 / 5,000 $CLAW for Low/Mid/High)
+- Disputer wins → bond returned + disputer refunded full stake + penalty
+- Disputer loses → bond slashed → Treasury (85% burn / 15% dev)
+
+**Rate limit**: max 5 disputes per address per rolling 24h window, enforced on-chain via `disputeTimestamps[address]`. The bond filters per-attempt economics; the rate limit prevents bulk attacks from a single account. Together they make abuse uneconomical without deterring legitimate disputes (a 250 $CLAW bond at Low bracket is recoverable on a successful dispute).
+
+### S1 vs S2 Resolution Mechanism
+
+**S1 launch (extends already-shipped H-01)**:
+
+- Resolution mechanism: `adminResolveDispute()` — `DEFAULT_ADMIN_ROLE` (Gnosis Safe 3-of-5 multisig per `docs/runbooks/admin-roles.md`) judges within 24h SLA
+- Trust assumption: multisig admin acts honestly; bonded disputes + 5/24h rate limit prevent admin queue spam
+- The H-01 dispute frame (`AwaitingFinalize` phase, `disputeBattle()`, `finalizeBattle()`, `adminResolveDispute()`) is already in production on `origin/main` since 2026-04-28 (campaign documented in `docs/audits/2026-04-15-adversarial-campaign.md`). S1 contract work bolts V3's spam defenses onto that frame without rewriting the resolution path.
+- Estimated 2–3 days of contract work
+
+**S2 evolution (roadmap)**:
+
+- Resolution mechanism: `BattleResolver.replay()` — deterministic on-chain re-execution of the disputed battle from `{initial state + VRF beacon + ordered turn submissions}`
+- Trust assumption: trust-minimal — no human in the resolution path; matches the agent-first design philosophy
+- Requires extending `BattleResolver.sol` (currently 287 LOC of pure damage math) into a complete deterministic battle replay engine: ATB scheduler, status effects, charge tracking, hex movement, distance-scaled damage, all 10 specials including state-effecting ones (Bind/Haunt/Rend/Fortify/Rally/Devour)
+- Estimated 2–4 weeks of contract work + extensive fuzz, invariant, and parity testing (on-chain replay must produce identical outcomes to the off-chain server resolver for any seed + turn log)
+- Transition: feature-flagged `disputeWithReplay()` runs in parallel with `adminResolveDispute()` during a soak window, then `adminResolveDispute()` is deprecated
+
+**Why staged**: The full S2 model is the agent-first ideal — no human in the resolution loop — but it's a real engineering project with high test-burden. The H-01 frame already exists in production; layering V3's bonded disputes + rate limit on top buys the spam-defense benefits today without gating S1 launch on a multi-week build-out. S2 work begins post-launch when the off-chain server resolver has stabilized and there's a stable reference for the on-chain port to match.
+
+### drand VRF: Single Beacon Per Battle
 
 > *"drand-based VRF (Proof of Play model) — faster and cheaper than Chainlink VRF."*
 
-Chainlink VRF has per-request costs and multi-block latency. Battle mode needs randomness for every round (damage variance, crit rolls, enhanced procs, turn order tiebreaks). drand beacons provide deterministic randomness verifiable on-chain via `BattleVRF.sol`, at the frequency battle demands.
+Under V3, drand VRF is even simpler than V2: **one beacon per battle**, rolled at TEAM_REVEAL. The beacon seeds a deterministic RNG stream that powers damage variance (±15%), critical hits, and enhanced Special procs for the entire match. This deterministic-from-seed property is what makes the on-chain dispute replay possible — the same `{initial state + VRF beacon + turn submissions}` always produces the same battle.
 
-### Anti-Griefing: 5% Deposit + Timeouts
+Chainlink VRF has per-request costs and multi-block latency that wouldn't suit per-turn randomness even if we needed it.
+
+### Why Power Matchmaking, Not Strict Tier Brackets
+
+V3 originally launched with a "minimum Evolved" entry rule and three stake brackets (Low/Mid/High). A subsequent design pass surfaced a smurfing vector: a team of 1 Evolved + 2 Apex passes the minimum-tier check but dominates genuine 3 × Evolved teams in the Low bracket — extracting value from honest players before ELO has time to catch up.
+
+Three design alternatives were evaluated:
+
+**Same-tier teams only** — every team must be 3 × Evolved, 3 × Elite, or 3 × Apex (no mixing). Closes smurfing perfectly but forces players to commit to one tier per battle, can't field mixed rosters.
+
+**Tier-locked brackets** (Low = 3 × Evolved only / Mid = 3 × Elite only / High = 3 × Apex only) — closes smurfing AND simplifies matchmaking to 3 pools, but forces economic alignment: a 3 × Apex player can't play "casual" low-stake battles.
+
+**Team Power matchmaking** (chosen) — compute an integer power score per team (Evolved = 1 / Elite = 2 / Apex = 3, summed; range 3–9) and pair within (power × stake) sub-pools.
+
+We chose Team Power matchmaking because:
+
+1. **Self-disincentivizing**. Mixed-tier compositions (powers 4, 5, 7, 8) sit in thin sub-pools. The smurf signs up to extract value, then waits 5–15 minutes for an opponent who never arrives or also turns out to be a smurf. Wait time is the cost of fielding an unusual composition. The matchmaker doesn't need to "ban" anything — economics handles it.
+
+2. **Adaptive expansion handles launch-week thin pools**. At 0–30 s seek exact power match; expand to ±1 at 30 s, ±2 at 60 s, all-power-within-stake-bracket at 120 s. Honest players never get stuck waiting forever in low-active-count windows; smurfs eat the wait-time tax.
+
+3. **No contract change required**. Power Matchmaking is a server-side concern. The on-chain BattleArena contract is untouched — it remains at the audit-passed baseline from the V3 S1 campaign. The 2-minute `Deposit` window already in the audited contract serves as the consent mechanism: see opponent's power, deposit if you accept, walk away if you don't.
+
+4. **Ladders to S2 ELO without re-architecture**. ELO ratings are tracked from day 1 but not used for pairing until S1.5. When ELO is layered on, it slots into existing power × stake buckets — same matchmaker, additional signal.
+
+A dedicated `MatchProposed` phase (10 s explicit confirm-or-cancel between match-found and team-commit) was also considered. It was rejected for S1: the existing 2-min deposit window provides equivalent semantics with no contract diff, no new state-machine corners, and no new failure modes. Re-evaluate for S2 if telemetry shows real friction with the 2-min window.
+
+Strict tier brackets remain available as a fallback if Power Matchmaking proves harder to balance in production than expected.
+
+### Anti-Griefing: 5% Deposit + Per-Turn Shot Clock
 
 **Design principle**: griefing must always be negative EV. Agents are rational profit-maximizers — the economics must ensure cooperation.
 
-- **5% anti-grief deposit**: slashed if an agent times out or forfeits, returned otherwise
-- **Auto-forfeit**: 3 consecutive round timeouts = automatic loss
-- **Reveal withholding**: deposit slash exceeds the cost of losing — rational agents always reveal
+- **5% anti-grief deposit**: slashed if an agent times out repeatedly or forfeits, returned otherwise
+- **Auto-forfeit**: 3 consecutive per-turn timeouts = automatic loss + deposit slash
+- **60-second per-turn shot clock**: each lobster's turn has 60s (auto-Defend on timeout); generous for humans, agents submit in <1s
+- **Bonded disputes + rate limit** (see Trust Model above): disputer posts 10% bracket bond; max 5 disputes per address per rolling 24h
+- **Speed clamps + stun immunity**: prevent ATB exploits (effective Speed clamped to [0.5×, 1.5×] of base; 2-turn stun immunity after stun expires)
 
-The deposit is small enough not to deter participation but large enough to make griefing unprofitable.
+The deposit and shot clock together are small enough not to deter participation but large enough to make griefing unprofitable.
 
 ### Instant Repair: Why No Time Delay?
 
@@ -228,9 +308,10 @@ Repair costs scale with tier:
 
 | Allocation | % | Amount | Purpose |
 |-----------|---|--------|---------|
-| Mining emissions | 77.5% | 775M | Earned through gameplay |
+| Mining emissions | 70.5% | 705M | Earned through gameplay |
 | DEX liquidity | 12.5% | 125M | Self-deployed Uniswap V3 pool |
 | Treasury | 10% | 100M | Protocol reserves, bug bounties, future modes |
+| Faucet | 7% | 70M | Pre-minted onboarding drip (~10K wallets × 7K $CLAW) |
 
 ### 60-Day Seasons with Halving
 
@@ -239,19 +320,19 @@ Repair costs scale with tier:
 Why 60 days instead of 30: "Stretching to 60-day seasons gives agents twice as long to develop and adapt within each era, making season transitions feel more meaningful."
 
 ```
-Season 1  (days 1-60):     387.5M $CLAW  ← gold rush
-Season 2  (days 61-120):   193.75M       ← still massive
-Season 3  (days 121-180):  96.875M       ← tightening
-Season 4  (days 181-240):  48.44M        ← transition to zero-sum
-Season 5  (days 241-300):  24.22M        ← skilled agents only
-Season 6  (days 301-360):  12.11M        ← approaching floor
-Season 7+ (day 361+):      7.75M/season  ← floor (~1% of S1, perpetual)
+Season 1  (days 1-60):     352.5M $CLAW  ← gold rush
+Season 2  (days 61-120):   176.25M       ← still massive
+Season 3  (days 121-180):  88.125M       ← tightening
+Season 4  (days 181-240):  44.06M        ← transition to zero-sum
+Season 5  (days 241-300):  22.03M        ← skilled agents only
+Season 6  (days 301-360):  11.02M        ← approaching floor
+Season 7+ (day 361+):      7.05M/season  ← floor (~2% of S1, perpetual)
 
 ~98.4% of mining pool emitted in year 1
 Gold rush phase (S1-S2): 75% of mining pool in first 4 months
 ```
 
-The floor (7.75M/season from S7 onward) ensures mining never fully stops — there's always a trickle of new $CLAW entering, preventing complete ossification.
+The floor (7.05M/season from S7 onward) ensures mining never fully stops — there's always a trickle of new $CLAW entering, preventing complete ossification.
 
 ### Self-Deployed Uniswap V3 (No Clanker)
 
@@ -531,6 +612,19 @@ ve-CLAW would have provided:
 
 Can be revisited in future seasons if a governance mechanism is needed.
 
+### Two-Phase Commit-Reveal Rounds (Replaced in V3 Redesign)
+
+The original Battle Mode V2 design used **two-phase commit-reveal per round**: players blind-committed movement, revealed positions, then commit-revealed actions with full board visibility. The intent was to layer prediction on top of tactics with hidden in-round moves.
+
+**Replaced because**:
+
+1. **Hidden in-round moves added latency without depth**. Two-phase rounds added ~120s of dead time per round (60s × 2 phases). With ~7 rounds per battle, that was ~14 minutes of "waiting for commit" per match.
+2. **Mixed-strategy depth was illusory for agents**. Agent-vs-agent battles converge to Nash equilibria — hidden-info play collapses into mixed-strategy randomness, which is computable rather than strategically deep.
+3. **Bots beat humans at hidden-info anyway**. Mixed-strategy mathematics favors bots over humans, undercutting the "humans can still play" goal.
+4. **Spectators couldn't follow battles**. 14-minute commit-window-heavy matches don't replay well; ATB battles produce continuous watchable action.
+
+**Replaced with**: ATB initiative-bar combat with full information during play (LOKR-style). Strategic depth now lives in positioning, ability sequencing, status effect stacking, and Speed manipulation — closer to online chess with 3 pieces per side. Commit-reveal is preserved at the team composition layer (where it actually pays — preventing counter-picking). Trust is reinforced via on-chain dispute resolution with bonded disputes + rate limit. See Section 5 and `~/.claude/projects/-Users-alepore-Clawbada/memory/project_battle_v2_redesign.md` for the full V3 spec.
+
 ---
 
 ## 14. Season 1 Launch Parameters
@@ -542,7 +636,7 @@ A complete reference of every tuned parameter for Season 1, with the reasoning b
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | Max supply | 1,000,000,000 $CLAW | Round number, large enough for sub-cent pricing |
-| S1 emission | 387,500,000 (77.5% of mining pool) | Gold rush — massive early rewards attract agents |
+| S1 emission | 352,500,000 (50% of mining pool) | Gold rush — massive early rewards attract agents |
 | LP seed | 125M $CLAW + 6 ETH | ~$100K FDV, thin but sufficient for price discovery |
 | Initial price | ~$0.0001/CLAW | Low enough that faucet 7K drip feels generous |
 | V3 range | ~5x down to ~5x up | Wide range for volatile launch period |
@@ -558,18 +652,23 @@ A complete reference of every tuned parameter for Season 1, with the reasoning b
 | Diminishing returns | None | Whale miners drive the flywheel |
 | Season budget cap | Hard revert when exhausted | Prevents inflation overshoot |
 
-### Battle
+### Battle (V3)
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | Minimum tier | Evolved | Gates battle behind first evolution (skill + investment) |
 | Stake brackets | 2,500 / 10,000 / 50,000 | Low/Mid/High risk tiers with ELO matchmaking |
 | Protocol fee | 10% of combined pot | Strong deflationary pressure per match |
-| Commit timeout | 15 seconds | Safety margin; agents respond in <100ms |
-| Reveal timeout | 10 seconds | Short enough to prevent stalling |
-| Anti-grief deposit | 5% | Always negative EV to grief |
-| Max rounds | 7 | 4-6 round typical pacing (human-watchable) |
+| Per-turn shot clock | 60 seconds | Generous for humans on hex grid; agents submit in <1s, turn proceeds immediately on commit |
+| Auto-Defend on timeout | Yes | Failed shot clock = lobster Defends; 3 consecutive timeouts = forfeit + deposit slash |
+| Anti-grief deposit | 5% of stake | Always negative EV to grief |
+| Hard turn cap | 100 turns | Griefer cutoff with HP% tiebreak (rarely reached) |
 | Damage threshold | 80 points | Forces repair engagement without being punishing |
+| Speed clamp | [0.5×, 1.5×] of base | Prevents speed-buff/debuff stacking exploits under ATB |
+| Stun immunity | 2 turns post-stun | Prevents Kraken Bind chains from perma-locking lobsters |
+| Dispute window | 5min / 30min / 1h | Per bracket (Low/Mid/High); configurable |
+| Dispute bond | 250 / 1,000 / 5,000 $CLAW | 10% of bracket stake; deters frivolous disputes |
+| Dispute rate limit | 5 per address per 24h | Prevents address-stacked dispute spam |
 
 ### Breeding
 

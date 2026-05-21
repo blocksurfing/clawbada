@@ -27,15 +27,18 @@ Evolution transforms lobsters into more powerful versions, unlocking higher mini
 
 ## NFT Sink Math
 
-Reaching Apex requires burning lobsters at every step:
+Reaching higher tiers compounds burn rates exponentially:
 
-| Target | Total Base Lobsters Consumed |
-|--------|----------------------------|
-| 1 Evolved | 2 Base burned |
-| 1 Elite | 2 Evolved burned (= 4 Base originally) + 2 more Evolved (= 4 Base) = **8 Base** |
-| 1 Apex | Even more exponential |
+| Target | Base Lobsters Required | Net Result |
+|--------|----------------------|-----------|
+| 1 Evolved | **3 Base** | 1 Evolved + 2 Base burned |
+| 1 Elite | **9 Base** | 1 Elite + 8 Base equivalents burned |
+| 1 Apex | **27 Base** | 1 Apex + 26 Base equivalents burned |
+| Apex team of 3 | **81 Base** | 3 Apex + 78 Base equivalents burned |
 
-A full Apex team of 3 requires burning dozens of lobsters across multiple tiers. This creates massive, exponential demand for lobster NFTs.
+Reading the chain: 1 Elite needs 3 Evolved (the target lobster + 2 fuel), and each of those Evolveds needed 3 Base, so 3 × 3 = 9 Base lobsters total feed into one Elite. Same logic compounds for Apex: 1 Apex needs 3 Elite, each Elite needs 9 Base, so 27 Base total.
+
+A full Apex team of 3 burns 78 Base-tier lobsters across the upgrade chains. This creates massive, exponential demand for lobster NFTs.
 
 ## Total $CLAW Cost
 

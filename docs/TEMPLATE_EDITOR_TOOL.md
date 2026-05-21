@@ -281,6 +281,8 @@ This ensures consistent color handling across the main canvas, tier previews, cl
 
 Designers can mark rectangular regions where the game's procedural variant generator is allowed to modify pixels. This enables 16 visual variants per template (controlled by the lobster's DNA variant nibble) while keeping the base design stable. The editor visualizes these zones as dashed orange rectangles overlaid on the canvas.
 
+For a short designer-facing explanation with annotated visuals, see `docs/TEMPLATE_EDITOR_MUTATION_ZONE_HANDOFF.md`.
+
 ---
 
 ## AI Proxy for Artist Handoff
@@ -468,7 +470,7 @@ The Clawbada Editor v3 doesn't try to replace Aseprite for general pixel art. In
 
 ## Getting Started
 
-1. Open `packages/asset-gen/tools/template-editor-v3.html` in Chrome or Firefox
+1. Open `packages/asset-gen/tools/template-editor-v5.html` in Chrome or Firefox
 2. Select a **Body Part** and **Class** from the toolbar dropdowns (use "Base (No Class)" for class-agnostic work)
 3. Choose a palette role from the right panel (or press 0-6), or add a custom color
 4. Start drawing with the Pencil tool (B)

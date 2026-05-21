@@ -12,11 +12,11 @@ Each class has a unique stat spread and Special move. The 10 classes form a bala
 | 2 | **Mantis** | Assassin | Ambush | Armor-piercing single target |
 | 3 | **Leviathan** | Bruiser | Crush | Massive single-target burst |
 | 4 | **Tempest** | Nuker | Maelstrom | AoE damage to all enemies |
-| 5 | **Specter** | Debuffer | Haunt | Reduce target stats for 2 rounds |
+| 5 | **Specter** | Debuffer | Haunt | Reduce target stats for 4 turns of target |
 | 6 | **Sentinel** | Support | Rally | Heal + cleanse an ally |
-| 7 | **Reaver** | DPS | Rend | Bleed damage over 3 rounds |
+| 7 | **Reaver** | DPS | Rend | Bleed damage over 6 turns of target |
 | 8 | **Abyss** | Lifesteal | Devour | Damage enemy, heal self |
-| 9 | **Kraken** | Controller | Bind | Stun target for 1 round |
+| 9 | **Kraken** | Controller | Bind | Stun target for 1 turn (then 2-turn immunity) |
 | 10 | **Ember** | Glass Cannon | Inferno | Highest burst, self-damage |
 
 ## Stats
@@ -32,6 +32,27 @@ Every lobster has 5 stats:
 | **Critical** | Crit chance. Crits deal 1.5x damage. |
 
 Stats are determined by: **base class stats** + **body part modifiers** + **evolution tier bonus** + **legend bonus**.
+
+## Base Class Stats
+
+Each class has a distinct stat spread before any modifiers, evolution, or legend bonus:
+
+| Class | HP | Atk | Armor | Spd | Crit |
+|-------|-----|-----|-------|-----|------|
+| **Bulwark** | 700 | 70 | 120 | 80 | 90 |
+| **Mantis** | 375 | 100 | 70 | 130 | 125 |
+| **Leviathan** | 600 | 130 | 100 | 70 | 80 |
+| **Tempest** | 450 | 110 | 80 | 105 | 115 |
+| **Specter** | 425 | 85 | 85 | 125 | 120 |
+| **Sentinel** | 650 | 70 | 110 | 90 | 100 |
+| **Reaver** | 475 | 120 | 80 | 110 | 95 |
+| **Abyss** | 525 | 110 | 90 | 95 | 100 |
+| **Kraken** | 550 | 90 | 100 | 105 | 95 |
+| **Ember** | 350 | 140 | 60 | 100 | 130 |
+
+Notice the trade-offs: tanks (Bulwark, Sentinel) sacrifice damage for survivability; glass cannons (Ember, Mantis) hit hard but die fast. Speed determines turn order in battle, so faster classes get to act first — a key tactical consideration. HP is further scaled ×5 from these base values for battle pacing.
+
+For full battle damage formulas and class advantage relationships, see [Battle Mode](battle.md).
 
 ## Evolution Tiers
 
@@ -101,3 +122,7 @@ A lobster is **locked** (cannot be sold or transferred) when it is:
 - In an active battle
 
 Remove the lobster from the team or wait for the activity to complete before trading.
+
+## Battle Damage
+
+Lobsters accumulate **damage points** (0-100) from battles. A lobster with **80 or more damage** cannot enter another battle until it's repaired — pay $CLAW at the Repair Shop to restore it. Damaged lobsters can still mine and breed (damage only gates battle entry, not other activities). See [Battle Mode → Repair](battle.md#repair) for repair costs by tier.
