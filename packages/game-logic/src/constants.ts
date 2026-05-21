@@ -77,10 +77,24 @@ export const GENERATION_COST_MULT = 1_500n; // 1.5× per generation (×1000)
 export const STAKE_BRACKETS = [2_500n, 10_000n, 50_000n] as const; // Low, Mid, High
 export const BATTLE_PROTOCOL_FEE_BPS = 1000n; // 10%
 export const ANTI_GRIEF_DEPOSIT_BPS = 500n; // 5%
-export const COMMIT_TIMEOUT_SECONDS = 15;
-export const REVEAL_TIMEOUT_SECONDS = 10;
+export const COMMIT_TIMEOUT_SECONDS = 60; // per phase (positioning + combat)
+export const REVEAL_TIMEOUT_SECONDS = 15;
 export const AUTO_FORFEIT_TIMEOUTS = 3;
 export const DAMAGE_THRESHOLD = 80; // ≥80 blocks battle entry
+
+// ──────────── Hex Grid ────────────
+export const GRID_COLS = 6;
+export const GRID_ROWS = 5;
+export const GRID_BLOCKED_PERCENT = 0.20; // ~20% impassable per board
+
+// ──────────── Movement Ranges (by class index 0-9) ────────────
+// Bulwark=0, Mantis=1, Leviathan=2, Tempest=3, Specter=4, Sentinel=5, Reaver=6, Abyss=7, Kraken=8, Ember=9
+export const MOVE_RANGES = [1, 3, 1, 3, 3, 2, 2, 2, 2, 3] as const;
+
+// ──────────── Attack Distance Modifiers ────────────
+// Index = hex distance (0=same hex/invalid, 1=adjacent, 2=two apart, 3=three apart)
+export const ATTACK_DISTANCE_MODIFIERS = [0, 1.0, 0.75, 0.50] as const;
+export const ATTACK_MAX_RANGE = 3;
 
 // ──────────── Repair Rates ($CLAW per damage point) ────────────
 export const REPAIR_RATES = [0n, 5n, 15n, 40n] as const; // Base, Evolved, Elite, Apex

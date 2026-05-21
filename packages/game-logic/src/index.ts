@@ -9,3 +9,5 @@ export * from './repair';
 export * from './evolution';
 export * from './gene-inheritance';
 export * from './battle-sim';
+export * from './matchmaker';
+export * from './elo';
