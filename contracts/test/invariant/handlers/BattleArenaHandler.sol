@@ -97,7 +97,9 @@ contract BattleArenaHandler is BaseSetup {
         stakeIdx = uint8(stakeIdx % 3);
         uint256 stake = battleArena.STAKE_BRACKETS(stakeIdx);
 
-        try battleArena.createBattle(aliceH, bobH, stake) returns (uint256 battleId) {
+        // F-04: handler fixtures use Evolved-tier teams (power=3). Tests that
+        // exercise non-Evolved compositions need to pass the matching power.
+        try battleArena.createBattle(aliceH, bobH, stake, 3, 3) returns (uint256 battleId) {
             battleIds.push(battleId);
 
             uint256 antiGrief = stake * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
@@ -215,6 +217,22 @@ contract BattleArenaHandler is BaseSetup {
         if (battleId == 0) return;
 
         address who = byAlice ? aliceH : bobH;
+
+        // V3 S1: approve the dispute bond so the invariant test exercises the
+        // bonded dispute path. aliceH/bobH already hold 10M $CLAW from setUp().
+        // The bracket is read off the actual battle stake in case the invariant
+        // tests cycle through stake brackets.
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        uint256 bond;
+        if (b.stakeAmount == battleArena.STAKE_BRACKETS(0)) bond = battleArena.disputeBonds(0);
+        else if (b.stakeAmount == battleArena.STAKE_BRACKETS(1)) bond = battleArena.disputeBonds(1);
+        else bond = battleArena.disputeBonds(2);
+
+        if (bond > 0) {
+            vm.prank(who);
+            claw.approve(address(battleArena), bond);
+        }
+
         vm.prank(who);
         try battleArena.disputeBattle(battleId, hex"01") {} catch {}
     }

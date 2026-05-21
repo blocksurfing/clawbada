@@ -574,7 +574,7 @@ contract BoundaryTests is Test {
         // Bob wins (not alice) — H-01: settle proposes, finalize pays
         vm.prank(resolver);
         arena.settle(battleId, bob, [uint8(10), 5, 8], [uint8(30), 25, 35]);
-        vm.warp(block.timestamp + arena.DISPUTE_WINDOW() + 1);
+        vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         arena.finalizeBattle(battleId);
 
         assertEq(claw.balanceOf(bob), bobBalBefore + winnerPayout + antiGrief);
@@ -597,7 +597,7 @@ contract BoundaryTests is Test {
         // H-01: damage application now happens in finalizeBattle, not settle
         vm.prank(resolver);
         arena.settle(battleId, alice, [uint8(15), 5, 8], [uint8(30), 25, 35]);
-        vm.warp(block.timestamp + arena.DISPUTE_WINDOW() + 1);
+        vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         arena.finalizeBattle(battleId);
 
         assertEq(nft.getDamage(teamA.lobsterIds[0]), 100); // capped
