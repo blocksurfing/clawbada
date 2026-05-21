@@ -22,9 +22,13 @@ export enum PaletteRole {
   PrimaryShadow = 1,
   PrimaryBase = 2,
   PrimaryHighlight = 3,
-  SecondaryBase = 4,
-  SecondaryHighlight = 5,
-  Accent = 6,
+  SecondaryShadow = 4,
+  SecondaryBase = 5,
+  SecondaryHighlight = 6,
+  AccentShadow = 7,
+  AccentBase = 8,
+  AccentHighlight = 9,
+  UniversalOutline = 10,
 }
 
 /** A single non-transparent pixel in a template, stored sparsely. */
@@ -76,15 +80,19 @@ export interface PixelTemplate {
 
 // ──────────── Palette types ────────────
 
-/** A resolved 7-color palette for rendering template roles to RGBA. */
+/** A resolved 11-color palette for rendering template roles to RGBA. */
 export interface ResolvedPalette {
   outline: RGBA;
   primaryShadow: RGBA;
   primaryBase: RGBA;
   primaryHighlight: RGBA;
+  secondaryShadow: RGBA;
   secondaryBase: RGBA;
   secondaryHighlight: RGBA;
-  accent: RGBA;
+  accentShadow: RGBA;
+  accentBase: RGBA;
+  accentHighlight: RGBA;
+  universalOutline: RGBA;
 }
 
 /** HSL-based color transform applied per breed type. */

@@ -18,6 +18,7 @@ import { gridToPng, saveGridAsPng, pngToGrid, loadPngAsGrid } from './render/ren
 import { keccak256Packed } from '@clawbada/game-logic';
 import type { PixelGrid, PixelTemplate, RenderOptions, RenderParams } from './types';
 import type { RoleGrid } from './variants/mutations';
+import { renderIdleSpriteSheet, renderIdleSpriteSheetPng } from './animation/sprite-sheet';
 
 // ──────────── DNA → Render Params ────────────
 
@@ -45,11 +46,12 @@ export function dnaToRenderParams(dna: bigint, evolutionTier = 0): RenderParams 
 // ──────────── Tier Filtering ────────────
 
 /**
- * Filter a template's pixels to only include those at or below the given evolution tier.
+ * Filter a template's pixels to only include those matching the given evolution tier exactly.
+ * Each tier is a standalone design, not cumulative.
  * Returns a new template (does not mutate the original).
  */
 function filterTemplateByTier(template: PixelTemplate, evolutionTier: number): PixelTemplate {
-  const filtered = template.pixels.filter((p) => (p.tier ?? 0) <= evolutionTier);
+  const filtered = template.pixels.filter((p) => (p.tier ?? 0) === evolutionTier);
   if (filtered.length === template.pixels.length) return template; // No change
   return { ...template, pixels: filtered };
 }
@@ -184,6 +186,10 @@ export {
   pngToGrid,
   saveGridAsPng,
   loadPngAsGrid,
+
+  // Animation
+  renderIdleSpriteSheet,
+  renderIdleSpriteSheetPng,
 };
 
 // Re-export types

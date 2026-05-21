@@ -20,14 +20,19 @@ export interface RenderedLayer {
 
 /**
  * Render a single body part from template + variant + colors.
+ *
+ * @param classOverride If provided, use this class palette instead of the template's.
+ *   This ensures all body parts render in the lobster's class colors regardless of
+ *   individual body part DNA class affinity (shapes vary, colors stay consistent).
  */
 export function renderBodyPart(
   template: PixelTemplate,
   variant: number,
   breedType: number,
+  classOverride?: number,
 ): PixelGrid {
   const roleGrid = generateVariant(template, variant);
-  return resolveColors(roleGrid, template.classAffinity, breedType, template.customColors);
+  return resolveColors(roleGrid, classOverride ?? template.classAffinity, breedType, template.customColors);
 }
 
 /**

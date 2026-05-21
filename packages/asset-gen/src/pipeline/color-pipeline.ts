@@ -7,7 +7,7 @@
  * 3. Apply breed type HSL shift
  */
 
-import { NATIVE_SIZE, CHANNELS } from '../constants';
+import { NATIVE_SIZE, CHANNELS, NUM_ROLES } from '../constants';
 import { getClassPalette } from '../palettes/class-palettes';
 import { getBreedTypeShift } from '../palettes/breed-type-shifts';
 import { shiftHSL, tintColor } from '../palettes/palette-utils';
@@ -22,9 +22,13 @@ function paletteToArray(palette: ResolvedPalette): RGBA[] {
     palette.primaryShadow,
     palette.primaryBase,
     palette.primaryHighlight,
+    palette.secondaryShadow,
     palette.secondaryBase,
     palette.secondaryHighlight,
-    palette.accent,
+    palette.accentShadow,
+    palette.accentBase,
+    palette.accentHighlight,
+    palette.universalOutline,
   ];
 }
 
@@ -52,9 +56,9 @@ export function resolveColors(
 
       let color: RGBA;
 
-      if (role >= 7 && customColors && customColors[role - 7]) {
-        // Custom color roles (7+): use template-defined color, no breed shift
-        const cc = customColors[role - 7];
+      if (role >= NUM_ROLES && customColors && customColors[role - NUM_ROLES]) {
+        // Custom color roles (NUM_ROLES+): use template-defined color, no breed shift
+        const cc = customColors[role - NUM_ROLES];
         color = [cc[0], cc[1], cc[2], 255];
       } else {
         color = paletteArr[role] ?? paletteArr[2]; // Fallback to primaryBase

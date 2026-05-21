@@ -45,9 +45,12 @@ describe('resolveColorsRaw()', () => {
       [PaletteRole.PrimaryShadow, palette.primaryShadow],
       [PaletteRole.PrimaryBase, palette.primaryBase],
       [PaletteRole.PrimaryHighlight, palette.primaryHighlight],
+      [PaletteRole.SecondaryShadow, palette.secondaryShadow],
       [PaletteRole.SecondaryBase, palette.secondaryBase],
       [PaletteRole.SecondaryHighlight, palette.secondaryHighlight],
-      [PaletteRole.Accent, palette.accent],
+      [PaletteRole.AccentShadow, palette.accentShadow],
+      [PaletteRole.AccentBase, palette.accentBase],
+      [PaletteRole.AccentHighlight, palette.accentHighlight],
     ];
 
     for (const [role, expectedColor] of roleColors) {
