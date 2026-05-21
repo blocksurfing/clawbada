@@ -67,6 +67,32 @@ export const BreedingLabAbi = [
   },
   {
     "type": "function",
+    "name": "FINALIZE_MIN_BLOCKS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "FINALIZE_WINDOW",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "LEGEND_THRESHOLD",
     "inputs": [],
     "outputs": [
@@ -93,26 +119,15 @@ export const BreedingLabAbi = [
   },
   {
     "type": "function",
-    "name": "breed",
+    "name": "cancelExpiredRequest",
     "inputs": [
       {
-        "name": "parentA",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "parentB",
+        "name": "requestId",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "outputs": [
-      {
-        "name": "offspringId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
+    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -127,6 +142,25 @@ export const BreedingLabAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "finalizeBreed",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "offspringId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -151,6 +185,77 @@ export const BreedingLabAbi = [
       }
     ],
     "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "getBreedRequest",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct BreedingLab.BreedRequest",
+        "components": [
+          {
+            "name": "requester",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "genA",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "genB",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "finalized",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "dnaA",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "dnaB",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "targetBlock",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "cost",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "parentA",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "parentB",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -186,6 +291,43 @@ export const BreedingLabAbi = [
   },
   {
     "type": "function",
+    "name": "nextRequestId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "requestBreed",
+    "inputs": [
+      {
+        "name": "parentA",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "parentB",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "treasury",
     "inputs": [],
     "outputs": [
@@ -199,22 +341,109 @@ export const BreedingLabAbi = [
   },
   {
     "type": "event",
-    "name": "LobsterBred",
+    "name": "BreedRequestExpired",
     "inputs": [
       {
-        "name": "parentA",
+        "name": "requestId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
       },
       {
+        "name": "parentA",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
         "name": "parentB",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BreedRequested",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "requester",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "parentA",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "parentB",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cost",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "targetBlock",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LobsterBred",
+    "inputs": [
+      {
+        "name": "requestId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
       },
       {
         "name": "offspringId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "offspringDna",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cost",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LobsterBredRejected",
+    "inputs": [
+      {
+        "name": "requestId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
@@ -329,6 +558,16 @@ export const BreedingLabAbi = [
   },
   {
     "type": "error",
+    "name": "MaxGenerationReached",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotAuthorizedToMint",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotLobsterOwner",
     "inputs": [
       {
@@ -345,8 +584,79 @@ export const BreedingLabAbi = [
   },
   {
     "type": "error",
+    "name": "RequestAlreadyFinalized",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "RequestDoesNotExist",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "RequestExpired",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "RequestNotExpired",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "SameParent",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TooEarlyToFinalize",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "targetBlock",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
