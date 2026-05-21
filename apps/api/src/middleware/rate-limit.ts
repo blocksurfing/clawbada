@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { log as baseLog } from '../logger';
 import { ApiError } from '../lib/errors';
+import { getClientIp } from '../lib/client-ip';
 
 const log = baseLog.child({ module: 'rate-limit' });
 
@@ -104,7 +105,11 @@ getBackend();
 export const rateLimit = (maxRequests = 100, windowMs = 60_000): MiddlewareHandler => {
   return async (c, next) => {
     const address = c.get('address') as string | undefined;
-    const ip = c.req.header('x-forwarded-for') ?? c.req.header('x-real-ip') ?? 'unknown';
+    // F-2O: use the same trust policy as the WS upgrade. The Bun server is
+    // threaded through Hono's env from the top-level fetch handler so we can
+    // resolve the connection peer when TRUST_PROXY is off (the default).
+    const server = (c.env as { server?: Parameters<typeof getClientIp>[1] } | undefined)?.server;
+    const ip = getClientIp(c.req.raw, server);
     const key = address ?? ip;
 
     const b = await getBackend();
