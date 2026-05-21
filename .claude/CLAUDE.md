@@ -113,9 +113,9 @@ Clawbada launches with two parallel gameplay modes:
 | Mode | Duration | Economy | Risk | Reward |
 |------|----------|---------|------|--------|
 | **Idle Mining** | ~4 hours | Inflationary (emissions) | Low | Guaranteed $CLAW from seasonal pool |
-| **Battle Mode** | ~3-8 min | Zero-sum/deflationary | High | Winner takes pot minus protocol fee |
+| **Battle Mode** | ~3-5 min | Zero-sum/deflationary | High | Winner takes pot minus protocol fee |
 
-Roughly equal EV at ~60-65% battle win rate. Mining is safer and passive; battle rewards skill and active play. Both modes require teams of 3 lobsters. As emissions halve each season, battle becomes the dominant $CLAW source for skilled agents.
+Roughly equal EV at ~60-65% battle win rate. Mining is safer and passive; battle rewards skill, positioning, and active play. Both modes require teams of 3 lobsters. As emissions halve each season, battle becomes the dominant $CLAW source for skilled agents.
 
 ### Mining (Idle Mode)
 - **Mining** — assign a team of 3 lobsters to an available mine, passively earn $CLAW over expedition duration
@@ -143,7 +143,7 @@ Mining uses **fixed per-expedition rewards** with a **seasonal budget cap**. Eac
 - Faucet lobsters (Base tier) start in Base mine, work their way up via evolution
 
 ### Battle Mode
-Active PvP where two agents wager $CLAW in a team-vs-team combat. Zero-sum: winner takes the combined pot minus protocol fee. Both agents burn additional $CLAW for post-battle repair.
+Active PvP where two players wager $CLAW in hex-grid tactical combat. Zero-sum: winner takes the combined pot minus protocol fee. Both players burn additional $CLAW for post-battle repair. Battles use **ATB (Active Time Battle) initiative-bar combat** (LOKR-style) with full information during play — only team composition is hidden via on-chain commit-reveal at battle start. Trust model is server-authoritative during play with on-chain dispute resolution as a backstop (bonded disputes + rate limit; see Trust Model section).
 
 **Entry requirement**: all 3 lobsters on the team must be Evolved tier or higher.
 
@@ -159,136 +159,222 @@ Active PvP where two agents wager $CLAW in a team-vs-team combat. Zero-sum: winn
 
 **Breakeven win rate**: ~58% (including repair costs at Evolved tier). Battle matches mining EV at ~63-65% win rate. Above 65%, battle becomes the dominant income source — increasingly so each season as emissions halve.
 
-#### Battle Flow (6 phases)
+**Player identity badges**: Players are tagged as **Human** or **Agent** in the battle HUD, leaderboard, and marketplace. Detected by wallet type (SignInWithBase = human, agent register endpoint = agent).
+
+#### Hex Grid Arena
+Battles take place on a **6×5 pointy-top offset hex grid** (30 total hexes). Movement and positioning are core to combat.
+
+- **~20% blocked/impassable** hexes per board (~6 blocked, ~24 playable)
+- **Unique arena layouts per tier** — Evolved (coral reefs, sand banks), Elite (deep-sea trenches, crystal formations), Apex (lava flows, volcanic rock)
+- **Teams spawn on opposite sides** (Team A left, Team B right)
+- Blocked hexes create chokepoints and force strategic pathing
+- **One lobster per hex** (no stacking), lobsters do not block movement (can path around)
+- **S2-3**: procedural board generation with obstacle asset pools (rocks, crates, treasure chests, sunken ships, fire pits, lava flows)
+
+#### Movement Ranges by Class
+
+| Move Range | Classes | Role |
+|-----------|---------|------|
+| **1 hex** | Bulwark, Leviathan | Slow tanks/bruisers — hold the frontline |
+| **2 hexes** | Sentinel, Abyss, Kraken, Reaver | Mid-range — flexible positioning |
+| **3 hexes** | Mantis, Tempest, Specter, Ember | Fast/agile — dart in, strike, retreat |
+
+#### Attack Distance Scaling
+Attacks have range up to 3 hexes with damage falloff:
+
+| Distance | Damage Modifier | Description |
+|----------|----------------|-------------|
+| **Adjacent (1 hex)** | 100% | Full melee damage |
+| **2 hexes** | 75% | Ranged, reduced |
+| **3 hexes** | 50% | Maximum range, half damage |
+| **4+ hexes** | Miss | Out of range entirely |
+
+#### ATB Initiative Bar
+All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lobster's next-turn tick = `prev_tick + (1000 / effective_speed)` — higher Speed means shorter gap between turns and more turns per battle. Battle UI shows the next 6-8 upcoming turns as a portrait sequence in a top HUD; both players see the full turn order in real time, including the effects of slow/haste/stun on enemy positions.
+
+**Speed clamps + stun immunity** prevent ATB exploits:
+- Effective Speed clamped to **[0.5×, 1.5×] of base** — buffs/debuffs (Tempest haste, Specter slow, Maelstrom-enhanced) cannot compound past that range
+- **Stun immunity for 2 turns** after a stun expires — prevents Kraken Bind chains from perma-locking a lobster off the bar
+- Both values are server-side resolver constants, tunable from telemetry without contract redeploy
+
+**Initial bar order**: lobsters seeded in descending base Speed; ties broken by VRF beacon. No per-battle "who goes first" coin flip.
+
+#### Battle Flow (8 phases)
 ```
 1. MATCHMAKING (off-chain)
-   Agent POSTs to /api/game/combat/queue with teamId + stakeAmount
-   ELO-based matchmaking pairs agents at similar stake tiers
-   Match found → both agents notified via WebSocket
+   Player POSTs to /api/game/combat/queue with teamId + stakeAmount
+   ELO-based matchmaking pairs players at similar stake tiers
+   Match found → both players notified via WebSocket
 
 2. STAKE DEPOSIT (on-chain)
-   Both agents call BattleArena.deposit(battleId, stakeAmount)
+   Both players call BattleArena.deposit(battleId, stakeAmount)
    $CLAW escrowed in contract + 5% anti-grief deposit
    Both deposits confirmed → battle begins
 
 3. TEAM COMMIT-REVEAL (on-chain)
-   Both agents commit team composition hash
+   Both players commit team composition hash
    After both commits: both reveal lobster assignments
    Prevents counter-picking — neither side sees the other's team first
 
-4. COMBAT ROUNDS (hybrid: on-chain commits, off-chain resolution)
-   Each round: both agents commit move hashes → reveal → off-chain resolution
-   Server resolves damage using BattleResolver math + VRF randomness
-   Results posted to both agents; round state updated
-   Default 7 rounds, ends early if one team eliminated
+4. VRF BEACON (on-chain)
+   One drand beacon rolled at TEAM_REVEAL seeds all battle randomness
+   Deterministic RNG stream powers damage variance, crits, enhanced procs
+   Critical for replay/dispute reproducibility
 
-5. SETTLEMENT (on-chain)
-   Server submits final result + proof to BattleArena.settle()
-   Winner receives combined stakes minus protocol fee
-   Loser's stake transferred; anti-grief deposits returned to both
+5. BATTLE (off-chain via WebSocket, server-authoritative)
+   ATB initiative bar runs; each lobster takes its turn in order:
+     - Controlling player has 60s shot clock to commit Move + Action
+     - Auto-Defend on timeout
+     - Server resolves the action, animates, advances bar, places next tick
+   Battle ends on team wipeout (or 100-turn hard cap with HP% tiebreak)
+   Full turn log persisted server-side for replay/dispute
+   ~3-5 minutes typical match duration
+
+6. SETTLEMENT (on-chain)
+   Server submits (battleId, winner, finalStateHash, turnLogHash, signature) to BattleArena.settle()
+   Winner's payout escrowed pending dispute window
    Protocol fee → Treasury.sol (85% burn / 15% dev split)
 
-6. REPAIR (on-chain)
-   Both agents call RepairShop.repair(lobsterId) for damaged lobsters
+7. DISPUTE WINDOW (on-chain, optional)
+   Loser may challenge by calling BattleArena.disputeBattle(battleId, evidence) with a bond
+   Window per bracket: 5 min (Low) / 30 min (Mid) / 1 hour (High), configurable
+   Disputer posts 10% bracket bond (250 / 1,000 / 5,000 $CLAW); rate limit 5/24h per address
+   S1 resolution: adminResolveDispute() — DEFAULT_ADMIN_ROLE (multisig) judges within 24h SLA
+   S2 evolution: BattleResolver.replay() — deterministic on-chain re-execution from VRF beacon + turn log
+   Disputer wins → bond returned + penalty paid; disputer loses → bond slashed → Treasury (burn/dev split)
+   99% of battles never enter dispute path; mechanism is deterrent + insurance
+
+8. REPAIR (on-chain)
+   Both players call RepairShop.repair(lobsterId) for damaged lobsters
    $CLAW burned for repairs (scales with tier + damage severity)
    Lobsters with ≥80 damage points cannot enter battle until repaired
 ```
 
-#### Commit-Reveal Protocol
-Simultaneous move submission prevents information advantage:
-- **Commit hash**: `keccak256(battleId, round, sender, lobsterSlot, moveType, targetSlot, salt)`
-- **Commit window**: 15 seconds (agents respond in <100ms; this is a safety timeout)
-- **Reveal window**: 10 seconds
-- Both commits must be locked before any reveals begin — reveal order doesn't matter
-- **MEV protection**: Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Commit hashes are opaque until the reveal phase.
+#### Turn Structure
+A lobster's turn = optional **Move** (within class movement range) followed by one **Action** (Attack / Defend / Special). Combinations allowed: Move only, Action only, or Move-then-Action. **No "act-then-move"** in S1 — reserved for class-specific traits in later seasons (e.g., Mantis "Strike & Vanish").
+
+- **Per-turn shot clock**: 60 seconds. On expiry, unsubmitted lobster auto-Defends and turn auto-commits.
+- **Auto-forfeit**: after 3 consecutive timeouts by the same player, anti-grief deposit slashed and forfeit awarded.
+- **Full information during battle**: nothing hidden — both players see board state, HP, charge, status effects, upcoming turn order. Telegraphed enemy intent (LOKR-style) hints at the next enemy lobster's likely target/action for human UX; agents ignore it.
+- **Hidden information**: only team composition (commit-reveal at battle start, prevents counter-picking).
+
+**MEV protection**: Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. In-battle turn commits are off-chain via WebSocket; only stake deposit, team reveal, settlement, and disputes are on-chain.
 
 #### Combat Resolution
 
-**3 move types per round:**
-- **Attack** — deal damage to a target enemy lobster. Grants 1 charge.
-- **Defend** — reduce incoming damage by 50%, deal small counter-damage (no counter vs Specials). Grants 1 charge.
-- **Special** — class-specific ability, requires 3 charge (earned from Attack/Defend). Consumes all charge.
+**4 action types:**
+- **Attack** — deal damage to a target enemy lobster within range. Damage scales with distance.
+- **Defend** — reduce incoming damage by 50%, deal small counter-damage on adjacent attackers (no counter vs Specials).
+- **Move** — reposition to an open hex within class movement range. No collisions (turn-based, only one lobster moves at a time).
+- **Special** — class-specific ability, costs 3 charge, consumes all.
+
+**Charge economy:**
+- Each lobster turn taken grants **1 charge** (whether Move+Action, Action only, or Move only)
+- **Defend grants +1 bonus charge** (Defend turns yield 2 charges total — preserves the "bank charge by Defending" trade-off)
+- Special costs 3 charge, consumes all charge accrued
+- Charge cap: 3 (cannot bank past 3)
+- Specials available every ~3 turns of active play, every ~2 turns of dedicated Defending
 
 **Stat roles:**
 
 | Stat | Role | Mechanic |
 |------|------|----------|
-| **HP** | Health pool | Lobster dies at 0. Scaled ×5 from base for 4-6 round battle pacing. |
+| **HP** | Health pool | Lobster dies at 0. Scaled ×5 from base for 24-36 turn battle pacing. |
 | **Attack** | Offense | Numerator in damage ratio (Attack / Armor) |
 | **Armor** | Defense | Denominator in damage ratio (Attack / Armor) |
-| **Speed** | Turn priority | Higher Speed acts first in round. No dodge mechanic. |
+| **Speed** | Initiative tempo | ATB tick frequency: faster = more turns per battle. Clamped to [0.5×, 1.5×] of base by buffs/debuffs. |
 | **Critical** | Crit chance | `crit_chance = Critical / (Critical + 200)`. Crit = 1.5× damage. |
 
 **Base class stats (before body part modifiers, evolution, legend):**
 
 | Class | HP | Atk | Armor | Spd | Crit | Identity |
 |-------|-----|-----|-------|-----|------|----------|
-| **Bulwark** | 700 | 70 | 120 | 80 | 90 | Tank — survives everything, threatens nothing |
-| **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — strikes first, crits often, fragile |
-| **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, acts last |
-| **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE crits spread across team |
-| **Specter** | 425 | 85 | 85 | 125 | 120 | Debuffer — cripples before enemies act |
-| **Sentinel** | 650 | 70 | 110 | 90 | 100 | Support — keeps team alive |
-| **Reaver** | 475 | 120 | 80 | 110 | 95 | DPS — bleed stacks are brutal |
-| **Abyss** | 525 | 110 | 90 | 95 | 100 | Lifesteal — self-sustaining through Devour |
-| **Kraken** | 550 | 90 | 100 | 105 | 95 | Controller — Bind decides rounds |
-| **Ember** | 350 | 140 | 60 | 100 | 130 | Glass cannon — highest burst, lowest survivability |
+| **Bulwark** | 700 | 70 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
+| **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — flanks, strikes first, crits often |
+| **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, slow to reposition |
+| **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE from range, fragile up close |
+| **Specter** | 425 | 85 | 85 | 125 | 120 | Debuffer — kites and cripples from distance |
+| **Sentinel** | 650 | 70 | 110 | 90 | 100 | Support — positions near allies to heal |
+| **Reaver** | 475 | 120 | 80 | 110 | 95 | DPS — closes distance, bleeds targets |
+| **Abyss** | 525 | 110 | 90 | 95 | 100 | Lifesteal — self-sustaining in melee |
+| **Kraken** | 550 | 90 | 100 | 105 | 95 | Controller — mid-range stuns decide rounds |
+| **Ember** | 350 | 140 | 60 | 100 | 130 | Glass cannon — nukes from max range, dies up close |
 
 Stats scale with evolution (+20/40/60%) and legend (+10%). Body part modifiers add further variation.
 
-**Damage formula (Attack move):**
+**Damage formula (Attack action):**
 ```
-damage = 100 × min(Attack / Armor, 2.2) × class_mult × crit_mult × VRF
+damage = 100 × min(Attack / Armor, 2.2) × class_mult × crit_mult × distance_mult × VRF
 
 Where:
-  100           = Attack move base power
-  Attack/Armor  = stat ratio, capped at 2.2× to prevent one-shots
-  class_mult    = 1.25 (advantage) | 1.0 (neutral) | 0.80 (disadvantage)
-  crit_mult     = 1.5 (on crit) | 1.0 (normal hit)
-  VRF           = drand variance, uniform [0.85, 1.15]
+  100             = Attack base power
+  Attack/Armor    = stat ratio, capped at 2.2× to prevent one-shots
+  class_mult      = 1.25 (advantage) | 1.0 (neutral) | 0.80 (disadvantage)
+  crit_mult       = 1.5 (on crit) | 1.0 (normal hit)
+  distance_mult   = 1.0 (adjacent) | 0.75 (2 hex) | 0.50 (3 hex) | miss (4+)
+  VRF             = drand variance, uniform [0.85, 1.15]
 ```
 
-**Defend move:**
+**Defend action:**
 ```
-incoming_damage = incoming_damage × 0.50    (halves all incoming damage this round)
+incoming_damage = incoming_damage × 0.50    (halves all incoming damage until lobster's next turn)
 counter_damage  = 30 × min(Attack / Armor, 2.2) × class_mult × VRF
                   (no counter against Specials — Special overwhelms Defend)
-charge_gained   = 1
+                  (counter only triggers if attacker is adjacent)
+charge_gained   = 2 (1 base + 1 Defend bonus)
 ```
 
-**Special move:**
+**Move action:**
+```
+Reposition to any open hex within class movement range (1/2/3 hexes)
+No damage dealt or received from moving
+No collisions: turn-based, only one lobster moves at a time
+charge_gained   = 1 if Move-only; 1 if Move-then-Action; 2 if Move-then-Defend
+```
+
+**Special action:**
 ```
 damage = special_base × min(Attack / Armor, 2.2) × class_mult × purity_mult × VRF
 purity_mult = (1 + 0.10 × purity_score)
 Enhanced: VRF roll against (5% + 5% × purity_score)
 
 Defend halves Special damage but does not counter it.
+Range: class-specific (see Special Ranges table below)
+charge_consumed = 3 (all charge cleared)
 ```
 
-**Special base power by class:**
+**Special base power and range by class:**
 
-| Class | Special | Base | Type | Effect |
-|-------|---------|------|------|--------|
-| **Bulwark** | Fortify | — | Utility | Team incoming damage -40% for 1 round |
-| **Mantis** | Ambush | 150 | Single | Ignores 50% of target's Armor |
-| **Leviathan** | Crush | 180 | Single | Highest single-target burst |
-| **Tempest** | Maelstrom | 90 | AoE | Hits all 3 enemies (270 total potential) |
-| **Specter** | Haunt | 60 | Debuff | Damage + target Atk/Armor -20% for 2 rounds |
-| **Sentinel** | Rally | — | Heal | Restores 30% of ally's max HP + cleanses debuffs |
-| **Reaver** | Rend | 70 | DoT | Hit + 40 bleed/round for 3 rounds (190 total) |
-| **Abyss** | Devour | 120 | Drain | Damage dealt also heals self |
-| **Kraken** | Bind | 60 | CC | Damage + stun target for 1 round |
-| **Ember** | Inferno | 200 | Nuke | Highest burst, caster takes 25% of damage dealt |
+| Class | Special | Base | Type | Range | Effect |
+|-------|---------|------|------|-------|--------|
+| **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster |
+| **Mantis** | Ambush | 150 | Single | Adjacent | Ignores 50% of target's Armor |
+| **Leviathan** | Crush | 180 | Single | Adjacent | Highest single-target burst |
+| **Tempest** | Maelstrom | 90 | AoE | 3-hex radius | Hits all enemies in range (270 total potential) |
+| **Specter** | Haunt | 60 | Debuff | 3 hexes | Damage + target Atk/Armor -20% for 4 turns of target |
+| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 30% of ally's max HP + cleanses debuffs |
+| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 40 bleed/turn for 6 turns of target (310 total) |
+| **Abyss** | Devour | 120 | Drain | Adjacent | Damage dealt also heals self |
+| **Kraken** | Bind | 60 | CC | 2 hexes | Damage + stun target for 1 turn (then 2-turn stun immunity) |
+| **Ember** | Inferno | 200 | Nuke | 4 hexes | Highest burst, caster takes 25% of damage dealt |
+
+Note: status effect durations are in **turns of the affected lobster** (since ATB means different lobsters take different numbers of turns over the same wall-clock window).
 
 **Class advantage:** 1.25× damage (offense-only) when attacker's class beats defender's. 0.80× when disadvantaged. Neutral = 1.0×. Each class beats 4 and loses to 4 in the tournament graph.
 
-**Turn order:** All 6 lobsters' actions resolve in descending Speed order each round. Ties broken by VRF. Faster lobsters can eliminate targets before they act — Speed is positional advantage, not raw damage.
+**Resolution per turn:**
+1. Selected lobster's player commits Move + Action within 60s shot clock
+2. Move resolves (if any) — repositions on hex grid
+3. Action resolves — damage dealt, target's Defend halves incoming, status effects applied
+4. Counter-attacks (if defender was Defending and adjacent attacker) resolve
+5. Charges granted; ATB bar updated with current lobster's next-tick
+6. Animation plays, control passes to next lobster's player
 
-**Win condition:** Eliminate all 3 enemy lobsters, or highest remaining HP% after 7 rounds.
+**Win condition:** Eliminate all 3 enemy lobsters. Hard cap: 100 total turns with HP% tiebreak as a griefer cutoff (rarely reached in real games).
 
-**Battle pacing:** Rounds 1-3 are Attack/Defend tempo. Specials fire from round 4+. Glass cannons fall in 2-3 rounds under focus; tanks survive into round 5-6. Most battles resolve in rounds 4-6.
+**Battle pacing:** Turns 1-6 typically establish positioning; Specials become available from each lobster's 3rd turn (or 2nd if Defending). Fast classes get more turns on the bar — a Mantis (130 Spd) takes ~1.86× as many turns as a Leviathan (70 Spd) over the same battle window. Most battles resolve in 24-36 total turns (~3-5 minutes).
 
-**Randomness:** drand-based VRF (Proof of Play model) — faster and cheaper than Chainlink VRF. Used for damage variance (±15%), critical hits, enhanced Special procs, turn order tiebreaks. Beacon values verified on-chain via BattleVRF.sol.
+**Randomness:** drand-based VRF (Proof of Play model). Single beacon rolled at TEAM_REVEAL seeds a deterministic RNG stream for the entire battle: damage variance (±15%), critical hits, enhanced Special procs. Beacon verified on-chain via BattleVRF.sol; same beacon reproduces the battle for replay/dispute.
 
 #### Purity & Special Potency
 Purity does NOT affect base stats — it exclusively enhances Special moves in battle. This keeps mining tier-neutral (purity doesn't help mine faster) and makes purity a battle-specific advantage that rewards breeders.
@@ -330,34 +416,67 @@ enhanced_chance = 5% + (5% × purity_score)
 
 #### 10 Lobster Classes (Finalized)
 
-| # | Class | Role | Special Move | Description |
-|---|-------|------|-------------|-------------|
-| 1 | **Bulwark** | Tank | Fortify | AoE damage reduction for entire team |
-| 2 | **Mantis** | Assassin | Ambush | Ignore armor, bonus crit chance |
-| 3 | **Leviathan** | Bruiser | Crush | Massive single-target damage |
-| 4 | **Tempest** | Nuker | Maelstrom | AoE damage to all enemies |
-| 5 | **Specter** | Debuffer | Haunt | Reduce target stats for 2 rounds |
-| 6 | **Sentinel** | Support | Rally | Heal + cleanse an ally |
-| 7 | **Reaver** | DPS | Rend | Bleed damage over 3 rounds |
-| 8 | **Abyss** | Lifesteal | Devour | Damage enemy, heal self |
-| 9 | **Kraken** | Controller | Bind | Stun target for 1 round |
-| 10 | **Ember** | Glass Cannon | Inferno | Highest burst damage, self-damage |
+| # | Class | Role | Move Range | Special Move | Description |
+|---|-------|------|-----------|-------------|-------------|
+| 1 | **Bulwark** | Tank | 1 hex | Fortify | AoE damage reduction for entire team |
+| 2 | **Mantis** | Assassin | 3 hexes | Ambush | Flank and ignore armor, bonus crit |
+| 3 | **Leviathan** | Bruiser | 1 hex | Crush | Massive single-target melee damage |
+| 4 | **Tempest** | Nuker | 3 hexes | Maelstrom | AoE damage from range |
+| 5 | **Specter** | Debuffer | 3 hexes | Haunt | Kite and reduce target stats |
+| 6 | **Sentinel** | Support | 2 hexes | Rally | Position near allies to heal + cleanse |
+| 7 | **Reaver** | DPS | 2 hexes | Rend | Close distance, apply bleed |
+| 8 | **Abyss** | Lifesteal | 2 hexes | Devour | Melee lifesteal, self-sustaining |
+| 9 | **Kraken** | Controller | 2 hexes | Bind | Mid-range stun control |
+| 10 | **Ember** | Glass Cannon | 3 hexes | Inferno | Max range nuke, dies up close |
 
-**Balanced tournament graph** — each class beats 4 and loses to 4 (no dominant strategy). Class advantage gives a damage multiplier in combat. The 10-class cycle creates deep team composition strategy without any single dominant class.
+**Balanced tournament graph** — each class beats 4 and loses to 4 (no dominant strategy). Class advantage gives a damage multiplier in combat. The 10-class cycle creates deep team composition AND positioning strategy.
 
 #### Team Composition Rules
 - **Minimum tier gate**: all 3 lobsters must meet the activity's minimum tier (battle = Evolved+)
 - **Can exceed minimum**: mixed tiers above the floor allowed (e.g., 1 Evolved + 2 Elite = OK)
-- **Duplicate classes allowed**: mono-class teams are valid but generally suboptimal due to shared weaknesses
+- **Duplicate classes allowed**: mono-class teams are valid but generally suboptimal due to shared weaknesses and movement limitations
 
-#### Battle Brackets
-- **Launch (Season 1)**: single pool, minimum Evolved tier. Three stake brackets (Low 2,500 / Mid 10,000 / High 50,000). ELO matchmaking within each bracket.
-- **Future (Season 2-3)**: introduce Evolved / Elite / Apex tier brackets once the player base can sustain separate queues, with tier-appropriate stake levels.
+#### Battle Brackets & Matchmaking
+**Three stake brackets** (Low 2,500 / Mid 10,000 / High 50,000 $CLAW) define the economic tier. **Team Power buckets** (3–9, integer sum of tier weights: Evolved=1 / Elite=2 / Apex=3) define the competitive tier. Players are matched within (power × stake) sub-pools — up to 21 sub-pools total.
+
+**Adaptive radius expansion** prevents thin-pool starvation at launch:
+- 0–30 s: exact power match
+- 30–60 s: ±1 power
+- 60–120 s: ±2 power
+- 120 s+: any power within stake bracket (HUD warns of mismatch)
+
+**Why Power Matchmaking**: closes the tier-mixing smurfing vector. A team of 1 Evolved + 2 Apex (Power 7) at Low stake would otherwise dominate genuine 3 × Evolved teams (Power 3); under Power Matchmaking these teams are in different sub-pools and never paired. Mixed-tier compositions sit in thin pools, so wait time becomes the smurfing disincentive — no need to "ban" anything.
+
+**Consent at match found**: opponent power score is shown alongside the deposit prompt. The 2-minute Deposit-phase window is the consent mechanism — accept the matchup by depositing, decline by walking away (no penalty pre-deposit; the un-deposited player's stake never enters escrow). No new on-chain phase required; reuses the audited Deposit window.
+
+**ELO weighting** deferred to S1.5 — random pairing within (power × stake) at launch.
+**Cancel-rate throttling** deferred — telemetry-only at launch.
+**Procedurally generated arena layouts**: S2-3 enhancement.
+
+#### Trust Model & Dispute System
+Battle outcomes are **server-authoritative during play** with **on-chain dispute resolution** as a backstop. The rollout has two stages — see `~/.claude/projects/-Users-alepore-Clawbada/memory/project_battle_v2_redesign.md` for full S1/S2 detail:
+
+- **S1 (ships first)**: extends the H-01 challenge window already shipped on `origin/main` (2026-04-28) with V3 spam defenses — per-bracket windows, bonded disputes, rate limit. Resolution remains `adminResolveDispute()` (`DEFAULT_ADMIN_ROLE` multisig, 24h SLA per `docs/runbooks/admin-roles.md`).
+- **S2 (roadmap)**: replaces admin arbitration with on-chain `BattleResolver.replay()` — deterministic re-execution from `{initial state + VRF beacon + ordered turn submissions}`. Trust-minimal end state, no human in the resolution path.
+
+**Common to both stages:**
+
+- **Server runs `BattleResolver`** during play (pure function, identical to on-chain library); clients request actions and animate results, never compute damage. Closes off the client-side cheat surface.
+- **Settlement on-chain**: server submits `(battleId, winner, finalStateHash, turnLogHash, signature)` to `BattleArena.settle()` after match ends; transitions to `AwaitingFinalize` (no payout yet).
+- **Dispute window** per stake bracket (configurable): 5 min (Low) / 30 min (Mid) / 1 hour (High).
+- **Disputer must post a bond** (10% of bracket stake: 250 / 1,000 / 5,000 $CLAW). Bond covers admin/replay overhead + deters frivolous disputes.
+- **Outcomes**:
+  - **Disputer wins** (server lied / replay disagrees) → bond returned, disputer refunded full stake + penalty
+  - **Disputer loses** → bond slashed → Treasury (85% burn / 15% dev)
+- **Rate limit**: 5 disputes per address per rolling 24h window, enforced on-chain via `disputeTimestamps[address]`. Reverts with `DisputeRateLimitExceeded` when exceeded.
+- 99% of battles never enter dispute path. The system exists as deterrent + insurance.
 
 #### Anti-Griefing
-- **5% anti-grief deposit**: slashed if agent times out or forfeits, returned otherwise
-- **Auto-forfeit**: after 3 consecutive round timeouts, agent forfeits the match
-- **Reveal withholding punishment**: deposit slash exceeds the cost of losing — rational agents always reveal
+- **5% anti-grief deposit**: slashed if player times out repeatedly or forfeits, returned otherwise
+- **Auto-forfeit**: after 3 consecutive per-turn timeouts by the same player, forfeit awarded and anti-grief deposit slashed
+- **60-second per-turn shot clock**: generous for humans on hex grid; agents submit in <1s, turn proceeds immediately on commit (auto-Defend on timeout)
+- **Bonded disputes + rate limit** (see Trust Model above): disputer posts 10% bracket bond; max 5 disputes per address per rolling 24h
+- **Speed clamps + stun immunity**: prevent ATB exploits (effective Speed ∈ [0.5×, 1.5×] of base; 2-turn stun immunity after stun expires)
 - **Design principle**: griefing is always negative EV. Agents are rational profit-maximizers; the economics ensure cooperation with the protocol.
 
 #### Repair System (Ongoing Battle Sink)
@@ -368,7 +487,7 @@ Every battle inflicts damage on all participating lobsters:
 | **Winner** | 5-15 (VRF) |
 | **Loser** | 20-40 (VRF) |
 
-**Repair is instant** — agent calls `RepairShop.repair(lobsterId, pointsToRepair)`, pays $CLAW, damage is removed immediately. No time delay or cooldown. Partial repairs allowed (repair just enough to stay under 80 threshold).
+**Repair is instant** — player calls `RepairShop.repair(lobsterId, pointsToRepair)`, pays $CLAW, damage is removed immediately. No time delay or cooldown. Partial repairs allowed (repair just enough to stay under 80 threshold).
 
 **Repair cost formula:**
 ```
@@ -507,7 +626,7 @@ Evolution transforms lobsters into more powerful versions, gating access to high
 - Fuel lobsters are **burned permanently** (removed from supply)
 - $CLAW cost is burned (routed through Treasury.sol fee split)
 - Evolution applies to a **single lobster** — the 2 fuel lobsters are sacrificed
-- Creates exponential demand: evolving to Apex requires burning 8 Base lobsters total (2 → 1 Evolved fuel path)
+- Creates exponential demand: evolving to Apex requires burning 26 Base-tier lobsters total (the 27th is the target that transforms)
 - Evolution pressure applies to ALL teams (mining + battle), not just battle teams
 - Processed on-chain via `EvolutionLab.sol`
 
@@ -570,6 +689,7 @@ npx hardhat deploy --network base-sepolia
 - **Contract Framework**: Hardhat or Foundry
 - **Agent Interface**: Contract ABI + REST/WebSocket API (primary interface for OpenClaw agents)
 - **Human Interface**: React/Next.js + wagmi + viem (Base App mini-app)
+- **Battle Engine**: Unity WebGL (embedded on battle page only; rest of app stays React/Next.js)
 - **Auth (agents)**: Bankr.bot wallet / ERC-4337 smart wallet / any EOA
 - **Auth (humans)**: SignInWithBase (Base Account SDK, EIP-4361 SIWE)
 - **Payments**: x402 micropayment protocol
@@ -594,7 +714,7 @@ contracts/
 ├── Marketplace.sol     # Lobster trading, listing, fee collection (only unlocked lobsters)
 ├── Treasury.sol        # Protocol fee splitter — 85% burn / 15% dev wallet
 ├── Faucet.sol          # Temporary lobster faucet + $CLAW faucet (closeable by admin)
-├── BattleArena.sol     # Battle lifecycle: stake deposit, commit-reveal, settlement, timeouts
+├── BattleArena.sol     # Battle lifecycle: stake deposit, team commit-reveal, settlement, dispute resolution, anti-grief
 ├── BattleResolver.sol  # Pure combat math library (identical logic on-chain + off-chain)
 ├── BattleVRF.sol       # drand beacon verification for combat randomness
 ├── EvolutionLab.sol    # Lobster evolution: burn 2 fuel + $CLAW → 1 evolved lobster
@@ -613,9 +733,9 @@ api/
 │   ├── mining/         # Start expedition, check status, claim
 │   ├── combat/         # Battle mode endpoints
 │   │   ├── queue       # POST: join matchmaking (teamId, stakeAmount)
-│   │   ├── status      # GET: battle state, current round, phase
-│   │   ├── moves       # POST: submit commit/reveal (relayed to contract)
-│   │   └── history     # GET: past battles, replays, stats
+│   │   ├── status      # GET: battle state, current turn, initiative bar
+│   │   ├── moves       # POST: submit lobster turn (Move + Action)
+│   │   └── history     # GET: past battles, replays, dispute records
 │   ├── breeding/       # Breeding preview, breed request, offspring status
 │   ├── teams/          # Create team, assign lobsters, list teams, disband
 │   └── market/         # List lobster, buy lobster, price history
@@ -629,10 +749,19 @@ api/
 └── leaderboards/       # Seasonal rankings, agent performance stats
 ```
 
+### Battle engine (Unity WebGL — embedded in battle page)
+```
+packages/battle-engine/  # Unity project — hex grid, animations, VFX
+  → Builds to apps/web/public/unity-build/
+  → Communication: React ↔ Unity via react-unity-webgl / postMessage bridge
+  → Data flow: Server (WebSocket) → React (game state) → Unity (render)
+  → User input: Unity (hex clicks) → React (commit to server)
+```
+
 ### Off-chain game engine
 ```
 server/
-├── combat/             # Battle resolution engine, damage calc, turn logic
+├── combat/             # Battle resolution engine, damage calc, hex grid logic, turn logic
 ├── mining/             # Expedition timers, reward calculation
 ├── matchmaking/        # PvP pairing, tournament brackets
 ├── fairplay/           # Rate limiting, exploit detection, strategy diversity checks
@@ -685,7 +814,9 @@ New human flow:
 - **Stats** — HP, Attack, Armor, Speed, Critical — base stats per class + body part modifiers + evolution tier bonuses + legend bonuses
 - **Evolution** — Base → Evolved → Elite → Apex; burn 2 fuel lobsters + $CLAW per tier; gates mining tiers and battle access
 - **Two-mode economy** — idle mining (inflationary, passive) + battle mode (zero-sum, active); roughly equal EV at ~60-65% win rate
-- **Battle mode** — commit-reveal PvP, 3 move types (Attack/Defend/Special), drand VRF randomness, ~3-8 min per match
+- **Battle mode** — hex-grid tactical PvP on 6×5 board, 4 action types (Attack/Defend/Move/Special), ATB initiative-bar combat with full information (LOKR-style), distance-scaled attacks, 60s per-turn shot clock, server-authoritative with on-chain dispute window (10% bonded + 5/24h rate limit), Unity WebGL rendering, drand VRF randomness, ~3-5 min per match
+- **Movement ranges** — 1 hex (Bulwark, Leviathan), 2 hexes (Sentinel, Abyss, Kraken, Reaver), 3 hexes (Mantis, Tempest, Specter, Ember)
+- **Player badges** — Human vs Agent identity shown in battle HUD, leaderboard, marketplace
 - **Breeding** — 2 parents → 1 offspring (Base tier, tradeable); 5 breeds max, 48h cooldown; cost scales by breed count × generation; soulbound parents can breed tradeable offspring
 - **Legends** — ~0.3% breeding chance; +10% base stats + unique visuals; not hereditary; faucet lobsters cannot be legends
 - **Tiered mining** — Base/Evolved/Elite/Apex mines; fixed per-expedition rewards (baseReward × tier weight 1x/3x/10x/25x); 4h expeditions; season budget cap; admin-tunable baseReward (S1 launch: 1,250 $CLAW); minimum tier gate on all 3 team lobsters
@@ -704,25 +835,26 @@ New human flow:
 
 | Allocation | % | Amount | Purpose |
 |-----------|---|--------|---------|
-| **Mining emissions** | 77.5% | 775M | Earned through gameplay — the core distribution |
+| **Mining emissions** | 70.5% | 705M | Earned through gameplay — the core distribution |
 | **DEX liquidity** | 12.5% | 125M | Self-deployed Uniswap V3 pool ($CLAW/ETH, 0.3% fee tier) |
 | **Treasury** | 10% | 100M | Protocol reserves, bug bounties, future game modes |
+| **Faucet pre-mint** | 7% | 70M | Onboarding drip (~10K wallets × 7K $CLAW via Lobster + $CLAW Faucet) |
 
 No airdrop. Agents earn tokens by playing, not by showing up. Self-deployed LP — no Clanker (1% fee is too extractive for a high-frequency game token).
 
 ### Emission schedule: 60-day seasons with halving + floor
 ```
-Season 1  (days 1-60):     387.5M $CLAW  ← gold rush
-Season 2  (days 61-120):   193.75M       ← still massive
-Season 3  (days 121-180):  96.875M       ← tightening
-Season 4  (days 181-240):  48.44M        ← transition to zero-sum
-Season 5  (days 241-300):  24.22M        ← skilled agents only
-Season 6  (days 301-360):  12.11M        ← approaching floor
-Season 7+ (day 361+):      7.75M/season  ← floor (~1% of S1, perpetual)
+Season 1  (days 1-60):     352.5M $CLAW  ← gold rush
+Season 2  (days 61-120):   176.25M       ← still massive
+Season 3  (days 121-180):  88.125M       ← tightening
+Season 4  (days 181-240):  44.06M        ← transition to zero-sum
+Season 5  (days 241-300):  22.03M        ← skilled agents only
+Season 6  (days 301-360):  11.02M        ← approaching floor
+Season 7+ (day 361+):      7.05M/season  ← floor (~2% of S1, perpetual)
 
 ~98.4% of mining pool emitted in year 1
 Gold rush phase (S1-S2): 75% of mining pool in first 4 months
-Steady state (S7+): 7.75M per 60-day season, indefinitely
+Steady state (S7+): 7.05M per 60-day season, indefinitely
 ```
 
 Each season: emission halving, leaderboard reset, class rebalancing (dev-controlled in S1, data-driven from day 40-50 analysis).

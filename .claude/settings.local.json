@@ -5,7 +5,10 @@
       "WebFetch(domain:docs.base.org)",
       "WebFetch(domain:tatum.io)",
       "WebFetch(domain:blog.base.dev)",
-      "WebFetch(domain:mud.dev)"
+      "WebFetch(domain:mud.dev)",
+      "Bash(node /Users/alepore/.claude/plugins/cache/openai-codex/codex/1.0.1/scripts/codex-companion.mjs:*)",
+      "Bash(node \"/Users/alepore/.claude/plugins/cache/openai-codex/codex/1.0.1/scripts/codex-companion.mjs\":*)",
+      "Bash(node:*)"
     ]
   }
 }
