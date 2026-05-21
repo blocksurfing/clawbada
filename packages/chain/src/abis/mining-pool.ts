@@ -27,6 +27,19 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "ADMIN_RELEASE_GRACE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "DEFAULT_ADMIN_ROLE",
     "inputs": [],
     "outputs": [
@@ -108,6 +121,19 @@ export const MiningPoolAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "adminReleaseExpedition",
+    "inputs": [
+      {
+        "name": "expeditionId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -539,6 +565,31 @@ export const MiningPoolAbi = [
   },
   {
     "type": "event",
+    "name": "ExpeditionAdminReleased",
+    "inputs": [
+      {
+        "name": "expeditionId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "rewardReturned",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ExpeditionClaimed",
     "inputs": [
       {
@@ -734,6 +785,22 @@ export const MiningPoolAbi = [
   },
   {
     "type": "error",
+    "name": "AdminReleaseTooEarly",
+    "inputs": [
+      {
+        "name": "expeditionId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "availableAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ExpeditionAlreadyClaimed",
     "inputs": [
       {
@@ -805,6 +872,17 @@ export const MiningPoolAbi = [
   },
   {
     "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "SeasonBudgetExhausted",
     "inputs": []
   },
@@ -832,6 +910,17 @@ export const MiningPoolAbi = [
   {
     "type": "error",
     "name": "TeamDoesNotExist",
+    "inputs": [
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "TeamIsActive",
     "inputs": [
       {
         "name": "teamId",

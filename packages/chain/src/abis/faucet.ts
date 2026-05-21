@@ -79,6 +79,19 @@ export const FaucetAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_BATCH_SIZE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_ETH_BALANCE",
     "inputs": [],
     "outputs": [
@@ -311,6 +324,19 @@ export const FaucetAbi = [
         "name": "account",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setCloseTime",
+    "inputs": [
+      {
+        "name": "newCloseTime",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -552,6 +578,22 @@ export const FaucetAbi = [
   },
   {
     "type": "error",
+    "name": "BatchTooLarge",
+    "inputs": [
+      {
+        "name": "length",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "max",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ClawAlreadyClaimed",
     "inputs": []
   },
@@ -563,6 +605,11 @@ export const FaucetAbi = [
   {
     "type": "error",
     "name": "InsufficientETHBalance",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InsufficientFaucetBalance",
     "inputs": []
   },
   {
@@ -623,6 +670,22 @@ export const FaucetAbi = [
     "type": "error",
     "name": "NotEligible",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",
