@@ -22,7 +22,7 @@ contract MiningPoolTest is Test {
     address bob = makeAddr("bob");
 
     uint256 validDNA;
-    uint256 constant S1_EMISSION = 387_500_000e18;
+    uint256 constant S1_EMISSION = 352_500_000e18;
     uint256 constant BASE_REWARD = 1_250e18;
 
     function setUp() public {
@@ -289,12 +289,15 @@ contract MiningPoolTest is Test {
         _startSeason();
 
         assertEq(pool.getSeasonMinted(1), 0);
+        uint256 poolBalBefore = claw.balanceOf(address(pool));
 
         vm.prank(alice);
         pool.startExpedition(teamId, 0);
 
         assertEq(pool.getSeasonMinted(1), BASE_REWARD);
         assertEq(pool.getSeasonUnspent(1), S1_EMISSION - BASE_REWARD);
+        // Reward minted into pool escrow at expedition start
+        assertEq(claw.balanceOf(address(pool)), poolBalBefore + BASE_REWARD);
     }
 
     function test_startExpeditionEmitsEvent() public {
@@ -349,8 +352,9 @@ contract MiningPoolTest is Test {
         vm.prank(alice);
         pool.startExpedition(teamId, 0);
 
+        // Team is now active (set by startExpedition), so TeamIsActive fires first
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(MiningPool.TeamAlreadyMining.selector, teamId));
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.TeamIsActive.selector, teamId));
         pool.startExpedition(teamId, 0);
     }
 
@@ -804,5 +808,228 @@ contract MiningPoolTest is Test {
         vm.prank(extraMiner);
         vm.expectRevert(MiningPool.SeasonBudgetExhausted.selector);
         pool.startExpedition(extraTeam, 0);
+    }
+
+    // ──────────── P-01 Regression: team.active check prevents cross-contract double-use ────────────
+
+    function test_startExpeditionRevertsWhenTeamIsActive() public {
+        uint256 teamId = _createTeam(alice, 0);
+        _startSeason();
+
+        // Simulate BattleArena (or another ACTIVITY_ROLE holder) marking the team active
+        vm.startPrank(admin);
+        tm.grantRole(tm.ACTIVITY_ROLE(), admin);
+        tm.setTeamActive(teamId, true);
+        vm.stopPrank();
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.TeamIsActive.selector, teamId));
+        pool.startExpedition(teamId, 0);
+    }
+
+    function test_activeTeamCannotMineEvenWithNoExpeditionMapping() public {
+        uint256 teamId = _createTeam(alice, 0);
+        _startSeason();
+
+        // Team is active (e.g., in battle) but has no expedition mapping
+        vm.startPrank(admin);
+        tm.grantRole(tm.ACTIVITY_ROLE(), admin);
+        tm.setTeamActive(teamId, true);
+        vm.stopPrank();
+
+        // Verify no expedition exists for this team
+        assertEq(pool.getActiveExpedition(teamId), 0);
+
+        // Should still revert due to team.active check
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.TeamIsActive.selector, teamId));
+        pool.startExpedition(teamId, 0);
+
+        // Deactivate team, now expedition should succeed
+        vm.prank(admin);
+        tm.setTeamActive(teamId, false);
+
+        vm.prank(alice);
+        uint256 expId = pool.startExpedition(teamId, 0);
+        assertGt(expId, 0);
+    }
+
+    // ──────────── M-02 Regression: Escrow-at-start prevents permanent team lock ────────────
+
+    function test_startExpeditionRevertsWhenMaxSupplyInsufficient() public {
+        // Arrange: consume nearly all of ClawToken's remaining mintable supply
+        // Initial supply: 125M (LP) + 100M (treasury) = 225M minted at deploy
+        // MAX_SUPPLY = 1B, so 775M remaining
+        uint256 remaining = claw.remainingMintable();
+
+        // Mint all but a tiny amount (less than BASE_REWARD) to exhaust supply
+        uint256 leaveAvailable = BASE_REWARD / 2; // not enough for an expedition
+        uint256 consumeAmount = remaining - leaveAvailable;
+
+        // Grant admin minting power and consume supply
+        vm.startPrank(admin);
+        claw.grantRole(claw.MINTER_ROLE(), admin);
+        claw.mint(makeAddr("sink"), consumeAmount);
+        vm.stopPrank();
+
+        // Verify headroom is insufficient
+        assertLt(claw.remainingMintable(), BASE_REWARD);
+
+        uint256 teamId = _createTeam(alice, 0);
+        // Use a small season budget that would normally fit
+        _startSeasonWith(BASE_REWARD * 10, BASE_REWARD);
+
+        // Act: startExpedition should revert because mint to escrow fails
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(ClawToken.ExceedsMaxSupply.selector, BASE_REWARD, leaveAvailable));
+        pool.startExpedition(teamId, 0);
+
+        // Assert: team is NOT stuck active, no expedition mapped
+        assertFalse(tm.isTeamActive(teamId));
+        assertEq(pool.getActiveExpedition(teamId), 0);
+        // Season budget unchanged
+        assertEq(pool.getSeasonMinted(1), 0);
+    }
+
+    function test_claimSucceedsEvenWhenGlobalSupplyLaterExhausted() public {
+        uint256 teamId = _createTeam(alice, 0);
+        _startSeason();
+
+        // Start expedition — reward is escrowed in pool at this point
+        vm.prank(alice);
+        uint256 expId = pool.startExpedition(teamId, 0);
+        uint256 poolBal = claw.balanceOf(address(pool));
+        assertGe(poolBal, BASE_REWARD);
+
+        // Now exhaust remaining global supply via another minter
+        uint256 remaining = claw.remainingMintable();
+        if (remaining > 0) {
+            vm.startPrank(admin);
+            claw.grantRole(claw.MINTER_ROLE(), admin);
+            claw.mint(makeAddr("sink"), remaining);
+            vm.stopPrank();
+        }
+        assertEq(claw.remainingMintable(), 0);
+
+        // Warp past expedition duration
+        vm.warp(block.timestamp + 4 hours);
+
+        // Claim should succeed — it transfers from escrow, no mint needed
+        vm.prank(alice);
+        pool.claimExpedition(expId);
+
+        assertEq(claw.balanceOf(alice), BASE_REWARD);
+        assertFalse(tm.isTeamActive(teamId));
+        assertEq(pool.getActiveExpedition(teamId), 0);
+    }
+
+    function test_startExpeditionEscrowsCorrectAmount() public {
+        uint256 teamId = _createTeam(alice, 1); // Evolved tier
+        _startSeason();
+
+        uint256 poolBalBefore = claw.balanceOf(address(pool));
+
+        vm.prank(alice);
+        pool.startExpedition(teamId, 1);
+
+        uint256 expectedReward = BASE_REWARD * 3; // Evolved weight
+        assertEq(claw.balanceOf(address(pool)), poolBalBefore + expectedReward);
+    }
+
+    function test_claimReducesPoolBalance() public {
+        uint256 teamId = _createTeam(alice, 0);
+        _startSeason();
+
+        vm.prank(alice);
+        uint256 expId = pool.startExpedition(teamId, 0);
+
+        uint256 poolBalAfterStart = claw.balanceOf(address(pool));
+        assertEq(poolBalAfterStart, BASE_REWARD);
+
+        vm.warp(block.timestamp + 4 hours);
+
+        vm.prank(alice);
+        pool.claimExpedition(expId);
+
+        assertEq(claw.balanceOf(address(pool)), 0);
+        assertEq(claw.balanceOf(alice), BASE_REWARD);
+    }
+
+    // ──────────── F-06: Admin expedition release ────────────
+
+    function test_adminReleaseExpeditionAfterGracePeriod() public {
+        uint256 teamId = _createTeam(alice, 0);
+        _startSeason();
+
+        vm.prank(alice);
+        uint256 expId = pool.startExpedition(teamId, 0);
+
+        // Team should be active
+        assertTrue(tm.isTeamActive(teamId));
+
+        // Warp past expedition + grace period (4h + 7d)
+        vm.warp(block.timestamp + 4 hours + 7 days + 1);
+
+        // Admin releases the stuck expedition
+        vm.prank(admin);
+        pool.adminReleaseExpedition(expId);
+
+        // Team should be inactive now
+        assertFalse(tm.isTeamActive(teamId));
+
+        // Expedition marked as claimed
+        MiningPool.Expedition memory exp = pool.getExpedition(expId);
+        assertTrue(exp.claimed);
+
+        // Reward was burned, not sent anywhere
+        assertEq(claw.balanceOf(address(pool)), 0);
+    }
+
+    function test_adminReleaseExpeditionRevertsBeforeGrace() public {
+        uint256 teamId = _createTeam(alice, 0);
+        _startSeason();
+
+        vm.prank(alice);
+        uint256 expId = pool.startExpedition(teamId, 0);
+
+        // Warp past expedition but NOT past grace period
+        vm.warp(block.timestamp + 4 hours + 1);
+
+        vm.prank(admin);
+        vm.expectRevert(); // AdminReleaseTooEarly
+        pool.adminReleaseExpedition(expId);
+    }
+
+    function test_adminReleaseExpeditionRevertsForNonAdmin() public {
+        uint256 teamId = _createTeam(alice, 0);
+        _startSeason();
+
+        vm.prank(alice);
+        uint256 expId = pool.startExpedition(teamId, 0);
+
+        vm.warp(block.timestamp + 4 hours + 7 days + 1);
+
+        // Alice (not admin) cannot release
+        vm.prank(alice);
+        vm.expectRevert();
+        pool.adminReleaseExpedition(expId);
+    }
+
+    function test_adminReleaseExpeditionCannotDoubleClaim() public {
+        uint256 teamId = _createTeam(alice, 0);
+        _startSeason();
+
+        vm.prank(alice);
+        uint256 expId = pool.startExpedition(teamId, 0);
+
+        vm.warp(block.timestamp + 4 hours + 7 days + 1);
+
+        vm.prank(admin);
+        pool.adminReleaseExpedition(expId);
+
+        // Second release should revert (already claimed)
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.ExpeditionAlreadyClaimed.selector, expId));
+        pool.adminReleaseExpedition(expId);
     }
 }

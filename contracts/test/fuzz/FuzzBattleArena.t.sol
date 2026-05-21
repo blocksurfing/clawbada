@@ -31,6 +31,17 @@ contract FuzzBattleArena is BaseSetup {
         _deposit(bob, battleId);
     }
 
+    /// @dev V3 S1: mint + approve the dispute bond for `disputer` so a subsequent
+    ///      `battleArena.disputeBattle(...)` call doesn't revert with InsufficientAllowance.
+    ///      All existing tests use LOW_STAKE bracket (index 0); this helper assumes that.
+    function _setupDisputeBond(address disputer) internal {
+        uint256 bond = battleArena.disputeBonds(0);
+        if (bond == 0) return;
+        _giveClaw(disputer, bond);
+        vm.prank(disputer);
+        claw.approve(address(battleArena), bond);
+    }
+
     function _commitTeam(address player, uint256 battleId, uint256 teamId, bytes32 salt) internal {
         bytes32 hash = keccak256(abi.encodePacked(battleId, player, teamId, salt));
         vm.prank(player);
@@ -179,7 +190,7 @@ contract FuzzBattleArena is BaseSetup {
 
         vm.prank(admin);
         battleArena.settle(battleId, alice, winnerDmg, loserDmg);
-        vm.warp(block.timestamp + battleArena.DISPUTE_WINDOW() + 1);
+        vm.warp(block.timestamp + battleArena.disputeWindows(0) + 1);
         battleArena.finalizeBattle(battleId);
 
         uint256 aliceAfter = claw.balanceOf(alice);
@@ -353,7 +364,7 @@ contract FuzzBattleArena is BaseSetup {
 
         vm.prank(admin);
         battleArena.settle(battleId, alice, winnerDmg, loserDmg);
-        vm.warp(block.timestamp + battleArena.DISPUTE_WINDOW() + 1);
+        vm.warp(block.timestamp + battleArena.disputeWindows(0) + 1);
         battleArena.finalizeBattle(battleId);
 
         for (uint256 i = 0; i < 3; i++) {
@@ -620,9 +631,11 @@ contract FuzzBattleArena is BaseSetup {
         (uint256 battleId,,) = _setupSettleableBattle();
         _settleProposing(battleId, alice);
 
+        _setupDisputeBond(bob);
         vm.prank(bob);
         battleArena.disputeBattle(battleId, hex"01");
 
+        // Second dispute reverts at AlreadyDisputed (before bond pull), no bond setup needed.
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.AlreadyDisputed.selector, battleId));
         battleArena.disputeBattle(battleId, hex"02");
@@ -633,6 +646,7 @@ contract FuzzBattleArena is BaseSetup {
         (uint256 battleId,,) = _setupSettleableBattle();
         _settleProposing(battleId, alice);
 
+        _setupDisputeBond(bob);
         vm.prank(bob);
         battleArena.disputeBattle(battleId, hex"");
 
@@ -647,10 +661,12 @@ contract FuzzBattleArena is BaseSetup {
         (uint256 battleId,,) = _setupSettleableBattle();
         _settleProposing(battleId, alice);
 
+        _setupDisputeBond(bob);
         vm.prank(bob);
         battleArena.disputeBattle(battleId, hex"deadbeef");
 
         uint256 bobBefore = claw.balanceOf(bob);
+        uint256 disputeBond = battleArena.disputeBonds(0); // V3 S1: bob's bond will refund
 
         vm.prank(admin);
         battleArena.adminResolveDispute(battleId, bob, [uint8(5), 5, 5], [uint8(20), 20, 20]);
@@ -663,7 +679,12 @@ contract FuzzBattleArena is BaseSetup {
         uint256 protocolFee = combinedPot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
         uint256 winnerPayout = combinedPot - protocolFee;
         uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        assertEq(claw.balanceOf(bob) - bobBefore, winnerPayout + antiGrief, "bob gets winner payout");
+        // V3 S1: disputer bob was right → bond refunded in addition to winner payout.
+        assertEq(
+            claw.balanceOf(bob) - bobBefore,
+            winnerPayout + antiGrief + disputeBond,
+            "bob gets winner payout + dispute bond refund"
+        );
     }
 
     // 9. Admin cannot resolve without a dispute.
@@ -681,6 +702,7 @@ contract FuzzBattleArena is BaseSetup {
         (uint256 battleId,,) = _setupSettleableBattle();
         _settleProposing(battleId, alice);
 
+        _setupDisputeBond(bob);
         vm.prank(bob);
         battleArena.disputeBattle(battleId, hex"");
 
@@ -711,6 +733,7 @@ contract FuzzBattleArena is BaseSetup {
         (uint256 battleId,,) = _setupSettleableBattle();
         _settleProposing(battleId, alice);
 
+        _setupDisputeBond(bob);
         vm.prank(bob);
         battleArena.disputeBattle(battleId, hex"");
 
@@ -738,6 +761,7 @@ contract FuzzBattleArena is BaseSetup {
         offsetInto = bound(offsetInto, 0, maxOffset);
         vm.warp(block.timestamp + offsetInto);
 
+        _setupDisputeBond(bob);
         vm.prank(bob);
         battleArena.disputeBattle(battleId, hex"");
 
@@ -995,5 +1019,381 @@ contract FuzzBattleArena is BaseSetup {
         if (b.phase == BattleArena.BattlePhase.Cancelled) {
             assertFalse(battleArena.teamInBattle(teamB), "team B released");
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // V3 S1: bonded disputes + per-address rate limit + per-bracket
+    //        windows + admin tuning. Layered on top of shipped H-01.
+    // ─────────────────────────────────────────────────────────────
+
+    /// @dev Like _setupSettleableBattle but accepts any STAKE_BRACKETS value.
+    function _setupSettleableBattleAtStake(uint256 stake) internal returns (uint256 battleId) {
+        vm.prank(admin);
+        battleId = battleArena.createBattle(alice, bob, stake);
+
+        uint256 antiGrief = stake * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
+        uint256 total = stake + antiGrief;
+        _giveClaw(alice, total);
+        _giveClaw(bob,   total);
+        vm.startPrank(alice); claw.approve(address(battleArena), total); battleArena.deposit(battleId); vm.stopPrank();
+        vm.startPrank(bob);   claw.approve(address(battleArena), total); battleArena.deposit(battleId); vm.stopPrank();
+
+        uint256 teamA = _createEvolvedTeam(alice);
+        uint256 teamB = _createEvolvedTeam(bob);
+        bytes32 saltA = keccak256(abi.encodePacked("V3-teamA", battleId));
+        bytes32 saltB = keccak256(abi.encodePacked("V3-teamB", battleId));
+        _commitTeam(alice, battleId, teamA, saltA);
+        _commitTeam(bob,   battleId, teamB, saltB);
+        _revealTeam(alice, battleId, teamA, saltA);
+        _revealTeam(bob,   battleId, teamB, saltB);
+
+        _playRound(battleId, hex"01", hex"02");
+    }
+
+    /// @dev Setup-bond + dispute helper that respects the actual battle's bracket.
+    function _setupBondAndDispute(address disputer, uint256 battleId) internal {
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        uint256 bond;
+        if (b.stakeAmount == battleArena.STAKE_BRACKETS(0)) bond = battleArena.disputeBonds(0);
+        else if (b.stakeAmount == battleArena.STAKE_BRACKETS(1)) bond = battleArena.disputeBonds(1);
+        else bond = battleArena.disputeBonds(2);
+        if (bond > 0) {
+            _giveClaw(disputer, bond);
+            vm.prank(disputer);
+            claw.approve(address(battleArena), bond);
+        }
+        vm.prank(disputer);
+        battleArena.disputeBattle(battleId, hex"");
+    }
+
+    // ── Per-bracket dispute window ────────────────────────────────
+
+    function test_V3_perBracket_window_low_5min() public {
+        uint256 battleId = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
+        uint256 settleAt = block.timestamp;
+        _settleProposing(battleId, alice);
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        assertEq(b.payoutDeadline, settleAt + 5 minutes, "Low: 5 min window");
+    }
+
+    function test_V3_perBracket_window_mid_30min() public {
+        uint256 battleId = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(1));
+        uint256 settleAt = block.timestamp;
+        _settleProposing(battleId, alice);
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        assertEq(b.payoutDeadline, settleAt + 30 minutes, "Mid: 30 min window");
+    }
+
+    function test_V3_perBracket_window_high_1hour() public {
+        uint256 battleId = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(2));
+        uint256 settleAt = block.timestamp;
+        _settleProposing(battleId, alice);
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        assertEq(b.payoutDeadline, settleAt + 1 hours, "High: 1 hour window");
+    }
+
+    function test_V3_perBracket_bond_amounts() public {
+        assertEq(battleArena.disputeBonds(0), 250e18,    "Low bond = 250 CLAW");
+        assertEq(battleArena.disputeBonds(1), 1_000e18,  "Mid bond = 1,000 CLAW");
+        assertEq(battleArena.disputeBonds(2), 5_000e18,  "High bond = 5,000 CLAW");
+    }
+
+    // ── Bond slashing on disputer-loses ───────────────────────────
+
+    function test_V3_disputeBond_loserSlashed_routedToTreasury() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice); // alice proposed winner
+
+        _setupBondAndDispute(bob, battleId); // bob disputes (will lose)
+
+        uint256 bond = battleArena.disputeBonds(0);
+        uint256 supplyBefore = claw.totalSupply();
+        uint256 devBefore = claw.balanceOf(devWallet);
+        uint256 bobBefore = claw.balanceOf(bob);
+
+        // Admin upholds the proposed winner (alice). Disputer (bob) was wrong.
+        vm.prank(admin);
+        battleArena.adminResolveDispute(battleId, alice, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+
+        // Bob's bond is slashed → no refund. Bob still gets antiGrief back as
+        // a losing battle participant.
+        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
+        assertEq(claw.balanceOf(bob) - bobBefore, antiGrief, "bob: only antiGrief, no bond refund");
+
+        // Treasury split: 85% burn (true burn — reduces totalSupply) + 15% dev.
+        // The bond passes through the same Treasury.processFee path as the protocol
+        // fee from settlement, so verify the combined effect.
+        uint256 combinedPot = LOW_STAKE * 2;
+        uint256 protocolFee = combinedPot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
+        uint256 totalSlashed = bond + protocolFee;
+        uint256 expectedDev = totalSlashed * 15 / 100;
+        uint256 expectedBurn = totalSlashed - expectedDev;
+
+        assertEq(claw.balanceOf(devWallet) - devBefore, expectedDev, "dev gets 15% of (bond + fee)");
+        assertEq(supplyBefore - claw.totalSupply(),     expectedBurn, "burn = 85% of (bond + fee)");
+    }
+
+    // ── Bond snapshot: admin tuning mid-window does not affect already-disputed ──
+
+    function test_V3_disputeBond_snapshot_independentOfLaterTuning() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice);
+        _setupBondAndDispute(bob, battleId);
+
+        uint256 paidBond = battleArena.getBattle(battleId).disputeBondPaid;
+        assertEq(paidBond, 250e18, "snapshot taken at dispute time");
+
+        // T-02 timelock: admin proposes a new bond, must wait MIN_TUNING_DELAY to enact.
+        // 500e18 is exactly 20% of LOW_STAKE — the new T-01 cap.
+        vm.prank(admin);
+        battleArena.proposeDisputeBond(0, 500e18);
+        vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
+        vm.prank(admin);
+        battleArena.enactDisputeBond(0);
+
+        // Already-disputed battle still resolves with snapshot (250e18), not new 500e18.
+        uint256 bobBefore = claw.balanceOf(bob);
+        vm.prank(admin);
+        battleArena.adminResolveDispute(battleId, bob, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+
+        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
+        uint256 combinedPot = LOW_STAKE * 2;
+        uint256 protocolFee = combinedPot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
+        uint256 winnerPayout = combinedPot - protocolFee;
+        assertEq(
+            claw.balanceOf(bob) - bobBefore,
+            paidBond + winnerPayout + antiGrief,
+            "bob refunded snapshot bond, not new tuned bond"
+        );
+    }
+
+    // ── Per-address rate limit (5 per rolling 24h) ────────────────
+
+    function test_V3_rateLimit_5_then_6th_reverts() public {
+        // Build 6 settleable battles for bob to dispute. He's a participant of all.
+        // Alice is participant alongside.
+        uint256[] memory battleIds = new uint256[](6);
+        for (uint256 i = 0; i < 6; i++) {
+            battleIds[i] = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
+            _settleProposing(battleIds[i], alice);
+        }
+
+        // First 5 disputes: succeed.
+        for (uint256 i = 0; i < 5; i++) {
+            _setupBondAndDispute(bob, battleIds[i]);
+        }
+        assertEq(battleArena.activeDisputesFor(bob), 5, "5 active disputes");
+
+        // 6th: rate limit hit.
+        uint256 bond = battleArena.disputeBonds(0);
+        _giveClaw(bob, bond);
+        vm.prank(bob);
+        claw.approve(address(battleArena), bond);
+        vm.prank(bob);
+        // The DisputeRateLimitExceeded selector with the retryAt parameter — we can't
+        // easily compute retryAt without reading internal storage, so use partial match.
+        vm.expectRevert();
+        battleArena.disputeBattle(battleIds[5], hex"");
+    }
+
+    function test_V3_rateLimit_prunesAfter24h() public {
+        // 5 disputes back-to-back, then warp 24h+1, then a 6th must succeed.
+        uint256[] memory battleIds = new uint256[](6);
+        for (uint256 i = 0; i < 6; i++) {
+            battleIds[i] = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
+            _settleProposing(battleIds[i], alice);
+        }
+
+        for (uint256 i = 0; i < 5; i++) {
+            _setupBondAndDispute(bob, battleIds[i]);
+        }
+
+        // Battle 6's payoutDeadline is `settleAt + 5 min`. To make a successful
+        // dispute possible after 24h, we settle battle 6 AGAIN (re-settling is
+        // not possible; the battle is in AwaitingFinalize). So instead: just
+        // advance 24h+1 then verify the 5 prior disputes pruned and the 6th
+        // can be filed — but battle 6's window has long since closed.
+        //
+        // Pivot: warp past battle 6's window, build a NEW battle 7 fresh, file.
+        vm.warp(block.timestamp + 24 hours + 1);
+
+        uint256 battleId7 = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
+        _settleProposing(battleId7, alice);
+
+        // After warp, all prior 5 timestamps are stale → pruned on next dispute.
+        // activeDisputesFor sees 0 active.
+        assertEq(battleArena.activeDisputesFor(bob), 0, "all 5 disputes pruned");
+
+        _setupBondAndDispute(bob, battleId7);
+        assertEq(battleArena.activeDisputesFor(bob), 1, "post-warp dispute counted");
+    }
+
+    // ── Admin setters: timelocked propose + enact (T-02), tiered window caps
+    //    (T-03), 20% bond cap (T-01) ────────────────────────────────
+
+    function test_V3_proposeAndEnactDisputeWindow_onlyAdmin() public {
+        address randomCaller = makeAddr("random");
+        vm.prank(randomCaller);
+        vm.expectRevert();
+        battleArena.proposeDisputeWindow(0, 10 minutes);
+
+        vm.prank(admin);
+        battleArena.proposeDisputeWindow(0, 10 minutes);
+        // Pre-enact: live value unchanged (still default 5 min)
+        assertEq(battleArena.disputeWindows(0), 5 minutes, "live value unchanged before enact");
+
+        vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
+        vm.prank(admin);
+        battleArena.enactDisputeWindow(0);
+        assertEq(battleArena.disputeWindows(0), 10 minutes, "live value updated after enact");
+    }
+
+    function test_V3_proposeDisputeWindow_tieredCapsByBracket() public {
+        vm.startPrank(admin);
+        // T-03: Low bracket cap = 1 day
+        battleArena.proposeDisputeWindow(0, 1 days); // OK
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeWindow.selector, 1 days + 1));
+        battleArena.proposeDisputeWindow(0, 1 days + 1);
+
+        // Mid bracket cap = 3 days
+        battleArena.proposeDisputeWindow(1, 3 days);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeWindow.selector, 3 days + 1));
+        battleArena.proposeDisputeWindow(1, 3 days + 1);
+
+        // High bracket cap = 7 days
+        battleArena.proposeDisputeWindow(2, 7 days);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeWindow.selector, 7 days + 1));
+        battleArena.proposeDisputeWindow(2, 7 days + 1);
+
+        // Below 60s reverts at all brackets
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeWindow.selector, 30));
+        battleArena.proposeDisputeWindow(0, 30);
+
+        // Invalid bracket reverts
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeBracket.selector, 3));
+        battleArena.proposeDisputeWindow(3, 1 minutes);
+        vm.stopPrank();
+    }
+
+    function test_V3_proposeAndEnactDisputeBond_onlyAdmin() public {
+        address randomCaller = makeAddr("random");
+        vm.prank(randomCaller);
+        vm.expectRevert();
+        battleArena.proposeDisputeBond(0, 100e18);
+
+        vm.prank(admin);
+        battleArena.proposeDisputeBond(0, 100e18);
+        assertEq(battleArena.disputeBonds(0), 250e18, "live value unchanged before enact");
+
+        vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
+        vm.prank(admin);
+        battleArena.enactDisputeBond(0);
+        assertEq(battleArena.disputeBonds(0), 100e18, "live value updated after enact");
+    }
+
+    function test_V3_proposeDisputeBond_capped_at_20pct_of_stake() public {
+        vm.startPrank(admin);
+        // T-01: Exactly 20% of Low bracket stake (500 CLAW) is fine
+        battleArena.proposeDisputeBond(0, 500e18);
+        // 20% + 1 wei reverts
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, 500e18 + 1));
+        battleArena.proposeDisputeBond(0, 500e18 + 1);
+        // Bond can be set to 0 (disables bond requirement for that bracket)
+        battleArena.proposeDisputeBond(0, 0);
+        // Mid bracket cap = 2,000 CLAW (20% of 10K)
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, 2_000e18 + 1));
+        battleArena.proposeDisputeBond(1, 2_000e18 + 1);
+        battleArena.proposeDisputeBond(1, 2_000e18);
+        // High bracket cap = 10,000 CLAW (20% of 50K)
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, 10_000e18 + 1));
+        battleArena.proposeDisputeBond(2, 10_000e18 + 1);
+        battleArena.proposeDisputeBond(2, 10_000e18);
+        vm.stopPrank();
+    }
+
+    // T-02 timelock-specific behaviors
+
+    function test_V3_timelock_enactBeforeDelay_reverts() public {
+        uint256 delay = battleArena.MIN_TUNING_DELAY(); // pre-compute so it doesn't consume the prank
+        uint256 proposedAt = block.timestamp;
+        vm.prank(admin);
+        battleArena.proposeDisputeWindow(0, 10 minutes);
+
+        // Try to enact 1 second before delay elapses
+        vm.warp(proposedAt + delay - 1);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(
+            BattleArena.TuningDelayNotElapsed.selector,
+            0,
+            proposedAt + delay
+        ));
+        battleArena.enactDisputeWindow(0);
+    }
+
+    function test_V3_timelock_enactWithoutPropose_reverts() public {
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.NoPendingChange.selector, 0));
+        battleArena.enactDisputeWindow(0);
+
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.NoPendingChange.selector, 1));
+        battleArena.enactDisputeBond(1);
+    }
+
+    function test_V3_timelock_repropose_resetsTimer() public {
+        uint256 delay = battleArena.MIN_TUNING_DELAY(); // pre-compute
+        vm.prank(admin);
+        battleArena.proposeDisputeWindow(0, 10 minutes);
+
+        vm.warp(block.timestamp + 12 hours); // halfway through original delay
+        uint256 reproposedAt = block.timestamp;
+        vm.prank(admin);
+        battleArena.proposeDisputeWindow(0, 20 minutes); // overwrites + resets timer
+
+        // 24h after the FIRST propose (12h after the second) is too early
+        vm.warp(reproposedAt + 12 hours);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(
+            BattleArena.TuningDelayNotElapsed.selector,
+            0,
+            reproposedAt + delay
+        ));
+        battleArena.enactDisputeWindow(0);
+
+        // 24h after the SECOND propose succeeds
+        vm.warp(reproposedAt + delay);
+        vm.prank(admin);
+        battleArena.enactDisputeWindow(0);
+        assertEq(battleArena.disputeWindows(0), 20 minutes, "second proposal value enacted");
+    }
+
+    function test_V3_timelock_enactClearsPending() public {
+        vm.prank(admin);
+        battleArena.proposeDisputeBond(0, 100e18);
+        vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
+        vm.prank(admin);
+        battleArena.enactDisputeBond(0);
+
+        // Second enact (no new proposal) reverts NoPendingChange
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.NoPendingChange.selector, 0));
+        battleArena.enactDisputeBond(0);
+
+        // Pending storage is zeroed
+        assertEq(battleArena.pendingDisputeBond(0), 0, "pending value cleared");
+        assertEq(battleArena.pendingDisputeBondAt(0), 0, "pending timestamp cleared");
+    }
+
+    // ── activeDisputesFor view sanity ─────────────────────────────
+
+    function test_V3_activeDisputesFor_matchesActualCount() public {
+        assertEq(battleArena.activeDisputesFor(bob), 0, "no disputes yet");
+
+        uint256 battleId = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
+        _settleProposing(battleId, alice);
+        _setupBondAndDispute(bob, battleId);
+
+        assertEq(battleArena.activeDisputesFor(bob), 1, "one active dispute");
+        assertEq(battleArena.activeDisputesFor(alice), 0, "alice didn't dispute");
     }
 }

@@ -189,7 +189,7 @@ contract BattleArenaTest is Test {
     ) internal {
         vm.prank(resolver);
         arena.settle(battleId, winner, winnerDamage, loserDamage);
-        vm.warp(block.timestamp + arena.DISPUTE_WINDOW() + 1);
+        vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         arena.finalizeBattle(battleId);
     }
 
@@ -684,14 +684,14 @@ contract BattleArenaTest is Test {
         uint256 winnerPayout = combinedPot - protocolFee;
 
         // H-01: settle() emits BattleProposed, finalizeBattle() emits BattleSettled.
-        uint256 expectedDeadline = block.timestamp + arena.DISPUTE_WINDOW();
+        uint256 expectedDeadline = block.timestamp + arena.disputeWindows(0);
         vm.expectEmit(true, true, false, true);
         emit BattleArena.BattleProposed(battleId, alice, expectedDeadline);
 
         vm.prank(resolver);
         arena.settle(battleId, alice, [uint8(10), 5, 8], [uint8(30), 25, 35]);
 
-        vm.warp(block.timestamp + arena.DISPUTE_WINDOW() + 1);
+        vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         vm.expectEmit(true, true, false, true);
         emit BattleArena.BattleSettled(battleId, alice, winnerPayout, protocolFee);
         arena.finalizeBattle(battleId);
@@ -1097,7 +1097,7 @@ contract BattleArenaTest is Test {
         arena.settle(battleId, alice, [uint8(10), 5, 8], [uint8(30), 25, 35]);
 
         // And after finalization, it reverts with phase=Settled
-        vm.warp(block.timestamp + arena.DISPUTE_WINDOW() + 1);
+        vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         arena.finalizeBattle(battleId);
 
         vm.expectRevert(
