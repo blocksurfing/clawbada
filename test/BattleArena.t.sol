@@ -98,7 +98,8 @@ contract BattleArenaTest is Test {
 
     function _createBattle() internal returns (uint256 battleId) {
         vm.prank(matchmaker);
-        battleId = arena.createBattle(alice, bob, STAKE_LOW);
+        // Power 3 == three Evolved lobsters (the standard _createEvolvedTeam composition).
+        battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
     }
 
     function _depositBoth(uint256 battleId) internal {
@@ -228,7 +229,7 @@ contract BattleArenaTest is Test {
 
     function test_createBattleHappyPath() public {
         vm.prank(matchmaker);
-        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW);
+        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
 
         assertEq(battleId, 1);
         BattleArena.Battle memory b = arena.getBattle(battleId);
@@ -241,22 +242,22 @@ contract BattleArenaTest is Test {
 
     function test_createBattleEmitsEvent() public {
         vm.expectEmit(true, true, true, true);
-        emit BattleArena.BattleCreated(1, alice, bob, STAKE_MID);
+        emit BattleArena.BattleCreated(1, alice, bob, STAKE_MID, 3, 3);
 
         vm.prank(matchmaker);
-        arena.createBattle(alice, bob, STAKE_MID);
+        arena.createBattle(alice, bob, STAKE_MID, 3, 3);
     }
 
     function test_createBattleInvalidStakeReverts() public {
         vm.prank(matchmaker);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeAmount.selector, 999e18));
-        arena.createBattle(alice, bob, 999e18);
+        arena.createBattle(alice, bob, 999e18, 3, 3);
     }
 
     function test_createBattleSamePlayerReverts() public {
         vm.prank(matchmaker);
         vm.expectRevert(BattleArena.PlayerCannotBeSelf.selector);
-        arena.createBattle(alice, alice, STAKE_LOW);
+        arena.createBattle(alice, alice, STAKE_LOW, 3, 3);
     }
 
     // ──────────── deposit ────────────
@@ -806,8 +807,11 @@ contract BattleArenaTest is Test {
         vm.warp(block.timestamp + arena.COMMIT_WINDOW() + 1);
         arena.handleTimeout(battleId);
 
+        // BA-H1: an Active-phase auto-forfeit is now a LOSS settled to the
+        // opponent (bob, who committed), not a neutral cancel.
         BattleArena.Battle memory b = arena.getBattle(battleId);
-        assertTrue(b.phase == BattleArena.BattlePhase.Cancelled);
+        assertTrue(b.phase == BattleArena.BattlePhase.Settled);
+        assertEq(b.winner, bob);
     }
 
     // ──────────── P-02 Regression: reveal withhold causes immediate forfeit ────────────
@@ -828,9 +832,11 @@ contract BattleArenaTest is Test {
         vm.warp(block.timestamp + arena.COMMIT_WINDOW() + 1);
         arena.handleTimeout(battleId);
 
-        // Bob should be immediately forfeited (no second chances for reveal withhold)
+        // Bob should be immediately forfeited (no second chances for reveal withhold).
+        // BA-H1: forfeit is now a LOSS settled to alice (who revealed), not a cancel.
         BattleArena.Battle memory b = arena.getBattle(battleId);
-        assertTrue(b.phase == BattleArena.BattlePhase.Cancelled);
+        assertTrue(b.phase == BattleArena.BattlePhase.Settled);
+        assertEq(b.winner, alice);
     }
 
     // ──────────── P-04 Regression: cumulative timeout counters across rounds ────────────
@@ -880,9 +886,11 @@ contract BattleArenaTest is Test {
         vm.warp(block.timestamp + arena.COMMIT_WINDOW() + 1);
         arena.handleTimeout(battleId);
 
-        // Alice should be forfeited after 3 total timeouts (cumulative, not per-round)
+        // Alice should be forfeited after 3 total timeouts (cumulative, not per-round).
+        // BA-H1: forfeit is now a LOSS settled to bob (who committed), not a cancel.
         BattleArena.Battle memory b = arena.getBattle(battleId);
-        assertTrue(b.phase == BattleArena.BattlePhase.Cancelled);
+        assertTrue(b.phase == BattleArena.BattlePhase.Settled);
+        assertEq(b.winner, bob);
     }
 
     // ──────────── E2E ────────────

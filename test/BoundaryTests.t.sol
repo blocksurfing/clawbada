@@ -483,7 +483,7 @@ contract BoundaryTests is Test {
         uint256 teamIdB = _createTeam(bob, 1);
 
         vm.prank(matchmaker);
-        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW);
+        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
 
         _depositBothBattle(battleId);
 
@@ -524,7 +524,7 @@ contract BoundaryTests is Test {
         uint256 teamIdB = _createTeam(bob, 1);
 
         vm.prank(matchmaker);
-        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW);
+        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
 
         _depositBothBattle(battleId);
 
@@ -547,9 +547,9 @@ contract BoundaryTests is Test {
     function test_boundary_allThreeStakeBracketsCreateBattle() public {
         // Verify all three stake brackets are valid for battle creation
         vm.startPrank(matchmaker);
-        uint256 b1 = arena.createBattle(alice, bob, STAKE_LOW);
-        uint256 b2 = arena.createBattle(alice, bob, STAKE_MID);
-        uint256 b3 = arena.createBattle(alice, bob, STAKE_HIGH);
+        uint256 b1 = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
+        uint256 b2 = arena.createBattle(alice, bob, STAKE_MID, 3, 3);
+        uint256 b3 = arena.createBattle(alice, bob, STAKE_HIGH, 3, 3);
         vm.stopPrank();
 
         assertEq(arena.getBattle(b1).stakeAmount, STAKE_LOW);
@@ -1255,7 +1255,7 @@ contract BoundaryTests is Test {
         uint256 teamIdB = _createTeam(bob, 1);
 
         vm.prank(matchmaker);
-        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW);
+        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
         _depositBothBattle(battleId);
 
         bytes32 saltA = bytes32("saltA");
@@ -1369,7 +1369,7 @@ contract BoundaryTests is Test {
         teamIdB = _createTeam(bob, 1);
 
         vm.prank(matchmaker);
-        battleId = arena.createBattle(alice, bob, STAKE_LOW);
+        battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
         _depositBothBattle(battleId);
 
         bytes32 saltA = bytes32("saltA");
