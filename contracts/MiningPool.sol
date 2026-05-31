@@ -155,6 +155,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     /// @param teamId The team to send mining
     /// @param mineTier The mine tier (0=Base, 1=Evolved, 2=Elite, 3=Apex)
     /// @return expeditionId The ID of the started expedition
+    // slither-disable-next-line reentrancy-no-eth — nonReentrant; clawToken.mint is to the trusted ClawToken and the expedition write follows the mint.
     function startExpedition(uint256 teamId, uint8 mineTier) external nonReentrant returns (uint256 expeditionId) {
         if (mineTier >= NUM_TIERS) revert InvalidMineTier(mineTier);
         _requireActiveSeason();
