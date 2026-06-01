@@ -23,6 +23,7 @@ abstract contract BaseSetup is Test {
     address internal admin;
     address internal devWallet;
     address internal lpWallet;
+    address internal reserveWallet; // TOK-H1: holds the 100M genesis reserve (mirrors production: NOT the splitter)
 
     // ── Contracts ──────────────────────────────────────────────────
     ClawToken      internal claw;
@@ -116,14 +117,16 @@ abstract contract BaseSetup is Test {
         admin     = makeAddr("admin");
         devWallet = makeAddr("devWallet");
         lpWallet  = makeAddr("lpWallet");
+        reserveWallet = makeAddr("reserveWallet");
 
         vm.startPrank(admin);
 
         // 1. Treasury (no token yet)
         treasury = new Treasury(admin, devWallet);
 
-        // 2. ClawToken — mints 125M to lpWallet, 100M to treasury
-        claw = new ClawToken(admin, lpWallet, address(treasury));
+        // 2. ClawToken — mints 125M to lpWallet, 100M reserve to reserveWallet.
+        //    TOK-H1: the reserve must NOT go to the Treasury fee-splitter (no withdrawal path).
+        claw = new ClawToken(admin, lpWallet, reserveWallet);
 
         // 3. Set claw token on treasury
         treasury.setClawToken(address(claw));
