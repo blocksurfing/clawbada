@@ -436,6 +436,51 @@ contract FaucetTest is Test {
         vm.expectRevert(); // ReentrancyGuardReentrantCall
         attacker.attack();
     }
+
+    // ──────────── FAU-M1: sweepUnclaimed ────────────
+
+    function test_sweepUnclaimed_beforeClose_reverts() public {
+        // Faucet still open → sweep must revert, so it can never drain mid-window.
+        vm.prank(admin);
+        vm.expectRevert(Faucet.FaucetStillOpen.selector);
+        faucet.sweepUnclaimed(treasuryAddress);
+    }
+
+    function test_sweepUnclaimed_nonAdmin_reverts() public {
+        vm.warp(closeTime);
+        vm.prank(alice);
+        vm.expectRevert(); // AccessControlUnauthorizedAccount
+        faucet.sweepUnclaimed(treasuryAddress);
+    }
+
+    function test_sweepUnclaimed_zeroAddress_reverts() public {
+        vm.warp(closeTime);
+        vm.prank(admin);
+        vm.expectRevert(Faucet.ZeroAddress.selector);
+        faucet.sweepUnclaimed(address(0));
+    }
+
+    function test_sweepUnclaimed_afterClose_transfersResidual() public {
+        // Alice claims her 7,000 $CLAW drip while the faucet is open.
+        _claimLobsters(alice);
+        vm.prank(alice);
+        faucet.claimClaw();
+
+        uint256 residual = claw.balanceOf(address(faucet));
+        assertEq(residual, 70_000_000e18 - 7_000e18, "residual = premint minus one drip");
+
+        // After close, admin sweeps the residual to the Treasury.
+        vm.warp(closeTime);
+        uint256 treasuryBefore = claw.balanceOf(treasuryAddress);
+
+        vm.expectEmit(true, false, false, true, address(faucet));
+        emit Faucet.UnclaimedSwept(treasuryAddress, residual);
+        vm.prank(admin);
+        faucet.sweepUnclaimed(treasuryAddress);
+
+        assertEq(claw.balanceOf(address(faucet)), 0, "faucet fully drained");
+        assertEq(claw.balanceOf(treasuryAddress) - treasuryBefore, residual, "residual moved to recipient");
+    }
 }
 
 /// @dev Contract claimer that re-enters claimClaw during the ERC-1155
