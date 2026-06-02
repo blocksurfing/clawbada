@@ -26,6 +26,8 @@ abstract contract DeployHelpers is Script {
     address internal deployer;
     address internal devWallet;
     address internal treasuryReserveAddress; // TOK-H1: holds the 100M genesis reserve (a Safe on mainnet), NOT the fee-splitter
+    address internal governanceSafe;         // role-handoff: receives DEFAULT_ADMIN on all contracts, MiningPool SEASON_ADMIN, and Treasury ownership
+    address internal eligibilityOperator;    // role-handoff: receives Faucet ELIGIBILITY_ROLE (operational service wallet)
     address internal matchmakerAddress;
     address internal resolverAddress;
     address internal vrfOperatorAddress;
@@ -58,6 +60,11 @@ abstract contract DeployHelpers is Script {
         // — which has no withdrawal path and would lock the reserve permanently.
         treasuryReserveAddress = vm.envOr("TREASURY_RESERVE_ADDRESS", address(0));
 
+        // Role-handoff targets (consumed by Handoff.s.sol, not Deploy/Configure). Loaded
+        // here so all scripts share env parsing; Handoff.run() validates they are set.
+        governanceSafe = vm.envOr("GOVERNANCE_SAFE", address(0));
+        eligibilityOperator = vm.envOr("ELIGIBILITY_OPERATOR", address(0));
+
         // Role addresses: required on mainnet, optional (fallback to deployer) on testnet/local
         bool isMainnet = block.chainid == 8453;
 
@@ -72,6 +79,8 @@ abstract contract DeployHelpers is Script {
             // TOK-H1: reserve must be an explicit holding account, never the deploy hot key.
             require(treasuryReserveAddress != address(0), "TREASURY_RESERVE_ADDRESS required for mainnet");
             require(treasuryReserveAddress != deployer, "TREASURY_RESERVE_ADDRESS must differ from deployer on mainnet");
+            // DEPLOY-L1: the 15% dev-fee leg must not silently route to the deploy hot key.
+            require(devWallet != deployer, "DEV_WALLET must differ from deployer on mainnet");
 
             // Enforce separation of duties: no operational role may equal deployer or each other
             require(matchmakerAddress != deployer, "MATCHMAKER_ADDRESS must differ from deployer on mainnet");

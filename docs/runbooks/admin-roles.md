@@ -36,15 +36,26 @@ A 3-of-5 multisig with documented signers eliminates all single-key compromise p
 A 3-of-5 (or stricter) multisig contract on Base. Recommended: Safe (formerly Gnosis Safe) deployed on Base mainnet, with signers across distinct hardware wallets and geographic locations.
 
 ### Grants this role
-Granted at deploy via `Configure.s.sol` to the deployer EOA. **Before mainnet launch, transfer DEFAULT_ADMIN_ROLE on every contract from the deployer EOA to the multisig, then revoke the deployer.** AccessControl supports this via:
+Granted at deploy via `Configure.s.sol` to the deployer EOA.
 
-```solidity
-bytes32 role = contract.DEFAULT_ADMIN_ROLE();
-contract.grantRole(role, multisig);   // from deployer
-contract.revokeRole(role, deployer);  // from multisig (after grant)
+**Before mainnet launch, run `Handoff.s.sol` (step 3, after Deploy + Configure).** It performs the COMPLETE deployer→governance migration in one scripted, asserted sequence — do NOT hand-roll the AccessControl grant/revoke loop, which historically left three authorities behind (ROLE-M1/M2/M3):
+
+```
+GOVERNANCE_SAFE=<safe> ELIGIBILITY_OPERATOR=<service wallet> \
+  forge script contracts/script/Handoff.s.sol --rpc-url base --broadcast
 ```
 
-The post-deploy revoke must come from the **new** admin (the multisig), not the deployer, to verify the multisig is operational before the deployer self-revokes.
+`Handoff.s.sol` migrates, in order:
+1. `SEASON_ADMIN_ROLE` (MiningPool) and `ELIGIBILITY_ROLE` (Faucet) off the deployer — **these are NOT `DEFAULT_ADMIN_ROLE` and are not moved by a DEFAULT_ADMIN grant loop.** SEASON_ADMIN → the Safe; ELIGIBILITY → the operational service wallet.
+2. `DEFAULT_ADMIN_ROLE` on all 7 AccessControl contracts → the Safe, then revokes the deployer (grant-before-revoke, so admin control is never lost mid-sequence).
+3. **Treasury ownership** via `Ownable2Step.transferOwnership(safe)`. ⚠️ **Treasury is `Ownable2Step`, NOT AccessControl** — the grant/revoke loop is a no-op on it. The script proposes the transfer; **the Safe MUST then call `Treasury.acceptOwnership()`** to complete it. Until it does, the deployer retains Treasury ownership (so a mistyped Safe can never strand fee routing).
+
+The script asserts the deployer holds **none** of the migrated roles afterward and that `Treasury.pendingOwner() == safe` (ROLE-I1: no silent gaps). Regression-tested in `contracts/test/GovernanceHandoff.t.sol`.
+
+Post-launch verification checklist (run from the Safe / a read call):
+- `hasRole(DEFAULT_ADMIN_ROLE, deployer) == false` on ClawToken, LobsterNFT, TeamManager, MiningPool, BattleArena, BattleVRF, Faucet.
+- `MiningPool.hasRole(SEASON_ADMIN_ROLE, deployer) == false`; `Faucet.hasRole(ELIGIBILITY_ROLE, deployer) == false`.
+- `Treasury.owner() == safe` (after `acceptOwnership()`); `Treasury.pendingOwner() == address(0)`.
 
 ### Critical-action SLAs
 
