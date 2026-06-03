@@ -25,6 +25,7 @@ abstract contract DeployHelpers is Script {
     // ── Deployment parameters ──
     address internal deployer;
     address internal devWallet;
+    address internal treasuryReserveAddress; // TOK-H1: holds the 100M genesis reserve (a Safe on mainnet), NOT the fee-splitter
     address internal matchmakerAddress;
     address internal resolverAddress;
     address internal vrfOperatorAddress;
@@ -52,6 +53,11 @@ abstract contract DeployHelpers is Script {
         deployer = vm.addr(deployerKey);
         devWallet = vm.envAddress("DEV_WALLET");
 
+        // TOK-H1: recipient of the 100M genesis Treasury reserve. Must be a holding
+        // account (governance Safe on mainnet), NOT the Treasury fee-splitter contract
+        // — which has no withdrawal path and would lock the reserve permanently.
+        treasuryReserveAddress = vm.envOr("TREASURY_RESERVE_ADDRESS", address(0));
+
         // Role addresses: required on mainnet, optional (fallback to deployer) on testnet/local
         bool isMainnet = block.chainid == 8453;
 
@@ -63,6 +69,9 @@ abstract contract DeployHelpers is Script {
             require(matchmakerAddress != address(0), "MATCHMAKER_ADDRESS required for mainnet");
             require(resolverAddress != address(0), "RESOLVER_ADDRESS required for mainnet");
             require(vrfOperatorAddress != address(0), "VRF_OPERATOR_ADDRESS required for mainnet");
+            // TOK-H1: reserve must be an explicit holding account, never the deploy hot key.
+            require(treasuryReserveAddress != address(0), "TREASURY_RESERVE_ADDRESS required for mainnet");
+            require(treasuryReserveAddress != deployer, "TREASURY_RESERVE_ADDRESS must differ from deployer on mainnet");
 
             // Enforce separation of duties: no operational role may equal deployer or each other
             require(matchmakerAddress != deployer, "MATCHMAKER_ADDRESS must differ from deployer on mainnet");
@@ -75,11 +84,13 @@ abstract contract DeployHelpers is Script {
             if (matchmakerAddress == address(0)) matchmakerAddress = deployer;
             if (resolverAddress == address(0)) resolverAddress = deployer;
             if (vrfOperatorAddress == address(0)) vrfOperatorAddress = deployer;
+            if (treasuryReserveAddress == address(0)) treasuryReserveAddress = deployer;
         }
 
         console2.log("=== Clawbada Deployment ===");
         console2.log("Deployer:", deployer);
         console2.log("Dev Wallet:", devWallet);
+        console2.log("Treasury Reserve:", treasuryReserveAddress);
         console2.log("Matchmaker:", matchmakerAddress);
         console2.log("Resolver:", resolverAddress);
         console2.log("VRF Operator:", vrfOperatorAddress);
