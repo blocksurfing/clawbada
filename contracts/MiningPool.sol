@@ -47,6 +47,12 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     uint256 public constant SEASON_DURATION = 60 days;
     uint256 public constant NUM_TIERS = 4;
     uint256 public constant ADMIN_RELEASE_GRACE = 7 days;
+    // TOK-M1: hard on-chain lifetime cap on cumulative mining emissions = the 705M
+    // (70.5%) fair-launch allocation. Without this, the budget is enforced only by
+    // per-season admin discipline (`startSeason` totalEmission), and Treasury burns
+    // reopen ClawToken's MAX_SUPPLY headroom — so mining could mint past 705M (the
+    // documented perpetual floor crosses it by ~S8). This makes 705M a true cap.
+    uint256 public constant MINING_ALLOCATION = 705_000_000e18;
 
     // ──────────── Immutable Config ────────────
     uint256[4] public TIER_WEIGHTS = [uint256(1), 3, 10, 25];
@@ -58,6 +64,11 @@ contract MiningPool is AccessControl, ReentrancyGuard {
 
     uint256 public currentSeason;
     mapping(uint256 => SeasonConfig) private _seasons;
+
+    // TOK-M1: cumulative mining emissions across ALL seasons (gross minted). Mirrors
+    // season.totalMinted's semantics — admin-released/burned rewards stay counted, so
+    // the cap is a hard ceiling on gross mining mint, never exceeding 705M.
+    uint256 public lifetimeMinted;
 
     uint256 public nextExpeditionId = 1;
     mapping(uint256 => Expedition) private _expeditions;
@@ -78,6 +89,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     error ZeroEmission();
     error ZeroBaseReward();
     error SeasonBudgetExhausted();
+    error MiningAllocationExhausted();
     error TeamDoesNotExist(uint256 teamId);
     error NotTeamOwner(uint256 teamId);
     error TeamAlreadyMining(uint256 teamId);
@@ -179,7 +191,10 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         uint256 reward = season.baseReward * TIER_WEIGHTS[mineTier];
 
         if (season.totalMinted + reward > season.totalEmission) revert SeasonBudgetExhausted();
+        // TOK-M1: enforce the 705M lifetime mining allocation on-chain.
+        if (lifetimeMinted + reward > MINING_ALLOCATION) revert MiningAllocationExhausted();
         season.totalMinted += reward;
+        lifetimeMinted += reward;
 
         // Mint reward into escrow now — reverts with ExceedsMaxSupply if global cap insufficient
         clawToken.mint(address(this), reward);
