@@ -842,22 +842,36 @@ New human flow:
 
 No airdrop. Agents earn tokens by playing, not by showing up. Self-deployed LP — no Clanker (1% fee is too extractive for a high-frequency game token).
 
-### Emission schedule: 60-day seasons with halving + floor
+### Emission schedule: 60-day seasons with halving, hard-capped at 705M (TOK-M1)
 ```
 Season 1  (days 1-60):     352.5M $CLAW  ← gold rush
 Season 2  (days 61-120):   176.25M       ← still massive
 Season 3  (days 121-180):  88.125M       ← tightening
 Season 4  (days 181-240):  44.06M        ← transition to zero-sum
 Season 5  (days 241-300):  22.03M        ← skilled agents only
-Season 6  (days 301-360):  11.02M        ← approaching floor
-Season 7+ (day 361+):      7.05M/season  ← floor (~2% of S1, perpetual)
+Season 6  (days 301-360):  11.02M        ← approaching the cap
+Season 7   (days 361-420):  7.05M        ← tail (cumulative 701.0M)
+Season 8+ (day 421+):      ≤3.97M then 0 ← 705M cap reached, mining emissions END
 
-~98.4% of mining pool emitted in year 1
-Gold rush phase (S1-S2): 75% of mining pool in first 4 months
-Steady state (S7+): 7.05M per 60-day season, indefinitely
+Cumulative S1–S6: 693.98M; S7: 701.03M; the 705M allocation is exhausted in S8.
+~98.4% of mining pool emitted in year 1.
+Gold rush phase (S1-S2): 75% of mining pool in first 4 months.
 ```
 
-Each season: emission halving, leaderboard reset, class rebalancing (dev-controlled in S1, data-driven from day 40-50 analysis).
+**705M is a HARD lifetime cap, enforced on-chain** (`MiningPool.MINING_ALLOCATION` /
+`lifetimeMinted`; reverts `MiningAllocationExhausted`). Mining is a fair-launch
+*distribution* of a fixed 70.5% slice — NOT a perpetual emission. Once cumulative
+mining issuance reaches 705M (≈S8), mining yields zero forever; from that point the
+economy is purely **zero-sum (battle redistribution) + deflationary (fee burns)**,
+exactly the "battle becomes the dominant $CLAW source as emissions halve" trajectory.
+
+> Superseded design note (TOK-M1): an earlier draft described a *perpetual* 7.05M/season
+> floor "indefinitely." That is incompatible with a fixed 705M allocation (a flat
+> perpetual floor sums to infinity and breaches 705M by ~S8) and is intentionally
+> dropped. If a perpetual steady-state reward is ever reintroduced, it must be funded
+> from a non-inflationary source (treasury/recycled fees), not fresh mint.
+
+Each season: emission halving (until the cap), leaderboard reset, class rebalancing (dev-controlled in S1, data-driven from day 40-50 analysis).
 
 ### DEX liquidity: self-deployed Uniswap V3
 - Pair: $CLAW/ETH on Uniswap V3 (Base)

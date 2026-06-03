@@ -1032,4 +1032,42 @@ contract MiningPoolTest is Test {
         vm.expectRevert(abi.encodeWithSelector(MiningPool.ExpeditionAlreadyClaimed.selector, expId));
         pool.adminReleaseExpedition(expId);
     }
+
+    // ──────────── TOK-M1: 705M lifetime mining cap ────────────
+
+    function test_TOK_M1_lifetimeCap_blocksMintPast705M() public {
+        uint256 teamA = _createTeam(alice, 0);
+        uint256 teamB = _createTeam(alice, 0);
+
+        // Huge season budget so the SEASON cap isn't the binding constraint; baseReward
+        // sized so two Base expeditions (weight 1) would mint 800M > the 705M lifetime cap.
+        _startSeasonWith(2_000_000_000e18, 400_000_000e18);
+
+        vm.prank(alice);
+        pool.startExpedition(teamA, 0);
+        assertEq(pool.lifetimeMinted(), 400_000_000e18, "first expedition counted toward lifetime");
+
+        // 400M + 400M = 800M > 705M → reverts on the lifetime cap (the season budget
+        // check passes first since 800M < the 2B totalEmission).
+        vm.prank(alice);
+        vm.expectRevert(MiningPool.MiningAllocationExhausted.selector);
+        pool.startExpedition(teamB, 0);
+
+        assertLe(pool.lifetimeMinted(), pool.MINING_ALLOCATION(), "lifetimeMinted never exceeds 705M");
+    }
+
+    function test_TOK_M1_lifetimeMinted_persistsAcrossSeasonReset() public {
+        uint256 teamA = _createTeam(alice, 0);
+
+        _startSeasonWith(2_000_000_000e18, 100_000_000e18);
+        vm.prank(alice);
+        pool.startExpedition(teamA, 0);
+        assertEq(pool.lifetimeMinted(), 100_000_000e18, "minted in season 1");
+
+        // New season resets season.totalMinted to 0 — but lifetimeMinted must persist,
+        // which is the whole point of TOK-M1 (per-season caps don't bound the lifetime total).
+        vm.warp(block.timestamp + pool.SEASON_DURATION());
+        _startSeasonWith(2_000_000_000e18, 100_000_000e18);
+        assertEq(pool.lifetimeMinted(), 100_000_000e18, "lifetimeMinted persists across season reset");
+    }
 }
