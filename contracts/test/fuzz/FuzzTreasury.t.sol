@@ -12,12 +12,14 @@ contract FuzzTreasury is Test {
     address    internal admin     = makeAddr("admin");
     address    internal devWallet = makeAddr("dev");
     address    internal lpWallet  = makeAddr("lp");
+    address    internal reserveWallet = makeAddr("reserve"); // TOK-H1: genesis reserve holder (not the splitter)
     address    internal authorized = makeAddr("authorized");
 
     function setUp() public {
         vm.startPrank(admin);
         treasury = new Treasury(admin, devWallet);
-        claw     = new ClawToken(admin, lpWallet, address(treasury));
+        // TOK-H1: mint the 100M reserve to a dedicated holder, never the fee-splitter.
+        claw     = new ClawToken(admin, lpWallet, reserveWallet);
         treasury.setClawToken(address(claw));
         treasury.setAuthorized(authorized, true);
         claw.grantRole(claw.MINTER_ROLE(), authorized);
@@ -136,11 +138,18 @@ contract FuzzTreasury is Test {
     // Phase 1 Treasury pass — additional adversarial coverage
     // ─────────────────────────────────────────────────────────────
 
+    // TOK-H1: the Treasury fee-splitter must hold ZERO standing balance — the 100M
+    // genesis reserve is minted to a separate holding account (reserveWallet here;
+    // a governance Safe in production), never to this contract.
+    function test_treasury_holds_zero_reserve() public view {
+        assertEq(claw.balanceOf(address(treasury)), 0, "TOK-H1: fee-splitter must not custody the reserve");
+        assertEq(claw.balanceOf(reserveWallet), 100_000_000e18, "reserve held by the dedicated account");
+    }
+
     // Zero-delta invariant: processFee must not change Treasury's CLAW
     // balance. The flow pulls `amount`, burns 85%, forwards 15% — net
-    // balance delta of zero. Treasury holds the 100M tokenomics
-    // allocation from ClawToken's constructor; processFee must not
-    // touch it.
+    // balance delta of zero. Treasury holds no standing balance (TOK-H1),
+    // so this also confirms processFee never makes it accumulate.
     function testFuzz_treasury_never_accumulates(uint256 amount) public {
         amount = bound(amount, treasury.BPS_DENOMINATOR(), claw.balanceOf(lpWallet) / 10);
 

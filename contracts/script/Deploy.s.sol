@@ -43,9 +43,17 @@ contract Deploy is DeployHelpers {
         d.battleVRF = address(new BattleVRF(deployer));
         console2.log("BattleVRF:", d.battleVRF);
 
-        // deployer receives LP allocation; treasury receives treasury allocation
-        d.clawToken = address(new ClawToken(deployer, deployer, d.treasury));
+        // TOK-H1: deployer receives the 125M LP allocation; the 100M reserve goes to
+        // treasuryReserveAddress (a governance Safe on mainnet), NOT the Treasury
+        // fee-splitter contract — which has no withdrawal path. The asserts below
+        // permanently lock in that invariant: the splitter must hold zero reserve.
+        require(treasuryReserveAddress != d.treasury, "TOK-H1: reserve recipient must not be the fee-splitter");
+        d.clawToken = address(new ClawToken(deployer, deployer, treasuryReserveAddress));
         console2.log("ClawToken:", d.clawToken);
+        require(
+            ClawToken(d.clawToken).balanceOf(d.treasury) == 0,
+            "TOK-H1: Treasury fee-splitter must hold no genesis reserve"
+        );
 
         // ── Tier 1 — Depend on Tier 0 ──
 
