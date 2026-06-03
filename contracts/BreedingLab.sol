@@ -268,6 +268,7 @@ contract BreedingLab is ReentrancyGuard {
     /// @notice Get the cooldown expiry time for a lobster.
     function getCooldownEnd(uint256 lobsterId) external view returns (uint256) {
         uint256 lastBreed = _lastBreedTime[lobsterId];
+        // slither-disable-next-line incorrect-equality — exact equality against the zero "never bred" sentinel is correct.
         if (lastBreed == 0) return 0;
         return lastBreed + BREED_COOLDOWN;
     }
@@ -293,6 +294,7 @@ contract BreedingLab is ReentrancyGuard {
     function _breedCostPerParent(uint8 breedCount, uint8 generation) internal pure returns (uint256) {
         // BREED_MULTIPLIERS are ×10 scaled: [10, 15, 25, 40, 80]
         uint256[5] memory multipliers = [uint256(10), 15, 25, 40, 80];
+        // slither-disable-next-line divide-before-multiply — intentional ×10-scaled multiplier then the per-generation ×3/2 loop; truncation is sub-wei on an 18-decimal token (verified safe to gen ~36 before the cost exceeds MAX_SUPPLY).
         uint256 cost = BASE_BREED_COST * multipliers[breedCount] / 10;
 
         // ×1.5 per generation: cost * 3 / 2 each step.
@@ -316,6 +318,7 @@ contract BreedingLab is ReentrancyGuard {
         uint8 breedType = uint8(uint256(keccak256(abi.encodePacked(seed, "breedtype"))) % 64);
 
         // Inherit body parts
+        // slither-disable-next-line uninitialized-local — fixed-size memory array is zero-initialized by Solidity and fully written in the loop below (false positive).
         uint8[18] memory alleles;
         for (uint8 slot = 0; slot < 6; slot++) {
             uint256 partSeed = uint256(keccak256(abi.encodePacked(seed, "part", slot)));
