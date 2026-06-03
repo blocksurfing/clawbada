@@ -219,6 +219,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     ///      would have moved the player into a different bracket.
     error TeamPowerChanged(uint256 teamId, uint8 expected, uint8 actual);
     error PhaseNotTimedOut(uint256 battleId);
+    error PhaseTimedOut(uint256 battleId); // BA-M1: action attempted after its phase deadline
     error BothRevealsRequired(uint256 battleId);
     error PlayerCannotBeSelf();
     error InvalidWinner(uint256 battleId);
@@ -336,6 +337,9 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Deposit);
         _requireParticipant(battleId, msg.sender);
+        // BA-M1: phase deadlines are enforced at the action, not only via handleTimeout.
+        // After expiry the only valid transition is handleTimeout().
+        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId);
 
         bool isA = msg.sender == b.playerA;
         if (isA) {
@@ -363,6 +367,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.TeamCommit);
         _requireParticipant(battleId, msg.sender);
+        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId); // BA-M1
 
         bool isA = msg.sender == b.playerA;
         if (isA) {
@@ -386,6 +391,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.TeamReveal);
         _requireParticipant(battleId, msg.sender);
+        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId); // BA-M1
 
         bool isA = msg.sender == b.playerA;
 
@@ -435,6 +441,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Active);
         _requireParticipant(battleId, msg.sender);
+        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId); // BA-M1
 
         bool isA = msg.sender == b.playerA;
         if (isA) {
@@ -458,6 +465,9 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Active);
         _requireParticipant(battleId, msg.sender);
+        // BA-M1: no late reveals. After REVEAL_WINDOW the only path is handleTimeout(),
+        // which (BA-H1) settles the non-revealer as the loser.
+        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId);
 
         // F-02: Prevent early reveals that leak move data before both commits are locked
         if (b.roundCommitA == bytes32(0) || b.roundCommitB == bytes32(0)) {
@@ -615,7 +625,14 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         b.disputeBondPaid = 0;
 
         if (bond > 0) {
-            bool disputerWon = (winner != b.proposedWinner);
+            // BA-M2: the disputer prevails if the admin changed the outcome in ANY
+            // respect — the winner OR either damage array — not just the winner.
+            // Previously `disputerWon = (winner != b.proposedWinner)` meant a valid
+            // damage-only dispute (correct winner, wrong damage) always lost its bond,
+            // leaving corrupt damage economically unchallengeable.
+            bool disputerWon = (winner != b.proposedWinner)
+                || !_damageEq(winnerDamage, b.proposedWinnerDamage)
+                || !_damageEq(loserDamage, b.proposedLoserDamage);
             if (disputerWon) {
                 clawToken.safeTransfer(disputer, bond);
                 emit DisputeBondRefunded(battleId, disputer, bond);
@@ -694,6 +711,12 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         if (bracketIndex >= NUM_STAKE_BRACKETS) revert InvalidStakeBracket(bracketIndex);
         // T-01: cap at 20% of bracket stake (was 50%) to keep legitimate disputes affordable.
         uint256 maxBond = STAKE_BRACKETS[bracketIndex] / 5;
+        // BA-M3: a nonzero bond below the Treasury fee floor (BPS_DENOMINATOR wei)
+        // is accepted here but makes adminResolveDispute's slash branch revert forever
+        // inside treasury.processFee, permanently locking the disputed battle's escrow
+        // (finalize/handleTimeout/emergencyWithdraw are all blocked once disputed).
+        // Require either 0 (bonding disabled) or >= the floor.
+        if (newBond != 0 && newBond < BPS_DENOMINATOR) revert InvalidDisputeBond(newBond);
         if (newBond > maxBond) revert InvalidDisputeBond(newBond);
         pendingDisputeBond[bracketIndex] = newBond;
         pendingDisputeBondAt[bracketIndex] = uint64(block.timestamp);
@@ -964,6 +987,11 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         }
     }
 
+    /// @dev BA-M2 helper: exact equality of two 3-element damage arrays.
+    function _damageEq(uint8[3] memory x, uint8[3] memory y) internal pure returns (bool) {
+        return x[0] == y[0] && x[1] == y[1] && x[2] == y[2];
+    }
+
     function _releaseTeam(uint256 teamId) internal {
         teamInBattle[teamId] = false;
         // TM-01 (M-01 parity): same deleted-team tolerance as _applyDamage.
@@ -1023,6 +1051,46 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         emit BattleCancelled(battleId, reason);
     }
 
+    /// @dev BA-H1 fix: an Active-phase forfeit is a LOSS, not a cheap neutral exit.
+    ///      The non-forfeiting player is awarded the battle (combined pot minus the
+    ///      protocol fee, plus their own anti-grief back); the forfeiter loses their
+    ///      full stake AND has their anti-grief slashed to Treasury — making
+    ///      abandonment strictly worse than playing to a settled loss. Closes the
+    ///      round-1 reveal-withhold exploit where the old soft refund (-5%) beat a
+    ///      settled loss (-100%) and denied the honest player the pot it earned.
+    ///      Pre-Active forfeits (`_handleCommitTimeout`/`_handleRevealTimeout`) keep the
+    ///      neutral `_forfeit` refund since no battle has been played there.
+    function _forfeitAsLoss(uint256 battleId, address loser) internal {
+        Battle storage b = _battles[battleId];
+        b.phase = BattlePhase.Settled;
+
+        address winner = loser == b.playerA ? b.playerB : b.playerA;
+        b.winner = winner;
+
+        uint256 combinedPot = b.stakeAmount * 2;
+        uint256 protocolFee = combinedPot * PROTOCOL_FEE_BPS / BPS_DENOMINATOR;
+        uint256 winnerPayout = combinedPot - protocolFee;
+        uint256 antiGrief = b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
+
+        // Protocol fee + the forfeiter's slashed anti-grief both route to Treasury
+        // (85% burn / 15% dev). A single processFee call keeps the amount above the
+        // 10k-wei floor. CEI: phase already set to Settled above.
+        uint256 toTreasury = protocolFee + antiGrief;
+        clawToken.forceApprove(address(treasury), toTreasury);
+        treasury.processFee(toTreasury);
+        emit AntiGriefSlashed(battleId, loser, antiGrief);
+
+        // Winner: pot - fee + their own anti-grief back. Forfeiter: nothing returned.
+        clawToken.safeTransfer(winner, winnerPayout + antiGrief);
+
+        // No resolver damage on a forfeit (the battle was not resolved) — the economic
+        // penalty is the forfeited stake. Release both teams.
+        _releaseTeam(b.teamIdA);
+        _releaseTeam(b.teamIdB);
+
+        emit BattleSettled(battleId, winner, winnerPayout, protocolFee);
+    }
+
     function _handleCommitTimeout(uint256 battleId) internal {
         Battle storage b = _battles[battleId];
         bool aCommitted = b.teamCommitA != bytes32(0);
@@ -1064,12 +1132,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
                 _cancelBattle(battleId, CancelReason.MutualTimeout);
                 return;
             } else if (!aRevealed) {
-                // Immediate forfeit: withholding a reveal after committing leaks
-                // the other player's revealed move data, so we don't allow retries.
-                _forfeit(battleId, b.playerA);
+                // BA-H1: withholding a reveal after committing is a LOSS, not a cheap
+                // exit. Award the battle to the player who did reveal; slash the
+                // withholder's stake + anti-grief. No retries (a reveal leaks move data).
+                _forfeitAsLoss(battleId, b.playerA);
                 return;
             } else if (!bRevealed) {
-                _forfeit(battleId, b.playerB);
+                _forfeitAsLoss(battleId, b.playerB);
                 return;
             }
         } else {
@@ -1080,13 +1149,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
             } else if (!aCommitted) {
                 b.consecutiveTimeoutsA++;
                 if (b.consecutiveTimeoutsA >= AUTO_FORFEIT_THRESHOLD) {
-                    _forfeit(battleId, b.playerA);
+                    _forfeitAsLoss(battleId, b.playerA); // BA-H1: Active forfeit = loss
                     return;
                 }
             } else {
                 b.consecutiveTimeoutsB++;
                 if (b.consecutiveTimeoutsB >= AUTO_FORFEIT_THRESHOLD) {
-                    _forfeit(battleId, b.playerB);
+                    _forfeitAsLoss(battleId, b.playerB); // BA-H1
                     return;
                 }
             }
@@ -1103,11 +1172,11 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         //     resolver should call settle() instead of timing the phase out.
         if (b.currentRound >= MAX_ROUNDS) {
             if (!aCommitted) {
-                _forfeit(battleId, b.playerA);
+                _forfeitAsLoss(battleId, b.playerA); // BA-H1: Active forfeit = loss
                 return;
             }
             if (!bCommitted) {
-                _forfeit(battleId, b.playerB);
+                _forfeitAsLoss(battleId, b.playerB); // BA-H1
                 return;
             }
             revert MaxRoundsReached(battleId);

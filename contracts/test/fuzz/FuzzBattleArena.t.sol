@@ -13,7 +13,8 @@ contract FuzzBattleArena is BaseSetup {
 
     function _createBattle() internal returns (uint256 battleId) {
         vm.prank(admin);
-        battleId = battleArena.createBattle(alice, bob, LOW_STAKE);
+        // Power 3 == three Evolved lobsters (the standard _createEvolvedTeam composition).
+        battleId = battleArena.createBattle(alice, bob, LOW_STAKE, 3, 3);
     }
 
     function _deposit(address player, uint256 battleId) internal {
@@ -94,7 +95,7 @@ contract FuzzBattleArena is BaseSetup {
 
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeAmount.selector, amount));
-        battleArena.createBattle(alice, bob, amount);
+        battleArena.createBattle(alice, bob, amount, 3, 3);
     }
 
     // ── Same player reverts ───────────────────────────────────────
@@ -102,7 +103,7 @@ contract FuzzBattleArena is BaseSetup {
     function test_same_player_reverts() public {
         vm.prank(admin);
         vm.expectRevert(BattleArena.PlayerCannotBeSelf.selector);
-        battleArena.createBattle(alice, alice, LOW_STAKE);
+        battleArena.createBattle(alice, alice, LOW_STAKE, 3, 3);
     }
 
     // ── Phase progression ─────────────────────────────────────────
@@ -470,11 +471,14 @@ contract FuzzBattleArena is BaseSetup {
             maxRounds,
             "N-01: currentRound must never exceed MAX_ROUNDS"
         );
+        // BA-H1: an Active-phase forfeit is now a LOSS settled to the opponent,
+        // not a neutral cancel. Alice (missed commit) loses; bob (committed) wins.
         assertEq(
             uint8(b.phase),
-            uint8(BattleArena.BattlePhase.Cancelled),
-            "missed-commit side must forfeit at MAX_ROUNDS (battle cancelled via _forfeit)"
+            uint8(BattleArena.BattlePhase.Settled),
+            "missed-commit side forfeits-as-loss at MAX_ROUNDS (BA-H1: settled, not cancelled)"
         );
+        assertEq(b.winner, bob, "BA-H1: committed player wins the forfeit");
     }
 
     // Helper: drive a battle to the final round with both sides revealing
@@ -791,7 +795,7 @@ contract FuzzBattleArena is BaseSetup {
         // Settle clears the round commit state, so we need a battle still in Active.
         // Start a new battle to explicitly test the round-binding.
         vm.prank(admin);
-        uint256 battleId2 = battleArena.createBattle(alice, bob, LOW_STAKE);
+        uint256 battleId2 = battleArena.createBattle(alice, bob, LOW_STAKE, 3, 3);
         _deposit(alice, battleId2);
         _deposit(bob,   battleId2);
 
@@ -834,38 +838,47 @@ contract FuzzBattleArena is BaseSetup {
     // Post-H-01: players have disputeBattle as a complementary recourse
     // once the resolver calls settle(); during the Active phase this gap
     // remains and is called out in the trust NatSpec.
+    // BA-M1 update: pre-fix, a resolver could starve emergencyWithdraw by warping
+    // ~24h and then driving a LATE commit/reveal to keep advancing the round
+    // (phase deadlines were advisory — only handleTimeout enforced them). BA-M1
+    // enforces phase deadlines at the action itself, so a commit attempted after
+    // the COMMIT_WINDOW lapses reverts with PhaseTimedOut. The late-action
+    // starvation vector is closed, and a genuinely stalled battle is reclaimable
+    // via the neutral emergencyWithdraw after the delay.
     function test_attack_emergencyWithdraw_blockedByResolverAdvance() public {
         (uint256 battleId,,) = _setupSettleableBattle();
 
-        // _setupSettleableBattle leaves round 1 fully revealed but not yet
-        // advanced. Advance to round 2 so the starvation loop can run
-        // commit+reveal cycles from a clean commit slot.
         vm.prank(admin);
         battleArena.advanceRound(battleId);
 
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
         uint256 delay = battleArena.EMERGENCY_WITHDRAW_DELAY();
 
-        // Starvation loop: advance round every (delay - 1s). lastProgressAt
-        // resets on each advance so emergencyWithdraw never unlocks while
-        // the battle still has rounds to play.
-        while (b.currentRound < battleArena.MAX_ROUNDS()) {
-            // Skip ahead in time but stay just under the delay.
-            vm.warp(b.lastProgressAt + delay - 1);
+        // Warp to 1s before the emergency delay elapses.
+        vm.warp(b.lastProgressAt + delay - 1);
 
-            vm.prank(alice);
-            vm.expectRevert();
-            battleArena.emergencyWithdraw(battleId);
+        // emergencyWithdraw is still 1s too early.
+        vm.prank(alice);
+        vm.expectRevert();
+        battleArena.emergencyWithdraw(battleId);
 
-            // Resolver plays the round to advance.
-            _playRound(battleId, hex"AA", hex"BB");
-            vm.prank(admin);
-            battleArena.advanceRound(battleId);
-            b = battleArena.getBattle(battleId);
-        }
-        // At MAX_ROUNDS the starvation ends because advanceRound reverts;
-        // the player can wait out the delay and reclaim. Property still
-        // holds: emergencyWithdraw was blocked for the entire duration.
+        // BA-M1: the resolver/players can NO LONGER keep the battle alive with a
+        // late commit — the COMMIT_WINDOW for this round lapsed long ago.
+        bytes32 hashB = keccak256(abi.encodePacked(battleId, b.currentRound, bob, hex"BB", bytes32(uint256(7))));
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId));
+        battleArena.commitMoves(battleId, hashB);
+
+        // 1s later the stalled battle unlocks the neutral emergency exit.
+        vm.warp(block.timestamp + 1);
+        vm.prank(alice);
+        battleArena.emergencyWithdraw(battleId);
+        b = battleArena.getBattle(battleId);
+        assertEq(
+            uint8(b.phase),
+            uint8(BattleArena.BattlePhase.Cancelled),
+            "stalled battle reclaimable via emergencyWithdraw once delay elapses"
+        );
     }
 
     // N-02: _handleActiveTimeout fall-through advances currentRound but
@@ -1029,7 +1042,7 @@ contract FuzzBattleArena is BaseSetup {
     /// @dev Like _setupSettleableBattle but accepts any STAKE_BRACKETS value.
     function _setupSettleableBattleAtStake(uint256 stake) internal returns (uint256 battleId) {
         vm.prank(admin);
-        battleId = battleArena.createBattle(alice, bob, stake);
+        battleId = battleArena.createBattle(alice, bob, stake, 3, 3);
 
         uint256 antiGrief = stake * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
         uint256 total = stake + antiGrief;
@@ -1395,5 +1408,138 @@ contract FuzzBattleArena is BaseSetup {
 
         assertEq(battleArena.activeDisputesFor(bob), 1, "one active dispute");
         assertEq(battleArena.activeDisputesFor(alice), 0, "alice didn't dispute");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Meat-grinder fixes (2026-05): BA-H1 / BA-M1 / BA-M2 / BA-M3
+    // ─────────────────────────────────────────────────────────────
+
+    /// @dev Drive a battle to Active round 1 WITHOUT playing the round, so
+    ///      lastVerifiedRound stays 0 and settle() is impossible — the BA-H1 window.
+    function _setupActiveBattle() internal returns (uint256 battleId) {
+        battleId = _createBattle();
+        _bothDeposit(battleId);
+        uint256 teamA = _createEvolvedTeam(alice);
+        uint256 teamB = _createEvolvedTeam(bob);
+        bytes32 saltA = keccak256(abi.encodePacked("active-A", battleId));
+        bytes32 saltB = keccak256(abi.encodePacked("active-B", battleId));
+        _commitTeam(alice, battleId, teamA, saltA);
+        _commitTeam(bob,   battleId, teamB, saltB);
+        _revealTeam(alice, battleId, teamA, saltA);
+        _revealTeam(bob,   battleId, teamB, saltB);
+    }
+
+    // BA-H1: at round 1, settle() is impossible (lastVerifiedRound==0). A losing
+    // player who commits then withholds the reveal previously escaped via _forfeit
+    // for only the 5% anti-grief, denying the honest player the pot. Post-fix the
+    // withholder LOSES: opponent takes pot - fee + antiGrief; withholder gets nothing.
+    function test_BA_H1_revealWithhold_isLoss_notCheapExit() public {
+        uint256 battleId = _setupActiveBattle();
+
+        // Both commit round 1; alice reveals honestly, bob (would-be loser) withholds.
+        // Scoped in a block so the hash/salt locals are freed before the payout math
+        // (avoids stack-too-deep with viaIR off).
+        {
+            uint8 round = battleArena.getBattle(battleId).currentRound;
+            bytes32 saltA = bytes32(uint256(0xA1));
+            bytes32 saltB = bytes32(uint256(0xB1));
+            bytes32 hashA = keccak256(abi.encodePacked(battleId, round, alice, hex"AA", saltA));
+            bytes32 hashB = keccak256(abi.encodePacked(battleId, round, bob, hex"BB", saltB));
+            vm.prank(alice); battleArena.commitMoves(battleId, hashA);
+            vm.prank(bob);   battleArena.commitMoves(battleId, hashB);
+            vm.prank(alice); battleArena.revealMoves(battleId, hex"AA", saltA);
+        }
+
+        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 bobBefore = claw.balanceOf(bob);
+
+        // settle() is impossible at round 1 (lastVerifiedRound == 0) — no cheap exit.
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.SettlementRequiresVerifiedRound.selector, battleId));
+        battleArena.settle(battleId, alice, [uint8(0), 0, 0], [uint8(0), 0, 0]);
+
+        // After the reveal window, anyone times out → bob forfeits-as-LOSS.
+        vm.warp(battleArena.getBattle(battleId).phaseDeadline + 1);
+        battleArena.handleTimeout(battleId);
+
+        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
+        uint256 winnerPayout =
+            (LOW_STAKE * 2) - ((LOW_STAKE * 2) * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR());
+
+        assertEq(claw.balanceOf(alice) - aliceBefore, winnerPayout + antiGrief, "BA-H1: honest player takes the pot");
+        assertEq(claw.balanceOf(bob), bobBefore, "BA-H1: withholder recovers nothing (loses stake + anti-grief)");
+
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled), "BA-H1: forfeit settles the battle");
+        assertEq(b.winner, alice, "BA-H1: honest revealer is the winner");
+    }
+
+    // BA-M1: phase-bound actions revert once their deadline passes — enforced at the
+    // action, not only via handleTimeout. Covers a late deposit and a late commitMoves.
+    function test_BA_M1_lateAction_reverts() public {
+        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
+
+        // Late deposit.
+        uint256 battleId = _createBattle();
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        vm.warp(b.phaseDeadline + 1);
+        _giveClaw(alice, LOW_STAKE + antiGrief);
+        vm.startPrank(alice);
+        claw.approve(address(battleArena), LOW_STAKE + antiGrief);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId));
+        battleArena.deposit(battleId);
+        vm.stopPrank();
+
+        // Late commitMoves in Active.
+        uint256 battleId2 = _setupActiveBattle();
+        BattleArena.Battle memory bb = battleArena.getBattle(battleId2);
+        vm.warp(bb.phaseDeadline + 1);
+        bytes32 h = keccak256(abi.encodePacked(battleId2, bb.currentRound, alice, hex"AA", bytes32(uint256(1))));
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId2));
+        battleArena.commitMoves(battleId2, h);
+    }
+
+    // BA-M2: a dispute that changes ONLY the damage arrays (winner unchanged) now
+    // counts as the disputer prevailing → bond refunded. Previously the bond was
+    // always slashed when the winner was unchanged, making damage disputes futile.
+    function test_BA_M2_damageOnlyDispute_refundsBond() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice); // winner alice, dmg [5,5,5]/[20,20,20]
+
+        _setupBondAndDispute(bob, battleId);
+        uint256 bond = battleArena.disputeBonds(0);
+        uint256 bobBefore = claw.balanceOf(bob);
+
+        // Admin keeps the SAME winner (alice) but CORRECTS the loser damage → disputer wins.
+        vm.prank(admin);
+        battleArena.adminResolveDispute(battleId, alice, [uint8(5), 5, 5], [uint8(10), 10, 10]);
+
+        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
+        // Bob lost the battle but was right about the damage: bond refunded + antiGrief.
+        assertEq(claw.balanceOf(bob) - bobBefore, bond + antiGrief, "BA-M2: damage-only disputer refunded bond");
+    }
+
+    // BA-M3: proposeDisputeBond rejects a nonzero bond below the Treasury fee floor
+    // (BPS_DENOMINATOR wei) — which would otherwise brick adminResolveDispute's slash
+    // path and lock the disputed battle. 0 (bonding disabled) and >= floor are allowed.
+    function test_BA_M3_dustDisputeBond_rejected() public {
+        uint256 floor = battleArena.BPS_DENOMINATOR();
+
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, uint256(1)));
+        battleArena.proposeDisputeBond(0, 1);
+
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, floor - 1));
+        battleArena.proposeDisputeBond(0, floor - 1);
+
+        // Exactly the floor is accepted.
+        vm.prank(admin);
+        battleArena.proposeDisputeBond(0, floor);
+
+        // Zero (bonding disabled) is accepted.
+        vm.prank(admin);
+        battleArena.proposeDisputeBond(0, 0);
     }
 }
