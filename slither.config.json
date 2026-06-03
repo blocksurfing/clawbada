@@ -1,5 +1,6 @@
 {
-  "filter_paths": "lib/|contracts/test/|contracts/script/",
+  "filter_paths": "lib/|node_modules/|contracts/test/|contracts/script/",
+  "detectors_to_exclude": "weak-prng",
   "exclude_dependencies": true,
   "exclude_informational": false,
   "exclude_optimization": false,

@@ -101,6 +101,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     /// @param lobsterId The lobster to list
     /// @param price The sale price in $CLAW (full amount buyer pays)
     /// @return listingId The newly created listing ID
+    // slither-disable-next-line reentrancy-no-eth — nonReentrant; safeTransferFrom is to the trusted LobsterNFT and the listing write follows escrow receipt.
     function listLobster(uint256 lobsterId, uint256 price) external nonReentrant returns (uint256 listingId) {
         if (price == 0) revert ZeroPrice();
         if (price < MIN_LISTING_PRICE) revert PriceBelowMinimum(price, MIN_LISTING_PRICE);

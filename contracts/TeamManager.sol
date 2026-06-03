@@ -57,6 +57,7 @@ contract TeamManager is AccessControl {
     /// @notice Create a team of 3 lobsters. Locks all 3 lobsters.
     /// @param lobsterIds Array of exactly 3 lobster token IDs
     /// @return teamId The ID of the created team
+    // slither-disable-next-line reentrancy-no-eth — setLocked() calls the trusted LobsterNFT (no callback into TeamManager); the post-call _lobsterToTeam write cannot be reentered.
     function createTeam(uint256[3] calldata lobsterIds) external returns (uint256 teamId) {
         // Check for duplicates
         if (lobsterIds[0] == lobsterIds[1] || lobsterIds[0] == lobsterIds[2] || lobsterIds[1] == lobsterIds[2]) {
@@ -99,6 +100,7 @@ contract TeamManager is AccessControl {
 
     /// @notice Disband a team. Unlocks all 3 lobsters.
     /// @param teamId The ID of the team to disband
+    // slither-disable-next-line reentrancy-no-eth — setLocked() calls the trusted LobsterNFT (no callback); the post-call _teams/_teamIndex writes cannot be reentered.
     function disbandTeam(uint256 teamId) external {
         Team storage team = _teams[teamId];
         if (team.owner == address(0)) revert TeamDoesNotExist(teamId);

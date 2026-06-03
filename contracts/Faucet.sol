@@ -179,6 +179,7 @@ contract Faucet is AccessControl, ReentrancyGuard {
         uint8 class_ = uint8(seed % 10);
         uint8 breedType = uint8((seed >> 8) % 64);
 
+        // slither-disable-next-line uninitialized-local — fixed-size memory array is zero-initialized by Solidity and fully written below (false positive).
         uint8[18] memory alleles;
         uint256 currentSeed = seed;
 

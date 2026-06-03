@@ -61,7 +61,9 @@ jobs:
       - name: Install Slither
         run: pip install slither-analyzer
       - name: Run Slither on all contracts
-        run: slither contracts --filter-paths "lib/|node_modules/|test/" --fail-medium
+        # Filter out lib/test/script: contracts/script/ holds Foundry deploy scripts
+        # (vm.* cheatcodes, ignored serialize returns) that are not production code.
+        run: slither contracts --filter-paths "lib/|node_modules/|test/|script/" --fail-medium
         # --fail-medium: fail CI on Medium+ findings. Suppress via slither-disable comments
         # at the call site (with a written justification) for known-safe patterns.
 

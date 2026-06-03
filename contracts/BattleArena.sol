@@ -163,6 +163,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     uint256[3] public disputeBonds;   // [Low, Mid, High] bond required to dispute (in $CLAW wei)
 
     // V3 S1: per-address dispute rate limit — sliding 24h window of recent dispute timestamps
+    // slither-disable-next-line uninitialized-state — mapping to a dynamic array, populated via push() in _addDisputeTimestamp; mappings need no initialization (false positive).
     mapping(address => uint64[]) private _disputeTimestamps;
 
     // V3 S1 hardening (T-02): pending admin tuning, applied by enact* after MIN_TUNING_DELAY.
@@ -387,6 +388,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     }
 
     /// @notice Reveal team composition. Validates commit hash, team ownership, tier, and damage.
+    // slither-disable-next-line reentrancy-no-eth — setTeamActive() calls the trusted TeamManager (no callback); the post-call phase write is benign bookkeeping and all shared-state entrypoints are phase-gated.
     function revealTeam(uint256 battleId, uint256 teamId, bytes32 salt) external {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.TeamReveal);
@@ -603,6 +605,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     /// @dev Admin is expected to review the dispute evidence (emitted by `disputeBattle()`)
     ///      off-chain before calling this. There is no on-chain enforcement that admin has
     ///      done so; admin role holders are accountable via governance/multisig.
+    // slither-disable-next-line reentrancy-no-eth — nonReentrant; external calls are to the trusted Treasury/LobsterNFT/TeamManager (no callback); CEI holds (phase set in _executePayout before transfers), post-call writes are benign.
     function adminResolveDispute(
         uint256 battleId,
         address winner,
@@ -795,6 +798,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     /// @notice Get full battle data.
     function getBattle(uint256 battleId) external view returns (Battle memory) {
+        // slither-disable-next-line incorrect-equality — enum equality against the zero/None sentinel is exact and safe.
         if (_battles[battleId].phase == BattlePhase.None) revert BattleDoesNotExist(battleId);
         return _battles[battleId];
     }
@@ -819,6 +823,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     function _requirePhase(uint256 battleId, BattlePhase expected) internal view {
         BattlePhase actual = _battles[battleId].phase;
+        // slither-disable-next-line incorrect-equality — enum equality against the zero/None sentinel is exact and safe.
         if (actual == BattlePhase.None) revert BattleDoesNotExist(battleId);
         if (actual != expected) revert InvalidBattlePhase(battleId, expected, actual);
     }
