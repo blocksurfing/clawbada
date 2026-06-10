@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 10304, guid: 3cc6340a41c44312a7ff363e7c8680d9, type: 0}
+  m_SkyboxMaterial: {fileID: 0}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -93,7 +93,7 @@ LightmapSettings:
     m_ExportTrainingData: 0
     m_TrainingDataDestination: TrainingData
     m_LightProbeSampleCountMultiplier: 4
-  m_LightingDataAsset: {fileID: 20201, guid: 0d0ac45418b346dda5454a3e7ac9575a, type: 0}
+  m_LightingDataAsset: {fileID: 0}
   m_LightingSettings: {fileID: 0}
 --- !u!196 &4
 NavMeshSettings:
@@ -289,7 +289,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 11
+  m_SortingOrder: 13
   m_MaskInteraction: 0
   m_Sprite: {fileID: 21300000, guid: 6c9bc8221f74e584ab9aa9f78e7123ba, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -1026,7 +1026,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 3
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: edd955d69f8474547ba0d2fbb4ca2d20, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 12897fbfd7f514a4d8eebf177c770dc2, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -1084,7 +1084,7 @@ Transform:
   m_GameObject: {fileID: 544825969}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.015625, y: 0.15798002, z: 0}
+  m_LocalPosition: {x: -2.970622, y: 0.15798, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1546,7 +1546,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 12
+  m_SortingOrder: 10
   m_MaskInteraction: 0
   m_Sprite: {fileID: 21300000, guid: f6c15552272941a48b1cecee30dbff37, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -2335,7 +2335,7 @@ Transform:
   m_GameObject: {fileID: 1230722588}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.8568449, y: 0.13893497, z: 0}
+  m_LocalPosition: {x: -2.129402, y: 0.138935, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2796,7 +2796,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 10
+  m_SortingOrder: 12
   m_MaskInteraction: 0
   m_Sprite: {fileID: 21300000, guid: 9b6865c53829b334b8c51a4ceafe2f62, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -3070,7 +3070,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 11
+  m_SortingOrder: 13
   m_MaskInteraction: 0
   m_Sprite: {fileID: 21300000, guid: 5bf03773c204c9c4b933707286497337, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -3108,7 +3108,7 @@ Transform:
   m_GameObject: {fileID: 1552147996}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.83, y: 0.1875, z: 0}
+  m_LocalPosition: {x: -3.816247, y: 0.1875, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3318,7 +3318,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 13
+  m_SortingOrder: 11
   m_MaskInteraction: 0
   m_Sprite: {fileID: 21300000, guid: 3163d2017aaa3fc42b12d402dee54a4d, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -3593,9 +3593,9 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 12
+  m_SortingOrder: 10
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: 41ee06c31f9da124e9ddfa43da81d427, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 831398280eb050b4fb130baeaec93db0, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -3684,7 +3684,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 10
+  m_SortingOrder: 12
   m_MaskInteraction: 0
   m_Sprite: {fileID: 21300000, guid: 8b4dbc25270c7b145bfbc9c2f9470005, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -4161,7 +4161,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 13
+  m_SortingOrder: 11
   m_MaskInteraction: 0
   m_Sprite: {fileID: 21300000, guid: 906fbec299740274eaf1a443dd80654b, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -4355,15 +4355,72 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!1660057539 &9223372036854775807
-SceneRoots:
+--- !u!1 &2146600001
+GameObject:
   m_ObjectHideFlags: 0
-  m_Roots:
-  - {fileID: 1854924888}
-  - {fileID: 146995190}
-  - {fileID: 1552147997}
-  - {fileID: 544825971}
-  - {fileID: 1230722590}
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2146600002}
+  - component: {fileID: 2146600003}
+  m_Layer: 0
+  m_Name: Tempest
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2146600002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2146600001}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -1.276247, y: 0.16, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 2146600005}
+  - {fileID: 2146600008}
+  - {fileID: 2146600011}
+  - {fileID: 2146600014}
+  - {fileID: 2146600017}
+  - {fileID: 2146600023}
+  - {fileID: 2146600029}
+  - {fileID: 2146600032}
+  - {fileID: 2146600035}
+  - {fileID: 2146600038}
+  - {fileID: 2146600041}
+  - {fileID: 2146600044}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!95 &2146600003
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2146600001}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 1e6cd18d88992ff4f88ba3e2296b17ca, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 1
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &2146600004
 GameObject:
   m_ObjectHideFlags: 0
@@ -5640,7 +5697,7 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!1 &2146600001
+--- !u!1 &2146600046
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -5648,50 +5705,50 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2146600002}
-  - component: {fileID: 2146600003}
+  - component: {fileID: 2146600047}
+  - component: {fileID: 2146600048}
   m_Layer: 0
-  m_Name: Tempest
+  m_Name: Specter
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2146600002
+--- !u!4 &2146600047
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600001}
+  m_GameObject: {fileID: 2146600046}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.71, y: 0.16, z: 0}
+  m_LocalPosition: {x: -0.426247, y: 0.16, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2146600005}
-  - {fileID: 2146600008}
-  - {fileID: 2146600011}
-  - {fileID: 2146600014}
-  - {fileID: 2146600017}
-  - {fileID: 2146600023}
-  - {fileID: 2146600029}
-  - {fileID: 2146600032}
-  - {fileID: 2146600035}
-  - {fileID: 2146600038}
-  - {fileID: 2146600041}
-  - {fileID: 2146600044}
+  - {fileID: 2146600050}
+  - {fileID: 2146600053}
+  - {fileID: 2146600056}
+  - {fileID: 2146600059}
+  - {fileID: 2146600062}
+  - {fileID: 2146600068}
+  - {fileID: 2146600074}
+  - {fileID: 2146600077}
+  - {fileID: 2146600080}
+  - {fileID: 2146600083}
+  - {fileID: 2146600086}
+  - {fileID: 2146600089}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &2146600003
+--- !u!95 &2146600048
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600001}
+  m_GameObject: {fileID: 2146600046}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 1e6cd18d88992ff4f88ba3e2296b17ca, type: 2}
@@ -6982,7 +7039,7 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!1 &2146600046
+--- !u!1 &2146600091
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -6990,50 +7047,50 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2146600047}
-  - component: {fileID: 2146600048}
+  - component: {fileID: 2146600092}
+  - component: {fileID: 2146600093}
   m_Layer: 0
-  m_Name: Specter
+  m_Name: Sentinel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2146600047
+--- !u!4 &2146600092
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600046}
+  m_GameObject: {fileID: 2146600091}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2.56, y: 0.16, z: 0}
+  m_LocalPosition: {x: 0.423753, y: 0.16, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2146600050}
-  - {fileID: 2146600053}
-  - {fileID: 2146600056}
-  - {fileID: 2146600059}
-  - {fileID: 2146600062}
-  - {fileID: 2146600068}
-  - {fileID: 2146600074}
-  - {fileID: 2146600077}
-  - {fileID: 2146600080}
-  - {fileID: 2146600083}
-  - {fileID: 2146600086}
-  - {fileID: 2146600089}
+  - {fileID: 2146600095}
+  - {fileID: 2146600098}
+  - {fileID: 2146600101}
+  - {fileID: 2146600104}
+  - {fileID: 2146600107}
+  - {fileID: 2146600113}
+  - {fileID: 2146600119}
+  - {fileID: 2146600122}
+  - {fileID: 2146600125}
+  - {fileID: 2146600128}
+  - {fileID: 2146600131}
+  - {fileID: 2146600134}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &2146600048
+--- !u!95 &2146600093
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600046}
+  m_GameObject: {fileID: 2146600091}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 1e6cd18d88992ff4f88ba3e2296b17ca, type: 2}
@@ -8324,7 +8381,7 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!1 &2146600091
+--- !u!1 &2146600136
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8332,50 +8389,50 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2146600092}
-  - component: {fileID: 2146600093}
+  - component: {fileID: 2146600137}
+  - component: {fileID: 2146600138}
   m_Layer: 0
-  m_Name: Sentinel
+  m_Name: Reaver
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2146600092
+--- !u!4 &2146600137
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600091}
+  m_GameObject: {fileID: 2146600136}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 3.41, y: 0.16, z: 0}
+  m_LocalPosition: {x: 1.273753, y: 0.16, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2146600095}
-  - {fileID: 2146600098}
-  - {fileID: 2146600101}
-  - {fileID: 2146600104}
-  - {fileID: 2146600107}
-  - {fileID: 2146600113}
-  - {fileID: 2146600119}
-  - {fileID: 2146600122}
-  - {fileID: 2146600125}
-  - {fileID: 2146600128}
-  - {fileID: 2146600131}
-  - {fileID: 2146600134}
+  - {fileID: 2146600140}
+  - {fileID: 2146600143}
+  - {fileID: 2146600146}
+  - {fileID: 2146600149}
+  - {fileID: 2146600152}
+  - {fileID: 2146600158}
+  - {fileID: 2146600164}
+  - {fileID: 2146600167}
+  - {fileID: 2146600170}
+  - {fileID: 2146600173}
+  - {fileID: 2146600176}
+  - {fileID: 2146600179}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &2146600093
+--- !u!95 &2146600138
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600091}
+  m_GameObject: {fileID: 2146600136}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 1e6cd18d88992ff4f88ba3e2296b17ca, type: 2}
@@ -9666,7 +9723,7 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!1 &2146600136
+--- !u!1 &2146600181
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -9674,50 +9731,50 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2146600137}
-  - component: {fileID: 2146600138}
+  - component: {fileID: 2146600182}
+  - component: {fileID: 2146600183}
   m_Layer: 0
-  m_Name: Reaver
+  m_Name: Abyss
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2146600137
+--- !u!4 &2146600182
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600136}
+  m_GameObject: {fileID: 2146600181}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 4.26, y: 0.16, z: 0}
+  m_LocalPosition: {x: 2.123753, y: 0.16, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2146600140}
-  - {fileID: 2146600143}
-  - {fileID: 2146600146}
-  - {fileID: 2146600149}
-  - {fileID: 2146600152}
-  - {fileID: 2146600158}
-  - {fileID: 2146600164}
-  - {fileID: 2146600167}
-  - {fileID: 2146600170}
-  - {fileID: 2146600173}
-  - {fileID: 2146600176}
-  - {fileID: 2146600179}
+  - {fileID: 2146600185}
+  - {fileID: 2146600188}
+  - {fileID: 2146600191}
+  - {fileID: 2146600194}
+  - {fileID: 2146600197}
+  - {fileID: 2146600203}
+  - {fileID: 2146600209}
+  - {fileID: 2146600212}
+  - {fileID: 2146600215}
+  - {fileID: 2146600218}
+  - {fileID: 2146600221}
+  - {fileID: 2146600224}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &2146600138
+--- !u!95 &2146600183
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600136}
+  m_GameObject: {fileID: 2146600181}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 1e6cd18d88992ff4f88ba3e2296b17ca, type: 2}
@@ -11008,7 +11065,7 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!1 &2146600181
+--- !u!1 &2146600226
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -11016,50 +11073,50 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2146600182}
-  - component: {fileID: 2146600183}
+  - component: {fileID: 2146600227}
+  - component: {fileID: 2146600228}
   m_Layer: 0
-  m_Name: Abyss
+  m_Name: Kraken
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2146600182
+--- !u!4 &2146600227
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600181}
+  m_GameObject: {fileID: 2146600226}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 5.11, y: 0.16, z: 0}
+  m_LocalPosition: {x: 2.973753, y: 0.16, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2146600185}
-  - {fileID: 2146600188}
-  - {fileID: 2146600191}
-  - {fileID: 2146600194}
-  - {fileID: 2146600197}
-  - {fileID: 2146600203}
-  - {fileID: 2146600209}
-  - {fileID: 2146600212}
-  - {fileID: 2146600215}
-  - {fileID: 2146600218}
-  - {fileID: 2146600221}
-  - {fileID: 2146600224}
+  - {fileID: 2146600230}
+  - {fileID: 2146600233}
+  - {fileID: 2146600236}
+  - {fileID: 2146600239}
+  - {fileID: 2146600242}
+  - {fileID: 2146600248}
+  - {fileID: 2146600254}
+  - {fileID: 2146600257}
+  - {fileID: 2146600260}
+  - {fileID: 2146600263}
+  - {fileID: 2146600266}
+  - {fileID: 2146600269}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &2146600183
+--- !u!95 &2146600228
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600181}
+  m_GameObject: {fileID: 2146600226}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 1e6cd18d88992ff4f88ba3e2296b17ca, type: 2}
@@ -12350,7 +12407,7 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!1 &2146600226
+--- !u!1 &2146600271
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -12358,50 +12415,50 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2146600227}
-  - component: {fileID: 2146600228}
+  - component: {fileID: 2146600272}
+  - component: {fileID: 2146600273}
   m_Layer: 0
-  m_Name: Kraken
+  m_Name: Ember
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2146600227
+--- !u!4 &2146600272
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600226}
+  m_GameObject: {fileID: 2146600271}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 5.96, y: 0.16, z: 0}
+  m_LocalPosition: {x: 3.823753, y: 0.16, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2146600230}
-  - {fileID: 2146600233}
-  - {fileID: 2146600236}
-  - {fileID: 2146600239}
-  - {fileID: 2146600242}
-  - {fileID: 2146600248}
-  - {fileID: 2146600254}
-  - {fileID: 2146600257}
-  - {fileID: 2146600260}
-  - {fileID: 2146600263}
-  - {fileID: 2146600266}
-  - {fileID: 2146600269}
+  - {fileID: 2146600275}
+  - {fileID: 2146600278}
+  - {fileID: 2146600281}
+  - {fileID: 2146600284}
+  - {fileID: 2146600287}
+  - {fileID: 2146600293}
+  - {fileID: 2146600299}
+  - {fileID: 2146600302}
+  - {fileID: 2146600305}
+  - {fileID: 2146600308}
+  - {fileID: 2146600311}
+  - {fileID: 2146600314}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &2146600228
+--- !u!95 &2146600273
 Animator:
   serializedVersion: 7
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600226}
+  m_GameObject: {fileID: 2146600271}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 1e6cd18d88992ff4f88ba3e2296b17ca, type: 2}
@@ -13692,69 +13749,19 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!1 &2146600271
-GameObject:
+--- !u!1660057539 &9223372036854775807
+SceneRoots:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2146600272}
-  - component: {fileID: 2146600273}
-  m_Layer: 0
-  m_Name: Ember
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2146600272
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600271}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 6.81, y: 0.16, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 2146600275}
-  - {fileID: 2146600278}
-  - {fileID: 2146600281}
-  - {fileID: 2146600284}
-  - {fileID: 2146600287}
-  - {fileID: 2146600293}
-  - {fileID: 2146600299}
-  - {fileID: 2146600302}
-  - {fileID: 2146600305}
-  - {fileID: 2146600308}
-  - {fileID: 2146600311}
-  - {fileID: 2146600314}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &2146600273
-Animator:
-  serializedVersion: 7
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2146600271}
-  m_Enabled: 1
-  m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: 1e6cd18d88992ff4f88ba3e2296b17ca, type: 2}
-  m_CullingMode: 0
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 1
-  m_LinearVelocityBlending: 0
-  m_StabilizeFeet: 0
-  m_AnimatePhysics: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorStateOnDisable: 0
-  m_WriteDefaultValuesOnDisable: 0
+  m_Roots:
+  - {fileID: 1854924888}
+  - {fileID: 146995190}
+  - {fileID: 1552147997}
+  - {fileID: 544825971}
+  - {fileID: 1230722590}
+  - {fileID: 2146600002}
+  - {fileID: 2146600047}
+  - {fileID: 2146600092}
+  - {fileID: 2146600137}
+  - {fileID: 2146600182}
+  - {fileID: 2146600227}
+  - {fileID: 2146600272}
