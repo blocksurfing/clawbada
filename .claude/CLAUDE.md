@@ -216,9 +216,14 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
    Both deposits confirmed → battle begins
 
 3. TEAM COMMIT-REVEAL (on-chain)
-   Both players commit team composition hash
-   After both commits: both reveal lobster assignments
-   Prevents counter-picking — neither side sees the other's team first
+   Both players commit a team composition hash
+   After both commits, the resolver opens BOTH teams in a single atomic
+   transaction (`revealTeams`) — neither team's identity reaches the chain until
+   both are bound together (F5-01). Prevents counter-picking AND closes the
+   matchup-dodge vector: no player can see the opponent's team and then bail,
+   because nothing is revealed by a one-sided action. An honest reveal-window
+   timeout mutually cancels with full refunds (a dropped connection never costs a
+   player their stake).
 
 4. VRF BEACON (on-chain)
    One drand beacon rolled at TEAM_REVEAL seeds all battle randomness
