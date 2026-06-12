@@ -36,6 +36,24 @@ contract FuzzBreedingLab is BaseSetup {
         assertEq(actual, expected, "breed cost formula mismatch");
     }
 
+    /// @dev F5-03: a maxed-out parent reports breedCount == MAX_BREEDS (a legit on-chain
+    ///      value). Pricing its hypothetical next breed must give a clean domain error, not
+    ///      an array-out-of-bounds Panic(0x32).
+    function test_F5_03_breedCost_atOrAboveMaxBreeds_revertsCleanly() public {
+        uint8 maxed = uint8(breedingLab.MAX_BREEDS()); // 5
+
+        vm.expectRevert(abi.encodeWithSelector(BreedingLab.BreedCountOutOfRange.selector, maxed));
+        breedingLab.getBreedCostPerParent(maxed, 0);
+
+        // Anything above MAX_BREEDS up to type(uint8).max also reverts cleanly (not a panic).
+        vm.expectRevert(abi.encodeWithSelector(BreedingLab.BreedCountOutOfRange.selector, uint8(255)));
+        breedingLab.getBreedCostPerParent(255, 3);
+
+        // Boundary: the highest valid count (MAX_BREEDS - 1 == 4) still prices fine (×8 tier).
+        uint256 cost = breedingLab.getBreedCostPerParent(maxed - 1, 0);
+        assertEq(cost, breedingLab.BASE_BREED_COST() * 80 / 10, "breedCount 4 prices at x8");
+    }
+
     // ── Same parent reverts ───────────────────────────────────────
 
     function test_same_parent_reverts() public {
