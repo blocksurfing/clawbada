@@ -27,9 +27,6 @@ contract BreedingLab is ReentrancyGuard {
     uint256 public constant FINALIZE_MIN_BLOCKS = 2;
     uint256 public constant FINALIZE_WINDOW = 256; // EVM blockhash lookback limit
 
-    // Breed multipliers ×10 scaled: [1.0, 1.5, 2.5, 4.0, 8.0] → [10, 15, 25, 40, 80]
-    uint256[5] public BREED_MULTIPLIERS = [uint256(10), 15, 25, 40, 80];
-
     // ──────────── Types ────────────
     struct BreedRequest {
         address requester;
@@ -78,6 +75,10 @@ contract BreedingLab is ReentrancyGuard {
     error LobsterIsLocked(uint256 lobsterId);
     error BreedLimitReached(uint256 lobsterId);
     error BreedOnCooldown(uint256 lobsterId, uint256 availableAt);
+    /// @dev F5-03: getBreedCostPerParent / _breedCostPerParent asked to price a parent
+    ///      whose breed count is already at MAX_BREEDS (a legit on-chain value). Returns a
+    ///      clean domain error instead of an array-out-of-bounds Panic(0x32).
+    error BreedCountOutOfRange(uint8 breedCount);
     error RequestDoesNotExist(uint256 requestId);
     error RequestAlreadyFinalized(uint256 requestId);
     error TooEarlyToFinalize(uint256 requestId, uint256 targetBlock);
@@ -292,7 +293,15 @@ contract BreedingLab is ReentrancyGuard {
     }
 
     function _breedCostPerParent(uint8 breedCount, uint8 generation) internal pure returns (uint256) {
-        // BREED_MULTIPLIERS are ×10 scaled: [10, 15, 25, 40, 80]
+        // F5-03: a maxed-out parent legitimately reports breedCount == MAX_BREEDS, which
+        // would index past this 5-element table and Panic(0x32). Revert with a domain error
+        // so external callers (the agent API prices breed counts read straight off-chain)
+        // get a meaningful failure. State-changing paths never reach this — _validateParent
+        // reverts BreedLimitReached at >= MAX_BREEDS before any cost is computed.
+        if (breedCount >= MAX_BREEDS) revert BreedCountOutOfRange(breedCount);
+
+        // Per-breed multipliers ×10 scaled: [1.0, 1.5, 2.5, 4.0, 8.0] → [10, 15, 25, 40, 80].
+        // This literal is the single source of truth for the schedule.
         uint256[5] memory multipliers = [uint256(10), 15, 25, 40, 80];
         // slither-disable-next-line divide-before-multiply — intentional ×10-scaled multiplier then the per-generation ×3/2 loop; truncation is sub-wei on an 18-decimal token (verified safe to gen ~36 before the cost exceeds MAX_SUPPLY).
         uint256 cost = BASE_BREED_COST * multipliers[breedCount] / 10;
