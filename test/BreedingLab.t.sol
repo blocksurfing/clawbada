@@ -781,7 +781,7 @@ contract BreedingLabTest is Test {
 
     // ──────────── F-01: Expired breed request recovery ────────────
 
-    function test_cancelExpiredRequestRestoresBreedCounts() public {
+    function test_cancelExpiredRequestDoesNotRestoreBreedCounts() public {
         (uint256 a, uint256 b) = _mintPair(alice);
         uint256 baseCost = 500e18 * 2; // 500 per parent, both at breed 0
         _fundAndApprove(alice, baseCost);
@@ -797,12 +797,13 @@ contract BreedingLabTest is Test {
         // Roll past the 256-block blockhash window (request expires)
         vm.roll(block.number + 260);
 
-        // Cancel the expired request
+        // Close the expired request
         lab.cancelExpiredRequest(requestId);
 
-        // Breed counts should be restored
-        assertEq(nft.getBreedCount(a), 0);
-        assertEq(nft.getBreedCount(b), 0);
+        // F5-02: breed counts stay CONSUMED — a committed breed is final, so letting a bad
+        // roll expire cannot refund the slot (closes the outcome-selective re-roll).
+        assertEq(nft.getBreedCount(a), 1);
+        assertEq(nft.getBreedCount(b), 1);
 
         // Request should be marked as finalized (can't cancel or finalize again)
         BreedingLab.BreedRequest memory req = lab.getBreedRequest(requestId);
@@ -853,12 +854,13 @@ contract BreedingLabTest is Test {
         // Expire
         vm.roll(block.number + 260);
 
-        // Bob (not the requester) can cancel
+        // Bob (not the requester) can close the expired request
         vm.prank(bob);
         lab.cancelExpiredRequest(requestId);
 
-        assertEq(nft.getBreedCount(a), 0);
-        assertEq(nft.getBreedCount(b), 0);
+        // F5-02: closing is permissionless but does NOT refund breed counts.
+        assertEq(nft.getBreedCount(a), 1);
+        assertEq(nft.getBreedCount(b), 1);
     }
 
     function test_cancelExpiredRequestStoresParentIds() public {
