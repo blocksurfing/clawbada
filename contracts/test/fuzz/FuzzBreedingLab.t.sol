@@ -287,9 +287,10 @@ contract FuzzBreedingLab is BaseSetup {
         breedingLab.finalizeBreed(reqId);
     }
 
-    // cancelExpiredRequest happy path: request expires (256+ blocks without
-    // finalize), anyone cancels, breed counts on parents decrement.
-    function test_cancel_expired_restoresBreedCounts() public {
+    // F5-02: closing an expired request does NOT refund breed counts (a committed breed
+    // is final). Anyone can close it for storage hygiene, but the slot stays consumed —
+    // so discarding a bad roll by letting it expire is pointless.
+    function test_cancel_expired_doesNotRestoreBreedCounts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
         _giveClaw(alice, 10_000e18);
@@ -306,18 +307,49 @@ contract FuzzBreedingLab is BaseSetup {
         // Skip past the 256-block expiry window
         vm.roll(block.number + 300);
 
-        // Anyone can cancel
+        // Anyone can close the expired request
         address rando = makeAddr("rando-cancel");
         vm.prank(rando);
         breedingLab.cancelExpiredRequest(reqId);
 
-        // Breed counts restored
-        assertEq(nft.getBreedCount(parentA), countA0, "A restored");
-        assertEq(nft.getBreedCount(parentB), countB0, "B restored");
+        // F5-02: breed counts stay CONSUMED — not refunded.
+        assertEq(nft.getBreedCount(parentA), countA0 + 1, "A slot stays spent");
+        assertEq(nft.getBreedCount(parentB), countB0 + 1, "B slot stays spent");
 
-        // But cooldown NOT restored (documented tradeoff)
+        // Cooldown also persists (as before).
         uint256 cooldownEnd = breedingLab.getCooldownEnd(parentA);
         assertGt(cooldownEnd, 0, "cooldown persists after cancel");
+
+        // Request marked closed (terminal).
+        assertTrue(breedingLab.getBreedRequest(reqId).finalized, "request closed");
+    }
+
+    // F5-02 regression: outcome-selective re-roll is closed. After a request expires and is
+    // closed, the breed slot stays spent — so a bad roll cannot be discarded back to a flat
+    // ×1 re-roll. Re-breeding the same pair prices at the NEXT (escalated) tier and consumes
+    // another lifetime slot, exactly as the 5-breed cap + cost schedule intend.
+    function test_F5_02_expiredBreed_consumesSlotAndDefeatsReroll() public {
+        uint256 parentA = _mintLobster(alice, 0);
+        uint256 parentB = _mintLobster(alice, 1);
+        _giveClaw(alice, 100_000e18);
+
+        // First breed request at the ×1 tier (breedCount 0 → 1 each).
+        uint256 reqId = _requestBreed(alice, parentA, parentB);
+        assertEq(nft.getBreedCount(parentA), 1, "slot consumed at request");
+
+        // Discard: never finalize, let it expire, close it.
+        vm.roll(block.number + 300);
+        breedingLab.cancelExpiredRequest(reqId);
+
+        // The slot stays spent — discarding gained nothing (the re-roll is dead).
+        assertEq(nft.getBreedCount(parentA), 1, "F5-02: slot NOT refunded on expiry");
+        assertEq(nft.getBreedCount(parentB), 1, "F5-02: slot NOT refunded on expiry");
+
+        // Re-breeding the same pair now prices at the breedCount==1 tier (×1.5), NOT ×1 —
+        // discarded rolls no longer re-roll at the flat minimum fee.
+        uint256 rerollCost = breedingLab.getBreedCostPerParent(1, 0);
+        assertEq(rerollCost, breedingLab.BASE_BREED_COST() * 15 / 10, "re-roll priced at x1.5 tier");
+        assertGt(rerollCost, breedingLab.getBreedCostPerParent(0, 0), "escalated above the x1 tier");
     }
 
     // cancel before the target block reverts TooEarlyToFinalize (cancel
@@ -366,8 +398,9 @@ contract FuzzBreedingLab is BaseSetup {
         breedingLab.cancelExpiredRequest(reqId);
     }
 
-    // cancel when a parent has been burned (e.g., used as evolution fuel)
-    // must not revert — it should silently skip the decrement for that parent.
+    // cancel when a parent has been burned (e.g., used as evolution fuel) must not revert.
+    // F5-02: cancel no longer touches the NFT at all (no breed-count refund), so a burned
+    // parent is trivially tolerated — closing the request just marks it terminal.
     function test_cancel_parentBurned_tolerates() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
@@ -381,11 +414,11 @@ contract FuzzBreedingLab is BaseSetup {
         assertFalse(nft.exists(parentA), "parentA burned");
 
         vm.roll(block.number + 300);
-        breedingLab.cancelExpiredRequest(reqId);
+        breedingLab.cancelExpiredRequest(reqId); // must not revert
 
-        // parentB's breed count decremented; parentA's is gone — function
-        // must not revert either way.
-        assertEq(nft.getBreedCount(parentB), 0, "surviving parent B restored");
+        // Surviving parent B keeps its consumed slot (not refunded).
+        assertEq(nft.getBreedCount(parentB), 1, "surviving parent B slot stays spent");
+        assertTrue(breedingLab.getBreedRequest(reqId).finalized, "request closed");
     }
 
     // Offspring's class must be one of the parent classes.
