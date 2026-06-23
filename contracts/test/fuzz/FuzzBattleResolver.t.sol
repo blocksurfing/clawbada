@@ -16,6 +16,18 @@ contract BattleResolverHarness {
     function getBaseStats(uint8 classId) external pure returns (BattleResolver.Stats memory) {
         return BattleResolver.getBaseStats(classId);
     }
+
+    function scaleStats(BattleResolver.Stats memory base, uint8 tier, bool legend)
+        external
+        pure
+        returns (BattleResolver.Stats memory)
+    {
+        return BattleResolver.scaleStats(base, tier, legend);
+    }
+
+    function vrfRollFromRandom(uint256 rand) external pure returns (uint256) {
+        return BattleResolver.vrfRollFromRandom(rand);
+    }
 }
 
 /// @dev Fuzz tests for BattleResolver pure math: damage formulas, class advantage, stat scaling.
@@ -406,5 +418,71 @@ contract FuzzBattleResolver is Test {
         uint256 hugeDmg = _attackDamage(atk, armor, BattleResolver.CLASS_NEUTRAL_MULT, false, vrfRoll);
         uint256 cappedDmg = _attackDamage(3 * armor, armor, BattleResolver.CLASS_NEUTRAL_MULT, false, vrfRoll);
         assertEq(hugeDmg, cappedDmg, "past-cap atk must match regardless of magnitude (no overflow panic)");
+    }
+
+    // ── F5-04: canonical VRF roll mapping + fail-closed tier ──────
+
+    // vrfRollFromRandom maps into the INCLUSIVE [VRF_MIN, VRF_MAX] range; VRF_MAX must be
+    // reachable (the `% VRF_RANGE` off-by-one could never emit it).
+    function test_F5_04_vrfRollFromRandom_inclusiveEndpoints() public view {
+        assertEq(harness.vrfRollFromRandom(0), BattleResolver.VRF_MIN, "rand 0 -> VRF_MIN");
+        assertEq(harness.vrfRollFromRandom(BattleResolver.VRF_SPAN - 1), BattleResolver.VRF_MAX, "rand 300 -> VRF_MAX");
+        assertEq(harness.vrfRollFromRandom(BattleResolver.VRF_SPAN), BattleResolver.VRF_MIN, "rand 301 wraps to VRF_MIN");
+    }
+
+    function testFuzz_F5_04_vrfRoll_alwaysInRange(uint256 rand) public view {
+        uint256 roll = harness.vrfRollFromRandom(rand);
+        assertGe(roll, BattleResolver.VRF_MIN);
+        assertLe(roll, BattleResolver.VRF_MAX);
+    }
+
+    function test_F5_04_scaleStats_invalidTier_reverts() public {
+        BattleResolver.Stats memory base = BattleResolver.getBaseStats(0);
+        vm.expectRevert(abi.encodeWithSelector(BattleResolver.InvalidTier.selector, uint8(4)));
+        harness.scaleStats(base, 4, false);
+    }
+
+    // ── S2 cross-implementation parity (KAT) ─────────────────────
+    // Known-answer vectors. The SAME inputs and expected outputs are asserted against the
+    // TypeScript engine in packages/game-logic/src/__tests__/parity.test.ts. If either
+    // implementation drifts from these canonical values (or from each other), one side's
+    // KAT fails — locking Solidity⇄TS parity in CI ahead of the S2 replay() port.
+    function test_S2_parity_knownAnswers() public view {
+        // scaleStats: Bulwark (700/70/120/80/90) at Apex (tier 3) + legend.
+        BattleResolver.Stats memory s = harness.scaleStats(BattleResolver.getBaseStats(0), 3, true);
+        assertEq(s.hp, 6160, "KAT scaleStats hp");
+        assertEq(s.attack, 123, "KAT scaleStats attack");
+        assertEq(s.armor, 211, "KAT scaleStats armor");
+        assertEq(s.speed, 140, "KAT scaleStats speed");
+        assertEq(s.critical, 158, "KAT scaleStats critical");
+
+        // calculateAttackDamage(atk=200, armor=100, classMult=ADV, crit, vrf=1000)
+        assertEq(
+            BattleResolver.calculateAttackDamage(200, 100, BattleResolver.CLASS_ADV_MULT, true, 1000),
+            375,
+            "KAT attack damage"
+        );
+        // calculateSpecialDamage(base=150, atk=200, armor=100, neutral, purity=6, vrf=1150)
+        assertEq(
+            BattleResolver.calculateSpecialDamage(150, 200, 100, BattleResolver.CLASS_NEUTRAL_MULT, 6, 1150),
+            552,
+            "KAT special damage"
+        );
+        // calculateDefendCounter(atk=150, armor=120, disadv, vrf=900)
+        assertEq(
+            BattleResolver.calculateDefendCounter(150, 120, BattleResolver.CLASS_DISADV_MULT, 900),
+            27,
+            "KAT defend counter"
+        );
+
+        assertEq(BattleResolver.critChance(130), 3939, "KAT crit chance");
+        assertEq(BattleResolver.enhancedProcChance(6), 3500, "KAT proc chance in-spec");
+        assertEq(BattleResolver.enhancedProcChance(20), 10_000, "KAT proc chance capped");
+
+        assertEq(harness.vrfRollFromRandom(12345), 854, "KAT vrf roll mapping");
+
+        assertEq(BattleResolver.getClassAdvantage(0, 1), BattleResolver.CLASS_ADV_MULT, "KAT adv");
+        assertEq(BattleResolver.getClassAdvantage(0, 5), BattleResolver.CLASS_NEUTRAL_MULT, "KAT neutral");
+        assertEq(BattleResolver.getClassAdvantage(0, 6), BattleResolver.CLASS_DISADV_MULT, "KAT disadv");
     }
 }

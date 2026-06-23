@@ -112,22 +112,38 @@ contract BattleVRFTest is Test {
         vm.prank(operator);
         vrf.submitBeacon(1, 12345);
 
-        uint256 r1 = vrf.deriveRandomness(1, bytes32("salt1"));
-        uint256 r2 = vrf.deriveRandomness(1, bytes32("salt1"));
+        // (beaconRound, battleId, turn, action)
+        uint256 r1 = vrf.deriveRandomness(1, 7, 2, 0);
+        uint256 r2 = vrf.deriveRandomness(1, 7, 2, 0);
         assertEq(r1, r2);
     }
 
-    function test_deriveRandomnessDifferentSaltsDiffer() public {
+    function test_deriveRandomnessDifferentCoordsDiffer() public {
         vm.prank(operator);
         vrf.submitBeacon(1, 12345);
 
-        uint256 r1 = vrf.deriveRandomness(1, bytes32("salt1"));
-        uint256 r2 = vrf.deriveRandomness(1, bytes32("salt2"));
+        // Distinct coordinates must yield distinct draws.
+        uint256 r1 = vrf.deriveRandomness(1, 7, 2, 0);
+        uint256 r2 = vrf.deriveRandomness(1, 7, 2, 1);
         assertTrue(r1 != r2);
+    }
+
+    // F5-04: coordinates that the old additive salt would have collapsed to the same value
+    // (battleId + turn + action all summing to 13) must now produce DISTINCT draws.
+    function test_F5_04_deriveRandomness_noAdditiveCollision() public {
+        vm.prank(operator);
+        vrf.submitBeacon(1, 12345);
+
+        uint256 a = vrf.deriveRandomness(1, 9, 4, 0); // sum 13
+        uint256 b = vrf.deriveRandomness(1, 10, 3, 0); // sum 13
+        uint256 c = vrf.deriveRandomness(1, 10, 2, 1); // sum 13
+        assertTrue(a != b, "9/4/0 vs 10/3/0");
+        assertTrue(a != c, "9/4/0 vs 10/2/1");
+        assertTrue(b != c, "10/3/0 vs 10/2/1");
     }
 
     function test_deriveRandomnessNoBeaconReverts() public {
         vm.expectRevert(abi.encodeWithSelector(BattleVRF.BeaconNotAvailable.selector, 999));
-        vrf.deriveRandomness(999, bytes32("salt"));
+        vrf.deriveRandomness(999, 1, 0, 0);
     }
 }

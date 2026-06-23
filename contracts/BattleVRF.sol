@@ -65,12 +65,24 @@ contract BattleVRF is AccessControl {
         return _beacons[round] != 0;
     }
 
-    /// @notice Derive a deterministic random value from a beacon round and salt.
-    /// @param round The drand round number
-    /// @param salt Additional entropy (e.g., battleId + round + action)
-    function deriveRandomness(uint256 round, bytes32 salt) external view returns (uint256) {
-        uint256 beacon = _beacons[round];
-        if (beacon == 0) revert BeaconNotAvailable(round);
-        return uint256(keccak256(abi.encodePacked(beacon, salt)));
+    /// @notice Derive a deterministic random value for a specific battle action from a
+    ///         stored beacon.
+    /// @dev F5-04: the draw coordinates are `abi.encode`d (each padded to 32 bytes), NOT
+    ///      summed into a single salt. The previous convention — `bytes32(battleId + round +
+    ///      action)` — collided: distinct coordinates with the same sum, e.g. (9,4,0),
+    ///      (10,3,0) and (10,2,1) all sum to 13, reused the SAME random draw. Encoding the
+    ///      tuple gives every distinct (battleId, turn, action) a distinct preimage.
+    /// @param beaconRound The drand round whose stored beacon seeds this battle's stream
+    /// @param battleId The battle identifier
+    /// @param turn The turn index within the battle
+    /// @param action The action discriminator (e.g. 0=damage, 1=crit, 2=enhanced-proc)
+    function deriveRandomness(uint256 beaconRound, uint256 battleId, uint256 turn, uint256 action)
+        external
+        view
+        returns (uint256)
+    {
+        uint256 beacon = _beacons[beaconRound];
+        if (beacon == 0) revert BeaconNotAvailable(beaconRound);
+        return uint256(keccak256(abi.encode(beacon, battleId, turn, action)));
     }
 }
