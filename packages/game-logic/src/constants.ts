@@ -19,7 +19,11 @@ export const CRIT_MULT = 1500n; // 1.5×
 // ──────────── VRF Range (×1000) ────────────
 export const VRF_MIN = 850n;
 export const VRF_MAX = 1150n;
-export const VRF_RANGE = 300n;
+// F5-04: VRF_RANGE is the span WIDTH (VRF_MAX - VRF_MIN), NOT the modulo divisor. The roll
+// domain [VRF_MIN, VRF_MAX] is INCLUSIVE → VRF_SPAN = 301 distinct values. Map raw randomness
+// with VRF_SPAN (mirrors BattleResolver.sol vrfRollFromRandom); `% VRF_RANGE` is an off-by-one.
+export const VRF_RANGE = 300n; // span width (VRF_MAX - VRF_MIN)
+export const VRF_SPAN = VRF_MAX - VRF_MIN + 1n; // 301 — inclusive count = modulo divisor
 
 // ──────────── HP Scaling ────────────
 export const HP_BATTLE_SCALE = 1n; // was 5n (V2 round pacing); ×1 per 2026-08-29 headless pacing sweep — see docs/gitbook/battle.md

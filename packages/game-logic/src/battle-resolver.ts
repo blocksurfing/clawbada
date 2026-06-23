@@ -31,6 +31,10 @@ import { EvolutionTier, LobsterClass } from './types';
 
 /** Calculate atk/armor ratio capped at 2.2× (STAT_RATIO_CAP), scaled ×1000. */
 function cappedRatio(atk: bigint, armor: bigint): bigint {
+  // S-03 parity with BattleResolver.sol: armor == 0 returns the cap rather than dividing
+  // by zero (which throws in bigint). (R-03's overflow guard is Solidity-only — bigint is
+  // arbitrary-precision, so the large-atk path simply computes the real ratio and caps.)
+  if (armor === 0n) return STAT_RATIO_CAP;
   const ratio = (atk * MULT_DENOM) / armor;
   return ratio > STAT_RATIO_CAP ? STAT_RATIO_CAP : ratio;
 }
@@ -66,6 +70,10 @@ export function scaleStats(base: Stats, tier: EvolutionTier, legend: boolean): S
     case EvolutionTier.Apex:
       tierMult = TIER_MULT_APEX;
       break;
+    default:
+      // F5-04 parity with BattleResolver.sol: reject out-of-range tiers (fail closed)
+      // rather than silently clamping to Apex — both implementations now agree.
+      throw new Error(`Invalid tier: ${tier}`);
   }
 
   const legendMult = legend ? LEGEND_MULT : MULT_DENOM;
@@ -165,8 +173,13 @@ export function critChance(critStat: bigint): bigint {
 /**
  * Returns the enhanced Special proc chance in BPS (×10000).
  *
- * enhancedChance = 500 + purity × 500 (in BPS)
+ * enhancedChance = min(500 + purity × 500, 10000) in BPS.
+ *
+ * R-06 parity with BattleResolver.sol: the raw formula exceeds 10000 BPS at purity > 19,
+ * which would break the "BPS is a probability" contract (proc becomes unconditional).
+ * Capped here to match Solidity.
  */
 export function enhancedProcChance(purity: number): bigint {
-  return PURITY_ENHANCED_BASE_BPS + BigInt(purity) * PURITY_ENHANCED_PER_BPS;
+  const raw = PURITY_ENHANCED_BASE_BPS + BigInt(purity) * PURITY_ENHANCED_PER_BPS;
+  return raw > 10_000n ? 10_000n : raw;
 }

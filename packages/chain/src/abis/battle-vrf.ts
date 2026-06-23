@@ -41,14 +41,24 @@ export const BattleVRFAbi = [
     "name": "deriveRandomness",
     "inputs": [
       {
-        "name": "round",
+        "name": "beaconRound",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "salt",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "turn",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "action",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
