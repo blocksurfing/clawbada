@@ -31,3 +31,8 @@ dist/
 
 # Coverage
 coverage/
+
+# Hermes local backups
+_hermes_backups/
+.hermes_backups/
+hermes_backups/
