@@ -4,19 +4,24 @@
  *
  * POST /api/game/combat/:battleId/deposit       — approve + deposit stake
  * POST /api/game/combat/:battleId/commit-team   — submit team commit hash
- * POST /api/game/combat/:battleId/reveal-team   — reveal team
+ * POST /api/game/combat/:battleId/reveal-team   — submit team-reveal salt (F5-01:
+ *                                                   server-verified, engine submits the
+ *                                                   atomic revealTeams — no calldata)
  * POST /api/game/combat/:battleId/commit-moves  — submit move commit hash
  * POST /api/game/combat/:battleId/reveal-moves  — reveal moves (also nudges
  *                                                   the engine to resolve the round)
  */
 
 import { Hono } from 'hono';
+import { eq } from 'drizzle-orm';
 import {
   BattleArenaAbi,
   ClawTokenAbi,
   addresses,
+  teamCommitHash,
 } from '@clawbada/chain';
-import { ANTI_GRIEF_DEPOSIT_BPS } from '@clawbada/game-logic';
+import { ANTI_GRIEF_DEPOSIT_BPS, BattlePhase } from '@clawbada/game-logic';
+import { db, battles } from '@clawbada/db';
 import { log as baseLog } from '../../../logger';
 import { walletAuth } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
@@ -90,10 +95,17 @@ battleWriteRoutes.post(
   }),
 );
 
+// F5-01: team reveal is atomic and RESOLVER-submitted. Players NO LONGER reveal on-chain
+// themselves (the old per-player revealTeam leaked the first revealer's composition and let
+// the second mover dodge). Instead each player POSTs their salt here; the API verifies it
+// against the on-chain commit and stores it. Once BOTH salts are in, the engine submits a
+// single revealTeams(...) for both teams via the operator key (nothing leaks on-chain until
+// both are bound in one tx). No calldata is returned — the player signs nothing to reveal.
 battleWriteRoutes.post(
   '/:battleId/reveal-team',
   walletAuth,
   catchErrors(async (c) => {
+    const address = (c.get('address') as string).toLowerCase();
     const { battleId } = c.req.param();
     const body = await c.req.json<{ teamId: string; salt: string }>();
 
@@ -101,14 +113,46 @@ battleWriteRoutes.post(
       throw new ApiError('INVALID_INPUT', 'teamId and salt required');
     }
 
-    const calldata = buildCalldata(
-      addresses.battleArena,
-      BattleArenaAbi as any,
-      'revealTeam',
-      [BigInt(battleId), BigInt(body.teamId), body.salt],
-    );
+    const id = BigInt(battleId);
+    const battle = await readBattle(id);
 
-    return c.json(singleStep('Reveal team composition', calldata));
+    // Must be a participant, and the battle must be in the TeamReveal phase.
+    const isPlayerA = address === battle.playerA.toLowerCase();
+    const isPlayerB = address === battle.playerB.toLowerCase();
+    if (!isPlayerA && !isPlayerB) {
+      throw new ApiError('UNAUTHORIZED', 'Not a participant in this battle');
+    }
+    if (battle.phase !== BattlePhase.TeamReveal) {
+      throw new ApiError('BATTLE_PHASE_ERROR', 'Battle is not in the team-reveal phase');
+    }
+
+    // Fail fast: verify the salt+teamId against this player's on-chain commit, so a bad
+    // reveal is rejected here instead of reverting the engine's revealTeams tx later. The
+    // commit hash binds (battleId, player, teamId, salt), so a match authenticates all three.
+    const teamId = BigInt(body.teamId);
+    const salt = body.salt as `0x${string}`;
+    const expected = teamCommitHash(id, address as `0x${string}`, teamId, salt);
+    const onChainCommit = isPlayerA ? battle.teamCommitA : battle.teamCommitB;
+    if (expected.toLowerCase() !== String(onChainCommit).toLowerCase()) {
+      throw new ApiError('INVALID_INPUT', 'Salt/teamId do not match the committed team hash');
+    }
+
+    // Persist the revealed teamId (teamA/teamB are 0 until reveal) plus the salt (transient —
+    // cleared once revealTeams confirms). The engine's RevealWatcher reads both to submit.
+    await db
+      .update(battles)
+      .set(isPlayerA ? { teamA: teamId, revealSaltA: salt } : { teamB: teamId, revealSaltB: salt })
+      .where(eq(battles.battleId, id));
+
+    const row = await db.query.battles.findFirst({ where: eq(battles.battleId, id) });
+    const bothIn = Boolean(row?.revealSaltA) && Boolean(row?.revealSaltB);
+
+    return c.json({
+      status: bothIn ? 'both_revealed' : 'waiting_for_opponent',
+      message: bothIn
+        ? 'Both teams revealed — the battle will begin shortly.'
+        : 'Salt received. Waiting for your opponent to reveal.',
+    });
   }),
 );
 
