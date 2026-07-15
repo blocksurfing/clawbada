@@ -3,6 +3,8 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { keccak256, encodePacked, toHex } from 'viem';
+import { useAccount } from 'wagmi';
+import { teamCommitHash } from '@clawbada/chain';
 import { api, type BattleData, type RoundData } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { useCalldataTx } from '@/hooks/use-calldata-tx';
@@ -186,18 +188,29 @@ function DepositAction({ battleId }: { battleId: string }) {
 
 function TeamCommitAction({ battleId, teamId }: { battleId: string; teamId: string }) {
   const { getAuthHeaders } = useAuth();
+  const { address } = useAccount();
   const { execute: executeTx, status } = useCalldataTx();
 
   const handleCommit = useCallback(async () => {
+    if (!address) throw new Error('Wallet not connected');
     const salt = generateSalt();
     // Store salt for reveal phase
     sessionStorage.setItem(`battle-team-salt-${battleId}`, salt);
     sessionStorage.setItem(`battle-team-id-${battleId}`, teamId);
-    const commitHash = keccak256(encodePacked(['uint256', 'uint256', 'bytes32'], [BigInt(battleId), BigInt(teamId), salt as `0x${string}`]));
+    // F5-01: the commit hash MUST include the player address to match BattleArena
+    // (keccak256(abi.encodePacked(battleId, player, teamId, salt))). The shared
+    // teamCommitHash helper is the single source of truth — an earlier inline version
+    // omitted the address, so no reveal could ever validate on-chain.
+    const commitHash = teamCommitHash(
+      BigInt(battleId),
+      address,
+      BigInt(teamId),
+      salt as `0x${string}`,
+    );
     const auth = await getAuthHeaders();
     const { steps } = await api.combat.commitTeam(battleId, commitHash, auth);
     await executeTx(steps);
-  }, [battleId, teamId, getAuthHeaders, executeTx]);
+  }, [battleId, teamId, address, getAuthHeaders, executeTx]);
 
   const busy = status === 'pending' || status === 'confirming';
 
@@ -214,26 +227,46 @@ function TeamCommitAction({ battleId, teamId }: { battleId: string; teamId: stri
 
 function TeamRevealAction({ battleId, teamId }: { battleId: string; teamId: string }) {
   const { getAuthHeaders } = useAuth();
-  const { execute: executeTx, status } = useCalldataTx();
+  const [busy, setBusy] = useState(false);
+  const [waiting, setWaiting] = useState(false);
 
+  // F5-01: revealing no longer submits an on-chain tx. The player sends their salt to the
+  // server; once BOTH players' salts are in, the resolver submits a single atomic revealTeams
+  // for both teams. This closes the matchup-dodge (nothing leaks from a one-sided reveal) and
+  // means a dropped connection here costs nothing — the reveal window times out to a full
+  // mutual refund.
   const handleReveal = useCallback(async () => {
-    const salt = sessionStorage.getItem(`battle-team-salt-${battleId}`) ?? '';
-    const storedTeamId = sessionStorage.getItem(`battle-team-id-${battleId}`) ?? teamId;
-    const auth = await getAuthHeaders();
-    const { steps } = await api.combat.revealTeam(battleId, storedTeamId, salt, auth);
-    await executeTx(steps);
-    // Clean up
-    sessionStorage.removeItem(`battle-team-salt-${battleId}`);
-    sessionStorage.removeItem(`battle-team-id-${battleId}`);
-  }, [battleId, teamId, getAuthHeaders, executeTx]);
+    setBusy(true);
+    try {
+      const salt = sessionStorage.getItem(`battle-team-salt-${battleId}`) ?? '';
+      const storedTeamId = sessionStorage.getItem(`battle-team-id-${battleId}`) ?? teamId;
+      const auth = await getAuthHeaders();
+      const res = await api.combat.revealTeam(battleId, storedTeamId, salt, auth);
+      // Salt is now server-side; safe to clear locally.
+      sessionStorage.removeItem(`battle-team-salt-${battleId}`);
+      sessionStorage.removeItem(`battle-team-id-${battleId}`);
+      setWaiting(res.status === 'waiting_for_opponent');
+    } finally {
+      setBusy(false);
+    }
+  }, [battleId, teamId, getAuthHeaders]);
 
-  const busy = status === 'pending' || status === 'confirming';
+  if (waiting) {
+    return (
+      <div className="border border-border rounded-md p-6 text-center space-y-3">
+        <p className="text-sm">Team submitted. Waiting for your opponent to reveal…</p>
+        <p className="text-xs text-muted-foreground">
+          Both teams open at once — neither side sees the other first.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="border border-border rounded-md p-6 text-center space-y-3">
-      <p className="text-sm">Both teams committed. Reveal your team now.</p>
+      <p className="text-sm">Both teams committed. Submit your team to reveal.</p>
       <Button onClick={handleReveal} disabled={busy} size="sm">
-        {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Revealing...</> : 'Reveal Team'}
+        {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Submitting...</> : 'Reveal Team'}
       </Button>
     </div>
   );

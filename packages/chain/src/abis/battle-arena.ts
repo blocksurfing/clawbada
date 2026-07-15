@@ -1058,7 +1058,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "revealTeam",
+    "name": "revealTeams",
     "inputs": [
       {
         "name": "battleId",
@@ -1066,12 +1066,22 @@ export const BattleArenaAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "teamId",
+        "name": "teamIdA",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "salt",
+        "name": "saltA",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "teamIdB",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "saltB",
         "type": "bytes32",
         "internalType": "bytes32"
       }

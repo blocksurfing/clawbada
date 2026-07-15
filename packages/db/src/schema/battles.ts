@@ -17,6 +17,12 @@ export const battles = pgTable('battles', {
   stakeBracket: smallint('stake_bracket').notNull(), // 0=Low, 1=Mid, 2=High
   stakeAmount: text('stake_amount').notNull(), // $CLAW
   phase: smallint('phase').notNull().default(0), // BattlePhase enum
+  // F5-01: server-custodied team-reveal salts. In the atomic-reveal flow players send their
+  // salt to the server (they do NOT reveal on-chain); the engine submits revealTeams for both
+  // at once via the operator key. Transient — set NULL again once revealTeams confirms, so a
+  // revealed team's salt is not retained. teamId is already captured in teamA/teamB.
+  revealSaltA: text('reveal_salt_a'),
+  revealSaltB: text('reveal_salt_b'),
   /** PR-A (X1+X2 foundation): orthogonal to `phase` (which mirrors the
    *  contract enum). Tracks the operator-worker lifecycle so the frontend
    *  can distinguish "matchmaker decided, awaiting on-chain createBattle"
