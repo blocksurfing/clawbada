@@ -44,8 +44,10 @@ public class BattleBridge : MonoBehaviour
     {
         Debug.Log($"[BattleBridge] InitBattle: {json.Substring(0, Mathf.Min(json.Length, 200))}...");
         var data = JsonUtility.FromJson<BattleInitData>(json);
-        if (battleManager != null) battleManager.Initialize(data);
+        // Grid must be built (and re-centered) before Initialize spawns lobsters at
+        // grid-derived world positions.
         if (hexGrid != null) hexGrid.BuildGrid(data.arena);
+        if (battleManager != null) battleManager.Initialize(data);
     }
 
     /// <summary>Start a new phase (positioning or combat).</summary>
@@ -178,6 +180,11 @@ public class BattleLobsterData
     public int damage;
     public int moveRange;
     public bool alive;
+
+    /// <summary>Optional DNA visual composition: dominant-gene class id (0-9) per body
+    /// part slot, in DNA order [Carapace, Claws, Tail, Antennae, Eyes, Legs]. Empty or
+    /// missing → pure-class visuals (all parts from className's rig).</summary>
+    public int[] partClassIds;
 }
 
 [System.Serializable]

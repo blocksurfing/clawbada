@@ -119,6 +119,11 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &71312957 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 104495139534448984, guid: 7f8e93b02cf2e0b40b444dab0b612750, type: 3}
+  m_PrefabInstance: {fileID: 1914920593}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &139583369
 GameObject:
   m_ObjectHideFlags: 0
@@ -193,7 +198,7 @@ SpriteRenderer:
   m_Size: {x: 0.8828125, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_SpriteSortPoint: 0
 --- !u!4 &139583371
 Transform:
@@ -378,7 +383,7 @@ Transform:
   m_GameObject: {fileID: 1352654896}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.4398587, y: 0.1875, z: 0}
+  m_LocalPosition: {x: -2.64, y: 0.128, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -431,7 +436,7 @@ TilemapRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
+  m_SortingOrder: 5
   m_MaskInteraction: 0
   m_ChunkSize: {x: 32, y: 32, z: 32}
   m_ChunkCullingBounds: {x: 0, y: 0, z: 0}
@@ -577,12 +582,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a89f9f707534347858349d761cb0e791, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HexGrid
-  hexSize: 1
-  hexTilePrefab: {fileID: 1694950157}
-  fadeOutDuration: 0.25
-  drawPreview: 0
-  previewCols: 5
-  previewRows: 6
+  unityGrid: {fileID: 1962522745}
+  boardTilemap: {fileID: 1352654899}
+  defaultTile: {fileID: 11400000, guid: 1789e977d279aa34cb1a21c3750ac7cc, type: 2}
+  moveTile: {fileID: 11400000, guid: 11fcf8576441a1843a6ef56f6ae56507, type: 2}
+  attackTile: {fileID: 11400000, guid: f16c48dc93e706940a9cb65b7a1e37cd, type: 2}
+  allyTile: {fileID: 11400000, guid: 6bb396f1e52fc314399e385030507eea, type: 2}
+  selectedTile: {fileID: 11400000, guid: e46ee71935c59b74d96ddae87c161f3e, type: 2}
 --- !u!4 &1694950159
 Transform:
   m_ObjectHideFlags: 0
@@ -592,7 +598,7 @@ Transform:
   m_GameObject: {fileID: 1694950157}
   serializedVersion: 2
   m_LocalRotation: {x: 0.2588191, y: 0, z: 0, w: 0.9659258}
-  m_LocalPosition: {x: -0, y: -0, z: -0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -682,7 +688,7 @@ Transform:
   m_GameObject: {fileID: 1962522743}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.0000033974648, y: 0, z: 0}
+  m_LocalPosition: {x: -0.08, y: -0.078, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -697,7 +703,7 @@ Grid:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1962522743}
   m_Enabled: 1
-  m_CellSize: {x: 1.2, y: 1, z: 0}
+  m_CellSize: {x: 1, y: 0.9, z: 0}
   m_CellGap: {x: 0, y: 0, z: 0}
   m_CellLayout: 1
   m_CellSwizzle: 0
@@ -734,6 +740,17 @@ MonoBehaviour:
   currentRound: 0
   timeRemaining: 60
   opponentReady: 0
+  prefabLibrary: {fileID: 11400000, guid: 2cf0d137d7bec45a1a7bb0e961afe305, type: 2}
+  partLibrary: {fileID: 11400000, guid: b4fa8fcff5b6d4ad8bcd7f3d4378f925, type: 2}
+  arenaArtEvolved: {fileID: 104495139534448984, guid: 7f8e93b02cf2e0b40b444dab0b612750, type: 3}
+  arenaArtElite: {fileID: 1816308212864186039, guid: ac4c72892e246d640ac4eed0fd6b1a4a, type: 3}
+  arenaArtApex: {fileID: 3180318831769434282, guid: ef269366adef31741a23b5d7f2427a76, type: 3}
+  initialArenaArt: {fileID: 71312957}
+  secondsPerHexMove: 0.35
+  attackDuration: 0.55
+  hitDuration: 0.45
+  deathDuration: 0.9
+  delayBetweenActions: 0.2
 --- !u!4 &2047629010
 Transform:
   m_ObjectHideFlags: 0

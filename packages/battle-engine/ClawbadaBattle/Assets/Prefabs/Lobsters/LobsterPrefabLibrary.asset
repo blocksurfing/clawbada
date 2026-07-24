@@ -1,0 +1,105 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8272fc48353b14fc09e3933420677cb4, type: 3}
+  m_Name: LobsterPrefabLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::LobsterPrefabLibrary
+  entries:
+  - tier: Evolved
+    className: Bulwark
+    prefab: {fileID: 3339430348731844400, guid: 170e30279e1fc4589a36bd9bf3fd2e9c, type: 3}
+  - tier: Evolved
+    className: Mantis
+    prefab: {fileID: 3796667877647783635, guid: 5eba467dc7f2c4d59b5359389fd4ad5f, type: 3}
+  - tier: Evolved
+    className: Leviathan
+    prefab: {fileID: 1144483459311944979, guid: 30f3933392b5f4b5fa4bbdb2fee86083, type: 3}
+  - tier: Evolved
+    className: Tempest
+    prefab: {fileID: 4566304097442790304, guid: dbc88a7bea9764b4ba4671b8f1034c4f, type: 3}
+  - tier: Evolved
+    className: Specter
+    prefab: {fileID: 5077694582412019463, guid: 4716dd1b359ed4faa8f0f9d0e8777adc, type: 3}
+  - tier: Evolved
+    className: Sentinel
+    prefab: {fileID: 1291070712732348541, guid: 6f0bd66f3138046429607ee8ca3529f1, type: 3}
+  - tier: Evolved
+    className: Reaver
+    prefab: {fileID: 2393182858280133108, guid: 21cb46eba50ae4b4c8f006047af38a13, type: 3}
+  - tier: Evolved
+    className: Abyss
+    prefab: {fileID: 2375671714508275955, guid: 7b305731be8e74aa1b5b3f6572abbba4, type: 3}
+  - tier: Evolved
+    className: Kraken
+    prefab: {fileID: 7885483677719555881, guid: eb7328cee304c4928b5b9919682b43e4, type: 3}
+  - tier: Evolved
+    className: Ember
+    prefab: {fileID: 7215367622953124144, guid: 34f1e1cbb623041d3804fdb39fe33523, type: 3}
+  - tier: Elite
+    className: Bulwark
+    prefab: {fileID: 8026157963276175921, guid: 678404a71c6514513a199ecc3da8d43a, type: 3}
+  - tier: Elite
+    className: Mantis
+    prefab: {fileID: 595955946113051523, guid: 31e06215aef184298bcf156e47902b99, type: 3}
+  - tier: Elite
+    className: Leviathan
+    prefab: {fileID: 6080900574510895475, guid: 17b6baa1be3e14d82affcc0ba2c666a4, type: 3}
+  - tier: Elite
+    className: Tempest
+    prefab: {fileID: 5328901650103574412, guid: 45a6b9aa9aa1140c6ba67c1f426d9a00, type: 3}
+  - tier: Elite
+    className: Specter
+    prefab: {fileID: 8955627549734307738, guid: 90869936ed9b64bf49a0a8279f170629, type: 3}
+  - tier: Elite
+    className: Sentinel
+    prefab: {fileID: 4914100904810396659, guid: 776b6825021e7473294a5f11c0008031, type: 3}
+  - tier: Elite
+    className: Reaver
+    prefab: {fileID: 6786747098794085911, guid: 8afe906b2ab9d44368f0944c66a60507, type: 3}
+  - tier: Elite
+    className: Abyss
+    prefab: {fileID: 4705178590901336594, guid: f88d2086716bd480d92793c3042e7b94, type: 3}
+  - tier: Elite
+    className: Kraken
+    prefab: {fileID: 743197531582866567, guid: 52ecd16860f5f442f9d4de2d047fd4de, type: 3}
+  - tier: Elite
+    className: Ember
+    prefab: {fileID: 932978916117631999, guid: e1c79bb2baa034b3b843a41867b9f6d4, type: 3}
+  - tier: Apex
+    className: Bulwark
+    prefab: {fileID: 8937927464563736660, guid: 620077aab5bb941629ae06b31c587dd0, type: 3}
+  - tier: Apex
+    className: Mantis
+    prefab: {fileID: 6187316052987223307, guid: 81d7b9e71958540d98b838b5bf7009c0, type: 3}
+  - tier: Apex
+    className: Leviathan
+    prefab: {fileID: 8779927313884027607, guid: 7fc32051c04cf4e4c9c1c8d72fb011ab, type: 3}
+  - tier: Apex
+    className: Tempest
+    prefab: {fileID: 2649817694418695830, guid: 8e47e1fdf547842559cd033b41d59359, type: 3}
+  - tier: Apex
+    className: Specter
+    prefab: {fileID: 2722956701220011963, guid: 57e6f379b63c04e9e82cb6659be91f81, type: 3}
+  - tier: Apex
+    className: Sentinel
+    prefab: {fileID: 1581845618706023390, guid: 234bde56057ee4d45b363e1a47a24d77, type: 3}
+  - tier: Apex
+    className: Reaver
+    prefab: {fileID: 3066205552032569064, guid: 36dc2a16cd28f4d05922b6a5eeb63e91, type: 3}
+  - tier: Apex
+    className: Abyss
+    prefab: {fileID: 8430880136959057988, guid: 97d20ba55318e49b282578c4fbb071cf, type: 3}
+  - tier: Apex
+    className: Kraken
+    prefab: {fileID: 5328206811766325314, guid: 68fe8797bb90a43b8ba3a0634cd1be0c, type: 3}
+  - tier: Apex
+    className: Ember
+    prefab: {fileID: 6396726575217588854, guid: 227bb3f1f03e7480dba039b5893004bc, type: 3}

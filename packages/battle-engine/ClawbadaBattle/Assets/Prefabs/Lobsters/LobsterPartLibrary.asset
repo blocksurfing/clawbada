@@ -1,0 +1,1495 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dfc221d1dc494458b93171142c68dc87, type: 3}
+  m_Name: LobsterPartLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::LobsterPartLibrary
+  entries:
+  - tier: evolved
+    className: bulwark
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: f451c41a8d41434c8205acb136222098, type: 3}
+  - tier: evolved
+    className: bulwark
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: d277a55a45904ef7873c7404e784b557, type: 3}
+  - tier: evolved
+    className: bulwark
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: f070183097c341e5a1231e04f81d52fd, type: 3}
+  - tier: evolved
+    className: bulwark
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: d832ddd72b7c435888cc35f0c5703e5e, type: 3}
+  - tier: evolved
+    className: bulwark
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: ba39fee9ceee413aa2eb7ddfad6f9602, type: 3}
+  - tier: evolved
+    className: bulwark
+    partName: Legs
+    sprite: {fileID: 21300000, guid: 96f754eb5fe64874be1d16028e61f402, type: 3}
+  - tier: evolved
+    className: bulwark
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 1a208cf515b6433d8f35156a9a6485a6, type: 3}
+  - tier: evolved
+    className: bulwark
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: e94ee4d5720143e2b966b1382d944b21, type: 3}
+  - tier: evolved
+    className: bulwark
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 8815987a2f524a52b9c49d1556c21139, type: 3}
+  - tier: evolved
+    className: mantis
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: c43ae6946cad474bb99b1d60940c5821, type: 3}
+  - tier: evolved
+    className: mantis
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: ca693ecdcfae4e4e9bb6328b33b1bfe0, type: 3}
+  - tier: evolved
+    className: mantis
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 52afa15dc6c94ce7ab7ba7c335d03e06, type: 3}
+  - tier: evolved
+    className: mantis
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 65c8fd5bbad54d03a00560abd6663e62, type: 3}
+  - tier: evolved
+    className: mantis
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 9def3cb3f2d64f26bf4afaecb0ac962f, type: 3}
+  - tier: evolved
+    className: mantis
+    partName: Legs
+    sprite: {fileID: 21300000, guid: eeffb6d7f2a64579886b83cd1217bb2a, type: 3}
+  - tier: evolved
+    className: mantis
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 4e08b4c1c8464dbf919a355f10c9cdae, type: 3}
+  - tier: evolved
+    className: mantis
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 796fec9da0fd476ea27f5a9eaf4d4adb, type: 3}
+  - tier: evolved
+    className: mantis
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: c3bdd126d57d4eddbb88a33dab6cea6e, type: 3}
+  - tier: evolved
+    className: leviathan
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 1ecc60135fe74edbbb210d8905c09a66, type: 3}
+  - tier: evolved
+    className: leviathan
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 132e45739c59492d9b8051b52f62e6cd, type: 3}
+  - tier: evolved
+    className: leviathan
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 9b50161ac0d04b8ca5fbfaae253d2e75, type: 3}
+  - tier: evolved
+    className: leviathan
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: ef4734f4d9a5451695abf3b9f6c55e03, type: 3}
+  - tier: evolved
+    className: leviathan
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 7b81bf4b47104cfe901d99ec9426d97b, type: 3}
+  - tier: evolved
+    className: leviathan
+    partName: Legs
+    sprite: {fileID: 21300000, guid: b17bd388f5ab4c5783b6b3a5188e08b3, type: 3}
+  - tier: evolved
+    className: leviathan
+    partName: Tail
+    sprite: {fileID: 21300000, guid: b600ba321a6d4a32bb11ca81d346dcf5, type: 3}
+  - tier: evolved
+    className: leviathan
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 587fd7ed7d2e47bfb129702d2fc8e6a6, type: 3}
+  - tier: evolved
+    className: leviathan
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 35e56710baaa421e91445717004dc1d2, type: 3}
+  - tier: evolved
+    className: tempest
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: c6d5ef8c8cc4430ebcbe10695d6363ce, type: 3}
+  - tier: evolved
+    className: tempest
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 5b335a1e46fd4700b15e480af19ad690, type: 3}
+  - tier: evolved
+    className: tempest
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 33ceac49371642b5b5c0f30757f9e079, type: 3}
+  - tier: evolved
+    className: tempest
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 732f16a3257d42298e1aae8d2354077f, type: 3}
+  - tier: evolved
+    className: tempest
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 3ee5ce9e3fb94415b09d31b1f243e2bd, type: 3}
+  - tier: evolved
+    className: tempest
+    partName: Legs
+    sprite: {fileID: 21300000, guid: 5b149aed8279432785709bd7a514ce8c, type: 3}
+  - tier: evolved
+    className: tempest
+    partName: Tail
+    sprite: {fileID: 21300000, guid: f4c7f3b2155e46ae9780ec081c61d6bb, type: 3}
+  - tier: evolved
+    className: tempest
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 3787986f76e048d4abbac4f8da2e0861, type: 3}
+  - tier: evolved
+    className: tempest
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 149f16aa47ea4c27b646bca931e71e1a, type: 3}
+  - tier: evolved
+    className: specter
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: f6c1070155e1413bab08b84dfa8ffea3, type: 3}
+  - tier: evolved
+    className: specter
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 8e4919746f2c411b80715721b2c39646, type: 3}
+  - tier: evolved
+    className: specter
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: f917d085516043f69c08fb8eef2649a0, type: 3}
+  - tier: evolved
+    className: specter
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: d38ed93164594ac494820bc70f367c76, type: 3}
+  - tier: evolved
+    className: specter
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 1d5576adc00145adb96f8c1f2de57dcc, type: 3}
+  - tier: evolved
+    className: specter
+    partName: Legs
+    sprite: {fileID: 21300000, guid: dfc5a4c0b5794afe846b1a1ed3c963c4, type: 3}
+  - tier: evolved
+    className: specter
+    partName: Tail
+    sprite: {fileID: 21300000, guid: e79bf7001ad6474cb32623803009c454, type: 3}
+  - tier: evolved
+    className: specter
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: eb2e150923c44a6a880c7ecaa3c48ff8, type: 3}
+  - tier: evolved
+    className: specter
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 4421c8bd6225467f9698a7ad3caa8a31, type: 3}
+  - tier: evolved
+    className: sentinel
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 2ca9b218185e4fdd9a160ef7b7cda030, type: 3}
+  - tier: evolved
+    className: sentinel
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 3580a0c44e394b1a8b7af96d013259b8, type: 3}
+  - tier: evolved
+    className: sentinel
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 4b23069dd23547148bcd4773b395761f, type: 3}
+  - tier: evolved
+    className: sentinel
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 0aca6ae2779948778ecdb5de93d15dbe, type: 3}
+  - tier: evolved
+    className: sentinel
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 64d3fb625f67457a8c1d00cc63433162, type: 3}
+  - tier: evolved
+    className: sentinel
+    partName: Legs
+    sprite: {fileID: 21300000, guid: 96e2ae7b963745249d0b2ab7e0bf1c05, type: 3}
+  - tier: evolved
+    className: sentinel
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 343f8aa8be9d4b6fb95998e671900232, type: 3}
+  - tier: evolved
+    className: sentinel
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 1618fbb26f4147da9d7ce3fe98485480, type: 3}
+  - tier: evolved
+    className: sentinel
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: fc0557e6424f43b9a4c568cf455ce020, type: 3}
+  - tier: evolved
+    className: reaver
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 3a7555332c1f480fb3249de32a144754, type: 3}
+  - tier: evolved
+    className: reaver
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 1a0de9f0cca24f4d86aecad0f865a417, type: 3}
+  - tier: evolved
+    className: reaver
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: b63804b1ba8846e7b666545a4a8acd35, type: 3}
+  - tier: evolved
+    className: reaver
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 37bc1a96073343649814219a12a57a82, type: 3}
+  - tier: evolved
+    className: reaver
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 685550d0ccd942f99d6a3e30e1455eea, type: 3}
+  - tier: evolved
+    className: reaver
+    partName: Legs
+    sprite: {fileID: 21300000, guid: 6116e1469daf4d2988f8fe52a7b49b8c, type: 3}
+  - tier: evolved
+    className: reaver
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 8dc6b34d7bc64a86b79bfe07c2f798e4, type: 3}
+  - tier: evolved
+    className: reaver
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 8d231c2237b84edbab05174faa1bf555, type: 3}
+  - tier: evolved
+    className: reaver
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 15a59fe57eca4df09ca7151b2cd5ac02, type: 3}
+  - tier: evolved
+    className: abyss
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: f2421a4bb4014d34bef5ed51dc97fe1b, type: 3}
+  - tier: evolved
+    className: abyss
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 517faca119ec4f998ce3c80d7cb8f031, type: 3}
+  - tier: evolved
+    className: abyss
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 4c7dab50fe234893a26628f4b23c499f, type: 3}
+  - tier: evolved
+    className: abyss
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 991d44af06794ccebee4d8a1ba69673f, type: 3}
+  - tier: evolved
+    className: abyss
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 0fcdaa47075a409cad6c2996acdbe490, type: 3}
+  - tier: evolved
+    className: abyss
+    partName: Legs
+    sprite: {fileID: 21300000, guid: 85a54a19ab14428c89116652633baf02, type: 3}
+  - tier: evolved
+    className: abyss
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 583df6e90b74459d90e79598d6e8ef7f, type: 3}
+  - tier: evolved
+    className: abyss
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 0fcb9179d7fe4d09b95720a66a458e82, type: 3}
+  - tier: evolved
+    className: abyss
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 2b0ecbb4389849e88af7815ef1ec8627, type: 3}
+  - tier: evolved
+    className: kraken
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 7be8da5134a24f76b22753e84e2fdb87, type: 3}
+  - tier: evolved
+    className: kraken
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: fe239143099840078a6552d6bce1769b, type: 3}
+  - tier: evolved
+    className: kraken
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 3ea6bf89dd6d4045a5a67ef5a98ece2c, type: 3}
+  - tier: evolved
+    className: kraken
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: b20340cb64824e78b4111b34b2b60573, type: 3}
+  - tier: evolved
+    className: kraken
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 093f2bc89b2e47379f518695ef6bbd2b, type: 3}
+  - tier: evolved
+    className: kraken
+    partName: Legs
+    sprite: {fileID: 21300000, guid: 79ee5387fa7b46c6ad8608e1ed3d89df, type: 3}
+  - tier: evolved
+    className: kraken
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 7f2ed5982fee4ca99971694358a79f89, type: 3}
+  - tier: evolved
+    className: kraken
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: b1f9903b72bb4aa9b04092a5f5e67be2, type: 3}
+  - tier: evolved
+    className: kraken
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: afbf4cb91293426e8fbf15a2fdc8a37e, type: 3}
+  - tier: evolved
+    className: ember
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 7046b67c2b3e40aaac88c9ff228fe8e0, type: 3}
+  - tier: evolved
+    className: ember
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 4336b892dcdb4badad89da2c04585cbd, type: 3}
+  - tier: evolved
+    className: ember
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 827ef65a95f242de8cb4430f120971ce, type: 3}
+  - tier: evolved
+    className: ember
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 4080c9349da54c4b8dcc1b4946632e63, type: 3}
+  - tier: evolved
+    className: ember
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 19d97284179b4e3983faeebbae49f272, type: 3}
+  - tier: evolved
+    className: ember
+    partName: Legs
+    sprite: {fileID: 21300000, guid: a8ab09df02b340659c8e783637cb1bbb, type: 3}
+  - tier: evolved
+    className: ember
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 5cf7b830c9f3496f860cf68eba36518a, type: 3}
+  - tier: evolved
+    className: ember
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 9aa0b4fee632409884ab5c6702885219, type: 3}
+  - tier: evolved
+    className: ember
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: d4b25440f90f46fda151c0ef2be44db3, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 426b81c825bd4ed1be5c928523134a52, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 0e4233aa4a9343798f291b5839e05b2f, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: be9d442b51d843ae8a92d0a26fcbdf60, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: d3c714e24e0541b1b9c04c283842ceff, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: e5c069e0a0954afb977fd6885f48babc, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 0031f532665a48fd91a9358f4db4d1ed, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 666b00068e0846f9ba9e09c99269dfed, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: db6aa91d513543b69b912b7d9cb92e4b, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: be20b237cd24416fac23bb516015bb33, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 47a017a0de53491abd6b4e0e5bb9f8f4, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 1a62e99439ed4a0a9e06b2436b958804, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 79499f53cb114c2da553aa01c9b4ee75, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 0b17762ccf5049ed9edb54fa316800e2, type: 3}
+  - tier: elite
+    className: bulwark
+    partName: Tail
+    sprite: {fileID: 21300000, guid: f39c025bb373415b96e91e2b27a4d5ec, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 085f1a877abf47a78067838aaf54305c, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: b4ea0b5ecd3947b29dadc775377b49f4, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 60da5a48323f4c50a65d2f67bb1bd749, type: 3}
+  - tier: elite
+    className: mantis
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 9e10b68b97ce4f68aac9da2dec460fed, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 0bc81c3793954397ab3965d75d0ad335, type: 3}
+  - tier: elite
+    className: mantis
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 4fc01bff3a8b4c6ca18ddfb684bfb242, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 0f7fdd4eb6b44600947065bbb6520f46, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 12369b2102a045c09e564b87444ba039, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 5491747e676a490782aa899c9fa05227, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 57da11380674432ab4787ec6e3552ed9, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 8c2d7bc58d02479785407a3a1c80e821, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: c8781b920e174923ae42602a277aedaa, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 50639b3be4ee4156a0d0fad67733382f, type: 3}
+  - tier: elite
+    className: mantis
+    partName: Tail
+    sprite: {fileID: 21300000, guid: ec8168e5118d4bf2a5271e5033b2bc0e, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: b6d4b8dbbc934da1abc50a65d32fc45c, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: d7b406bfff2040ed8014aeaf20ef1d18, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: a91253a1ddfc43378b76fd822b7ecde9, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: dc30daefa2a64faea49ef17d42c14746, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 13651d53dcf744f3987b81a224d0c07e, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 24730d184c0d4f078e7dabd6133b5624, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: ba95ed8a154948209073b2ec21069f11, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: d481039ec02d434ab77579e3104861c5, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: ed69e75d20cb469891d24dc8593f7fb9, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: e40c2ec415f34462a5dd45ab6a54bcd1, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 2eabf31c27d845ccba0c98a0e4675535, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 26e8f9c8856941cbabe6e8a64e506ed1, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 7b6e9421e7bd4ceeb637ad6661b916f4, type: 3}
+  - tier: elite
+    className: leviathan
+    partName: Tail
+    sprite: {fileID: 21300000, guid: e4a2a4103eb345468212d05ea32f1d28, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 91067433efa64bc6bf6aa3ca70c802e4, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: b20e1dd02a5b4088830647e4d2598ed5, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 26d16223887f42e788442dcda6910909, type: 3}
+  - tier: elite
+    className: tempest
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 6166399e22c84b7394ceacf2b05cf0e7, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 9a0ae88612d94d55897ae60049edbbdf, type: 3}
+  - tier: elite
+    className: tempest
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: c58b6b6ddac94fa88b2fb844c5f2bf12, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: eefa97413ef54ee896dc609959116bfd, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 8aaaa61d0eb740cba33b84b86d6f4ba7, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 4750a90502af4839a7fe736a0c2eb333, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 321ce19546b44227916bfb332889c74c, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: a10aeeae0ec1499182201e2b35853324, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: c1611c189bb74370a0b5cbaa9fe05281, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 256006a845474331bed35d1ca3bfc092, type: 3}
+  - tier: elite
+    className: tempest
+    partName: Tail
+    sprite: {fileID: 21300000, guid: e10e5f47d5a24be4867f46d40809c17a, type: 3}
+  - tier: elite
+    className: specter
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 5cb9812c4e6f43cf91fad97ff76982a3, type: 3}
+  - tier: elite
+    className: specter
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: ac9fc75daaf44d6686d8dd6c6b8bdce0, type: 3}
+  - tier: elite
+    className: specter
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 6c7d8e540bca4bfea3612c6664aae747, type: 3}
+  - tier: elite
+    className: specter
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 13b079d4bdde468597b7d126f930b285, type: 3}
+  - tier: elite
+    className: specter
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 9aa1006c6c3e4d9fbcc7a46cbdb00978, type: 3}
+  - tier: elite
+    className: specter
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: f7b36a2a4f8142478a55c0e7a211ded0, type: 3}
+  - tier: elite
+    className: specter
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 1f762468cfc74825bdac3289f48eff8d, type: 3}
+  - tier: elite
+    className: specter
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 41a5fc79f7d444599fe5d99c69e39ac0, type: 3}
+  - tier: elite
+    className: specter
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 434d1d15414049b5854ab1bb2721911b, type: 3}
+  - tier: elite
+    className: specter
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: db3b61e1019342b8a057198140240ce6, type: 3}
+  - tier: elite
+    className: specter
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: d7ac39ac300a4613bae70a1fcd7a3438, type: 3}
+  - tier: elite
+    className: specter
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: f05baa4b8e014148aaf8d079f070a7ce, type: 3}
+  - tier: elite
+    className: specter
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 1435188bc65944d58e4a152af5a19774, type: 3}
+  - tier: elite
+    className: specter
+    partName: Tail
+    sprite: {fileID: 21300000, guid: ead07e94abd0446ba91b8c32da42e799, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: d6e187f85bc34818af79da829d696521, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 02598690cb804d17b8a0b5eea562bd01, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 7499969a370a447b9eacbfd638a25420, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 14a61f8c39f94aa89aec388fb81f8aca, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: b3d8dc5bc41d407398764beb392ec194, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 364f2007de0c4ecd82c8798b2ef4254d, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 459b85c56ac94a4d8ec1027f9464de05, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 2eefdefe3fb54c3b9e471a2f9a940643, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 5481be5c45fd4618a115f43bd3339f63, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 7d80544c10d34b27b918de61f2ae151a, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 89be743e172845619198e9f83899e391, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 3c02bcc23fff42328ff78f7b73d31c9e, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: a940a8a9c83f47a4abadcff47448e8e7, type: 3}
+  - tier: elite
+    className: sentinel
+    partName: Tail
+    sprite: {fileID: 21300000, guid: ae27b4ac0c924e3cb2a1323cf33e442d, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: a9748799ba914bdfb2c9a97dc477f40a, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 35292694ec6e44288409802beac5d9f6, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: cd451e2295ae49909cc8fb360da24a89, type: 3}
+  - tier: elite
+    className: reaver
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: e9f437aa346c4727b8d2e4fafa2fdaab, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: a77fe1cddbde4d949ccf7f74784d6180, type: 3}
+  - tier: elite
+    className: reaver
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 83fd8b60c60444999f009e222ea6a57c, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: daf8652716294f4685c98ab18037909e, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 28bb185192aa49a09cf7387638c7b46c, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: ea6227afcb9342e184107596990aa97a, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: f474cc4107594ef586dbd815eb572d36, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 2c3fdbaed8014a4f9c26bb5c3801a9a6, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 3c0b55b9228a421fb011583baf535964, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 9e39a895d258460faa0e2763890acae2, type: 3}
+  - tier: elite
+    className: reaver
+    partName: Tail
+    sprite: {fileID: 21300000, guid: aa5f8b791ef54e8ca647d0ff4138d866, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: b52a011b4d874543910d4492c891e7e8, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 572fc2a6df114751bba685f681081e69, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: f60dac85b88e4fc4a6453c10724fc123, type: 3}
+  - tier: elite
+    className: abyss
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 600d21d9165b4db4852ba28fa67599cb, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: c8b898059e1f4ce4aaf0e6472169a4d5, type: 3}
+  - tier: elite
+    className: abyss
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 0ac4a57c919d43b08f51307b61172772, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: ffcf4e99ff1641888f0bb8ed5d48e282, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: d73c890e64e54585900fed1fe9cb1574, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 4a8e9550a66045b58423bcb64aeb8b49, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 6229d15c024247d7ba69d6a288b2fcaf, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: b74e490195434d94bd5dab09d36a51a9, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: cbd48ebf70ea4f888d8b38610936bfe2, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 0ac82ddc52164ec6968ead9c331645f4, type: 3}
+  - tier: elite
+    className: abyss
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 1c3563d7426045ed9f9eeb7d19dad73a, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 81017dc033644511a41f9721511bee05, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 332c197ed598415d82bd05ce589d2aef, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 2339933ab350418584bdb1015ccd8838, type: 3}
+  - tier: elite
+    className: kraken
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 19c514a6c2b24d4faabfac3b7f975850, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 8ffb8b4176bb4540a98b4cff9a424a96, type: 3}
+  - tier: elite
+    className: kraken
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 77ca29d880fb4e529a8bf89a9bcdfeb5, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 16867c7810be49fd9133b89d0006e709, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: cc3a91187b974fe0a3a79774b94cf0b5, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 93192ebd6f7d4217bb0c3a0172748519, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 793ce16c36d141259deea9a84f083517, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: c4ced9ba1d924f748f594d9218c99db9, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: d47f890347e542fcab1048a8937ca242, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: c3df7d1c090d4befa3dfce0476632b49, type: 3}
+  - tier: elite
+    className: kraken
+    partName: Tail
+    sprite: {fileID: 21300000, guid: c15f80fd986e4c3598ae8d34559093d7, type: 3}
+  - tier: elite
+    className: ember
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: f45a122164c64a75944a9e9c43065fb7, type: 3}
+  - tier: elite
+    className: ember
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 90f2450913734341ad4bf9055466446f, type: 3}
+  - tier: elite
+    className: ember
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 096bbb01207e449aab4112c1e35332d6, type: 3}
+  - tier: elite
+    className: ember
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: a7ec59ab8faa4b249094ee30be38394f, type: 3}
+  - tier: elite
+    className: ember
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: cc5a7ecc4bdc4e45a7a8914bc8959fca, type: 3}
+  - tier: elite
+    className: ember
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: c049184d91d446f4861d66e337421101, type: 3}
+  - tier: elite
+    className: ember
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: aba2118affeb4e9a929c82c3fd57245a, type: 3}
+  - tier: elite
+    className: ember
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 99c24721d29144188c66b3dc0f088455, type: 3}
+  - tier: elite
+    className: ember
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: e7700ff3c21d4d179dcd108d6ccf6c78, type: 3}
+  - tier: elite
+    className: ember
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 447d82bd4a864fe98fe5a6e455a6262c, type: 3}
+  - tier: elite
+    className: ember
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: fb3cf1a4ba14408ab5ad193070d97b67, type: 3}
+  - tier: elite
+    className: ember
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 5b2c10fbe07d4fe1992889d4c529103a, type: 3}
+  - tier: elite
+    className: ember
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 6f8593ae25204946b0b57f29d4347f8d, type: 3}
+  - tier: elite
+    className: ember
+    partName: Tail
+    sprite: {fileID: 21300000, guid: a4bfdb9351d1420abf4e46c750fc3f78, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: fdee8df07b0614f40a346729b5156d15, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 42568d08287254f4299c1a736ab6acc6, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: a0d0313cfbea8174a9b390686b9d3069, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 94db81a0abf5feb43a25c230e4bac2e6, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: bbf4b185c68066c4d9ad994121328ba8, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: bb1ea8dc1524ccb41ba5ce584e6053b4, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: acf8f99c4e364e145a73f2f5539ecc97, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: c8d022eff08990a42a44524b2876d668, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 36b5f068c8fb1414d9b56c99d4899d8c, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 409c0e89a3585124d85c9e4fa940c286, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 1a9e5155dd347e34eba297b89b4a45af, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: a3dc49921d2bd534b91ec3dbaf3ea42e, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 7847d09b99657a649bfa88b965e50d6a, type: 3}
+  - tier: apex
+    className: bulwark
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 31b04f6e4656b7349b0dafe91d1b76b6, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 8b4dbc25270c7b145bfbc9c2f9470005, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 0b5b93910f99f114ca225ef49ec97a57, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 51c65310384740f46879c59e4e047573, type: 3}
+  - tier: apex
+    className: mantis
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: bc48785b8a9715945a7071646bddc28c, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 3163d2017aaa3fc42b12d402dee54a4d, type: 3}
+  - tier: apex
+    className: mantis
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: f6c15552272941a48b1cecee30dbff37, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 5bf03773c204c9c4b933707286497337, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 84d26033ad91a174cbd408737068d5dc, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: dcb8808c13c071f46abb9e15beca124b, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 47a13e28481d33e44ac29519afe6dcff, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 513d522566fc6d64a924cf9234bd93f5, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 669acbe6bb119f14eb47ffd54defea76, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 86176f70cd8ffa64bbb3bd72dfbaf57a, type: 3}
+  - tier: apex
+    className: mantis
+    partName: Tail
+    sprite: {fileID: 21300000, guid: b0d03eb53f916e044afcc4d5955b86a6, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 9b6865c53829b334b8c51a4ceafe2f62, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 2db69c4a51c96d046a14ee504acf6393, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: c16b2b7814d7b3d4eb02c271740ddbc9, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 12897fbfd7f514a4d8eebf177c770dc2, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 906fbec299740274eaf1a443dd80654b, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 831398280eb050b4fb130baeaec93db0, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 6c9bc8221f74e584ab9aa9f78e7123ba, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 902c1c43050da99459cd3445ec4e9ac1, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: e6f1fbef6e89b7f4589749e90ce36eff, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 7f1c91e43cfa42446a73c47daf72ba00, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 61d93d87fc4f26d4081f03889b3634cd, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 4a7cc0db077844a41ba82a9fb655d862, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: c83d37121eaa9384eb5d066b4093b574, type: 3}
+  - tier: apex
+    className: leviathan
+    partName: Tail
+    sprite: {fileID: 21300000, guid: fdfb2b4fb58332346b11dd665c5e3d74, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: d615fa26ad529964e88c8132f7daf987, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: fde10f83577bd574890084313a1e23e7, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: f4a9193e0207adf4f9e48a04df1c0389, type: 3}
+  - tier: apex
+    className: tempest
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 06beab47bce816343904312c5a317d7a, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: dc2183cc59727e04f9817ad010502a3f, type: 3}
+  - tier: apex
+    className: tempest
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 0ad639cbf3b238f4ab847662b604cbea, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 4a503a457c3f496428ae9f9ab5d7b1c1, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: ca1e39badb6598f4ca48686ddef2f4f3, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: d4299e2f7a84a6d46b3ca6bd1ff98be8, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 7b59bce8588418643b804d32c901d17e, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: e48bd97ca7b3e964e9ae479567016315, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: df57491c72fe3d14da36452c4e2583f8, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 33e7acdb078a4d743baf1fefeac160b6, type: 3}
+  - tier: apex
+    className: tempest
+    partName: Tail
+    sprite: {fileID: 21300000, guid: b3da74f77c42ca74fa8b7590b9f60e8b, type: 3}
+  - tier: apex
+    className: specter
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 4662d619fd3f1e04d87066ac469c4d76, type: 3}
+  - tier: apex
+    className: specter
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 1b6407cb971b1bc4285cb2d763c6bc10, type: 3}
+  - tier: apex
+    className: specter
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 1266728422cd1d241b0d975f849b8a3f, type: 3}
+  - tier: apex
+    className: specter
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: c145912c34aebac43a21c9c7c02b21bf, type: 3}
+  - tier: apex
+    className: specter
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: a25ffe04ff7199741add28b1c9148e97, type: 3}
+  - tier: apex
+    className: specter
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 9b757fcfaae1ba3428310eb273b4e13e, type: 3}
+  - tier: apex
+    className: specter
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: cd61a000827a1f44f834e117cd0897c5, type: 3}
+  - tier: apex
+    className: specter
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 9b28d2cd6e8cd3a459a379627aedc1b3, type: 3}
+  - tier: apex
+    className: specter
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: d5ca2371a97c6c14daf003f20362934c, type: 3}
+  - tier: apex
+    className: specter
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 17b3f1a116c12474d9effa6ef372b4e4, type: 3}
+  - tier: apex
+    className: specter
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 152e4901909dd074db538c7a2e444bc3, type: 3}
+  - tier: apex
+    className: specter
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: c2855e3ee5bfc0946a77c3d50e212529, type: 3}
+  - tier: apex
+    className: specter
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: a6fa75025350a4d459bece2dc323f6fd, type: 3}
+  - tier: apex
+    className: specter
+    partName: Tail
+    sprite: {fileID: 21300000, guid: a3bab063c805827449abc91fb2cd584f, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 1de1c10988c9c6741a80f76d60c0b411, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: fe15730c1e327004cb5e183ea6f421c5, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 1d2f573d050dceb4e88023b0051293f4, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: ccfc178f4ae93de4dad85c0b9e685591, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 054107e573bbf764cbc7d73c56b08ad5, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 98c4df49be7216d489768a8178e04960, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: bd720995150fb564ba90e4afcf9989ef, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: d79e74a4d9ba7314088caa9ad1ae4a44, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 6a9854f62dc770546afbcf0cb284e966, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: e99b0d96c393cd9498a93823b2a97db9, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: c978e3168ff5b4f4ca2d342d5e28c72b, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: d1e9caf3dcd74d344b9d8f0daf27693c, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 3abb6c6109947ba41b22cfc2de2325df, type: 3}
+  - tier: apex
+    className: sentinel
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 3b494c6f8926f7d48bcc924fa9a9f053, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 3fc748afa5ec4d94b40282604ddae9fa, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: f437727fc18c4749a5bf0e13612eeb80, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 518c48e6b7534dbaa87b7393e43fc716, type: 3}
+  - tier: apex
+    className: reaver
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: b91ecca61f864fbb9a152b7588cfb3d7, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: ff7a2774fd2648ff843470b4da485971, type: 3}
+  - tier: apex
+    className: reaver
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: d6b83806955b47ca97d3b95939c885da, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 8a470054ad86466884a03cb4b19e3988, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: f029d03e9731e5e4595e87535be76e8a, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: d8e93bf221c303a438bdeeebe3e0d992, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: a7ae818a33263cc46b868f4bc1af9d9a, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: ad2d5dbdd9e42e64592629c2fdd61c61, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 88f15314f9f46bf49aa04f25e4c069d3, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: e65774b52a105694c8153dcddafd19e8, type: 3}
+  - tier: apex
+    className: reaver
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 6da4bab5bd80454683dcefbea6a84632, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: e4d2d7764e8f4b6ea0a2eb32a8a86141, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 512bde121a804775aab9988c356b1162, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: ba7b30a72f1540f7baf1e62002e4c951, type: 3}
+  - tier: apex
+    className: abyss
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 4d49c35cb0bc499893267b4c49f75d6a, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: bd6d0318616c404c9a6cf24b5105c2ae, type: 3}
+  - tier: apex
+    className: abyss
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 8b52f4dffee2492684311e7662c6eb53, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 3d989ca1e9ae4816bcdb083d0b7c6cfb, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: b1d21da5e45f41a8a644a4cc170b4b57, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 8f5493514ed649dbbc1d03823829466f, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 0fa3aa89005340cc9f69d1993f968eda, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 7cf42bae496f42a9abe4b1ffb0e44aa6, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 025159149b0140329f43b1b14d55af96, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 7a4caf8e4bda4741b97c78e168f2466a, type: 3}
+  - tier: apex
+    className: abyss
+    partName: Tail
+    sprite: {fileID: 21300000, guid: a537bdced85d4c0682ef2585b83e1d9c, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 8f0a7643826549888fd42b81622c4fa6, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: 9eba33c30951484a90bf08508243b667, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: a61331482c1849889e7f9e3c54786af7, type: 3}
+  - tier: apex
+    className: kraken
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 1c4634a2b31f4262ae6d7ef32ad4fe25, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 6e98726d3e3e4240958a62b9323819e0, type: 3}
+  - tier: apex
+    className: kraken
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: 1c9948769fb74d55995c320aafc02c10, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: 2289c75a3b6f465e8442f68f87024201, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 783e2971b4064efbbc8ed9aa081aaf75, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: 1b7c9f04eaa247c1bb6fb826da62d769, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 41078ba9bf8d4a2da5ddbcd5d6e293c8, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: 66bf77a81f514cdcb453c2fa61860228, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: 0d0ac45418b346dda5454a3e7ac9575a, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 3cc6340a41c44312a7ff363e7c8680d9, type: 3}
+  - tier: apex
+    className: kraken
+    partName: Tail
+    sprite: {fileID: 21300000, guid: 6e745e4ddee14ecabd78adf37993e851, type: 3}
+  - tier: apex
+    className: ember
+    partName: Antennae
+    sprite: {fileID: 21300000, guid: 849189cfb31043d492c362798d9a8326, type: 3}
+  - tier: apex
+    className: ember
+    partName: Carapace
+    sprite: {fileID: 21300000, guid: ced34b7c64ef4b6a8e13ed7e9a146623, type: 3}
+  - tier: apex
+    className: ember
+    partName: Claw_L
+    sprite: {fileID: 21300000, guid: 223d234f97974b858478473b169ac8a4, type: 3}
+  - tier: apex
+    className: ember
+    partName: UpperArm_L
+    sprite: {fileID: 21300000, guid: 3962092431114de5b0c603835b4ead1f, type: 3}
+  - tier: apex
+    className: ember
+    partName: Claw_R
+    sprite: {fileID: 21300000, guid: 518a0f5fa3ca412ab8816c27cd73823d, type: 3}
+  - tier: apex
+    className: ember
+    partName: UpperArm_R
+    sprite: {fileID: 21300000, guid: c6d528e334ed47e089b89e51013f4293, type: 3}
+  - tier: apex
+    className: ember
+    partName: Eyes
+    sprite: {fileID: 21300000, guid: fabb976d1d7d49678c3cfde4b3c62375, type: 3}
+  - tier: apex
+    className: ember
+    partName: Leg_L_1
+    sprite: {fileID: 21300000, guid: 74bb92301f4643afb72e96d0dc0c0ef0, type: 3}
+  - tier: apex
+    className: ember
+    partName: Leg_L_2
+    sprite: {fileID: 21300000, guid: c3b16ecbf5304a1b9fbe9ec23f1438c3, type: 3}
+  - tier: apex
+    className: ember
+    partName: Leg_L_3
+    sprite: {fileID: 21300000, guid: 4a9a9f6a976a408e979a0d8406121687, type: 3}
+  - tier: apex
+    className: ember
+    partName: Leg_R_1
+    sprite: {fileID: 21300000, guid: de43361b341042d883b46cc919737d50, type: 3}
+  - tier: apex
+    className: ember
+    partName: Leg_R_2
+    sprite: {fileID: 21300000, guid: c5d5d3281c624a4a8c88f4fb1d570b9e, type: 3}
+  - tier: apex
+    className: ember
+    partName: Leg_R_3
+    sprite: {fileID: 21300000, guid: 7649db0891f74075b669c3e0e7b920f1, type: 3}
+  - tier: apex
+    className: ember
+    partName: Tail
+    sprite: {fileID: 21300000, guid: d73219deec384c45bc886266d5360e1e, type: 3}
