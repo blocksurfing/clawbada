@@ -1,0 +1,85 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd3423f6bdc7a482c93b46e11e465120, type: 3}
+  m_Name: BattleVfxLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::BattleVfxLibrary
+  attackWindup:
+    prefab: {fileID: 0}
+    anchor: 0
+    delay: 0
+    mirrorWithFacing: 1
+  attackImpact:
+    prefab: {fileID: 8702148402230174246, guid: 6fc84e57c80d248c0bbdb0013df7aaed, type: 3}
+    anchor: 1
+    delay: 0
+    mirrorWithFacing: 1
+  defend:
+    prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  death:
+    prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  moveStep:
+    prefab: {fileID: 2198418038747152603, guid: e4c3850d6ee9442168b4c3922d6ec7f7, type: 3}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  status:
+    prefab: {fileID: 0}
+    anchor: 3
+    delay: 0
+    mirrorWithFacing: 1
+  specialByClass:
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
