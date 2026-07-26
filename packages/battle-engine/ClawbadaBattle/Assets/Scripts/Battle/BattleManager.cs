@@ -37,6 +37,10 @@ public class BattleManager : MonoBehaviour
     [Tooltip("Tier+class+part → sprite, for DNA-driven part composition. Rebuild via Clawbada/Rebuild Lobster Part Library.")]
     public LobsterPartLibrary partLibrary;
 
+    [Header("VFX")]
+    [Tooltip("Designer VFX bindings. Rebuild prefabs + asset via Clawbada/Rebuild Generic VFX Prefabs.")]
+    public BattleVfxLibrary vfxLibrary;
+
     [Header("Arena Art (designer prefabs, swapped by arena.tier)")]
     public GameObject arenaArtEvolved;
     public GameObject arenaArtElite;
@@ -153,6 +157,7 @@ public class BattleManager : MonoBehaviour
             go.name = $"Lobster_{lob.side}{lob.slot}_{lob.className}_{lob.id}";
             var controller = go.AddComponent<LobsterController>();
             controller.Setup(lob, hexGrid);
+            controller.vfx = vfxLibrary;
             if (lob.partClassIds != null && lob.partClassIds.Length == 6)
             {
                 controller.ApplyGenetics(lob.partClassIds, lob.tier, partLibrary);
@@ -273,6 +278,11 @@ public class BattleManager : MonoBehaviour
                     bool melee = action.distance > 0
                         ? action.distance <= 1
                         : (target != null && HexCoord.Distance(actor.col, actor.row, target.col, target.row) <= 1);
+                    var windup = action.actionType == "special"
+                        ? vfxLibrary != null ? vfxLibrary.SpecialFor(actor.classId) : null
+                        : vfxLibrary != null ? vfxLibrary.attackWindup : null;
+                    BattleVfxLibrary.Spawn(windup, actor, target, this);
+
                     bool impactFired = false;
                     yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
                     {
@@ -281,11 +291,13 @@ public class BattleManager : MonoBehaviour
                         if (action.healed > 0)
                         {
                             target.ApplyHeal(action.healed);
-                            // TODO: heal VFX / floating number
+                            BattleVfxLibrary.Spawn(vfxLibrary?.status, actor, target, this);
+                            // TODO: floating heal number
                         }
                         else
                         {
                             target.ApplyDamage(action.damage);
+                            BattleVfxLibrary.Spawn(vfxLibrary?.attackImpact, actor, target, this);
                             StartCoroutine(target.PlayHit(hitDuration, actorPos));
                             // TODO: damage number popup (crit/enhanced styling from action.crit / action.enhanced)
                         }

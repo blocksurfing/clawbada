@@ -33,10 +33,39 @@ public class HexGrid : MonoBehaviour
     public TileBase allyTile;     // ally target
     public TileBase selectedTile; // selected character's own hex
 
+    [Header("Per-Tier Board Placement")]
+    [Tooltip("Stopgap registration between the authored board (beach-referenced) and each " +
+             "tier's arena art, which is auto-centered on the camera. Offset/scale move the " +
+             "whole Grid from its authored transform; tint improves tile contrast on dark " +
+             "grounds. Replace with authoring-scene registration once the designer pushes " +
+             "ArenaAuthoring with the backdrop layers.")]
+    public TierPlacement[] tierPlacements =
+    {
+        new TierPlacement { tier = "evolved" },
+        new TierPlacement { tier = "elite" },
+        new TierPlacement { tier = "apex" },
+    };
+
+    [System.Serializable]
+    public class TierPlacement
+    {
+        public string tier;
+        [Tooltip("World offset from the Grid's authored position.")]
+        public Vector2 offset = Vector2.zero;
+        [Tooltip("Uniform scale on the Grid — tiles and spacing scale together.")]
+        public float scale = 1f;
+        [Tooltip("Tint painted onto board tiles (white = designer's tile untouched).")]
+        public Color tileTint = Color.white;
+    }
+
     // Runtime state
     private ArenaLayout currentLayout;
     private readonly HashSet<(int, int)> blocked = new();
     private readonly List<Vector3Int> highlightedCells = new();
+    private Color activeTileTint = Color.white;
+    private Vector3 authoredGridPosition;
+    private Vector3 authoredGridScale;
+    private bool authoredCaptured;
 
     /// <summary>Store the arena layout and paint the board. Playable cells get the
     /// default tile; blocked cells stay unpainted (arena art draws obstacles there).</summary>
@@ -48,6 +77,8 @@ public class HexGrid : MonoBehaviour
         {
             foreach (var b in layout.blockedHexes) blocked.Add((b.col, b.row));
         }
+
+        ApplyTierPlacement(layout.tier);
 
         if (boardTilemap != null)
         {
@@ -61,7 +92,7 @@ public class HexGrid : MonoBehaviour
                     {
                         if (!blocked.Contains((c, r)))
                         {
-                            boardTilemap.SetTile(new Vector3Int(c, r, 0), defaultTile);
+                            PaintDefaultTile(new Vector3Int(c, r, 0));
                         }
                     }
                 }
@@ -70,6 +101,51 @@ public class HexGrid : MonoBehaviour
 
         Debug.Log($"[HexGrid] Loaded layout {layout.layoutId} ({layout.cols}x{layout.rows}, " +
                   $"{layout.blockedHexes?.Length ?? 0} blocked, tier: {layout.tier})");
+    }
+
+    /// <summary>Move/scale the Grid from its authored transform for this tier's arena
+    /// art, and pick the tile tint. Neutral (no entry / defaults) leaves the authored
+    /// placement untouched. Re-entrant: always re-applies from the captured base, so
+    /// repeated battle inits with different tiers don't accumulate.</summary>
+    private void ApplyTierPlacement(string tier)
+    {
+        if (unityGrid == null) return;
+
+        if (!authoredCaptured)
+        {
+            authoredGridPosition = unityGrid.transform.localPosition;
+            authoredGridScale = unityGrid.transform.localScale;
+            authoredCaptured = true;
+        }
+
+        TierPlacement placement = null;
+        if (tierPlacements != null && !string.IsNullOrEmpty(tier))
+        {
+            foreach (var p in tierPlacements)
+            {
+                if (p != null && string.Equals(p.tier, tier, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    placement = p;
+                    break;
+                }
+            }
+        }
+
+        Vector2 offset = placement?.offset ?? Vector2.zero;
+        float scale = placement != null && placement.scale > 0f ? placement.scale : 1f;
+        activeTileTint = placement?.tileTint ?? Color.white;
+
+        unityGrid.transform.localPosition = authoredGridPosition + new Vector3(offset.x, offset.y, 0f);
+        unityGrid.transform.localScale = authoredGridScale * scale;
+    }
+
+    /// <summary>Paint the plain board tile with the tier tint applied per cell
+    /// (designer tiles ship with LockColor, so the flag is cleared first).</summary>
+    private void PaintDefaultTile(Vector3Int cell)
+    {
+        boardTilemap.SetTile(cell, defaultTile);
+        boardTilemap.SetTileFlags(cell, TileFlags.None);
+        boardTilemap.SetColor(cell, activeTileTint);
     }
 
     /// <summary>World-space center of a hex cell. Uses the Tilemap's cell centers
@@ -169,8 +245,14 @@ public class HexGrid : MonoBehaviour
         if (boardTilemap == null) { highlightedCells.Clear(); return; }
         foreach (var cell in highlightedCells)
         {
-            bool isBlocked = blocked.Contains((cell.x, cell.y));
-            boardTilemap.SetTile(cell, isBlocked ? null : defaultTile);
+            if (blocked.Contains((cell.x, cell.y)))
+            {
+                boardTilemap.SetTile(cell, null);
+            }
+            else
+            {
+                PaintDefaultTile(cell);
+            }
         }
         highlightedCells.Clear();
     }
@@ -180,6 +262,9 @@ public class HexGrid : MonoBehaviour
         if (!InBounds(col, row) || tile == null) return;
         var cell = new Vector3Int(col, row, 0);
         boardTilemap.SetTile(cell, tile);
+        // Highlights render as authored — clear any tier tint left on the cell.
+        boardTilemap.SetTileFlags(cell, TileFlags.None);
+        boardTilemap.SetColor(cell, Color.white);
         highlightedCells.Add(cell);
     }
 

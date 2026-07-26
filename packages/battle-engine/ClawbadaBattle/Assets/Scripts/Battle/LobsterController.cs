@@ -23,6 +23,7 @@ public class LobsterController : MonoBehaviour
 
     public string lobsterId;
     public string side; // "A" | "B"
+    public int classId;
     public int col;
     public int row;
     public int maxHp;
@@ -30,10 +31,24 @@ public class LobsterController : MonoBehaviour
     public int moveRange;
     public bool alive = true;
 
+    /// <summary>VFX bindings, assigned by BattleManager at spawn. May be null.</summary>
+    [System.NonSerialized] public BattleVfxLibrary vfx;
+
     private Animator animator;
     private SortingGroup sortingGroup;
     private HexGrid grid;
     private Coroutine activeRoutine;
+    private Transform attackFxAnchor;
+    private Transform impactFxAnchor;
+
+    /// <summary>Designer-authored FX anchors on the rig; fall back to the root.</summary>
+    public Transform AttackFxAnchor => attackFxAnchor != null ? attackFxAnchor : transform;
+    public Transform ImpactFxAnchor => impactFxAnchor != null ? impactFxAnchor : transform;
+
+    /// <summary>Rigs face left at identity; Y=180 mirrors to face right.</summary>
+    public bool IsFacingLeft => Mathf.Abs(Mathf.DeltaAngle(transform.localEulerAngles.y, FaceRightY)) > 90f;
+
+    public int SortingOrder => sortingGroup != null ? sortingGroup.sortingOrder : 0;
 
     private static readonly int IdleHash = Animator.StringToHash("Idle");
 
@@ -41,6 +56,7 @@ public class LobsterController : MonoBehaviour
     {
         lobsterId = data.id;
         side = data.side;
+        classId = data.classId;
         col = data.position.col;
         row = data.position.row;
         maxHp = data.maxHp;
@@ -53,10 +69,22 @@ public class LobsterController : MonoBehaviour
         sortingGroup = GetComponent<SortingGroup>();
         if (sortingGroup == null) sortingGroup = gameObject.AddComponent<SortingGroup>();
 
+        attackFxAnchor = FindDeep(transform, "AttackFX");
+        impactFxAnchor = FindDeep(transform, "ImpactFX");
+
         transform.position = grid.GetWorldPosition(col, row);
         FaceEnemySide();
         UpdateSortingOrder();
         PlayState("Idle");
+    }
+
+    private static Transform FindDeep(Transform root, string name)
+    {
+        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name == name) return t;
+        }
+        return null;
     }
 
     // ─── DNA visual composition ───
@@ -180,6 +208,7 @@ public class LobsterController : MonoBehaviour
             Vector3 start = transform.position;
             Vector3 end = grid.GetWorldPosition(step.x, step.y);
             FaceToward(end);
+            BattleVfxLibrary.Spawn(vfx?.moveStep, this, null, this);
 
             float t = 0f;
             while (t < secondsPerHex)
@@ -243,6 +272,7 @@ public class LobsterController : MonoBehaviour
     public void PlayDefend()
     {
         PlayState("Defense");
+        BattleVfxLibrary.Spawn(vfx?.defend, this, null, this);
     }
 
     /// <summary>Hit reaction: turn to face the attacker, flinch, then back to Idle
@@ -274,6 +304,7 @@ public class LobsterController : MonoBehaviour
     {
         alive = false;
         PlayState("Die");
+        BattleVfxLibrary.Spawn(vfx?.death, this, null, this);
         yield return new WaitForSeconds(duration);
         // Corpse stays visible; dim it so live lobsters read clearly.
         foreach (var sr in GetComponentsInChildren<SpriteRenderer>())

@@ -215,6 +215,56 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &200719694
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 200719696}
+  - component: {fileID: 200719695}
+  m_Layer: 0
+  m_Name: BattleDemoLoop
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &200719695
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 200719694}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f83fbf29eb400478ab9570f9871ce3e4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BattleDemoLoop
+  runOnPlay: 1
+  layoutJson: {fileID: 0}
+  tier: apex
+  roundGap: 0.8
+  battleGap: 2.5
+  maxRoundsPerBattle: 12
+--- !u!4 &200719696
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 200719694}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &499335369
 GameObject:
   m_ObjectHideFlags: 0
@@ -589,6 +639,19 @@ MonoBehaviour:
   attackTile: {fileID: 11400000, guid: f16c48dc93e706940a9cb65b7a1e37cd, type: 2}
   allyTile: {fileID: 11400000, guid: 6bb396f1e52fc314399e385030507eea, type: 2}
   selectedTile: {fileID: 11400000, guid: e46ee71935c59b74d96ddae87c161f3e, type: 2}
+  tierPlacements:
+  - tier: evolved
+    offset: {x: 0, y: 0}
+    scale: 1
+    tileTint: {r: 1, g: 1, b: 1, a: 1}
+  - tier: elite
+    offset: {x: 0.25, y: -0.85}
+    scale: 1.1
+    tileTint: {r: 0.85, g: 0.75, b: 0.55, a: 1}
+  - tier: apex
+    offset: {x: 0.25, y: -0.85}
+    scale: 1.1
+    tileTint: {r: 0.45, g: 0.55, b: 0.75, a: 1}
 --- !u!4 &1694950159
 Transform:
   m_ObjectHideFlags: 0
@@ -742,6 +805,7 @@ MonoBehaviour:
   opponentReady: 0
   prefabLibrary: {fileID: 11400000, guid: 2cf0d137d7bec45a1a7bb0e961afe305, type: 2}
   partLibrary: {fileID: 11400000, guid: b4fa8fcff5b6d4ad8bcd7f3d4378f925, type: 2}
+  vfxLibrary: {fileID: 11400000, guid: b0a7e4db2d98143eebf2d9c397e0058f, type: 2}
   arenaArtEvolved: {fileID: 104495139534448984, guid: 7f8e93b02cf2e0b40b444dab0b612750, type: 3}
   arenaArtElite: {fileID: 1816308212864186039, guid: ac4c72892e246d640ac4eed0fd6b1a4a, type: 3}
   arenaArtApex: {fileID: 3180318831769434282, guid: ef269366adef31741a23b5d7f2427a76, type: 3}
@@ -890,3 +954,4 @@ SceneRoots:
   - {fileID: 2047629010}
   - {fileID: 139583371}
   - {fileID: 1914920593}
+  - {fileID: 200719696}
