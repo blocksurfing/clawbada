@@ -11,6 +11,9 @@ using System.Collections.Generic;
 ///     tiles, and painted art always agree on where a hex is,
 ///   • paints the visible board onto the runtime Tilemap with the designer's
 ///     hex_default tile (blocked cells stay unpainted — no tile = not walkable),
+///   • spawns one obstacle sprite per blocked cell (ObstacleLibrary, seeded pick per
+///     cell) and rolls a deterministic random blocked set when a layout arrives
+///     without one (ObstacleLayoutGenerator, seeded by battle id),
 ///   • paints selection highlights (hex_move / hex_attack / hex_ally / hex_selected)
 ///     over the board via the same ShowSelection JSON API React already uses,
 ///   • provides BFS pathfinding over open cells for movement animation.
@@ -32,6 +35,19 @@ public class HexGrid : MonoBehaviour
     public TileBase attackTile;   // enemy target
     public TileBase allyTile;     // ally target
     public TileBase selectedTile; // selected character's own hex
+
+    [Header("Obstacles")]
+    [Tooltip("Tier-scoped obstacle sprites for blocked cells (Art/Obstacles/ObstacleLibrary).")]
+    public ObstacleLibrary obstacleLibrary;
+    [Tooltip("Parent for spawned obstacles. Defaults to the board Tilemap so the tier offset/scale carry over.")]
+    public Transform obstacleRoot;
+    [Tooltip("Nudge from the hex centre to the obstacle's bottom-centre pivot. Y also moves its depth line.")]
+    public Vector2 obstacleOffset = Vector2.zero;
+    [Tooltip("When a layout arrives with no blockedHexes, roll a deterministic random set from the battle id.")]
+    public bool randomizeWhenUnspecified = true;
+    [Tooltip("Blocked-cell count range for randomized layouts (inclusive).")]
+    public int randomBlockedMin = 4;
+    public int randomBlockedMax = 5;
 
     [Header("Per-Tier Board Placement")]
     [Tooltip("Stopgap registration between the authored board (beach-referenced) and each " +
@@ -62,20 +78,34 @@ public class HexGrid : MonoBehaviour
     private ArenaLayout currentLayout;
     private readonly HashSet<(int, int)> blocked = new();
     private readonly List<Vector3Int> highlightedCells = new();
+    private readonly List<GameObject> activeObstacles = new();
     private Color activeTileTint = Color.white;
     private Vector3 authoredGridPosition;
     private Vector3 authoredGridScale;
     private bool authoredCaptured;
 
-    /// <summary>Store the arena layout and paint the board. Playable cells get the
-    /// default tile; blocked cells stay unpainted (arena art draws obstacles there).</summary>
-    public void BuildGrid(ArenaLayout layout)
+    void Awake()
+    {
+        DepthSort.Apply(Camera.main != null ? Camera.main : FindAnyObjectByType<Camera>());
+    }
+
+    /// <summary>Store the arena layout, paint the board, and place obstacles. Playable
+    /// cells get the default tile; blocked cells stay unpainted and get an obstacle
+    /// sprite. A layout with no blockedHexes gets a deterministic random set rolled
+    /// from <paramref name="battleId"/> (written back into the layout so every consumer
+    /// sees the same cells).</summary>
+    public void BuildGrid(ArenaLayout layout, string battleId = null)
     {
         currentLayout = layout;
         blocked.Clear();
+        if ((layout.blockedHexes == null || layout.blockedHexes.Length == 0) && randomizeWhenUnspecified)
+        {
+            layout.blockedHexes = ObstacleLayoutGenerator.Generate(
+                layout, ObstacleSeed(layout, battleId), randomBlockedMin, randomBlockedMax);
+        }
         if (layout.blockedHexes != null)
         {
-            foreach (var b in layout.blockedHexes) blocked.Add((b.col, b.row));
+            foreach (var b in layout.blockedHexes) if (b != null) blocked.Add((b.col, b.row));
         }
 
         ApplyTierPlacement(layout.tier);
@@ -99,8 +129,86 @@ public class HexGrid : MonoBehaviour
             }
         }
 
+        SpawnObstacles(layout, battleId);
+
         Debug.Log($"[HexGrid] Loaded layout {layout.layoutId} ({layout.cols}x{layout.rows}, " +
                   $"{layout.blockedHexes?.Length ?? 0} blocked, tier: {layout.tier})");
+    }
+
+    // ─── Obstacles ───
+
+    private static string ObstacleSeed(ArenaLayout layout, string battleId)
+        => $"{layout.layoutId}|{battleId ?? string.Empty}|{layout.tier}";
+
+    /// <summary>One SpriteRenderer per blocked cell, sprite chosen by a stable hash of
+    /// (seed, cell) so replays match. Depth against lobsters is handled by DepthSort:
+    /// same layer/order, bottom-centre pivot as the sort point.</summary>
+    private void SpawnObstacles(ArenaLayout layout, string battleId)
+    {
+        ClearObstacles();
+        if (layout.blockedHexes == null || layout.blockedHexes.Length == 0) return;
+        if (obstacleLibrary == null)
+        {
+            Debug.LogWarning("[HexGrid] obstacleLibrary not assigned — blocked cells will have no obstacle sprites.");
+            return;
+        }
+        Sprite[] sprites = obstacleLibrary.GetSpritesForTier(layout.tier);
+        if (sprites == null || sprites.Length == 0)
+        {
+            Debug.LogWarning($"[HexGrid] No obstacle sprites configured for tier '{layout.tier}'.");
+            return;
+        }
+
+        Transform parent = ObstacleParent();
+        string seed = ObstacleSeed(layout, battleId);
+        foreach (var b in layout.blockedHexes)
+        {
+            if (b == null || !InBounds(b.col, b.row)) continue;
+            uint hash = ObstacleLayoutGenerator.Fnv1a($"{seed}|{b.col},{b.row}");
+            Sprite sprite = sprites[(int)(hash % (uint)sprites.Length)];
+            if (sprite == null) continue;
+
+            var go = new GameObject($"Obstacle_{b.col}_{b.row}_{sprite.name}");
+            go.transform.SetParent(parent, false);
+            go.transform.position = GetWorldPosition(b.col, b.row)
+                + new Vector3(obstacleOffset.x, obstacleOffset.y + DepthSort.ObstacleDepthBias, 0f);
+
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.sortingLayerName = DepthSort.Layer;
+            sr.sortingOrder = DepthSort.ActorOrder;
+            sr.spriteSortPoint = SpriteSortPoint.Pivot; // pivot is bottom-centre = base line
+            activeObstacles.Add(go);
+        }
+    }
+
+    private Transform ObstacleParent()
+    {
+        if (obstacleRoot != null) return obstacleRoot;
+        if (boardTilemap != null) return boardTilemap.transform;
+        return transform;
+    }
+
+    /// <summary>Destroy tracked obstacles, plus any untracked "Obstacle_*" children left
+    /// under the parent (edit-mode builds survive domain reloads; the list does not).</summary>
+    private void ClearObstacles()
+    {
+        foreach (var go in activeObstacles) DestroySafe(go);
+        activeObstacles.Clear();
+
+        Transform parent = ObstacleParent();
+        for (int i = parent.childCount - 1; i >= 0; i--)
+        {
+            var child = parent.GetChild(i);
+            if (child.name.StartsWith("Obstacle_")) DestroySafe(child.gameObject);
+        }
+    }
+
+    private static void DestroySafe(GameObject go)
+    {
+        if (go == null) return;
+        if (Application.isPlaying) Destroy(go);
+        else DestroyImmediate(go);
     }
 
     /// <summary>Move/scale the Grid from its authored transform for this tier's arena

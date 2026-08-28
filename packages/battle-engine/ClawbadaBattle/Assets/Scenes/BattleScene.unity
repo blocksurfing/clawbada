@@ -639,6 +639,12 @@ MonoBehaviour:
   attackTile: {fileID: 11400000, guid: f16c48dc93e706940a9cb65b7a1e37cd, type: 2}
   allyTile: {fileID: 11400000, guid: 6bb396f1e52fc314399e385030507eea, type: 2}
   selectedTile: {fileID: 11400000, guid: e46ee71935c59b74d96ddae87c161f3e, type: 2}
+  obstacleLibrary: {fileID: 11400000, guid: 2a0ff2b3c13a4e0e8c6939e07dc9822a, type: 2}
+  obstacleRoot: {fileID: 0}
+  obstacleOffset: {x: 0, y: 0}
+  randomizeWhenUnspecified: 1
+  randomBlockedMin: 4
+  randomBlockedMax: 5
   tierPlacements:
   - tier: evolved
     offset: {x: 0, y: 0}
