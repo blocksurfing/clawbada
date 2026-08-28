@@ -120,6 +120,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -130,7 +131,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     - serializedVersion: 2
       name: FX_Generic_GroundCrack_01
       rect:
@@ -142,6 +142,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -152,7 +153,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     - serializedVersion: 2
       name: FX_Generic_GroundCrack_02
       rect:
@@ -164,6 +164,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -174,7 +175,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     - serializedVersion: 2
       name: FX_Generic_GroundCrack_03
       rect:
@@ -186,6 +186,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -196,7 +197,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     - serializedVersion: 2
       name: FX_Generic_GroundCrack_04
       rect:
@@ -208,6 +208,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -218,7 +219,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     - serializedVersion: 2
       name: FX_Generic_GroundCrack_05
       rect:
@@ -230,6 +230,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -240,7 +241,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     - serializedVersion: 2
       name: FX_Generic_GroundCrack_06
       rect:
@@ -252,6 +252,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -262,7 +263,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     - serializedVersion: 2
       name: FX_Generic_GroundCrack_07
       rect:
@@ -274,6 +274,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -284,7 +285,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     - serializedVersion: 2
       name: FX_Generic_GroundCrack_08
       rect:
@@ -296,6 +296,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -306,7 +307,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     - serializedVersion: 2
       name: FX_Generic_GroundCrack_09
       rect:
@@ -318,6 +318,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -328,7 +329,6 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-      secondaryTextures: []
     outline: []
     customData: 
     physicsShape: []
