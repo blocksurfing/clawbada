@@ -250,6 +250,7 @@ MonoBehaviour:
   roundGap: 0.8
   battleGap: 2.5
   maxRoundsPerBattle: 12
+  randomObstacles: 1
 --- !u!4 &200719696
 Transform:
   m_ObjectHideFlags: 0
@@ -647,7 +648,7 @@ MonoBehaviour:
   randomBlockedMax: 5
   tierPlacements:
   - tier: evolved
-    offset: {x: 0, y: 0}
+    offset: {x: 0, y: -0.6}
     scale: 1
     tileTint: {r: 1, g: 1, b: 1, a: 1}
   - tier: elite

@@ -59,7 +59,7 @@ public class HexGrid : MonoBehaviour
              "ArenaAuthoring with the backdrop layers.")]
     public TierPlacement[] tierPlacements =
     {
-        new TierPlacement { tier = "evolved" },
+        new TierPlacement { tier = "evolved", offset = new Vector2(0f, -0.6f) }, // beach: board sat on the shoreline at 0
         new TierPlacement { tier = "elite" },
         new TierPlacement { tier = "apex" },
     };
