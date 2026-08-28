@@ -39,10 +39,12 @@ public class HexGrid : MonoBehaviour
     [Header("Obstacles")]
     [Tooltip("Tier-scoped obstacle sprites for blocked cells (Art/Obstacles/ObstacleLibrary).")]
     public ObstacleLibrary obstacleLibrary;
-    [Tooltip("Parent for spawned obstacles. Defaults to the board Tilemap so the tier offset/scale carry over.")]
+    [Tooltip("Parent for spawned obstacles. Defaults to this transform — NOT the designer's Grid, whose z-scale of 0 " +
+             "makes world→local placement under it degenerate. The tier scale is applied explicitly instead.")]
     public Transform obstacleRoot;
-    [Tooltip("Nudge from the hex centre to the obstacle's bottom-centre pivot. Y also moves its depth line.")]
-    public Vector2 obstacleOffset = Vector2.zero;
+    [Tooltip("Visual nudge of the sprite from the hex centre, in world units. Purely cosmetic: the depth line " +
+             "stays at the hex centre (the SortingGroup root), matching where lobsters' feet sort from.")]
+    public Vector2 obstacleOffset = new Vector2(0f, -0.15f);
     [Tooltip("When a layout arrives with no blockedHexes, roll a deterministic random set from the battle id.")]
     public bool randomizeWhenUnspecified = true;
     [Tooltip("Blocked-cell count range for randomized layouts (inclusive).")]
@@ -140,9 +142,11 @@ public class HexGrid : MonoBehaviour
     private static string ObstacleSeed(ArenaLayout layout, string battleId)
         => $"{layout.layoutId}|{battleId ?? string.Empty}|{layout.tier}";
 
-    /// <summary>One SpriteRenderer per blocked cell, sprite chosen by a stable hash of
-    /// (seed, cell) so replays match. Depth against lobsters is handled by DepthSort:
-    /// same layer/order, bottom-centre pivot as the sort point.</summary>
+    /// <summary>One obstacle per blocked cell, sprite chosen by a stable hash of
+    /// (seed, cell) so replays match. Each obstacle is a SortingGroup root at the hex
+    /// centre (its depth line, same as a lobster's feet) with the sprite on a child
+    /// that carries the cosmetic offset — so nudging the art never changes who draws
+    /// in front. Depth itself is DepthSort: same layer/order as lobsters, +Y axis.</summary>
     private void SpawnObstacles(ArenaLayout layout, string battleId)
     {
         ClearObstacles();
@@ -160,6 +164,11 @@ public class HexGrid : MonoBehaviour
         }
 
         Transform parent = ObstacleParent();
+        // Board furniture scales with the tiles (tier placement scales the Grid), but the
+        // Grid's transform is not a safe parent (see obstacleRoot tooltip): apply its
+        // scale explicitly and keep world z at exactly 0.
+        float tileScale = unityGrid != null ? unityGrid.transform.lossyScale.x : 1f;
+        float parentScale = Mathf.Max(parent.lossyScale.x, 1e-4f);
         string seed = ObstacleSeed(layout, battleId);
         foreach (var b in layout.blockedHexes)
         {
@@ -168,26 +177,26 @@ public class HexGrid : MonoBehaviour
             Sprite sprite = sprites[(int)(hash % (uint)sprites.Length)];
             if (sprite == null) continue;
 
-            var go = new GameObject($"Obstacle_{b.col}_{b.row}_{sprite.name}");
-            go.transform.SetParent(parent, false);
-            go.transform.position = GetWorldPosition(b.col, b.row)
-                + new Vector3(obstacleOffset.x, obstacleOffset.y + DepthSort.ObstacleDepthBias, 0f);
+            var root = new GameObject($"Obstacle_{b.col}_{b.row}_{sprite.name}");
+            root.transform.SetParent(parent, false);
+            root.transform.localScale = Vector3.one * (tileScale / parentScale);
+            Vector3 anchor = GetWorldPosition(b.col, b.row);
+            root.transform.position = new Vector3(anchor.x, anchor.y + DepthSort.ObstacleDepthBias, 0f);
 
-            var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = sprite;
-            sr.sortingLayerName = DepthSort.Layer;
-            sr.sortingOrder = DepthSort.ActorOrder;
-            sr.spriteSortPoint = SpriteSortPoint.Pivot; // pivot is bottom-centre = base line
-            activeObstacles.Add(go);
+            var group = root.AddComponent<UnityEngine.Rendering.SortingGroup>();
+            group.sortingLayerName = DepthSort.Layer;
+            group.sortingOrder = DepthSort.ActorOrder;
+
+            var art = new GameObject("Sprite");
+            art.transform.SetParent(root.transform, false);
+            art.transform.localPosition = new Vector3(obstacleOffset.x, obstacleOffset.y, 0f);
+            var sr = art.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite; // bottom-centre pivot lands on the (offset) hex centre
+            activeObstacles.Add(root);
         }
     }
 
-    private Transform ObstacleParent()
-    {
-        if (obstacleRoot != null) return obstacleRoot;
-        if (boardTilemap != null) return boardTilemap.transform;
-        return transform;
-    }
+    private Transform ObstacleParent() => obstacleRoot != null ? obstacleRoot : transform;
 
     /// <summary>Destroy tracked obstacles, plus any untracked "Obstacle_*" children left
     /// under the parent (edit-mode builds survive domain reloads; the list does not).</summary>
