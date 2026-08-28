@@ -12,8 +12,9 @@ using UnityEngine;
 /// Requirements this encodes:
 ///   • lobster rig roots sit at the hex centre (feet) and carry a SortingGroup, so the
 ///     whole rig sorts by its feet position;
-///   • obstacle sprites have a bottom-centre pivot and use SpriteSortPoint.Pivot, so
-///     they sort by their base line, not their bounds centre.
+///   • each obstacle is a SortingGroup root placed at its hex centre (the same depth
+///     line a lobster on that cell would have), with the bottom-centre-pivoted sprite on
+///     a child that carries any cosmetic offset — so nudging the art never changes depth.
 ///
 /// The axis is also set in ProjectSettings/GraphicsSettings.asset; applying it here
 /// keeps the behaviour if that project setting is ever reset.
