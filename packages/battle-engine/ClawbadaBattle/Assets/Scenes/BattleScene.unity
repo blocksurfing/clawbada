@@ -580,6 +580,10 @@ MonoBehaviour:
   hexSize: 1
   hexTilePrefab: {fileID: 1694950157}
   fadeOutDuration: 0.25
+  obstacleLibrary: {fileID: 11400000, guid: 2a0ff2b3c13a4e0e8c6939e07dc9822a, type: 2}
+  obstacleRoot: {fileID: 0}
+  obstacleOffset: {x: 0, y: 0}
+  obstacleSortingBase: 20
   drawPreview: 0
   previewCols: 5
   previewRows: 6

@@ -22,6 +22,16 @@ public class HexGrid : MonoBehaviour
     [Tooltip("Seconds to wait after ClearHighlights() before destroying spawned tiles — gives the fade-out animation time to play.")]
     public float fadeOutDuration = 0.25f;
 
+    [Header("Obstacles")]
+    [Tooltip("Tier-scoped sprites for blocked arena cells.")]
+    public ObstacleLibrary obstacleLibrary;
+    [Tooltip("Optional parent for spawned obstacle sprites. Defaults to this grid transform.")]
+    public Transform obstacleRoot;
+    [Tooltip("Local offset from the blocked hex center to the obstacle sprite pivot.")]
+    public Vector2 obstacleOffset = Vector2.zero;
+    [Tooltip("Base SpriteRenderer sorting order for obstacle sprites; row is added on top.")]
+    public int obstacleSortingBase = 20;
+
     [Header("Editor Preview")]
     [Tooltip("Draw hex outlines in the Scene view for debugging. Editor-only, purely visual.")]
     public bool drawPreview = true;
@@ -31,14 +41,17 @@ public class HexGrid : MonoBehaviour
     // Runtime state
     private ArenaLayout currentLayout;
     private readonly List<HexTile> activeTiles = new();
+    private readonly List<GameObject> activeObstacles = new();
 
-    /// <summary>Store the arena layout and recenter the grid. Does NOT spawn any tiles —
-    /// overlay tiles are spawned on demand by ShowSelection.</summary>
-    public void BuildGrid(ArenaLayout layout)
+    /// <summary>Store the arena layout, recenter the grid, and spawn blocked-cell
+    /// obstacle sprites. Highlight overlay tiles are still spawned on demand by ShowSelection.</summary>
+    public void BuildGrid(ArenaLayout layout, string battleId = null)
     {
         ClearHighlightsImmediate();
+        ClearObstaclesImmediate();
         currentLayout = layout;
         CenterGrid(layout);
+        SpawnObstacles(layout, battleId);
         Debug.Log($"[HexGrid] Loaded layout {layout.layoutId} ({layout.cols}x{layout.rows}, " +
                   $"{layout.blockedHexes?.Length ?? 0} blocked, tier: {layout.tier})");
     }
@@ -159,6 +172,58 @@ public class HexGrid : MonoBehaviour
         return false;
     }
 
+    private void SpawnObstacles(ArenaLayout layout, string battleId)
+    {
+        if (layout?.blockedHexes == null || layout.blockedHexes.Length == 0) return;
+        if (obstacleLibrary == null)
+        {
+            Debug.LogWarning("[HexGrid] obstacleLibrary not assigned — blocked cells will have no obstacle sprites.");
+            return;
+        }
+
+        Sprite[] sprites = obstacleLibrary.GetSpritesForTier(layout.tier);
+        if (sprites == null || sprites.Length == 0)
+        {
+            Debug.LogWarning($"[HexGrid] No obstacle sprites configured for tier '{layout.tier}'.");
+            return;
+        }
+
+        Transform parent = obstacleRoot != null ? obstacleRoot : transform;
+        string seedPrefix = $"{layout.layoutId}|{battleId ?? string.Empty}|{layout.tier}";
+
+        foreach (var blocked in layout.blockedHexes)
+        {
+            if (blocked == null || !InBounds(blocked.col, blocked.row)) continue;
+
+            Sprite sprite = sprites[StableIndex($"{seedPrefix}|{blocked.col},{blocked.row}", sprites.Length)];
+            if (sprite == null) continue;
+
+            GameObject go = new GameObject($"Obstacle_{layout.tier}_{blocked.col}_{blocked.row}_{sprite.name}");
+            go.transform.SetParent(parent, false);
+            Vector3 hexPos = HexCoord.HexToWorld(blocked.col, blocked.row, hexSize);
+            go.transform.localPosition = hexPos + new Vector3(obstacleOffset.x, obstacleOffset.y, 0f);
+
+            var renderer = go.AddComponent<SpriteRenderer>();
+            renderer.sprite = sprite;
+            renderer.sortingOrder = obstacleSortingBase + blocked.row;
+            activeObstacles.Add(go);
+        }
+    }
+
+    private int StableIndex(string key, int count)
+    {
+        unchecked
+        {
+            uint hash = 2166136261u;
+            for (int i = 0; i < key.Length; i++)
+            {
+                hash ^= key[i];
+                hash *= 16777619u;
+            }
+            return (int)(hash % (uint)count);
+        }
+    }
+
     private bool InBounds(int col, int row)
     {
         if (currentLayout == null) return true;
@@ -183,6 +248,17 @@ public class HexGrid : MonoBehaviour
             else DestroyImmediate(tile.gameObject);
         }
         activeTiles.Clear();
+    }
+
+    private void ClearObstaclesImmediate()
+    {
+        foreach (var obstacle in activeObstacles)
+        {
+            if (obstacle == null) continue;
+            if (Application.isPlaying) Destroy(obstacle);
+            else DestroyImmediate(obstacle);
+        }
+        activeObstacles.Clear();
     }
 
 #if UNITY_EDITOR
