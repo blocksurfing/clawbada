@@ -45,7 +45,7 @@ public class BattleBridge : MonoBehaviour
         Debug.Log($"[BattleBridge] InitBattle: {json.Substring(0, Mathf.Min(json.Length, 200))}...");
         var data = JsonUtility.FromJson<BattleInitData>(json);
         if (battleManager != null) battleManager.Initialize(data);
-        if (hexGrid != null) hexGrid.BuildGrid(data.arena);
+        if (hexGrid != null) hexGrid.BuildGrid(data.arena, data.battleId);
     }
 
     /// <summary>Start a new phase (positioning or combat).</summary>
