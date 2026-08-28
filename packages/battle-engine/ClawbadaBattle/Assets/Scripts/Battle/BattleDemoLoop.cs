@@ -34,6 +34,9 @@ public class BattleDemoLoop : MonoBehaviour
     [Tooltip("Safety cap so a stalemate can't run forever.")]
     public int maxRoundsPerBattle = 12;
 
+    [Tooltip("Roll a fresh deterministic obstacle layout per demo battle (seeded by battle index) instead of the JSON's fixed cells.")]
+    public bool randomObstacles = true;
+
     private static readonly string[] Classes =
     {
         "Bulwark", "Mantis", "Leviathan", "Tempest", "Specter",
@@ -91,7 +94,8 @@ public class BattleDemoLoop : MonoBehaviour
         {
             rng = new System.Random(battle); // battle N always replays identically
             var init = BuildInit(battle, arena);
-            hexGrid.BuildGrid(init.arena);
+            if (randomObstacles) init.arena.blockedHexes = null; // HexGrid rolls a set from battleId
+            hexGrid.BuildGrid(init.arena, init.battleId);
             manager.Initialize(init);
             Debug.Log($"[DemoLoop] Battle {battle}: " +
                       $"A [{Classes[units[0].classIdx]}, {Classes[units[1].classIdx]}, {Classes[units[2].classIdx]}] vs " +

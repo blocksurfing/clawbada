@@ -46,7 +46,7 @@ public class BattleBridge : MonoBehaviour
         var data = JsonUtility.FromJson<BattleInitData>(json);
         // Grid must be built (and re-centered) before Initialize spawns lobsters at
         // grid-derived world positions.
-        if (hexGrid != null) hexGrid.BuildGrid(data.arena);
+        if (hexGrid != null) hexGrid.BuildGrid(data.arena, data.battleId);
         if (battleManager != null) battleManager.Initialize(data);
     }
 
