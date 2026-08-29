@@ -179,8 +179,8 @@ public class LobsterController : MonoBehaviour
         // Depth is resolved per pixel by the camera's +Y transparency sort axis (see
         // DepthSort): every board actor — lobsters and obstacles — shares one layer and
         // order, and whoever's feet are lower on screen draws in front. The rig root
-        // sits at the hex centre, so the SortingGroup sorts by the feet. Foreground/100
-        // keeps actors above the arena's border silhouettes (Foreground/0-1).
+        // sits at the hex centre, so the SortingGroup sorts by the feet. Arena frame art
+        // on the Foreground layer is lifted above actors by BattleManager.SwapArenaArt.
         if (sortingGroup != null)
         {
             sortingGroup.sortingLayerName = DepthSort.Layer;
