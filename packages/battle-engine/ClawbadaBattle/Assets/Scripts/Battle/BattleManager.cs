@@ -116,6 +116,14 @@ public class BattleManager : MonoBehaviour
         arenaArtInstance = Instantiate(prefab);
         arenaArtInstance.name = prefab.name;
 
+        // Frame art authored on the Foreground layer (FG_1, FG_2, …) always renders in
+        // front of lobsters and obstacles, whatever order the prefab shipped with.
+        foreach (var r in arenaArtInstance.GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            if (r.sortingLayerName == DepthSort.Layer && r.sortingOrder < DepthSort.ArenaFrontOrderBase)
+                r.sortingOrder += DepthSort.ArenaFrontOrderBase;
+        }
+
         // The arena prefabs aren't authored around a common origin (Evolved bakes in
         // the camera's y=1 offset, Apex is centered at zero). Center the combined
         // sprite bounds on the camera so every arena fills the frame.

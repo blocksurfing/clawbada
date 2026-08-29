@@ -181,7 +181,11 @@ public class HexGrid : MonoBehaviour
             root.transform.SetParent(parent, false);
             root.transform.localScale = Vector3.one * (tileScale / parentScale);
             Vector3 anchor = GetWorldPosition(b.col, b.row);
-            root.transform.position = new Vector3(anchor.x, anchor.y + DepthSort.ObstacleDepthBias, 0f);
+            // World-upright like the lobsters: this HexGrid object is tilted 30° on X to
+            // foreshorten the board, and a sprite inheriting that tilt renders squashed
+            // and off the pixel grid (stray rows above sprites with point sampling).
+            root.transform.SetPositionAndRotation(
+                new Vector3(anchor.x, anchor.y + DepthSort.ObstacleDepthBias, 0f), Quaternion.identity);
 
             var group = root.AddComponent<UnityEngine.Rendering.SortingGroup>();
             group.sortingLayerName = DepthSort.Layer;

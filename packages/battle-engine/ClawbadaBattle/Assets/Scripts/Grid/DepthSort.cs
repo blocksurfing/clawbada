@@ -24,9 +24,14 @@ public static class DepthSort
     /// <summary>Sorting layer shared by every board actor.</summary>
     public const string Layer = "Foreground";
 
-    /// <summary>Sorting order shared by every board actor. Arena border silhouettes
-    /// sit at Foreground/0-1; actors must stay above them.</summary>
+    /// <summary>Sorting order shared by every board actor (lobsters, obstacles).</summary>
     public const int ActorOrder = 100;
+
+    /// <summary>Added to the sorting order of every arena-art renderer the designer put
+    /// on the Foreground sorting layer (FG_1, FG_2, …), so frame art — the plants and
+    /// rocks at the bottom edge — always draws in front of board actors. Relative order
+    /// between FG layers is preserved.</summary>
+    public const int ArenaFrontOrderBase = 200;
 
     /// <summary>Obstacles are nudged this far up the sort axis (farther from camera) so a
     /// character on the same row — identical feet Y — wins the tie and stays readable.
