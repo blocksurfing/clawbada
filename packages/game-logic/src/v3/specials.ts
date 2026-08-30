@@ -12,9 +12,7 @@ import {
   CRUSH_ENHANCED_BONUS,
   FORTIFY_REDUCTION,
   FORTIFY_TURNS,
-  HAUNT_ENHANCED_REDUCTION,
   HAUNT_ENHANCED_TURNS,
-  HAUNT_REDUCTION,
   HAUNT_TURNS,
   INFERNO_SELF_DAMAGE,
   INFERNO_SELF_DAMAGE_ENHANCED,
@@ -24,7 +22,6 @@ import {
   RALLY_HEAL_PCT,
   RALLY_SHIELD_REDUCTION,
   RALLY_SHIELD_TURNS,
-  REND_BLEED_PER_TURN,
   REND_TURNS,
   SPECIAL_RANGE,
 } from './constants';
@@ -36,6 +33,11 @@ export function specialTargetKind(cls: LobsterClass): 'none' | 'enemy' | 'ally' 
   if (cls === LobsterClass.Bulwark || cls === LobsterClass.Tempest) return 'none';
   if (cls === LobsterClass.Sentinel) return 'ally';
   return 'enemy';
+}
+
+/** Special base power under this battle's rules (spec table unless overridden). */
+export function specialPowerOf(state: AtbBattleState, cls: LobsterClass): bigint {
+  return state.rules.specialPower[cls] ?? SPECIAL_BASE_POWERS[cls];
 }
 
 export function specialInRange(actor: AtbLobster, target: AtbLobster): boolean {
@@ -57,7 +59,7 @@ export function resolveSpecial(
   isEnhanced: boolean,
   out: TurnResult,
 ): void {
-  const base = SPECIAL_BASE_POWERS[actor.class];
+  const base = specialPowerOf(state, actor.class);
   switch (actor.class) {
     case LobsterClass.Bulwark: {
       for (const ally of state.lobsters) {
@@ -101,7 +103,7 @@ export function resolveSpecial(
       const t = target!;
       applyIncomingDamage(state, actor, t, specialDamage(actor, t, base, seed), 'special', out);
       if (t.alive)
-        addStatus(t, { type: 'haunt', turns: isEnhanced ? HAUNT_ENHANCED_TURNS : HAUNT_TURNS, value: isEnhanced ? HAUNT_ENHANCED_REDUCTION : HAUNT_REDUCTION }, out);
+        addStatus(t, { type: 'haunt', turns: isEnhanced ? HAUNT_ENHANCED_TURNS : HAUNT_TURNS, value: state.rules.hauntReduction + (isEnhanced ? 100n : 0n) }, out);
       return;
     }
     case LobsterClass.Sentinel: {
@@ -118,7 +120,7 @@ export function resolveSpecial(
       const t = target!;
       applyIncomingDamage(state, actor, t, specialDamage(actor, t, base, seed), 'special', out);
       if (t.alive) {
-        const bleed = (REND_BLEED_PER_TURN * purityMult(actor)) / MULT_DENOM;
+        const bleed = (state.rules.rendBleedPerTurn * purityMult(actor)) / MULT_DENOM;
         addStatus(t, { type: 'bleed', turns: REND_TURNS, value: bleed, uncleansable: isEnhanced }, out);
       }
       return;
