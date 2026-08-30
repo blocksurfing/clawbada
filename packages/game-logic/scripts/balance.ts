@@ -55,21 +55,26 @@ say(`# Clawbada V3 balance report — tier=${tierName} bot=${botName} n=${N} HP_
 {
   const M = Math.max(10, Math.round(N / 40));
   const matrix: number[][] = Array.from({ length: 10 }, () => Array(10).fill(50));
+  const drawPct: number[][] = Array.from({ length: 10 }, () => Array(10).fill(0));
+  let totalDraws = 0, totalGames = 0;
   for (let x = 0; x < 10; x++) for (let y = 0; y < 10; y++) {
     if (x === y) continue;
-    let w = 0, g = 0;
+    let w = 0, d = 0, g = 0;
     for (let i = 0; i < M; i++) {
       const s = v3.createBattle({ battleId: `m${x}${y}${i}`, vrfSeed: BigInt(x * 1000 + y * 10 + i + 1) * 15485863n, tier: tierName, teamA: mk('A', [x, x, x], i), teamB: mk('B', [y, y, y], i) });
-      v3.runBattle(s, { A: bot, B: bot }); g++; if (s.winner === 'A') w++;
+      v3.runBattle(s, { A: bot, B: bot }); g++; if (s.winner === 'A') w++; else if (s.winner === 'draw') d++;
       const t = v3.createBattle({ battleId: `n${x}${y}${i}`, vrfSeed: BigInt(x * 1000 + y * 10 + i + 1) * 32452843n, tier: tierName, teamA: mk('A', [y, y, y], i), teamB: mk('B', [x, x, x], i) });
-      v3.runBattle(t, { A: bot, B: bot }); g++; if (t.winner === 'B') w++;
+      v3.runBattle(t, { A: bot, B: bot }); g++; if (t.winner === 'B') w++; else if (t.winner === 'draw') d++;
     }
     matrix[x][y] = Math.round(100 * w / g);
+    drawPct[x][y] = Math.round(100 * d / g);
+    totalDraws += d; totalGames += g;
   }
   say(); say(`## Mono-class head-to-head (row win % vs column, ${2 * M} battles per cell, sides swapped)`);
   say('Design: each class beats the next 4 in this order and loses to the previous 4; 5 apart is neutral.');
+  say(`Cells marked with * ended in a draw (100-turn cap, equal HP%) at least 25% of the time — a standoff, not a win for either side. Overall draws in this section: ${(100 * totalDraws / totalGames).toFixed(1)}%.`);
   say('| | ' + NAMES.map(n => n.slice(0, 4)).join(' | ') + ' | avg |'); say('|---|' + '---|'.repeat(11));
-  for (let x = 0; x < 10; x++) say(`| ${NAMES[x]} | ${matrix[x].map(v => String(v).padStart(3)).join(' | ')} | ${Math.round(matrix[x].filter((_, j) => j !== x).reduce((a, b) => a + b, 0) / 9)} |`);
+  for (let x = 0; x < 10; x++) say(`| ${NAMES[x]} | ${matrix[x].map((v, j) => (String(v).padStart(3) + (drawPct[x][j] >= 25 ? '*' : ' '))).join(' | ')} | ${Math.round(matrix[x].filter((_, j) => j !== x).reduce((a, b) => a + b, 0) / 9)} |`);
 }
 
 // 3) Bot vs bot (mirrored teams, sides swapped)
