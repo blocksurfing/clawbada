@@ -77,10 +77,17 @@ export function applyIncomingDamage(
     for (const s of target.statuses) if (s.type === 'fortify' || s.type === 'shield') dmg = (dmg * (MULT_DENOM - s.value)) / MULT_DENOM;
   }
   const blocked = amount - dmg;
+  const before = target.hp;
   dealDamage(target, dmg, kind, out, opts.isCrit);
+  if (source.team !== target.team) state.damageDealt[source.team] += before < dmg ? (before > 0n ? before : 0n) : dmg;
   if (!opts.raw && blocked > 0n && source.id !== target.id) {
     const reflect = target.statuses.find(s => s.type === 'reflect');
-    if (reflect && source.alive) dealDamage(source, (blocked * reflect.value) / MULT_DENOM, 'reflect', out);
+    if (reflect && source.alive) {
+      const r = (blocked * reflect.value) / MULT_DENOM;
+      const b2 = source.hp;
+      dealDamage(source, r, 'reflect', out);
+      if (source.team !== target.team) state.damageDealt[target.team] += b2 < r ? (b2 > 0n ? b2 : 0n) : r;
+    }
   }
   return dmg;
 }

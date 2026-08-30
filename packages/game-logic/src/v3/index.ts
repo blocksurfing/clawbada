@@ -13,3 +13,4 @@ export * from './turn';
 export * from './sim';
 export * from './log';
 export * from './bots';
+export * from './styles';

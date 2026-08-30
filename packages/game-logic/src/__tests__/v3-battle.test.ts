@@ -212,3 +212,31 @@ describe('full battles', () => {
     expect(state.winner).toBe('draw');
   });
 });
+
+describe('turn-cap tiebreaks', () => {
+  test('equal HP% at the cap → the team that dealt more damage wins; nothing dealt → draw', () => {
+    const state = mk(21n, [LobsterClass.Bulwark, LobsterClass.Bulwark, LobsterClass.Bulwark], [LobsterClass.Bulwark, LobsterClass.Bulwark, LobsterClass.Bulwark]);
+    state.turn = 99;
+    state.damageDealt.B = 40n;
+    applyTurn(state, { lobsterId: nextActor(state)!.id, action: 'none' });
+    expect(state.finished).toBe(true);
+    expect(state.winner).toBe('B');
+  });
+
+  test('damage tally credits attacks, counters and bleed to the right team', () => {
+    const state = mk(23n, [LobsterClass.Reaver, LobsterClass.Bulwark, LobsterClass.Bulwark], [LobsterClass.Bulwark, LobsterClass.Bulwark, LobsterClass.Bulwark], OPEN);
+    const reaver = state.lobsters.find(l => l.class === LobsterClass.Reaver)!;
+    const target = state.lobsters.find(l => l.team === 'B')!;
+    for (const l of state.lobsters) l.lastTick = 10_000_000n;
+    reaver.lastTick = -1n; reaver.charge = 3; reaver.pos = { col: 1, row: 2 }; target.pos = { col: 2, row: 2 }; target.defending = true;
+    const r = applyTurn(state, { lobsterId: reaver.id, action: 'special', targetId: target.id }); // Rend: no counter vs Special
+    const hit = r.damage.filter(d => d.kind === 'special').reduce((s, d) => s + d.amount, 0n);
+    expect(state.damageDealt.A).toBe(hit);
+    expect(state.damageDealt.B).toBe(0n);
+    // target's next turn: bleed ticks, credited to A
+    target.lastTick = -1n;
+    const before = state.damageDealt.A;
+    applyTurn(state, { lobsterId: target.id, action: 'defend' });
+    expect(state.damageDealt.A).toBeGreaterThan(before);
+  });
+});

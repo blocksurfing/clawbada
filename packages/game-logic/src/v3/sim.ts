@@ -10,7 +10,8 @@ import { LobsterClass } from '../types';
 import { nextActor } from './atb';
 import { hexDistance, type ArenaLayout, type HexPos } from './board';
 import { generateLayout } from './layout';
-import type { AtbBattleState, AtbLobster, LobsterInput, Team, TurnCommand, TurnResult } from './state';
+import type { AtbBattleState, AtbLobster, BattleRules, LobsterInput, Team, TurnCommand, TurnResult } from './state';
+import { FORTIFY_ENHANCED_REFLECT, FORTIFY_REFLECT_BASE } from './constants';
 import { applyTurn, attackTargets, canCastSpecial, legalMoves, specialTargets } from './turn';
 import { hasStatus } from './effects';
 import { specialTargetKind } from './specials';
@@ -30,7 +31,16 @@ export interface BattleConfig {
    * undefined for spec behaviour.
    */
   hpScale?: bigint;
+  /** Partial rule overrides for balance experiments (see BattleRules). */
+  rules?: Partial<BattleRules>;
 }
+
+export const DEFAULT_RULES: BattleRules = {
+  fortifyReflectBase: FORTIFY_REFLECT_BASE,
+  fortifyReflectEnhanced: FORTIFY_ENHANCED_REFLECT,
+  moveRange: {},
+  attackMult: {},
+};
 
 export function createBattle(cfg: BattleConfig): AtbBattleState {
   if (cfg.teamA.length !== 3 || cfg.teamB.length !== 3) throw new Error('Each team needs exactly 3 lobsters');
@@ -38,6 +48,8 @@ export function createBattle(cfg: BattleConfig): AtbBattleState {
   const make = (input: LobsterInput, team: Team, slot: number): AtbLobster => {
     const stats = scaleStats(getBaseStats(input.class), input.tier, !!input.legend);
     if (cfg.hpScale !== undefined) stats.hp = (stats.hp * cfg.hpScale) / HP_BATTLE_SCALE;
+    const am = cfg.rules?.attackMult?.[input.class];
+    if (am !== undefined) stats.attack = (stats.attack * am) / 1000n;
     const spawns = team === 'A' ? layout.teamASpawns : layout.teamBSpawns;
     return {
       id: input.id, team, slot, class: input.class, tier: input.tier, purity: input.purity, legend: !!input.legend,
@@ -48,7 +60,7 @@ export function createBattle(cfg: BattleConfig): AtbBattleState {
   const lobsters = [...cfg.teamA.map((l, i) => make(l, 'A', i)), ...cfg.teamB.map((l, i) => make(l, 'B', i))];
   const ids = new Set(lobsters.map(l => l.id));
   if (ids.size !== 6) throw new Error('Lobster ids must be unique');
-  return { battleId: cfg.battleId, vrfSeed: cfg.vrfSeed, layout, lobsters, turn: 0, tick: 0n, finished: false, winner: null, log: [] };
+  return { battleId: cfg.battleId, vrfSeed: cfg.vrfSeed, layout, rules: { ...DEFAULT_RULES, ...cfg.rules }, lobsters, damageDealt: { A: 0n, B: 0n }, turn: 0, tick: 0n, finished: false, winner: null, log: [] };
 }
 
 export type Policy = (state: AtbBattleState, actor: AtbLobster) => TurnCommand;

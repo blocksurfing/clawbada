@@ -51,11 +51,29 @@ export interface AtbLobster {
   tiebreak: bigint;
 }
 
+/**
+ * Tunable rule values. Defaults are the spec; overrides exist for headless
+ * balance experiments so a sweep never needs a code change.
+ */
+export interface BattleRules {
+  /** Fortify reflects this share (×1000) of blocked damage on every cast. Spec: 0 (enhanced-only). */
+  fortifyReflectBase: bigint;
+  /** Reflect share (×1000) when the enhanced proc fires. Spec: 200. */
+  fortifyReflectEnhanced: bigint;
+  /** Per-class movement range overrides (hexes). Spec: MOVE_RANGE table. */
+  moveRange: Partial<Record<LobsterClass, number>>;
+  /** Per-class attack multiplier overrides (×1000). Spec: none. */
+  attackMult: Partial<Record<LobsterClass, bigint>>;
+}
+
 export interface AtbBattleState {
   battleId: string;
   vrfSeed: bigint;
   layout: ArenaLayout;
+  rules: BattleRules;
   lobsters: AtbLobster[];
+  /** Damage dealt to the enemy team, per team — second tiebreak at the turn cap. */
+  damageDealt: Record<Team, bigint>;
   /** Total scheduled turns so far (including stunned skips). */
   turn: number;
   /** Tick of the most recent turn. */

@@ -70,6 +70,7 @@ export const SPECIAL_RANGE: Readonly<Record<LobsterClass, number>> = {
 // ──────────── Special effect tuning (durations in turns of the affected lobster) ────────────
 export const FORTIFY_REDUCTION = 400n; // -40% incoming (×1000)
 export const FORTIFY_TURNS = 2;
+export const FORTIFY_REFLECT_BASE = 0n; // spec: no reflect unless enhanced (×1000)
 export const FORTIFY_ENHANCED_REFLECT = 200n; // 20% of blocked damage reflected (×1000)
 export const HAUNT_REDUCTION = 200n; // -20% Atk/Armor (×1000)
 export const HAUNT_ENHANCED_REDUCTION = 300n;

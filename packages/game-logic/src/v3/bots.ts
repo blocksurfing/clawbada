@@ -21,12 +21,12 @@ import { calculateAttackDamage, calculateSpecialDamage, critChance, getClassAdva
 import { LobsterClass } from '../types';
 import { nextTick, tickDelta } from './atb';
 import { hexDistance, sameHex, type HexPos } from './board';
-import { ATTACK_MAX_RANGE, DISTANCE_MULT, FORTIFY_REDUCTION, HAUNT_REDUCTION, MOVE_RANGE, RALLY_HEAL_PCT, REND_BLEED_PER_TURN, REND_TURNS, SPECIAL_RANGE } from './constants';
+import { ATTACK_MAX_RANGE, DISTANCE_MULT, FORTIFY_REDUCTION, HAUNT_REDUCTION, RALLY_HEAL_PCT, REND_BLEED_PER_TURN, REND_TURNS, SPECIAL_RANGE } from './constants';
 import { effectiveStats, purityMult } from './effects';
 import { specialTargetKind } from './specials';
 import type { Policy } from './sim';
 import type { AtbBattleState, AtbLobster, TurnCommand } from './state';
-import { attackTargets, canCastSpecial, legalMoves, specialTargets } from './turn';
+import { attackTargets, canCastSpecial, legalMoves, moveRangeOf, specialTargets } from './turn';
 
 export interface BotWeights {
   /** Multiplier on damage/kill value. */
@@ -84,9 +84,10 @@ export function exposure(state: AtbBattleState, me: AtbLobster, pos: HexPos, def
   for (const e of state.lobsters) {
     if (!e.alive || e.team === me.team) continue;
     const d = hexDistance(e.pos, pos);
-    const reach = MOVE_RANGE[e.class] + ATTACK_MAX_RANGE;
+    const mr = moveRangeOf(state, e.class);
+    const reach = mr + ATTACK_MAX_RANGE;
     if (d > reach) continue;
-    const bestDist = Math.max(1, d - MOVE_RANGE[e.class]);
+    const bestDist = Math.max(1, d - mr);
     const probe = { ...me, pos, defending: false };
     let dmg = expectedAttack(e, probe, Math.min(bestDist, ATTACK_MAX_RANGE));
     // Charged Specials are the real threat.
@@ -179,22 +180,33 @@ function focusBonus(t: AtbLobster, dmg: number): number {
   return dmg * 0.3 * (1 - n(t.hp) / n(t.maxHp));
 }
 
-interface Candidate {
+export interface Candidate {
   cmd: TurnCommand;
   score: number;
 }
 
+/** Style hook: extra score (HP units) for a candidate — lets styles bias the shared evaluation. */
+export type Bias = (cmd: TurnCommand, ctx: { actor: AtbLobster; dest: HexPos; target: AtbLobster | null; exposure: number }) => number;
+
 /** Enumerate and score every legal turn for `actor`; returns the best. */
-export function chooseTurn(state: AtbBattleState, actor: AtbLobster, w: BotWeights): TurnCommand {
+export function chooseTurn(state: AtbBattleState, actor: AtbLobster, w: BotWeights, bias?: Bias): TurnCommand {
+  return rankTurns(state, actor, w, bias)[0].cmd;
+}
+
+/** All legal turns for `actor`, best first. */
+export function rankTurns(state: AtbBattleState, actor: AtbLobster, w: BotWeights, bias?: Bias): Candidate[] {
   const cells: HexPos[] = [actor.pos, ...legalMoves(state, actor)];
-  let best: Candidate | null = null;
-  const consider = (cmd: TurnCommand, score: number) => {
-    if (!best || score > best.score) best = { cmd, score };
+  const all: Candidate[] = [];
+  let posCtx: HexPos = actor.pos; let expCtx = 0;
+  const consider = (cmd: TurnCommand, score: number, target: AtbLobster | null = null) => {
+    if (bias) score += bias(cmd, { actor, dest: posCtx, target, exposure: expCtx });
+    all.push({ cmd, score });
   };
 
   for (const pos of cells) {
     const moveTo = sameHex(pos, actor.pos) ? undefined : pos;
     const exp = exposure(state, actor, pos, false);
+    posCtx = pos; expCtx = exp;
     const expDef = exposure(state, actor, pos, true);
     const nearest = nearestEnemyDistance(state, actor, pos);
     const positional = -w.approach * Math.max(0, nearest - w.standoff) - (nearest < w.standoff ? w.approach * 0.5 * (w.standoff - nearest) : 0);
@@ -208,7 +220,7 @@ export function chooseTurn(state: AtbBattleState, actor: AtbLobster, w: BotWeigh
       const kill = dmg >= n(t.hp) ? killBonus(t) : 0;
       // A defending, adjacent target counters — small deterrent.
       const counter = t.defending && hexDistance(pos, t.pos) === 1 ? outputPerTurn(t, actor) * 0.3 : 0;
-      consider({ lobsterId: actor.id, moveTo, action: 'attack', targetId: t.id }, (dmg + kill + focusBonus(t, dmg)) * w.aggression - counter - exp * exposurePenalty + positional);
+      consider({ lobsterId: actor.id, moveTo, action: 'attack', targetId: t.id }, (dmg + kill + focusBonus(t, dmg)) * w.aggression - counter - exp * exposurePenalty + positional, t);
     }
     // Specials
     if (canCastSpecial(actor)) {
@@ -219,7 +231,7 @@ export function chooseTurn(state: AtbBattleState, actor: AtbLobster, w: BotWeigh
       } else {
         for (const t of specialTargets(state, actor, pos)) {
           const v = specialValue(state, actor, t, pos, w);
-          if (v > 0) consider({ lobsterId: actor.id, moveTo, action: 'special', targetId: t.id }, v - exp * exposurePenalty + positional);
+          if (v > 0) consider({ lobsterId: actor.id, moveTo, action: 'special', targetId: t.id }, v - exp * exposurePenalty + positional, t);
         }
       }
     }
@@ -229,7 +241,8 @@ export function chooseTurn(state: AtbBattleState, actor: AtbLobster, w: BotWeigh
     // Move only / hold
     consider({ lobsterId: actor.id, moveTo, action: 'none' }, -exp * exposurePenalty + positional - 5);
   }
-  return best!.cmd;
+  // Stable order: higher score first; ties keep enumeration order (deterministic).
+  return all.map((c, i) => ({ c, i })).sort((a, b) => b.c.score - a.c.score || a.i - b.i).map(x => x.c);
 }
 
 export const aggressivePolicy: Policy = (state, actor) => chooseTurn(state, actor, BOT_WEIGHTS.aggressive);
@@ -241,3 +254,4 @@ export const BOTS: Record<string, Policy> = {
   balanced: balancedPolicy,
   cautious: cautiousPolicy,
 };
+// Strategy styles (charger/focus/roles/deep) are registered in styles.ts as STYLE_BOTS.
