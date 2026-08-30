@@ -11,7 +11,7 @@ import { nextActor } from './atb';
 import { hexDistance, type ArenaLayout, type HexPos } from './board';
 import { generateLayout } from './layout';
 import type { AtbBattleState, AtbLobster, BattleRules, LobsterInput, Team, TurnCommand, TurnResult } from './state';
-import { FORTIFY_ENHANCED_REFLECT, FORTIFY_REFLECT_BASE, SPECIAL_COST } from './constants';
+import { FORTIFY_ENHANCED_REFLECT, FORTIFY_REFLECT_BASE, HAUNT_REDUCTION, REND_BLEED_PER_TURN, SPECIAL_COST } from './constants';
 import { applyTurn, attackTargets, canCastSpecial, legalMoves, specialTargets } from './turn';
 import { hasStatus } from './effects';
 import { specialTargetKind } from './specials';
@@ -41,6 +41,9 @@ export const DEFAULT_RULES: BattleRules = {
   moveRange: {},
   attackMult: {},
   specialCost: SPECIAL_COST,
+  specialPower: {},
+  rendBleedPerTurn: REND_BLEED_PER_TURN,
+  hauntReduction: HAUNT_REDUCTION,
 };
 
 export function createBattle(cfg: BattleConfig): AtbBattleState {

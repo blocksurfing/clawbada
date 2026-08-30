@@ -21,9 +21,9 @@ import { calculateAttackDamage, calculateSpecialDamage, critChance, getClassAdva
 import { LobsterClass } from '../types';
 import { nextTick, tickDelta } from './atb';
 import { hexDistance, sameHex, type HexPos } from './board';
-import { ATTACK_MAX_RANGE, DISTANCE_MULT, FORTIFY_REDUCTION, HAUNT_REDUCTION, RALLY_HEAL_PCT, REND_BLEED_PER_TURN, REND_TURNS, SPECIAL_RANGE } from './constants';
+import { ATTACK_MAX_RANGE, DISTANCE_MULT, FORTIFY_REDUCTION, RALLY_HEAL_PCT, REND_TURNS, SPECIAL_RANGE } from './constants';
 import { effectiveStats, purityMult } from './effects';
-import { specialTargetKind } from './specials';
+import { specialPowerOf, specialTargetKind } from './specials';
 import type { Policy } from './sim';
 import type { AtbBattleState, AtbLobster, TurnCommand } from './state';
 import { attackTargets, canCastSpecial, legalMoves, moveRangeOf, specialTargets } from './turn';
@@ -91,8 +91,9 @@ export function exposure(state: AtbBattleState, me: AtbLobster, pos: HexPos, def
     const probe = { ...me, pos, defending: false };
     let dmg = expectedAttack(e, probe, Math.min(bestDist, ATTACK_MAX_RANGE));
     // Charged Specials are the real threat.
-    if (canCastSpecial(state, e) && SPECIAL_BASE_POWERS[e.class] > 0n && bestDist <= Math.max(1, SPECIAL_RANGE[e.class]))
-      dmg = Math.max(dmg, expectedSpecialDamage(e, probe, SPECIAL_BASE_POWERS[e.class]));
+    const power = specialPowerOf(state, e.class);
+    if (canCastSpecial(state, e) && power > 0n && bestDist <= Math.max(1, SPECIAL_RANGE[e.class]))
+      dmg = Math.max(dmg, expectedSpecialDamage(e, probe, power));
     const actsFirst = nextTick(e) < myNext;
     total += dmg * (actsFirst ? 1 : 0.4);
   }
@@ -106,7 +107,7 @@ function nearestEnemyDistance(state: AtbBattleState, me: AtbLobster, pos: HexPos
 }
 
 function specialValue(state: AtbBattleState, actor: AtbLobster, target: AtbLobster | null, pos: HexPos, w: BotWeights): number {
-  const power = SPECIAL_BASE_POWERS[actor.class];
+  const power = specialPowerOf(state, actor.class);
   switch (actor.class) {
     case LobsterClass.Bulwark: {
       // Fortify: 40% of what the team is about to take.
@@ -142,13 +143,13 @@ function specialValue(state: AtbBattleState, actor: AtbLobster, target: AtbLobst
     case LobsterClass.Specter: {
       const t = target!;
       const dmg = expectedSpecialDamage(actor, t, power);
-      const debuff = outputPerTurn(t, actor) * (n(HAUNT_REDUCTION) / 1000) * 3;
+      const debuff = outputPerTurn(t, actor) * (n(state.rules.hauntReduction) / 1000) * 3;
       return Math.min(dmg, n(t.hp)) * w.aggression + debuff + (dmg >= n(t.hp) ? killBonus(t) : 0);
     }
     case LobsterClass.Reaver: {
       const t = target!;
       const dmg = expectedSpecialDamage(actor, t, power);
-      const bleed = Math.min(n(REND_BLEED_PER_TURN * purityMult(actor) / 1000n) * REND_TURNS, Math.max(0, n(t.hp) - dmg)) * 0.8;
+      const bleed = Math.min(n(state.rules.rendBleedPerTurn * purityMult(actor) / 1000n) * REND_TURNS, Math.max(0, n(t.hp) - dmg)) * 0.8;
       return Math.min(dmg, n(t.hp)) * w.aggression + bleed + (dmg >= n(t.hp) ? killBonus(t) : 0);
     }
     case LobsterClass.Abyss: {

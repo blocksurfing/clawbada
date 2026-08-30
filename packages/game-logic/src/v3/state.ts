@@ -66,6 +66,12 @@ export interface BattleRules {
   attackMult: Partial<Record<LobsterClass, bigint>>;
   /** Charge needed to cast a Special (consumes all). Spec: 3. */
   specialCost: number;
+  /** Per-class Special base power overrides. Spec: SPECIAL_BASE_POWERS table. */
+  specialPower: Partial<Record<LobsterClass, bigint>>;
+  /** Rend bleed per target-turn (before purity). Spec: 40. */
+  rendBleedPerTurn: bigint;
+  /** Haunt Atk/Armor reduction ×1000 (enhanced adds +100). Spec: 200. */
+  hauntReduction: bigint;
 }
 
 export interface AtbBattleState {
