@@ -3,6 +3,7 @@
  * for the live engine alike: given full state and the acting lobster, return a
  * TurnCommand.
  */
+import { HP_BATTLE_SCALE } from '../constants';
 import { deriveRandom } from '../hash';
 import { getBaseStats, scaleStats } from '../battle-resolver';
 import { LobsterClass } from '../types';
@@ -22,6 +23,13 @@ export interface BattleConfig {
   teamB: LobsterInput[];
   /** Explicit layout (e.g. a designer-authored one); generated from the seed when omitted. */
   layout?: ArenaLayout;
+  /**
+   * BALANCE EXPERIMENT KNOB — battle HP multiplier applied instead of the
+   * resolver's HP_BATTLE_SCALE (5). Docs specify ×5; headless batches show that
+   * yields ~100-turn stalemates, so this exists to sweep alternatives. Leave
+   * undefined for spec behaviour.
+   */
+  hpScale?: bigint;
 }
 
 export function createBattle(cfg: BattleConfig): AtbBattleState {
@@ -29,6 +37,7 @@ export function createBattle(cfg: BattleConfig): AtbBattleState {
   const layout = cfg.layout ?? generateLayout(cfg.vrfSeed, cfg.tier);
   const make = (input: LobsterInput, team: Team, slot: number): AtbLobster => {
     const stats = scaleStats(getBaseStats(input.class), input.tier, !!input.legend);
+    if (cfg.hpScale !== undefined) stats.hp = (stats.hp * cfg.hpScale) / HP_BATTLE_SCALE;
     const spawns = team === 'A' ? layout.teamASpawns : layout.teamBSpawns;
     return {
       id: input.id, team, slot, class: input.class, tier: input.tier, purity: input.purity, legend: !!input.legend,
