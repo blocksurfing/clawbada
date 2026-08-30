@@ -19,7 +19,7 @@ const N = Number(opt('n', '1500'));
 const tierName = opt('tier', 'elite') as v3.ArenaLayout['tier'];
 const tier = { evolved: EvolutionTier.Evolved, elite: EvolutionTier.Elite, apex: EvolutionTier.Apex }[tierName];
 const botName = opt('bot', 'balanced');
-const bot = v3.BOTS[botName] ?? v3.greedyPolicy;
+const bot = v3.BOTS[botName] ?? v3.STYLE_BOTS[botName] ?? v3.greedyPolicy;
 const out = opt('out', '');
 const lines: string[] = [];
 const say = (s = '') => { lines.push(s); console.log(s); };
