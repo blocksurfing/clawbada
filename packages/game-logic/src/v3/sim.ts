@@ -65,6 +65,16 @@ export function createBattle(cfg: BattleConfig): AtbBattleState {
 
 export type Policy = (state: AtbBattleState, actor: AtbLobster) => TurnCommand;
 
+/** Deep copy of everything applyTurn mutates. Layout and rules are immutable and shared. */
+export function cloneBattleState(state: AtbBattleState): AtbBattleState {
+  return {
+    ...state,
+    damageDealt: { A: state.damageDealt.A, B: state.damageDealt.B },
+    lobsters: state.lobsters.map(l => ({ ...l, pos: { ...l.pos }, statuses: l.statuses.map(s => ({ ...s })) })),
+    log: state.log.slice(),
+  };
+}
+
 /** Run to completion (or `maxTurns`) with one policy per side. */
 export function runBattle(state: AtbBattleState, policies: Record<Team, Policy>, maxTurns = Infinity): TurnResult[] {
   const results: TurnResult[] = [];
