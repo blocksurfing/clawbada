@@ -79,7 +79,7 @@ export const HAUNT_ENHANCED_TURNS = 6;
 export const RALLY_HEAL_PCT = 300n; // 30% of max HP (×1000)
 export const RALLY_SHIELD_REDUCTION = 300n; // enhanced: -30% incoming for 1 turn
 export const RALLY_SHIELD_TURNS = 1;
-export const REND_BLEED_PER_TURN = 40n;
+export const REND_BLEED_PER_TURN = 55n; // 40→55 (2026-08-30 weak-Specials sweep); total = 70 hit + 6×55 bleed
 export const REND_TURNS = 6;
 export const MAELSTROM_SLOW = 200n; // enhanced: -20% speed (×1000)
 export const MAELSTROM_SLOW_TURNS = 2;
