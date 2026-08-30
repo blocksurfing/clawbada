@@ -91,7 +91,7 @@ export function exposure(state: AtbBattleState, me: AtbLobster, pos: HexPos, def
     const probe = { ...me, pos, defending: false };
     let dmg = expectedAttack(e, probe, Math.min(bestDist, ATTACK_MAX_RANGE));
     // Charged Specials are the real threat.
-    if (canCastSpecial(e) && SPECIAL_BASE_POWERS[e.class] > 0n && bestDist <= Math.max(1, SPECIAL_RANGE[e.class]))
+    if (canCastSpecial(state, e) && SPECIAL_BASE_POWERS[e.class] > 0n && bestDist <= Math.max(1, SPECIAL_RANGE[e.class]))
       dmg = Math.max(dmg, expectedSpecialDamage(e, probe, SPECIAL_BASE_POWERS[e.class]));
     const actsFirst = nextTick(e) < myNext;
     total += dmg * (actsFirst ? 1 : 0.4);
@@ -223,7 +223,7 @@ export function rankTurns(state: AtbBattleState, actor: AtbLobster, w: BotWeight
       consider({ lobsterId: actor.id, moveTo, action: 'attack', targetId: t.id }, (dmg + kill + focusBonus(t, dmg)) * w.aggression - counter - exp * exposurePenalty + positional, t);
     }
     // Specials
-    if (canCastSpecial(actor)) {
+    if (canCastSpecial(state, actor)) {
       const kind = specialTargetKind(actor.class);
       if (kind === 'none') {
         const v = specialValue(state, actor, null, pos, w);
@@ -236,7 +236,7 @@ export function rankTurns(state: AtbBattleState, actor: AtbLobster, w: BotWeight
       }
     }
     // Defend (also banks charge)
-    const chargeValue = actor.charge < 3 ? 15 : 0;
+    const chargeValue = actor.charge < state.rules.specialCost ? 15 : 0;
     consider({ lobsterId: actor.id, moveTo, action: 'defend' }, chargeValue - expDef * exposurePenalty + positional + (exp > 0 ? expDef * 0.3 : 0));
     // Move only / hold
     consider({ lobsterId: actor.id, moveTo, action: 'none' }, -exp * exposurePenalty + positional - 5);

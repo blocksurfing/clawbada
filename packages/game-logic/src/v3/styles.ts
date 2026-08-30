@@ -23,10 +23,11 @@ const n = (b: bigint) => Number(b);
 
 // ──────────── charger ────────────
 export const chargerPolicy: Policy = (state, actor) => {
+  const cost = state.rules.specialCost;
   const bias: Bias = (cmd, { actor: a }) => {
-    if (cmd.action === 'defend' && a.charge < 3) return 90; // bank charge unless a kill is on the table (kill bonus outweighs this)
+    if (cmd.action === 'defend' && a.charge < cost) return 90; // bank charge unless a kill is on the table (kill bonus outweighs this)
     if (cmd.action === 'special') return 120;
-    if (cmd.action === 'attack' && a.charge < 3) return -30;
+    if (cmd.action === 'attack' && a.charge < cost) return -30;
     return 0;
   };
   return chooseTurn(state, actor, BOT_WEIGHTS.balanced, bias);

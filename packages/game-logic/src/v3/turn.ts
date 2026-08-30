@@ -56,8 +56,8 @@ export function specialTargets(state: AtbBattleState, actor: AtbLobster, from: H
   return state.lobsters.filter(l => l.alive && (kind === 'enemy' ? l.team !== actor.team : l.team === actor.team) && specialInRange(probe, l));
 }
 
-export function canCastSpecial(actor: AtbLobster): boolean {
-  return actor.charge >= SPECIAL_COST;
+export function canCastSpecial(state: AtbBattleState, actor: AtbLobster): boolean {
+  return actor.charge >= state.rules.specialCost;
 }
 
 interface Validated {
@@ -99,7 +99,7 @@ function validateTurnFor(state: AtbBattleState, actor: AtbLobster, cmd: TurnComm
       break;
     }
     case 'special': {
-      if (!canCastSpecial(actor)) throw new TurnError('no_charge', `${actor.id} needs ${SPECIAL_COST} charge`);
+      if (!canCastSpecial(state, actor)) throw new TurnError('no_charge', `${actor.id} needs ${state.rules.specialCost} charge`);
       const kind = specialTargetKind(actor.class);
       if (kind === 'none') break;
       if (!cmd.targetId) throw new TurnError('missing_target', 'Special needs a target');

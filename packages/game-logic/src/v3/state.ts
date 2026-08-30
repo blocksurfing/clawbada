@@ -64,6 +64,8 @@ export interface BattleRules {
   moveRange: Partial<Record<LobsterClass, number>>;
   /** Per-class attack multiplier overrides (×1000). Spec: none. */
   attackMult: Partial<Record<LobsterClass, bigint>>;
+  /** Charge needed to cast a Special (consumes all). Spec: 3. */
+  specialCost: number;
 }
 
 export interface AtbBattleState {

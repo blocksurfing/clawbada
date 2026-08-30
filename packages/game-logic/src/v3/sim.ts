@@ -11,7 +11,7 @@ import { nextActor } from './atb';
 import { hexDistance, type ArenaLayout, type HexPos } from './board';
 import { generateLayout } from './layout';
 import type { AtbBattleState, AtbLobster, BattleRules, LobsterInput, Team, TurnCommand, TurnResult } from './state';
-import { FORTIFY_ENHANCED_REFLECT, FORTIFY_REFLECT_BASE } from './constants';
+import { FORTIFY_ENHANCED_REFLECT, FORTIFY_REFLECT_BASE, SPECIAL_COST } from './constants';
 import { applyTurn, attackTargets, canCastSpecial, legalMoves, specialTargets } from './turn';
 import { hasStatus } from './effects';
 import { specialTargetKind } from './specials';
@@ -40,6 +40,7 @@ export const DEFAULT_RULES: BattleRules = {
   fortifyReflectEnhanced: FORTIFY_ENHANCED_REFLECT,
   moveRange: {},
   attackMult: {},
+  specialCost: SPECIAL_COST,
 };
 
 export function createBattle(cfg: BattleConfig): AtbBattleState {
@@ -122,7 +123,7 @@ export const greedyPolicy: Policy = (state, actor) => {
   }
   const moveTo = dest === actor.pos ? undefined : dest;
 
-  if (canCastSpecial(actor)) {
+  if (canCastSpecial(state, actor)) {
     const kind = specialTargetKind(actor.class);
     if (kind === 'none') {
       // Fortify always useful; Maelstrom only if it hits someone.
