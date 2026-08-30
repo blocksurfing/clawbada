@@ -111,11 +111,11 @@ export const SPECIAL_BASE_POWERS = [
   0n, // Bulwark — Fortify (utility, no damage)
   150n, // Mantis — Ambush
   180n, // Leviathan — Crush
-  90n, // Tempest — Maelstrom (AoE)
+  120n, // Tempest — Maelstrom (AoE) — 90→120 (2026-08-30 weak-Specials sweep)
   60n, // Specter — Haunt (debuff)
   0n, // Sentinel — Rally (heal, no damage)
   70n, // Reaver — Rend (DoT)
-  120n, // Abyss — Devour (drain)
+  150n, // Abyss — Devour (drain) — 120→150 (2026-08-30 weak-Specials sweep)
   60n, // Kraken — Bind (CC)
   200n, // Ember — Inferno (nuke)
 ] as const;
