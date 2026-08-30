@@ -17,7 +17,7 @@ export function canonicalState(state: AtbBattleState): string {
       stunImmunity: l.stunImmunity,
       statuses: l.statuses.map(s => ({ t: s.type, n: s.turns, v: s.value.toString(), u: !!s.uncleansable, s: s.since })),
     }));
-  return JSON.stringify({ turn: state.turn, tick: state.tick.toString(), finished: state.finished, winner: state.winner, dmg: { A: state.damageDealt.A.toString(), B: state.damageDealt.B.toString() }, rules: { r0: state.rules.fortifyReflectBase.toString(), r1: state.rules.fortifyReflectEnhanced.toString(), mv: state.rules.moveRange, am: Object.fromEntries(Object.entries(state.rules.attackMult).map(([k, v]) => [k, String(v)])) }, lobsters });
+  return JSON.stringify({ turn: state.turn, tick: state.tick.toString(), finished: state.finished, winner: state.winner, dmg: { A: state.damageDealt.A.toString(), B: state.damageDealt.B.toString() }, rules: { r0: state.rules.fortifyReflectBase.toString(), r1: state.rules.fortifyReflectEnhanced.toString(), sc: state.rules.specialCost, mv: state.rules.moveRange, am: Object.fromEntries(Object.entries(state.rules.attackMult).map(([k, v]) => [k, String(v)])) }, lobsters });
 }
 
 /** keccak256 of the canonical state, hex-encoded (matches on-chain hashing of the same bytes). */

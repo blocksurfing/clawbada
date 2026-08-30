@@ -38,6 +38,6 @@ describe('strategy styles', () => {
     const bul = s.lobsters.find(l => l.class === LobsterClass.Bulwark)!;
     expect(v3.moveRangeOf(s, LobsterClass.Bulwark)).toBe(2);
     expect(v3.legalMoves(s, bul).some(c => v3.hexDistance(c, bul.pos) === 2)).toBe(true);
-    expect(bul.stats.attack).toBe((70n * 1400n / 1000n) * 1300n / 1000n);
+    expect(bul.stats.attack).toBe((100n * 1400n / 1000n) * 1300n / 1000n);
   });
 });

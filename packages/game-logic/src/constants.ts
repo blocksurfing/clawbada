@@ -122,7 +122,7 @@ export const SPECIAL_BASE_POWERS = [
 
 // ──────────── Base Stats [HP, Atk, Armor, Spd, Crit] ────────────
 export const BASE_STATS: readonly [bigint, bigint, bigint, bigint, bigint][] = [
-  [700n, 70n, 120n, 80n, 90n], // Bulwark
+  [700n, 100n, 120n, 80n, 90n], // Bulwark — Atk 70→100 (2026-08-30 balance: at 70 it could not threaten its designed prey; sweep in docs/_generated or session notes)
   [375n, 100n, 70n, 130n, 125n], // Mantis
   [600n, 130n, 100n, 70n, 80n], // Leviathan
   [450n, 110n, 80n, 105n, 115n], // Tempest
