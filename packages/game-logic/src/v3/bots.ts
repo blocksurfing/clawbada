@@ -40,9 +40,12 @@ export interface BotWeights {
 }
 
 export const BOT_WEIGHTS: Record<'aggressive' | 'balanced' | 'cautious', BotWeights> = {
-  aggressive: { aggression: 1.3, caution: 0.35, standoff: 1, approach: 40 },
-  balanced: { aggression: 1.0, caution: 0.7, standoff: 1, approach: 25 },
-  cautious: { aggression: 0.8, caution: 1.3, standoff: 2, approach: 12 },
+  // Tuned 2026-08-30 against headless batches: turtling loses in this ruleset,
+  // so the default ("balanced") leans aggressive; "cautious" is kept as a
+  // deliberately passive archetype for comparison runs, not as a strong player.
+  aggressive: { aggression: 1.4, caution: 0.25, standoff: 1, approach: 45 },
+  balanced: { aggression: 1.2, caution: 0.4, standoff: 1, approach: 35 },
+  cautious: { aggression: 0.8, caution: 1.0, standoff: 2, approach: 15 },
 };
 
 const n = (b: bigint) => Number(b);

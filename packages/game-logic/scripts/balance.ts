@@ -45,7 +45,7 @@ say(`# Clawbada V3 balance report — tier=${tierName} bot=${botName} n=${N} HP_
   }
   turns.sort((x, y) => x - y);
   say(); say(`## Pacing (mixed random teams, ${N} battles)`);
-  say(`median ${turns[N >> 1]} turns · p10 ${turns[Math.floor(N * 0.1)]} · p90 ${turns[Math.floor(N * 0.9)]} · hit 100-turn cap ${pct(capped, N)}% · draws ${draws} · side A wins ${pct(aWins, N)}% · Specials ${pct(specials, actions)}% of actions`);
+  say(`median ${turns[N >> 1]} turns · p10 ${turns[Math.floor(N * 0.1)]} · p90 ${turns[Math.floor(N * 0.9)]} · hit 100-turn cap ${pct(capped, N)}% · draws ${draws} · side A wins ${pct(aWins, N)}% (compositions differ per side — not a side-bias measure; see mirrored bot table) · Specials ${pct(specials, actions)}% of actions`);
   say(); say(`## Class win rate when on your team (mixed teams)`);
   say('| Class | Win % | Games |'); say('|---|---|---|');
   for (const c of [...Array(10).keys()].sort((x, y) => wins[y] / games[y] - wins[x] / games[x])) say(`| ${NAMES[c]} | ${pct(wins[c], games[c])} | ${games[c]} |`);
