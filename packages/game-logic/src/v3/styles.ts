@@ -15,7 +15,7 @@ import { nextActor } from './atb';
 import { hexDistance, type HexPos } from './board';
 import { hasStatus } from './effects';
 import { BOT_WEIGHTS, chooseTurn, rankTurns, type Bias, type BotWeights } from './bots';
-import type { Policy } from './sim';
+import { cloneBattleState, type Policy } from './sim';
 import type { AtbBattleState, AtbLobster, TurnCommand } from './state';
 import { applyTurn } from './turn';
 
@@ -110,8 +110,9 @@ function evaluate(state: AtbBattleState, team: AtbLobster['team']): number {
 }
 
 function cloneState(state: AtbBattleState): AtbBattleState {
-  // structuredClone handles bigint; hide the true VRF stream so the search can't peek at real rolls.
-  const c = structuredClone(state);
+  // Explicit copy (Bun's structuredClone fails on 256-bit bigints); mask the true
+  // VRF stream so the search cannot peek at real rolls.
+  const c = cloneBattleState(state);
   c.vrfSeed = deriveRandom(state.vrfSeed, `lookahead_${state.turn}`);
   return c;
 }
