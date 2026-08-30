@@ -12,3 +12,4 @@ export * from './specials';
 export * from './turn';
 export * from './sim';
 export * from './log';
+export * from './bots';
