@@ -5,7 +5,7 @@
  * it deterministically simulates combat — same inputs always produce the same outputs.
  *
  * Battle flow:
- *   1. Init: scale stats (tier + legend applied, HP ×5)
+ *   1. Init: scale stats (tier + legend applied, HP × HP_BATTLE_SCALE)
  *   2. Each round: tick status effects → validate moves → resolve in speed order → check win
  *   3. Settlement: determine winner, calculate damage points for repair
  */
@@ -82,7 +82,7 @@ export interface FullBattleResult {
 /**
  * Initialize a battle state from two teams of Lobster data.
  *
- * Scales stats (evolution tier + legend + HP ×5) and sets initial state.
+ * Scales stats (evolution tier + legend + HP × HP_BATTLE_SCALE) and sets initial state.
  */
 export function initBattle(teamA: Lobster[], teamB: Lobster[], vrfSeed: bigint): BattleState {
   if (teamA.length !== 3 || teamB.length !== 3) {
