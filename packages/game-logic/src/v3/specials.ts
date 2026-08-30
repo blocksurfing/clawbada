@@ -10,7 +10,6 @@ import { hexDistance } from './board';
 import {
   BIND_STUN_TURNS,
   CRUSH_ENHANCED_BONUS,
-  FORTIFY_ENHANCED_REFLECT,
   FORTIFY_REDUCTION,
   FORTIFY_TURNS,
   HAUNT_ENHANCED_REDUCTION,
@@ -64,7 +63,8 @@ export function resolveSpecial(
       for (const ally of state.lobsters) {
         if (ally.team !== actor.team || !ally.alive) continue;
         addStatus(ally, { type: 'fortify', turns: FORTIFY_TURNS, value: FORTIFY_REDUCTION }, out);
-        if (isEnhanced) addStatus(ally, { type: 'reflect', turns: FORTIFY_TURNS, value: FORTIFY_ENHANCED_REFLECT }, out);
+        const reflect = isEnhanced ? state.rules.fortifyReflectEnhanced : state.rules.fortifyReflectBase;
+        if (reflect > 0n) addStatus(ally, { type: 'reflect', turns: FORTIFY_TURNS, value: reflect }, out);
       }
       return;
     }

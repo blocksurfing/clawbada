@@ -34,8 +34,13 @@ export function occupiedBy(state: AtbBattleState, except?: AtbLobster): HexPos[]
   return state.lobsters.filter(l => l.alive && l !== except).map(l => l.pos);
 }
 
+/** Movement range for a class under this battle's rules (spec table unless overridden). */
+export function moveRangeOf(state: AtbBattleState, cls: AtbLobster['class']): number {
+  return state.rules.moveRange[cls] ?? MOVE_RANGE[cls];
+}
+
 export function legalMoves(state: AtbBattleState, actor: AtbLobster): HexPos[] {
-  return reachableCells(state.layout, actor.pos, MOVE_RANGE[actor.class], occupiedBy(state, actor));
+  return reachableCells(state.layout, actor.pos, moveRangeOf(state, actor.class), occupiedBy(state, actor));
 }
 
 /** Enemies attackable from `from` (distance 1–3). */
@@ -145,8 +150,13 @@ export function applyTurn(state: AtbBattleState, cmd: TurnCommand | null): TurnR
   const out = newResult(state, actor, tick);
   const seed = turnSeed(state);
 
-  // Start of turn: bleed.
-  for (const s of actor.statuses) if (s.type === 'bleed' && actor.alive) dealDamage(actor, s.value, 'bleed', out);
+  // Start of turn: bleed (credited to the enemy team — only enemies inflict it).
+  for (const s of actor.statuses)
+    if (s.type === 'bleed' && actor.alive) {
+      const before = actor.hp;
+      dealDamage(actor, s.value, 'bleed', out);
+      state.damageDealt[actor.team === 'A' ? 'B' : 'A'] += before < s.value ? before : s.value;
+    }
 
   let logAction: TurnCommand['action'] | 'skip' = 'skip';
   let logMove: HexPos | undefined;
@@ -250,7 +260,11 @@ function checkWin(state: AtbBattleState): void {
   }
   if (state.turn >= MAX_TURNS) {
     state.finished = true;
+    // Tiebreaks at the cap: remaining HP%, then damage dealt (so a passive team
+    // cannot secure a draw by refusing to engage), then draw.
     const a = hpPercent(state, 'A'), b = hpPercent(state, 'B');
-    state.winner = a > b ? 'A' : b > a ? 'B' : 'draw';
+    if (a !== b) state.winner = a > b ? 'A' : 'B';
+    else if (state.damageDealt.A !== state.damageDealt.B) state.winner = state.damageDealt.A > state.damageDealt.B ? 'A' : 'B';
+    else state.winner = 'draw';
   }
 }
