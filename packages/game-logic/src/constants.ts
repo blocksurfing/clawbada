@@ -22,7 +22,7 @@ export const VRF_MAX = 1150n;
 export const VRF_RANGE = 300n;
 
 // ──────────── HP Scaling ────────────
-export const HP_BATTLE_SCALE = 5n;
+export const HP_BATTLE_SCALE = 1n; // was 5n (V2 round pacing); ×1 per 2026-08-29 headless pacing sweep — see docs/gitbook/battle.md
 
 // ──────────── Evolution Tier Multipliers (×1000) ────────────
 export const TIER_MULT_BASE = 1000n;
