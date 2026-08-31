@@ -61,11 +61,11 @@ const rebuild = () => {
 };
 rebuild();
 const BR_THRESHOLD = 0.55, MAX_ADD = 12;
-let mix = v3.replicator(W);
+let mix = v3.replicatorAverage(W);
 const trajectory: string[] = [];
 let bestOutside = 0; let bestOutsideComp = -1;
 for (let round = 0; round <= MAX_ADD; round++) {
-  mix = v3.replicator(W);
+  mix = v3.replicatorAverage(W);
   const inMenu = [...mix.keys()].filter(i => mix[i] >= 0.02).sort((a, b) => mix[b] - mix[a]).slice(0, 8);
   const wSum = inMenu.reduce((s, i) => s + mix[i], 0);
   bestOutside = 0; bestOutsideComp = -1;

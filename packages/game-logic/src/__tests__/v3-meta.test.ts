@@ -43,3 +43,27 @@ describe('comp-meta analysis pieces', () => {
     expect(r1).toBeLessThan(0.85);
   });
 });
+
+describe('time-averaged replicator', () => {
+  test('averages to uniform on rock-paper-scissors instead of orbiting', () => {
+    const W = [
+      [0.5, 1.0, 0.0],
+      [0.0, 0.5, 1.0],
+      [1.0, 0.0, 0.5],
+    ];
+    const mix = v3.replicatorAverage(W, 20000, 2000);
+    for (const p of mix) expect(Math.abs(p - 1 / 3)).toBeLessThan(0.06);
+    const pay = v3.payoffsVsMix(W, mix);
+    expect(Math.max(...pay)).toBeLessThan(0.56); // near-unexploitable
+  });
+
+  test('still collapses onto a dominant strategy', () => {
+    const W = [
+      [0.5, 0.8, 0.8],
+      [0.2, 0.5, 0.6],
+      [0.2, 0.4, 0.5],
+    ];
+    const mix = v3.replicatorAverage(W, 20000, 2000);
+    expect(mix[0]).toBeGreaterThan(0.9);
+  });
+});
