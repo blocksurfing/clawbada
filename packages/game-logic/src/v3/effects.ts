@@ -75,6 +75,11 @@ export function applyIncomingDamage(
   if (!opts.raw) {
     if (target.defending && !opts.pierceDefend) dmg = (dmg * DEFEND_REDUCTION_BPS) / 10_000n;
     for (const s of target.statuses) if (s.type === 'fortify' || s.type === 'shield') dmg = (dmg * (MULT_DENOM - s.value)) / MULT_DENOM;
+    // Spectral dodge: the first direct hit each turn window is reduced (per-class experiment knob).
+    if ((kind === 'attack' || kind === 'special') && target.recentHits === 0) {
+      const fh = state.rules.firstHitReduction[target.class];
+      if (fh !== undefined && fh > 0n) dmg = (dmg * (MULT_DENOM - fh)) / MULT_DENOM;
+    }
     // Focus falloff: repeated direct hits inside the target's turn window decay, floored at 40%.
     if ((kind === 'attack' || kind === 'special') && state.rules.focusFalloffBps > 0n && target.recentHits > 0) {
       let bps = 10_000n - state.rules.focusFalloffBps * BigInt(target.recentHits);

@@ -13,7 +13,7 @@ import { deriveRandom, deriveVrfRoll, randomBool } from '../hash';
 import { calculateAttackDamage, calculateDefendCounter, critChance, enhancedProcChance, getClassAdvantage } from '../battle-resolver';
 import { nextActor, nextTick, projectBar } from './atb';
 import { hexDistance, reachableCells, sameHex, shortestPath, type HexPos } from './board';
-import { ATTACK_MAX_RANGE, CHARGE_CAP, CHARGE_PER_TURN, DEFEND_BONUS_CHARGE, DISTANCE_MULT, MAX_TURNS, MOVE_RANGE, SPECIAL_COST, STUN_IMMUNITY_TURNS } from './constants';
+import { ATTACK_MAX_RANGE, CHARGE_CAP, CHARGE_PER_TURN, DEFEND_BONUS_CHARGE, DISTANCE_MULT, DISTANCE_MULT_LONG, MAX_TURNS, MOVE_RANGE, SPECIAL_COST, STUN_IMMUNITY_TURNS } from './constants';
 import { applyIncomingDamage, dealDamage, effectiveStats, findLobster, hasStatus } from './effects';
 import { hashState } from './log';
 import { resolveSpecial, specialInRange, specialTargetKind } from './specials';
@@ -39,6 +39,17 @@ export function moveRangeOf(state: AtbBattleState, cls: AtbLobster['class']): nu
   return state.rules.moveRange[cls] ?? MOVE_RANGE[cls];
 }
 
+/** Max attack range for a class under this battle's rules (spec: 3). */
+export function attackRangeOf(state: AtbBattleState, cls: AtbLobster['class']): number {
+  return state.rules.attackRange[cls] ?? ATTACK_MAX_RANGE;
+}
+
+/** Distance multiplier (×1000) for an attack by `cls` at `dist`; 0 = out of range. */
+export function attackDistanceMult(state: AtbBattleState, cls: AtbLobster['class'], dist: number): bigint {
+  if (dist > attackRangeOf(state, cls)) return 0n;
+  return DISTANCE_MULT[dist] ?? DISTANCE_MULT_LONG;
+}
+
 export function legalMoves(state: AtbBattleState, actor: AtbLobster): HexPos[] {
   return reachableCells(state.layout, actor.pos, moveRangeOf(state, actor.class), occupiedBy(state, actor));
 }
@@ -52,7 +63,8 @@ export function tauntersAdjacent(state: AtbBattleState, actor: AtbLobster, from:
 export function attackTargets(state: AtbBattleState, actor: AtbLobster, from: HexPos = actor.pos): AtbLobster[] {
   const taunters = tauntersAdjacent(state, actor, from);
   if (taunters.length > 0) return taunters;
-  return state.lobsters.filter(l => l.alive && l.team !== actor.team && hexDistance(from, l.pos) <= ATTACK_MAX_RANGE);
+  const range = attackRangeOf(state, actor.class);
+  return state.lobsters.filter(l => l.alive && l.team !== actor.team && hexDistance(from, l.pos) <= range);
 }
 
 /** Legal Special targets from `from`; for targetless Specials returns [] (cast is still legal if charged). */
@@ -105,7 +117,7 @@ function validateTurnFor(state: AtbBattleState, actor: AtbLobster, cmd: TurnComm
       if (!cmd.targetId) throw new TurnError('missing_target', 'Attack needs a target');
       const t = findLobster(state, cmd.targetId);
       if (!t || !t.alive || t.team === actor.team) throw new TurnError('bad_target', 'Attack target must be a living enemy');
-      if (hexDistance(dest, t.pos) > ATTACK_MAX_RANGE) throw new TurnError('out_of_range', `${t.id} is out of attack range`);
+      if (hexDistance(dest, t.pos) > attackRangeOf(state, actor.class)) throw new TurnError('out_of_range', `${t.id} is out of attack range`);
       if (!attackTargets(state, actor, dest).some(x => x.id === t.id)) throw new TurnError('taunted', `${actor.id} must target an adjacent taunting enemy`);
       target = t;
       break;
@@ -243,7 +255,7 @@ function resolveAttack(state: AtbBattleState, actor: AtbLobster, target: AtbLobs
   const dist = hexDistance(actor.pos, target.pos);
   const isCrit = randomBool(seed, 'crit', critChance(a.critical), 10_000n);
   const base = calculateAttackDamage(a.attack, t.armor, getClassAdvantage(actor.class, target.class), isCrit, deriveVrfRoll(seed, 'atk_vrf'));
-  let dmg = (base * (DISTANCE_MULT[dist] ?? 0n)) / MULT_DENOM;
+  let dmg = (base * attackDistanceMult(state, actor.class, dist)) / MULT_DENOM;
   // Guard penalty: shooting past an adjacent enemy frontliner is punished.
   if (state.rules.guardPenaltyBps > 0n && dist >= 2 && state.lobsters.some(l => l.alive && l.team !== actor.team && hexDistance(actor.pos, l.pos) === 1))
     dmg = (dmg * (10_000n - state.rules.guardPenaltyBps)) / 10_000n;

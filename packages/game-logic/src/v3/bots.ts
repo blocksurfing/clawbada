@@ -26,7 +26,7 @@ import { effectiveStats, purityMult } from './effects';
 import { specialPowerOf, specialTargetKind } from './specials';
 import type { Policy } from './sim';
 import type { AtbBattleState, AtbLobster, TurnCommand } from './state';
-import { attackTargets, canCastSpecial, legalMoves, moveRangeOf, specialTargets } from './turn';
+import { attackDistanceMult, attackRangeOf, attackTargets, canCastSpecial, legalMoves, moveRangeOf, specialTargets } from './turn';
 
 export interface BotWeights {
   /** Multiplier on damage/kill value. */
@@ -52,8 +52,8 @@ const n = (b: bigint) => Number(b);
 
 /** Expected Attack damage (mean VRF, crit expectation, distance falloff), capped at target HP. */
 export function expectedAttack(actor: AtbLobster, target: AtbLobster, dist: number, state?: AtbBattleState): number {
-  const mult = DISTANCE_MULT[dist];
-  if (mult === undefined) return 0;
+  const mult = state ? attackDistanceMult(state, actor.class, dist) : DISTANCE_MULT[dist] ?? 0n;
+  if (mult === 0n) return 0;
   const a = effectiveStats(actor), t = effectiveStats(target);
   const base = n(calculateAttackDamage(a.attack, t.armor, getClassAdvantage(actor.class, target.class), false, 1000n));
   const pCrit = n(critChance(a.critical)) / 10_000;
@@ -62,6 +62,10 @@ export function expectedAttack(actor: AtbLobster, target: AtbLobster, dist: numb
   for (const s of target.statuses) if (s.type === 'fortify' || s.type === 'shield') dmg *= 1 - n(s.value) / 1000;
   if (state && state.rules.focusFalloffBps > 0n && target.recentHits > 0)
     dmg *= Math.max(0.4, 1 - (n(state.rules.focusFalloffBps) / 10_000) * target.recentHits);
+  if (state && target.recentHits === 0) {
+    const fh = state.rules.firstHitReduction[target.class];
+    if (fh !== undefined && fh > 0n) dmg *= 1 - n(fh) / 1000;
+  }
   return Math.min(dmg, n(target.hp));
 }
 
@@ -87,11 +91,12 @@ export function exposure(state: AtbBattleState, me: AtbLobster, pos: HexPos, def
     if (!e.alive || e.team === me.team) continue;
     const d = hexDistance(e.pos, pos);
     const mr = moveRangeOf(state, e.class);
-    const reach = mr + ATTACK_MAX_RANGE;
+    const ar = attackRangeOf(state, e.class);
+    const reach = mr + ar;
     if (d > reach) continue;
     const bestDist = Math.max(1, d - mr);
     const probe = { ...me, pos, defending: false };
-    let dmg = expectedAttack(e, probe, Math.min(bestDist, ATTACK_MAX_RANGE), state);
+    let dmg = expectedAttack(e, probe, Math.min(bestDist, ar), state);
     // Charged Specials are the real threat.
     const power = specialPowerOf(state, e.class);
     if (canCastSpecial(state, e) && power > 0n && bestDist <= Math.max(1, SPECIAL_RANGE[e.class]))

@@ -84,3 +84,38 @@ describe('anti-focus mechanics (default-off rule knobs)', () => {
     expect(run()).toBe(run({ fortifyTaunt: false, focusFalloffBps: 0n, guardPenaltyBps: 0n }));
   });
 });
+
+describe('Specter prototype knobs', () => {
+  test('attackRange override: range-4 shot is legal and uses the long-shot multiplier', () => {
+    const s = setup({ attackRange: { [S]: 4 } });
+    const spec = s.lobsters.find(l => l.id === 'B1')!;
+    const m = s.lobsters.find(l => l.id === 'A0')!;
+    spec.pos = { col: 1, row: 2 }; m.pos = { col: 5, row: 2 };
+    spec.lastTick = -1n;
+    const r = v3.applyTurn(s, { lobsterId: spec.id, action: 'attack', targetId: m.id });
+    expect(r.damage[0].amount).toBeGreaterThan(0n);
+    // and a non-overridden class still cannot shoot at 4
+    const s2 = setup({ attackRange: { [S]: 4 } });
+    const m2 = s2.lobsters.find(l => l.id === 'A0')!; const spec2 = s2.lobsters.find(l => l.id === 'B1')!;
+    m2.pos = { col: 1, row: 2 }; spec2.pos = { col: 5, row: 2 }; m2.lastTick = -1n;
+    expect(() => v3.applyTurn(s2, { lobsterId: m2.id, action: 'attack', targetId: spec2.id })).toThrow(/out of attack range/);
+  });
+
+  test('firstHitReduction: first hit each window reduced, second hit full', () => {
+    const run = (rules: Partial<v3.BattleRules>) => {
+      const s = setup(rules);
+      const a0 = s.lobsters.find(l => l.id === 'A0')!, a1 = s.lobsters.find(l => l.id === 'A1')!;
+      const spec = s.lobsters.find(l => l.id === 'B1')!;
+      a0.pos = { col: 2, row: 2 }; a1.pos = { col: 2, row: 1 }; spec.pos = { col: 3, row: 2 };
+      a0.lastTick = -2n;
+      const r1 = v3.applyTurn(s, { lobsterId: a0.id, action: 'attack', targetId: spec.id });
+      a1.lastTick = -1n;
+      const r2 = v3.applyTurn(s, { lobsterId: a1.id, action: 'attack', targetId: spec.id });
+      return { first: r1.damage[0].amount, second: r2.damage[0].amount };
+    };
+    const off = run({});
+    const on = run({ firstHitReduction: { [S]: 300n } });
+    expect(on.first).toBe((off.first * 700n) / 1000n);
+    expect(on.second).toBe(off.second); // window already opened — full damage
+  });
+});
