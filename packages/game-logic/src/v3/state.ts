@@ -82,6 +82,8 @@ export interface BattleRules {
   focusFalloffBps: bigint;
   /** Ranged attacks (distance ≥2) made while an enemy is adjacent to the attacker lose this much (bps). */
   guardPenaltyBps: bigint;
+  /** Rally heal as ‰ of the ally's max HP (before purity). Spec: 300. */
+  rallyHealPct: bigint;
 }
 
 export interface AtbBattleState {
