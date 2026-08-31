@@ -19,13 +19,14 @@ const lines: string[] = []; const say = (s = '') => { lines.push(s); console.log
 const t0 = Date.now();
 
 const comps = v3.enumerateComps();
-const P = v3.focusPolicy;
+const botName = opt('bot', 'focus');
+const P = ({ ...v3.BOTS, ...v3.STYLE_BOTS, greedy: v3.greedyPolicy } as Record<string, v3.Policy>)[botName] ?? v3.focusPolicy;
 const SCREEN_OPP = fast ? 8 : 15;   // opponents per comp in screening
 const TOP_K = fast ? 32 : 48;       // round-robin size
 const RR_N = fast ? 1 : 3;          // battles per side per pair
 const XPL_N = 3;                    // battles per comp vs each menu member
 
-say(`# Comp metagame — tier=${tier} purity=${purity} bot=focus seed=${SEED}${fast ? ' (fast)' : ''}`);
+say(`# Comp metagame — tier=${tier} purity=${purity} pilot=${botName} seed=${SEED}${fast ? ' (fast)' : ''}`);
 
 // ── Stage 1: screening ──
 const rating = comps.map(() => 0);
@@ -118,19 +119,23 @@ const pilotFocus = pilotFor(v3.focusPolicy);
 const pilotBalanced = pilotFor(v3.balancedPolicy);
 const pilotEdge = Math.max(pilotFocus, pilotBalanced);
 const CE_SAMPLE = fast ? 10 : 20;
+const bestCompRef = { c: bestComp };
 const ceOver = (pickFrom: number[]) => {
   let e = 0;
   for (let k = 0; k < CE_SAMPLE; k++) {
     const rc = comps[pickFrom[Number(deriveRandom(SEED, `ce_${k}`) % BigInt(pickFrom.length))]];
-    e += v3.duelComps(bestComp, rc, P, fast ? 2 : 4, D);
+    e += v3.duelComps(bestCompRef.c, rc, P, fast ? 2 : 4, D);
   }
   return e / CE_SAMPLE;
 };
-const ceField = ceOver(order.slice(0, 100)); // plausible field: top-100 comps
-const ceRandom = ceOver([...comps.keys()]);
+// Average the edge over the top-3 menu comps so one comp's identity can't swing the metric.
+const topMenu = inMenu.slice(0, 3).map(i => comps[pool[i]]);
+const ceMany = (pickFrom: number[]) => topMenu.reduce((s2, c) => { const keep = bestCompRef.c; bestCompRef.c = c; const e = ceOver(pickFrom); bestCompRef.c = keep; return s2 + e; }, 0) / topMenu.length;
+const ceField = ceMany(order.slice(0, 100)); // plausible field: top-100 comps
+const ceRandom = ceMany([...comps.keys()]);
 say(`\n## Tactics vs comps`);
 say(`Piloting edge (best strong bot vs greedy baseline, same strong comps): **${(100 * pilotEdge).toFixed(1)}%** (focus ${(100 * pilotFocus).toFixed(1)} / balanced ${(100 * pilotBalanced).toFixed(1)})`);
-say(`Comp edge of ${v3.compName(bestComp, NAMES)}: vs meta menu **${(100 * bestOutside).toFixed(1)}%** (exploitability) · vs plausible field (top-100) **${(100 * ceField).toFixed(1)}%** ← north-star comparison · vs uniform random **${(100 * ceRandom).toFixed(1)}%** (floor badness)`);
+say(`Comp edge (avg of top-3 menu comps: ${topMenu.map(c => v3.compName(c, NAMES)).join(', ')}): vs meta menu **${(100 * bestOutside).toFixed(1)}%** (exploitability) · vs plausible field (top-100) **${(100 * ceField).toFixed(1)}%** ← north-star comparison · vs uniform random **${(100 * ceRandom).toFixed(1)}%** (floor badness)`);
 say(`North star: piloting edge should exceed the plausible-field comp edge.`);
 
 say(`\n_${((Date.now() - t0) / 60000).toFixed(1)} min_`);
