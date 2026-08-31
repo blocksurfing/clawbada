@@ -43,8 +43,15 @@ export function legalMoves(state: AtbBattleState, actor: AtbLobster): HexPos[] {
   return reachableCells(state.layout, actor.pos, moveRangeOf(state, actor.class), occupiedBy(state, actor));
 }
 
-/** Enemies attackable from `from` (distance 1–3). */
+/** Taunting enemies adjacent to `from` — if any, they are the only legal enemy targets. */
+export function tauntersAdjacent(state: AtbBattleState, actor: AtbLobster, from: HexPos): AtbLobster[] {
+  return state.lobsters.filter(l => l.alive && l.team !== actor.team && hexDistance(from, l.pos) === 1 && l.statuses.some(s => s.type === 'taunt'));
+}
+
+/** Enemies attackable from `from` (distance 1–3); taunters adjacent to the attacker override. */
 export function attackTargets(state: AtbBattleState, actor: AtbLobster, from: HexPos = actor.pos): AtbLobster[] {
+  const taunters = tauntersAdjacent(state, actor, from);
+  if (taunters.length > 0) return taunters;
   return state.lobsters.filter(l => l.alive && l.team !== actor.team && hexDistance(from, l.pos) <= ATTACK_MAX_RANGE);
 }
 
@@ -53,6 +60,10 @@ export function specialTargets(state: AtbBattleState, actor: AtbLobster, from: H
   const kind = specialTargetKind(actor.class);
   if (kind === 'none') return [];
   const probe = { ...actor, pos: from };
+  if (kind === 'enemy') {
+    const taunters = tauntersAdjacent(state, actor, from);
+    if (taunters.length > 0) return taunters.filter(l => specialInRange(probe, l));
+  }
   return state.lobsters.filter(l => l.alive && (kind === 'enemy' ? l.team !== actor.team : l.team === actor.team) && specialInRange(probe, l));
 }
 
@@ -95,6 +106,7 @@ function validateTurnFor(state: AtbBattleState, actor: AtbLobster, cmd: TurnComm
       const t = findLobster(state, cmd.targetId);
       if (!t || !t.alive || t.team === actor.team) throw new TurnError('bad_target', 'Attack target must be a living enemy');
       if (hexDistance(dest, t.pos) > ATTACK_MAX_RANGE) throw new TurnError('out_of_range', `${t.id} is out of attack range`);
+      if (!attackTargets(state, actor, dest).some(x => x.id === t.id)) throw new TurnError('taunted', `${actor.id} must target an adjacent taunting enemy`);
       target = t;
       break;
     }
@@ -108,6 +120,7 @@ function validateTurnFor(state: AtbBattleState, actor: AtbLobster, cmd: TurnComm
       if (kind === 'enemy' && t.team === actor.team) throw new TurnError('bad_target', 'Special target must be an enemy');
       if (kind === 'ally' && t.team !== actor.team) throw new TurnError('bad_target', 'Special target must be an ally');
       if (!specialInRange({ ...actor, pos: dest }, t)) throw new TurnError('out_of_range', `${t.id} is out of Special range`);
+      if (kind === 'enemy' && !specialTargets(state, actor, dest).some(x => x.id === t.id)) throw new TurnError('taunted', `${actor.id} must target an adjacent taunting enemy`);
       target = t;
       break;
     }
@@ -147,6 +160,7 @@ export function applyTurn(state: AtbBattleState, cmd: TurnCommand | null): TurnR
   actor.lastTick = tick;
   actor.turnsTaken += 1;
   actor.defending = false;
+  actor.recentHits = 0; // focus-falloff window resets on the target's own turn
   const out = newResult(state, actor, tick);
   const seed = turnSeed(state);
 
@@ -229,7 +243,10 @@ function resolveAttack(state: AtbBattleState, actor: AtbLobster, target: AtbLobs
   const dist = hexDistance(actor.pos, target.pos);
   const isCrit = randomBool(seed, 'crit', critChance(a.critical), 10_000n);
   const base = calculateAttackDamage(a.attack, t.armor, getClassAdvantage(actor.class, target.class), isCrit, deriveVrfRoll(seed, 'atk_vrf'));
-  const dmg = (base * (DISTANCE_MULT[dist] ?? 0n)) / MULT_DENOM;
+  let dmg = (base * (DISTANCE_MULT[dist] ?? 0n)) / MULT_DENOM;
+  // Guard penalty: shooting past an adjacent enemy frontliner is punished.
+  if (state.rules.guardPenaltyBps > 0n && dist >= 2 && state.lobsters.some(l => l.alive && l.team !== actor.team && hexDistance(actor.pos, l.pos) === 1))
+    dmg = (dmg * (10_000n - state.rules.guardPenaltyBps)) / 10_000n;
   out.targetId = target.id;
   applyIncomingDamage(state, actor, target, dmg, 'attack', out, { isCrit });
 

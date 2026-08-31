@@ -44,6 +44,9 @@ export const DEFAULT_RULES: BattleRules = {
   specialPower: {},
   rendBleedPerTurn: REND_BLEED_PER_TURN,
   hauntReduction: HAUNT_REDUCTION,
+  fortifyTaunt: false,
+  focusFalloffBps: 0n,
+  guardPenaltyBps: 0n,
 };
 
 export function createBattle(cfg: BattleConfig): AtbBattleState {
@@ -58,7 +61,7 @@ export function createBattle(cfg: BattleConfig): AtbBattleState {
     return {
       id: input.id, team, slot, class: input.class, tier: input.tier, purity: input.purity, legend: !!input.legend,
       stats, maxHp: stats.hp, hp: stats.hp, alive: true, pos: { ...spawns[slot] }, charge: 0, defending: false,
-      statuses: [], lastTick: 0n, turnsTaken: 0, stunImmunity: 0, tiebreak: deriveRandom(cfg.vrfSeed, `tie_${input.id}`),
+      statuses: [], lastTick: 0n, turnsTaken: 0, stunImmunity: 0, recentHits: 0, tiebreak: deriveRandom(cfg.vrfSeed, `tie_${input.id}`),
     };
   };
   const lobsters = [...cfg.teamA.map((l, i) => make(l, 'A', i)), ...cfg.teamB.map((l, i) => make(l, 'B', i))];

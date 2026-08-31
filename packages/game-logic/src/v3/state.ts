@@ -11,7 +11,8 @@ export type StatusType =
   | 'fortify' // incoming damage reduced (value ×1000)
   | 'reflect' // enhanced Fortify: portion of blocked damage returned (value ×1000)
   | 'shield' // incoming damage reduced (value ×1000)
-  | 'slow'; // effective speed reduced (value ×1000)
+  | 'slow' // effective speed reduced (value ×1000)
+  | 'taunt'; // anti-focus: adjacent enemies must target this lobster
 
 export interface Status {
   type: StatusType;
@@ -47,6 +48,8 @@ export interface AtbLobster {
   turnsTaken: number;
   /** Turns of this lobster still stun-immune. */
   stunImmunity: number;
+  /** Direct hits taken since this lobster's last turn (focus-falloff window). */
+  recentHits: number;
   /** VRF-derived, fixed for the battle; breaks equal-tick ties. */
   tiebreak: bigint;
 }
@@ -72,6 +75,13 @@ export interface BattleRules {
   rendBleedPerTurn: bigint;
   /** Haunt Atk/Armor reduction ×1000 (enhanced adds +100). Spec: 200. */
   hauntReduction: bigint;
+  // ── Anti-focus experiments (2026-08-31), all default-off ──
+  /** Fortify also taunts: while active on the caster, adjacent enemies must target it. */
+  fortifyTaunt: boolean;
+  /** Each direct hit on a target since its last turn reduces the next by this much (bps), floored at 40%. */
+  focusFalloffBps: bigint;
+  /** Ranged attacks (distance ≥2) made while an enemy is adjacent to the attacker lose this much (bps). */
+  guardPenaltyBps: bigint;
 }
 
 export interface AtbBattleState {

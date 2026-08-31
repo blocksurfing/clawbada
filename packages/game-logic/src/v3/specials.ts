@@ -68,6 +68,7 @@ export function resolveSpecial(
         const reflect = isEnhanced ? state.rules.fortifyReflectEnhanced : state.rules.fortifyReflectBase;
         if (reflect > 0n) addStatus(ally, { type: 'reflect', turns: FORTIFY_TURNS, value: reflect }, out);
       }
+      if (state.rules.fortifyTaunt) addStatus(actor, { type: 'taunt', turns: FORTIFY_TURNS, value: 0n }, out);
       return;
     }
     case LobsterClass.Mantis: {

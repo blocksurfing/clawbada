@@ -51,7 +51,7 @@ export const BOT_WEIGHTS: Record<'aggressive' | 'balanced' | 'cautious', BotWeig
 const n = (b: bigint) => Number(b);
 
 /** Expected Attack damage (mean VRF, crit expectation, distance falloff), capped at target HP. */
-export function expectedAttack(actor: AtbLobster, target: AtbLobster, dist: number): number {
+export function expectedAttack(actor: AtbLobster, target: AtbLobster, dist: number, state?: AtbBattleState): number {
   const mult = DISTANCE_MULT[dist];
   if (mult === undefined) return 0;
   const a = effectiveStats(actor), t = effectiveStats(target);
@@ -60,6 +60,8 @@ export function expectedAttack(actor: AtbLobster, target: AtbLobster, dist: numb
   let dmg = base * (1 + 0.5 * pCrit) * (n(mult) / 1000);
   if (target.defending) dmg *= 0.5;
   for (const s of target.statuses) if (s.type === 'fortify' || s.type === 'shield') dmg *= 1 - n(s.value) / 1000;
+  if (state && state.rules.focusFalloffBps > 0n && target.recentHits > 0)
+    dmg *= Math.max(0.4, 1 - (n(state.rules.focusFalloffBps) / 10_000) * target.recentHits);
   return Math.min(dmg, n(target.hp));
 }
 
@@ -89,7 +91,7 @@ export function exposure(state: AtbBattleState, me: AtbLobster, pos: HexPos, def
     if (d > reach) continue;
     const bestDist = Math.max(1, d - mr);
     const probe = { ...me, pos, defending: false };
-    let dmg = expectedAttack(e, probe, Math.min(bestDist, ATTACK_MAX_RANGE));
+    let dmg = expectedAttack(e, probe, Math.min(bestDist, ATTACK_MAX_RANGE), state);
     // Charged Specials are the real threat.
     const power = specialPowerOf(state, e.class);
     if (canCastSpecial(state, e) && power > 0n && bestDist <= Math.max(1, SPECIAL_RANGE[e.class]))
@@ -217,7 +219,9 @@ export function rankTurns(state: AtbBattleState, actor: AtbLobster, w: BotWeight
 
     // Attacks
     for (const t of attackTargets(state, actor, pos)) {
-      const dmg = expectedAttack(actor, t, hexDistance(pos, t.pos));
+      let dmg = expectedAttack(actor, t, hexDistance(pos, t.pos), state);
+      if (state.rules.guardPenaltyBps > 0n && hexDistance(pos, t.pos) >= 2 && state.lobsters.some(l => l.alive && l.team !== actor.team && hexDistance(pos, l.pos) === 1))
+        dmg *= 1 - n(state.rules.guardPenaltyBps) / 10_000;
       const kill = dmg >= n(t.hp) ? killBonus(t) : 0;
       // A defending, adjacent target counters — small deterrent.
       const counter = t.defending && hexDistance(pos, t.pos) === 1 ? outputPerTurn(t, actor) * 0.3 : 0;
