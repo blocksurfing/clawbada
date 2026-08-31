@@ -159,11 +159,11 @@ contract FuzzBattleResolver is Test {
         assertEq(BattleResolver.getSpecialBasePower(0), 0,   "Bulwark = 0 (utility)");
         assertEq(BattleResolver.getSpecialBasePower(1), 150, "Mantis = 150");
         assertEq(BattleResolver.getSpecialBasePower(2), 180, "Leviathan = 180");
-        assertEq(BattleResolver.getSpecialBasePower(3), 90,  "Tempest = 90");
+        assertEq(BattleResolver.getSpecialBasePower(3), 120, "Tempest = 120");
         assertEq(BattleResolver.getSpecialBasePower(4), 60,  "Specter = 60");
         assertEq(BattleResolver.getSpecialBasePower(5), 0,   "Sentinel = 0 (heal)");
         assertEq(BattleResolver.getSpecialBasePower(6), 70,  "Reaver = 70");
-        assertEq(BattleResolver.getSpecialBasePower(7), 120, "Abyss = 120");
+        assertEq(BattleResolver.getSpecialBasePower(7), 150, "Abyss = 150");
         assertEq(BattleResolver.getSpecialBasePower(8), 60,  "Kraken = 60");
         assertEq(BattleResolver.getSpecialBasePower(9), 200, "Ember = 200");
     }
@@ -309,7 +309,7 @@ contract FuzzBattleResolver is Test {
         assertGe(t1.critical, t0.critical, "tier1 critical >= tier0");
     }
 
-    // HP battle scaling factor of 5× is baked into scaleStats. At tier 0
+    // HP battle scale (HP_BATTLE_SCALE) is baked into scaleStats. At tier 0
     // with no legend, scaled HP should equal base HP × HP_BATTLE_SCALE.
     function testFuzz_hp_battle_scale_at_base_tier(uint8 classId) public pure {
         classId = uint8(classId % 10);
@@ -318,7 +318,7 @@ contract FuzzBattleResolver is Test {
         assertEq(
             scaled.hp,
             base.hp * BattleResolver.HP_BATTLE_SCALE,
-            "scaled HP at tier 0 non-legend = base HP x 5"
+            "scaled HP at tier 0 non-legend = base HP x HP_BATTLE_SCALE"
         );
     }
 
