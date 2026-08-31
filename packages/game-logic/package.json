@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "balance": "bun run scripts/balance.ts",
     "styles": "bun run scripts/styles.ts",
-    "meta": "bun run scripts/meta.ts"
+    "meta": "bun run scripts/meta.ts",
+    "economy": "bun run scripts/economy.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.0.1"
