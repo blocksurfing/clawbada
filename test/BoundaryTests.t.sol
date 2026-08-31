@@ -923,31 +923,31 @@ contract BoundaryTests is Test {
 
         // tier=0, legend=false
         BattleResolver.Stats memory s = resolverHarness.scaleStats(base, 0, false);
-        assertEq(s.attack, 70);
+        assertEq(s.attack, 100);
 
         // tier=0, legend=true
         s = resolverHarness.scaleStats(base, 0, true);
-        assertEq(s.attack, 70 * 1100 / 1000); // 77
+        assertEq(s.attack, 100 * 1100 / 1000); // 110
 
         // tier=1, legend=true (Evolved+Legend)
         s = resolverHarness.scaleStats(base, 1, true);
-        assertEq(s.attack, uint256(70) * 1200 * 1100 / (1000 * 1000)); // 92
+        assertEq(s.attack, uint256(100) * 1200 * 1100 / (1000 * 1000)); // 92
 
         // tier=2, legend=false (Elite)
         s = resolverHarness.scaleStats(base, 2, false);
-        assertEq(s.attack, uint256(70) * 1400 / 1000); // 98
+        assertEq(s.attack, uint256(100) * 1400 / 1000); // 98
 
         // tier=2, legend=true (Elite+Legend)
         s = resolverHarness.scaleStats(base, 2, true);
-        assertEq(s.attack, uint256(70) * 1400 * 1100 / (1000 * 1000)); // 107
+        assertEq(s.attack, uint256(100) * 1400 * 1100 / (1000 * 1000)); // 107
 
         // tier=3, legend=false (Apex)
         s = resolverHarness.scaleStats(base, 3, false);
-        assertEq(s.attack, uint256(70) * 1600 / 1000); // 112
+        assertEq(s.attack, uint256(100) * 1600 / 1000); // 112
 
         // tier=3, legend=true (Apex+Legend)
         s = resolverHarness.scaleStats(base, 3, true);
-        assertEq(s.attack, uint256(70) * 1600 * 1100 / (1000 * 1000)); // 123
+        assertEq(s.attack, uint256(100) * 1600 * 1100 / (1000 * 1000)); // 123
     }
 
     function test_boundary_defendCounterAtCap() public view {
