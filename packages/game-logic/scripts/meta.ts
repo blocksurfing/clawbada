@@ -12,7 +12,9 @@ const purity = Number(opt('purity', '3'));
 const out = opt('out', '');
 const fast = has('fast');
 const SEED = BigInt(opt('seed', '20260831'));
-const D: v3.DuelOptions = { tier, purity, seed: SEED };
+const rulesJson = opt('rules', '');
+const parsedRules = rulesJson ? JSON.parse(rulesJson, (_k, v) => (typeof v === 'string' && /^\d+n$/.test(v) ? BigInt(v.slice(0, -1)) : v)) : undefined;
+const D: v3.DuelOptions = { tier, purity, seed: SEED, rules: parsedRules };
 const lines: string[] = []; const say = (s = '') => { lines.push(s); console.log(s); };
 const t0 = Date.now();
 
@@ -100,25 +102,30 @@ let pilot = 0;
   for (let i = 0; i < pilotN; i++) {
     const seed = deriveRandom(SEED, `pilot_${i}`);
     const comp = comps[order[i % TOP_K]];
-    const s = v3.createBattle({ battleId: 'p', vrfSeed: seed, tier, teamA: mk('A', comp), teamB: mk('B', comp) });
-    v3.runBattle(s, { A: v3.focusPolicy, B: v3.greedyPolicy });
+    const s = v3.createBattle({ battleId: 'p', vrfSeed: seed, tier, teamA: mk('A', comp), teamB: mk('B', comp), rules: D.rules });
+    v3.runBattle(s, { A: v3.focusPolicy, B: v3.balancedPolicy });
     pilot += s.winner === 'A' ? 1 : s.winner === 'draw' ? 0.5 : 0;
-    const t = v3.createBattle({ battleId: 'q', vrfSeed: deriveRandom(seed, 'sw'), tier, teamA: mk('A', comp), teamB: mk('B', comp) });
-    v3.runBattle(t, { A: v3.greedyPolicy, B: v3.focusPolicy });
+    const t = v3.createBattle({ battleId: 'q', vrfSeed: deriveRandom(seed, 'sw'), tier, teamA: mk('A', comp), teamB: mk('B', comp), rules: D.rules });
+    v3.runBattle(t, { A: v3.balancedPolicy, B: v3.focusPolicy });
     pilot += t.winner === 'B' ? 1 : t.winner === 'draw' ? 0.5 : 0;
   }
 }
 const pilotEdge = pilot / (2 * pilotN);
-let compEdge = 0; const CE_SAMPLE = fast ? 10 : 20;
-for (let k = 0; k < CE_SAMPLE; k++) {
-  const rc = comps[Number(deriveRandom(SEED, `ce_${k}`) % BigInt(comps.length))];
-  compEdge += v3.duelComps(bestComp, rc, P, fast ? 2 : 4, D);
-}
-compEdge /= CE_SAMPLE;
+const CE_SAMPLE = fast ? 10 : 20;
+const ceOver = (pickFrom: number[]) => {
+  let e = 0;
+  for (let k = 0; k < CE_SAMPLE; k++) {
+    const rc = comps[pickFrom[Number(deriveRandom(SEED, `ce_${k}`) % BigInt(pickFrom.length))]];
+    e += v3.duelComps(bestComp, rc, P, fast ? 2 : 4, D);
+  }
+  return e / CE_SAMPLE;
+};
+const ceField = ceOver(order.slice(0, 100)); // plausible field: top-100 comps
+const ceRandom = ceOver([...comps.keys()]);
 say(`\n## Tactics vs comps`);
-say(`Piloting edge (strong bot vs weak bot, same comp): **${(100 * pilotEdge).toFixed(1)}%**`);
-say(`Comp edge (top meta comp ${v3.compName(bestComp, NAMES)} vs ${CE_SAMPLE} random comps, same bot): **${(100 * compEdge).toFixed(1)}%**`);
-say(`North star: piloting edge should exceed comp edge.`);
+say(`Piloting edge (focus bot vs balanced bot, same comp): **${(100 * pilotEdge).toFixed(1)}%**`);
+say(`Comp edge of ${v3.compName(bestComp, NAMES)}: vs meta menu **${(100 * bestOutside).toFixed(1)}%** (exploitability) · vs plausible field (top-100) **${(100 * ceField).toFixed(1)}%** ← north-star comparison · vs uniform random **${(100 * ceRandom).toFixed(1)}%** (floor badness)`);
+say(`North star: piloting edge should exceed the plausible-field comp edge.`);
 
 say(`\n_${((Date.now() - t0) / 60000).toFixed(1)} min_`);
 if (out) { await Bun.write(out, lines.join('\n') + '\n'); console.log(`written ${out}`); }

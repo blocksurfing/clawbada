@@ -75,7 +75,14 @@ export function applyIncomingDamage(
   if (!opts.raw) {
     if (target.defending && !opts.pierceDefend) dmg = (dmg * DEFEND_REDUCTION_BPS) / 10_000n;
     for (const s of target.statuses) if (s.type === 'fortify' || s.type === 'shield') dmg = (dmg * (MULT_DENOM - s.value)) / MULT_DENOM;
+    // Focus falloff: repeated direct hits inside the target's turn window decay, floored at 40%.
+    if ((kind === 'attack' || kind === 'special') && state.rules.focusFalloffBps > 0n && target.recentHits > 0) {
+      let bps = 10_000n - state.rules.focusFalloffBps * BigInt(target.recentHits);
+      if (bps < 4000n) bps = 4000n;
+      dmg = (dmg * bps) / 10_000n;
+    }
   }
+  if ((kind === 'attack' || kind === 'special') && !opts.raw && source.team !== target.team) target.recentHits += 1;
   const blocked = amount - dmg;
   const before = target.hp;
   dealDamage(target, dmg, kind, out, opts.isCrit);

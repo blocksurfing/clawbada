@@ -13,11 +13,12 @@ export function canonicalState(state: AtbBattleState): string {
       charge: l.charge,
       defending: l.defending,
       lastTick: l.lastTick.toString(),
+      recentHits: l.recentHits,
       turnsTaken: l.turnsTaken,
       stunImmunity: l.stunImmunity,
       statuses: l.statuses.map(s => ({ t: s.type, n: s.turns, v: s.value.toString(), u: !!s.uncleansable, s: s.since })),
     }));
-  return JSON.stringify({ turn: state.turn, tick: state.tick.toString(), finished: state.finished, winner: state.winner, dmg: { A: state.damageDealt.A.toString(), B: state.damageDealt.B.toString() }, rules: { r0: state.rules.fortifyReflectBase.toString(), r1: state.rules.fortifyReflectEnhanced.toString(), sc: state.rules.specialCost, sp: Object.fromEntries(Object.entries(state.rules.specialPower).map(([k, v]) => [k, String(v)])), rb: state.rules.rendBleedPerTurn.toString(), hr: state.rules.hauntReduction.toString(), mv: state.rules.moveRange, am: Object.fromEntries(Object.entries(state.rules.attackMult).map(([k, v]) => [k, String(v)])) }, lobsters });
+  return JSON.stringify({ turn: state.turn, tick: state.tick.toString(), finished: state.finished, winner: state.winner, dmg: { A: state.damageDealt.A.toString(), B: state.damageDealt.B.toString() }, rules: { r0: state.rules.fortifyReflectBase.toString(), r1: state.rules.fortifyReflectEnhanced.toString(), sc: state.rules.specialCost, sp: Object.fromEntries(Object.entries(state.rules.specialPower).map(([k, v]) => [k, String(v)])), rb: state.rules.rendBleedPerTurn.toString(), hr: state.rules.hauntReduction.toString(), ft: state.rules.fortifyTaunt, ff: state.rules.focusFalloffBps.toString(), gp: state.rules.guardPenaltyBps.toString(), mv: state.rules.moveRange, am: Object.fromEntries(Object.entries(state.rules.attackMult).map(([k, v]) => [k, String(v)])) }, lobsters });
 }
 
 /** keccak256 of the canonical state, hex-encoded (matches on-chain hashing of the same bytes). */
