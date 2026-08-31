@@ -113,7 +113,8 @@ describe('Specter prototype knobs', () => {
       const r2 = v3.applyTurn(s, { lobsterId: a1.id, action: 'attack', targetId: spec.id });
       return { first: r1.damage[0].amount, second: r2.damage[0].amount };
     };
-    const off = run({});
+    // Specter now carries a 30% dodge BY DEFAULT (spec kit) — baseline must zero it explicitly.
+    const off = run({ firstHitReduction: { [S]: 0n } });
     const on = run({ firstHitReduction: { [S]: 300n } });
     expect(on.first).toBe((off.first * 700n) / 1000n);
     expect(on.second).toBe(off.second); // window already opened — full damage

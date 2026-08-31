@@ -77,8 +77,13 @@ export const HAUNT_ENHANCED_REDUCTION = 300n;
 export const HAUNT_TURNS = 4;
 export const HAUNT_ENHANCED_TURNS = 6;
 export const RALLY_HEAL_PCT = 250n; // 25% of max HP (×1000) — 30%→25% (2026-08-31: Sentinel pub-stomp fix; marginal at top play)
-/** Damage multiplier for attacks at distance 4+ when a class's range allows it (experiments only; spec range is 3). */
+/** Damage multiplier for attacks at distance 4+ when a class's range allows it. */
 export const DISTANCE_MULT_LONG = 400n;
+// ── Specter kit (2026-08-31, user-approved; confirmed by full-sampling meta run) ──
+/** Specter's unique long poke: attack range 4 (at DISTANCE_MULT_LONG damage). */
+export const SPECTER_ATTACK_RANGE = 4;
+/** Spectral dodge: the first direct hit Specter takes each turn window is reduced (×1000). */
+export const SPECTER_FIRST_HIT_REDUCTION = 300n;
 export const RALLY_SHIELD_REDUCTION = 300n; // enhanced: -30% incoming for 1 turn
 export const RALLY_SHIELD_TURNS = 1;
 export const REND_BLEED_PER_TURN = 55n; // 40→55 (2026-08-30 weak-Specials sweep); total = 70 hit + 6×55 bleed
