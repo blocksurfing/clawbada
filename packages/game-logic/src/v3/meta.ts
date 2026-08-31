@@ -73,6 +73,28 @@ export function replicator(W: number[][], iterations = 4000, mutation = 1e-4): n
   return x;
 }
 
+/**
+ * Time-averaged replicator mix. On intransitive (rock-paper-scissors-like)
+ * matrices the raw replicator orbits forever — any single snapshot is
+ * misleading — but its time average converges to the Nash mix for symmetric
+ * zero-sum games. Use this for equilibrium reporting.
+ */
+export function replicatorAverage(W: number[][], iterations = 30000, burnin = 5000, mutation = 1e-4): number[] {
+  const k = W.length;
+  let x = Array(k).fill(1 / k);
+  const acc = Array(k).fill(0);
+  let n = 0;
+  for (let it = 0; it < iterations; it++) {
+    const fitness = W.map(row => row.reduce((s, w, j) => s + w * x[j], 0));
+    const avg = fitness.reduce((s, f, i) => s + f * x[i], 0);
+    const next = x.map((xi, i) => (xi * fitness[i]) / Math.max(avg, 1e-12));
+    const total = next.reduce((s, v) => s + v, 0);
+    x = next.map(v => (1 - mutation) * (v / total) + mutation / k);
+    if (it >= burnin) { for (let i = 0; i < k; i++) acc[i] += x[i]; n++; }
+  }
+  return acc.map(v => v / n);
+}
+
 /** Payoff of each row strategy against a mix; the max is the best response. */
 export function payoffsVsMix(W: number[][], mix: number[]): number[] {
   return W.map(row => row.reduce((s, w, j) => s + w * mix[j], 0));
