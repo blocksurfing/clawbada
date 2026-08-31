@@ -95,22 +95,28 @@ say(`Best response to the final menu: **${v3.compName(comps[bestOutsideComp], NA
 
 // ── Stage 5: piloting edge vs comp edge ──
 const bestComp = comps[pool[inMenu[0]]];
+// Piloting edge: best available bot vs a competent baseline (greedy), measured on
+// strong comps. Bot strength is comp-dependent (focus wins on average comps,
+// balanced wins on elite comps), so take the max over the strong-bot suite.
 const pilotN = fast ? 40 : 80;
-let pilot = 0;
-{
+const pilotFor = (strong: v3.Policy) => {
   const mk = (p: string, comp: v3.Comp) => comp.map((c, j) => ({ id: `${p}${j}`, class: c as LobsterClass, tier: { evolved: EvolutionTier.Evolved, elite: EvolutionTier.Elite, apex: EvolutionTier.Apex }[tier], purity }));
+  let pilot = 0;
   for (let i = 0; i < pilotN; i++) {
     const seed = deriveRandom(SEED, `pilot_${i}`);
     const comp = comps[order[i % TOP_K]];
     const s = v3.createBattle({ battleId: 'p', vrfSeed: seed, tier, teamA: mk('A', comp), teamB: mk('B', comp), rules: D.rules });
-    v3.runBattle(s, { A: v3.focusPolicy, B: v3.balancedPolicy });
+    v3.runBattle(s, { A: strong, B: v3.greedyPolicy });
     pilot += s.winner === 'A' ? 1 : s.winner === 'draw' ? 0.5 : 0;
     const t = v3.createBattle({ battleId: 'q', vrfSeed: deriveRandom(seed, 'sw'), tier, teamA: mk('A', comp), teamB: mk('B', comp), rules: D.rules });
-    v3.runBattle(t, { A: v3.balancedPolicy, B: v3.focusPolicy });
+    v3.runBattle(t, { A: v3.greedyPolicy, B: strong });
     pilot += t.winner === 'B' ? 1 : t.winner === 'draw' ? 0.5 : 0;
   }
-}
-const pilotEdge = pilot / (2 * pilotN);
+  return pilot / (2 * pilotN);
+};
+const pilotFocus = pilotFor(v3.focusPolicy);
+const pilotBalanced = pilotFor(v3.balancedPolicy);
+const pilotEdge = Math.max(pilotFocus, pilotBalanced);
 const CE_SAMPLE = fast ? 10 : 20;
 const ceOver = (pickFrom: number[]) => {
   let e = 0;
@@ -123,7 +129,7 @@ const ceOver = (pickFrom: number[]) => {
 const ceField = ceOver(order.slice(0, 100)); // plausible field: top-100 comps
 const ceRandom = ceOver([...comps.keys()]);
 say(`\n## Tactics vs comps`);
-say(`Piloting edge (focus bot vs balanced bot, same comp): **${(100 * pilotEdge).toFixed(1)}%**`);
+say(`Piloting edge (best strong bot vs greedy baseline, same strong comps): **${(100 * pilotEdge).toFixed(1)}%** (focus ${(100 * pilotFocus).toFixed(1)} / balanced ${(100 * pilotBalanced).toFixed(1)})`);
 say(`Comp edge of ${v3.compName(bestComp, NAMES)}: vs meta menu **${(100 * bestOutside).toFixed(1)}%** (exploitability) · vs plausible field (top-100) **${(100 * ceField).toFixed(1)}%** ← north-star comparison · vs uniform random **${(100 * ceRandom).toFixed(1)}%** (floor badness)`);
 say(`North star: piloting edge should exceed the plausible-field comp edge.`);
 
