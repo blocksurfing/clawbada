@@ -82,8 +82,12 @@ export interface BattleRules {
   focusFalloffBps: bigint;
   /** Ranged attacks (distance ≥2) made while an enemy is adjacent to the attacker lose this much (bps). */
   guardPenaltyBps: bigint;
-  /** Rally heal as ‰ of the ally's max HP (before purity). Spec: 300. */
+  /** Rally heal as ‰ of the ally's max HP (before purity). Spec: 250. */
   rallyHealPct: bigint;
+  /** Per-class max attack range overrides (spec: 3 for all; distance 4+ uses DISTANCE_MULT_LONG). */
+  attackRange: Partial<Record<LobsterClass, number>>;
+  /** Per-class reduction (×1000) on the FIRST direct hit taken each turn window ("spectral dodge"). */
+  firstHitReduction: Partial<Record<LobsterClass, bigint>>;
 }
 
 export interface AtbBattleState {

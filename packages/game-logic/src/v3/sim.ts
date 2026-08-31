@@ -48,6 +48,8 @@ export const DEFAULT_RULES: BattleRules = {
   focusFalloffBps: 0n,
   guardPenaltyBps: 0n,
   rallyHealPct: RALLY_HEAL_PCT,
+  attackRange: {},
+  firstHitReduction: {},
 };
 
 export function createBattle(cfg: BattleConfig): AtbBattleState {
