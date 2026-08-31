@@ -21,7 +21,7 @@ import { calculateAttackDamage, calculateSpecialDamage, critChance, getClassAdva
 import { LobsterClass } from '../types';
 import { nextTick, tickDelta } from './atb';
 import { hexDistance, sameHex, type HexPos } from './board';
-import { ATTACK_MAX_RANGE, DISTANCE_MULT, FORTIFY_REDUCTION, RALLY_HEAL_PCT, REND_TURNS, SPECIAL_RANGE } from './constants';
+import { ATTACK_MAX_RANGE, DISTANCE_MULT, FORTIFY_REDUCTION, REND_TURNS, SPECIAL_RANGE } from './constants';
 import { effectiveStats, purityMult } from './effects';
 import { specialPowerOf, specialTargetKind } from './specials';
 import type { Policy } from './sim';
@@ -124,7 +124,7 @@ function specialValue(state: AtbBattleState, actor: AtbLobster, target: AtbLobst
     }
     case LobsterClass.Sentinel: {
       const ally = target!;
-      const heal = n(ally.maxHp) * (n(RALLY_HEAL_PCT) / 1000) * (n(purityMult(actor)) / 1000);
+      const heal = n(ally.maxHp) * (n(state.rules.rallyHealPct) / 1000) * (n(purityMult(actor)) / 1000);
       const missing = n(ally.maxHp - ally.hp);
       const cleanse = ally.statuses.filter(s => (s.type === 'bleed' || s.type === 'haunt' || s.type === 'slow') && !s.uncleansable).length * 40;
       // Healing is worth more the closer the ally is to dying.

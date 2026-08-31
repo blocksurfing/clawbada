@@ -19,7 +19,6 @@ import {
   MAELSTROM_SLOW,
   MAELSTROM_SLOW_TURNS,
   MANTIS_ARMOR_PIERCE,
-  RALLY_HEAL_PCT,
   RALLY_SHIELD_REDUCTION,
   RALLY_SHIELD_TURNS,
   REND_TURNS,
@@ -109,7 +108,7 @@ export function resolveSpecial(
     }
     case LobsterClass.Sentinel: {
       const ally = target!;
-      const heal = (ally.maxHp * RALLY_HEAL_PCT * purityMult(actor)) / (MULT_DENOM * MULT_DENOM);
+      const heal = (ally.maxHp * state.rules.rallyHealPct * purityMult(actor)) / (MULT_DENOM * MULT_DENOM);
       const before = ally.hp;
       ally.hp = ally.hp + heal > ally.maxHp ? ally.maxHp : ally.hp + heal;
       out.heals.push({ targetId: ally.id, amount: ally.hp - before });
