@@ -9,7 +9,8 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "balance": "bun run scripts/balance.ts",
-    "styles": "bun run scripts/styles.ts"
+    "styles": "bun run scripts/styles.ts",
+    "meta": "bun run scripts/meta.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.0.1"
