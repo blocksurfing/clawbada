@@ -187,6 +187,7 @@ Attacks have range up to 3 hexes with damage falloff:
 | **Adjacent (1 hex)** | 100% | Full melee damage |
 | **2 hexes** | 75% | Ranged, reduced |
 | **3 hexes** | 50% | Maximum range, half damage |
+| **4 hexes (Specter only)** | 40% | Specter's extended poke; all other classes miss |
 | **4+ hexes** | Miss | Out of range entirely |
 
 #### ATB Initiative Bar
@@ -279,7 +280,7 @@ A lobster's turn = optional **Move** (within class movement range) followed by o
 
 | Stat | Role | Mechanic |
 |------|------|----------|
-| **HP** | Health pool | Lobster dies at 0. Scaled ×5 from base for 24-36 turn battle pacing. |
+| **HP** | Health pool | Lobster dies at 0. Used as-is (battle HP scale ×1), tuned for 24-36 turn pacing. |
 | **Attack** | Offense | Numerator in damage ratio (Attack / Armor) |
 | **Armor** | Defense | Denominator in damage ratio (Attack / Armor) |
 | **Speed** | Initiative tempo | ATB tick frequency: faster = more turns per battle. Clamped to [0.5×, 1.5×] of base by buffs/debuffs. |
@@ -289,7 +290,7 @@ A lobster's turn = optional **Move** (within class movement range) followed by o
 
 | Class | HP | Atk | Armor | Spd | Crit | Identity |
 |-------|-----|-----|-------|-----|------|----------|
-| **Bulwark** | 700 | 70 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
+| **Bulwark** | 700 | 100 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — flanks, strikes first, crits often |
 | **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, slow to reposition |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE from range, fragile up close |
@@ -350,11 +351,11 @@ charge_consumed = 3 (all charge cleared)
 | **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster |
 | **Mantis** | Ambush | 150 | Single | Adjacent | Ignores 50% of target's Armor |
 | **Leviathan** | Crush | 180 | Single | Adjacent | Highest single-target burst |
-| **Tempest** | Maelstrom | 90 | AoE | 3-hex radius | Hits all enemies in range (270 total potential) |
+| **Tempest** | Maelstrom | 120 | AoE | 3-hex radius | Hits all enemies in range (360 total potential) |
 | **Specter** | Haunt | 60 | Debuff | 3 hexes | Damage + target Atk/Armor -20% for 4 turns of target |
-| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 30% of ally's max HP + cleanses debuffs |
-| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 40 bleed/turn for 6 turns of target (310 total) |
-| **Abyss** | Devour | 120 | Drain | Adjacent | Damage dealt also heals self |
+| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 25% of ally's max HP + cleanses debuffs |
+| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 55 bleed/turn for 6 turns of target (400 total) |
+| **Abyss** | Devour | 150 | Drain | Adjacent | Damage dealt also heals self |
 | **Kraken** | Bind | 60 | CC | 2 hexes | Damage + stun target for 1 turn (then 2-turn stun immunity) |
 | **Ember** | Inferno | 200 | Nuke | 4 hexes | Highest burst, caster takes 25% of damage dealt |
 
@@ -405,7 +406,7 @@ enhanced_chance = 5% + (5% × purity_score)
 | **Mantis** | Ambush | Guaranteed critical hit |
 | **Leviathan** | Crush | Bonus damage if target below 50% HP |
 | **Tempest** | Maelstrom | Also applies speed debuff |
-| **Specter** | Haunt | Extends to 3 rounds + stronger reduction |
+| **Specter** | Haunt | Extends to 6 turns of target + stronger reduction |
 | **Sentinel** | Rally | Also grants damage shield for 1 round |
 | **Reaver** | Rend | Bleed cannot be cleansed |
 | **Abyss** | Devour | Overheal converts to temporary HP |

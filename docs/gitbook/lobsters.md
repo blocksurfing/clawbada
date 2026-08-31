@@ -39,7 +39,7 @@ Each class has a distinct stat spread before any modifiers, evolution, or legend
 
 | Class | HP | Atk | Armor | Spd | Crit |
 |-------|-----|-----|-------|-----|------|
-| **Bulwark** | 700 | 70 | 120 | 80 | 90 |
+| **Bulwark** | 700 | 100 | 120 | 80 | 90 |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 |
 | **Leviathan** | 600 | 130 | 100 | 70 | 80 |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 |
@@ -50,7 +50,7 @@ Each class has a distinct stat spread before any modifiers, evolution, or legend
 | **Kraken** | 550 | 90 | 100 | 105 | 95 |
 | **Ember** | 350 | 140 | 60 | 100 | 130 |
 
-Notice the trade-offs: tanks (Bulwark, Sentinel) sacrifice damage for survivability; glass cannons (Ember, Mantis) hit hard but die fast. Speed determines turn order in battle, so faster classes get to act first — a key tactical consideration. HP is further scaled ×5 from these base values for battle pacing.
+Notice the trade-offs: tanks (Bulwark, Sentinel) sacrifice damage for survivability; glass cannons (Ember, Mantis) hit hard but die fast. Speed sets how often you act on the battle's ATB initiative bar — faster classes simply take more turns. HP is used as-is in battle.
 
 For full battle damage formulas and class advantage relationships, see [Battle Mode](battle.md).
 
