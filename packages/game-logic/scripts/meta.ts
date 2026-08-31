@@ -2,7 +2,7 @@
  * Comp-metagame report. bun run meta [-- --tier elite --purity 3 --fast --out file.md]
  * Answers: is "what team do I field?" solved or mixed, and do tactics or comps decide?
  */
-import { v3 } from '../src/index';
+import { deriveRandom, EvolutionTier, LobsterClass, v3 } from '../src/index';
 const NAMES = ['Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter', 'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember'];
 const args = process.argv.slice(2);
 const opt = (k: string, d: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
@@ -20,8 +20,8 @@ const comps = v3.enumerateComps();
 const P = v3.focusPolicy;
 const SCREEN_OPP = fast ? 8 : 15;   // opponents per comp in screening
 const TOP_K = fast ? 32 : 48;       // round-robin size
-const RR_N = fast ? 1 : 2;          // battles per side per pair
-const XPL_N = fast ? 3 : 5;         // battles per comp vs the mix
+const RR_N = fast ? 1 : 3;          // battles per side per pair
+const XPL_N = 3;                    // battles per comp vs each menu member
 
 say(`# Comp metagame — tier=${tier} purity=${purity} bot=focus seed=${SEED}${fast ? ' (fast)' : ''}`);
 
@@ -31,7 +31,7 @@ const rating = comps.map(() => 0);
   const games = comps.map(() => 0);
   for (let i = 0; i < comps.length; i++) {
     for (let k = 0; k < SCREEN_OPP; k++) {
-      const j = Number(v3.deriveRandom(SEED, `screen_${i}_${k}`) % BigInt(comps.length));
+      const j = Number(deriveRandom(SEED, `screen_${i}_${k}`) % BigInt(comps.length));
       if (j === i) continue;
       const w = v3.duelComps(comps[i], comps[j], P, 1, D);
       rating[i] += w; games[i]++;
@@ -65,7 +65,7 @@ say('\n| Meta share | Comp | Screening win % |'); say('|---|---|---|');
 for (const i of inMenu.slice(0, 15)) say(`| ${(100 * mix[i]).toFixed(1)}% | ${v3.compName(comps[top[i]], NAMES)} | ${(100 * rating[top[i]]).toFixed(0)} |`);
 
 // ── Stage 4: full-space exploitability (can anything outside the pool counter the meta?) ──
-const menuIdx = inMenu.filter(i => mix[i] >= 0.02);
+const menuIdx = inMenu.filter(i => mix[i] >= 0.02).slice(0, 8);
 const menuWeights = menuIdx.map(i => mix[i]); const wSum = menuWeights.reduce((a, b) => a + b, 0);
 let bestOutside = 0; let bestOutsideComp: v3.Comp | null = null;
 for (let i = 0; i < comps.length; i++) {
@@ -82,14 +82,14 @@ const bestComp = comps[top[inMenu[0]]];
 const pilotN = fast ? 40 : 80;
 let pilot = 0;
 {
-  const mk = (p: string, comp: v3.Comp) => comp.map((c, j) => ({ id: `${p}${j}`, class: c as v3.LobsterClass, tier: { evolved: 1, elite: 2, apex: 3 }[tier] as v3.EvolutionTier, purity }));
+  const mk = (p: string, comp: v3.Comp) => comp.map((c, j) => ({ id: `${p}${j}`, class: c as LobsterClass, tier: { evolved: EvolutionTier.Evolved, elite: EvolutionTier.Elite, apex: EvolutionTier.Apex }[tier], purity }));
   for (let i = 0; i < pilotN; i++) {
-    const seed = v3.deriveRandom(SEED, `pilot_${i}`);
+    const seed = deriveRandom(SEED, `pilot_${i}`);
     const comp = comps[order[i % TOP_K]];
     const s = v3.createBattle({ battleId: 'p', vrfSeed: seed, tier, teamA: mk('A', comp), teamB: mk('B', comp) });
     v3.runBattle(s, { A: v3.focusPolicy, B: v3.greedyPolicy });
     pilot += s.winner === 'A' ? 1 : s.winner === 'draw' ? 0.5 : 0;
-    const t = v3.createBattle({ battleId: 'q', vrfSeed: v3.deriveRandom(seed, 'sw'), tier, teamA: mk('A', comp), teamB: mk('B', comp) });
+    const t = v3.createBattle({ battleId: 'q', vrfSeed: deriveRandom(seed, 'sw'), tier, teamA: mk('A', comp), teamB: mk('B', comp) });
     v3.runBattle(t, { A: v3.greedyPolicy, B: v3.focusPolicy });
     pilot += t.winner === 'B' ? 1 : t.winner === 'draw' ? 0.5 : 0;
   }
