@@ -37,9 +37,11 @@ header-includes:
 
 # Clawbada
 
-**Agent-first idle game on Base.**
+**Idle or tactical. Agent or human. Same rules, real stakes.**
 
-Clawbada is an on-chain game where AI agents and humans assemble teams of lobster NFTs to mine \$CLAW, battle for stakes, breed new lobsters, and trade on the marketplace. Built on Base with fair-launch tokenomics designed to survive thousands of profit-maximizing AI agents.
+Clawbada is an on-chain idle game on Base where AI agents and humans deploy teams of lobster NFTs to mine \$CLAW while they sleep — or step into the hex arena and take it from someone else. Built to survive agents. Open to humans. Skill decides.
+
+Fair-launch tokenomics, hardened against thousands of profit-maximizing AI agents.
 
 ## How It Works
 
@@ -166,7 +168,7 @@ Each class has a distinct stat spread before any modifiers, evolution, or legend
 
 | Class | HP | Atk | Armor | Spd | Crit |
 |-------|-----|-----|-------|-----|------|
-| **Bulwark** | 700 | 70 | 120 | 80 | 90 |
+| **Bulwark** | 700 | 100 | 120 | 80 | 90 |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 |
 | **Leviathan** | 600 | 130 | 100 | 70 | 80 |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 |
@@ -177,7 +179,7 @@ Each class has a distinct stat spread before any modifiers, evolution, or legend
 | **Kraken** | 550 | 90 | 100 | 105 | 95 |
 | **Ember** | 350 | 140 | 60 | 100 | 130 |
 
-Notice the trade-offs: tanks (Bulwark, Sentinel) sacrifice damage for survivability; glass cannons (Ember, Mantis) hit hard but die fast. Speed determines turn order in battle, so faster classes get to act first — a key tactical consideration. HP is further scaled ×5 from these base values for battle pacing.
+Notice the trade-offs: tanks (Bulwark, Sentinel) sacrifice damage for survivability; glass cannons (Ember, Mantis) hit hard but die fast. Speed sets how often you act on the battle's ATB initiative bar — faster classes simply take more turns. HP is used as-is in battle.
 
 For full battle damage formulas and class advantage relationships, see [Battle Mode](battle.md).
 
@@ -373,7 +375,7 @@ How tick scheduling works:
 - A Mantis (130 Spd) takes roughly **1.86×** as many turns as a Leviathan (70 Spd) over the same battle window
 - Initial bar order is seeded by base Speed at battle start (ties broken by VRF beacon)
 
-Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempest's enhanced Maelstrom hastens allies, Kraken's Bind stuns the target into skipping its next turn entirely. Two safety rails prevent runaway speed-stacking:
+Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempest's enhanced Maelstrom slows everyone it hits, Kraken's Bind stuns the target into skipping its next turn entirely. Two safety rails prevent runaway speed-stacking:
 
 - **Effective Speed clamped to [0.5×, 1.5×] of base** — buffs and debuffs can't compound past that range
 - **Stun immunity for 2 turns after a stun expires** — prevents perma-lock chains
@@ -470,13 +472,15 @@ Attacks work at up to 3 hexes, but damage falls off with distance:
 
 Positioning matters: close the distance for full damage, or stay back and trade reduced damage for safety.
 
+**Specter's kit is the exception** (2026-08 balance update): it attacks up to **4 hexes** (40% damage at max range) and carries a **spectral dodge** — the first direct hit it takes between its own turns is reduced by 30%. Specter is built to kite: hard to pin down, poking from beyond everyone else's reach.
+
 ## Base Class Stats
 
 Base stats before evolution tier bonus, legend bonus, and body part modifiers:
 
 | Class | HP | Atk | Armor | Spd | Crit | Identity |
 |-------|-----|-----|-------|-----|------|----------|
-| **Bulwark** | 700 | 70 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
+| **Bulwark** | 700 | 100 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — flanks, strikes first, crits often |
 | **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, slow to reposition |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE from range, fragile up close |
@@ -487,7 +491,7 @@ Base stats before evolution tier bonus, legend bonus, and body part modifiers:
 | **Kraken** | 550 | 90 | 100 | 105 | 95 | Controller — mid-range stuns decide rounds |
 | **Ember** | 350 | 140 | 60 | 100 | 130 | Glass cannon — nukes from max range, dies up close |
 
-Stats scale with evolution: **+20% at Evolved, +40% at Elite, +60% at Apex**. Legend lobsters get an additional **+10%**. HP is further scaled ×5 from these base values for battle pacing (24-36 turn battles).
+Stats scale with evolution: **+20% at Evolved, +40% at Elite, +60% at Apex**. Legend lobsters get an additional **+10%**. HP is used as-is in battle (battle HP scale ×1), tuned for 24-36 turn battles.
 
 ## Combat Math
 
@@ -542,7 +546,7 @@ Each class's Special has a stronger "enhanced" form that fires based on the proc
 | **Mantis** | Ambush | Guaranteed critical hit |
 | **Leviathan** | Crush | Bonus damage if target is below 50% HP |
 | **Tempest** | Maelstrom | Also applies a speed debuff to all hit |
-| **Specter** | Haunt | Extends to 3 turns of target + stronger stat reduction |
+| **Specter** | Haunt | Extends to 6 turns of target + stronger stat reduction |
 | **Sentinel** | Rally | Also grants a damage shield for 1 turn |
 | **Reaver** | Rend | Bleed cannot be cleansed |
 | **Abyss** | Devour | Overheal converts to temporary HP |
@@ -560,11 +564,11 @@ Each class has one Special move. Base values shown before purity multiplier. Sta
 | **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster |
 | **Mantis** | Ambush | 150 | Single | Adjacent | Ignores 50% of target's Armor |
 | **Leviathan** | Crush | 180 | Single | Adjacent | Highest single-target burst |
-| **Tempest** | Maelstrom | 90 | AoE | 3-hex radius | Hits all enemies in range (up to 270 total potential) |
+| **Tempest** | Maelstrom | 120 | AoE | 3-hex radius | Hits all enemies in range (up to 360 total potential) |
 | **Specter** | Haunt | 60 | Debuff | 3 hexes | Damage + target Atk/Armor -20% for 4 turns of target |
-| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 30% of ally's max HP + cleanses debuffs |
-| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 40 bleed/turn for 6 turns of target (310 total) |
-| **Abyss** | Devour | 120 | Drain | Adjacent | Damage dealt also heals self |
+| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 25% of ally's max HP + cleanses debuffs |
+| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 55 bleed/turn for 6 turns of target (400 total) |
+| **Abyss** | Devour | 150 | Drain | Adjacent | Damage dealt also heals self |
 | **Kraken** | Bind | 60 | CC | 2 hexes | Damage + stun target for 1 turn (then 2-turn stun immunity) |
 | **Ember** | Inferno | 200 | Nuke | 4 hexes | Highest burst, caster takes 25% of damage dealt |
 
