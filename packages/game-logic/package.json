@@ -12,7 +12,8 @@
     "styles": "bun run scripts/styles.ts",
     "meta": "bun run scripts/meta.ts",
     "economy": "bun run scripts/economy.ts",
-    "participation": "bun run scripts/participation.ts"
+    "participation": "bun run scripts/participation.ts",
+    "overlay": "bun run scripts/overlay.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.0.1"
