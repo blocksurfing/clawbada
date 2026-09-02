@@ -8,6 +8,14 @@ import "../helpers/BaseSetup.t.sol";
 contract FuzzRepairShop is BaseSetup {
     address internal alice = makeAddr("alice");
 
+    /// @dev TOK-G1: repair rates peg to MiningPool.currentBaseReward(), so a season must be
+    ///      live at the spec launch reward (1,250) for the 5/15/40 $CLAW rates to apply.
+    function setUp() public virtual override {
+        super.setUp();
+        vm.prank(admin);
+        miningPool.startSeason(352_500_000e18, 1_250e18);
+    }
+
     function _setTierAndDamage(uint256 tokenId, uint8 tier, uint8 damage) internal {
         vm.prank(admin);
         nft.setEvolutionTier(tokenId, tier);
@@ -25,7 +33,7 @@ contract FuzzRepairShop is BaseSetup {
         uint256 tokenId = _mintLobster(alice, 0);
         _setTierAndDamage(tokenId, tier, damage);
 
-        uint256 rate = repairShop.REPAIR_RATES(tier);
+        uint256 rate = repairShop.repairRate(tier);
         uint256 expectedCost = uint256(pointsToRepair) * rate;
 
         _giveClaw(alice, expectedCost + 1e18);
@@ -148,10 +156,10 @@ contract FuzzRepairShop is BaseSetup {
     // ── Repair rates match spec ───────────────────────────────────
 
     function test_repair_rates() public view {
-        assertEq(repairShop.REPAIR_RATES(0), 0,      "Base rate = 0");
-        assertEq(repairShop.REPAIR_RATES(1), 5e18,   "Evolved rate = 5");
-        assertEq(repairShop.REPAIR_RATES(2), 15e18,  "Elite rate = 15");
-        assertEq(repairShop.REPAIR_RATES(3), 40e18,  "Apex rate = 40");
+        assertEq(repairShop.repairRate(0), 0,      "Base rate = 0");
+        assertEq(repairShop.repairRate(1), 5e18,   "Evolved rate = 5");
+        assertEq(repairShop.repairRate(2), 15e18,  "Elite rate = 15");
+        assertEq(repairShop.repairRate(3), 40e18,  "Apex rate = 40");
     }
 
     // ─────────────────────────────────────────────────────────────

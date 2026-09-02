@@ -27,13 +27,13 @@ Higher tiers require evolved lobsters but pay proportionally more.
 
 ## Rewards
 
-Rewards are **fixed per expedition** — you always earn exactly the amount shown for your mine tier. There is no pro-rata splitting or dilution based on how many players are mining.
+Rewards are **locked at expedition start** — when your expedition begins, you know exactly what it will pay, and nothing changes that. There is no pro-rata splitting within an expedition.
 
-The `baseReward` (currently 1,250 $CLAW) is admin-tunable and may be adjusted mid-season based on participation levels.
+The reward *rate* glides: `baseReward` re-pegs automatically once per day to `remaining budget ÷ (remaining days × yesterday's demand)`, moving at most ±30% per day and never above the season's launch value (S1 launch: 1,250 $CLAW). When the mines get crowded, everyone's yield drifts down smoothly; when they empty out, it drifts back up toward the launch rate. The table above shows launch-rate values.
 
 ## Season Budget
 
-Each season has a total emission budget. Once the budget is exhausted, mining stops until the next season begins. Season 1 has 352.5M $CLAW in total emissions.
+Each season has a total emission budget — Season 1 has 352.5M $CLAW. The daily glide paces spending so the budget lasts the full 60 days: crowding compresses per-team yield instead of halting mining mid-season. (The hard budget check still exists on-chain as a backstop, but under the glide it is not expected to trigger.)
 
 ## Teams
 

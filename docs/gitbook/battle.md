@@ -18,6 +18,8 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 | **Mid** | 10,000 | 18,000 | +8,000 | -10,000 |
 | **High** | 50,000 | 90,000 | +40,000 | -50,000 |
 
+Stake brackets are re-pegged each season as fixed multiples of that season's launch `baseReward` (Low 2× / Mid 8× / High 40×), keeping battle stakes proportionate to mining yields as emissions halve. The values above are S1.
+
 The protocol takes a **10% fee** from the combined pot (85% burned, 15% to dev).
 
 ## Matchmaking
@@ -272,6 +274,8 @@ Every battle inflicts damage on all lobsters:
 Lobsters at **80+ damage** cannot enter battle until repaired.
 
 **Repair is instant** — pay $CLAW, damage is removed immediately. Partial repairs are allowed.
+
+Repair rates track the mining economy: each tier's rate is a fixed fraction of the current `baseReward` (Evolved 0.40% / Elite 1.20% / Apex 3.20% per damage point — 5 / 15 / 40 $CLAW at the S1 launch reward). As mining yields glide with crowding, repair costs glide with them, so battle stays rationally priced all season.
 
 | Tier | Cost per Damage Point |
 |------|---------------------|

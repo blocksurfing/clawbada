@@ -138,7 +138,7 @@ abstract contract BaseSetup is Test {
         marketplace = new Marketplace(address(claw), address(nft), address(treasury));
         breedingLab = new BreedingLab(address(claw), address(nft), address(treasury));
         evolutionLab = new EvolutionLab(address(claw), address(nft), address(treasury));
-        repairShop  = new RepairShop(address(claw), address(nft), address(treasury));
+        repairShop  = new RepairShop(address(claw), address(nft), address(treasury), address(miningPool));
         battleVRF   = new BattleVRF(admin);
         battleArena = new BattleArena(
             admin, address(claw), address(nft), address(teamMgr), address(treasury), address(battleVRF)
