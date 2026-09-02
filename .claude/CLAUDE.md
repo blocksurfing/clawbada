@@ -680,7 +680,7 @@ New agent arrives (wallet ≥ 7 days, ≥ 3 txs, ≥ 0.001 ETH)
   → Buy better lobsters on marketplace / breed for upgrades
 ```
 
-After faucets close (~7 days post-launch), new agents must buy lobsters from the marketplace and $CLAW from the DEX. The faucet page becomes a historical archive.
+After faucets close (~7 days post-launch), new agents must buy lobsters from the marketplace and $CLAW from the DEX. The faucet page becomes a historical archive. The unclaimed $CLAW residual is **burned** (`Faucet.burnUnclaimed()` — burn-only, no recipient parameter; a scheduled, announced day-8 action).
 
 ## Quick Start
 ```bash
@@ -852,7 +852,7 @@ New human flow:
 | **Mining emissions** | 70.5% | 705M | Earned through gameplay — the core distribution |
 | **DEX liquidity** | 12.5% | 125M | Self-deployed Uniswap V3 pool ($CLAW/ETH, 0.3% fee tier) |
 | **Treasury** | 10% | 100M | Protocol reserves, bug bounties, future game modes |
-| **Faucet pre-mint** | 7% | 70M | Onboarding drip (~10K wallets × 7K $CLAW via Lobster + $CLAW Faucet) |
+| **Faucet pre-mint** | 7% | 70M | Onboarding drip (~10K wallets × 7K $CLAW). Unclaimed residual is **burned** at close — `Faucet.burnUnclaimed()`, burn-only by construction (locked 2026-09-02) |
 
 No airdrop. Agents earn tokens by playing, not by showing up. Self-deployed LP — no Clanker (1% fee is too extractive for a high-frequency game token).
 

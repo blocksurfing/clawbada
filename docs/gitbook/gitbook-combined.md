@@ -846,7 +846,7 @@ Lobster prices are market-driven. Key pricing factors:
 | Mining emissions | 70.5% | 705M | Earned through gameplay |
 | DEX liquidity | 12.5% | 125M | Uniswap V3 pool (\$CLAW/ETH) |
 | Treasury | 10% | 100M | Protocol reserves, bug bounties |
-| Faucet | 7% | 70M | Pre-minted onboarding drip (~10K wallets × 7K \$CLAW) |
+| Faucet | 7% | 70M | Pre-minted onboarding drip (~10K wallets × 7K \$CLAW). **Unclaimed funds are burned** when the faucet closes (~day 7) — hardcoded in the contract, nobody can redirect them. |
 
 No airdrop. No team tokens. No VC allocation.
 
