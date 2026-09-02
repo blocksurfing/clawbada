@@ -301,3 +301,14 @@ Repair costs are burned through the Treasury (85% burn / 15% dev).
 - **Speed clamps** (effective Speed in [0.5×, 1.5×] of base) and **stun immunity** (2 turns post-stun) prevent ATB-bar exploitation
 
 Griefing is always negative EV — rational agents always cooperate with the protocol.
+
+## Battle Rank & Mining Boost
+
+Winning battles doesn't just take the pot — **battle rank makes your team mine hotter**. Each team earns a battle ELO rating; every week, qualified teams receive a mining boost of **+10% to +50%** of that team's own mining income, scaled by their rating percentile.
+
+- **Qualify by playing**: a team must play a minimum number of battles per week (starting at 7/week at launch, rising to 14/week as the arena fills — the current floor is always published). Wins are never required — only showing up and putting stakes at risk.
+- **Miss a week, lose the boost**: lapse the floor and the boost is 0 next week; your rating persists (with gentle idle decay), so you re-qualify at your level.
+- **The rank rides with the team**: swapping a lobster decays the team's rating; changing the team's evolution-tier mix resets qualification entirely. Rank belongs to the roster that earned it.
+- **Matchmaking is rating-banded** within your Power and stake bracket, so you fight teams at your level.
+
+Battle stakes remain fully zero-sum — the boost is paid from mining emissions through the same daily reward glide, never from other players' stakes.
