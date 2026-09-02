@@ -14,7 +14,8 @@
     "economy": "bun run scripts/economy.ts",
     "participation": "bun run scripts/participation.ts",
     "overlay": "bun run scripts/overlay.ts",
-    "boost": "bun run scripts/boost.ts"
+    "boost": "bun run scripts/boost.ts",
+    "season": "bun run scripts/season.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.0.1"
