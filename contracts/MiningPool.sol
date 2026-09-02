@@ -9,10 +9,15 @@ import {ClawToken} from "./ClawToken.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {TeamManager} from "./TeamManager.sol";
 
-/// @title MiningPool — Fixed per-expedition rewards with seasonal budget cap for Clawbada
+/// @title MiningPool — Glide-pegged per-expedition rewards with seasonal budget cap for Clawbada
 /// @notice Manages expeditions across Base/Evolved/Elite/Apex mines. Each expedition earns
 ///         a fixed reward = baseReward × tierWeight, locked at start. Season has a total
-///         emission cap; mining stops when the budget is exhausted.
+///         emission cap. TOK-G1: baseReward auto-glides daily —
+///         target = remainingBudget / (remainingDays × trailing epoch demand), clamped to
+///         ±30% per epoch and capped at the season's launch reward — so crowding compresses
+///         per-team yield smoothly instead of exhausting the budget mid-season. Demand is
+///         measured on-chain as tier-weight units served per epoch. setBaseReward remains as
+///         an emergency admin override on top of the glide.
 /// @dev Admin calls startSeason(totalEmission, baseReward) each season. Rewards are minted into
 ///      MiningPool escrow at expedition start and transferred to the user at claim time. This
 ///      ensures startExpedition() fails immediately if ClawToken.MAX_SUPPLY headroom is insufficient,
@@ -40,6 +45,10 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         uint256 baseReward; // $CLAW per Base expedition (×tierWeight for higher tiers)
         uint256 startTime;
         uint256 totalMinted; // tracks budget allocated and minted into escrow this season
+        uint256 launchBaseReward; // TOK-G1: glide cap — reward never re-pegs above this
+        uint256 lastRepegEpoch; // epoch index of the last glide re-peg
+        uint256 epochWeightServed; // tier-weight units served in the current epoch
+        uint256 trailingWeightServed; // units served in the last completed epoch with demand
     }
 
     // ──────────── Constants ────────────
@@ -47,6 +56,9 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     uint256 public constant SEASON_DURATION = 60 days;
     uint256 public constant NUM_TIERS = 4;
     uint256 public constant ADMIN_RELEASE_GRACE = 7 days;
+    // TOK-G1 glide parameters: daily re-peg, damped to ±30% per epoch.
+    uint256 public constant REPEG_EPOCH = 1 days;
+    uint256 public constant REPEG_MAX_STEP_BPS = 3_000;
     // TOK-M1: hard on-chain lifetime cap on cumulative mining emissions = the 705M
     // (70.5%) fair-launch allocation. Without this, the budget is enforced only by
     // per-season admin discipline (`startSeason` totalEmission), and Treasury burns
@@ -81,6 +93,9 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     );
     event ExpeditionClaimed(uint256 indexed expeditionId, uint256 indexed teamId, address indexed owner, uint256 reward);
     event BaseRewardUpdated(uint256 indexed season, uint256 oldBaseReward, uint256 newBaseReward);
+    event BaseRewardRepegged(
+        uint256 indexed season, uint256 epoch, uint256 oldBaseReward, uint256 newBaseReward, uint256 trailingWeight
+    );
 
     // ──────────── Errors ────────────
     error ZeroAddress();
@@ -142,13 +157,19 @@ contract MiningPool is AccessControl, ReentrancyGuard {
             totalEmission: totalEmission,
             baseReward: baseReward,
             startTime: block.timestamp,
-            totalMinted: 0
+            totalMinted: 0,
+            launchBaseReward: baseReward,
+            lastRepegEpoch: 0,
+            epochWeightServed: 0,
+            trailingWeightServed: 0
         });
 
         emit SeasonStarted(currentSeason, totalEmission, baseReward, block.timestamp);
     }
 
-    /// @notice Update the base reward for the current season. Only affects future expeditions.
+    /// @notice Emergency admin override of the glide-pegged base reward. Only affects future
+    ///         expeditions; the daily glide keeps re-pegging from the new value (still capped
+    ///         at the season's launch reward).
     /// @param newBaseReward New $CLAW per Base expedition
     function setBaseReward(uint256 newBaseReward) external onlyRole(SEASON_ADMIN_ROLE) {
         if (newBaseReward == 0) revert ZeroBaseReward();
@@ -187,8 +208,11 @@ contract MiningPool is AccessControl, ReentrancyGuard {
             }
         }
 
-        // Calculate fixed reward and reserve budget
+        // TOK-G1: glide re-peg (lazy, at most once per epoch), then lock this
+        // expedition's reward at the current rate.
         SeasonConfig storage season = _seasons[currentSeason];
+        _repegIfNeeded(season);
+        season.epochWeightServed += TIER_WEIGHTS[mineTier];
         uint256 reward = season.baseReward * TIER_WEIGHTS[mineTier];
 
         if (season.totalMinted + reward > season.totalEmission) revert SeasonBudgetExhausted();
@@ -316,7 +340,52 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         return s.totalEmission - s.totalMinted;
     }
 
+    /// @notice Permissionless: roll the daily glide re-peg forward without starting an expedition.
+    function repeg() external {
+        _requireActiveSeason();
+        _repegIfNeeded(_seasons[currentSeason]);
+    }
+
+    /// @notice Current baseReward of the latest season (last value once the season has ended).
+    ///         May lag one epoch behind the pending re-peg; call repeg() to actualize.
+    function currentBaseReward() external view returns (uint256) {
+        return _seasons[currentSeason].baseReward;
+    }
+
     // ──────────── Internal ────────────
+
+    /// @dev TOK-G1 glide: once per epoch, re-peg baseReward toward
+    ///      remaining / (remainingDays × trailingWeightServed), clamped to ±30% per step and
+    ///      capped at launchBaseReward. Lazy single-step per touched epoch: after quiet gaps
+    ///      the reward converges over subsequent epochs rather than jumping. No demand signal
+    ///      yet (trailing == 0) → hold the current reward.
+    function _repegIfNeeded(SeasonConfig storage season) internal {
+        uint256 epoch = (block.timestamp - season.startTime) / REPEG_EPOCH;
+        if (epoch == season.lastRepegEpoch) return;
+        if (season.epochWeightServed > 0) season.trailingWeightServed = season.epochWeightServed;
+        season.epochWeightServed = 0;
+        season.lastRepegEpoch = epoch;
+        uint256 trailing = season.trailingWeightServed;
+        if (trailing == 0) return;
+
+        uint256 elapsed = block.timestamp - season.startTime;
+        uint256 remainingDays = (SEASON_DURATION - elapsed) / 1 days;
+        if (remainingDays == 0) remainingDays = 1;
+        uint256 remaining =
+            season.totalEmission > season.totalMinted ? season.totalEmission - season.totalMinted : 0;
+        uint256 target = remaining / (remainingDays * trailing);
+
+        uint256 old = season.baseReward;
+        uint256 lo = (old * (10_000 - REPEG_MAX_STEP_BPS)) / 10_000;
+        uint256 hi = (old * (10_000 + REPEG_MAX_STEP_BPS)) / 10_000;
+        uint256 next = target < lo ? lo : (target > hi ? hi : target);
+        if (next > season.launchBaseReward) next = season.launchBaseReward;
+        if (next == 0) next = 1; // dust floor preserves the nonzero-reward invariant
+        if (next != old) {
+            season.baseReward = next;
+            emit BaseRewardRepegged(currentSeason, epoch, old, next, trailing);
+        }
+    }
 
     function _requireActiveSeason() internal view {
         if (currentSeason == 0) revert SeasonNotActive();

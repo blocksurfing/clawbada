@@ -123,7 +123,7 @@ Roughly equal EV at ~60-65% battle win rate. Mining is safer and passive; battle
 - $CLAW staking required for expeditions (except faucet first expedition)
 
 ### Tiered Mining
-Mining uses **fixed per-expedition rewards** with a **seasonal budget cap**. Each expedition earns a known amount = `baseReward × tierWeight`, locked at start. No pro-rata, no daily budgets.
+Mining uses **glide-pegged per-expedition rewards** with a **seasonal budget cap**. Each expedition earns a known amount = `baseReward × tierWeight`, locked at start. The rate re-pegs daily (TOK-G1) so the budget lasts the full season. No per-expedition pro-rata.
 
 | Mine Tier | Requirement | Weight | Reward per Expedition (at 1,250 base) |
 |-----------|------------|--------|--------------------------------------|
@@ -132,10 +132,11 @@ Mining uses **fixed per-expedition rewards** with a **seasonal budget cap**. Eac
 | **Elite Mine** | All 3 lobsters at Elite+ | 10x | 12,500 $CLAW |
 | **Apex Mine** | All 3 lobsters at Apex | 25x | 31,250 $CLAW |
 
-- **Fixed rewards**: each expedition earns exactly `baseReward × tierWeight`, reserved at start
-- **Season budget cap**: `totalMinted + reward > totalEmission` → mining stops (reverts with `SeasonBudgetExhausted`)
-- **Admin-tunable baseReward**: `setBaseReward()` via SEASON_ADMIN_ROLE, only affects new expeditions
-- **S1 launch baseReward**: 1,250 $CLAW (admin can tune up/down mid-season based on participation)
+- **Locked rewards**: each expedition earns exactly `baseReward × tierWeight`, reserved at start
+- **TOK-G1 auto-glide**: `baseReward` re-pegs daily to `remaining / (remainingDays × trailing epoch demand)`, damped ±30%/epoch, capped at the season's launch reward — crowding compresses yield instead of exhausting the budget; permissionless `repeg()`
+- **Season budget cap**: `totalMinted + reward > totalEmission` still reverts (`SeasonBudgetExhausted`) as a backstop, structurally unreachable under the glide
+- **Emergency override**: `setBaseReward()` via SEASON_ADMIN_ROLE remains on top of the glide (above-launch values snap back at the next re-peg)
+- **S1 launch baseReward**: 1,250 $CLAW (= the glide cap for S1)
 - **Minimum tier gate**: all 3 lobsters on a team must meet the mine's minimum tier
 - **Can exceed minimum**: e.g., 2 Elite + 1 Apex in Elite mine is allowed
 - **Expedition duration**: 4 hours across all tiers (6 expeditions/day per team)
@@ -149,7 +150,7 @@ Active PvP where two players wager $CLAW in hex-grid tactical combat. Zero-sum: 
 
 **Protocol fee**: 10% of combined pot (routed through Treasury.sol: 85% burned / 15% dev).
 
-**S1 stake brackets** (fixed, matchmaking pairs by ELO within each bracket):
+**S1 stake brackets** (per-season config: 2× / 8× / 40× of the season's launch baseReward; matchmaking pairs within each bracket):
 
 | Bracket | Stake | Combined Pot | Protocol Fee | Winner Gets | Winner Net | Loser Net |
 |---------|-------|-------------|-------------|------------|-----------|----------|
@@ -494,10 +495,10 @@ Every battle inflicts damage on all participating lobsters:
 ```
 repair_cost = damage_points_repaired × tier_rate
 
-tier_rate ($CLAW per damage point):
-  Evolved:  5
-  Elite:   15
-  Apex:    40
+tier_rate — pegged to the mining glide (TOK-G1): bps of current baseReward per damage point:
+  Evolved:  40 bps  (5 $CLAW at the 1,250 launch reward)
+  Elite:   120 bps  (15 $CLAW at launch)
+  Apex:    320 bps  (40 $CLAW at launch)
 ```
 
 **Typical repair costs per battle (full team of 3):**
@@ -820,7 +821,7 @@ New human flow:
 - **Player badges** — Human vs Agent identity shown in battle HUD, leaderboard, marketplace
 - **Breeding** — 2 parents → 1 offspring (Base tier, tradeable); 5 breeds max, 48h cooldown; cost scales by breed count × generation; soulbound parents can breed tradeable offspring
 - **Legends** — ~0.3% breeding chance; +10% base stats + unique visuals; not hereditary; faucet lobsters cannot be legends
-- **Tiered mining** — Base/Evolved/Elite/Apex mines; fixed per-expedition rewards (baseReward × tier weight 1x/3x/10x/25x); 4h expeditions; season budget cap; admin-tunable baseReward (S1 launch: 1,250 $CLAW); minimum tier gate on all 3 team lobsters
+- **Tiered mining** — Base/Evolved/Elite/Apex mines; glide-pegged per-expedition rewards (baseReward × tier weight 1x/3x/10x/25x, locked at start; TOK-G1 daily re-peg paces the season budget); 4h expeditions; S1 launch baseReward 1,250 $CLAW = glide cap; minimum tier gate on all 3 team lobsters
 - **Repair system** — battle damage accumulates; ≥80 damage blocks battle entry; $CLAW burn to repair
 - **Lobster image compositing** — layer body-part PNGs from dominant genes (for human UI; agents use raw metadata)
 - **Agent-first API** — contracts + REST/WebSocket as primary interface; web UI is secondary

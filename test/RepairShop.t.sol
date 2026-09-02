@@ -8,8 +8,22 @@ import {ClawToken} from "../contracts/ClawToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
+/// @dev TOK-G1: settable stand-in for MiningPool's glide-pegged baseReward.
+contract MockRewardPeg {
+    uint256 public value = 1_250e18;
+
+    function set(uint256 v) external {
+        value = v;
+    }
+
+    function currentBaseReward() external view returns (uint256) {
+        return value;
+    }
+}
+
 contract RepairShopTest is Test {
     RepairShop shop;
+    MockRewardPeg peg;
     LobsterNFT nft;
     ClawToken claw;
     Treasury treasury;
@@ -30,7 +44,8 @@ contract RepairShopTest is Test {
         claw = new ClawToken(admin, lpAddress, address(treasury));
         treasury.setClawToken(address(claw));
 
-        shop = new RepairShop(address(claw), address(nft), address(treasury));
+        peg = new MockRewardPeg();
+        shop = new RepairShop(address(claw), address(nft), address(treasury), address(peg));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -86,17 +101,22 @@ contract RepairShopTest is Test {
 
     function test_constructorZeroClawReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(0), address(nft), address(treasury));
+        new RepairShop(address(0), address(nft), address(treasury), address(peg));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(claw), address(0), address(treasury));
+        new RepairShop(address(claw), address(0), address(treasury), address(peg));
     }
 
     function test_constructorZeroTreasuryReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(claw), address(nft), address(0));
+        new RepairShop(address(claw), address(nft), address(0), address(peg));
+    }
+
+    function test_constructorZeroMiningPoolReverts() public {
+        vm.expectRevert(RepairShop.ZeroAddress.selector);
+        new RepairShop(address(claw), address(nft), address(treasury), address(0));
     }
 
     // ──────────── repair() — Happy Paths ────────────
@@ -265,6 +285,30 @@ contract RepairShopTest is Test {
         vm.prank(alice);
         vm.expectRevert(RepairShop.ZeroRepairPoints.selector);
         shop.repair(id, 0);
+    }
+
+    // ──────────── TOK-G1 peg ────────────
+
+    function test_repairRateTracksPeg() public {
+        uint256 id = _mintLobsterAtTier(alice, 1);
+        _setDamage(id, 20);
+        peg.set(625e18); // glide halves the base reward -> rate halves to 2.5/point
+        uint256 cost = 20 * 25e17;
+        _giveClaw(alice, cost);
+        _approveClaw(alice, cost);
+        uint256 balBefore = claw.balanceOf(alice);
+        vm.prank(alice);
+        shop.repair(id, 20);
+        assertEq(balBefore - claw.balanceOf(alice), cost);
+    }
+
+    function test_repairRevertsWhenPegUnset() public {
+        uint256 id = _mintLobsterAtTier(alice, 1);
+        _setDamage(id, 10);
+        peg.set(0);
+        vm.prank(alice);
+        vm.expectRevert(RepairShop.RewardPegUnset.selector);
+        shop.repair(id, 10);
     }
 
     // ──────────── Fuzz ────────────

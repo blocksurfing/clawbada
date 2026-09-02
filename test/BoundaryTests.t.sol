@@ -164,7 +164,7 @@ contract BoundaryTests is Test {
         pool = new MiningPool(admin, address(claw), address(nft), address(tm));
         breeding = new BreedingLab(address(claw), address(nft), address(treasury));
         evolution = new EvolutionLab(address(claw), address(nft), address(treasury));
-        repair = new RepairShop(address(claw), address(nft), address(treasury));
+        repair = new RepairShop(address(claw), address(nft), address(treasury), address(pool));
         market = new Marketplace(address(claw), address(nft), address(treasury));
         arena = new BattleArena(
             admin, address(claw), address(nft), address(tm), address(treasury), address(vrf)
@@ -623,6 +623,7 @@ contract BoundaryTests is Test {
     // ════════════════════════════════════════════════════════════════
 
     function test_boundary_repairSinglePoint() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         uint256 id = _mintLobsterAtTier(alice, 1); // Evolved
         _setDamage(id, 50);
 
@@ -636,6 +637,7 @@ contract BoundaryTests is Test {
     }
 
     function test_boundary_repairMaxDamageAtApex() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         uint256 id = _mintLobsterAtTier(alice, 3); // Apex
         _setDamage(id, 100);
 
@@ -649,6 +651,7 @@ contract BoundaryTests is Test {
     }
 
     function test_boundary_repairTo80StillBlocksBattle() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         uint256 id = _mintLobsterAtTier(alice, 1);
         _setDamage(id, 90);
 
@@ -664,6 +667,7 @@ contract BoundaryTests is Test {
     }
 
     function test_boundary_repairTo79AllowsBattle() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         uint256 id = _mintLobsterAtTier(alice, 1);
         _setDamage(id, 90);
 
@@ -1228,6 +1232,7 @@ contract BoundaryTests is Test {
     // ════════════════════════════════════════════════════════════════
 
     function test_integration_damageRepairBattleReentry() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         // 1. Create lobster at Evolved tier with damage=85
         uint256 lob = _mintLobsterAtTier(alice, 1);
         _setDamage(lob, 85);

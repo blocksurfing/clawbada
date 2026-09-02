@@ -780,8 +780,10 @@ contract MiningPoolTest is Test {
 
         // Total minted should never exceed emission
         assertLe(pool.getSeasonMinted(1), emission);
-        // Should equal exactly numExpeditions × BASE_REWARD
-        assertEq(pool.getSeasonMinted(1), uint256(numExpeditions) * BASE_REWARD);
+        // TOK-G1: rewards glide once expeditions cross epoch boundaries, so minted is
+        // bounded by numExpeditions x launch reward rather than pinned to it.
+        assertLe(pool.getSeasonMinted(1), uint256(numExpeditions) * BASE_REWARD);
+        assertGt(pool.getSeasonMinted(1), 0);
     }
 
     function testFuzz_budgetExhaustsCleanly(uint8 numTeams) public {
@@ -1069,5 +1071,80 @@ contract MiningPoolTest is Test {
         vm.warp(block.timestamp + pool.SEASON_DURATION());
         _startSeasonWith(2_000_000_000e18, 100_000_000e18);
         assertEq(pool.lifetimeMinted(), 100_000_000e18, "lifetimeMinted persists across season reset");
+    }
+
+    // ──────────── TOK-G1 glide ────────────
+
+    /// @dev Tight budget (100 Base-expedition units over 60 days): the day-1 re-peg targets
+    ///      far below launch, so the -30% damping clamp binds -> reward 1,250 -> 875.
+    function _runSixThenCrossEpoch() internal returns (uint256 teamId) {
+        _startSeasonWith(BASE_REWARD * 100, BASE_REWARD);
+        teamId = _createTeam(alice, 0);
+        for (uint256 i = 0; i < 6; i++) {
+            vm.prank(alice);
+            uint256 eid = pool.startExpedition(teamId, 0);
+            vm.warp(block.timestamp + 4 hours);
+            vm.prank(alice);
+            pool.claimExpedition(eid);
+        }
+    }
+
+    function test_glideRepegsDownWithDampingClamp() public {
+        uint256 teamId = _runSixThenCrossEpoch();
+        // 7th expedition is in epoch 1: re-peg fires, clamped to 70% of 1,250.
+        vm.prank(alice);
+        pool.startExpedition(teamId, 0);
+        assertEq(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000);
+        assertEq(pool.getSeasonMinted(1), 6 * BASE_REWARD + (BASE_REWARD * 7_000) / 10_000);
+    }
+
+    function test_repegIsPermissionless() public {
+        _runSixThenCrossEpoch();
+        address nobody = makeAddr("nobody");
+        vm.prank(nobody);
+        pool.repeg();
+        assertEq(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000);
+    }
+
+    function test_glideHoldsAtLaunchCapUnderLightDemand() public {
+        // Full S1 budget with one team's demand: target far above launch -> capped, no rise.
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 0);
+        vm.prank(alice);
+        pool.startExpedition(teamId, 0);
+        vm.warp(block.timestamp + 1 days);
+        pool.repeg();
+        assertEq(pool.currentBaseReward(), BASE_REWARD);
+    }
+
+    function test_inFlightRewardLockedAcrossRepeg() public {
+        uint256 teamId = _runSixThenCrossEpoch();
+        // Start in epoch 0's last window... start one more, then cross and repeg before claiming.
+        vm.prank(alice);
+        uint256 expeditionId = pool.startExpedition(teamId, 0);
+        uint256 mintedBefore = pool.getSeasonMinted(1);
+        vm.warp(block.timestamp + 1 days);
+        pool.repeg();
+        assertEq(pool.getSeasonMinted(1), mintedBefore); // repeg reserves nothing
+        uint256 balBefore = claw.balanceOf(alice);
+        vm.prank(alice);
+        pool.claimExpedition(expeditionId);
+        // Reward was locked at start (post-clamp epoch-1 rate), unaffected by the later re-peg.
+        assertEq(claw.balanceOf(alice) - balBefore, (BASE_REWARD * 7_000) / 10_000);
+    }
+
+    function test_glideNeverExceedsLaunchAfterAdminOverride() public {
+        _startSeason();
+        vm.prank(seasonAdmin);
+        pool.setBaseReward(BASE_REWARD * 2);
+        assertEq(pool.currentBaseReward(), BASE_REWARD * 2);
+        uint256 teamId = _createTeam(alice, 0);
+        vm.prank(alice);
+        pool.startExpedition(teamId, 0);
+        vm.warp(block.timestamp + 1 days);
+        pool.repeg();
+        // The launch cap is absolute: an above-launch override snaps back to launch at the
+        // next re-peg (the cap applies after the damping clamp).
+        assertEq(pool.currentBaseReward(), BASE_REWARD);
     }
 }
