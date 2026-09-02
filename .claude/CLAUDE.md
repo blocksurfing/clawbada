@@ -439,7 +439,7 @@ enhanced_chance = 5% + (5% × purity_score)
 - **Duplicate classes allowed**: mono-class teams are valid but generally suboptimal due to shared weaknesses and movement limitations
 
 #### Battle Brackets & Matchmaking
-**Three stake brackets** (Low 2,500 / Mid 10,000 / High 50,000 $CLAW) define the economic tier. **Team Power buckets** (3–9, integer sum of tier weights: Evolved=1 / Elite=2 / Apex=3) define the competitive tier. Players are matched within (power × stake) sub-pools — up to 21 sub-pools total.
+**Three stake brackets** (Low 2,500 / Mid 10,000 / High 50,000 $CLAW) define the economic tier. **Team Power buckets** (3–9, integer sum of tier weights: Evolved=1 / Elite=2 / Apex=3) define the competitive tier. Players are matched within (power × stake) sub-pools — up to 21 sub-pools total — and, from S1, within **ELO rating bands** inside each sub-pool (adaptive radius expansion, as with Power buckets). Banded matchmaking is load-bearing for the battle-rank mining boost.
 
 **Adaptive radius expansion** prevents thin-pool starvation at launch:
 - 0–30 s: exact power match
@@ -472,6 +472,18 @@ Battle outcomes are **server-authoritative during play** with **on-chain dispute
   - **Disputer loses** → bond slashed → Treasury (85% burn / 15% dev)
 - **Rate limit**: 5 disputes per address per rolling 24h window, enforced on-chain via `disputeTimestamps[address]`. Reverts with `DisputeRateLimitExceeded` when exceeded.
 - 99% of battles never enter dispute path. The system exists as deterrent + insurance.
+
+#### Battle-Rank Mining Boost (S1 — locked 2026-09-02)
+Battle rank pays in mining advantage — stakes stay fully zero-sum. Battle ELO attaches to the **team** (teamId); a team's league percentile grants a boost to **that team's own** mining income.
+
+- **Boost curve**: smooth **+10% → +50%** of the team's mining income, linear in ELO percentile among qualified teams (no stepped leagues — steps pay win-traders)
+- **Weekly epochs, played-not-won**: qualification = battles PLAYED per week (never wins — a win quota creates a bought-wins market). Floor **ramps 7/week at launch → 14/week** once ELO bands are liquid (published per epoch, announced a week ahead)
+- **Lapse**: miss the floor → boost = 0 next epoch; ELO persists with **5%/epoch idle decay** toward band baseline
+- **Roster binding**: same-tier lobster swap → ELO regresses **1/3 toward baseline per lobster swapped**; team Power change → **full re-qualification** (closes rank laundering)
+- **Funding**: same-budget — boost spend counts as demand inside the TOK-G1 glide (no separate carve in S1)
+- **Matchmaking**: ELO-banded within Power × stake sub-pools from S1 (existential — random pairing → 0% rational participation even with the boost)
+- **Trust model**: server-computed weekly leaderboard; admin posts teamId → boostBps on-chain; same dispute-window philosophy as the rest of S1
+- **Economics** (`bun run boost`): breakeven base boost 7.0 / 7.2 / 10.0% (Evolved/Elite/Apex at 14 battles/wk; halves at 7/wk); population-proof — identical outcomes at 50 / 500 / 5,000 teams
 
 #### Anti-Griefing
 - **5% anti-grief deposit**: slashed if player times out repeatedly or forfeits, returned otherwise
