@@ -20,7 +20,13 @@ import {
   BattlePhase,
   computeTeamPower,
 } from '@clawbada/game-logic';
-import { db, agents, battles, matchmakingQueue } from '@clawbada/db';
+import {
+  db,
+  battles,
+  matchmakingQueue,
+  ensureTeamRating,
+  currentBoostEpochId,
+} from '@clawbada/db';
 import { walletAuth } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readTeam, readLobster, serializeBigInts } from '../../../lib/chain';
@@ -33,6 +39,7 @@ import {
 } from '../../../lib/matchmaker/match';
 import {
   getCurrentRadius,
+  getCurrentRatingRadius,
   makePoolKey,
   MIN_TEAM_POWER,
   MAX_TEAM_POWER,
@@ -107,14 +114,30 @@ queueRoutes.post(
       throw new ApiError('INVALID_INPUT', `Computed power ${powerScore} outside valid range`);
     }
 
-    // ELO is tracked but NOT used for matching at S1 launch (deferred to S1.5).
-    // Snapshot at queue time so a rating change mid-queue doesn't shift bucket.
-    const [agent] = await db
-      .select({ elo: agents.elo })
-      .from(agents)
-      .where(eq(agents.address, address))
-      .limit(1);
-    const elo = agent?.elo ?? 1200;
+    // S1 rating band (locked 2026-09-02): the queue row carries the TEAM's rating,
+    // not the wallet ELO. `ensureTeamRating` is the lazy lineage safety net for a
+    // team the indexer has not rated yet (fresh / inherited from the disbanded
+    // roster it descends from) and forces a full re-qualification when the
+    // stored Power no longer matches. Snapshotted at join so a rating change
+    // mid-queue cannot shift the band under the matcher.
+    let epochId: number;
+    try {
+      epochId = await currentBoostEpochId(db);
+    } catch (err) {
+      // Anchor missing = deploy misconfiguration (BOOST_EPOCH_ANCHOR_TS unset and
+      // SeasonStarted not indexed). Surface it instead of a generic 500.
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ApiError('INTERNAL_ERROR', `Boost epoch clock unavailable: ${msg}`);
+    }
+    const ratingResult = await ensureTeamRating(db, {
+      teamId,
+      owner: address,
+      lobsterIds: team.lobsterIds,
+      power: powerScore,
+      epochId,
+    });
+    const elo = ratingResult.rating;
+    const requalified = ratingResult.reset;
 
     // F-16 / F-3K: let Postgres assign `enqueuedAt` via `defaultNow()` and
     // read it back with `RETURNING`. The previous code set the value from
@@ -175,11 +198,18 @@ queueRoutes.post(
     // (search_expanded, match_cancelled, match_found) can be matched against
     // the client's current session and stale-session events dropped.
     const initialRadius = getCurrentRadius(powerScore, 0);
+    const initialRatingRadius = getCurrentRatingRadius(0);
     battleWS.notifyAddress(address, 'queue_joined', {
       bracket: bracketIndex,
       power: powerScore,
       initialRadius: { low: initialRadius.low, high: initialRadius.high },
+      // `elo` kept for the existing client reducer; `rating` is the same TEAM
+      // rating under its S1 name. `requalified` = the roster's Power changed and
+      // the rating was reset to baseline on this join.
       elo,
+      rating: elo,
+      requalified,
+      initialRatingRadius,
       enqueuedAtMs: enqueuedAt.getTime(),
       // F-Y3: collision-proof session id. Client reducer prefers this over
       // enqueuedAtMs for the stale-event filter.
@@ -206,6 +236,8 @@ queueRoutes.post(
           opponent: match.playerA === address ? match.playerB : match.playerA,
           yourPower: powerScore,
           opponentPower: match.playerA === address ? match.powerB : match.powerA,
+          rating: elo,
+          requalified,
         }),
       );
     }
@@ -215,6 +247,9 @@ queueRoutes.post(
       bracket: bracketIndex,
       power: powerScore,
       initialRadius: { low: initialRadius.low, high: initialRadius.high },
+      rating: elo,
+      requalified,
+      initialRatingRadius,
       // F-16-a: return the server's authoritative session id. The client
       // uses this for `state.since` so stale-event filtering (which keys
       // off `enqueuedAtMs`) compares like-clocks. A client-derived
@@ -246,12 +281,16 @@ queueRoutes.get(
       const elapsedMs = Date.now() - entry.enqueuedAt.getTime();
       const elapsedSec = Math.floor(elapsedMs / 1000);
       const radius = getCurrentRadius(entry.powerScore, elapsedSec);
+      const ratingRadius = getCurrentRatingRadius(elapsedSec);
       return c.json(
         serializeBigInts({
           inQueue: true,
           bracket: entry.stakeBracket,
           power: entry.powerScore,
+          // `elo` kept for the existing client reducer; `rating` is the TEAM rating.
           elo: entry.elo,
+          rating: entry.elo,
+          ratingRadius,
           teamId: entry.teamId,
           enqueuedAt: entry.enqueuedAt,
           // F-Y3: collision-proof session id for rehydration. Client populates

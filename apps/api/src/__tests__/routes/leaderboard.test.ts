@@ -3,7 +3,7 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // ── Mock @clawbada/db ──
 function mockDbChain(result: any[] = []) {
   const chain: any = {};
-  const methods = ['select', 'from', 'where', 'groupBy', 'orderBy', 'limit'];
+  const methods = ['select', 'from', 'where', 'groupBy', 'orderBy', 'limit', 'offset'];
   for (const m of methods) {
     chain[m] = mock(() => chain);
   }
@@ -21,6 +21,10 @@ mock.module('@clawbada/db', () => ({
   agents: { address: 'address', elo: 'elo', wins: 'wins', losses: 'losses', totalBattles: 'totalBattles' },
   expeditions: { owner: 'owner', reward: 'reward', season: 'season' },
   breeds: { parentA: 'parentA', cost: 'cost' },
+  teamRatings: {
+    teamId: 'teamId', owner: 'owner', rating: 'rating', power: 'power', wins: 'wins', losses: 'losses',
+    gamesPlayedTotal: 'gamesPlayedTotal', gamesPlayedEpoch: 'gamesPlayedEpoch', epochId: 'epochId', lastBattleAt: 'lastBattleAt',
+  },
 }));
 
 // sql tagged template mock that returns chainable object with .as()
@@ -34,6 +38,7 @@ sqlTag.join = (...args: any[]) => ({ _sql: 'joined' });
 
 mock.module('drizzle-orm', () => ({
   desc: (col: any) => col,
+  asc: (col: any) => col,
   sql: sqlTag,
   eq: (...args: any[]) => args,
 }));
@@ -80,6 +85,47 @@ describe('leaderboard routes', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.sort).toBe('wins');
+    });
+  });
+
+  // ──────────── GET /leaderboard/teams ────────────
+
+  describe('GET /leaderboard/teams', () => {
+    test('returns team ratings with offset-aware ranks and serialized ids', async () => {
+      const lastBattleAt = new Date('2026-09-01T12:00:00.000Z');
+      dbChainResult.length = 0;
+      dbChainResult.push(
+        { teamId: 11n, owner: '0xaaa', rating: 1300, power: 4, wins: 8, losses: 2, gamesPlayedTotal: 10, gamesPlayedEpoch: 3, epochId: 2, lastBattleAt },
+        { teamId: 12n, owner: '0xbbb', rating: 1200, power: 3, wins: 0, losses: 0, gamesPlayedTotal: 0, gamesPlayedEpoch: 0, epochId: 2, lastBattleAt: null },
+      );
+      try {
+        const res = await app.request('/leaderboard/teams?limit=2&offset=5');
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.count).toBe(2);
+        expect(body.limit).toBe(2);
+        expect(body.offset).toBe(5);
+        expect(body.leaderboard[0]).toMatchObject({
+          rank: 6,
+          teamId: '11',
+          owner: '0xaaa',
+          rating: 1300,
+          power: 4,
+          winRate: '80.0%',
+          lastBattleAt: lastBattleAt.toISOString(),
+        });
+        expect(body.leaderboard[1]).toMatchObject({ rank: 7, teamId: '12', winRate: 'N/A', lastBattleAt: null });
+      } finally {
+        dbChainResult.length = 0;
+      }
+    });
+
+    test('clamps limit to 100 and negative offset to 0', async () => {
+      const res = await app.request('/leaderboard/teams?limit=5000&offset=-3');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.limit).toBe(100);
+      expect(body.offset).toBe(0);
     });
   });
 

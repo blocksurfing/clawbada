@@ -27,7 +27,11 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun test
+      # Per-workspace runs (root "test" script = `bun run --filter '*' test`).
+      # bun's mock.module() is process-global and accumulative, so a root-level
+      # `bun test` lets one app's module mocks leak into another app's suite
+      # (apps/api mocking drizzle-orm broke apps/engine's epoch-job tests).
+      - run: bun run test
 
   forge-test:
     name: Foundry Tests
