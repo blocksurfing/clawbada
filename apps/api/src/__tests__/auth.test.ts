@@ -17,7 +17,7 @@ const VALID_ADDRESS = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
 const VALID_SIGNATURE = '0xdeadbeef';
 
 function createApp() {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { address: string } }>();
   // Mirror the global onError handler from index.ts so ApiError thrown by
   // middleware is serialised to the correct HTTP status instead of a bare 500.
   app.onError((err, c) => {
@@ -111,18 +111,19 @@ describe('walletAuth middleware', () => {
     });
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.message).toBe('Timestamp expired or too far in future');
+    expect(body.message).toBe('Timestamp expired');
   });
 
-  test('future timestamp (> 5 min ahead) returns 401', async () => {
+  test('future timestamp (> 30 s skew) returns 401', async () => {
     const app = createApp();
+    // F-2F: the forward window is AUTH_FUTURE_SKEW_SEC (30 s), not the 5-minute replay window.
     const future = String(Math.floor(Date.now() / 1000) + 6 * 60); // 6 minutes ahead
     const res = await app.request('/test', {
       headers: validHeaders({ 'X-Timestamp': future }),
     });
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.message).toBe('Timestamp expired or too far in future');
+    expect(body.message).toBe('Timestamp too far in future');
   });
 
   test('invalid address format (getAddress throws) returns 401', async () => {

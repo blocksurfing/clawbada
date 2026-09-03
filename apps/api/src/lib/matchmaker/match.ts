@@ -19,7 +19,7 @@
  * operator key sends the actual tx — same split as the legacy matchmaker.
  */
 
-import { and, asc, eq, gte, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, between, eq, gte, lte, ne, sql } from 'drizzle-orm';
 
 /** F-08: Postgres advisory lock key for serializing battleId predictions.
  *  `arena.simulate.createBattle` reads `nextBattleId` from current chain
@@ -46,7 +46,9 @@ import { battleWS } from '../ws';
 import { readLobster, readTeam } from '../chain';
 import {
   getCurrentRadius,
+  getCurrentRatingRadius,
   powerInRadius,
+  ratingInRadius,
   type PoolKey,
 } from './bucket';
 
@@ -130,7 +132,18 @@ type MatchOutcome =
       oppMutated: boolean;
       elapsedSec: number;
     }
-  | { kind: 'matched'; battleId: bigint; me: QueueRow; opp: QueueRow; elapsedSec: number };
+  | {
+      kind: 'matched';
+      battleId: bigint;
+      me: QueueRow;
+      opp: QueueRow;
+      elapsedSec: number;
+      /** Radii in force for the seeker at match time (telemetry: "how wide did we
+       *  have to open to pair this"). `powerHalfWidth` is Infinity once the Power
+       *  radius covers the whole bracket. */
+      ratingRadius: number;
+      powerHalfWidth: number;
+    };
 
 /** Try to match `address` against an eligible opponent in their bucket.
  *  Returns the match result if paired, or null if no opponent in radius.
@@ -196,6 +209,11 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
       const elapsedSec = Math.floor((Date.now() - me.enqueuedAt.getTime()) / 1000);
       elapsedAtAbort = elapsedSec; // F-3R: keep latest known elapsedSec for catch telemetry
       const radius = getCurrentRadius(me.powerScore, elapsedSec);
+      // S1 rating band (locked 2026-09-02): layered inside the Power sub-pool.
+      // Widens 75 -> 150 -> 225 -> 300 on the same 30/60/120 s steps as the
+      // Power radius but never opens to "anyone" - a patient team waits rather
+      // than being fed to a far stronger one. `elo` holds the TEAM rating.
+      const ratingRadius = getCurrentRatingRadius(elapsedSec);
 
       // 3. Find oldest opponent within radius, skipping rows locked by another tx.
       const [opp] = await tx
@@ -206,6 +224,7 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
             eq(matchmakingQueue.stakeBracket, me.stakeBracket),
             gte(matchmakingQueue.powerScore, radius.low),
             lte(matchmakingQueue.powerScore, radius.high),
+            between(matchmakingQueue.elo, me.elo - ratingRadius, me.elo + ratingRadius),
             ne(matchmakingQueue.address, lower),
           ),
         )
@@ -218,6 +237,7 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
       // Defensive: confirm opponent's power still in radius (caught by SQL
       // filter, but explicit check guards against any drift).
       if (!powerInRadius(opp.powerScore, radius)) return { kind: 'no_match' };
+      if (!ratingInRadius(opp.elo, me.elo, ratingRadius)) return { kind: 'no_match' };
 
       // 4. M-02 re-read: validate both teams' current power against snapshot.
       // RPC inside the tx so the row locks hold across the call. F-3C: tagged
@@ -381,7 +401,15 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
         .delete(matchmakingQueue)
         .where(sql`${matchmakingQueue.address} IN (${lower}, ${opp.address})`);
 
-      return { kind: 'matched', battleId, me: me as QueueRow, opp: opp as QueueRow, elapsedSec };
+      return {
+        kind: 'matched',
+        battleId,
+        me: me as QueueRow,
+        opp: opp as QueueRow,
+        elapsedSec,
+        ratingRadius,
+        powerHalfWidth: radius.halfWidth,
+      };
     });
   } catch (err) {
     // F-3L: chain-side simulate/insert threw (or F-3O lock_timeout fired,
@@ -563,7 +591,16 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
   // outcome.kind === 'matched'
   // F-Y7: removed dead `stakeAmount` local — F-X3 dropped it from the WS
   // payload, leaving this line orphaned.
-  const { battleId, me, opp, elapsedSec } = outcome;
+  const { battleId, me, opp, elapsedSec, ratingRadius, powerHalfWidth } = outcome;
+
+  // Boost telemetry (plan 2f): radius in force + rating gap at match time, so
+  // post-launch analysis can tell "paired at 75" from "had to open to 300".
+  // Infinity is not JSON - reuse the 'all' convention from the expansion rows.
+  const radiusMeta = {
+    ratingGap: Math.abs(me.elo - opp.elo),
+    ratingRadius,
+    powerRadius: powerHalfWidth === Infinity ? 'all' : powerHalfWidth,
+  };
 
   await db
     .insert(matchmakingDecisions)
@@ -577,7 +614,9 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
         meta: JSON.stringify({
           opponent: opp.address,
           opponentPower: opp.powerScore,
+          opponentRating: opp.elo,
           battleId: battleId.toString(),
+          ...radiusMeta,
         }),
       },
       {
@@ -589,7 +628,9 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
         meta: JSON.stringify({
           opponent: me.address,
           opponentPower: me.powerScore,
+          opponentRating: me.elo,
           battleId: battleId.toString(),
+          ...radiusMeta,
         }),
       },
     ])
@@ -657,6 +698,7 @@ export async function logExpansionDecision(
   bucket: PoolKey,
   elapsedSec: number,
   newHalfWidth: number,
+  ratingRadius?: number,
 ): Promise<void> {
   await db.insert(matchmakingDecisions).values({
     address: address.toLowerCase(),
@@ -666,6 +708,8 @@ export async function logExpansionDecision(
     elapsedSec: Math.floor(elapsedSec),
     meta: JSON.stringify({
       halfWidth: newHalfWidth === Infinity ? 'all' : newHalfWidth,
+      // Rating band in force after this expansion (same 30/60/120 s steps).
+      ...(ratingRadius === undefined ? {} : { ratingRadius }),
     }),
   });
 }

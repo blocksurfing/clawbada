@@ -206,7 +206,8 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
 ```
 1. MATCHMAKING (off-chain)
    Player POSTs to /api/game/combat/queue with teamId + stakeAmount
-   ELO-based matchmaking pairs players at similar stake tiers
+   Paired within the (Team Power × stake) sub-pool AND a team-rating band
+   (±75 → ±300 cap), both radii widening with wait time
    Match found → both players notified via WebSocket
 
 2. STAKE DEPOSIT (on-chain)
@@ -448,11 +449,13 @@ enhanced_chance = 5% + (5% × purity_score)
 - 60–120 s: ±2 power
 - 120 s+: any power within stake bracket (HUD warns of mismatch)
 
+**Rating bands (S1, locked 2026-09-02)** layer inside the Power radius. Team rating starts at 1,200 (K = 32, team-keyed); the band is ±75 (0–30 s) → ±150 (30–60 s) → ±225 (60–120 s) → **±300 cap** (120 s+). Unlike Power, the rating radius never opens to "anyone": the participation model showed random pairing drives rational participation to zero even with the mining boost, so a patient team keeps waiting rather than being fed to a far stronger one.
+
 **Why Power Matchmaking**: closes the tier-mixing smurfing vector. A team of 1 Evolved + 2 Apex (Power 7) at Low stake would otherwise dominate genuine 3 × Evolved teams (Power 3); under Power Matchmaking these teams are in different sub-pools and never paired. Mixed-tier compositions sit in thin pools, so wait time becomes the smurfing disincentive — no need to "ban" anything.
 
 **Consent at match found**: opponent power score is shown alongside the deposit prompt. The 2-minute Deposit-phase window is the consent mechanism — accept the matchup by depositing, decline by walking away (no penalty pre-deposit; the un-deposited player's stake never enters escrow). No new on-chain phase required; reuses the audited Deposit window.
 
-**ELO weighting** deferred to S1.5 — random pairing within (power × stake) at launch.
+**Rating-banded pairing ships in S1** (pulled forward from S1.5 on 2026-09-02 — load-bearing for the battle-rank mining boost).
 **Cancel-rate throttling** deferred — telemetry-only at launch.
 **Procedurally generated arena layouts**: S2-3 enhancement.
 
@@ -479,11 +482,12 @@ Battle rank pays in mining advantage — stakes stay fully zero-sum. Battle ELO 
 
 - **Boost curve**: smooth **+10% → +50%** of the team's mining income, linear in ELO percentile among qualified teams (no stepped leagues — steps pay win-traders)
 - **Weekly epochs, played-not-won**: qualification = battles PLAYED per week (never wins — a win quota creates a bought-wins market). Floor **ramps 7/week at launch → 14/week** once ELO bands are liquid (published per epoch, announced a week ahead)
-- **Lapse**: miss the floor → boost = 0 next epoch; ELO persists with **5%/epoch idle decay** toward band baseline
+- **Ladder**: ONE global list of all qualified teams (not per Power bucket or stake bracket — a lone team in an odd bucket must not be "top" by default; population-proof). Rating starts at **1,200** (the baseline every decay rule regresses toward), K = 32, team-keyed
+- **Lapse**: miss the floor → boost = 0 next epoch; rating persists with **15%-of-gap idle decay per non-qualifying epoch** toward the 1,200 baseline (raised from the spec's 5% on 2026-09-03: a month away costs ~half the climb, three months ≈ a full reset, yet a returning strong team stays near its band and does not farm weaker opponents on the way back)
 - **Roster binding**: same-tier lobster swap → ELO regresses **1/3 toward baseline per lobster swapped**; team Power change → **full re-qualification** (closes rank laundering)
 - **Funding**: same-budget — boost spend counts as demand inside the TOK-G1 glide (no separate carve in S1)
-- **Matchmaking**: ELO-banded within Power × stake sub-pools from S1 (existential — random pairing → 0% rational participation even with the boost)
-- **Trust model**: server-computed weekly leaderboard; admin posts teamId → boostBps on-chain; same dispute-window philosophy as the rest of S1
+- **Matchmaking**: rating-banded within Power × stake sub-pools from S1, radius ±75 → ±300 cap (existential — random pairing → 0% rational participation even with the boost)
+- **Trust model**: server-computed weekly ladder; the `BOOST_ADMIN_ROLE` hot key stages `setTeamBoosts` for epoch N+1 and flips it with `activateBoostEpoch`; entries are Power-bound and expire after the contract's 10-day TTL if the server stops posting; same dispute-window philosophy as the rest of S1
 - **Economics** (`bun run boost`): breakeven base boost 7.0 / 7.2 / 10.0% (Evolved/Elite/Apex at 14 battles/wk; halves at 7/wk); population-proof — identical outcomes at 50 / 500 / 5,000 teams
 
 #### Anti-Griefing

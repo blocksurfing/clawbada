@@ -31,7 +31,13 @@ import { DrandClient } from './vrf/drand';
 import { OperatorWorker } from './operator/worker';
 import { createBattleHandler } from './operator/jobs/create-battle';
 import { resolveRoundHandler } from './operator/jobs/resolve-round';
+import { setTeamBoostsHandler } from './operator/jobs/set-team-boosts';
+import { activateBoostEpochHandler } from './operator/jobs/activate-boost-epoch';
 import { wrapHandler } from './operator/errors';
+import { BoostEpochService } from './boost/service';
+import { EpochClock } from './boost/epoch-clock';
+import { db } from '@clawbada/db';
+import { getMiningPool, getPublicClient } from '@clawbada/chain';
 
 async function main() {
   log.info('Clawbada Engine starting');
@@ -96,10 +102,27 @@ async function main() {
   // current round, persists battle_rounds, and submits advanceRound (or
   // settle if the resolver reports finished). Closes X2.
   operatorWorker.registerHandler('resolve_round', wrapHandler(resolveRoundHandler));
+  // Battle-rank mining boost: the weekly epoch job below enqueues these; the
+  // handlers sign with the BOOST_ADMIN key (falls back to OPERATOR on testnet).
+  operatorWorker.registerHandler('set_team_boosts', wrapHandler(setTeamBoostsHandler));
+  operatorWorker.registerHandler('activate_boost_epoch', wrapHandler(activateBoostEpochHandler));
   await operatorWorker.start();
 
   // 4. Start season monitor
   seasons.startMonitor();
+
+  // 4b. Weekly boost epoch job (60s tick). Only reads the chain here; writes go
+  //     through the operator outbox above. The epoch anchor may not be indexed
+  //     yet on a fresh deploy — the service retries it each tick instead of
+  //     failing the engine.
+  const isTestnet = process.env.CHAIN_ENV !== 'mainnet';
+  const boostPool = getMiningPool(getPublicClient(isTestnet));
+  const boostEpochs = new BoostEpochService({
+    db,
+    chain: { currentBoostEpoch: async () => Number(await boostPool.read.currentBoostEpoch()) },
+    clockFactory: () => EpochClock.fromDb(db),
+  });
+  boostEpochs.start();
 
   // 5. Verify drand connectivity
   try {
@@ -131,6 +154,7 @@ async function main() {
   const shutdown = async () => {
     log.info('Shutting down');
     seasons.stop();
+    boostEpochs.stop();
     mining.stopAll();
     await operatorWorker.stop();
     process.exit(0);

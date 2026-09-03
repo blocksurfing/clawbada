@@ -18,7 +18,17 @@
 import type { Log } from 'viem';
 import { and, eq, lt, sql } from 'drizzle-orm';
 import { BattleArenaAbi, addresses, getBattleArena, getPublicClient } from '@clawbada/chain';
-import { db, battles, battleRounds, agents, operatorJobs } from '@clawbada/db';
+import {
+  db,
+  battles,
+  battleRounds,
+  agents,
+  operatorJobs,
+  applyBattleOutcome,
+  currentBoostEpochId,
+  recordParticipation,
+  type BattleOutcomeResult,
+} from '@clawbada/db';
 import { calculateNewElo } from '@clawbada/game-logic';
 import { EventWatcher, type WatcherConfig } from '../lib/event-processor';
 // Aliased to `pinoLog` because `handleEvent(log: Log)` parameter shadows the
@@ -81,6 +91,21 @@ async function readBattleForPhase(battleId: bigint): Promise<{
     );
     return null;
   }
+}
+
+/** Boost: the team ids a battle is fought with. `teamA/teamB` stay 0 until each
+ *  reveal lands (and the F5-01 atomic reveal is resolver-submitted), so fall back to
+ *  the ids the players queued with (A2). Null when either side is unknown. */
+function resolveBattleTeams(row: {
+  teamA: bigint | null;
+  teamB: bigint | null;
+  queuedTeamA: bigint | null;
+  queuedTeamB: bigint | null;
+}): { teamA: bigint; teamB: bigint } | null {
+  const teamA = row.teamA && row.teamA !== 0n ? row.teamA : row.queuedTeamA;
+  const teamB = row.teamB && row.teamB !== 0n ? row.teamB : row.queuedTeamB;
+  if (!teamA || !teamB || teamA === 0n || teamB === 0n) return null;
+  return { teamA, teamB };
 }
 
 export class BattleWatcher extends EventWatcher {
@@ -251,6 +276,11 @@ export class BattleWatcher extends EventWatcher {
           .update(battles)
           .set({ phase: 5 }) // BattlePhase.AwaitingFinalize
           .where(and(eq(battles.battleId, battleId), lt(battles.phase, 5)));
+
+        // Boost: the match has been fought to a result, so this is where a
+        // battle counts as PLAYED for boost qualification (played, never
+        // won) - the outcome is not final until BattleSettled.
+        await this.recordProposedParticipation(battleId);
         break;
       }
 
@@ -284,6 +314,13 @@ export class BattleWatcher extends EventWatcher {
               playerA: battles.playerA,
               playerB: battles.playerB,
               settledAt: battles.settledAt,
+              phase: battles.phase,
+              teamA: battles.teamA,
+              teamB: battles.teamB,
+              queuedTeamA: battles.queuedTeamA,
+              queuedTeamB: battles.queuedTeamB,
+              powerA: battles.powerA,
+              powerB: battles.powerB,
             })
             .from(battles)
             .where(eq(battles.battleId, battleId))
@@ -368,6 +405,40 @@ export class BattleWatcher extends EventWatcher {
             })
             .where(eq(agents.address, loserPlayer));
 
+          // Boost: team-keyed rating (K=32) + the played ledger, in the same
+          // transaction as the wallet accounting so both land or neither does
+          // (the `settledAt IS NULL` guard above makes a retry safe).
+          // kind: a mirrored BattleProposed (phase 5) means the match was
+          // played out; settling straight from Active is `_forfeitAsLoss`,
+          // which emits BattleSettled without a proposal.
+          const teamIds = resolveBattleTeams(existing);
+          const kind = existing.phase === 5 ? 'battle' : 'forfeit_loss';
+          let teamRating: BattleOutcomeResult | null = null;
+          if (teamIds) {
+            const epochId = await currentBoostEpochId(tx);
+            teamRating = await applyBattleOutcome(tx, {
+              battleId,
+              teamA: teamIds.teamA,
+              teamB: teamIds.teamB,
+              winnerTeam: isWinnerA ? teamIds.teamA : teamIds.teamB,
+              epochId,
+              kind,
+              // Baseline rows for teams the indexer never rated (out-of-order
+              // events); power falls back to the eligibility floor.
+              fallback: {
+                ownerA: existing.playerA,
+                ownerB: existing.playerB,
+                powerA: existing.powerA ?? 3,
+                powerB: existing.powerB ?? 3,
+              },
+            });
+          } else {
+            pinoLog.warn(
+              { battleId: battleId.toString(), module: 'battle-watcher', op: 'BattleSettled' },
+              'BattleSettled with unknown team ids - team rating not updated (wallet accounting applied)',
+            );
+          }
+
           pinoLog.info(
             {
               battleId: battleId.toString(),
@@ -375,6 +446,10 @@ export class BattleWatcher extends EventWatcher {
               winnerPayout: winnerPayoutDisplay,
               protocolFee: protocolFeeDisplay,
               totalRounds,
+              kind,
+              teamA: teamIds?.teamA.toString(),
+              teamB: teamIds?.teamB.toString(),
+              teamRating,
               module: 'battle-watcher',
               op: 'BattleSettled',
             },
@@ -440,6 +515,70 @@ export class BattleWatcher extends EventWatcher {
       case 'DamageApplied':
       case 'AntiGriefSlashed':
         break;
+    }
+  }
+
+  /** Boost: write the `battle_participation` rows for both teams at BattleProposed.
+   *  Failures are logged, not thrown: the phase mirror above must never depend on the
+   *  rating layer, and a miss self-heals at BattleSettled, where applyBattleOutcome
+   *  upserts the same ledger rows. */
+  private async recordProposedParticipation(battleId: bigint): Promise<void> {
+    try {
+      const [row] = await db
+        .select({
+          teamA: battles.teamA,
+          teamB: battles.teamB,
+          queuedTeamA: battles.queuedTeamA,
+          queuedTeamB: battles.queuedTeamB,
+        })
+        .from(battles)
+        .where(eq(battles.battleId, battleId))
+        .limit(1);
+      const teamIds = row ? resolveBattleTeams(row) : null;
+      if (!teamIds) {
+        pinoLog.warn(
+          { battleId: battleId.toString(), module: 'battle-watcher', op: 'BattleProposed' },
+          'BattleProposed with unknown team ids - participation not recorded',
+        );
+        return;
+      }
+
+      const epochId = await currentBoostEpochId(db);
+      const recorded = await db.transaction(async (tx) => {
+        const a = await recordParticipation(tx, {
+          battleId,
+          teamId: teamIds.teamA,
+          opponentTeamId: teamIds.teamB,
+          epochId,
+          kind: 'played',
+        });
+        const b = await recordParticipation(tx, {
+          battleId,
+          teamId: teamIds.teamB,
+          opponentTeamId: teamIds.teamA,
+          epochId,
+          kind: 'played',
+        });
+        return { a, b };
+      });
+      pinoLog.info(
+        {
+          battleId: battleId.toString(),
+          teamA: teamIds.teamA.toString(),
+          teamB: teamIds.teamB.toString(),
+          epochId,
+          recordedA: recorded.a,
+          recordedB: recorded.b,
+          module: 'battle-watcher',
+          op: 'BattleProposed',
+        },
+        'recorded battle participation',
+      );
+    } catch (err) {
+      pinoLog.error(
+        { err, battleId: battleId.toString(), module: 'battle-watcher', op: 'BattleProposed' },
+        'failed to record battle participation; BattleSettled will upsert it',
+      );
     }
   }
 }
