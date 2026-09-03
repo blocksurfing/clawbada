@@ -48,10 +48,28 @@ export const MarketplaceAbi = [
   },
   {
     "type": "function",
+    "name": "MIN_LISTING_PRICE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "buyLobster",
     "inputs": [
       {
         "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxPrice",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -232,14 +250,14 @@ export const MarketplaceAbi = [
         "internalType": "bytes4"
       }
     ],
-    "stateMutability": "nonpayable"
+    "stateMutability": "pure"
   },
   {
     "type": "function",
     "name": "onERC1155Received",
     "inputs": [
       {
-        "name": "",
+        "name": "operator",
         "type": "address",
         "internalType": "address"
       },
@@ -254,7 +272,7 @@ export const MarketplaceAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "",
+        "name": "value",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -271,7 +289,7 @@ export const MarketplaceAbi = [
         "internalType": "bytes4"
       }
     ],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -481,8 +499,62 @@ export const MarketplaceAbi = [
   },
   {
     "type": "error",
+    "name": "PriceBelowMinimum",
+    "inputs": [
+      {
+        "name": "price",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PriceExceedsMaximum",
+    "inputs": [
+      {
+        "name": "currentPrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxPrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ReentrancyGuardReentrantCall",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SelfPurchase",
+    "inputs": [
+      {
+        "name": "seller",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",

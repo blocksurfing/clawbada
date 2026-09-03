@@ -221,6 +221,19 @@ export const LobsterNFTAbi = [
   },
   {
     "type": "function",
+    "name": "decrementBreedCount",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "exists",
     "inputs": [
       {
@@ -1417,6 +1430,22 @@ export const LobsterNFTAbi = [
         "name": "tier",
         "type": "uint8",
         "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidTransferAmount",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

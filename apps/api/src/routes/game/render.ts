@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { renderLobsterPng, VALID_SIZES } from '@clawbada/asset-gen';
+import { renderLobsterPng, renderIdleSpriteSheetPng, VALID_SIZES } from '@clawbada/asset-gen';
 import { readLobster } from '../../lib/chain';
 import { ApiError, catchErrors } from '../../lib/errors';
 
@@ -25,6 +25,24 @@ function parseTier(raw: string | undefined): number {
   return n;
 }
 
+function parseFrames(raw: string | undefined): number {
+  if (!raw) return 16;
+  const n = Number(raw);
+  if (n !== 8 && n !== 16) {
+    throw new ApiError('INVALID_INPUT', 'Frames must be 8 or 16');
+  }
+  return n;
+}
+
+function parseSpriteSize(raw: string | undefined): number {
+  if (!raw) return 160;
+  const n = Number(raw);
+  if (isNaN(n) || n < 80 || n > 320) {
+    throw new ApiError('INVALID_INPUT', 'Sprite size must be 80-320');
+  }
+  return n;
+}
+
 function parseDna(raw: string): bigint {
   try {
     return BigInt(raw);
@@ -32,6 +50,48 @@ function parseDna(raw: string): bigint {
     throw new ApiError('INVALID_INPUT', 'Invalid DNA value');
   }
 }
+
+/**
+ * GET /render/sprite/dna/:dna — Render idle sprite sheet by raw DNA.
+ * Query params: ?size=80-320&tier=0-3&frames=8|16
+ */
+renderRoutes.get(
+  '/sprite/dna/:dna',
+  catchErrors(async (c) => {
+    const dna = parseDna(c.req.param('dna'));
+    const size = parseSpriteSize(c.req.query('size'));
+    const tier = parseTier(c.req.query('tier'));
+    const frames = parseFrames(c.req.query('frames'));
+
+    const png = await renderIdleSpriteSheetPng(dna, tier, { frames, size });
+
+    return c.body(png as any, 200, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=86400',
+    });
+  }),
+);
+
+/**
+ * GET /render/sprite/:tokenId — Render idle sprite sheet by on-chain token ID.
+ * Query params: ?size=80-320&frames=8|16
+ */
+renderRoutes.get(
+  '/sprite/:tokenId',
+  catchErrors(async (c) => {
+    const tokenId = BigInt(c.req.param('tokenId'));
+    const size = parseSpriteSize(c.req.query('size'));
+    const frames = parseFrames(c.req.query('frames'));
+
+    const lobster = await readLobster(tokenId);
+    const png = await renderIdleSpriteSheetPng(lobster.dna, lobster.evolutionTier, { frames, size });
+
+    return c.body(png as any, 200, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=3600',
+    });
+  }),
+);
 
 /**
  * GET /render/dna/:dna — Render lobster image by raw DNA.
