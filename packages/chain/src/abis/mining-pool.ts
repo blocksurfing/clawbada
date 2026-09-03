@@ -40,6 +40,45 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "BOOST_ADMIN_ROLE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "BOOST_EPOCH_TTL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "BPS_DENOMINATOR",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "DEFAULT_ADMIN_ROLE",
     "inputs": [],
     "outputs": [
@@ -60,6 +99,32 @@ export const MiningPoolAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_BOOST_BATCH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_BOOST_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -163,6 +228,19 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "activateBoostEpoch",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "adminReleaseExpedition",
     "inputs": [
       {
@@ -173,6 +251,19 @@ export const MiningPoolAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "boostEpochActivatedAt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -209,6 +300,19 @@ export const MiningPoolAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "currentBoostEpoch",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ],
     "stateMutability": "view"
@@ -421,6 +525,42 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "getTeamBoost",
+    "inputs": [
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct MiningPool.TeamBoost",
+        "components": [
+          {
+            "name": "epoch",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "bps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "power",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "grantRole",
     "inputs": [
       {
@@ -558,6 +698,41 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "setTeamBoosts",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "entries",
+        "type": "tuple[]",
+        "internalType": "struct MiningPool.BoostEntry[]",
+        "components": [
+          {
+            "name": "teamId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "bps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "power",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "startExpedition",
     "inputs": [
       {
@@ -613,6 +788,30 @@ export const MiningPoolAbi = [
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "teamBoostBps",
+    "inputs": [
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "power",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -685,6 +884,25 @@ export const MiningPoolAbi = [
       },
       {
         "name": "newBaseReward",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BoostEpochActivated",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "activatedAt",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -781,6 +999,12 @@ export const MiningPoolAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "boostBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
       }
     ],
     "anonymous": false
@@ -892,6 +1116,37 @@ export const MiningPoolAbi = [
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "TeamBoostSet",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "bps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "power",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "AccessControlBadConfirmation",
     "inputs": []
@@ -930,6 +1185,38 @@ export const MiningPoolAbi = [
   },
   {
     "type": "error",
+    "name": "BatchTooLarge",
+    "inputs": [
+      {
+        "name": "provided",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "max",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "BoostTooHigh",
+    "inputs": [
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "bps",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ExpeditionAlreadyClaimed",
     "inputs": [
       {
@@ -958,6 +1245,22 @@ export const MiningPoolAbi = [
         "name": "expeditionId",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidBoostEpoch",
+    "inputs": [
+      {
+        "name": "requested",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "current",
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ]
   },
