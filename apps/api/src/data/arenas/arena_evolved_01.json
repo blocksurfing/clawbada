@@ -1,0 +1,22 @@
+{
+  "layoutId": "arena_evolved_01",
+  "cols": 6,
+  "rows": 5,
+  "tier": "evolved",
+  "blockedHexes": [
+    { "col": 2, "row": 1 },
+    { "col": 3, "row": 1 },
+    { "col": 2, "row": 3 },
+    { "col": 3, "row": 3 }
+  ],
+  "teamASpawns": [
+    { "col": 0, "row": 0 },
+    { "col": 0, "row": 2 },
+    { "col": 0, "row": 4 }
+  ],
+  "teamBSpawns": [
+    { "col": 5, "row": 0 },
+    { "col": 5, "row": 2 },
+    { "col": 5, "row": 4 }
+  ]
+}
