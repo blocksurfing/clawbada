@@ -11,8 +11,8 @@ export const agents = pgTable('agents', {
   registeredAt: timestamp('registered_at').defaultNow().notNull(),
 });
 
-/** V3 S1 Power Matchmaking queue. Keyed by (stakeBracket, powerScore) sub-pools.
- *  ELO column kept for telemetry but NOT used for matching at launch (deferred to S1.5). */
+/** V3 S1 Power Matchmaking queue. Keyed by (stakeBracket, powerScore) sub-pools, with
+ *  rating bands inside each pool from S1 (locked 2026-09-02). */
 export const matchmakingQueue = pgTable(
   'matchmaking_queue',
   {
@@ -22,6 +22,8 @@ export const matchmakingQueue = pgTable(
     stakeBracket: smallint('stake_bracket').notNull(), // 0=Low, 1=Mid, 2=High
     /** Team Power score 3..9 (Evolved=1 + Elite=2 + Apex=3 across 3 lobsters). */
     powerScore: smallint('power_score').notNull(),
+    /** The TEAM's battle rating at join (from `team_ratings`), used for the rating band.
+     *  Column name kept as `elo` to avoid a drizzle rename; it is no longer the wallet ELO. */
     elo: integer('elo').notNull(),
     enqueuedAt: timestamp('enqueued_at').defaultNow().notNull(),
   },

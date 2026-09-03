@@ -17,3 +17,4 @@ export * from './styles';
 export * from './meta';
 export * from './economy';
 export * from './participation';
+export * from './boost';

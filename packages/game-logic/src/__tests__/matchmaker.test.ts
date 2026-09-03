@@ -167,3 +167,42 @@ describe('validators', () => {
     expect(() => assertValidStakeBracket(3)).toThrow();
   });
 });
+
+// ──────────── Rating bands (S1) ────────────
+
+import {
+  RATING_RADIUS_THRESHOLDS,
+  RATING_RADIUS_CAP,
+  getCurrentRatingRadius,
+  ratingInRadius,
+} from '../matchmaker';
+
+describe('getCurrentRatingRadius', () => {
+  test('schedule is ±75 → ±150 → ±225 → ±300 at 0 / 30 / 60 / 120 s', () => {
+    expect(RATING_RADIUS_THRESHOLDS.map(([t, hw]) => [t, hw])).toEqual([[0, 75], [30, 150], [60, 225], [120, 300]]);
+    expect(getCurrentRatingRadius(0)).toBe(75);
+    expect(getCurrentRatingRadius(29)).toBe(75);
+    expect(getCurrentRatingRadius(30)).toBe(150);
+    expect(getCurrentRatingRadius(59)).toBe(150);
+    expect(getCurrentRatingRadius(60)).toBe(225);
+    expect(getCurrentRatingRadius(119)).toBe(225);
+    expect(getCurrentRatingRadius(120)).toBe(300);
+  });
+
+  test('never opens wider than the cap, no matter how long the wait', () => {
+    expect(RATING_RADIUS_CAP).toBe(300);
+    expect(getCurrentRatingRadius(10_000)).toBe(300);
+    expect(getCurrentRatingRadius(Number.MAX_SAFE_INTEGER)).toBe(300);
+  });
+
+  test('negative elapsed clamps to the first step', () => {
+    expect(getCurrentRatingRadius(-5)).toBe(75);
+  });
+
+  test('ratingInRadius is inclusive on both ends', () => {
+    expect(ratingInRadius(1275, 1200, 75)).toBe(true);
+    expect(ratingInRadius(1125, 1200, 75)).toBe(true);
+    expect(ratingInRadius(1276, 1200, 75)).toBe(false);
+    expect(ratingInRadius(1124, 1200, 75)).toBe(false);
+  });
+});
