@@ -36,6 +36,13 @@
       "when": 1779123937571,
       "tag": "0004_remarkable_talkback",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788421092990,
+      "tag": "0005_late_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

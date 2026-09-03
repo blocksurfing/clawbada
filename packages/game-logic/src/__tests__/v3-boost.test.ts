@@ -100,3 +100,14 @@ describe('boostCollusionGain', () => {
     expect(winner + loser).toBeCloseTo(2 * battleEV(0.5, c.tier.econ), 6);
   });
 });
+
+import { pctlOf } from '../v3/boost';
+
+describe('pctlOf (exported ladder normalization)', () => {
+  test('closed interval: best → 1, worst → 0, lone team → 1', () => {
+    expect(pctlOf(0, 10)).toBe(1);
+    expect(pctlOf(9, 10)).toBe(0);
+    expect(pctlOf(0, 1)).toBe(1);
+    expect(pctlOf(1, 3)).toBeCloseTo(0.5, 12);
+  });
+});
