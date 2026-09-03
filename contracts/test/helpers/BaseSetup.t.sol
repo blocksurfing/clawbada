@@ -180,6 +180,7 @@ abstract contract BaseSetup is Test {
         battleArena.grantRole(battleArena.MATCHMAKER_ROLE(), admin);
         battleArena.grantRole(battleArena.RESOLVER_ROLE(),   admin);
         miningPool.grantRole(miningPool.SEASON_ADMIN_ROLE(), admin);
+        miningPool.grantRole(miningPool.BOOST_ADMIN_ROLE(), admin);
         faucet.grantRole(faucet.ELIGIBILITY_ROLE(), admin);
 
         vm.stopPrank();

@@ -10,6 +10,7 @@ The contracts are intentionally non-upgradeable. The only governance lever is th
 |------|----------------------|------------------|---------------------|
 | `DEFAULT_ADMIN_ROLE` (every contract) | **Multisig** (3-of-5 minimum) | Immutable; rotate signers | Dispute resolution: 24h |
 | `SEASON_ADMIN_ROLE` (MiningPool) | **Multisig** | Immutable | Mid-season action: explicit proposal + delay |
+| `BOOST_ADMIN_ROLE` (MiningPool) | **Hot service wallet** | Quarterly + on suspicion | Weekly boost post: before the 10-day epoch TTL lapses |
 | `RESOLVER_ROLE` (BattleArena) | **Hot service wallet** | Quarterly + on suspicion | Settle: <60s |
 | `MATCHMAKER_ROLE` (BattleArena) | **Hot service wallet** | Quarterly + on suspicion | Match: <60s |
 | `OPERATOR_ROLE` (BattleVRF) | **Hot relayer wallet** | Quarterly | Beacon push: per drand round |
@@ -55,6 +56,7 @@ The script asserts the deployer holds **none** of the migrated roles afterward a
 Post-launch verification checklist (run from the Safe / a read call):
 - `hasRole(DEFAULT_ADMIN_ROLE, deployer) == false` on ClawToken, LobsterNFT, TeamManager, MiningPool, BattleArena, BattleVRF, Faucet.
 - `MiningPool.hasRole(SEASON_ADMIN_ROLE, deployer) == false`; `Faucet.hasRole(ELIGIBILITY_ROLE, deployer) == false`.
+- `MiningPool.hasRole(BOOST_ADMIN_ROLE, deployer) == false` and `== true` for `BOOST_ADMIN_ADDRESS` (granted by `Configure.s.sol`; Handoff leaves it in place — it is a service role, not a governance role).
 - `Treasury.owner() == safe` (after `acceptOwnership()`); `Treasury.pendingOwner() == address(0)`.
 
 ### Critical-action SLAs
@@ -79,6 +81,8 @@ Same multisig as DEFAULT_ADMIN_ROLE, OR a separate multisig with a tighter time-
 ### Mid-season changes
 
 Avoid `setBaseReward` calls outside the published season-rotation cadence. If reward tuning is required mid-season, post the proposal publicly 48h in advance. Players time their expeditions around expected reward; surprise changes erode trust.
+
+The weekly battle-rank boost post (`setTeamBoosts` / `activateBoostEpoch`) is **not** a SEASON_ADMIN action and is exempt from this cadence: it is a routine, bounded server write under `BOOST_ADMIN_ROLE` (see below). The boost multiplies each team's own reward by at most 1.5× and is paid from the same season budget through the glide, so it can never move `baseReward` itself.
 
 ### Season rotation
 `startSeason(totalEmission, baseReward)` is called once per season. The transition closes the previous season's budget; if `getSeasonUnspent()` is non-zero, the leftover is implicitly retired (not rolled forward). Document the rationale for the chosen `totalEmission` in the season-rotation Safe transaction.
@@ -105,6 +109,36 @@ Surface alerts on:
 - Settlements creating losers with damage < 20 (loser_damage by spec is 20-40 VRF)
 - Battle creation rate exceeding sustained baseline by 5x
 - Settlements where the `winner` address has not appeared in the matchmaker's recent queue
+
+## BOOST_ADMIN_ROLE (MiningPool) policy
+
+Posts the weekly battle-rank mining boost table (S1, locked 2026-09-02): the server ranks every team that played the qualification floor of battles on one ladder by rating, converts percentile to `boostBps` (+10% → +50%, cap `MAX_BOOST_BPS = 5,000`), and the holder writes it on-chain.
+
+### What the holder does each week
+1. `setTeamBoosts(nextEpoch, entries[])` in batches of at most `MAX_BOOST_BATCH = 200` rows `(teamId, bps, power)` — staged for `currentBoostEpoch + 1`, invisible to `startExpedition` until activated.
+2. `activateBoostEpoch(nextEpoch)` — one tx flips the whole table. Any team not re-posted drops to 0 automatically (the lapse rule needs no clearing writes).
+3. Corrections during the live epoch (e.g. after a dispute resolution changes a result) use `setTeamBoosts(currentEpoch, …)` — amending the live table is allowed, activating it twice is not.
+
+### Required holder (mainnet)
+A **hot service wallet** — the same class as `MATCHMAKER_ROLE` / `RESOLVER_ROLE`, never the governance Safe. `Configure.s.sol` grants it to `BOOST_ADMIN_ADDRESS` (required and must differ from the deployer on mainnet; falls back to the deployer on testnet). `Handoff.s.sol` does **not** touch it: a weekly post from a multisig would miss the cadence.
+
+### Compromise blast radius
+Bounded by construction:
+- Every entry is capped at +50% of that team's own reward and stamped with the team's Power; a team whose Power changed earns nothing from a stale entry.
+- Total spend is bounded by the season budget: boosted expeditions are credited as extra demand in the daily glide, so an inflated table compresses `baseReward` for everyone rather than minting past the budget. `SeasonBudgetExhausted` and the 705M lifetime cap still bind on the boosted amount.
+- The key cannot mint, cannot touch `baseReward`, stakes, or NFTs.
+- **Fail-safe**: a live epoch pays only for `BOOST_EPOCH_TTL = 10 days` after activation. If the server (or the key) goes silent, every boost falls to 0 on its own.
+- Every write is evented (`TeamBoostSet`, `BoostEpochActivated`) and the ladder is published off-chain, so a divergence is publicly checkable.
+
+### Rotation
+Same procedure as RESOLVER/MATCHMAKER (grant new → switch service → revoke old, from the multisig holding `DEFAULT_ADMIN_ROLE` on MiningPool).
+
+### Detection signals
+Surface alerts on:
+- `TeamBoostSet` for a team with no settled battles in the earning epoch, or with `bps` that does not match the published ladder row
+- A live epoch amended more than a handful of times, or amended for teams outside the published dispute list
+- No `BoostEpochActivated` for > 8 days (the server's own overdue alarm fires here; the on-chain TTL is 10 days)
+- Boosted `ExpeditionStarted` events (`boostBps > 0`) from a team absent from the ladder
 
 ## OPERATOR_ROLE (BattleVRF) policy
 
@@ -155,7 +189,7 @@ This sequence closes C-06 (deployer-as-admin without timelock) at deploy time.
 
 If you suspect a privileged key is compromised:
 
-1. **Hot service keys (RESOLVER/MATCHMAKER/OPERATOR/ELIGIBILITY)**: rotate immediately via the multisig. No paging required — bounded blast radius.
+1. **Hot service keys (RESOLVER/MATCHMAKER/OPERATOR/ELIGIBILITY/BOOST_ADMIN)**: rotate immediately via the multisig. No paging required — bounded blast radius. For BOOST_ADMIN, also re-post the current epoch's table from the new key if the compromised key amended it.
 2. **Multisig signer compromise**: signer remediation via the remaining quorum. Replace the compromised signer's key on the Safe before any further admin actions are queued.
 3. **Multisig contract compromise** (full takeover): there is no on-chain emergency exit. Contracts are not upgradeable. Coordinate publicly: announce, halt off-chain services, document the affected contracts. The token cap, the season budget caps, and the soulbound flags all bound the worst case.
 
@@ -171,3 +205,4 @@ If you suspect a privileged key is compromised:
 - `docs/audits/2026-03-06-manual-contract-audit.md` — original C-05 / C-06 definitions
 - `docs/audits/2026-04-15-adversarial-campaign.md` — Phase 3 trust-boundary lens, C-05 dependency table
 - `contracts/script/Configure.s.sol` — full role-grant matrix at deploy time
+- `docs/audits/2026-09-03-boost-surface.md` — battle-rank boost surface: trust assumptions, invariants, Slither baseline

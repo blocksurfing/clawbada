@@ -16,6 +16,7 @@ contract MiningPoolTest is Test {
 
     address admin = makeAddr("admin");
     address seasonAdmin = makeAddr("seasonAdmin");
+    address boostAdmin = makeAddr("boostAdmin");
     address lpAddress = makeAddr("lpAddress");
     address treasuryAddress = makeAddr("treasuryAddress");
     address alice = makeAddr("alice");
@@ -39,6 +40,7 @@ contract MiningPoolTest is Test {
         tm.grantRole(tm.ACTIVITY_ROLE(), address(pool));
         claw.grantRole(claw.MINTER_ROLE(), address(pool));
         pool.grantRole(pool.SEASON_ADMIN_ROLE(), seasonAdmin);
+        pool.grantRole(pool.BOOST_ADMIN_ROLE(), boostAdmin);
         vm.stopPrank();
 
         // Build valid DNA
@@ -306,7 +308,7 @@ contract MiningPoolTest is Test {
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit MiningPool.ExpeditionStarted(1, teamId, alice, 0, BASE_REWARD);
+        emit MiningPool.ExpeditionStarted(1, teamId, alice, 0, BASE_REWARD, 0);
         pool.startExpedition(teamId, 0);
     }
 
@@ -1146,5 +1148,264 @@ contract MiningPoolTest is Test {
         // The launch cap is absolute: an above-launch override snaps back to launch at the
         // next re-peg (the cap applies after the damping clamp).
         assertEq(pool.currentBaseReward(), BASE_REWARD);
+    }
+
+    // ──────────── Battle-rank mining boost (S1) ────────────
+
+    uint16 constant BOOST_BPS = 2_500; // +25%
+
+    function _teamPower(uint256 teamId) internal view returns (uint8 power) {
+        TeamManager.Team memory team = tm.getTeam(teamId);
+        for (uint256 i = 0; i < 3; i++) {
+            power += nft.getEvolutionTier(team.lobsterIds[i]);
+        }
+    }
+
+    function _entry(uint256 teamId, uint16 bps, uint8 power) internal pure returns (MiningPool.BoostEntry[] memory e) {
+        e = new MiningPool.BoostEntry[](1);
+        e[0] = MiningPool.BoostEntry({teamId: teamId, bps: bps, power: power});
+    }
+
+    /// @dev Stage `bps` for the team at its current power in the next epoch, then activate it.
+    function _postAndActivate(uint256 teamId, uint16 bps) internal returns (uint32 epoch) {
+        // Resolve every view call BEFORE pranking: vm.prank is consumed by the next external
+        // call, and _teamPower() makes several (TOK-G1 prank-consumption gotcha).
+        uint8 power = _teamPower(teamId);
+        MiningPool.BoostEntry[] memory entries = _entry(teamId, bps, power);
+        epoch = pool.currentBoostEpoch() + 1;
+        vm.prank(boostAdmin);
+        pool.setTeamBoosts(epoch, entries);
+        vm.prank(boostAdmin);
+        pool.activateBoostEpoch(epoch);
+    }
+
+    function _boosted(uint256 base, uint16 bps) internal pure returns (uint256) {
+        return (base * (10_000 + bps)) / 10_000;
+    }
+
+    function test_boostedRewardIsBaseTimesBoostTimesWeight() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1); // Evolved ×3 → power 3, tier weight 3
+        _postAndActivate(teamId, BOOST_BPS);
+        assertEq(pool.teamBoostBps(teamId, 3), BOOST_BPS);
+
+        uint256 expected = _boosted(BASE_REWARD, BOOST_BPS) * 3;
+        vm.expectEmit(true, true, true, true);
+        emit MiningPool.ExpeditionStarted(1, teamId, alice, 1, expected, BOOST_BPS);
+        vm.prank(alice);
+        uint256 eid = pool.startExpedition(teamId, 1);
+
+        assertEq(pool.getExpedition(eid).reward, expected, "reward = boosted base x weight");
+        assertEq(pool.getSeasonMinted(1), expected, "budget accounts the boosted amount");
+        assertEq(claw.balanceOf(address(pool)), expected, "escrow holds the boosted amount");
+
+        vm.warp(block.timestamp + 4 hours);
+        vm.prank(alice);
+        pool.claimExpedition(eid);
+        assertEq(claw.balanceOf(alice), expected, "claim pays the boosted reward");
+    }
+
+    function test_boostZeroBeforeAnyEpochActivated() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1);
+        // Staged but not activated: nothing pays yet.
+        vm.prank(boostAdmin);
+        pool.setTeamBoosts(1, _entry(teamId, BOOST_BPS, 3));
+        assertEq(pool.currentBoostEpoch(), 0);
+        assertEq(pool.teamBoostBps(teamId, 3), 0);
+        vm.prank(alice);
+        uint256 eid = pool.startExpedition(teamId, 1);
+        assertEq(pool.getExpedition(eid).reward, BASE_REWARD * 3, "unboosted while nothing is live");
+    }
+
+    function test_boostLapsesWhenNotRepostedForNextEpoch() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1);
+        _postAndActivate(teamId, BOOST_BPS); // epoch 1
+        assertEq(pool.teamBoostBps(teamId, 3), BOOST_BPS);
+        // Epoch 2 activates with an empty table: the team's epoch-1 entry is stale → 0.
+        vm.prank(boostAdmin);
+        pool.activateBoostEpoch(2);
+        assertEq(pool.teamBoostBps(teamId, 3), 0, "lapse: not re-posted -> no boost");
+        vm.prank(alice);
+        uint256 eid = pool.startExpedition(teamId, 1);
+        assertEq(pool.getExpedition(eid).reward, BASE_REWARD * 3);
+    }
+
+    function test_boostExpiresAfterTtlWhenServerStopsPosting() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1);
+        _postAndActivate(teamId, BOOST_BPS);
+        vm.warp(block.timestamp + pool.BOOST_EPOCH_TTL() - 1);
+        assertEq(pool.teamBoostBps(teamId, 3), BOOST_BPS, "still fresh one second before the TTL");
+        vm.warp(block.timestamp + 1);
+        assertEq(pool.teamBoostBps(teamId, 3), 0, "stale epoch pays nothing");
+        vm.prank(alice);
+        uint256 eid = pool.startExpedition(teamId, 1);
+        assertEq(pool.getExpedition(eid).reward, BASE_REWARD * 3);
+    }
+
+    function test_boostDropsWhenTeamPowerChanges() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1); // power 3
+        _postAndActivate(teamId, BOOST_BPS);
+        // Evolve one lobster Evolved → Elite: power 3 → 4. The rank was earned at power 3.
+        TeamManager.Team memory team = tm.getTeam(teamId);
+        vm.prank(admin);
+        nft.setEvolutionTier(team.lobsterIds[0], 2);
+        assertEq(_teamPower(teamId), 4);
+        assertEq(pool.teamBoostBps(teamId, 4), 0, "power mismatch -> no boost");
+        assertEq(pool.teamBoostBps(teamId, 3), BOOST_BPS, "entry itself is intact");
+        vm.prank(alice);
+        uint256 eid = pool.startExpedition(teamId, 1);
+        assertEq(pool.getExpedition(eid).reward, BASE_REWARD * 3, "expedition at the new power is unboosted");
+    }
+
+    function test_amendLiveEpochOverwritesEntry() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1);
+        uint32 epoch = _postAndActivate(teamId, 1_000);
+        vm.prank(boostAdmin);
+        pool.setTeamBoosts(epoch, _entry(teamId, 3_000, 3)); // dispute correction
+        assertEq(pool.teamBoostBps(teamId, 3), 3_000);
+        MiningPool.TeamBoost memory raw = pool.getTeamBoost(teamId);
+        assertEq(raw.epoch, epoch);
+        assertEq(raw.bps, 3_000);
+        assertEq(raw.power, 3);
+    }
+
+    function test_stagedNextEpochDoesNotAffectLiveUntilActivated() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1);
+        _postAndActivate(teamId, 1_000); // epoch 1 live
+        vm.prank(boostAdmin);
+        pool.setTeamBoosts(2, _entry(teamId, 5_000, 3)); // staged for epoch 2
+        assertEq(pool.teamBoostBps(teamId, 3), 0, "staging overwrote the team's live entry: it now belongs to epoch 2");
+        vm.prank(boostAdmin);
+        pool.activateBoostEpoch(2);
+        assertEq(pool.teamBoostBps(teamId, 3), 5_000);
+    }
+
+    function test_activateMustBeExactlyNextEpoch() public {
+        vm.startPrank(boostAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.InvalidBoostEpoch.selector, uint32(2), uint32(0)));
+        pool.activateBoostEpoch(2);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.InvalidBoostEpoch.selector, uint32(0), uint32(0)));
+        pool.activateBoostEpoch(0);
+        pool.activateBoostEpoch(1);
+        assertEq(pool.currentBoostEpoch(), 1);
+        assertEq(pool.boostEpochActivatedAt(), uint64(block.timestamp));
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.InvalidBoostEpoch.selector, uint32(1), uint32(1)));
+        pool.activateBoostEpoch(1);
+        vm.stopPrank();
+    }
+
+    function test_setTeamBoostsRejectsEpochZeroAndFarEpochs() public {
+        uint256 teamId = 1;
+        vm.startPrank(boostAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.InvalidBoostEpoch.selector, uint32(0), uint32(0)));
+        pool.setTeamBoosts(0, _entry(teamId, 1_000, 3));
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.InvalidBoostEpoch.selector, uint32(2), uint32(0)));
+        pool.setTeamBoosts(2, _entry(teamId, 1_000, 3));
+        pool.setTeamBoosts(1, _entry(teamId, 1_000, 3)); // next epoch: ok
+        vm.stopPrank();
+    }
+
+    function test_boostAboveCapReverts() public {
+        vm.prank(boostAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.BoostTooHigh.selector, uint256(7), uint16(5_001)));
+        pool.setTeamBoosts(1, _entry(7, 5_001, 3));
+        // The cap itself is accepted.
+        vm.prank(boostAdmin);
+        pool.setTeamBoosts(1, _entry(7, 5_000, 3));
+    }
+
+    function test_boostBatchTooLargeReverts() public {
+        uint256 n = pool.MAX_BOOST_BATCH() + 1;
+        MiningPool.BoostEntry[] memory entries = new MiningPool.BoostEntry[](n);
+        for (uint256 i = 0; i < n; i++) {
+            entries[i] = MiningPool.BoostEntry({teamId: i + 1, bps: 1_000, power: 3});
+        }
+        vm.prank(boostAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.BatchTooLarge.selector, n, n - 1));
+        pool.setTeamBoosts(1, entries);
+    }
+
+    function test_boostSetterAndActivateRequireRole() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        pool.setTeamBoosts(1, _entry(1, 1_000, 3));
+        vm.prank(seasonAdmin); // SEASON_ADMIN is deliberately NOT enough
+        vm.expectRevert();
+        pool.activateBoostEpoch(1);
+    }
+
+    function test_boostEventsEmitted() public {
+        vm.expectEmit(true, true, true, true);
+        emit MiningPool.TeamBoostSet(1, 42, 1_234, 5);
+        vm.prank(boostAdmin);
+        pool.setTeamBoosts(1, _entry(42, 1_234, 5));
+        vm.expectEmit(true, true, true, true);
+        emit MiningPool.BoostEpochActivated(1, block.timestamp);
+        vm.prank(boostAdmin);
+        pool.activateBoostEpoch(1);
+    }
+
+    /// @dev Six +50% expeditions in epoch 0 must register as 9 tier-weight units of trailing
+    ///      demand (6 × 1.5), not 6 — the boost is paid from the same budget, so the glide has
+    ///      to see it in its denominator as well as in the remaining-budget numerator.
+    function test_boostedExpeditionsCountAsScaledGlideDemand() public {
+        _startSeasonWith(BASE_REWARD * 100, BASE_REWARD);
+        uint256 teamId = _createTeam(alice, 0);
+        _postAndActivate(teamId, 5_000);
+        for (uint256 i = 0; i < 6; i++) {
+            vm.prank(alice);
+            uint256 eid = pool.startExpedition(teamId, 0);
+            assertEq(pool.getExpedition(eid).reward, _boosted(BASE_REWARD, 5_000));
+            vm.warp(block.timestamp + 4 hours);
+            vm.prank(alice);
+            pool.claimExpedition(eid);
+        }
+        pool.repeg(); // crosses into epoch 1
+        assertEq(pool.getSeasonConfig(1).trailingWeightServed, 9, "6 x (1 + 0.5) = 9 units");
+        assertEq(pool.getSeasonMinted(1), 6 * _boosted(BASE_REWARD, 5_000));
+    }
+
+    function test_unboostedControlCountsPlainGlideDemand() public {
+        _runSixThenCrossEpoch();
+        pool.repeg();
+        assertEq(pool.getSeasonConfig(1).trailingWeightServed, 6);
+    }
+
+    /// @dev Budget and lifetime caps bind on the BOOSTED amount: a reward that fits unboosted
+    ///      can be refused once the boost is applied.
+    function test_boostedRewardStillBoundedBySeasonBudget() public {
+        _startSeasonWith(BASE_REWARD * 3, BASE_REWARD); // exactly one unboosted Evolved expedition
+        uint256 teamId = _createTeam(alice, 1);
+        _postAndActivate(teamId, 1_000);
+        vm.prank(alice);
+        vm.expectRevert(MiningPool.SeasonBudgetExhausted.selector);
+        pool.startExpedition(teamId, 1);
+    }
+
+    function test_boostedRewardStillBoundedByLifetimeAllocation() public {
+        // 600M unboosted fits under the 705M lifetime cap; ×1.5 = 900M does not.
+        _startSeasonWith(2_000_000_000e18, 600_000_000e18);
+        uint256 teamId = _createTeam(alice, 0);
+        _postAndActivate(teamId, 5_000);
+        vm.prank(alice);
+        vm.expectRevert(MiningPool.MiningAllocationExhausted.selector);
+        pool.startExpedition(teamId, 0);
+    }
+
+    function test_boostedRewardRemainsTierWeightMultiple() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 3); // Apex ×3 → weight 25
+        _postAndActivate(teamId, 3_333);
+        vm.prank(alice);
+        uint256 eid = pool.startExpedition(teamId, 3);
+        uint256 reward = pool.getExpedition(eid).reward;
+        assertEq(reward % 25, 0, "boost applied to base before the tier multiply");
+        assertEq(reward, _boosted(BASE_REWARD, 3_333) * 25);
     }
 }
