@@ -194,8 +194,11 @@ export async function computeEpoch(deps: EpochJobDeps, epochId: number): Promise
       .set({ status: EPOCH_STATUS.Closing, updatedAt: now })
       .where(eq(boostEpochs.epochId, epochId));
 
-    // Every rated team that still exists. Disbanded teams keep their rating row as a
-    // lineage parent but neither qualify nor decay.
+    // Every rated team, live or disbanded. A disbanded team keeps its rating row as a
+    // lineage parent, so it must keep DECAYING too: otherwise disbanding would freeze a
+    // rating that a later recreate with the same three lobsters inherits intact (found by
+    // the DB-backed verification, 2026-09-03). Disbanded teams can never qualify. Rows
+    // already consumed by a successor are dead lineage and are skipped.
     const rated = await tx
       .select({
         teamId: teamRatings.teamId,
@@ -204,10 +207,11 @@ export async function computeEpoch(deps: EpochJobDeps, epochId: number): Promise
         power: teamRatings.power,
         cacheEpochId: teamRatings.epochId,
         cachePlayed: teamRatings.gamesPlayedEpoch,
+        disbandedAt: teams.disbandedAt,
       })
       .from(teamRatings)
-      .innerJoin(teams, eq(teams.teamId, teamRatings.teamId))
-      .where(isNull(teams.disbandedAt));
+      .leftJoin(teams, eq(teams.teamId, teamRatings.teamId))
+      .where(isNull(teamRatings.lineageConsumedBy));
 
     // The participation ledger is authoritative for "played"; the counter on
     // team_ratings is only a cache and is cross-checked below.
@@ -229,7 +233,8 @@ export async function computeEpoch(deps: EpochJobDeps, epochId: number): Promise
       if ((cacheRefersToThisEpoch && r.cachePlayed !== n) || (r.cacheEpochId < epochId && n > 0)) {
         mismatches.push({ teamId: String(r.teamId), cached: cacheRefersToThisEpoch ? r.cachePlayed : 0, ledger: n });
       }
-      const eligible = n >= row.floorPlayed && r.power >= 3 && r.power <= 9;
+      const live = r.disbandedAt === null || r.disbandedAt === undefined;
+      const eligible = live && n >= row.floorPlayed && r.power >= 3 && r.power <= 9;
       (eligible ? qualified : others).push({ ...r, played: n });
     }
     if (mismatches.length > 0) {

@@ -8,7 +8,8 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:boost": "bun run scripts/verify-boost-db.ts"
   },
   "dependencies": {
     "@clawbada/game-logic": "workspace:*",

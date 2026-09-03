@@ -73,6 +73,10 @@ export interface RatedTeam {
   power: number;
   cacheEpochId: number;
   cachePlayed: number;
+  /** Set for a disbanded team (still rated as a lineage parent). */
+  disbandedAt?: Date | null;
+  /** Set once a successor inherited this rating: dead lineage, skipped by the job. */
+  lineageConsumedBy?: bigint | null;
 }
 
 export interface JobRow {
@@ -158,7 +162,14 @@ export class Scenario {
     teamId: bigint,
     rating: number,
     played: number,
-    opts: { power?: number; owner?: string; cacheEpochId?: number; cachePlayed?: number } = {},
+    opts: {
+      power?: number;
+      owner?: string;
+      cacheEpochId?: number;
+      cachePlayed?: number;
+      disbandedAt?: Date | null;
+      lineageConsumedBy?: bigint | null;
+    } = {},
   ): RatedTeam {
     const t: RatedTeam = {
       teamId,
@@ -167,6 +178,8 @@ export class Scenario {
       power: opts.power ?? 5,
       cacheEpochId: opts.cacheEpochId ?? this.epochId,
       cachePlayed: opts.cachePlayed ?? played,
+      disbandedAt: opts.disbandedAt ?? null,
+      lineageConsumedBy: opts.lineageConsumedBy ?? null,
     };
     this.rated.push(t);
     if (played > 0) this.played.set(String(teamId), played);
@@ -202,7 +215,11 @@ export class Scenario {
         return this.epochRows.filter((r) => r.epochId === id).map((r) => ({ ...r }));
       }
       case 'team_ratings': {
-        if (q.has('innerJoin')) return this.rated.map((r) => ({ ...r }));
+        // The rated-team query is a LEFT JOIN onto teams filtered on
+        // lineage_consumed_by IS NULL; emulate both here.
+        if (q.has('leftJoin') || q.has('innerJoin')) {
+          return this.rated.filter((r) => !r.lineageConsumedBy).map((r) => ({ ...r }));
+        }
         return this.rated.map((r) => ({ teamId: r.teamId, owner: r.owner }));
       }
       case 'battle_participation': {
