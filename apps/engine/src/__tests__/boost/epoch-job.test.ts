@@ -155,6 +155,25 @@ describe('computeEpoch', () => {
     expect(s.logged('boost_epoch_computed')).toHaveLength(1);
   });
 
+  test('disbanded teams keep decaying but never qualify; consumed lineage parents are skipped', async () => {
+    const s = new Scenario();
+    s.epochId = 4;
+    s.now = at(5);
+    s.epochRows.push(epochRow(4));
+    s.team(1n, 1300, 20); // live, qualifies
+    s.team(2n, 1500, 20, { disbandedAt: at(4) }); // disbanded with enough played: never qualifies, decays
+    s.team(3n, 1450, 0, { disbandedAt: at(3) }); // disbanded and idle: decays (no rating freeze via disband)
+    s.team(4n, 1600, 0, { disbandedAt: at(3), lineageConsumedBy: 9n }); // consumed parent: dead lineage, skipped
+
+    const r = await computeEpoch(s.deps(), 4);
+    expect(r).toMatchObject({ status: 'computed', ratedCount: 3, qualifiedCount: 1 });
+    expect(mockApplyIdleDecay.mock.calls.map((c) => c.slice(1))).toEqual([
+      [2n, 4, 1500, idleDecay(1500)],
+      [3n, 4, 1450, idleDecay(1450)],
+    ]);
+    expect(s.insertedBoosts.map((b) => b.teamId)).toEqual([1n]);
+  });
+
   test('450 qualified teams → 3 batches of 200/200/50 in ladder order', async () => {
     const s = new Scenario();
     s.epochId = 4;
