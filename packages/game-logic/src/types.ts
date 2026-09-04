@@ -81,6 +81,9 @@ export enum OffchainBattleStage {
 export enum LegendStatus {
   Normal = 0,
   Legend = 1,
+  /** Reserved for future seasons (achievement legends, higher tiers). Decodable, never minted in S1. */
+  Reserved2 = 2,
+  Reserved3 = 3,
 }
 
 // ──────────── Interfaces ────────────

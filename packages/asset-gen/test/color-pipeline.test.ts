@@ -5,6 +5,7 @@ import { getClassPalette } from '../src/palettes/class-palettes';
 import { PaletteRole } from '../src/types';
 import { NATIVE_SIZE, CHANNELS } from '../src/constants';
 import { getPixel } from '../src/render/pixel-grid';
+import { BREED_TYPE_SHIFTS } from '../src/palettes/breed-type-shifts';
 
 /**
  * Helper: create a role grid with a single pixel at (x, y) with the given role.
@@ -160,22 +161,27 @@ describe('resolveColors()', () => {
     expect(differs).toBe(true);
   });
 
-  test('dramatic breed type shift produces visibly different colors', () => {
+  test('breed types shift tone but never rotate hue (class palettes are identity)', () => {
+    // 2026-03 palette overhaul: a lobster's hue IS its class. Breed types may only move
+    // saturation / lightness / a light tint, so no entry in the table rotates hue.
+    for (const [i, entry] of BREED_TYPE_SHIFTS.entries()) {
+      expect(entry.hueRotation, `breed type ${i} must not rotate hue`).toBe(0);
+    }
+
     const classAffinity = 3; // Tempest
     const roleGrid = singlePixelRoleGrid(5, 5, PaletteRole.PrimaryBase);
+    const pixBase = getPixel(resolveColors(roleGrid, classAffinity, 0), 5, 5);
+    const diff = (breedType: number) => {
+      const p = getPixel(resolveColors(roleGrid, classAffinity, breedType), 5, 5);
+      return Math.abs(pixBase[0] - p[0]) + Math.abs(pixBase[1] - p[1]) + Math.abs(pixBase[2] - p[2]);
+    };
 
-    // Breed type 44 = Complement flip (hue +180)
-    const resultBase = resolveColors(roleGrid, classAffinity, 0);
-    const resultFlipped = resolveColors(roleGrid, classAffinity, 44);
-
-    const pixBase = getPixel(resultBase, 5, 5);
-    const pixFlip = getPixel(resultFlipped, 5, 5);
-
-    // A 180-degree hue shift should produce very different RGB values
-    const totalDiff =
-      Math.abs(pixBase[0] - pixFlip[0]) +
-      Math.abs(pixBase[1] - pixFlip[1]) +
-      Math.abs(pixBase[2] - pixFlip[2]);
-    expect(totalDiff).toBeGreaterThan(30);
+    // The strongest tone shifts are still clearly visible on the class base color
+    // (measured 32-35 on Tempest's 60,80,90): 15 Sunbleached (tint), 37 Ghost fade (sat 0.55).
+    expect(diff(15)).toBeGreaterThan(20);
+    expect(diff(37)).toBeGreaterThan(20);
+    // Reserved breed types (48-63) are identity transforms.
+    expect(diff(48)).toBe(0);
+    expect(diff(63)).toBe(0);
   });
 });

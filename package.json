@@ -1,7 +1,10 @@
 {
   "name": "clawbada",
   "private": true,
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "dev:api": "bun run --filter @clawbada/api dev",
     "dev:web": "bun run --filter @clawbada/web dev",
@@ -16,15 +19,17 @@
     "sync-deploy": "bun run scripts/sync-deploy.ts",
     "extract-abis": "bun run packages/chain/scripts/extract-abis.ts",
     "forge:build": "forge build",
-    "forge:test": "forge test"
+    "forge:test": "forge test",
+    "prepare": "husky"
   },
   "overrides": {
     "viem": "^2.21.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
     "@types/bun": "^1.2.0",
+    "husky": "^9.1.7",
     "next": "^15.5.0",
-    "pino-pretty": "^13.0.0"
+    "pino-pretty": "^13.0.0",
+    "typescript": "^5.7.0"
   }
 }
