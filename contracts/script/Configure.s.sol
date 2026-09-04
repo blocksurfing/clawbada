@@ -127,6 +127,10 @@ contract Configure is DeployHelpers {
 
         pool.grantRole(pool.SEASON_ADMIN_ROLE(), deployer);
         console2.log("  SEASON_ADMIN_ROLE -> deployer");
+        // Battle-rank boost poster: a hot service wallet (like MATCHMAKER/RESOLVER), never a
+        // governance role — Handoff.s.sol leaves it in place.
+        pool.grantRole(pool.BOOST_ADMIN_ROLE(), boostAdminAddress);
+        console2.log("  BOOST_ADMIN_ROLE -> boost admin", boostAdminAddress);
 
         pool.startSeason(S1_EMISSION, S1_BASE_REWARD);
         console2.log("  startSeason(352.5M, 1250)");

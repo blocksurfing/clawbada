@@ -20,13 +20,15 @@ contract InvariantMiningPool is Test {
 
         // Restrict the fuzzer to handler_* entrypoints so it can't re-invoke
         // the inherited BaseSetup.setUp() mid-run and orphan ghost state.
-        bytes4[] memory selectors = new bytes4[](6);
+        bytes4[] memory selectors = new bytes4[](8);
         selectors[0] = MiningPoolHandler.handler_startExpedition.selector;
         selectors[1] = MiningPoolHandler.handler_claimExpedition.selector;
         selectors[2] = MiningPoolHandler.handler_adminReleaseExpedition.selector;
         selectors[3] = MiningPoolHandler.handler_setBaseReward.selector;
         selectors[4] = MiningPoolHandler.handler_startNewSeason.selector;
         selectors[5] = MiningPoolHandler.handler_warp.selector;
+        selectors[6] = MiningPoolHandler.handler_setTeamBoosts.selector;
+        selectors[7] = MiningPoolHandler.handler_activateBoostEpoch.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
     }
 
@@ -106,12 +108,53 @@ contract InvariantMiningPool is Test {
         }
     }
 
+    // ─── I-6: battle-rank boost is bounded ──────────────────────────
+    //
+    // No expedition may ever lock more than +50% over the un-boosted
+    // reward at the base in force when it started. The handler records the
+    // highest base seen at any successful start, so every reward must sit
+    // at or below ghostMax × 1.5 × tierWeight. Catches a boost that leaks
+    // past MAX_BOOST_BPS, is applied twice, or is applied after the tier
+    // multiply with a rounding escape.
+    function invariant_rewardWithinBoostBound() public view {
+        MiningPool pool = handler.getMiningPool();
+        uint256 n = handler.expeditionIdsLength();
+        uint256 maxBase = handler.ghostMaxBaseRewardAtStart();
+
+        for (uint256 i = 0; i < n; i++) {
+            uint256 expId = handler.expeditionIds(i);
+            MiningPool.Expedition memory e = pool.getExpedition(expId);
+            uint256 weight = pool.TIER_WEIGHTS(e.mineTier);
+            assertLe(e.reward, ((maxBase * 15_000) / 10_000) * weight, "reward exceeds the +50% boost bound");
+        }
+    }
+
+    // ─── I-7: live boost epoch is fresh or pays nothing ─────────────
+    //
+    // Either no epoch was ever activated, or the activation stamp is set.
+    // (The TTL fail-safe is exercised through handler_warp: once the stamp
+    // is older than BOOST_EPOCH_TTL, teamBoostBps must be 0 for every team.)
+    function invariant_staleBoostEpochPaysNothing() public view {
+        MiningPool pool = handler.getMiningPool();
+        uint32 epoch = pool.currentBoostEpoch();
+        if (epoch == 0) return;
+        uint256 activatedAt = pool.boostEpochActivatedAt();
+        assertGt(activatedAt, 0, "activated epoch must carry a timestamp");
+        if (block.timestamp < activatedAt + pool.BOOST_EPOCH_TTL()) return;
+        uint256 n = handler.teamIdsLength();
+        for (uint256 i = 0; i < n; i++) {
+            uint256 teamId = handler.teamIds(i);
+            MiningPool.TeamBoost memory b = pool.getTeamBoost(teamId);
+            assertEq(pool.teamBoostBps(teamId, b.power), 0, "expired epoch must pay 0");
+        }
+    }
+
     // ─── I-5: team-expedition link consistency ─────────────────────
     //
     // For every unclaimed expedition, the team's "active" flag must be
     // true AND _teamToExpedition[teamId] == expId. For claimed expeditions,
     // the link is cleared back to 0 (but the team could be in a new
-    // expedition, so only assert the "unclaimed → linked" direction here).
+    // expedition, so only assert the "unclaimed -> linked" direction here).
     function invariant_teamExpeditionLinkConsistent() public view {
         MiningPool pool = handler.getMiningPool();
         TeamManager teamMgr = handler.getTeamManager();

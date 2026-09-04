@@ -137,6 +137,7 @@ Mining uses **glide-pegged per-expedition rewards** with a **seasonal budget cap
 - **Season budget cap**: `totalMinted + reward > totalEmission` still reverts (`SeasonBudgetExhausted`) as a backstop, structurally unreachable under the glide
 - **Emergency override**: `setBaseReward()` via SEASON_ADMIN_ROLE remains on top of the glide (above-launch values snap back at the next re-peg)
 - **S1 launch baseReward**: 1,250 $CLAW (= the glide cap for S1)
+- **Battle-rank boost (S1, on-chain)**: `MiningPool` holds a per-team `TeamBoost {epoch, bps ≤ 5,000, power}` posted per weekly epoch by the hot-key `BOOST_ADMIN_ROLE` — `setTeamBoosts(epoch, entries[≤200])` stages epoch N+1 (or amends the live one), `activateBoostEpoch(N+1)` flips the table in one tx; entries pay only while `epoch == currentBoostEpoch`, within `BOOST_EPOCH_TTL = 10 days` of activation, and while the team's Power still matches. Applied at `startExpedition` as `boostedBase = baseReward × (1 + bps)` **before** the tier weight (reward stays a tier-weight multiple); the boosted weight is credited to glide demand, so the spend is same-budget. `ExpeditionStarted` carries `boostBps`.
 - **Minimum tier gate**: all 3 lobsters on a team must meet the mine's minimum tier
 - **Can exceed minimum**: e.g., 2 Elite + 1 Apex in Elite mine is allowed
 - **Expedition duration**: 4 hours across all tiers (6 expeditions/day per team)
@@ -724,7 +725,7 @@ contracts/
 ├── LobsterNFT.sol      # ERC-1155 lobster NFTs — DNA storage, metadata, batch transfers
 ├── TeamManager.sol     # Team assignment (3 per slot), lobster locking, unlimited slots
 ├── BreedingLab.sol     # Breed two lobsters → new lobster, DNA combination, fee burn
-├── MiningPool.sol      # Stake team to mine, claim rewards on-chain settlement
+├── MiningPool.sol      # Stake team to mine, claim rewards on-chain settlement; weekly battle-rank boost table (BOOST_ADMIN_ROLE)
 ├── Marketplace.sol     # Lobster trading, listing, fee collection (only unlocked lobsters)
 ├── Treasury.sol        # Protocol fee splitter — 85% burn / 15% dev wallet
 ├── Faucet.sol          # Temporary lobster faucet + $CLAW faucet (closeable by admin)
@@ -833,7 +834,7 @@ New human flow:
 - **Player badges** — Human vs Agent identity shown in battle HUD, leaderboard, marketplace
 - **Breeding** — 2 parents → 1 offspring (Base tier, tradeable); 5 breeds max, 48h cooldown; cost scales by breed count × generation; soulbound parents can breed tradeable offspring
 - **Legends** — ~0.3% breeding chance; +10% base stats + unique visuals; not hereditary; faucet lobsters cannot be legends
-- **Tiered mining** — Base/Evolved/Elite/Apex mines; glide-pegged per-expedition rewards (baseReward × tier weight 1x/3x/10x/25x, locked at start; TOK-G1 daily re-peg paces the season budget); 4h expeditions; S1 launch baseReward 1,250 $CLAW = glide cap; minimum tier gate on all 3 team lobsters
+- **Tiered mining** — Base/Evolved/Elite/Apex mines; glide-pegged per-expedition rewards (baseReward × tier weight 1x/3x/10x/25x, locked at start; TOK-G1 daily re-peg paces the season budget); 4h expeditions; S1 launch baseReward 1,250 $CLAW = glide cap; minimum tier gate on all 3 team lobsters; battle-rank boost +10%→+50% on a team's own mining, posted weekly on-chain (`BOOST_ADMIN_ROLE`, 10-day TTL, Power-bound)
 - **Repair system** — battle damage accumulates; ≥80 damage blocks battle entry; $CLAW burn to repair
 - **Lobster image compositing** — layer body-part PNGs from dominant genes (for human UI; agents use raw metadata)
 - **Agent-first API** — contracts + REST/WebSocket as primary interface; web UI is secondary
