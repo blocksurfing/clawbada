@@ -79,7 +79,8 @@ describe('mining routes', () => {
 
   describe('GET /mining', () => {
     test('returns active expeditions for address', async () => {
-      const team = mockTeam();
+      // A team on an expedition is `active` on chain (MiningPool sets it via ACTIVITY_ROLE).
+      const team = mockTeam({ active: true });
       mockReadTeamsByOwner.mockResolvedValue([team]);
       mockReadActiveExpedition.mockResolvedValue(1n);
       mockReadExpedition.mockResolvedValue(mockExpedition());

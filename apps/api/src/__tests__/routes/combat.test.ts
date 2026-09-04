@@ -6,7 +6,7 @@ const mockGetAddress = mock((addr: string) => addr);
 const mockEncodeFunctionData = mock(() => '0xabcdef');
 // F5-01: the reveal route verifies (battleId, player, teamId, salt) against the on-chain
 // commit through this helper; the tests pin it so the fixture can carry a matching commit.
-const mockTeamCommitHash = mock(() => '0xcommit');
+const mockTeamCommitHash = mock((..._args: unknown[]) => '0xcommit');
 
 mock.module('@clawbada/chain', () => ({
   verifyMessage: mockVerifyMessage,
@@ -70,7 +70,7 @@ const mockEnsureTeamRating = mock<any>();
 const mockCurrentBoostEpochId = mock<any>();
 // F5-01 reveal: db.update(battles).set(...).where(...) + db.query.battles.findFirst(...)
 const mockUpdateWhere = mock(async () => []);
-const mockUpdateSet = mock(() => ({ where: mockUpdateWhere }));
+const mockUpdateSet = mock((_values: Record<string, unknown>) => ({ where: mockUpdateWhere }));
 const updateChain = { set: mockUpdateSet };
 const mockFindFirst = mock<any>();
 
@@ -454,7 +454,7 @@ describe('combat routes', () => {
       expect(mockUpdateSet).toHaveBeenCalledTimes(1);
       expect(mockUpdateSet.mock.calls[0][0]).toEqual({ teamA: 1n, revealSaltA: '0x' + 'ab'.repeat(32) });
       // The hash was checked for THIS player, battle 1, team 1.
-      const [battleId, player, teamId] = mockTeamCommitHash.mock.calls[0] as any[];
+      const [battleId, player, teamId] = mockTeamCommitHash.mock.calls[0] as unknown as [bigint, string, bigint, string];
       expect(battleId).toBe(1n);
       expect(player.toLowerCase()).toBe(TEST_ADDRESS.toLowerCase());
       expect(teamId).toBe(1n);
