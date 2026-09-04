@@ -51,6 +51,37 @@ contract FuzzMiningPool is BaseSetup {
         assertEq(exp.reward, expectedReward, "reward = baseReward * tierWeight");
     }
 
+    function testFuzz_boostedReward_bounded(uint16 bps, uint8 tier) public {
+        bps = uint16(bound(bps, 0, 5_000));
+        tier = uint8(bound(tier, 1, 3)); // battle-eligible tiers only
+        uint256[4] memory weights = [uint256(1), 3, 10, 25];
+
+        uint256[3] memory ids = _mint3(alice);
+        for (uint256 i = 0; i < 3; i++) {
+            vm.prank(admin);
+            nft.setEvolutionTier(ids[i], tier);
+        }
+        vm.prank(alice);
+        uint256 teamId = teamMgr.createTeam(ids);
+
+        MiningPool.BoostEntry[] memory entries = new MiningPool.BoostEntry[](1);
+        entries[0] = MiningPool.BoostEntry({teamId: teamId, bps: bps, power: uint8(3 * tier)});
+        vm.prank(admin);
+        miningPool.setTeamBoosts(1, entries);
+        vm.prank(admin);
+        miningPool.activateBoostEpoch(1);
+
+        vm.prank(alice);
+        uint256 expId = miningPool.startExpedition(teamId, tier);
+        uint256 reward = miningPool.getExpedition(expId).reward;
+
+        uint256 unboosted = BASE_REWARD * weights[tier];
+        assertGe(reward, unboosted, "boost never lowers the reward");
+        assertLe(reward, (unboosted * 15_000) / 10_000, "boost never exceeds +50%");
+        assertEq(reward % weights[tier], 0, "reward stays a tier-weight multiple");
+        assertEq(reward, ((BASE_REWARD * (10_000 + bps)) / 10_000) * weights[tier], "exact boosted formula");
+    }
+
     // ── Season budget cap ─────────────────────────────────────────
 
     function test_season_budget_cap_enforced() public {
