@@ -35,16 +35,47 @@ export enum MoveType {
   Special = 2,
 }
 
+/**
+ * F-13: aligned 1:1 with `BattleArena.sol`'s `enum BattlePhase`. Indexer
+ * writes the contract's numeric value; off-chain code reads through this
+ * enum, so the names and values must match the contract exactly.
+ *
+ * Off-chain-only states (queue / round commit-reveal sub-phases) belong in
+ * a separate enum (`OffchainBattleStage`, below) to avoid colliding with
+ * contract-numeric phase values.
+ */
 export enum BattlePhase {
-  Matchmaking = 0,
-  StakeDeposit = 1,
+  None = 0,
+  /** Matchmaker → both players deposit stake + anti-grief. */
+  Deposit = 1,
   TeamCommit = 2,
   TeamReveal = 3,
-  RoundCommit = 4,
-  RoundReveal = 5,
-  Settlement = 6,
-  Completed = 7,
-  Cancelled = 8,
+  /** Combat in progress (covers all on-chain round commit-reveal cycles). */
+  Active = 4,
+  /** H-01: settle() proposed a winner; awaiting dispute window or finalize. */
+  AwaitingFinalize = 5,
+  Settled = 6,
+  Cancelled = 7,
+  // Pre-F-13 aliases — keep until call sites migrate. New code should use
+  // the canonical names above.
+  /** @deprecated Use `Deposit`. Pre-F-13 alias for the post-match deposit window. */
+  StakeDeposit = 1,
+}
+
+/**
+ * Off-chain-only battle stages used by the matchmaker / combat engine. NOT
+ * stored in the on-chain `Battle.phase` field. Use this enum where the
+ * code is reasoning about server-side state that has no contract analogue.
+ */
+export enum OffchainBattleStage {
+  /** Matchmaker has paired but no Battle row exists yet (rare; legacy). */
+  Matchmaking = 0,
+  /** Off-chain round-commit window after Active. */
+  RoundCommit = 100,
+  /** Off-chain round-reveal window after RoundCommit. */
+  RoundReveal = 101,
+  /** Server-side completion, before on-chain Settled lands. */
+  Completed = 200,
 }
 
 export enum LegendStatus {

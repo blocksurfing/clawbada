@@ -89,8 +89,12 @@ miningRoutes.post(
     if (team.owner.toLowerCase() !== address.toLowerCase()) {
       throw new ApiError('INVALID_INPUT', 'Not the team owner');
     }
-    if (!team.active) {
-      throw new ApiError('INVALID_INPUT', 'Team is not active');
+    // F-02b: TeamManager.sol's `active` flag means the team is currently busy
+    // (mining or in a battle). To START a new expedition the team must be
+    // idle. The previous gate inverted the check — only busy teams passed,
+    // then the on-chain `MiningPool` revert blocked the call.
+    if (team.active) {
+      throw new ApiError('INVALID_INPUT', 'Team is busy in another activity (mining or battle)');
     }
 
     // Check not already mining

@@ -97,8 +97,11 @@ teamRoutes.post(
     if (team.owner.toLowerCase() !== address.toLowerCase()) {
       throw new ApiError('INVALID_INPUT', 'Not the team owner');
     }
-    if (!team.active) {
-      throw new ApiError('INVALID_INPUT', 'Team already disbanded');
+    // F-02c: TeamManager.disbandTeam (TeamManager.sol:106) reverts when
+    // `active=true`, so disband requires the team to be idle. The previous
+    // gate inverted the check, blocking every legitimate disband attempt.
+    if (team.active) {
+      throw new ApiError('INVALID_INPUT', 'Team is busy in another activity — cannot disband');
     }
 
     const calldata = buildCalldata(
