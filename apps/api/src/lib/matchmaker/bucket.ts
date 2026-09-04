@@ -20,6 +20,8 @@
 import {
   computeTeamPower,
   getCurrentRadius,
+  getCurrentRatingRadius,
+  ratingInRadius,
   makePoolKey,
   poolKeyString,
   powerMatchSeverity,
@@ -28,6 +30,8 @@ import {
   MIN_TEAM_POWER,
   MAX_TEAM_POWER,
   NUM_STAKE_BRACKETS,
+  RATING_RADIUS_THRESHOLDS,
+  RATING_RADIUS_CAP,
   type PoolKey,
   type PowerRadius,
   type PowerMatchSeverity,
@@ -36,6 +40,9 @@ import {
 export {
   computeTeamPower,
   getCurrentRadius,
+  // S1 rating band (locked 2026-09-02): layered inside the Power sub-pool, never opens to "anyone".
+  getCurrentRatingRadius,
+  ratingInRadius,
   makePoolKey,
   poolKeyString,
   powerMatchSeverity,
@@ -44,6 +51,8 @@ export {
   MIN_TEAM_POWER,
   MAX_TEAM_POWER,
   NUM_STAKE_BRACKETS,
+  RATING_RADIUS_THRESHOLDS,
+  RATING_RADIUS_CAP,
 };
 export type { PoolKey, PowerRadius, PowerMatchSeverity };
 

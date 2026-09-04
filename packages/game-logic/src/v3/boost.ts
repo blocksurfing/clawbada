@@ -92,6 +92,14 @@ export interface BoostResult {
   battlesPerEpochTotal: number;
 }
 
+/** Closed-interval ladder percentile for 0-based rank `r` (0 = best) among `k` qualified
+ *  teams: best → 1, worst → 0, a lone team → 1. The server's weekly ladder MUST use this
+ *  exact normalization so the bottom of the ladder lands on `minBps` (the anti-unravel
+ *  keystone) and the top on `maxBps`. */
+export function pctlOf(r: number, k: number): number {
+  return k > 1 ? (k - 1 - r) / (k - 1) : 1;
+}
+
 /** Epoch EV of a participant at percentile pctl with win rate w. */
 export function teamEpochEV(cfg: BoostConfig, pctl: number, w: number): number {
   const boost = (boostBpsAt(pctl, cfg.schedule) / 10_000) * cfg.tier.miningPerEpochPerTeam;
@@ -109,7 +117,6 @@ export function boostParticipation(cfg: BoostConfig): BoostResult {
     for (let j = 0; j < k; j++) { if (j === r) continue; s += eloWinProb(sorted[r], sorted[j]); }
     return s / (k - 1);
   };
-  const pctlOf = (r: number, k: number): number => (k > 1 ? (k - 1 - r) / (k - 1) : 1);
   let kStar = 0;
   for (let k = 2; k <= n; k++) {
     if (teamEpochEV(cfg, pctlOf(k - 1, k), winRate(k - 1, k)) >= 0) kStar = k;

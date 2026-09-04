@@ -145,6 +145,39 @@ export function getCurrentRadius(playerPower: number, elapsedSec: number): Power
   return { low, high, halfWidth };
 }
 
+// ──────────── Rating bands (S1, locked 2026-09-02) ────────────
+
+/** Adaptive RATING radius, layered inside the Power sub-pool: `[elapsedSec, halfWidth]`.
+ *  Unlike the Power radius this never opens to "anyone" — the economics campaign showed
+ *  random pairing drives participation to zero even with the mining boost, so a patient
+ *  team waits rather than being fed to a far stronger one. ±300 is roughly a 15/85
+ *  expected-win split under the standard 400-point logistic. */
+export const RATING_RADIUS_THRESHOLDS: ReadonlyArray<readonly [number, number]> = [
+  [0, 75],
+  [30, 150],
+  [60, 225],
+  [120, 300],
+] as const;
+
+/** Hard cap on the rating radius (the last threshold). Exposed for telemetry/UI. */
+export const RATING_RADIUS_CAP = RATING_RADIUS_THRESHOLDS[RATING_RADIUS_THRESHOLDS.length - 1][1];
+
+/** Rating half-width in force after `elapsedSec` in queue. Monotone non-decreasing,
+ *  never wider than RATING_RADIUS_CAP. */
+export function getCurrentRatingRadius(elapsedSec: number): number {
+  if (elapsedSec < 0) elapsedSec = 0;
+  let halfWidth = RATING_RADIUS_THRESHOLDS[0][1];
+  for (const [cutoff, hw] of RATING_RADIUS_THRESHOLDS) {
+    if (elapsedSec >= cutoff) halfWidth = hw;
+  }
+  return halfWidth;
+}
+
+/** True if |candidateRating − seekerRating| ≤ halfWidth (inclusive on both ends). */
+export function ratingInRadius(candidateRating: number, seekerRating: number, halfWidth: number): boolean {
+  return Math.abs(candidateRating - seekerRating) <= halfWidth;
+}
+
 /** Categorical comparison label between two team powers — drives the HUD
  *  match-reveal chrome (green/yellow/orange/grey). */
 export type PowerMatchSeverity = 'even' | 'slight-disadvantage' | 'significant-disadvantage' | 'advantage';

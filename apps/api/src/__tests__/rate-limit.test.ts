@@ -1,4 +1,16 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, mock } from 'bun:test';
+
+// Mock the trusted-IP resolver BEFORE importing the middleware. The real one only
+// honors X-Forwarded-For when TRUST_PROXY=true (read at module load) and otherwise
+// falls back to the connection peer, which Hono's app.request() does not have -
+// every test then keyed on 'unknown' and shared one counter across the file.
+mock.module('../lib/client-ip', () => ({
+  getClientIp: (req: Request) =>
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown',
+}));
+
 import { Hono } from 'hono';
 import { rateLimit } from '../middleware/rate-limit';
 import { ApiError } from '../lib/errors';

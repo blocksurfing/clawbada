@@ -63,6 +63,26 @@ export function getResolverClient(testnet = false): any {
   return walletFromKey(key, testnet);
 }
 
+/** Signer for the weekly battle-rank boost table (`MiningPool.setTeamBoosts` /
+ *  `activateBoostEpoch`, BOOST_ADMIN_ROLE), used by the engine's operator
+ *  worker. Same fallback semantics as getMatchmakerClient: BOOST_ADMIN_PRIVATE_KEY,
+ *  else OPERATOR_PRIVATE_KEY so a single-key testnet keeps working. `.env.example`
+ *  ships the placeholder `0x`, which is treated as unset rather than handed to
+ *  viem. Give the role its own key in prod: the outbox serialises engine-side
+ *  writes, but a shared key still shares a nonce with the other roles. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getBoostAdminClient(testnet = false): any {
+  const key = presentKey(process.env.BOOST_ADMIN_PRIVATE_KEY) ?? presentKey(process.env.OPERATOR_PRIVATE_KEY);
+  if (!key) throw new Error('BOOST_ADMIN_PRIVATE_KEY (or OPERATOR_PRIVATE_KEY fallback) not set');
+  return walletFromKey(key, testnet);
+}
+
+/** Treat empty and the `.env.example` placeholder `0x` as unset. */
+function presentKey(value: string | undefined): string | undefined {
+  if (!value || value.trim() === '' || value.trim() === '0x') return undefined;
+  return value;
+}
+
 function walletFromKey(key: string, testnet: boolean) {
   const account = privateKeyToAccount(key as `0x${string}`);
   const chain = testnet ? baseSepolia : base;
