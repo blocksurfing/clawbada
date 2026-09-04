@@ -222,8 +222,9 @@ describe('team routes', () => {
       expect(body.message).toContain('Not the team owner');
     });
 
-    test('returns 400 when team already disbanded', async () => {
-      mockReadTeam.mockResolvedValue(mockTeam({ active: false }));
+    test('returns 400 when the team is busy (mining or in a battle)', async () => {
+      // F-02c: TeamManager.disbandTeam reverts while active=true, so the API refuses early.
+      mockReadTeam.mockResolvedValue(mockTeam({ active: true }));
 
       const res = await app.request('/teams/1/disband', {
         method: 'POST',
@@ -231,7 +232,7 @@ describe('team routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.message).toContain('already disbanded');
+      expect(body.message).toContain('busy');
     });
   });
 });

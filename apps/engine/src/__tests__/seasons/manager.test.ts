@@ -4,9 +4,12 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 const mockAccount = { address: '0xOperator' };
 const mockWriteContract = mock(() => Promise.resolve('0xtxhash'));
 const mockWaitForTransactionReceipt = mock(() => Promise.resolve({}));
-const mockSimulateStartSeason = mock(() =>
+const mockSimulateStartSeason = mock((..._args: unknown[]) =>
   Promise.resolve({ request: { functionName: 'startSeason' } }),
 );
+/** First simulate call's [totalEmission, baseReward] tuple. */
+const firstStartSeasonArgs = (): [bigint, bigint] =>
+  mockSimulateStartSeason.mock.calls[0][0] as [bigint, bigint];
 
 mock.module('@clawbada/chain', () => ({
   getOperatorClient: () => ({
@@ -139,7 +142,7 @@ describe('SeasonManager', () => {
       expect(result).toBe(true);
       expect(mockSimulateStartSeason).toHaveBeenCalledTimes(1);
       // Should call with S2 emission and S1_BASE_REWARD
-      const callArgs = mockSimulateStartSeason.mock.calls[0][0];
+      const callArgs = firstStartSeasonArgs();
       expect(callArgs[0]).toBe(193_750_000n); // S2 emission
       expect(callArgs[1]).toBe(S1_BASE_REWARD);
     });
@@ -150,7 +153,7 @@ describe('SeasonManager', () => {
       const result = await manager.checkAndRollover();
 
       expect(result).toBe(true);
-      const callArgs = mockSimulateStartSeason.mock.calls[0][0];
+      const callArgs = firstStartSeasonArgs();
       expect(callArgs[0]).toBe(7_750_000n); // S7 = floor
     });
 
@@ -160,7 +163,7 @@ describe('SeasonManager', () => {
       const result = await manager.checkAndRollover();
 
       expect(result).toBe(true);
-      const callArgs = mockSimulateStartSeason.mock.calls[0][0];
+      const callArgs = firstStartSeasonArgs();
       expect(callArgs[0]).toBe(7_750_000n); // Still floor
     });
 
