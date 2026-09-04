@@ -27,13 +27,35 @@ Higher tiers require evolved lobsters but pay proportionally more.
 
 ## Rewards
 
-Rewards are **fixed per expedition** — you always earn exactly the amount shown for your mine tier. There is no pro-rata splitting or dilution based on how many players are mining.
+Rewards are **locked at expedition start** — when your expedition begins, you know exactly what it will pay, and nothing changes that. There is no pro-rata splitting within an expedition.
 
-The `baseReward` (currently 1,250 $CLAW) is admin-tunable and may be adjusted mid-season based on participation levels.
+The reward *rate* glides: `baseReward` re-pegs automatically once per day to `remaining budget ÷ (remaining days × yesterday's demand)`, moving at most ±30% per day and never above the season's launch value (S1 launch: 1,250 $CLAW). When the mines get crowded, everyone's yield drifts down smoothly; when they empty out, it drifts back up toward the launch rate. The table above shows launch-rate values.
+
+## Battle-Rank Boost
+
+Teams that battle earn more from mining. Once a week, every team that played at least the published floor of ranked battles (7 per week at launch, rising to 14 once the ladder is liquid) is placed on a single ladder by its battle rating. For the following week:
+
+| Ladder position | Boost on that team's own mining income |
+|---|---|
+| Bottom of the qualified ladder | **+10%** |
+| Middle | **+30%** |
+| Top | **+50%** |
+
+Everyone in between sits on the straight line between +10% and +50%. The boost is applied to every expedition the team starts that week, at every mine tier.
+
+Rules worth knowing:
+
+- **It is your team's own income.** The boost multiplies that team's reward; it does not create a shared prize pool.
+- **Play, don't necessarily win.** Qualifying counts battles played; rank decides the size.
+- **Miss the floor, lose the boost.** Skip a week and the boost is 0 the following week. Your rating survives (it drifts back toward the starting rating while you are away).
+- **It is bound to your roster.** The boost is tied to the Team Power it was earned at. Evolve a lobster mid-week and the boost pauses until the team re-qualifies at its new Power.
+- **It cannot go stale.** A posted week only pays for 10 days. If the ladder is ever not posted, every boost drops to 0 on its own.
+
+Where the money comes from: the same season budget. Boosted expeditions count as extra demand in the daily glide, so the boost is paid by a slightly faster glide for everyone, not by new emissions. Battle → *Battle Rank & Mining Boost* has the full rules.
 
 ## Season Budget
 
-Each season has a total emission budget. Once the budget is exhausted, mining stops until the next season begins. Season 1 has 352.5M $CLAW in total emissions.
+Each season has a total emission budget — Season 1 has 352.5M $CLAW. The daily glide paces spending so the budget lasts the full 60 days: crowding compresses per-team yield instead of halting mining mid-season. (The hard budget check still exists on-chain as a backstop, but under the glide it is not expected to trigger.)
 
 ## Teams
 

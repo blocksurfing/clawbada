@@ -27,6 +27,7 @@ contract MiningPoolHandler is BaseSetup {
     uint256 public ghostMintedSum;         // CLAW minted into escrow across all starts
     uint256 public ghostTransferredSum;    // CLAW paid out to claimers
     uint256 public ghostBurnedSum;         // CLAW burned by admin release
+    uint256 public ghostMaxBaseRewardAtStart; // highest baseReward in force at any successful start
 
     // ─────────── Public accessors ───────────
     function getMiningPool()  external view returns (MiningPool)  { return miningPool; }
@@ -102,7 +103,36 @@ contract MiningPoolHandler is BaseSetup {
             expeditionIds.push(expId);
             ghostExpeditionsStarted++;
             ghostMintedSum += claw.balanceOf(address(miningPool)) - balBefore;
+            // The lazy re-peg inside startExpedition has run by now, so this is the exact
+            // base the reward was locked at.
+            uint256 base = miningPool.currentBaseReward();
+            if (base > ghostMaxBaseRewardAtStart) ghostMaxBaseRewardAtStart = base;
         } catch {}
+    }
+
+    /// @dev Post a boost for a random team at either its true power or a wrong one, for the
+    ///      live epoch or the next; some bps values exceed the cap on purpose.
+    function handler_setTeamBoosts(uint256 teamSeed, uint16 bps, bool wrongPower, bool nextEpoch) external {
+        if (teamIds.length == 0) return;
+        uint256 teamId = teamIds[teamSeed % teamIds.length];
+        bps = uint16(bound(bps, 0, 6_000));
+        TeamManager.Team memory team = teamMgr.getTeam(teamId);
+        uint8 power = 0;
+        for (uint256 i = 0; i < 3; i++) {
+            power += nft.getEvolutionTier(team.lobsterIds[i]);
+        }
+        if (wrongPower) power += 1;
+        uint32 epoch = miningPool.currentBoostEpoch() + (nextEpoch ? 1 : 0);
+        MiningPool.BoostEntry[] memory entries = new MiningPool.BoostEntry[](1);
+        entries[0] = MiningPool.BoostEntry({teamId: teamId, bps: bps, power: power});
+        vm.prank(admin);
+        try miningPool.setTeamBoosts(epoch, entries) {} catch {}
+    }
+
+    function handler_activateBoostEpoch() external {
+        uint32 next = miningPool.currentBoostEpoch() + 1;
+        vm.prank(admin);
+        try miningPool.activateBoostEpoch(next) {} catch {}
     }
 
     function handler_claimExpedition(uint256 expSeed) external {

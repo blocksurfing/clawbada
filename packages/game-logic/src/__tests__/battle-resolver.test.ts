@@ -11,7 +11,7 @@ import {
 } from '../battle-resolver';
 import { EvolutionTier, LobsterClass } from '../types';
 import type { Stats } from '../types';
-import { BASE_STATS, NUM_CLASSES } from '../constants';
+import { BASE_STATS, HP_BATTLE_SCALE, NUM_CLASSES } from '../constants';
 
 // ──────────── getBaseStats ────────────
 
@@ -30,7 +30,7 @@ describe('getBaseStats', () => {
   ] as const;
 
   const expectedStats: [bigint, bigint, bigint, bigint, bigint][] = [
-    [700n, 70n, 120n, 80n, 90n], // Bulwark
+    [700n, 100n, 120n, 80n, 90n], // Bulwark (Atk 70→100, 2026-08-30)
     [375n, 100n, 70n, 130n, 125n], // Mantis
     [600n, 130n, 100n, 70n, 80n], // Leviathan
     [450n, 110n, 80n, 105n, 115n], // Tempest
@@ -69,47 +69,47 @@ describe('scaleStats', () => {
   // Helper: Bulwark base stats
   const bulwarkBase: Stats = {
     hp: 700n,
-    attack: 70n,
+    attack: 100n,
     armor: 120n,
     speed: 80n,
     critical: 90n,
   };
 
-  test('Base tier, non-legend: stats unchanged except HP x5', () => {
+  test('Base tier, non-legend: stats unchanged except HP × HP_BATTLE_SCALE', () => {
     const scaled = scaleStats(bulwarkBase, EvolutionTier.Base, false);
     // tierMult=1000, legendMult=1000, denom=1000*1000=1_000_000
     // stat * 1000 * 1000 / 1_000_000 = stat
     // HP also * 5
-    expect(scaled.hp).toBe(700n * 5n); // 3500
-    expect(scaled.attack).toBe(70n);
+    expect(scaled.hp).toBe(700n * HP_BATTLE_SCALE); // 700 at ×1
+    expect(scaled.attack).toBe(100n);
     expect(scaled.armor).toBe(120n);
     expect(scaled.speed).toBe(80n);
     expect(scaled.critical).toBe(90n);
   });
 
-  test('Evolved tier (x1.2), non-legend: each stat * 1200/1000, HP also x5', () => {
+  test('Evolved tier (x1.2), non-legend: each stat * 1200/1000, HP also × HP_BATTLE_SCALE', () => {
     const scaled = scaleStats(bulwarkBase, EvolutionTier.Evolved, false);
     // stat * 1200 * 1000 / 1_000_000 = stat * 1200 / 1000
-    expect(scaled.hp).toBe((700n * 1200n * 5n) / 1000n); // 4200
-    expect(scaled.attack).toBe((70n * 1200n) / 1000n); // 84
+    expect(scaled.hp).toBe((700n * 1200n * HP_BATTLE_SCALE) / 1000n); // 840 at ×1
+    expect(scaled.attack).toBe((bulwarkBase.attack * 1200n) / 1000n); // 84
     expect(scaled.armor).toBe((120n * 1200n) / 1000n); // 144
     expect(scaled.speed).toBe((80n * 1200n) / 1000n); // 96
     expect(scaled.critical).toBe((90n * 1200n) / 1000n); // 108
   });
 
-  test('Elite tier (x1.4), non-legend: each stat * 1400/1000, HP also x5', () => {
+  test('Elite tier (x1.4), non-legend: each stat * 1400/1000, HP also × HP_BATTLE_SCALE', () => {
     const scaled = scaleStats(bulwarkBase, EvolutionTier.Elite, false);
-    expect(scaled.hp).toBe((700n * 1400n * 5n) / 1000n); // 4900
-    expect(scaled.attack).toBe((70n * 1400n) / 1000n); // 98
+    expect(scaled.hp).toBe((700n * 1400n * HP_BATTLE_SCALE) / 1000n); // 980 at ×1
+    expect(scaled.attack).toBe((bulwarkBase.attack * 1400n) / 1000n); // 98
     expect(scaled.armor).toBe((120n * 1400n) / 1000n); // 168
     expect(scaled.speed).toBe((80n * 1400n) / 1000n); // 112
     expect(scaled.critical).toBe((90n * 1400n) / 1000n); // 126
   });
 
-  test('Apex tier (x1.6), non-legend: each stat * 1600/1000, HP also x5', () => {
+  test('Apex tier (x1.6), non-legend: each stat * 1600/1000, HP also × HP_BATTLE_SCALE', () => {
     const scaled = scaleStats(bulwarkBase, EvolutionTier.Apex, false);
-    expect(scaled.hp).toBe((700n * 1600n * 5n) / 1000n); // 5600
-    expect(scaled.attack).toBe((70n * 1600n) / 1000n); // 112
+    expect(scaled.hp).toBe((700n * 1600n * HP_BATTLE_SCALE) / 1000n); // 1120 at ×1
+    expect(scaled.attack).toBe((bulwarkBase.attack * 1600n) / 1000n); // 112
     expect(scaled.armor).toBe((120n * 1600n) / 1000n); // 192
     expect(scaled.speed).toBe((80n * 1600n) / 1000n); // 128
     expect(scaled.critical).toBe((90n * 1600n) / 1000n); // 144
@@ -118,8 +118,8 @@ describe('scaleStats', () => {
   test('Base tier, legend (x1.1): legend bonus stacks', () => {
     const scaled = scaleStats(bulwarkBase, EvolutionTier.Base, true);
     // stat * 1000 * 1100 / 1_000_000 = stat * 1100 / 1000
-    expect(scaled.hp).toBe((700n * 1100n * 5n) / 1000n); // 3850
-    expect(scaled.attack).toBe((70n * 1100n) / 1000n); // 77
+    expect(scaled.hp).toBe((700n * 1100n * HP_BATTLE_SCALE) / 1000n); // 770 at ×1
+    expect(scaled.attack).toBe((bulwarkBase.attack * 1100n) / 1000n); // 77
     expect(scaled.armor).toBe((120n * 1100n) / 1000n); // 132
     expect(scaled.speed).toBe((80n * 1100n) / 1000n); // 88
     expect(scaled.critical).toBe((90n * 1100n) / 1000n); // 99
@@ -129,8 +129,8 @@ describe('scaleStats', () => {
     const scaled = scaleStats(bulwarkBase, EvolutionTier.Apex, true);
     // stat * 1600 * 1100 / 1_000_000 = stat * 1760 / 1000
     const denom = 1000n * 1000n;
-    expect(scaled.hp).toBe((700n * 1600n * 1100n * 5n) / denom); // 6160
-    expect(scaled.attack).toBe((70n * 1600n * 1100n) / denom); // 123 (truncated)
+    expect(scaled.hp).toBe((700n * 1600n * 1100n * HP_BATTLE_SCALE) / denom); // 1232 at ×1
+    expect(scaled.attack).toBe((bulwarkBase.attack * 1600n * 1100n) / denom); // 123 (truncated)
     expect(scaled.armor).toBe((120n * 1600n * 1100n) / denom); // 211 (truncated)
     expect(scaled.speed).toBe((80n * 1600n * 1100n) / denom); // 140 (truncated)
     expect(scaled.critical).toBe((90n * 1600n * 1100n) / denom); // 158 (truncated)
@@ -146,7 +146,7 @@ describe('scaleStats', () => {
     };
     const scaled = scaleStats(mantisBase, EvolutionTier.Evolved, true);
     const denom = 1000n * 1000n;
-    expect(scaled.hp).toBe((375n * 1200n * 1100n * 5n) / denom); // 2475
+    expect(scaled.hp).toBe((375n * 1200n * 1100n * HP_BATTLE_SCALE) / denom); // 495 at ×1
     expect(scaled.attack).toBe((100n * 1200n * 1100n) / denom); // 132
     expect(scaled.armor).toBe((70n * 1200n * 1100n) / denom); // 92 (truncated)
     expect(scaled.speed).toBe((130n * 1200n * 1100n) / denom); // 171 (truncated)

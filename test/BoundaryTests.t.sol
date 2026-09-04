@@ -164,7 +164,7 @@ contract BoundaryTests is Test {
         pool = new MiningPool(admin, address(claw), address(nft), address(tm));
         breeding = new BreedingLab(address(claw), address(nft), address(treasury));
         evolution = new EvolutionLab(address(claw), address(nft), address(treasury));
-        repair = new RepairShop(address(claw), address(nft), address(treasury));
+        repair = new RepairShop(address(claw), address(nft), address(treasury), address(pool));
         market = new Marketplace(address(claw), address(nft), address(treasury));
         arena = new BattleArena(
             admin, address(claw), address(nft), address(tm), address(treasury), address(vrf)
@@ -623,6 +623,7 @@ contract BoundaryTests is Test {
     // ════════════════════════════════════════════════════════════════
 
     function test_boundary_repairSinglePoint() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         uint256 id = _mintLobsterAtTier(alice, 1); // Evolved
         _setDamage(id, 50);
 
@@ -636,6 +637,7 @@ contract BoundaryTests is Test {
     }
 
     function test_boundary_repairMaxDamageAtApex() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         uint256 id = _mintLobsterAtTier(alice, 3); // Apex
         _setDamage(id, 100);
 
@@ -649,6 +651,7 @@ contract BoundaryTests is Test {
     }
 
     function test_boundary_repairTo80StillBlocksBattle() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         uint256 id = _mintLobsterAtTier(alice, 1);
         _setDamage(id, 90);
 
@@ -664,6 +667,7 @@ contract BoundaryTests is Test {
     }
 
     function test_boundary_repairTo79AllowsBattle() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         uint256 id = _mintLobsterAtTier(alice, 1);
         _setDamage(id, 90);
 
@@ -923,31 +927,31 @@ contract BoundaryTests is Test {
 
         // tier=0, legend=false
         BattleResolver.Stats memory s = resolverHarness.scaleStats(base, 0, false);
-        assertEq(s.attack, 70);
+        assertEq(s.attack, 100);
 
         // tier=0, legend=true
         s = resolverHarness.scaleStats(base, 0, true);
-        assertEq(s.attack, 70 * 1100 / 1000); // 77
+        assertEq(s.attack, 100 * 1100 / 1000); // 110
 
         // tier=1, legend=true (Evolved+Legend)
         s = resolverHarness.scaleStats(base, 1, true);
-        assertEq(s.attack, uint256(70) * 1200 * 1100 / (1000 * 1000)); // 92
+        assertEq(s.attack, uint256(100) * 1200 * 1100 / (1000 * 1000)); // 92
 
         // tier=2, legend=false (Elite)
         s = resolverHarness.scaleStats(base, 2, false);
-        assertEq(s.attack, uint256(70) * 1400 / 1000); // 98
+        assertEq(s.attack, uint256(100) * 1400 / 1000); // 98
 
         // tier=2, legend=true (Elite+Legend)
         s = resolverHarness.scaleStats(base, 2, true);
-        assertEq(s.attack, uint256(70) * 1400 * 1100 / (1000 * 1000)); // 107
+        assertEq(s.attack, uint256(100) * 1400 * 1100 / (1000 * 1000)); // 107
 
         // tier=3, legend=false (Apex)
         s = resolverHarness.scaleStats(base, 3, false);
-        assertEq(s.attack, uint256(70) * 1600 / 1000); // 112
+        assertEq(s.attack, uint256(100) * 1600 / 1000); // 112
 
         // tier=3, legend=true (Apex+Legend)
         s = resolverHarness.scaleStats(base, 3, true);
-        assertEq(s.attack, uint256(70) * 1600 * 1100 / (1000 * 1000)); // 123
+        assertEq(s.attack, uint256(100) * 1600 * 1100 / (1000 * 1000)); // 123
     }
 
     function test_boundary_defendCounterAtCap() public view {
@@ -1228,6 +1232,7 @@ contract BoundaryTests is Test {
     // ════════════════════════════════════════════════════════════════
 
     function test_integration_damageRepairBattleReentry() public {
+        _startSeason(); // TOK-G1: repair rates peg to the live season's baseReward
         // 1. Create lobster at Evolved tier with damage=85
         uint256 lob = _mintLobsterAtTier(alice, 1);
         _setDamage(lob, 85);
