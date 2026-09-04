@@ -43,6 +43,13 @@
       "when": 1788421092990,
       "tag": "0005_late_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788542102096,
+      "tag": "0006_normal_liz_osborn",
+      "breakpoints": true
     }
   ]
 }

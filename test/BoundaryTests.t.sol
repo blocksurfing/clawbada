@@ -498,10 +498,9 @@ contract BoundaryTests is Test {
         arena.commitTeam(battleId, commitB);
 
         // Reveal should succeed with damage=79
-        vm.prank(alice);
-        arena.revealTeam(battleId, teamIdA, saltA);
-        vm.prank(bob);
-        arena.revealTeam(battleId, teamIdB, saltB);
+        // F5-01: atomic resolver-submitted reveal.
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
 
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertTrue(b.phase == BattleArena.BattlePhase.Active);
@@ -538,10 +537,11 @@ contract BoundaryTests is Test {
         vm.prank(bob);
         arena.commitTeam(battleId, commitB);
 
-        // Reveal should REVERT — damage 80 > MAX_DAMAGE_FOR_BATTLE (79)
+        // Reveal should REVERT — damage 80 > MAX_DAMAGE_FOR_BATTLE (79). F5-01: atomic
+        // reveal validates both teams; alice's over-damaged team reverts first.
         vm.expectRevert(abi.encodeWithSelector(BattleArena.LobsterDamageTooHigh.selector, lob1, 80));
-        vm.prank(alice);
-        arena.revealTeam(battleId, teamIdA, saltA);
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
     }
 
     function test_boundary_allThreeStakeBracketsCreateBattle() public {
@@ -1274,10 +1274,9 @@ contract BoundaryTests is Test {
         arena.commitTeam(battleId, commitB);
 
         // Reveal succeeds — lobster at damage=79 is accepted
-        vm.prank(alice);
-        arena.revealTeam(battleId, teamIdA, saltA);
-        vm.prank(bob);
-        arena.revealTeam(battleId, teamIdB, saltB);
+        // F5-01: atomic resolver-submitted reveal.
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
 
         assertTrue(arena.getBattle(battleId).phase == BattleArena.BattlePhase.Active);
     }
@@ -1387,10 +1386,9 @@ contract BoundaryTests is Test {
         vm.prank(bob);
         arena.commitTeam(battleId, commitB);
 
-        vm.prank(alice);
-        arena.revealTeam(battleId, teamIdA, saltA);
-        vm.prank(bob);
-        arena.revealTeam(battleId, teamIdB, saltB);
+        // F5-01: atomic resolver-submitted reveal.
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
     }
 
     function _commitBattleMoves(uint256 battleId, bytes memory movesA, bytes memory movesB)

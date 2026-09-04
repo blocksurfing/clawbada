@@ -86,9 +86,9 @@ Pick your team in the Team Builder, see your Team Power score, and join the queu
 Both players deposit their $CLAW stake plus a 5% anti-grief deposit into the contract.
 
 ### 3. Team Commit-Reveal
-Both players commit a hash of their team composition, then reveal simultaneously. This prevents counter-picking — neither side sees the other's composition first.
+Both players commit a hash of their team composition. Once both have committed, the resolver opens both teams in a single atomic transaction — neither composition reaches the chain until both are revealed together. This delivers genuine simultaneity: it prevents counter-picking *and* the matchup-dodge it used to enable (a player can no longer see the opponent's team and then back out cheaply, because no one-sided action reveals anything). If the reveal times out, the battle mutually cancels with full refunds — a dropped connection never costs a player their stake.
 
-**MEV protection:** Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Team commits and reveals are on-chain; battle turns themselves run off-chain via WebSocket for speed.
+**MEV protection:** Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Team commits are on-chain and the reveal is a single resolver-submitted transaction; battle turns themselves run off-chain via WebSocket for speed.
 
 ### 4. VRF Beacon
 A single drand beacon is rolled at team-reveal time. It seeds a deterministic randomness stream used for damage variance, critical hits, and enhanced Special procs across the entire battle. Same beacon = same battle, every time — which is what makes replay and dispute resolution possible.

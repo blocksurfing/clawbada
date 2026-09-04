@@ -35,6 +35,7 @@ import { setTeamBoostsHandler } from './operator/jobs/set-team-boosts';
 import { activateBoostEpochHandler } from './operator/jobs/activate-boost-epoch';
 import { wrapHandler } from './operator/errors';
 import { BoostEpochService } from './boost/service';
+import { RevealWatcher } from './combat/reveal-watcher';
 import { EpochClock } from './boost/epoch-clock';
 import { db } from '@clawbada/db';
 import { getMiningPool, getPublicClient } from '@clawbada/chain';
@@ -124,6 +125,10 @@ async function main() {
   });
   boostEpochs.start();
 
+  // F5-01: submits the atomic revealTeams once both players' salts are in (2 s poll).
+  const revealWatcher = new RevealWatcher();
+  revealWatcher.start();
+
   // 5. Verify drand connectivity
   try {
     const beacon = await drand.fetchLatest();
@@ -155,6 +160,7 @@ async function main() {
     log.info('Shutting down');
     seasons.stop();
     boostEpochs.stop();
+    revealWatcher.stop();
     mining.stopAll();
     await operatorWorker.stop();
     process.exit(0);

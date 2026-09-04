@@ -49,9 +49,17 @@ contract FuzzBattleArena is BaseSetup {
         battleArena.commitTeam(battleId, hash);
     }
 
-    function _revealTeam(address player, uint256 battleId, uint256 teamId, bytes32 salt) internal {
-        vm.prank(player);
-        battleArena.revealTeam(battleId, teamId, salt);
+    // F5-01: team reveal is atomic and resolver-submitted. `admin` holds RESOLVER_ROLE in
+    // this harness. Assumes alice = playerA, bob = playerB (the convention these tests use).
+    function _revealTeams(
+        uint256 battleId,
+        uint256 teamA,
+        bytes32 saltA,
+        uint256 teamB,
+        bytes32 saltB
+    ) internal {
+        vm.prank(admin);
+        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB);
     }
 
     function _createEvolvedTeam(address owner) internal returns (uint256 teamId) {
@@ -152,13 +160,14 @@ contract FuzzBattleArena is BaseSetup {
         _commitTeam(alice, battleId, teamA, saltA);
         _commitTeam(bob, battleId, teamB, saltB);
 
-        _revealTeam(alice, battleId, teamA, saltA);
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.TeamReveal), "still TeamReveal");
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.TeamReveal), "TeamReveal after both commits");
 
-        _revealTeam(bob, battleId, teamB, saltB);
+        // F5-01: atomic resolver-submitted reveal binds both teams and transitions
+        // straight to Active — there is no one-sided intermediate reveal state.
+        _revealTeams(battleId, teamA, saltA, teamB, saltB);
         b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Active), "Active after both reveals");
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Active), "Active after atomic reveal");
     }
 
     // ── Stake accounting: settlement is zero-sum ──────────────────
@@ -174,8 +183,7 @@ contract FuzzBattleArena is BaseSetup {
 
         _commitTeam(alice, battleId, teamA, saltA);
         _commitTeam(bob, battleId, teamB, saltB);
-        _revealTeam(alice, battleId, teamA, saltA);
-        _revealTeam(bob, battleId, teamB, saltB);
+        _revealTeams(battleId, teamA, saltA, teamB, saltB);
 
         // settle() now requires lastVerifiedRound > 0, so run one round end-to-end.
         _playRound(battleId, hex"01", hex"02");
@@ -302,9 +310,10 @@ contract FuzzBattleArena is BaseSetup {
         vm.prank(admin);
         nft.setDamage(team.lobsterIds[0], 80);
 
-        vm.prank(alice);
+        // F5-01: atomic reveal validates both teams; alice's over-damaged team reverts.
+        vm.prank(admin);
         vm.expectRevert(); // LobsterDamageTooHigh
-        battleArena.revealTeam(battleId, teamA, saltA);
+        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB);
     }
 
     // ── Invalid commit hash reverts ───────────────────────────────
@@ -321,11 +330,11 @@ contract FuzzBattleArena is BaseSetup {
         _commitTeam(alice, battleId, teamA, saltA);
         _commitTeam(bob, battleId, teamB, saltB);
 
-        // Try to reveal with wrong salt
+        // Try to reveal with wrong salt for team A
         bytes32 wrongSalt = bytes32(uint256(999));
-        vm.prank(alice);
+        vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
-        battleArena.revealTeam(battleId, teamA, wrongSalt);
+        battleArena.revealTeams(battleId, teamA, wrongSalt, teamB, saltB);
     }
 
     // ── MED-01: uint8 overflow in _applyDamage caps at 100 ───────────
@@ -352,8 +361,7 @@ contract FuzzBattleArena is BaseSetup {
 
         _commitTeam(alice, battleId, teamA, saltA);
         _commitTeam(bob, battleId, teamB, saltB);
-        _revealTeam(alice, battleId, teamA, saltA);
-        _revealTeam(bob, battleId, teamB, saltB);
+        _revealTeams(battleId, teamA, saltA, teamB, saltB);
 
         // settle() now requires lastVerifiedRound > 0, so run one round end-to-end.
         _playRound(battleId, hex"01", hex"02");
@@ -384,6 +392,80 @@ contract FuzzBattleArena is BaseSetup {
         vm.prank(alice);
         vm.expectRevert();
         battleArena.settle(battleId, alice, dmg, dmg);
+    }
+
+    // ── F5-01: team reveal is atomic + resolver-submitted ─────────
+    // Closes the matchup-dodge exploit. Sequential per-player reveal leaked the first
+    // revealer's composition mid-window, letting the second mover bail on a bad matchup
+    // for only the 5% anti-grief. Now no player can self-submit a reveal (nothing leaks),
+    // and an honest reveal-window timeout is a COSTLESS mutual cancel — a dropped
+    // connection never costs a human (or agent) their stake.
+
+    function test_F5_01_revealTeams_onlyResolver() public {
+        uint256 battleId = _createBattle();
+        _bothDeposit(battleId);
+        uint256 teamA = _createEvolvedTeam(alice);
+        uint256 teamB = _createEvolvedTeam(bob);
+        bytes32 saltA = bytes32(uint256(0xA));
+        bytes32 saltB = bytes32(uint256(0xB));
+        _commitTeam(alice, battleId, teamA, saltA);
+        _commitTeam(bob, battleId, teamB, saltB);
+
+        // A participant cannot self-submit the reveal — this was the leak vector.
+        vm.prank(alice);
+        vm.expectRevert(); // AccessControlUnauthorizedAccount(alice, RESOLVER_ROLE)
+        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB);
+
+        // Neither can a non-participant stranger.
+        vm.prank(makeAddr("stranger"));
+        vm.expectRevert();
+        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB);
+
+        // Only the resolver can, and it transitions straight to Active.
+        _revealTeams(battleId, teamA, saltA, teamB, saltB);
+        assertEq(
+            uint8(battleArena.getBattle(battleId).phase),
+            uint8(BattleArena.BattlePhase.Active),
+            "resolver reveal -> Active"
+        );
+    }
+
+    function test_F5_01_revealTimeout_isCostlessMutualCancel() public {
+        uint256 battleId = _createBattle();
+        _bothDeposit(battleId);
+        uint256 teamA = _createEvolvedTeam(alice);
+        uint256 teamB = _createEvolvedTeam(bob);
+        bytes32 saltA = bytes32(uint256(0xA));
+        bytes32 saltB = bytes32(uint256(0xB));
+        _commitTeam(alice, battleId, teamA, saltA);
+        _commitTeam(bob, battleId, teamB, saltB);
+
+        // Balances after deposit (stake + anti-grief is escrowed in the arena).
+        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 supplyBefore = claw.totalSupply();
+
+        // Resolver never submits revealTeams (e.g. a player dropped offline mid-window).
+        // After the reveal window anyone can time it out.
+        vm.warp(block.timestamp + battleArena.TEAM_REVEAL_WINDOW() + 1);
+        battleArena.handleTimeout(battleId);
+
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Cancelled), "mutual cancel");
+
+        // Both players made whole: full stake + anti-grief refunded, NO slash.
+        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
+        uint256 fullRefund = LOW_STAKE + antiGrief;
+        assertEq(claw.balanceOf(alice) - aliceBefore, fullRefund, "alice fully refunded");
+        assertEq(claw.balanceOf(bob) - bobBefore, fullRefund, "bob fully refunded");
+
+        // Nothing burned — distinguishes the costless cancel from the forfeit path, where
+        // the loser's anti-grief is slashed to Treasury (85% burned).
+        assertEq(claw.totalSupply(), supplyBefore, "no anti-grief burned on reveal timeout");
+
+        // Neither team was locked (atomic reveal never landed), so both stay free.
+        assertFalse(battleArena.teamInBattle(teamA), "teamA not locked");
+        assertFalse(battleArena.teamInBattle(teamB), "teamB not locked");
     }
 
     // ── Forfeit slashes anti-grief ────────────────────────────────
@@ -501,8 +583,7 @@ contract FuzzBattleArena is BaseSetup {
         bytes32 teamSaltB = bytes32(uint256(222));
         _commitTeam(alice, battleId, teamA, teamSaltA);
         _commitTeam(bob,   battleId, teamB, teamSaltB);
-        _revealTeam(alice, battleId, teamA, teamSaltA);
-        _revealTeam(bob,   battleId, teamB, teamSaltB);
+        _revealTeams(battleId, teamA, teamSaltA, teamB, teamSaltB);
 
         uint8 maxRounds = battleArena.MAX_ROUNDS();
         for (uint8 i = 1; i < maxRounds; i++) {
@@ -532,8 +613,7 @@ contract FuzzBattleArena is BaseSetup {
         bytes32 saltB = keccak256(abi.encodePacked("H01-teamB", battleId));
         _commitTeam(alice, battleId, teamA, saltA);
         _commitTeam(bob,   battleId, teamB, saltB);
-        _revealTeam(alice, battleId, teamA, saltA);
-        _revealTeam(bob,   battleId, teamB, saltB);
+        _revealTeams(battleId, teamA, saltA, teamB, saltB);
 
         _playRound(battleId, hex"01", hex"02");
     }
@@ -805,8 +885,7 @@ contract FuzzBattleArena is BaseSetup {
         bytes32 saltB = keccak256(abi.encodePacked("fuzz-teamB", battleId2));
         _commitTeam(alice, battleId2, teamA, saltA);
         _commitTeam(bob,   battleId2, teamB, saltB);
-        _revealTeam(alice, battleId2, teamA, saltA);
-        _revealTeam(bob,   battleId2, teamB, saltB);
+        _revealTeams(battleId2, teamA, saltA, teamB, saltB);
 
         // Battle is now Active at currentRound == 1. Craft a commit hash
         // that binds to a DIFFERENT round.
@@ -1057,8 +1136,7 @@ contract FuzzBattleArena is BaseSetup {
         bytes32 saltB = keccak256(abi.encodePacked("V3-teamB", battleId));
         _commitTeam(alice, battleId, teamA, saltA);
         _commitTeam(bob,   battleId, teamB, saltB);
-        _revealTeam(alice, battleId, teamA, saltA);
-        _revealTeam(bob,   battleId, teamB, saltB);
+        _revealTeams(battleId, teamA, saltA, teamB, saltB);
 
         _playRound(battleId, hex"01", hex"02");
     }
@@ -1425,8 +1503,7 @@ contract FuzzBattleArena is BaseSetup {
         bytes32 saltB = keccak256(abi.encodePacked("active-B", battleId));
         _commitTeam(alice, battleId, teamA, saltA);
         _commitTeam(bob,   battleId, teamB, saltB);
-        _revealTeam(alice, battleId, teamA, saltA);
-        _revealTeam(bob,   battleId, teamB, saltB);
+        _revealTeams(battleId, teamA, saltA, teamB, saltB);
     }
 
     // BA-H1: at round 1, settle() is impossible (lastVerifiedRound==0). A losing

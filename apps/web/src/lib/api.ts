@@ -18,6 +18,12 @@ export interface StepsResponse {
   preview?: Record<string, unknown>;
 }
 
+// F5-01: team reveal is resolver-submitted — the endpoint returns a status, not calldata.
+export interface TeamRevealResponse {
+  status: 'waiting_for_opponent' | 'both_revealed';
+  message: string;
+}
+
 type AuthHeaders = Record<string, string>;
 
 async function request<T>(
@@ -377,8 +383,9 @@ const combat = {
   deposit: (battleId: string, auth: AuthHeaders) => post<StepsResponse>(`/api/game/combat/${battleId}/deposit`, undefined, auth),
   commitTeam: (battleId: string, commitHash: string, auth: AuthHeaders) =>
     post<StepsResponse>(`/api/game/combat/${battleId}/commit-team`, { commitHash }, auth),
+  // F5-01: reveal returns a status (not calldata) — the resolver submits the atomic tx.
   revealTeam: (battleId: string, teamId: string, salt: string, auth: AuthHeaders) =>
-    post<StepsResponse>(`/api/game/combat/${battleId}/reveal-team`, { teamId, salt }, auth),
+    post<TeamRevealResponse>(`/api/game/combat/${battleId}/reveal-team`, { teamId, salt }, auth),
   commitMoves: (battleId: string, commitHash: string, auth: AuthHeaders) =>
     post<StepsResponse>(`/api/game/combat/${battleId}/commit-moves`, { commitHash }, auth),
   revealMoves: (battleId: string, moveData: string, salt: string, auth: AuthHeaders) =>
