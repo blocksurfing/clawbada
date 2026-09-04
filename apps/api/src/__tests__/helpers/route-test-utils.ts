@@ -86,7 +86,10 @@ export function mockTeam(overrides: Record<string, any> = {}) {
     teamId: 1n,
     owner: TEST_ADDRESS,
     lobsterIds: [1n, 2n, 3n] as [bigint, bigint, bigint],
-    active: true,
+    // TeamManager.sol creates teams with active=false; `active` means "busy in mining or a
+    // battle" (F-02). Idle by default so routes that require an idle team pass unless a test
+    // opts into the busy case with { active: true }.
+    active: false,
     ...overrides,
   };
 }

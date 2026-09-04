@@ -125,12 +125,12 @@ describe('decodeLegend', () => {
 
   test('returns 2 for reserved legend value', () => {
     const dna = 2n << LEGEND_SHIFT;
-    expect(decodeLegend(dna)).toBe(2);
+    expect(decodeLegend(dna)).toBe(LegendStatus.Reserved2);
   });
 
   test('returns 3 for reserved legend value', () => {
     const dna = 3n << LEGEND_SHIFT;
-    expect(decodeLegend(dna)).toBe(3);
+    expect(decodeLegend(dna)).toBe(LegendStatus.Reserved3);
   });
 
   test('isolates legend bits from class bits', () => {

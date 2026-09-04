@@ -1,22 +1,26 @@
 import { describe, test, expect } from 'bun:test';
 import { serializeBigInts } from '../lib/chain';
 
+// serializeBigInts is typed T -> T for ergonomic use in routes, but it really turns every
+// bigint into a string. Widen through `unknown` so the assertions can say what it does.
+const ser = (v: unknown): unknown => serializeBigInts(v);
+
 describe('serializeBigInts', () => {
   test('converts bigint to string', () => {
-    expect(serializeBigInts(123n)).toBe('123');
+    expect(ser(123n)).toBe('123');
   });
 
   test('converts zero bigint to "0"', () => {
-    expect(serializeBigInts(0n)).toBe('0');
+    expect(ser(0n)).toBe('0');
   });
 
   test('converts very large bigint to string', () => {
     const big = 2n ** 256n - 1n;
-    expect(serializeBigInts(big)).toBe(big.toString());
+    expect(ser(big)).toBe(big.toString());
   });
 
   test('passes number through unchanged', () => {
-    expect(serializeBigInts(42)).toBe(42);
+    expect(ser(42)).toBe(42);
   });
 
   test('passes string through unchanged', () => {
@@ -45,7 +49,7 @@ describe('serializeBigInts', () => {
         flag: true,
       },
     };
-    const result = serializeBigInts(input);
+    const result = ser(input);
     expect(result).toEqual({
       id: '1',
       name: 'lobster',
@@ -58,7 +62,7 @@ describe('serializeBigInts', () => {
 
   test('handles arrays with bigints', () => {
     const input = [1n, 2n, 3n];
-    const result = serializeBigInts(input);
+    const result = ser(input);
     expect(result).toEqual(['1', '2', '3']);
   });
 
@@ -71,7 +75,7 @@ describe('serializeBigInts', () => {
       season: 1n,
       meta: { active: true, label: 'test' },
     };
-    const result = serializeBigInts(input);
+    const result = ser(input);
     expect(result).toEqual({
       teams: [
         { teamId: '10', lobsters: ['100', '200', '300'] },
@@ -92,13 +96,13 @@ describe('serializeBigInts', () => {
 
   test('handles objects with null and undefined values', () => {
     const input = { a: null, b: undefined, c: 42n };
-    const result = serializeBigInts(input);
+    const result = ser(input);
     expect(result).toEqual({ a: null, b: undefined, c: '42' });
   });
 
   test('handles deeply nested structures', () => {
     const input = { a: { b: { c: { d: 77n } } } };
-    const result = serializeBigInts(input);
+    const result = ser(input);
     expect(result).toEqual({ a: { b: { c: { d: '77' } } } });
   });
 });
