@@ -8,6 +8,34 @@
       "when": 1771442372341,
       "tag": "0000_steep_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778816304348,
+      "tag": "0001_past_zaladane",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778884803927,
+      "tag": "0002_handy_marten_broadcloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778916961154,
+      "tag": "0003_wide_sharon_carter",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779123937571,
+      "tag": "0004_remarkable_talkback",
+      "breakpoints": true
     }
   ]
 }

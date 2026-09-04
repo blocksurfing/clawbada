@@ -331,6 +331,27 @@ export const TreasuryAbi = [
   },
   {
     "type": "error",
+    "name": "AmountBelowMinimum",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidDevWallet",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotAuthorized",
     "inputs": []
   },
@@ -360,6 +381,17 @@ export const TreasuryAbi = [
     "type": "error",
     "name": "ReentrancyGuardReentrantCall",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",

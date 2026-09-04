@@ -16,13 +16,18 @@ export const RepairShopAbi = [
         "name": "treasury_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "miningPool_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "REPAIR_RATES",
+    "name": "REPAIR_RATE_BPS",
     "inputs": [
       {
         "name": "",
@@ -67,6 +72,19 @@ export const RepairShopAbi = [
   },
   {
     "type": "function",
+    "name": "miningPool",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IMiningPoolPeg"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "repair",
     "inputs": [
       {
@@ -82,6 +100,25 @@ export const RepairShopAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "repairRate",
+    "inputs": [
+      {
+        "name": "tier",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -185,6 +222,22 @@ export const RepairShopAbi = [
     "type": "error",
     "name": "ReentrancyGuardReentrantCall",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RewardPegUnset",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",
