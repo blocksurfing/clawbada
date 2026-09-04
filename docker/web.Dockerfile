@@ -21,15 +21,21 @@ COPY packages/logger/package.json packages/logger/
 RUN bun install --frozen-lockfile
 
 # ── Build stage ──
-FROM node:20-slim AS build
+# Built with bun, like CI's "Build Web" job: bun keeps each workspace's own dependencies
+# under that workspace's node_modules (apps/web/node_modules holds lucide-react,
+# @tanstack/react-query, @tailwindcss/postcss ...), so a node-only stage that received just
+# the root node_modules could not resolve them. Re-running the frozen install after the
+# source copy re-creates those per-workspace directories.
+FROM oven/bun:1 AS build
 
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN bun install --frozen-lockfile
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN cd apps/web && npx next build
+RUN bun run --filter @clawbada/web build
 
 # ── Run stage ──
 FROM node:20-slim
