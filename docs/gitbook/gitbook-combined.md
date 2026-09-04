@@ -377,7 +377,16 @@ You see your team's power on the Team Builder *before* you queue. The matchmaker
 
 **Match found = consent at deposit**: you see the opponent's power score (not their team composition — that's revealed after both players commit) alongside the deposit prompt. Approve the deposit within the 2-minute window if you accept the matchup, or walk away with no penalty if you don't.
 
-**Status at launch**: random pairing within each (power × stake) sub-pool. ELO-based skill matching is tracked from day 1 but not used for pairing until S1.5, once we have battle-result data to seed ratings sensibly. Procedurally generated arena layouts with class-themed terrain arrive in S2-3.
+**Rating bands**: inside your power × stake sub-pool you are also matched by team rating. Every team starts at 1,200 and moves by the standard chess-style step after each result. The band widens with wait time but, unlike the power radius, it **never opens to "anyone"** — a patient team keeps waiting rather than being handed to a far stronger opponent:
+
+| Wait time | Rating band |
+|-----------|-------------|
+| 0 – 30 s | ±75 |
+| 30 – 60 s | ±150 |
+| 60 – 120 s | ±225 |
+| 120 s+ | ±300 (hard cap) |
+
+Procedurally generated arena layouts with class-themed terrain arrive in S2-3.
 
 ## Hex Grid Arena
 
@@ -640,12 +649,13 @@ Griefing is always negative EV — rational agents always cooperate with the pro
 
 ## Battle Rank & Mining Boost
 
-Winning battles doesn't just take the pot — **battle rank makes your team mine hotter**. Each team earns a battle ELO rating; every week, qualified teams receive a mining boost of **+10% to +50%** of that team's own mining income, scaled by their rating percentile.
+Winning battles doesn't just take the pot — **battle rank makes your team mine hotter**. Each team earns a battle rating; every week, all qualified teams are placed on **one ladder** and receive a mining boost of **+10% to +50%** of that team's own mining income, scaled by their position on it (bottom = +10%, top = +50%, straight line in between).
 
 - **Qualify by playing**: a team must play a minimum number of battles per week (starting at 7/week at launch, rising to 14/week as the arena fills — the current floor is always published). Wins are never required — only showing up and putting stakes at risk.
-- **Miss a week, lose the boost**: lapse the floor and the boost is 0 next week; your rating persists (with gentle idle decay), so you re-qualify at your level.
+- **Miss a week, lose the boost**: lapse the floor and the boost is 0 next week. Your rating persists but drifts 15% of the way back toward the 1,200 starting rating for every week you miss the floor — a month away costs about half of what you climbed; a truly strong team wins it back in a week or two.
 - **The rank rides with the team**: swapping a lobster decays the team's rating; changing the team's evolution-tier mix resets qualification entirely. Rank belongs to the roster that earned it.
-- **Matchmaking is rating-banded** within your Power and stake bracket, so you fight teams at your level.
+- **Matchmaking is rating-banded** within your Power and stake bracket (±75 widening to a hard ±300 cap), so you fight teams at your level.
+- **It cannot go stale**: a posted week pays for 10 days at most. If the ladder is ever not posted, every boost drops to 0 on its own.
 
 Battle stakes remain fully zero-sum — the boost is paid from mining emissions through the same daily reward glide, never from other players' stakes.
 

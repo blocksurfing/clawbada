@@ -47,6 +47,12 @@ const PERMANENT_REVERT_NAMES = new Set<string>([
   'EmergencyWithdrawTooEarly',
   'DisputeWindowOpen',
   'DisputeWindowClosed',
+  // MiningPool boost table guards (set_team_boosts / activate_boost_epoch).
+  // InvalidBoostEpoch on activate can mean "already done" — the handler
+  // checks currentBoostEpoch before trusting this classification.
+  'InvalidBoostEpoch',
+  'BoostTooHigh',
+  'BatchTooLarge',
 ]);
 
 /** Walk the error cause chain looking for a viem `ContractFunctionRevertedError`.

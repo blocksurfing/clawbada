@@ -19,7 +19,7 @@ import { asc } from 'drizzle-orm';
 import { db, matchmakingQueue } from '@clawbada/db';
 import { log as baseLog } from '../../logger';
 import { battleWS } from '../ws';
-import { getCurrentRadius } from './bucket';
+import { getCurrentRadius, getCurrentRatingRadius } from './bucket';
 import {
   tryMatchForPlayer,
   logExpansionDecision,
@@ -110,6 +110,9 @@ export async function tickMatchmaker(): Promise<void> {
     const elapsedMs = Date.now() - enqueuedAtMs;
     const elapsedSec = Math.floor(elapsedMs / 1000);
     const radius = getCurrentRadius(row.powerScore, elapsedSec);
+    // The rating band steps on the same 30/60/120 s thresholds, so the Power
+    // half-width crossing below is also the moment the band widened.
+    const ratingRadius = getCurrentRatingRadius(elapsedSec);
 
     // 2. Emit search_expanded if this player just crossed a threshold WITHIN
     //    the current queue session. M-01 fix: a stale state from a prior
@@ -131,6 +134,7 @@ export async function tickMatchmaker(): Promise<void> {
       battleWS.notifyAddress(row.address, 'search_expanded', {
         newRadius: { low: radius.low, high: radius.high },
         halfWidth: radius.halfWidth === Infinity ? 'all' : radius.halfWidth,
+        ratingRadius,
         atElapsed: elapsedSec,
         // F-16: tag the queue session this expansion belongs to. Without it,
         // a player who matched and re-queued could see expansion events
@@ -145,6 +149,7 @@ export async function tickMatchmaker(): Promise<void> {
         { stakeBracket: row.stakeBracket, powerScore: row.powerScore },
         elapsedSec,
         radius.halfWidth,
+        ratingRadius,
       ).catch((err) => log.warn({ err }, 'logExpansionDecision failed'));
     }
 

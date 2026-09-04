@@ -1,4 +1,4 @@
-import { pgTable, text, bigint, integer, smallint, jsonb, timestamp, check, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, text, bigint, integer, smallint, jsonb, timestamp, check, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const battles = pgTable('battles', {
@@ -42,6 +42,10 @@ export const battles = pgTable('battles', {
    *  via drizzle's check() DSL so the constraint survives future
    *  schema-generation passes (manual-SQL-only CHECKs would drift). */
   statusCk: check('battles_status_ck', sql`${t.status} IS NULL OR ${t.status} IN (0, 1, 2, 3, 4)`),
+  /** Boost telemetry: battle duration (created_at → settled_at) and per-team history. */
+  settledAtIdx: index('battles_settled_at_idx').on(t.settledAt),
+  teamAIdx: index('battles_team_a_idx').on(t.teamA),
+  teamBIdx: index('battles_team_b_idx').on(t.teamB),
 }));
 
 export const battleRounds = pgTable('battle_rounds', {

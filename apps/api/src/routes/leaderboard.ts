@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { desc, sql, eq } from 'drizzle-orm';
-import { db, agents, expeditions, breeds } from '@clawbada/db';
+import { asc, desc, sql, eq } from 'drizzle-orm';
+import { db, agents, expeditions, breeds, teamRatings } from '@clawbada/db';
 import { catchErrors } from '../lib/errors';
 import { serializeBigInts } from '../lib/chain';
 
@@ -36,6 +36,50 @@ leaderboardRoutes.get(
         winRate: r.totalBattles > 0 ? ((r.wins / r.totalBattles) * 100).toFixed(1) + '%' : 'N/A',
       })),
     });
+  }),
+);
+
+// GET /api/leaderboard/teams - team rating leaderboard (battle-rank boost ladder input)
+// Team-keyed (S1 locked 2026-09-02): the wallet ELO board above stays for humans,
+// the boost ladder ranks TEAMS. No joins - the row already carries owner + power.
+leaderboardRoutes.get(
+  '/teams',
+  catchErrors(async (c) => {
+    const limitRaw = Number(c.req.query('limit') ?? '50');
+    const offsetRaw = Number(c.req.query('offset') ?? '0');
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 100) : 50;
+    const offset = Number.isFinite(offsetRaw) ? Math.max(Math.floor(offsetRaw), 0) : 0;
+
+    const result = await db
+      .select({
+        teamId: teamRatings.teamId,
+        owner: teamRatings.owner,
+        rating: teamRatings.rating,
+        power: teamRatings.power,
+        wins: teamRatings.wins,
+        losses: teamRatings.losses,
+        gamesPlayedTotal: teamRatings.gamesPlayedTotal,
+        gamesPlayedEpoch: teamRatings.gamesPlayedEpoch,
+        epochId: teamRatings.epochId,
+        lastBattleAt: teamRatings.lastBattleAt,
+      })
+      .from(teamRatings)
+      // teamId last so equal ratings page deterministically.
+      .orderBy(desc(teamRatings.rating), desc(teamRatings.wins), asc(teamRatings.teamId))
+      .limit(limit)
+      .offset(offset);
+
+    return c.json(serializeBigInts({
+      count: result.length,
+      limit,
+      offset,
+      leaderboard: result.map((r, i) => ({
+        rank: offset + i + 1,
+        ...r,
+        lastBattleAt: r.lastBattleAt ? r.lastBattleAt.toISOString() : null,
+        winRate: r.gamesPlayedTotal > 0 ? ((r.wins / r.gamesPlayedTotal) * 100).toFixed(1) + '%' : 'N/A',
+      })),
+    }));
   }),
 );
 
