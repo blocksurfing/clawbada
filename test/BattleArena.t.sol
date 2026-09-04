@@ -136,10 +136,9 @@ contract BattleArenaTest is Test {
     function _revealTeams(uint256 battleId, uint256 teamIdA, uint256 teamIdB, bytes32 saltA, bytes32 saltB)
         internal
     {
-        vm.prank(alice);
-        arena.revealTeam(battleId, teamIdA, saltA);
-        vm.prank(bob);
-        arena.revealTeam(battleId, teamIdB, saltB);
+        // F5-01: team reveal is atomic and resolver-submitted.
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
     }
 
     function _commitMoves(uint256 battleId, bytes memory movesA, bytes memory movesB)
@@ -331,7 +330,7 @@ contract BattleArenaTest is Test {
         arena.deposit(battleId);
     }
 
-    // ──────────── commitTeam / revealTeam ────────────
+    // ──────────── commitTeam / revealTeams ────────────
 
     function test_commitTeamStoresHash() public {
         uint256 battleId = _createBattle();
@@ -364,16 +363,16 @@ contract BattleArenaTest is Test {
 
         uint256 teamIdA = _createEvolvedTeam(alice);
         uint256 teamIdB = _createEvolvedTeam(bob);
-        (, bytes32 saltB) = _commitTeams(battleId, teamIdA, teamIdB);
+        (bytes32 saltA, bytes32 saltB) = _commitTeams(battleId, teamIdA, teamIdB);
 
-        // Try to reveal with wrong salt
+        // F5-01: atomic resolver-submitted reveal. A wrong salt for either side reverts.
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
-        vm.prank(alice);
-        arena.revealTeam(battleId, teamIdA, bytes32("wrong"));
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, bytes32("wrong"), teamIdB, saltB);
 
-        // Correct reveal works
-        vm.prank(alice);
-        arena.revealTeam(battleId, teamIdA, bytes32("saltA"));
+        // Correct reveal of both teams works.
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
     }
 
     function test_revealTeamValidatesEligibility() public {
@@ -401,10 +400,10 @@ contract BattleArenaTest is Test {
         vm.prank(bob);
         arena.commitTeam(battleId, commitB);
 
-        // Alice tries to reveal with Base-tier team → should revert
+        // F5-01: atomic reveal validates both teams; alice's Base-tier team reverts.
         vm.expectRevert(abi.encodeWithSelector(BattleArena.LobsterTierTooLow.selector, lob1, 1, 0));
-        vm.prank(alice);
-        arena.revealTeam(battleId, baseTeam, saltA);
+        vm.prank(resolver);
+        arena.revealTeams(battleId, baseTeam, saltA, teamIdB, saltB);
     }
 
     function test_revealTeamLocksTeam() public {
@@ -413,13 +412,16 @@ contract BattleArenaTest is Test {
 
         uint256 battleId = _createBattle();
         _depositBoth(battleId);
-        (bytes32 saltA,) = _commitTeams(battleId, teamIdA, teamIdB);
+        (bytes32 saltA, bytes32 saltB) = _commitTeams(battleId, teamIdA, teamIdB);
 
-        vm.prank(alice);
-        arena.revealTeam(battleId, teamIdA, saltA);
+        // F5-01: atomic reveal locks BOTH teams at once.
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
 
         assertTrue(arena.teamInBattle(teamIdA));
         assertTrue(tm.isTeamActive(teamIdA));
+        assertTrue(arena.teamInBattle(teamIdB));
+        assertTrue(tm.isTeamActive(teamIdB));
     }
 
     function test_revealTeamBothStartsRound1() public {

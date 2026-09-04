@@ -152,11 +152,15 @@ contract BattleArenaHandler is BaseSetup {
         if (battleId == 0) return;
         if (teamIdsA[battleId] == 0 || teamIdsB[battleId] == 0) return;
 
-        vm.prank(aliceH);
-        try battleArena.revealTeam(battleId, teamIdsA[battleId], _teamSalt(battleId, true)) {} catch {}
-
-        vm.prank(bobH);
-        try battleArena.revealTeam(battleId, teamIdsB[battleId], _teamSalt(battleId, false)) {} catch {}
+        // F5-01: atomic resolver-submitted reveal. This handler holds RESOLVER_ROLE
+        // (granted to address(this) in the constructor), so it calls directly.
+        try battleArena.revealTeams(
+            battleId,
+            teamIdsA[battleId],
+            _teamSalt(battleId, true),
+            teamIdsB[battleId],
+            _teamSalt(battleId, false)
+        ) {} catch {}
     }
 
     function handler_commitMoves(uint256 seed) external {

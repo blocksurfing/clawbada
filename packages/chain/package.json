@@ -7,6 +7,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "extract-abis": "bun run scripts/extract-abis.ts",
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
     "verify:boost-onchain": "bun run scripts/verify-boost-onchain.ts"
   },

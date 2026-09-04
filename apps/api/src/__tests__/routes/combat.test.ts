@@ -4,11 +4,15 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 const mockVerifyMessage = mock(() => Promise.resolve(true));
 const mockGetAddress = mock((addr: string) => addr);
 const mockEncodeFunctionData = mock(() => '0xabcdef');
+// F5-01: the reveal route verifies (battleId, player, teamId, salt) against the on-chain
+// commit through this helper; the tests pin it so the fixture can carry a matching commit.
+const mockTeamCommitHash = mock(() => '0xcommit');
 
 mock.module('@clawbada/chain', () => ({
   verifyMessage: mockVerifyMessage,
   getAddress: mockGetAddress,
   encodeFunctionData: mockEncodeFunctionData,
+  teamCommitHash: mockTeamCommitHash,
   BattleArenaAbi: [],
   ClawTokenAbi: [],
   addresses: { battleArena: '0xBATTLE', clawToken: '0xCLAW' },
@@ -64,18 +68,25 @@ const deleteChain = mockDeleteChain();
 
 const mockEnsureTeamRating = mock<any>();
 const mockCurrentBoostEpochId = mock<any>();
+// F5-01 reveal: db.update(battles).set(...).where(...) + db.query.battles.findFirst(...)
+const mockUpdateWhere = mock(async () => []);
+const mockUpdateSet = mock(() => ({ where: mockUpdateWhere }));
+const updateChain = { set: mockUpdateSet };
+const mockFindFirst = mock<any>();
 
 mock.module('@clawbada/db', () => ({
   db: {
     select: () => selectChain,
     insert: () => insertChain,
+    update: () => updateChain,
     delete: () => deleteChain,
+    query: { battles: { findFirst: mockFindFirst } },
     transaction: mock(async (fn: Function) => fn({
       delete: () => deleteChain,
       insert: () => insertChain,
     })),
   },
-  battles: { battleId: 'battleId', playerA: 'playerA', playerB: 'playerB', createdAt: 'createdAt', phase: 'phase', teamA: 'teamA', teamB: 'teamB', stakeBracket: 'stakeBracket', stakeAmount: 'stakeAmount', winner: 'winner', settledAt: 'settledAt', powerA: 'powerA', powerB: 'powerB', status: 'status' },
+  battles: { battleId: 'battleId', playerA: 'playerA', playerB: 'playerB', createdAt: 'createdAt', phase: 'phase', teamA: 'teamA', teamB: 'teamB', stakeBracket: 'stakeBracket', stakeAmount: 'stakeAmount', winner: 'winner', settledAt: 'settledAt', powerA: 'powerA', powerB: 'powerB', status: 'status', revealSaltA: 'revealSaltA', revealSaltB: 'revealSaltB' },
   battleRounds: { battleId: 'battleId', round: 'round' },
   matchmakingQueue: { id: 'id', address: 'address', stakeBracket: 'stakeBracket', powerScore: 'powerScore', enqueuedAt: 'enqueuedAt', teamId: 'teamId', elo: 'elo' },
   agents: { address: 'address', elo: 'elo' },
@@ -169,6 +180,11 @@ describe('combat routes', () => {
     mockCurrentBoostEpochId.mockReset();
     mockTryMatchForPlayer.mockReset();
     mockNotifyAddress.mockReset();
+    mockUpdateSet.mockClear();
+    mockUpdateWhere.mockClear();
+    mockFindFirst.mockReset();
+    mockTeamCommitHash.mockReset();
+    mockTeamCommitHash.mockImplementation(() => '0xcommit');
     insertChain.values.mockClear();
     selectResult = [];
     mockVerifyMessage.mockImplementation(() => Promise.resolve(true));
@@ -415,19 +431,94 @@ describe('combat routes', () => {
     });
   });
 
-  // ──────────── POST /combat/:battleId/reveal-team ────────────
+  // ──────────── POST /combat/:battleId/reveal-team (F5-01: salt POST, no calldata) ────────────
 
   describe('POST /combat/:battleId/reveal-team', () => {
-    test('returns reveal calldata', async () => {
+    const revealBody = (over: Record<string, string> = {}) =>
+      JSON.stringify({ teamId: '1', salt: '0x' + 'ab'.repeat(32), ...over });
+
+    test('stores the salt and reports waiting when the opponent has not revealed', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitA: '0xcommit' }));
+      mockFindFirst.mockResolvedValue({ revealSaltA: '0x' + 'ab'.repeat(32), revealSaltB: null });
+
       const res = await app.request('/combat/1/reveal-team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ teamId: '1', salt: '0xsalt' }),
+        body: revealBody(),
       });
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.steps).toHaveLength(1);
-      expect(body.steps[0].description).toContain('Reveal');
+      expect(body.status).toBe('waiting_for_opponent');
+      expect(body.steps).toBeUndefined(); // the player signs nothing to reveal
+      // Player A's teamId + salt were written to the battle row.
+      expect(mockUpdateSet).toHaveBeenCalledTimes(1);
+      expect(mockUpdateSet.mock.calls[0][0]).toEqual({ teamA: 1n, revealSaltA: '0x' + 'ab'.repeat(32) });
+      // The hash was checked for THIS player, battle 1, team 1.
+      const [battleId, player, teamId] = mockTeamCommitHash.mock.calls[0] as any[];
+      expect(battleId).toBe(1n);
+      expect(player.toLowerCase()).toBe(TEST_ADDRESS.toLowerCase());
+      expect(teamId).toBe(1n);
+    });
+
+    test('reports both_revealed once the opponent salt is present', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitA: '0xcommit' }));
+      mockFindFirst.mockResolvedValue({ revealSaltA: '0xaa', revealSaltB: '0xbb' });
+
+      const res = await app.request('/combat/1/reveal-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: revealBody(),
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()).status).toBe('both_revealed');
+    });
+
+    test('player B writes the B-side columns', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitB: '0xcommit' }));
+      mockFindFirst.mockResolvedValue({ revealSaltA: null, revealSaltB: '0xbb' });
+
+      const res = await app.request('/combat/1/reveal-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders(OTHER_ADDRESS) },
+        body: revealBody({ teamId: '2' }),
+      });
+      expect(res.status).toBe(200);
+      expect(mockUpdateSet.mock.calls[0][0]).toMatchObject({ teamB: 2n });
+    });
+
+    test('rejects a non-participant (401)', async () => {
+      mockReadBattle.mockResolvedValue(
+        mockBattle({ phase: 2, playerA: '0x1111111111111111111111111111111111111111', playerB: '0x2222222222222222222222222222222222222222' }),
+      );
+      const res = await app.request('/combat/1/reveal-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: revealBody(),
+      });
+      expect(res.status).toBe(401);
+      expect(mockUpdateSet).not.toHaveBeenCalled();
+    });
+
+    test('rejects a battle that is not in the TeamReveal phase (409)', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 1, teamCommitA: '0xcommit' }));
+      const res = await app.request('/combat/1/reveal-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: revealBody(),
+      });
+      expect(res.status).toBe(409);
+      expect(mockUpdateSet).not.toHaveBeenCalled();
+    });
+
+    test('rejects a salt/teamId that does not match the on-chain commit (400)', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitA: '0xsomethingelse' }));
+      const res = await app.request('/combat/1/reveal-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: revealBody(),
+      });
+      expect(res.status).toBe(400);
+      expect(mockUpdateSet).not.toHaveBeenCalled();
     });
 
     test('returns 400 when salt missing', async () => {

@@ -113,8 +113,8 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         uint8 lastVerifiedRound; // highest round where both move reveals were posted on-chain
         uint8 consecutiveTimeoutsA;
         uint8 consecutiveTimeoutsB;
-        // F-04: power-binding snapshot recorded at createBattle time. revealTeam
-        // recomputes the team's CURRENT power and reverts if it drifted from
+        // F-04: power-binding snapshot recorded at createBattle time. revealTeams
+        // recomputes each team's CURRENT power and reverts if it drifted from
         // these values — closes the match-found→reveal smurfing window.
         uint8 powerA;
         uint8 powerB;
@@ -215,7 +215,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     error LobsterDamageTooHigh(uint256 lobsterId, uint8 damage);
     /// @dev F-04: createBattle param outside [MIN_TEAM_POWER, MAX_TEAM_POWER].
     error InvalidPowerScore(uint8 powerScore);
-    /// @dev F-04: revealTeam saw a different team-power than the matchmaker
+    /// @dev F-04: revealTeams saw a different team-power than the matchmaker
     ///      recorded at createBattle. Indicates a mid-flow lobster swap that
     ///      would have moved the player into a different bracket.
     error TeamPowerChanged(uint256 teamId, uint8 expected, uint8 actual);
@@ -387,55 +387,69 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         }
     }
 
-    /// @notice Reveal team composition. Validates commit hash, team ownership, tier, and damage.
+    /// @notice Atomically reveal BOTH teams in a single resolver-submitted transaction.
+    /// @dev F5-01: team reveal is resolver-submitted and atomic to close the matchup-dodge
+    ///      exploit. Sequential per-player reveals leaked the first revealer's composition
+    ///      (readable via getBattle, raw storage, and the TeamRevealed event) within the
+    ///      reveal window, letting the second mover bail on unfavorable matchups for only the
+    ///      5% anti-grief — positive EV against honest first-revealers and a violation of the
+    ///      "neither side sees the other's team first" guarantee. Because on-chain storage is
+    ///      raw-readable, no single-team reveal can be hidden; and letting a *player* submit a
+    ///      combined reveal would require handing both salts to a party that benefits from
+    ///      dodging. So the resolver (which already knows both teams from matchmaking and
+    ///      submits settle()) opens both at once. It cannot forge a team — each side's commit
+    ///      hash binds its (teamId, salt). On timeout the battle mutually cancels with full
+    ///      refunds (see _handleRevealTimeout), so an honest player (human or agent) who never
+    ///      hands over a salt — e.g. a dropped connection in the reveal window — loses nothing,
+    ///      because no information ever reached the chain to dodge on.
     // slither-disable-next-line reentrancy-no-eth — setTeamActive() calls the trusted TeamManager (no callback); the post-call phase write is benign bookkeeping and all shared-state entrypoints are phase-gated.
-    function revealTeam(uint256 battleId, uint256 teamId, bytes32 salt) external {
+    function revealTeams(
+        uint256 battleId,
+        uint256 teamIdA,
+        bytes32 saltA,
+        uint256 teamIdB,
+        bytes32 saltB
+    ) external onlyRole(RESOLVER_ROLE) {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.TeamReveal);
-        _requireParticipant(battleId, msg.sender);
         if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId); // BA-M1
 
-        bool isA = msg.sender == b.playerA;
+        // Verify both commit hashes — binds each player to the team they committed.
+        bytes32 expectedA = keccak256(abi.encodePacked(battleId, b.playerA, teamIdA, saltA));
+        if (expectedA != b.teamCommitA) revert InvalidCommitHash(battleId);
+        bytes32 expectedB = keccak256(abi.encodePacked(battleId, b.playerB, teamIdB, saltB));
+        if (expectedB != b.teamCommitB) revert InvalidCommitHash(battleId);
 
-        // Verify commit hash
-        bytes32 expected = keccak256(abi.encodePacked(battleId, msg.sender, teamId, salt));
-        if (isA) {
-            if (b.teamRevealedA) revert AlreadyRevealed(battleId);
-            if (expected != b.teamCommitA) revert InvalidCommitHash(battleId);
-            b.teamRevealedA = true;
-            b.teamIdA = teamId;
-        } else {
-            if (b.teamRevealedB) revert AlreadyRevealed(battleId);
-            if (expected != b.teamCommitB) revert InvalidCommitHash(battleId);
-            b.teamRevealedB = true;
-            b.teamIdB = teamId;
-        }
+        // Validate both teams BEFORE any state write (no teamInBattle interference between
+        // the two). Each returns the current power for the F-04 binding check.
+        //
+        // F-04: each revealed team's power must match the matchmaker's snapshot. Without
+        // this, a player can queue with a low-power team, get matched against a similar-power
+        // opponent, then swap to a high-power team before reveal — defeating Power Matchmaking.
+        uint8 powerA = _validateTeamForBattle(teamIdA, b.playerA);
+        if (powerA != b.powerA) revert TeamPowerChanged(teamIdA, b.powerA, powerA);
+        uint8 powerB = _validateTeamForBattle(teamIdB, b.playerB);
+        if (powerB != b.powerB) revert TeamPowerChanged(teamIdB, b.powerB, powerB);
 
-        // Validate team — also returns the current team power for F-04 binding.
-        uint8 currentPower = _validateTeamForBattle(teamId, msg.sender);
+        // Bind + lock both teams atomically — neither team's identity exists on-chain until
+        // this single transaction lands.
+        b.teamIdA = teamIdA;
+        b.teamIdB = teamIdB;
+        b.teamRevealedA = true;
+        b.teamRevealedB = true;
+        teamInBattle[teamIdA] = true;
+        teamInBattle[teamIdB] = true;
+        teamManager.setTeamActive(teamIdA, true);
+        teamManager.setTeamActive(teamIdB, true);
 
-        // F-04: revealed team's power must match the matchmaker's snapshot.
-        // Without this, a player can queue with a low-power team, get matched
-        // against a similar-power opponent, then swap to a high-power team
-        // before reveal — defeating Power Matchmaking.
-        uint8 expectedPower = isA ? b.powerA : b.powerB;
-        if (currentPower != expectedPower) {
-            revert TeamPowerChanged(teamId, expectedPower, currentPower);
-        }
+        emit TeamRevealed(battleId, b.playerA, teamIdA);
+        emit TeamRevealed(battleId, b.playerB, teamIdB);
 
-        // Lock team
-        teamInBattle[teamId] = true;
-        teamManager.setTeamActive(teamId, true);
-
-        emit TeamRevealed(battleId, msg.sender, teamId);
-
-        if (b.teamRevealedA && b.teamRevealedB) {
-            b.phase = BattlePhase.Active;
-            b.currentRound = 1;
-            b.lastProgressAt = block.timestamp;
-            b.phaseDeadline = block.timestamp + COMMIT_WINDOW;
-            emit RoundStarted(battleId, 1);
-        }
+        b.phase = BattlePhase.Active;
+        b.currentRound = 1;
+        b.lastProgressAt = block.timestamp;
+        b.phaseDeadline = block.timestamp + COMMIT_WINDOW;
+        emit RoundStarted(battleId, 1);
     }
 
     /// @notice Submit move commit for the current round.
@@ -1063,8 +1077,10 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     ///      abandonment strictly worse than playing to a settled loss. Closes the
     ///      round-1 reveal-withhold exploit where the old soft refund (-5%) beat a
     ///      settled loss (-100%) and denied the honest player the pot it earned.
-    ///      Pre-Active forfeits (`_handleCommitTimeout`/`_handleRevealTimeout`) keep the
-    ///      neutral `_forfeit` refund since no battle has been played there.
+    ///      The pre-Active commit timeout (`_handleCommitTimeout`) keeps the neutral
+    ///      `_forfeit` refund since no battle has been played and nothing was revealed there;
+    ///      the reveal timeout (`_handleRevealTimeout`) mutually cancels with full refunds
+    ///      (F5-01: atomic reveal means there is never a one-sided reveal to penalise).
     function _forfeitAsLoss(uint256 battleId, address loser) internal {
         Battle storage b = _battles[battleId];
         b.phase = BattlePhase.Settled;
@@ -1111,16 +1127,15 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         }
     }
 
+    /// @dev F5-01: team reveal is now atomic (revealTeams, resolver-submitted), so either
+    ///      both teams are bound or neither is — there is no one-sided reveal state to
+    ///      attribute. If the resolver hasn't opened both teams by the deadline, nothing was
+    ///      ever revealed or locked, so the battle mutually cancels with full refunds. An
+    ///      honest player who failed to hand over a salt (dropped connection, etc.) loses
+    ///      nothing, and no party gained information to dodge on — closing the cheap-dodge
+    ///      vector without penalising honest fumbles.
     function _handleRevealTimeout(uint256 battleId) internal {
-        Battle storage b = _battles[battleId];
-
-        if (!b.teamRevealedA && !b.teamRevealedB) {
-            _cancelBattle(battleId, CancelReason.MutualTimeout);
-        } else if (!b.teamRevealedA) {
-            _forfeit(battleId, b.playerA);
-        } else {
-            _forfeit(battleId, b.playerB);
-        }
+        _cancelBattle(battleId, CancelReason.MutualTimeout);
     }
 
     function _handleActiveTimeout(uint256 battleId) internal {
@@ -1191,7 +1206,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         // N-02: keep the emergencyWithdraw clock honest. advanceRound() refreshes
         // lastProgressAt; this timeout-driven twin must too, otherwise a griefer
         // can force cheap cancel-by-emergencyWithdraw after 24h of time-outs by
-        // never letting lastProgressAt move past revealTeam.
+        // never letting lastProgressAt move past revealTeams.
         b.lastProgressAt = block.timestamp;
         b.roundCommitA = bytes32(0);
         b.roundCommitB = bytes32(0);

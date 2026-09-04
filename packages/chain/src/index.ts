@@ -2,6 +2,7 @@ export * from './abis/index';
 export * from './addresses';
 export * from './client';
 export * from './contracts';
+export * from './commit';
 
 // Re-export viem utilities so consumers don't need a separate viem dependency
 export { encodeFunctionData, verifyMessage, getAddress } from 'viem';
