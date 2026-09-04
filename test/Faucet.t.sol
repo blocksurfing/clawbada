@@ -437,30 +437,23 @@ contract FaucetTest is Test {
         attacker.attack();
     }
 
-    // ──────────── FAU-M1: sweepUnclaimed ────────────
+    // ──────────── FAU-M1: burnUnclaimed (burn-only by governance decision 2026-09-02) ────────────
 
-    function test_sweepUnclaimed_beforeClose_reverts() public {
-        // Faucet still open → sweep must revert, so it can never drain mid-window.
+    function test_burnUnclaimed_beforeClose_reverts() public {
+        // Faucet still open → burn must revert, so it can never fire mid-window.
         vm.prank(admin);
         vm.expectRevert(Faucet.FaucetStillOpen.selector);
-        faucet.sweepUnclaimed(treasuryAddress);
+        faucet.burnUnclaimed();
     }
 
-    function test_sweepUnclaimed_nonAdmin_reverts() public {
+    function test_burnUnclaimed_nonAdmin_reverts() public {
         vm.warp(closeTime);
         vm.prank(alice);
         vm.expectRevert(); // AccessControlUnauthorizedAccount
-        faucet.sweepUnclaimed(treasuryAddress);
+        faucet.burnUnclaimed();
     }
 
-    function test_sweepUnclaimed_zeroAddress_reverts() public {
-        vm.warp(closeTime);
-        vm.prank(admin);
-        vm.expectRevert(Faucet.ZeroAddress.selector);
-        faucet.sweepUnclaimed(address(0));
-    }
-
-    function test_sweepUnclaimed_afterClose_transfersResidual() public {
+    function test_burnUnclaimed_afterClose_burnsResidual() public {
         // Alice claims her 7,000 $CLAW drip while the faucet is open.
         _claimLobsters(alice);
         vm.prank(alice);
@@ -469,17 +462,17 @@ contract FaucetTest is Test {
         uint256 residual = claw.balanceOf(address(faucet));
         assertEq(residual, 70_000_000e18 - 7_000e18, "residual = premint minus one drip");
 
-        // After close, admin sweeps the residual to the Treasury.
+        // After close, the residual can only be BURNED — no recipient parameter exists.
         vm.warp(closeTime);
-        uint256 treasuryBefore = claw.balanceOf(treasuryAddress);
+        uint256 supplyBefore = claw.totalSupply();
 
-        vm.expectEmit(true, false, false, true, address(faucet));
-        emit Faucet.UnclaimedSwept(treasuryAddress, residual);
+        vm.expectEmit(false, false, false, true, address(faucet));
+        emit Faucet.UnclaimedBurned(residual);
         vm.prank(admin);
-        faucet.sweepUnclaimed(treasuryAddress);
+        faucet.burnUnclaimed();
 
         assertEq(claw.balanceOf(address(faucet)), 0, "faucet fully drained");
-        assertEq(claw.balanceOf(treasuryAddress) - treasuryBefore, residual, "residual moved to recipient");
+        assertEq(supplyBefore - claw.totalSupply(), residual, "residual destroyed from total supply");
     }
 }
 

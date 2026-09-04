@@ -61,7 +61,7 @@ library BattleResolver {
     uint256 internal constant VRF_RANGE = 300;
 
     // ──────────── HP Scaling ────────────
-    uint256 internal constant HP_BATTLE_SCALE = 5;
+    uint256 internal constant HP_BATTLE_SCALE = 1; // was 5 (V2 round pacing); ×1 per 2026-08-30 headless pacing sweep
 
     // ──────────── Evolution Tier Multipliers (×1000) ────────────
     uint256 internal constant TIER_MULT_BASE = 1000;
@@ -100,7 +100,7 @@ library BattleResolver {
         if (classId >= NUM_CLASSES) revert InvalidClassId(classId);
 
         // Bulwark, Mantis, Leviathan, Tempest, Specter, Sentinel, Reaver, Abyss, Kraken, Ember
-        if (classId == 0) return Stats(700, 70, 120, 80, 90); // Bulwark
+        if (classId == 0) return Stats(700, 100, 120, 80, 90); // Bulwark (Atk 70->100, 2026-08-30 balance)
         if (classId == 1) return Stats(375, 100, 70, 130, 125); // Mantis
         if (classId == 2) return Stats(600, 130, 100, 70, 80); // Leviathan
         if (classId == 3) return Stats(450, 110, 80, 105, 115); // Tempest
@@ -234,16 +234,16 @@ library BattleResolver {
     function getSpecialBasePower(uint8 classId) internal pure returns (uint256) {
         if (classId >= NUM_CLASSES) revert InvalidClassId(classId);
 
-        // [Bulwark=0, Mantis=150, Leviathan=180, Tempest=90, Specter=60,
-        //  Sentinel=0, Reaver=70, Abyss=120, Kraken=60, Ember=200]
+        // [Bulwark=0, Mantis=150, Leviathan=180, Tempest=120, Specter=60,
+        //  Sentinel=0, Reaver=70, Abyss=150, Kraken=60, Ember=200]
         if (classId == 0) return 0; // Bulwark (Fortify — utility)
         if (classId == 1) return 150; // Mantis (Ambush)
         if (classId == 2) return 180; // Leviathan (Crush)
-        if (classId == 3) return 90; // Tempest (Maelstrom — AoE)
+        if (classId == 3) return 120; // Tempest (Maelstrom — AoE; 90->120, 2026-08-30 balance)
         if (classId == 4) return 60; // Specter (Haunt — debuff)
         if (classId == 5) return 0; // Sentinel (Rally — heal)
         if (classId == 6) return 70; // Reaver (Rend — DoT)
-        if (classId == 7) return 120; // Abyss (Devour — drain)
+        if (classId == 7) return 150; // Abyss (Devour — drain; 120->150, 2026-08-30 balance)
         if (classId == 8) return 60; // Kraken (Bind — CC)
         return 200; // Ember (Inferno — nuke)
     }

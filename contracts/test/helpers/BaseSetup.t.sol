@@ -138,7 +138,7 @@ abstract contract BaseSetup is Test {
         marketplace = new Marketplace(address(claw), address(nft), address(treasury));
         breedingLab = new BreedingLab(address(claw), address(nft), address(treasury));
         evolutionLab = new EvolutionLab(address(claw), address(nft), address(treasury));
-        repairShop  = new RepairShop(address(claw), address(nft), address(treasury));
+        repairShop  = new RepairShop(address(claw), address(nft), address(treasury), address(miningPool));
         battleVRF   = new BattleVRF(admin);
         battleArena = new BattleArena(
             admin, address(claw), address(nft), address(teamMgr), address(treasury), address(battleVRF)
@@ -180,6 +180,7 @@ abstract contract BaseSetup is Test {
         battleArena.grantRole(battleArena.MATCHMAKER_ROLE(), admin);
         battleArena.grantRole(battleArena.RESOLVER_ROLE(),   admin);
         miningPool.grantRole(miningPool.SEASON_ADMIN_ROLE(), admin);
+        miningPool.grantRole(miningPool.BOOST_ADMIN_ROLE(), admin);
         faucet.grantRole(faucet.ELIGIBILITY_ROLE(), admin);
 
         vm.stopPrank();

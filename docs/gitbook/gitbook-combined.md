@@ -37,9 +37,11 @@ header-includes:
 
 # Clawbada
 
-**Agent-first idle game on Base.**
+**Idle or tactical. Agent or human. Same rules, real stakes.**
 
-Clawbada is an on-chain game where AI agents and humans assemble teams of lobster NFTs to mine \$CLAW, battle for stakes, breed new lobsters, and trade on the marketplace. Built on Base with fair-launch tokenomics designed to survive thousands of profit-maximizing AI agents.
+Clawbada is an on-chain idle game on Base where AI agents and humans deploy teams of lobster NFTs to mine \$CLAW while they sleep — or step into the hex arena and take it from someone else. Built to survive agents. Open to humans. Skill decides.
+
+Fair-launch tokenomics, hardened against thousands of profit-maximizing AI agents.
 
 ## How It Works
 
@@ -166,7 +168,7 @@ Each class has a distinct stat spread before any modifiers, evolution, or legend
 
 | Class | HP | Atk | Armor | Spd | Crit |
 |-------|-----|-----|-------|-----|------|
-| **Bulwark** | 700 | 70 | 120 | 80 | 90 |
+| **Bulwark** | 700 | 100 | 120 | 80 | 90 |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 |
 | **Leviathan** | 600 | 130 | 100 | 70 | 80 |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 |
@@ -177,7 +179,7 @@ Each class has a distinct stat spread before any modifiers, evolution, or legend
 | **Kraken** | 550 | 90 | 100 | 105 | 95 |
 | **Ember** | 350 | 140 | 60 | 100 | 130 |
 
-Notice the trade-offs: tanks (Bulwark, Sentinel) sacrifice damage for survivability; glass cannons (Ember, Mantis) hit hard but die fast. Speed determines turn order in battle, so faster classes get to act first — a key tactical consideration. HP is further scaled ×5 from these base values for battle pacing.
+Notice the trade-offs: tanks (Bulwark, Sentinel) sacrifice damage for survivability; glass cannons (Ember, Mantis) hit hard but die fast. Speed sets how often you act on the battle's ATB initiative bar — faster classes simply take more turns. HP is used as-is in battle.
 
 For full battle damage formulas and class advantage relationships, see [Battle Mode](battle.md).
 
@@ -285,13 +287,35 @@ Higher tiers require evolved lobsters but pay proportionally more.
 
 ## Rewards
 
-Rewards are **fixed per expedition** — you always earn exactly the amount shown for your mine tier. There is no pro-rata splitting or dilution based on how many players are mining.
+Rewards are **locked at expedition start** — when your expedition begins, you know exactly what it will pay, and nothing changes that. There is no pro-rata splitting within an expedition.
 
-The `baseReward` (currently 1,250 \$CLAW) is admin-tunable and may be adjusted mid-season based on participation levels.
+The reward *rate* glides: `baseReward` re-pegs automatically once per day to `remaining budget ÷ (remaining days × yesterday's demand)`, moving at most ±30% per day and never above the season's launch value (S1 launch: 1,250 \$CLAW). When the mines get crowded, everyone's yield drifts down smoothly; when they empty out, it drifts back up toward the launch rate. The table above shows launch-rate values.
+
+## Battle-Rank Boost
+
+Teams that battle earn more from mining. Once a week, every team that played at least the published floor of ranked battles (7 per week at launch, rising to 14 once the ladder is liquid) is placed on a single ladder by its battle rating. For the following week:
+
+| Ladder position | Boost on that team's own mining income |
+|---|---|
+| Bottom of the qualified ladder | **+10%** |
+| Middle | **+30%** |
+| Top | **+50%** |
+
+Everyone in between sits on the straight line between +10% and +50%. The boost is applied to every expedition the team starts that week, at every mine tier.
+
+Rules worth knowing:
+
+- **It is your team's own income.** The boost multiplies that team's reward; it does not create a shared prize pool.
+- **Play, don't necessarily win.** Qualifying counts battles played; rank decides the size.
+- **Miss the floor, lose the boost.** Skip a week and the boost is 0 the following week. Your rating survives (it drifts back toward the starting rating while you are away).
+- **It is bound to your roster.** The boost is tied to the Team Power it was earned at. Evolve a lobster mid-week and the boost pauses until the team re-qualifies at its new Power.
+- **It cannot go stale.** A posted week only pays for 10 days. If the ladder is ever not posted, every boost drops to 0 on its own.
+
+Where the money comes from: the same season budget. Boosted expeditions count as extra demand in the daily glide, so the boost is paid by a slightly faster glide for everyone, not by new emissions. Battle $\to$ *Battle Rank & Mining Boost* has the full rules.
 
 ## Season Budget
 
-Each season has a total emission budget. Once the budget is exhausted, mining stops until the next season begins. Season 1 has 352.5M \$CLAW in total emissions.
+Each season has a total emission budget — Season 1 has 352.5M \$CLAW. The daily glide paces spending so the budget lasts the full 60 days: crowding compresses per-team yield instead of halting mining mid-season. (The hard budget check still exists on-chain as a backstop, but under the glide it is not expected to trigger.)
 
 ## Teams
 
@@ -330,6 +354,8 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 | **Mid** | 10,000 | 18,000 | +8,000 | -10,000 |
 | **High** | 50,000 | 90,000 | +40,000 | -50,000 |
 
+Stake brackets are re-pegged each season as fixed multiples of that season's launch `baseReward` (Low 2× / Mid 8× / High 40×), keeping battle stakes proportionate to mining yields as emissions halve. The values above are S1.
+
 The protocol takes a **10% fee** from the combined pot (85% burned, 15% to dev).
 
 ## Matchmaking
@@ -351,7 +377,16 @@ You see your team's power on the Team Builder *before* you queue. The matchmaker
 
 **Match found = consent at deposit**: you see the opponent's power score (not their team composition — that's revealed after both players commit) alongside the deposit prompt. Approve the deposit within the 2-minute window if you accept the matchup, or walk away with no penalty if you don't.
 
-**Status at launch**: random pairing within each (power × stake) sub-pool. ELO-based skill matching is tracked from day 1 but not used for pairing until S1.5, once we have battle-result data to seed ratings sensibly. Procedurally generated arena layouts with class-themed terrain arrive in S2-3.
+**Rating bands**: inside your power × stake sub-pool you are also matched by team rating. Every team starts at 1,200 and moves by the standard chess-style step after each result. The band widens with wait time but, unlike the power radius, it **never opens to "anyone"** — a patient team keeps waiting rather than being handed to a far stronger opponent:
+
+| Wait time | Rating band |
+|-----------|-------------|
+| 0 – 30 s | ±75 |
+| 30 – 60 s | ±150 |
+| 60 – 120 s | ±225 |
+| 120 s+ | ±300 (hard cap) |
+
+Procedurally generated arena layouts with class-themed terrain arrive in S2-3.
 
 ## Hex Grid Arena
 
@@ -373,7 +408,7 @@ How tick scheduling works:
 - A Mantis (130 Spd) takes roughly **1.86×** as many turns as a Leviathan (70 Spd) over the same battle window
 - Initial bar order is seeded by base Speed at battle start (ties broken by VRF beacon)
 
-Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempest's enhanced Maelstrom hastens allies, Kraken's Bind stuns the target into skipping its next turn entirely. Two safety rails prevent runaway speed-stacking:
+Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempest's enhanced Maelstrom slows everyone it hits, Kraken's Bind stuns the target into skipping its next turn entirely. Two safety rails prevent runaway speed-stacking:
 
 - **Effective Speed clamped to [0.5×, 1.5×] of base** — buffs and debuffs can't compound past that range
 - **Stun immunity for 2 turns after a stun expires** — prevents perma-lock chains
@@ -470,13 +505,15 @@ Attacks work at up to 3 hexes, but damage falls off with distance:
 
 Positioning matters: close the distance for full damage, or stay back and trade reduced damage for safety.
 
+**Specter's kit is the exception** (2026-08 balance update): it attacks up to **4 hexes** (40% damage at max range) and carries a **spectral dodge** — the first direct hit it takes between its own turns is reduced by 30%. Specter is built to kite: hard to pin down, poking from beyond everyone else's reach.
+
 ## Base Class Stats
 
 Base stats before evolution tier bonus, legend bonus, and body part modifiers:
 
 | Class | HP | Atk | Armor | Spd | Crit | Identity |
 |-------|-----|-----|-------|-----|------|----------|
-| **Bulwark** | 700 | 70 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
+| **Bulwark** | 700 | 100 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — flanks, strikes first, crits often |
 | **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, slow to reposition |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE from range, fragile up close |
@@ -487,7 +524,7 @@ Base stats before evolution tier bonus, legend bonus, and body part modifiers:
 | **Kraken** | 550 | 90 | 100 | 105 | 95 | Controller — mid-range stuns decide rounds |
 | **Ember** | 350 | 140 | 60 | 100 | 130 | Glass cannon — nukes from max range, dies up close |
 
-Stats scale with evolution: **+20% at Evolved, +40% at Elite, +60% at Apex**. Legend lobsters get an additional **+10%**. HP is further scaled ×5 from these base values for battle pacing (24-36 turn battles).
+Stats scale with evolution: **+20% at Evolved, +40% at Elite, +60% at Apex**. Legend lobsters get an additional **+10%**. HP is used as-is in battle (battle HP scale ×1), tuned for 24-36 turn battles.
 
 ## Combat Math
 
@@ -542,7 +579,7 @@ Each class's Special has a stronger "enhanced" form that fires based on the proc
 | **Mantis** | Ambush | Guaranteed critical hit |
 | **Leviathan** | Crush | Bonus damage if target is below 50% HP |
 | **Tempest** | Maelstrom | Also applies a speed debuff to all hit |
-| **Specter** | Haunt | Extends to 3 turns of target + stronger stat reduction |
+| **Specter** | Haunt | Extends to 6 turns of target + stronger stat reduction |
 | **Sentinel** | Rally | Also grants a damage shield for 1 turn |
 | **Reaver** | Rend | Bleed cannot be cleansed |
 | **Abyss** | Devour | Overheal converts to temporary HP |
@@ -560,11 +597,11 @@ Each class has one Special move. Base values shown before purity multiplier. Sta
 | **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster |
 | **Mantis** | Ambush | 150 | Single | Adjacent | Ignores 50% of target's Armor |
 | **Leviathan** | Crush | 180 | Single | Adjacent | Highest single-target burst |
-| **Tempest** | Maelstrom | 90 | AoE | 3-hex radius | Hits all enemies in range (up to 270 total potential) |
+| **Tempest** | Maelstrom | 120 | AoE | 3-hex radius | Hits all enemies in range (up to 360 total potential) |
 | **Specter** | Haunt | 60 | Debuff | 3 hexes | Damage + target Atk/Armor -20% for 4 turns of target |
-| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 30% of ally's max HP + cleanses debuffs |
-| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 40 bleed/turn for 6 turns of target (310 total) |
-| **Abyss** | Devour | 120 | Drain | Adjacent | Damage dealt also heals self |
+| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 25% of ally's max HP + cleanses debuffs |
+| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 55 bleed/turn for 6 turns of target (400 total) |
+| **Abyss** | Devour | 150 | Drain | Adjacent | Damage dealt also heals self |
 | **Kraken** | Bind | 60 | CC | 2 hexes | Damage + stun target for 1 turn (then 2-turn stun immunity) |
 | **Ember** | Inferno | 200 | Nuke | 4 hexes | Highest burst, caster takes 25% of damage dealt |
 
@@ -582,6 +619,8 @@ Every battle inflicts damage on all lobsters:
 Lobsters at **80+ damage** cannot enter battle until repaired.
 
 **Repair is instant** — pay \$CLAW, damage is removed immediately. Partial repairs are allowed.
+
+Repair rates track the mining economy: each tier's rate is a fixed fraction of the current `baseReward` (Evolved 0.40% / Elite 1.20% / Apex 3.20% per damage point — 5 / 15 / 40 \$CLAW at the S1 launch reward). As mining yields glide with crowding, repair costs glide with them, so battle stays rationally priced all season.
 
 | Tier | Cost per Damage Point |
 |------|---------------------|
@@ -607,6 +646,18 @@ Repair costs are burned through the Treasury (85% burn / 15% dev).
 - **Speed clamps** (effective Speed in [0.5×, 1.5×] of base) and **stun immunity** (2 turns post-stun) prevent ATB-bar exploitation
 
 Griefing is always negative EV — rational agents always cooperate with the protocol.
+
+## Battle Rank & Mining Boost
+
+Winning battles doesn't just take the pot — **battle rank makes your team mine hotter**. Each team earns a battle rating; every week, all qualified teams are placed on **one ladder** and receive a mining boost of **+10% to +50%** of that team's own mining income, scaled by their position on it (bottom = +10%, top = +50%, straight line in between).
+
+- **Qualify by playing**: a team must play a minimum number of battles per week (starting at 7/week at launch, rising to 14/week as the arena fills — the current floor is always published). Wins are never required — only showing up and putting stakes at risk.
+- **Miss a week, lose the boost**: lapse the floor and the boost is 0 next week. Your rating persists but drifts 15% of the way back toward the 1,200 starting rating for every week you miss the floor — a month away costs about half of what you climbed; a truly strong team wins it back in a week or two.
+- **The rank rides with the team**: swapping a lobster decays the team's rating; changing the team's evolution-tier mix resets qualification entirely. Rank belongs to the roster that earned it.
+- **Matchmaking is rating-banded** within your Power and stake bracket (±75 widening to a hard ±300 cap), so you fight teams at your level.
+- **It cannot go stale**: a posted week pays for 10 days at most. If the ladder is ever not posted, every boost drops to 0 on its own.
+
+Battle stakes remain fully zero-sum — the boost is paid from mining emissions through the same daily reward glide, never from other players' stakes.
 
 \newpage
 
@@ -827,7 +878,7 @@ Lobster prices are market-driven. Key pricing factors:
 | Mining emissions | 70.5% | 705M | Earned through gameplay |
 | DEX liquidity | 12.5% | 125M | Uniswap V3 pool (\$CLAW/ETH) |
 | Treasury | 10% | 100M | Protocol reserves, bug bounties |
-| Faucet | 7% | 70M | Pre-minted onboarding drip (~10K wallets × 7K \$CLAW) |
+| Faucet | 7% | 70M | Pre-minted onboarding drip (~10K wallets × 7K \$CLAW). **Unclaimed funds are burned** when the faucet closes (~day 7) — hardcoded in the contract, nobody can redirect them. |
 
 No airdrop. No team tokens. No VC allocation.
 

@@ -40,7 +40,7 @@ contract Faucet is AccessControl, ReentrancyGuard {
     event LobstersClaimed(address indexed claimer, uint256[5] tokenIds);
     event ClawClaimed(address indexed claimer, uint256 amount);
     event EligibilitySet(address indexed account, bool eligible);
-    event UnclaimedSwept(address indexed to, uint256 amount);
+    event UnclaimedBurned(uint256 amount);
 
     // ──────────── Errors ────────────
     error FaucetIsClosed();
@@ -146,21 +146,21 @@ contract Faucet is AccessControl, ReentrancyGuard {
 
     // ──────────── Admin recovery ────────────
 
-    /// @notice FAU-M1: recover the unclaimed $CLAW pre-mint after the faucet closes.
+    /// @notice FAU-M1: burn the unclaimed $CLAW pre-mint after the faucet closes.
     /// @dev The 70M pre-mint is realistically under-claimed; without this the residual
     ///      (potentially tens of millions of $CLAW) would be permanently locked in the
     ///      faucet — the same lock class as the Treasury reserve (TOK-H1). Gated to
-    ///      `block.timestamp >= closeTime` so it can NEVER drain mid-window or front-run
+    ///      `block.timestamp >= closeTime` so it can NEVER fire mid-window or front-run
     ///      a legitimate claim (claims revert FaucetIsClosed at the same boundary).
-    ///      DEFAULT_ADMIN_ROLE is the governance Safe after the role handoff; route the
-    ///      residual to Treasury / MiningPool / a burn address per governance decision.
-    /// @param to Recipient of the residual balance (e.g. Treasury or MiningPool).
-    function sweepUnclaimed(address to) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
-        if (to == address(0)) revert ZeroAddress();
+    ///      Governance decision 2026-09-02: the destination is BURN, hardcoded — no
+    ///      recipient parameter exists, so the pre-commitment is enforced by the
+    ///      contract itself rather than by policy. Rational agents can price the
+    ///      faucet window knowing nobody (dev included) benefits from unclaimed funds.
+    function burnUnclaimed() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (block.timestamp < closeTime) revert FaucetStillOpen();
         uint256 balance = clawToken.balanceOf(address(this));
-        IERC20(address(clawToken)).safeTransfer(to, balance);
-        emit UnclaimedSwept(to, balance);
+        clawToken.burn(balance);
+        emit UnclaimedBurned(balance);
     }
 
     // ──────────── View ────────────

@@ -1,0 +1,183 @@
+import type { Stats } from '../types';
+import { EvolutionTier, LobsterClass } from '../types';
+import type { ArenaLayout, HexPos } from './board';
+
+export type Team = 'A' | 'B';
+
+export type StatusType =
+  | 'bleed' // damage at start of each of the target's turns (value = per-turn dmg)
+  | 'stun' // target skips its next turn
+  | 'haunt' // Atk/Armor reduced (value ×1000)
+  | 'fortify' // incoming damage reduced (value ×1000)
+  | 'reflect' // enhanced Fortify: portion of blocked damage returned (value ×1000)
+  | 'shield' // incoming damage reduced (value ×1000)
+  | 'slow' // effective speed reduced (value ×1000)
+  | 'taunt'; // anti-focus: adjacent enemies must target this lobster
+
+export interface Status {
+  type: StatusType;
+  /** Remaining turns of the affected lobster. Decremented at the end of its turn. */
+  turns: number;
+  value: bigint;
+  /** Enhanced Rend: bleed survives Rally's cleanse. */
+  uncleansable?: boolean;
+  /** Battle turn number when applied; not decremented on the turn it was applied. */
+  since: number;
+}
+
+export interface AtbLobster {
+  id: string;
+  team: Team;
+  slot: number;
+  class: LobsterClass;
+  tier: EvolutionTier;
+  purity: number;
+  legend: boolean;
+  /** Tier/legend/HP×5 scaled stats — the battle's base numbers. */
+  stats: Stats;
+  maxHp: bigint;
+  hp: bigint;
+  alive: boolean;
+  pos: HexPos;
+  charge: number;
+  /** True from a Defend until the start of this lobster's next turn. */
+  defending: boolean;
+  statuses: Status[];
+  /** Tick of this lobster's last turn (0 before its first). */
+  lastTick: bigint;
+  turnsTaken: number;
+  /** Turns of this lobster still stun-immune. */
+  stunImmunity: number;
+  /** Direct hits taken since this lobster's last turn (focus-falloff window). */
+  recentHits: number;
+  /** VRF-derived, fixed for the battle; breaks equal-tick ties. */
+  tiebreak: bigint;
+}
+
+/**
+ * Tunable rule values. Defaults are the spec; overrides exist for headless
+ * balance experiments so a sweep never needs a code change.
+ */
+export interface BattleRules {
+  /** Fortify reflects this share (×1000) of blocked damage on every cast. Spec: 0 (enhanced-only). */
+  fortifyReflectBase: bigint;
+  /** Reflect share (×1000) when the enhanced proc fires. Spec: 200. */
+  fortifyReflectEnhanced: bigint;
+  /** Per-class movement range overrides (hexes). Spec: MOVE_RANGE table. */
+  moveRange: Partial<Record<LobsterClass, number>>;
+  /** Per-class attack multiplier overrides (×1000). Spec: none. */
+  attackMult: Partial<Record<LobsterClass, bigint>>;
+  /** Charge needed to cast a Special (consumes all). Spec: 3. */
+  specialCost: number;
+  /** Per-class Special base power overrides. Spec: SPECIAL_BASE_POWERS table. */
+  specialPower: Partial<Record<LobsterClass, bigint>>;
+  /** Rend bleed per target-turn (before purity). Spec: 40. */
+  rendBleedPerTurn: bigint;
+  /** Haunt Atk/Armor reduction ×1000 (enhanced adds +100). Spec: 200. */
+  hauntReduction: bigint;
+  // ── Anti-focus experiments (2026-08-31), all default-off ──
+  /** Fortify also taunts: while active on the caster, adjacent enemies must target it. */
+  fortifyTaunt: boolean;
+  /** Each direct hit on a target since its last turn reduces the next by this much (bps), floored at 40%. */
+  focusFalloffBps: bigint;
+  /** Ranged attacks (distance ≥2) made while an enemy is adjacent to the attacker lose this much (bps). */
+  guardPenaltyBps: bigint;
+  /** Rally heal as ‰ of the ally's max HP (before purity). Spec: 250. */
+  rallyHealPct: bigint;
+  /** Per-class max attack range overrides (spec: 3 for all; distance 4+ uses DISTANCE_MULT_LONG). */
+  attackRange: Partial<Record<LobsterClass, number>>;
+  /** Per-class reduction (×1000) on the FIRST direct hit taken each turn window ("spectral dodge"). */
+  firstHitReduction: Partial<Record<LobsterClass, bigint>>;
+}
+
+export interface AtbBattleState {
+  battleId: string;
+  vrfSeed: bigint;
+  layout: ArenaLayout;
+  rules: BattleRules;
+  lobsters: AtbLobster[];
+  /** Damage dealt to the enemy team, per team — second tiebreak at the turn cap. */
+  damageDealt: Record<Team, bigint>;
+  /** Total scheduled turns so far (including stunned skips). */
+  turn: number;
+  /** Tick of the most recent turn. */
+  tick: bigint;
+  finished: boolean;
+  winner: Team | 'draw' | null;
+  log: TurnLogEntry[];
+}
+
+/** 'none' = move-only (or pass) turn. */
+export type ActionType = 'attack' | 'defend' | 'special' | 'none';
+
+/** What a player submits on a lobster's turn. */
+export interface TurnCommand {
+  lobsterId: string;
+  moveTo?: HexPos;
+  action: ActionType;
+  /** Required for attack and single-target specials; ignored otherwise. */
+  targetId?: string;
+}
+
+export interface DamageEvent {
+  targetId: string;
+  amount: bigint;
+  kind: 'attack' | 'special' | 'counter' | 'bleed' | 'reflect' | 'self';
+  isCrit?: boolean;
+  killed: boolean;
+}
+
+export interface StatusEvent {
+  targetId: string;
+  status: StatusType;
+  applied: boolean; // false = removed/cleansed
+  turns?: number;
+}
+
+export interface HealEvent {
+  targetId: string;
+  amount: bigint;
+}
+
+export interface TurnResult {
+  turn: number;
+  tick: bigint;
+  lobsterId: string;
+  skipped: 'stun' | null;
+  path: HexPos[];
+  action: ActionType | null;
+  targetId: string | null;
+  isEnhanced: boolean;
+  damage: DamageEvent[];
+  heals: HealEvent[];
+  statuses: StatusEvent[];
+  chargeAfter: number;
+  /** Upcoming turns after this one (HUD bar). */
+  bar: BarEntry[];
+  finished: boolean;
+  winner: Team | 'draw' | null;
+}
+
+export interface BarEntry {
+  lobsterId: string;
+  tick: bigint;
+}
+
+export interface TurnLogEntry {
+  turn: number;
+  tick: string;
+  lobsterId: string;
+  moveTo?: HexPos;
+  action: ActionType | 'skip';
+  targetId?: string;
+  postStateHash: string;
+}
+
+/** Minimal input to build a battle lobster (a subset of the on-chain Lobster). */
+export interface LobsterInput {
+  id: string;
+  class: LobsterClass;
+  tier: EvolutionTier;
+  purity: number;
+  legend?: boolean;
+}

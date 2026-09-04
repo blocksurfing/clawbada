@@ -15,6 +15,7 @@ COPY packages/asset-gen/package.json packages/asset-gen/
 COPY packages/chain/package.json packages/chain/
 COPY packages/db/package.json packages/db/
 COPY packages/game-logic/package.json packages/game-logic/
+COPY packages/logger/package.json packages/logger/
 
 RUN bun install --frozen-lockfile
 
@@ -23,10 +24,14 @@ FROM oven/bun:1
 
 WORKDIR /app
 
+# Copy node_modules (includes workspace symlinks)
 COPY --from=deps /app/node_modules ./node_modules
+# Copy all source (workspace packages + apps)
 COPY . .
+# Re-link workspace packages after copy
+RUN bun install --frozen-lockfile
 
 ENV NODE_ENV=production
 EXPOSE 3001
 
-CMD ["bun", "run", "--filter", "@clawbada/api", "start"]
+CMD ["bun", "run", "apps/api/src/index.ts"]

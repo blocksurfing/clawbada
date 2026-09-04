@@ -74,7 +74,7 @@ contract Deploy is DeployHelpers {
         d.evolutionLab = address(new EvolutionLab(d.clawToken, d.lobsterNFT, d.treasury));
         console2.log("EvolutionLab:", d.evolutionLab);
 
-        d.repairShop = address(new RepairShop(d.clawToken, d.lobsterNFT, d.treasury));
+        d.repairShop = address(new RepairShop(d.clawToken, d.lobsterNFT, d.treasury, d.miningPool));
         console2.log("RepairShop:", d.repairShop);
 
         d.marketplace = address(new Marketplace(d.clawToken, d.lobsterNFT, d.treasury));

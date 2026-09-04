@@ -18,6 +18,8 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 | **Mid** | 10,000 | 18,000 | +8,000 | -10,000 |
 | **High** | 50,000 | 90,000 | +40,000 | -50,000 |
 
+Stake brackets are re-pegged each season as fixed multiples of that season's launch `baseReward` (Low 2× / Mid 8× / High 40×), keeping battle stakes proportionate to mining yields as emissions halve. The values above are S1.
+
 The protocol takes a **10% fee** from the combined pot (85% burned, 15% to dev).
 
 ## Matchmaking
@@ -39,7 +41,16 @@ You see your team's power on the Team Builder *before* you queue. The matchmaker
 
 **Match found = consent at deposit**: you see the opponent's power score (not their team composition — that's revealed after both players commit) alongside the deposit prompt. Approve the deposit within the 2-minute window if you accept the matchup, or walk away with no penalty if you don't.
 
-**Status at launch**: random pairing within each (power × stake) sub-pool. ELO-based skill matching is tracked from day 1 but not used for pairing until S1.5, once we have battle-result data to seed ratings sensibly. Procedurally generated arena layouts with class-themed terrain arrive in S2-3.
+**Rating bands**: inside your power × stake sub-pool you are also matched by team rating. Every team starts at 1,200 and moves by the standard chess-style step after each result. The band widens with wait time but, unlike the power radius, it **never opens to "anyone"** — a patient team keeps waiting rather than being handed to a far stronger opponent:
+
+| Wait time | Rating band |
+|-----------|-------------|
+| 0 – 30 s | ±75 |
+| 30 – 60 s | ±150 |
+| 60 – 120 s | ±225 |
+| 120 s+ | ±300 (hard cap) |
+
+Procedurally generated arena layouts with class-themed terrain arrive in S2-3.
 
 ## Hex Grid Arena
 
@@ -61,7 +72,7 @@ How tick scheduling works:
 - A Mantis (130 Spd) takes roughly **1.86×** as many turns as a Leviathan (70 Spd) over the same battle window
 - Initial bar order is seeded by base Speed at battle start (ties broken by VRF beacon)
 
-Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempest's enhanced Maelstrom hastens allies, Kraken's Bind stuns the target into skipping its next turn entirely. Two safety rails prevent runaway speed-stacking:
+Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempest's enhanced Maelstrom slows everyone it hits, Kraken's Bind stuns the target into skipping its next turn entirely. Two safety rails prevent runaway speed-stacking:
 
 - **Effective Speed clamped to [0.5×, 1.5×] of base** — buffs and debuffs can't compound past that range
 - **Stun immunity for 2 turns after a stun expires** — prevents perma-lock chains
@@ -158,13 +169,15 @@ Attacks work at up to 3 hexes, but damage falls off with distance:
 
 Positioning matters: close the distance for full damage, or stay back and trade reduced damage for safety.
 
+**Specter's kit is the exception** (2026-08 balance update): it attacks up to **4 hexes** (40% damage at max range) and carries a **spectral dodge** — the first direct hit it takes between its own turns is reduced by 30%. Specter is built to kite: hard to pin down, poking from beyond everyone else's reach.
+
 ## Base Class Stats
 
 Base stats before evolution tier bonus, legend bonus, and body part modifiers:
 
 | Class | HP | Atk | Armor | Spd | Crit | Identity |
 |-------|-----|-----|-------|-----|------|----------|
-| **Bulwark** | 700 | 70 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
+| **Bulwark** | 700 | 100 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — flanks, strikes first, crits often |
 | **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, slow to reposition |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE from range, fragile up close |
@@ -175,7 +188,7 @@ Base stats before evolution tier bonus, legend bonus, and body part modifiers:
 | **Kraken** | 550 | 90 | 100 | 105 | 95 | Controller — mid-range stuns decide rounds |
 | **Ember** | 350 | 140 | 60 | 100 | 130 | Glass cannon — nukes from max range, dies up close |
 
-Stats scale with evolution: **+20% at Evolved, +40% at Elite, +60% at Apex**. Legend lobsters get an additional **+10%**. HP is further scaled ×5 from these base values for battle pacing (24-36 turn battles).
+Stats scale with evolution: **+20% at Evolved, +40% at Elite, +60% at Apex**. Legend lobsters get an additional **+10%**. HP is used as-is in battle (battle HP scale ×1), tuned for 24-36 turn battles.
 
 ## Combat Math
 
@@ -230,7 +243,7 @@ Each class's Special has a stronger "enhanced" form that fires based on the proc
 | **Mantis** | Ambush | Guaranteed critical hit |
 | **Leviathan** | Crush | Bonus damage if target is below 50% HP |
 | **Tempest** | Maelstrom | Also applies a speed debuff to all hit |
-| **Specter** | Haunt | Extends to 3 turns of target + stronger stat reduction |
+| **Specter** | Haunt | Extends to 6 turns of target + stronger stat reduction |
 | **Sentinel** | Rally | Also grants a damage shield for 1 turn |
 | **Reaver** | Rend | Bleed cannot be cleansed |
 | **Abyss** | Devour | Overheal converts to temporary HP |
@@ -248,11 +261,11 @@ Each class has one Special move. Base values shown before purity multiplier. Sta
 | **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster |
 | **Mantis** | Ambush | 150 | Single | Adjacent | Ignores 50% of target's Armor |
 | **Leviathan** | Crush | 180 | Single | Adjacent | Highest single-target burst |
-| **Tempest** | Maelstrom | 90 | AoE | 3-hex radius | Hits all enemies in range (up to 270 total potential) |
+| **Tempest** | Maelstrom | 120 | AoE | 3-hex radius | Hits all enemies in range (up to 360 total potential) |
 | **Specter** | Haunt | 60 | Debuff | 3 hexes | Damage + target Atk/Armor -20% for 4 turns of target |
-| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 30% of ally's max HP + cleanses debuffs |
-| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 40 bleed/turn for 6 turns of target (310 total) |
-| **Abyss** | Devour | 120 | Drain | Adjacent | Damage dealt also heals self |
+| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 25% of ally's max HP + cleanses debuffs |
+| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 55 bleed/turn for 6 turns of target (400 total) |
+| **Abyss** | Devour | 150 | Drain | Adjacent | Damage dealt also heals self |
 | **Kraken** | Bind | 60 | CC | 2 hexes | Damage + stun target for 1 turn (then 2-turn stun immunity) |
 | **Ember** | Inferno | 200 | Nuke | 4 hexes | Highest burst, caster takes 25% of damage dealt |
 
@@ -270,6 +283,8 @@ Every battle inflicts damage on all lobsters:
 Lobsters at **80+ damage** cannot enter battle until repaired.
 
 **Repair is instant** — pay $CLAW, damage is removed immediately. Partial repairs are allowed.
+
+Repair rates track the mining economy: each tier's rate is a fixed fraction of the current `baseReward` (Evolved 0.40% / Elite 1.20% / Apex 3.20% per damage point — 5 / 15 / 40 $CLAW at the S1 launch reward). As mining yields glide with crowding, repair costs glide with them, so battle stays rationally priced all season.
 
 | Tier | Cost per Damage Point |
 |------|---------------------|
@@ -295,3 +310,15 @@ Repair costs are burned through the Treasury (85% burn / 15% dev).
 - **Speed clamps** (effective Speed in [0.5×, 1.5×] of base) and **stun immunity** (2 turns post-stun) prevent ATB-bar exploitation
 
 Griefing is always negative EV — rational agents always cooperate with the protocol.
+
+## Battle Rank & Mining Boost
+
+Winning battles doesn't just take the pot — **battle rank makes your team mine hotter**. Each team earns a battle rating; every week, all qualified teams are placed on **one ladder** and receive a mining boost of **+10% to +50%** of that team's own mining income, scaled by their position on it (bottom = +10%, top = +50%, straight line in between).
+
+- **Qualify by playing**: a team must play a minimum number of battles per week (starting at 7/week at launch, rising to 14/week as the arena fills — the current floor is always published). Wins are never required — only showing up and putting stakes at risk.
+- **Miss a week, lose the boost**: lapse the floor and the boost is 0 next week. Your rating persists but drifts 15% of the way back toward the 1,200 starting rating for every week you miss the floor — a month away costs about half of what you climbed; a truly strong team wins it back in a week or two.
+- **The rank rides with the team**: swapping a lobster decays the team's rating; changing the team's evolution-tier mix resets qualification entirely. Rank belongs to the roster that earned it.
+- **Matchmaking is rating-banded** within your Power and stake bracket (±75 widening to a hard ±300 cap), so you fight teams at your level.
+- **It cannot go stale**: a posted week pays for 10 days at most. If the ladder is ever not posted, every boost drops to 0 on its own.
+
+Battle stakes remain fully zero-sum — the boost is paid from mining emissions through the same daily reward glide, never from other players' stakes.

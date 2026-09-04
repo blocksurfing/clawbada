@@ -123,7 +123,7 @@ Roughly equal EV at ~60-65% battle win rate. Mining is safer and passive; battle
 - $CLAW staking required for expeditions (except faucet first expedition)
 
 ### Tiered Mining
-Mining uses **fixed per-expedition rewards** with a **seasonal budget cap**. Each expedition earns a known amount = `baseReward × tierWeight`, locked at start. No pro-rata, no daily budgets.
+Mining uses **glide-pegged per-expedition rewards** with a **seasonal budget cap**. Each expedition earns a known amount = `baseReward × tierWeight`, locked at start. The rate re-pegs daily (TOK-G1) so the budget lasts the full season. No per-expedition pro-rata.
 
 | Mine Tier | Requirement | Weight | Reward per Expedition (at 1,250 base) |
 |-----------|------------|--------|--------------------------------------|
@@ -132,10 +132,12 @@ Mining uses **fixed per-expedition rewards** with a **seasonal budget cap**. Eac
 | **Elite Mine** | All 3 lobsters at Elite+ | 10x | 12,500 $CLAW |
 | **Apex Mine** | All 3 lobsters at Apex | 25x | 31,250 $CLAW |
 
-- **Fixed rewards**: each expedition earns exactly `baseReward × tierWeight`, reserved at start
-- **Season budget cap**: `totalMinted + reward > totalEmission` → mining stops (reverts with `SeasonBudgetExhausted`)
-- **Admin-tunable baseReward**: `setBaseReward()` via SEASON_ADMIN_ROLE, only affects new expeditions
-- **S1 launch baseReward**: 1,250 $CLAW (admin can tune up/down mid-season based on participation)
+- **Locked rewards**: each expedition earns exactly `baseReward × tierWeight`, reserved at start
+- **TOK-G1 auto-glide**: `baseReward` re-pegs daily to `remaining / (remainingDays × trailing epoch demand)`, damped ±30%/epoch, capped at the season's launch reward — crowding compresses yield instead of exhausting the budget; permissionless `repeg()`
+- **Season budget cap**: `totalMinted + reward > totalEmission` still reverts (`SeasonBudgetExhausted`) as a backstop, structurally unreachable under the glide
+- **Emergency override**: `setBaseReward()` via SEASON_ADMIN_ROLE remains on top of the glide (above-launch values snap back at the next re-peg)
+- **S1 launch baseReward**: 1,250 $CLAW (= the glide cap for S1)
+- **Battle-rank boost (S1, on-chain)**: `MiningPool` holds a per-team `TeamBoost {epoch, bps ≤ 5,000, power}` posted per weekly epoch by the hot-key `BOOST_ADMIN_ROLE` — `setTeamBoosts(epoch, entries[≤200])` stages epoch N+1 (or amends the live one), `activateBoostEpoch(N+1)` flips the table in one tx; entries pay only while `epoch == currentBoostEpoch`, within `BOOST_EPOCH_TTL = 10 days` of activation, and while the team's Power still matches. Applied at `startExpedition` as `boostedBase = baseReward × (1 + bps)` **before** the tier weight (reward stays a tier-weight multiple); the boosted weight is credited to glide demand, so the spend is same-budget. `ExpeditionStarted` carries `boostBps`.
 - **Minimum tier gate**: all 3 lobsters on a team must meet the mine's minimum tier
 - **Can exceed minimum**: e.g., 2 Elite + 1 Apex in Elite mine is allowed
 - **Expedition duration**: 4 hours across all tiers (6 expeditions/day per team)
@@ -149,7 +151,7 @@ Active PvP where two players wager $CLAW in hex-grid tactical combat. Zero-sum: 
 
 **Protocol fee**: 10% of combined pot (routed through Treasury.sol: 85% burned / 15% dev).
 
-**S1 stake brackets** (fixed, matchmaking pairs by ELO within each bracket):
+**S1 stake brackets** (per-season config: 2× / 8× / 40× of the season's launch baseReward; matchmaking pairs within each bracket):
 
 | Bracket | Stake | Combined Pot | Protocol Fee | Winner Gets | Winner Net | Loser Net |
 |---------|-------|-------------|-------------|------------|-----------|----------|
@@ -187,6 +189,7 @@ Attacks have range up to 3 hexes with damage falloff:
 | **Adjacent (1 hex)** | 100% | Full melee damage |
 | **2 hexes** | 75% | Ranged, reduced |
 | **3 hexes** | 50% | Maximum range, half damage |
+| **4 hexes (Specter only)** | 40% | Specter's extended poke; all other classes miss |
 | **4+ hexes** | Miss | Out of range entirely |
 
 #### ATB Initiative Bar
@@ -203,7 +206,8 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
 ```
 1. MATCHMAKING (off-chain)
    Player POSTs to /api/game/combat/queue with teamId + stakeAmount
-   ELO-based matchmaking pairs players at similar stake tiers
+   Paired within the (Team Power × stake) sub-pool AND a team-rating band
+   (±75 → ±300 cap), both radii widening with wait time
    Match found → both players notified via WebSocket
 
 2. STAKE DEPOSIT (on-chain)
@@ -279,7 +283,7 @@ A lobster's turn = optional **Move** (within class movement range) followed by o
 
 | Stat | Role | Mechanic |
 |------|------|----------|
-| **HP** | Health pool | Lobster dies at 0. Scaled ×5 from base for 24-36 turn battle pacing. |
+| **HP** | Health pool | Lobster dies at 0. Used as-is (battle HP scale ×1), tuned for 24-36 turn pacing. |
 | **Attack** | Offense | Numerator in damage ratio (Attack / Armor) |
 | **Armor** | Defense | Denominator in damage ratio (Attack / Armor) |
 | **Speed** | Initiative tempo | ATB tick frequency: faster = more turns per battle. Clamped to [0.5×, 1.5×] of base by buffs/debuffs. |
@@ -289,7 +293,7 @@ A lobster's turn = optional **Move** (within class movement range) followed by o
 
 | Class | HP | Atk | Armor | Spd | Crit | Identity |
 |-------|-----|-----|-------|-----|------|----------|
-| **Bulwark** | 700 | 70 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
+| **Bulwark** | 700 | 100 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — flanks, strikes first, crits often |
 | **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, slow to reposition |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE from range, fragile up close |
@@ -350,11 +354,11 @@ charge_consumed = 3 (all charge cleared)
 | **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster |
 | **Mantis** | Ambush | 150 | Single | Adjacent | Ignores 50% of target's Armor |
 | **Leviathan** | Crush | 180 | Single | Adjacent | Highest single-target burst |
-| **Tempest** | Maelstrom | 90 | AoE | 3-hex radius | Hits all enemies in range (270 total potential) |
+| **Tempest** | Maelstrom | 120 | AoE | 3-hex radius | Hits all enemies in range (360 total potential) |
 | **Specter** | Haunt | 60 | Debuff | 3 hexes | Damage + target Atk/Armor -20% for 4 turns of target |
-| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 30% of ally's max HP + cleanses debuffs |
-| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 40 bleed/turn for 6 turns of target (310 total) |
-| **Abyss** | Devour | 120 | Drain | Adjacent | Damage dealt also heals self |
+| **Sentinel** | Rally | — | Heal | 2 hexes (ally) | Restores 25% of ally's max HP + cleanses debuffs |
+| **Reaver** | Rend | 70 | DoT | Adjacent | Hit + 55 bleed/turn for 6 turns of target (400 total) |
+| **Abyss** | Devour | 150 | Drain | Adjacent | Damage dealt also heals self |
 | **Kraken** | Bind | 60 | CC | 2 hexes | Damage + stun target for 1 turn (then 2-turn stun immunity) |
 | **Ember** | Inferno | 200 | Nuke | 4 hexes | Highest burst, caster takes 25% of damage dealt |
 
@@ -405,7 +409,7 @@ enhanced_chance = 5% + (5% × purity_score)
 | **Mantis** | Ambush | Guaranteed critical hit |
 | **Leviathan** | Crush | Bonus damage if target below 50% HP |
 | **Tempest** | Maelstrom | Also applies speed debuff |
-| **Specter** | Haunt | Extends to 3 rounds + stronger reduction |
+| **Specter** | Haunt | Extends to 6 turns of target + stronger reduction |
 | **Sentinel** | Rally | Also grants damage shield for 1 round |
 | **Reaver** | Rend | Bleed cannot be cleansed |
 | **Abyss** | Devour | Overheal converts to temporary HP |
@@ -437,7 +441,7 @@ enhanced_chance = 5% + (5% × purity_score)
 - **Duplicate classes allowed**: mono-class teams are valid but generally suboptimal due to shared weaknesses and movement limitations
 
 #### Battle Brackets & Matchmaking
-**Three stake brackets** (Low 2,500 / Mid 10,000 / High 50,000 $CLAW) define the economic tier. **Team Power buckets** (3–9, integer sum of tier weights: Evolved=1 / Elite=2 / Apex=3) define the competitive tier. Players are matched within (power × stake) sub-pools — up to 21 sub-pools total.
+**Three stake brackets** (Low 2,500 / Mid 10,000 / High 50,000 $CLAW) define the economic tier. **Team Power buckets** (3–9, integer sum of tier weights: Evolved=1 / Elite=2 / Apex=3) define the competitive tier. Players are matched within (power × stake) sub-pools — up to 21 sub-pools total — and, from S1, within **ELO rating bands** inside each sub-pool (adaptive radius expansion, as with Power buckets). Banded matchmaking is load-bearing for the battle-rank mining boost.
 
 **Adaptive radius expansion** prevents thin-pool starvation at launch:
 - 0–30 s: exact power match
@@ -445,11 +449,13 @@ enhanced_chance = 5% + (5% × purity_score)
 - 60–120 s: ±2 power
 - 120 s+: any power within stake bracket (HUD warns of mismatch)
 
+**Rating bands (S1, locked 2026-09-02)** layer inside the Power radius. Team rating starts at 1,200 (K = 32, team-keyed); the band is ±75 (0–30 s) → ±150 (30–60 s) → ±225 (60–120 s) → **±300 cap** (120 s+). Unlike Power, the rating radius never opens to "anyone": the participation model showed random pairing drives rational participation to zero even with the mining boost, so a patient team keeps waiting rather than being fed to a far stronger one.
+
 **Why Power Matchmaking**: closes the tier-mixing smurfing vector. A team of 1 Evolved + 2 Apex (Power 7) at Low stake would otherwise dominate genuine 3 × Evolved teams (Power 3); under Power Matchmaking these teams are in different sub-pools and never paired. Mixed-tier compositions sit in thin pools, so wait time becomes the smurfing disincentive — no need to "ban" anything.
 
 **Consent at match found**: opponent power score is shown alongside the deposit prompt. The 2-minute Deposit-phase window is the consent mechanism — accept the matchup by depositing, decline by walking away (no penalty pre-deposit; the un-deposited player's stake never enters escrow). No new on-chain phase required; reuses the audited Deposit window.
 
-**ELO weighting** deferred to S1.5 — random pairing within (power × stake) at launch.
+**Rating-banded pairing ships in S1** (pulled forward from S1.5 on 2026-09-02 — load-bearing for the battle-rank mining boost).
 **Cancel-rate throttling** deferred — telemetry-only at launch.
 **Procedurally generated arena layouts**: S2-3 enhancement.
 
@@ -470,6 +476,19 @@ Battle outcomes are **server-authoritative during play** with **on-chain dispute
   - **Disputer loses** → bond slashed → Treasury (85% burn / 15% dev)
 - **Rate limit**: 5 disputes per address per rolling 24h window, enforced on-chain via `disputeTimestamps[address]`. Reverts with `DisputeRateLimitExceeded` when exceeded.
 - 99% of battles never enter dispute path. The system exists as deterrent + insurance.
+
+#### Battle-Rank Mining Boost (S1 — locked 2026-09-02)
+Battle rank pays in mining advantage — stakes stay fully zero-sum. Battle ELO attaches to the **team** (teamId); a team's league percentile grants a boost to **that team's own** mining income.
+
+- **Boost curve**: smooth **+10% → +50%** of the team's mining income, linear in ELO percentile among qualified teams (no stepped leagues — steps pay win-traders)
+- **Weekly epochs, played-not-won**: qualification = battles PLAYED per week (never wins — a win quota creates a bought-wins market). Floor **ramps 7/week at launch → 14/week** once ELO bands are liquid (published per epoch, announced a week ahead)
+- **Ladder**: ONE global list of all qualified teams (not per Power bucket or stake bracket — a lone team in an odd bucket must not be "top" by default; population-proof). Rating starts at **1,200** (the baseline every decay rule regresses toward), K = 32, team-keyed
+- **Lapse**: miss the floor → boost = 0 next epoch; rating persists with **15%-of-gap idle decay per non-qualifying epoch** toward the 1,200 baseline (raised from the spec's 5% on 2026-09-03: a month away costs ~half the climb, three months ≈ a full reset, yet a returning strong team stays near its band and does not farm weaker opponents on the way back)
+- **Roster binding**: same-tier lobster swap → ELO regresses **1/3 toward baseline per lobster swapped**; team Power change → **full re-qualification** (closes rank laundering)
+- **Funding**: same-budget — boost spend counts as demand inside the TOK-G1 glide (no separate carve in S1)
+- **Matchmaking**: rating-banded within Power × stake sub-pools from S1, radius ±75 → ±300 cap (existential — random pairing → 0% rational participation even with the boost)
+- **Trust model**: server-computed weekly ladder; the `BOOST_ADMIN_ROLE` hot key stages `setTeamBoosts` for epoch N+1 and flips it with `activateBoostEpoch`; entries are Power-bound and expire after the contract's 10-day TTL if the server stops posting; same dispute-window philosophy as the rest of S1
+- **Economics** (`bun run boost`): breakeven base boost 7.0 / 7.2 / 10.0% (Evolved/Elite/Apex at 14 battles/wk; halves at 7/wk); population-proof — identical outcomes at 50 / 500 / 5,000 teams
 
 #### Anti-Griefing
 - **5% anti-grief deposit**: slashed if player times out repeatedly or forfeits, returned otherwise
@@ -493,10 +512,10 @@ Every battle inflicts damage on all participating lobsters:
 ```
 repair_cost = damage_points_repaired × tier_rate
 
-tier_rate ($CLAW per damage point):
-  Evolved:  5
-  Elite:   15
-  Apex:    40
+tier_rate — pegged to the mining glide (TOK-G1): bps of current baseReward per damage point:
+  Evolved:  40 bps  (5 $CLAW at the 1,250 launch reward)
+  Elite:   120 bps  (15 $CLAW at launch)
+  Apex:    320 bps  (40 $CLAW at launch)
 ```
 
 **Typical repair costs per battle (full team of 3):**
@@ -666,7 +685,7 @@ New agent arrives (wallet ≥ 7 days, ≥ 3 txs, ≥ 0.001 ETH)
   → Buy better lobsters on marketplace / breed for upgrades
 ```
 
-After faucets close (~7 days post-launch), new agents must buy lobsters from the marketplace and $CLAW from the DEX. The faucet page becomes a historical archive.
+After faucets close (~7 days post-launch), new agents must buy lobsters from the marketplace and $CLAW from the DEX. The faucet page becomes a historical archive. The unclaimed $CLAW residual is **burned** (`Faucet.burnUnclaimed()` — burn-only, no recipient parameter; a scheduled, announced day-8 action).
 
 ## Quick Start
 ```bash
@@ -710,7 +729,7 @@ contracts/
 ├── LobsterNFT.sol      # ERC-1155 lobster NFTs — DNA storage, metadata, batch transfers
 ├── TeamManager.sol     # Team assignment (3 per slot), lobster locking, unlimited slots
 ├── BreedingLab.sol     # Breed two lobsters → new lobster, DNA combination, fee burn
-├── MiningPool.sol      # Stake team to mine, claim rewards on-chain settlement
+├── MiningPool.sol      # Stake team to mine, claim rewards on-chain settlement; weekly battle-rank boost table (BOOST_ADMIN_ROLE)
 ├── Marketplace.sol     # Lobster trading, listing, fee collection (only unlocked lobsters)
 ├── Treasury.sol        # Protocol fee splitter — 85% burn / 15% dev wallet
 ├── Faucet.sol          # Temporary lobster faucet + $CLAW faucet (closeable by admin)
@@ -819,7 +838,7 @@ New human flow:
 - **Player badges** — Human vs Agent identity shown in battle HUD, leaderboard, marketplace
 - **Breeding** — 2 parents → 1 offspring (Base tier, tradeable); 5 breeds max, 48h cooldown; cost scales by breed count × generation; soulbound parents can breed tradeable offspring
 - **Legends** — ~0.3% breeding chance; +10% base stats + unique visuals; not hereditary; faucet lobsters cannot be legends
-- **Tiered mining** — Base/Evolved/Elite/Apex mines; fixed per-expedition rewards (baseReward × tier weight 1x/3x/10x/25x); 4h expeditions; season budget cap; admin-tunable baseReward (S1 launch: 1,250 $CLAW); minimum tier gate on all 3 team lobsters
+- **Tiered mining** — Base/Evolved/Elite/Apex mines; glide-pegged per-expedition rewards (baseReward × tier weight 1x/3x/10x/25x, locked at start; TOK-G1 daily re-peg paces the season budget); 4h expeditions; S1 launch baseReward 1,250 $CLAW = glide cap; minimum tier gate on all 3 team lobsters; battle-rank boost +10%→+50% on a team's own mining, posted weekly on-chain (`BOOST_ADMIN_ROLE`, 10-day TTL, Power-bound)
 - **Repair system** — battle damage accumulates; ≥80 damage blocks battle entry; $CLAW burn to repair
 - **Lobster image compositing** — layer body-part PNGs from dominant genes (for human UI; agents use raw metadata)
 - **Agent-first API** — contracts + REST/WebSocket as primary interface; web UI is secondary
@@ -838,7 +857,7 @@ New human flow:
 | **Mining emissions** | 70.5% | 705M | Earned through gameplay — the core distribution |
 | **DEX liquidity** | 12.5% | 125M | Self-deployed Uniswap V3 pool ($CLAW/ETH, 0.3% fee tier) |
 | **Treasury** | 10% | 100M | Protocol reserves, bug bounties, future game modes |
-| **Faucet pre-mint** | 7% | 70M | Onboarding drip (~10K wallets × 7K $CLAW via Lobster + $CLAW Faucet) |
+| **Faucet pre-mint** | 7% | 70M | Onboarding drip (~10K wallets × 7K $CLAW). Unclaimed residual is **burned** at close — `Faucet.burnUnclaimed()`, burn-only by construction (locked 2026-09-02) |
 
 No airdrop. Agents earn tokens by playing, not by showing up. Self-deployed LP — no Clanker (1% fee is too extractive for a high-frequency game token).
 

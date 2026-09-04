@@ -8,9 +8,11 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:boost": "bun run scripts/verify-boost-db.ts"
   },
   "dependencies": {
+    "@clawbada/game-logic": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "postgres": "^3.4.0"
   },

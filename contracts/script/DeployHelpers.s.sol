@@ -30,6 +30,7 @@ abstract contract DeployHelpers is Script {
     address internal eligibilityOperator;    // role-handoff: receives Faucet ELIGIBILITY_ROLE (operational service wallet)
     address internal matchmakerAddress;
     address internal resolverAddress;
+    address internal boostAdminAddress;      // hot service wallet that posts the weekly battle-rank boost table (MiningPool BOOST_ADMIN_ROLE)
     address internal vrfOperatorAddress;
     uint256 internal deployerKey;
 
@@ -71,11 +72,13 @@ abstract contract DeployHelpers is Script {
         matchmakerAddress = vm.envOr("MATCHMAKER_ADDRESS", address(0));
         resolverAddress = vm.envOr("RESOLVER_ADDRESS", address(0));
         vrfOperatorAddress = vm.envOr("VRF_OPERATOR_ADDRESS", address(0));
+        boostAdminAddress = vm.envOr("BOOST_ADMIN_ADDRESS", address(0));
 
         if (isMainnet) {
             require(matchmakerAddress != address(0), "MATCHMAKER_ADDRESS required for mainnet");
             require(resolverAddress != address(0), "RESOLVER_ADDRESS required for mainnet");
             require(vrfOperatorAddress != address(0), "VRF_OPERATOR_ADDRESS required for mainnet");
+            require(boostAdminAddress != address(0), "BOOST_ADMIN_ADDRESS required for mainnet");
             // TOK-H1: reserve must be an explicit holding account, never the deploy hot key.
             require(treasuryReserveAddress != address(0), "TREASURY_RESERVE_ADDRESS required for mainnet");
             require(treasuryReserveAddress != deployer, "TREASURY_RESERVE_ADDRESS must differ from deployer on mainnet");
@@ -86,6 +89,7 @@ abstract contract DeployHelpers is Script {
             require(matchmakerAddress != deployer, "MATCHMAKER_ADDRESS must differ from deployer on mainnet");
             require(resolverAddress != deployer, "RESOLVER_ADDRESS must differ from deployer on mainnet");
             require(vrfOperatorAddress != deployer, "VRF_OPERATOR_ADDRESS must differ from deployer on mainnet");
+            require(boostAdminAddress != deployer, "BOOST_ADMIN_ADDRESS must differ from deployer on mainnet");
             require(matchmakerAddress != resolverAddress, "MATCHMAKER and RESOLVER must be different addresses");
             require(matchmakerAddress != vrfOperatorAddress, "MATCHMAKER and VRF_OPERATOR must be different addresses");
             require(resolverAddress != vrfOperatorAddress, "RESOLVER and VRF_OPERATOR must be different addresses");
@@ -93,6 +97,7 @@ abstract contract DeployHelpers is Script {
             if (matchmakerAddress == address(0)) matchmakerAddress = deployer;
             if (resolverAddress == address(0)) resolverAddress = deployer;
             if (vrfOperatorAddress == address(0)) vrfOperatorAddress = deployer;
+            if (boostAdminAddress == address(0)) boostAdminAddress = deployer;
             if (treasuryReserveAddress == address(0)) treasuryReserveAddress = deployer;
         }
 
@@ -103,6 +108,7 @@ abstract contract DeployHelpers is Script {
         console2.log("Matchmaker:", matchmakerAddress);
         console2.log("Resolver:", resolverAddress);
         console2.log("VRF Operator:", vrfOperatorAddress);
+        console2.log("Boost Admin:", boostAdminAddress);
         console2.log("Chain ID:", block.chainid);
         console2.log("");
     }

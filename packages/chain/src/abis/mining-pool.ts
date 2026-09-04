@@ -27,6 +27,58 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "ADMIN_RELEASE_GRACE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "BOOST_ADMIN_ROLE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "BOOST_EPOCH_TTL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "BPS_DENOMINATOR",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "DEFAULT_ADMIN_ROLE",
     "inputs": [],
     "outputs": [
@@ -53,7 +105,72 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_BOOST_BATCH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_BOOST_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MINING_ALLOCATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "NUM_TIERS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "REPEG_EPOCH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "REPEG_MAX_STEP_BPS",
     "inputs": [],
     "outputs": [
       {
@@ -111,6 +228,45 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "activateBoostEpoch",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "adminReleaseExpedition",
+    "inputs": [
+      {
+        "name": "expeditionId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "boostEpochActivatedAt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "claimExpedition",
     "inputs": [
       {
@@ -131,6 +287,32 @@ export const MiningPoolAbi = [
         "name": "",
         "type": "address",
         "internalType": "contract ClawToken"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "currentBaseReward",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "currentBoostEpoch",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ],
     "stateMutability": "view"
@@ -277,6 +459,26 @@ export const MiningPoolAbi = [
             "name": "totalMinted",
             "type": "uint256",
             "internalType": "uint256"
+          },
+          {
+            "name": "launchBaseReward",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "lastRepegEpoch",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "epochWeightServed",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "trailingWeightServed",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -323,6 +525,42 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "getTeamBoost",
+    "inputs": [
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct MiningPool.TeamBoost",
+        "components": [
+          {
+            "name": "epoch",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "bps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "power",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "grantRole",
     "inputs": [
       {
@@ -359,6 +597,19 @@ export const MiningPoolAbi = [
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "lifetimeMinted",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -409,6 +660,13 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "repeg",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "revokeRole",
     "inputs": [
       {
@@ -433,6 +691,41 @@ export const MiningPoolAbi = [
         "name": "newBaseReward",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTeamBoosts",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "entries",
+        "type": "tuple[]",
+        "internalType": "struct MiningPool.BoostEntry[]",
+        "components": [
+          {
+            "name": "teamId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "bps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "power",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ]
       }
     ],
     "outputs": [],
@@ -501,6 +794,30 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "teamBoostBps",
+    "inputs": [
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "power",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "teamManager",
     "inputs": [],
     "outputs": [
@@ -511,6 +828,43 @@ export const MiningPoolAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "BaseRewardRepegged",
+    "inputs": [
+      {
+        "name": "season",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "oldBaseReward",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newBaseReward",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "trailingWeight",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
   },
   {
     "type": "event",
@@ -530,6 +884,50 @@ export const MiningPoolAbi = [
       },
       {
         "name": "newBaseReward",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BoostEpochActivated",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "activatedAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExpeditionAdminReleased",
+    "inputs": [
+      {
+        "name": "expeditionId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "rewardReturned",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -601,6 +999,12 @@ export const MiningPoolAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "boostBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
       }
     ],
     "anonymous": false
@@ -712,6 +1116,37 @@ export const MiningPoolAbi = [
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "TeamBoostSet",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "bps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "power",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "AccessControlBadConfirmation",
     "inputs": []
@@ -729,6 +1164,54 @@ export const MiningPoolAbi = [
         "name": "neededRole",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "AdminReleaseTooEarly",
+    "inputs": [
+      {
+        "name": "expeditionId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "availableAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "BatchTooLarge",
+    "inputs": [
+      {
+        "name": "provided",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "max",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "BoostTooHigh",
+    "inputs": [
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "bps",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ]
   },
@@ -767,6 +1250,22 @@ export const MiningPoolAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidBoostEpoch",
+    "inputs": [
+      {
+        "name": "requested",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "current",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidMineTier",
     "inputs": [
       {
@@ -775,6 +1274,11 @@ export const MiningPoolAbi = [
         "internalType": "uint8"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "MiningAllocationExhausted",
+    "inputs": []
   },
   {
     "type": "error",
@@ -805,6 +1309,17 @@ export const MiningPoolAbi = [
   },
   {
     "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "SeasonBudgetExhausted",
     "inputs": []
   },
@@ -832,6 +1347,17 @@ export const MiningPoolAbi = [
   {
     "type": "error",
     "name": "TeamDoesNotExist",
+    "inputs": [
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "TeamIsActive",
     "inputs": [
       {
         "name": "teamId",

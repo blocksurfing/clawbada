@@ -79,7 +79,7 @@ contract BattleResolverTest is Test {
         // Bulwark
         BattleResolver.Stats memory s = resolver.getBaseStats(0);
         assertEq(s.hp, 700);
-        assertEq(s.attack, 70);
+        assertEq(s.attack, 100); // 70->100 (2026-08-30 balance)
         assertEq(s.armor, 120);
         assertEq(s.speed, 80);
         assertEq(s.critical, 90);
@@ -160,7 +160,7 @@ contract BattleResolverTest is Test {
     function test_baseStatsNonHPTotals() public view {
         // Verify non-HP stat totals match spec values for each class
         uint256[10] memory expectedTotals = [
-            uint256(360), // Bulwark: 70+120+80+90
+            uint256(390), // Bulwark: 100+120+80+90 (Atk 70->100, 2026-08-30)
             uint256(425), // Mantis: 100+70+130+125
             uint256(380), // Leviathan: 130+100+70+80
             uint256(410), // Tempest: 110+80+105+115
@@ -194,8 +194,8 @@ contract BattleResolverTest is Test {
         BattleResolver.Stats memory base = resolver.getBaseStats(0); // Bulwark
         BattleResolver.Stats memory scaled = resolver.scaleStats(base, 0, false);
 
-        assertEq(scaled.hp, 700 * 5); // HP×5
-        assertEq(scaled.attack, 70);
+        assertEq(scaled.hp, 700); // HP_BATTLE_SCALE = 1 (was 5)
+        assertEq(scaled.attack, 100);
         assertEq(scaled.armor, 120);
         assertEq(scaled.speed, 80);
         assertEq(scaled.critical, 90);
@@ -206,8 +206,8 @@ contract BattleResolverTest is Test {
         BattleResolver.Stats memory base = resolver.getBaseStats(0); // Bulwark
         BattleResolver.Stats memory scaled = resolver.scaleStats(base, 1, false);
 
-        assertEq(scaled.hp, 700 * 1200 * 5 / 1000); // 700 × 1.2 × 5 = 4200
-        assertEq(scaled.attack, 70 * 1200 / 1000); // 84
+        assertEq(scaled.hp, 700 * 1200 / 1000); // 700 × 1.2 = 840 (HP scale ×1)
+        assertEq(scaled.attack, 100 * 1200 / 1000); // 120
         assertEq(scaled.armor, 120 * 1200 / 1000); // 144
         assertEq(scaled.speed, 80 * 1200 / 1000); // 96
         assertEq(scaled.critical, 90 * 1200 / 1000); // 108
@@ -218,8 +218,8 @@ contract BattleResolverTest is Test {
         BattleResolver.Stats memory base = resolver.getBaseStats(9); // Ember
         BattleResolver.Stats memory scaled = resolver.scaleStats(base, 3, true);
 
-        // HP: 350 × 1600 × 1100 × 5 / (1000 × 1000) = 350 × 1.6 × 1.1 × 5 = 3080
-        assertEq(scaled.hp, uint256(350) * 1600 * 1100 * 5 / (1000 * 1000));
+        // HP: 350 × 1600 × 1100 / (1000 × 1000) = 350 × 1.6 × 1.1 = 616 (HP scale ×1)
+        assertEq(scaled.hp, uint256(350) * 1600 * 1100 / (1000 * 1000));
         // Attack: 140 × 1.6 × 1.1 = 246.4 → 246 (integer)
         assertEq(scaled.attack, uint256(140) * 1600 * 1100 / (1000 * 1000));
         assertEq(scaled.armor, uint256(60) * 1600 * 1100 / (1000 * 1000));
@@ -232,7 +232,7 @@ contract BattleResolverTest is Test {
         BattleResolver.Stats memory base = resolver.getBaseStats(1); // Mantis
         BattleResolver.Stats memory scaled = resolver.scaleStats(base, 0, false);
 
-        assertEq(scaled.hp, 375 * 5); // no tier or legend bonus
+        assertEq(scaled.hp, 375); // no tier or legend bonus (HP scale ×1)
         assertEq(scaled.attack, 100);
     }
 
@@ -346,7 +346,7 @@ contract BattleResolverTest is Test {
     }
 
     function test_getSpecialBasePowerAllClasses() public view {
-        uint256[10] memory expected = [uint256(0), 150, 180, 90, 60, 0, 70, 120, 60, 200];
+        uint256[10] memory expected = [uint256(0), 150, 180, 120, 60, 0, 70, 150, 60, 200]; // Maelstrom 120, Devour 150 (2026-08-30)
         for (uint8 i = 0; i < 10; i++) {
             assertEq(resolver.getSpecialBasePower(i), expected[i]);
         }

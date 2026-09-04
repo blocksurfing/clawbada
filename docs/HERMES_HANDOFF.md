@@ -656,6 +656,8 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 
 ### 6.3 Operator-worker — `apps/engine/src/operator`
 
+> **2026-09-02 correction.** This series lived only on the `backend-cleanup` branch (last commit 2026-05-21) and had never been merged into `main` or `engine/v3-atb-sim`; the "shipped" status below was true of that branch's working tree only. PR #13 (`chore/integrate-backend-cleanup`) merged it into `engine/v3-atb-sim`. The battle-rank boost server work (team rating, rating-banded matchmaking, weekly epoch job) builds on it.
+
 **Desired Outcome.** Every operator-signed on-chain tx (createBattle, advanceRound, settle, season rollover) goes through a durable outbox + worker pattern with: idempotency keys, retry-with-backoff, dead status, crash-recovery via priorTxHash reconciliation, role-specific signer wallets (MATCHMAKER for create, RESOLVER for resolve/settle, OPERATOR for season/drand), error classification (contract revert → dead, RPC error → transient).
 
 **Current State (DONE — closes X1 + X2 + X3 + X8 + HIGH-1):**

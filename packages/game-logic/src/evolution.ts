@@ -84,7 +84,7 @@ export function canEvolve(
  * @param classId The lobster's class
  * @param targetTier The target evolution tier
  * @param isLegend Whether the lobster is a legend
- * @returns The scaled stats at the target tier (including HP ×5 battle scaling)
+ * @returns The scaled stats at the target tier (including HP × HP_BATTLE_SCALE battle scaling)
  */
 export function previewEvolvedStats(
   classId: number,

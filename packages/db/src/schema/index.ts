@@ -8,3 +8,5 @@ export * from './seasons';
 export * from './agents';
 export * from './indexer';
 export * from './events';
+export * from './operator-jobs';
+export * from './boost';

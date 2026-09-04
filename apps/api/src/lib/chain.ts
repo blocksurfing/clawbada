@@ -320,6 +320,16 @@ export interface ChainBattle {
   roundCommitB: string;
   roundRevealedA: boolean;
   roundRevealedB: boolean;
+  /** X13: deadline clocks for the X-13 handleTimeout button. The contract
+   *  uses `phaseDeadline` for Deposit/TeamCommit/TeamReveal/Active and
+   *  `payoutDeadline` for AwaitingFinalize (BattleArena.sol:734). Both are
+   *  Unix seconds (uint256 from chain → bigint here; frontend stringifies). */
+  phaseDeadline: bigint;
+  payoutDeadline: bigint;
+  /** X13 LOW-01: H-01 dispute flag. When `phase=AwaitingFinalize && disputed`,
+   *  `handleTimeout` reverts `DisputedBattleRequiresAdmin` — frontend must hide
+   *  the timeout CTA in that state and show an "awaiting admin" message. */
+  disputed: boolean;
 }
 
 export async function readBattle(battleId: bigint): Promise<ChainBattle> {
@@ -349,6 +359,10 @@ export async function readBattle(battleId: bigint): Promise<ChainBattle> {
       roundCommitB: data.roundCommitB as string,
       roundRevealedA: data.roundRevealedA,
       roundRevealedB: data.roundRevealedB,
+      // X13: expose deadlines for the handleTimeout button.
+      phaseDeadline: data.phaseDeadline,
+      payoutDeadline: data.payoutDeadline,
+      disputed: data.disputed,
     };
   } catch {
     throw new ApiError('NOT_FOUND', `Battle #${battleId} not found`);
