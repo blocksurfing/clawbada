@@ -88,7 +88,7 @@ export const tables = {
     'battleId', 'playerA', 'playerB', 'teamA', 'teamB', 'queuedTeamA', 'queuedTeamB', 'phase',
     'powerA', 'powerB', 'winner', 'winnerPayout', 'protocolFee', 'totalRounds', 'settledAt',
   ]),
-  battleRounds: table('battle_rounds', ['battleId', 'round']),
+  battleSessions: table('battle_sessions', ['id', 'status', 'turn', 'finalStateHash', 'turnLogHash', 'updatedAt']),
   agents: table('agents', ['address', 'elo', 'wins', 'losses', 'totalBattles']),
   operatorJobs: table('operator_jobs', ['jobType', 'payload', 'idempotencyKey']),
   teams: table('teams', ['teamId', 'owner', 'lobster0', 'lobster1', 'lobster2', 'active', 'disbandedAt']),
