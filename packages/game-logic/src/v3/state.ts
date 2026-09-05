@@ -166,10 +166,14 @@ export interface BarEntry {
 export interface TurnLogEntry {
   turn: number;
   tick: string;
+  /** Empty string for a 'forfeit' entry (no lobster acted). */
   lobsterId: string;
   moveTo?: HexPos;
-  action: ActionType | 'skip';
+  /** 'skip' = stunned or died to bleed before acting; 'forfeit' = session-level end (timeouts / resign). */
+  action: ActionType | 'skip' | 'forfeit';
   targetId?: string;
+  /** 'forfeit' entries only: the team that forfeited. */
+  loser?: Team;
   postStateHash: string;
 }
 
