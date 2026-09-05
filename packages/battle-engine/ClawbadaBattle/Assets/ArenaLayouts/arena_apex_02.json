@@ -1,0 +1,52 @@
+{
+    "layoutId": "arena_apex_02",
+    "cols": 6,
+    "rows": 5,
+    "blockedHexes": [
+        {
+            "col": 1,
+            "row": 2
+        },
+        {
+            "col": 2,
+            "row": 2
+        },
+        {
+            "col": 3,
+            "row": 2
+        },
+        {
+            "col": 4,
+            "row": 2
+        }
+    ],
+    "teamASpawns": [
+        {
+            "col": 0,
+            "row": 1
+        },
+        {
+            "col": 0,
+            "row": 2
+        },
+        {
+            "col": 0,
+            "row": 3
+        }
+    ],
+    "teamBSpawns": [
+        {
+            "col": 5,
+            "row": 1
+        },
+        {
+            "col": 5,
+            "row": 2
+        },
+        {
+            "col": 5,
+            "row": 3
+        }
+    ],
+    "tier": "apex"
+}
