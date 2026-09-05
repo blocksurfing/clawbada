@@ -34,6 +34,7 @@ import { rateLimit } from './middleware/rate-limit';
 import { ApiError } from './lib/errors';
 import { battleWS } from './lib/ws';
 import { startMatchmakerTicker } from './lib/matchmaker/tick';
+import { battleSessions, parseClientMessage, isPracticeId, CHAIN_ID_RE } from './lib/battle-session';
 import { getClientIp } from './lib/client-ip';
 
 const app = new Hono();
@@ -72,6 +73,13 @@ log.info({ port }, 'Clawbada API starting');
 // V3 S1: start the Power Matchmaker global ticker (5s interval). Runs in this
 // process for the lifetime of the API server. Idempotent if reload-restarted.
 startMatchmakerTicker();
+
+// V3: the live battle loop. Resumes persisted sessions, then polls for battles
+// the indexer mirrored to Active. Single-instance by design (sessions are
+// in-memory; the battle_sessions PK is the claim).
+if (process.env.BATTLE_SESSIONS_ENABLED !== 'false') {
+  void battleSessions.start();
+}
 
 // F-2B: WS-specific rate limiting. The Hono `rateLimit('/api/*')` middleware
 // doesn't cover `/ws` (handled in this top-level fetch before delegating).
@@ -132,13 +140,19 @@ function releaseAddressSlot(address: string): void {
 }
 
 interface WsData {
+  /** Lowercase wallet; empty string for spectators. */
   address: string;
   battleId?: string;
   /** F-2A: epoch seconds at which the upgrading signature stops being valid.
    *  Used to schedule a forced socket close so a leaked URL can't keep an
    *  indefinite live feed open past the replay window. */
   authExpiresAt: number;
+  /** V3: spectators join real battles read-only with no signature. */
+  role: 'player' | 'spectator';
 }
+
+/** Spectator sockets carry no signature; cap their lifetime anyway. */
+const SPECTATOR_LIFETIME_SEC = 60 * 60;
 
 // F-03/F-06/F-07: authenticated WebSocket upgrade.
 // Browser WS API has no header support, so the EIP-191 challenge that
@@ -154,6 +168,27 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
   const signature = url.searchParams.get('signature');
   const timestampStr = url.searchParams.get('timestamp');
   const battleIdParam = url.searchParams.get('battleId');
+
+  // V3 spectators: read-only subscription to a REAL battle, no signature.
+  // Practice battles are private to their owner and never spectatable.
+  if (url.searchParams.get('spectate') === '1') {
+    if (!battleIdParam || !CHAIN_ID_RE.test(battleIdParam)) {
+      throw new ApiError('INVALID_INPUT', 'spectate requires a real battleId');
+    }
+    const battleIdBig = BigInt(battleIdParam);
+    const [row] = await db
+      .select({ battleId: battles.battleId })
+      .from(battles)
+      .where(eq(battles.battleId, battleIdBig))
+      .limit(1);
+    if (!row) throw new ApiError('NOT_FOUND', 'Battle not found');
+    return {
+      address: '',
+      battleId: battleIdBig.toString(),
+      authExpiresAt: Math.floor(Date.now() / 1000) + SPECTATOR_LIFETIME_SEC,
+      role: 'spectator',
+    };
+  }
 
   if (!address || !signature || !timestampStr) {
     throw new ApiError(
@@ -173,7 +208,13 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
   // Without this, any caller with a valid signature could subscribe to any
   // battleId and receive its events (round_result, battle_settled, etc.).
   let battleId: string | undefined;
-  if (battleIdParam) {
+  if (battleIdParam && isPracticeId(battleIdParam)) {
+    // V3 practice battle: owner-only.
+    if (!(await battleSessions.isParticipant(battleIdParam, lowerAddr))) {
+      throw new ApiError('UNAUTHORIZED', 'Not a participant in this battle');
+    }
+    battleId = battleIdParam;
+  } else if (battleIdParam) {
     // F-2E: accept ONLY decimal-form battleIds. `BigInt('0x10')` parses to
     // `16n`, which would pass the participant check but then disagree with
     // the canonical decimal battleId used by `battleWS.broadcast` / `join`.
@@ -207,7 +248,7 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
     battleId = battleIdBig.toString();
   }
 
-  return { address: lowerAddr, battleId, authExpiresAt: expiresAt };
+  return { address: lowerAddr, battleId, authExpiresAt: expiresAt, role: 'player' };
 }
 
 export default {
@@ -276,7 +317,7 @@ export default {
     ) {
       const data = ws.data;
       if (!data) return;
-      const { battleId, address, authExpiresAt } = data;
+      const { battleId, address, authExpiresAt, role } = data;
 
       // F-Y2: per-address concurrent socket cap. Moved post-upgrade so we
       // can signal exhaustion via close code 1013 ("Try Again Later",
@@ -292,7 +333,7 @@ export default {
       if (ws.__reserved) {
         return;
       }
-      if (!tryReserveAddressSlot(address)) {
+      if (role === 'player' && !tryReserveAddressSlot(address)) {
         try {
           ws.close(1013, 'address-capacity');
         } catch {
@@ -300,11 +341,14 @@ export default {
         }
         return;
       }
-      ws.__reserved = true;
+      ws.__reserved = role === 'player';
 
-      // Battle-room subscription (post-match): both fields present.
-      if (battleId && address) {
+      // Battle-room subscription (post-match / spectator): battleId present.
+      if (battleId) {
         battleWS.join(battleId, ws, address);
+        // V3: a live session sends its full snapshot on join (reconnect-safe).
+        const snap = battleSessions.snapshotFor(battleId);
+        if (snap) battleWS.sendTo(ws, 'battle_snapshot', battleId, snap);
       }
       // Address-room subscription (queue lifecycle): always join if we have
       // an authenticated address. Cheap to maintain alongside the battle room
@@ -365,8 +409,37 @@ export default {
         ws.__authTimer = undefined;
       }
     },
-    message(_ws: WebSocket, _message: string | Buffer) {
-      // Battle WS is server-push only — no client messages expected
+    message(
+      ws: WebSocket & { data?: WsData },
+      message: string | Buffer,
+    ) {
+      // V3: players submit turns over the socket; everything else is server-push.
+      const data = ws.data;
+      if (!data) return;
+      const msg = parseClientMessage(message);
+      if (!msg) {
+        battleWS.sendTo(ws, 'error', data.battleId ?? '', { code: 'bad_message', message: 'Malformed message' });
+        return;
+      }
+      if (msg.type === 'ping') {
+        battleWS.sendTo(ws, 'pong', data.battleId ?? '', {});
+        return;
+      }
+      if (data.role !== 'player') {
+        battleWS.sendTo(ws, 'error', msg.battleId, { code: 'spectator_readonly', message: 'Spectators cannot submit turns' });
+        return;
+      }
+      if (data.battleId && data.battleId !== msg.battleId) {
+        battleWS.sendTo(ws, 'error', msg.battleId, { code: 'wrong_battle', message: 'This socket is subscribed to a different battle' });
+        return;
+      }
+      // Identity is the authenticated socket address — never the payload.
+      const res = battleSessions.submit(msg.battleId, data.address, msg.turn, msg.command);
+      if (res.ok) {
+        battleWS.sendTo(ws, 'turn_ack', msg.battleId, { turn: res.result.turn, duplicate: res.duplicate });
+      } else {
+        battleWS.sendTo(ws, 'error', msg.battleId, { code: res.code, message: res.message, turn: res.turn });
+      }
     },
   },
 };
