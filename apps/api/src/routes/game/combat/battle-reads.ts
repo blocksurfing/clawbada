@@ -3,12 +3,12 @@
  *
  * GET /api/game/combat/history          — past battles for a wallet
  * GET /api/game/combat/:battleId        — full battle state (chain + db)
- * GET /api/game/combat/:battleId/rounds — round-by-round history
+ * GET /api/game/combat/:battleId/rounds — DEPRECATED (V2). Always empty; use /:battleId/turns
  */
 
 import { Hono } from 'hono';
 import { desc, eq, or } from 'drizzle-orm';
-import { db, battles, battleRounds } from '@clawbada/db';
+import { db, battles } from '@clawbada/db';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readBattle, serializeBigInts } from '../../../lib/chain';
 import { walletAuth } from '../../../middleware/auth';
@@ -121,23 +121,12 @@ battleReadRoutes.get(
   }),
 );
 
+/** V2 remnant kept so old clients keep working: battle_rounds no longer exists.
+ *  The V3 turn history is `GET /:battleId/turns` (session.ts). */
 battleReadRoutes.get(
   '/:battleId/rounds',
   catchErrors(async (c) => {
     const { battleId } = c.req.param();
-
-    const rounds = await db
-      .select()
-      .from(battleRounds)
-      .where(eq(battleRounds.battleId, BigInt(battleId)))
-      .orderBy(battleRounds.round);
-
-    return c.json(
-      serializeBigInts({
-        battleId,
-        count: rounds.length,
-        rounds,
-      }),
-    );
+    return c.json({ battleId, count: 0, rounds: [], deprecated: 'use /api/game/combat/:battleId/turns' });
   }),
 );
