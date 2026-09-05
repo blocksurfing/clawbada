@@ -39,8 +39,9 @@ import { EvolutionTier, LobsterClass } from '../types';
 describe('S2 parity — known-answer vectors (mirror of Solidity test_S2_parity_knownAnswers)', () => {
   test('scaleStats: Bulwark @ Apex + legend', () => {
     const s = scaleStats(getBaseStats(LobsterClass.Bulwark), EvolutionTier.Apex, true);
-    expect(s.hp).toBe(6160n);
-    expect(s.attack).toBe(123n);
+    // 700 x1.6 x1.1 with HP_BATTLE_SCALE 1 (2026-08-29); Bulwark Atk 100 (2026-08-30 balance)
+    expect(s.hp).toBe(1232n);
+    expect(s.attack).toBe(176n);
     expect(s.armor).toBe(211n);
     expect(s.speed).toBe(140n);
     expect(s.critical).toBe(158n);

@@ -448,10 +448,11 @@ contract FuzzBattleResolver is Test {
     // implementation drifts from these canonical values (or from each other), one side's
     // KAT fails — locking Solidity⇄TS parity in CI ahead of the S2 replay() port.
     function test_S2_parity_knownAnswers() public view {
-        // scaleStats: Bulwark (700/70/120/80/90) at Apex (tier 3) + legend.
+        // scaleStats: Bulwark (700/100/120/80/90 after the 2026-08-30 balance) at Apex (tier 3)
+        // + legend, with HP_BATTLE_SCALE = 1 (2026-08-29 pacing sweep). x1.6 tier, x1.1 legend.
         BattleResolver.Stats memory s = harness.scaleStats(BattleResolver.getBaseStats(0), 3, true);
-        assertEq(s.hp, 6160, "KAT scaleStats hp");
-        assertEq(s.attack, 123, "KAT scaleStats attack");
+        assertEq(s.hp, 1232, "KAT scaleStats hp");
+        assertEq(s.attack, 176, "KAT scaleStats attack");
         assertEq(s.armor, 211, "KAT scaleStats armor");
         assertEq(s.speed, 140, "KAT scaleStats speed");
         assertEq(s.critical, 158, "KAT scaleStats critical");
