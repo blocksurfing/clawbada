@@ -56,6 +56,10 @@ services:
       BASE_SEPOLIA_RPC_URL: ${BASE_SEPOLIA_RPC_URL:-https://sepolia.base.org}
       CHAIN_ENV: ${CHAIN_ENV:-testnet}
       OPERATOR_PRIVATE_KEY: ${OPERATOR_PRIVATE_KEY:-0x}
+      # V3 battle sessions: one drand beacon per real battle at team reveal.
+      DRAND_CHAIN_URL: ${DRAND_CHAIN_URL:-https://api.drand.sh}
+      BATTLE_SHOT_CLOCK_MS: ${BATTLE_SHOT_CLOCK_MS:-60000}
+      BOT_THINK_MS: ${BOT_THINK_MS:-800}
     depends_on:
       migrate:
         condition: service_completed_successfully

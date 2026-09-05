@@ -1,9 +1,8 @@
 /** Operator-worker shared types. PR-A scaffold (X1+X2).
  *
- *  PR-B adds the 'create_battle' job_type + payload + handler;
- *  PR-C adds 'resolve_round' / 'settle_battle'. Until then the worker
- *  starts but has no registered handlers — any rare row that lands in
- *  operator_jobs (none should pre-PR-B) is logged-and-skipped, not killed. */
+ *  Registered job types: 'create_battle' (matchmaker), 'settle_battle' (V3
+ *  battle-session manager), 'set_team_boosts' / 'activate_boost_epoch' (weekly
+ *  boost job). Unknown job types are logged-and-skipped, not killed. */
 
 /** Numeric status values mirror packages/db/src/schema/operator-jobs.ts.
  *  Frozen as `as const` so TypeScript narrows correctly at compare sites. */

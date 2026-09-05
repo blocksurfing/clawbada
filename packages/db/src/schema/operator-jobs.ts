@@ -3,8 +3,8 @@ import { sql } from 'drizzle-orm';
 
 /** Durable outbox for operator-signed on-chain work. PR-A foundation (X1+X2).
  *
- *  The matchmaker (create_battle) and the indexer (resolve_round / settle_battle)
- *  enqueue rows here in the same DB transaction as the decision that produced
+ *  The matchmaker (create_battle), the battle-session manager (settle_battle) and
+ *  the boost epoch job enqueue rows here in the same DB transaction as the decision that produced
  *  the work. A single operator worker process polls, claims with FOR UPDATE
  *  SKIP LOCKED, submits the operator-signed tx, verifies the receipt, and
  *  marks the row terminal. The unique idempotency_key prevents double-submission
@@ -16,7 +16,7 @@ export const operatorJobs = pgTable(
   'operator_jobs',
   {
     id: bigint('id', { mode: 'bigint' }).primaryKey().generatedAlwaysAsIdentity(),
-    /** Discriminator: 'create_battle' | 'resolve_round' | 'settle_battle' | future types. */
+    /** Discriminator: 'create_battle' | 'settle_battle' | 'set_team_boosts' | 'activate_boost_epoch' | future types. */
     jobType: text('job_type').notNull(),
     /** Typed per jobType. Validated at the handler boundary. */
     payload: jsonb('payload').notNull(),
