@@ -9,27 +9,29 @@ using UnityEngine;
 /// Playback layer only: the server is authoritative for all combat math. This
 /// class consumes already-resolved results (spawn data, round results, deaths)
 /// and renders them — spawn prefabs, tween movement, CrossFade animation states,
-/// then report back via BattleBridge.NotifyAnimationComplete so React advances.
-/// The protocol phases (Positioning/Combat rounds today, ATB initiative later)
-/// only affect who sends which JSON when — the visual vocabulary here (move,
-/// attack, hit, defend, die) is protocol-agnostic.
+/// then report back via BattleBridge.NotifyTurnAnimationComplete so React advances.
+/// V3: one lobster acts per turn (ATB). PlayTurn animates a resolved turn — move
+/// path, action with every damage/heal event at the impact frame, then deaths.
+/// The V2 PlayRound path is kept only for the editor demo loop (BattleDemoLoop).
 /// </summary>
 public class BattleManager : MonoBehaviour
 {
     public enum BattlePhase
     {
         WaitingForInit,
-        Positioning,
-        Combat,
-        AnimatingRound,
+        Idle,            // waiting for the next turn payload
+        AnimatingTurn,   // PlayTurn in progress
+        AnimatingRound,  // editor demo loop only
         BattleOver,
     }
 
     [Header("State")]
     public BattlePhase currentPhase = BattlePhase.WaitingForInit;
-    public int currentRound = 0;
-    public float timeRemaining = 60f;
-    public bool opponentReady = false;
+    public int currentTurn = 0;
+    public string activeLobsterId = "";
+    /// <summary>Remaining shot clock in ms, mirrored from React's SetClock (visual cues only).</summary>
+    public int clockRemainingMs = 0;
+    public BarEntryData[] upcoming = new BarEntryData[0];
 
     [Header("Prefabs")]
     [Tooltip("Tier+class → rigged lobster prefab. Rebuild via Clawbada/Rebuild Lobster Prefab Library.")]
@@ -74,7 +76,6 @@ public class BattleManager : MonoBehaviour
     public void Initialize(BattleInitData data)
     {
         initData = data;
-        currentRound = 0;
         currentPhase = BattlePhase.WaitingForInit;
         Debug.Log($"[BattleManager] Initialized battle {data.battleId}, player side: {data.playerSide}, tier: {data.arena.tier}");
 
@@ -88,9 +89,10 @@ public class BattleManager : MonoBehaviour
 
         SpawnTeam(data.teamA);
         SpawnTeam(data.teamB);
-
-        // TODO: Set up player badge UI (data.playerBadge / data.opponentBadge)
-        // TODO: Set up stake display (data.stakeBracket / data.stakeAmount)
+        currentTurn = 0;
+        activeLobsterId = "";
+        currentPhase = BattlePhase.Idle;
+        // Badges / stake / HUD are rendered by React over the canvas.
     }
 
     /// <summary>Replace the arena backdrop with the tier's designer prefab
@@ -176,39 +178,136 @@ public class BattleManager : MonoBehaviour
         }
     }
 
-    /// <summary>Start a new phase (positioning or combat).</summary>
-    public void StartPhase(PhaseData phase)
+    /// <summary>A lobster's turn started (server-authoritative). Purely a visual cue:
+    /// face the actor toward the enemy side. Highlights come from React via ShowSelection.</summary>
+    public void StartTurn(TurnStartData data)
     {
-        currentRound = phase.round;
-        timeRemaining = phase.timeRemaining;
-        opponentReady = phase.opponentReady;
-
-        if (phase.phase == "positioning")
-        {
-            currentPhase = BattlePhase.Positioning;
-            Debug.Log($"[BattleManager] Round {currentRound} — POSITIONING phase, {timeRemaining}s");
-        }
-        else if (phase.phase == "combat")
-        {
-            currentPhase = BattlePhase.Combat;
-            Debug.Log($"[BattleManager] Round {currentRound} — COMBAT phase, {timeRemaining}s");
-        }
-        // Selection highlights are driven by React via BattleBridge.ShowSelection.
-        // TODO: Phase indicator UI
+        currentTurn = data.turn;
+        activeLobsterId = data.lobsterId ?? "";
+        if (lobsters.TryGetValue(activeLobsterId, out var lob) && lob.alive) lob.FaceEnemySide();
+        if (currentPhase != BattlePhase.AnimatingTurn && currentPhase != BattlePhase.BattleOver) currentPhase = BattlePhase.Idle;
     }
 
-    /// <summary>Update the countdown timer (called from React every second).</summary>
-    public void UpdateTimer(float remaining)
+    public void UpdateBar(BarData data)
     {
-        timeRemaining = remaining;
-        // TODO: Update timer bar UI
+        upcoming = data?.entries ?? new BarEntryData[0];
     }
 
-    /// <summary>Opponent has committed their moves.</summary>
-    public void OnOpponentReady()
+    public void SetClock(int remainingMs)
     {
-        opponentReady = true;
-        // TODO: Show "Opponent ready" indicator
+        clockRemainingMs = remainingMs;
+    }
+
+    /// <summary>Animate one resolved turn, then tell React so it can send the next.</summary>
+    public void PlayTurn(TurnPlayData data)
+    {
+        currentPhase = BattlePhase.AnimatingTurn;
+        currentTurn = data.turn;
+        StartCoroutine(PlayTurnRoutine(data));
+    }
+
+    private IEnumerator PlayTurnRoutine(TurnPlayData data)
+    {
+        hexGrid?.ClearHighlights();
+        lobsters.TryGetValue(data.lobsterId ?? "", out var actor);
+
+        // 1. Movement along the server's path (cell-by-cell hops).
+        if (actor != null && data.path != null && data.path.Length > 0)
+        {
+            var last = data.path[data.path.Length - 1];
+            yield return actor.MoveTo(last.col, last.row, secondsPerHexMove);
+            yield return new WaitForSeconds(delayBetweenActions * 0.5f);
+        }
+
+        // 2. Action. Every damage/heal event lands at the impact frame; secondary kinds
+        //    (counter / reflect / bleed / self) play as hit reads after the primary.
+        bool isSkip = !string.IsNullOrEmpty(data.skipped) || string.IsNullOrEmpty(data.action) || data.action == "none";
+        if (actor != null && !isSkip)
+        {
+            switch (data.action)
+            {
+                case "defend":
+                    actor.PlayDefend();
+                    yield return new WaitForSeconds(hitDuration);
+                    break;
+
+                case "attack":
+                case "special":
+                    {
+                        lobsters.TryGetValue(data.targetId ?? "", out var target);
+                        Vector3 targetPos = target != null ? target.transform.position : actor.transform.position;
+                        Vector3 actorPos = actor.transform.position;
+                        bool melee = target == null || HexCoord.Distance(actor.col, actor.row, target.col, target.row) <= 1;
+                        var windup = data.action == "special"
+                            ? vfxLibrary != null ? vfxLibrary.SpecialFor(actor.classId) : null
+                            : vfxLibrary != null ? vfxLibrary.attackWindup : null;
+                        BattleVfxLibrary.Spawn(windup, actor, target, this);
+
+                        yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
+                        {
+                            ApplyTurnEvents(data, actor, actorPos, primaryOnly: true);
+                        });
+                        // Secondary events (counter hits on the actor, reflects, bleed ticks).
+                        ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
+                        yield return new WaitForSeconds(hitDuration * 0.5f);
+                    }
+                    break;
+
+                default:
+                    Debug.LogWarning($"[BattleManager] Unknown action '{data.action}' from {data.lobsterId}");
+                    break;
+            }
+        }
+        else if (actor != null && data.damage != null && data.damage.Length > 0)
+        {
+            // Skipped turn that still carried events (bleed tick on a stunned/dying lobster).
+            ApplyTurnEvents(data, actor, actor.transform.position, primaryOnly: false, includePrimary: true);
+            yield return new WaitForSeconds(hitDuration);
+        }
+
+        // 3. Deaths (server-authoritative list).
+        if (data.deaths != null && data.deaths.Length > 0)
+        {
+            foreach (var deadId in data.deaths)
+            {
+                if (lobsters.TryGetValue(deadId, out var lob) && lob.alive)
+                {
+                    StartCoroutine(lob.PlayDeath(deathDuration));
+                }
+            }
+            yield return new WaitForSeconds(deathDuration);
+        }
+
+        if (currentPhase != BattlePhase.BattleOver) currentPhase = BattlePhase.Idle;
+        bridge?.NotifyTurnAnimationComplete(data.turn);
+    }
+
+    /// <summary>Apply a turn's damage/heal events to the affected controllers with hit reads.
+    /// Primary = the actor's own attack/special hits (played at the impact frame);
+    /// secondary = counter/reflect/bleed/self events (played right after).</summary>
+    private void ApplyTurnEvents(TurnPlayData data, LobsterController actor, Vector3 actorPos, bool primaryOnly, bool includePrimary = false)
+    {
+        if (data.heals != null && (primaryOnly || includePrimary))
+        {
+            foreach (var h in data.heals)
+            {
+                if (h == null || !lobsters.TryGetValue(h.targetId ?? "", out var t)) continue;
+                t.ApplyHeal(h.amount);
+                BattleVfxLibrary.Spawn(vfxLibrary?.status, actor, t, this);
+            }
+        }
+        if (data.damage == null) return;
+        foreach (var d in data.damage)
+        {
+            if (d == null || !lobsters.TryGetValue(d.targetId ?? "", out var t)) continue;
+            bool primary = d.kind == "attack" || d.kind == "special";
+            if (primaryOnly && !primary) continue;
+            if (!primaryOnly && primary && !includePrimary) continue;
+            t.ApplyDamage(d.amount);
+            BattleVfxLibrary.Spawn(vfxLibrary?.attackImpact, actor, t, this);
+            Vector3 from = t == actor ? t.transform.position + Vector3.right : actorPos;
+            StartCoroutine(t.PlayHit(hitDuration, from));
+        }
     }
 
     /// <summary>Play a round's results — animate movements then combat.</summary>
@@ -258,7 +357,7 @@ public class BattleManager : MonoBehaviour
             yield return new WaitForSeconds(deathDuration);
         }
 
-        currentPhase = BattlePhase.Combat;
+        currentPhase = BattlePhase.Idle;
         bridge?.NotifyAnimationComplete(result.round);
     }
 
@@ -323,11 +422,13 @@ public class BattleManager : MonoBehaviour
         }
     }
 
-    /// <summary>Battle has ended — show result.</summary>
+    /// <summary>Battle has ended — defeat read for the losing side (none on a draw).</summary>
     public void OnBattleEnd(BattleEndData data)
     {
         currentPhase = BattlePhase.BattleOver;
-        Debug.Log($"[BattleManager] Battle over! Winner: Team {data.winner}, Player won: {data.playerWon}");
+        Debug.Log($"[BattleManager] Battle over! Winner: {data.winner}, Player won: {data.playerWon}");
+        hexGrid?.ClearHighlights();
+        if (data.winner == "draw") return;
 
         // Losing team plays Die as a defeat read if the server didn't already kill them.
         foreach (var lob in lobsters.Values)
@@ -337,7 +438,7 @@ public class BattleManager : MonoBehaviour
                 StartCoroutine(lob.PlayDeath(deathDuration));
             }
         }
-        // TODO: Victory/defeat banner UI
+        // Result banner is React's.
     }
 
     /// <summary>Look up a spawned lobster's controller (selection, HUD, tests).</summary>
@@ -347,6 +448,16 @@ public class BattleManager : MonoBehaviour
         return lob;
     }
 
+    /// <summary>The living lobster standing on a hex, or null (HexInput click routing).</summary>
+    public LobsterController GetLobsterAt(int col, int row)
+    {
+        foreach (var lob in lobsters.Values)
+        {
+            if (lob != null && lob.alive && lob.col == col && lob.row == row) return lob;
+        }
+        return null;
+    }
+
     private void ClearLobsters()
     {
         foreach (var lob in lobsters.Values)
@@ -354,17 +465,5 @@ public class BattleManager : MonoBehaviour
             if (lob != null) Destroy(lob.gameObject);
         }
         lobsters.Clear();
-    }
-
-    void Update()
-    {
-        // Tick timer locally for smooth countdown (React also sends authoritative updates)
-        if (currentPhase == BattlePhase.Positioning || currentPhase == BattlePhase.Combat)
-        {
-            if (timeRemaining > 0)
-            {
-                timeRemaining -= Time.deltaTime;
-            }
-        }
     }
 }

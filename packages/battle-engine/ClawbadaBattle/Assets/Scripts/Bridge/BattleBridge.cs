@@ -2,22 +2,29 @@ using UnityEngine;
 using System.Runtime.InteropServices;
 
 /// <summary>
-/// Main bridge between React and Unity.
+/// Main bridge between React and Unity — V3 per-turn contract.
 /// Attach this script to a GameObject named "BattleBridge" in the scene.
 ///
 /// React → Unity: React calls SendMessage("BattleBridge", "MethodName", jsonString)
-/// Unity → React: Unity calls JS functions via DllImport (JSBridge.jslib)
+///   InitBattle(BattleInitData)  StartTurn(TurnStartData)  PlayTurn(TurnPlayData)
+///   UpdateBar(BarData)  SetClock(ClockData)  BattleEnd(BattleEndData)
+///   ShowSelection(HexListData)  ClearHighlights()
+///   PlayRound(RoundResult) is kept for the editor demo loop only.
+/// Unity → React: Unity calls JS functions via DllImport (JSBridge.jslib) → window.__clawbada.*
+///   onUnityReady  onLobsterSelected {lobsterId}  onHexClicked {col,row}
+///   onTurnAnimationComplete {turn}  (onAnimationComplete {round} — demo loop only)
+///
+/// Unity renders; it never decides. Every number here was resolved by the server.
 /// </summary>
 public class BattleBridge : MonoBehaviour
 {
     // ─── JS function imports (Unity → React) ───
-    [DllImport("__Internal")] private static extern void SendPositioningCommit(string json);
-    [DllImport("__Internal")] private static extern void SendCombatCommit(string json);
     [DllImport("__Internal")] private static extern void SendLobsterSelected(string json);
+    [DllImport("__Internal")] private static extern void SendHexClicked(string json);
     [DllImport("__Internal")] private static extern void SendUnityReady();
     [DllImport("__Internal")] private static extern void SendAnimationComplete(string json);
+    [DllImport("__Internal")] private static extern void SendTurnAnimationComplete(string json);
 
-    // ─── References (set in Inspector or found at runtime) ───
     private BattleManager battleManager;
     private HexGrid hexGrid;
 
@@ -29,7 +36,6 @@ public class BattleBridge : MonoBehaviour
 
     void Start()
     {
-        // Notify React that Unity is loaded and ready
         #if UNITY_WEBGL && !UNITY_EDITOR
         SendUnityReady();
         #else
@@ -37,7 +43,7 @@ public class BattleBridge : MonoBehaviour
         #endif
     }
 
-    // ─── React → Unity methods (called via SendMessage) ───
+    // ─── React → Unity (called via SendMessage) ───
 
     /// <summary>Initialize the battle with arena layout, teams, and player info.</summary>
     public void InitBattle(string json)
@@ -50,37 +56,43 @@ public class BattleBridge : MonoBehaviour
         if (battleManager != null) battleManager.Initialize(data);
     }
 
-    /// <summary>Start a new phase (positioning or combat).</summary>
-    public void StartPhase(string json)
+    /// <summary>A lobster's turn began (server). Faces it toward the enemy; HUD is React's.</summary>
+    public void StartTurn(string json)
     {
-        Debug.Log($"[BattleBridge] StartPhase: {json}");
-        var phase = JsonUtility.FromJson<PhaseData>(json);
-        if (battleManager != null) battleManager.StartPhase(phase);
+        var data = JsonUtility.FromJson<TurnStartData>(json);
+        if (battleManager != null) battleManager.StartTurn(data);
     }
 
-    /// <summary>Update the countdown timer.</summary>
-    public void UpdateTimer(string json)
+    /// <summary>Animate one resolved turn (move path, action, hits, deaths), then notify React.</summary>
+    public void PlayTurn(string json)
     {
-        var data = JsonUtility.FromJson<TimerData>(json);
-        if (battleManager != null) battleManager.UpdateTimer(data.timeRemaining);
+        Debug.Log($"[BattleBridge] PlayTurn: {json.Substring(0, Mathf.Min(json.Length, 200))}...");
+        var data = JsonUtility.FromJson<TurnPlayData>(json);
+        if (battleManager != null) battleManager.PlayTurn(data);
     }
 
-    /// <summary>Opponent has committed their moves.</summary>
-    public void OpponentReady()
+    /// <summary>Upcoming turn order (HUD bar lives in React; Unity may use it for cues).</summary>
+    public void UpdateBar(string json)
     {
-        Debug.Log("[BattleBridge] OpponentReady");
-        if (battleManager != null) battleManager.OnOpponentReady();
+        var data = JsonUtility.FromJson<BarData>(json);
+        if (battleManager != null) battleManager.UpdateBar(data);
     }
 
-    /// <summary>Play a round's results (movements + combat animations).</summary>
+    /// <summary>Remaining shot-clock milliseconds (optional visual pulse).</summary>
+    public void SetClock(string json)
+    {
+        var data = JsonUtility.FromJson<ClockData>(json);
+        if (battleManager != null) battleManager.SetClock(data.remainingMs);
+    }
+
+    /// <summary>Editor demo loop only (V2 round shape). Real battles use PlayTurn.</summary>
     public void PlayRound(string json)
     {
-        Debug.Log($"[BattleBridge] PlayRound: {json.Substring(0, Mathf.Min(json.Length, 200))}...");
         var result = JsonUtility.FromJson<RoundResult>(json);
         if (battleManager != null) battleManager.PlayRound(result);
     }
 
-    /// <summary>Battle has ended — show victory/defeat.</summary>
+    /// <summary>Battle has ended — show victory / defeat / draw read.</summary>
     public void BattleEnd(string json)
     {
         Debug.Log($"[BattleBridge] BattleEnd: {json}");
@@ -96,31 +108,13 @@ public class BattleBridge : MonoBehaviour
         if (hexGrid != null) hexGrid.ShowSelection(json);
     }
 
-    /// <summary>Clear all hex highlights (fades them out and destroys).</summary>
+    /// <summary>Clear all hex highlights.</summary>
     public void ClearHighlights()
     {
         if (hexGrid != null) hexGrid.ClearHighlights();
     }
 
-    // ─── Unity → React helper methods (called by game scripts) ───
-
-    public void CommitPositioning(string json)
-    {
-        #if UNITY_WEBGL && !UNITY_EDITOR
-        SendPositioningCommit(json);
-        #else
-        Debug.Log($"[BattleBridge] PositioningCommit (editor): {json}");
-        #endif
-    }
-
-    public void CommitCombat(string json)
-    {
-        #if UNITY_WEBGL && !UNITY_EDITOR
-        SendCombatCommit(json);
-        #else
-        Debug.Log($"[BattleBridge] CombatCommit (editor): {json}");
-        #endif
-    }
+    // ─── Unity → React helpers (called by game scripts) ───
 
     public void NotifyLobsterSelected(string lobsterId)
     {
@@ -132,6 +126,27 @@ public class BattleBridge : MonoBehaviour
         #endif
     }
 
+    public void NotifyHexClicked(int col, int row)
+    {
+        string json = $"{{\"col\":{col},\"row\":{row}}}";
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendHexClicked(json);
+        #else
+        Debug.Log($"[BattleBridge] HexClicked: ({col},{row})");
+        #endif
+    }
+
+    public void NotifyTurnAnimationComplete(int turn)
+    {
+        string json = $"{{\"turn\":{turn}}}";
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendTurnAnimationComplete(json);
+        #else
+        Debug.Log($"[BattleBridge] TurnAnimationComplete: turn {turn}");
+        #endif
+    }
+
+    /// <summary>Editor demo loop only.</summary>
     public void NotifyAnimationComplete(int round)
     {
         string json = $"{{\"round\":{round}}}";
@@ -143,7 +158,7 @@ public class BattleBridge : MonoBehaviour
     }
 }
 
-// ─── JSON data classes (must match React TypeScript types) ───
+// ─── JSON data classes (must match apps/web/src/components/battle/unity-bridge.ts) ───
 
 [System.Serializable]
 public class HexPosition
@@ -171,7 +186,7 @@ public class BattleLobsterData
     public int classId;
     public string className;
     public int tier;
-    public string side;
+    public string side;      // "A" | "B"
     public int slot;
     public int maxHp;
     public int currentHp;
@@ -194,27 +209,88 @@ public class BattleInitData
     public ArenaLayout arena;
     public BattleLobsterData[] teamA;
     public BattleLobsterData[] teamB;
-    public string playerSide;
+    public string playerSide;    // "A" | "B" | "spectator"
     public string playerBadge;
     public string opponentBadge;
     public string stakeBracket;
     public int stakeAmount;
 }
 
+// ─── V3 per-turn payloads ───
+
 [System.Serializable]
-public class PhaseData
+public class TurnStartData
 {
-    public int round;
-    public string phase; // "positioning" or "combat"
-    public float timeRemaining;
-    public bool opponentReady;
+    public int turn;
+    public string lobsterId;
+    public string side;          // "A" | "B"
+    public long deadlineMs;      // epoch ms; 0 when the bot acts
+    public bool isPlayer;        // true when the local player controls this lobster
 }
 
 [System.Serializable]
-public class TimerData
+public class DamageEventData
 {
-    public float timeRemaining;
+    public string targetId;
+    public int amount;
+    public string kind;          // attack | special | counter | bleed | reflect | self
+    public bool isCrit;
+    public bool killed;
 }
+
+[System.Serializable]
+public class HealEventData
+{
+    public string targetId;
+    public int amount;
+}
+
+[System.Serializable]
+public class StatusEventData
+{
+    public string targetId;
+    public string status;        // bleed | stun | haunt | fortify | reflect | shield | slow | taunt
+    public bool applied;
+    public int turns;
+}
+
+[System.Serializable]
+public class TurnPlayData
+{
+    public int turn;
+    public string lobsterId;
+    public HexPosition[] path;   // waypoints after the start hex (empty = no move)
+    public string action;        // attack | defend | special | none | "" when skipped
+    public string skipped;       // "stun" or ""
+    public string targetId;      // "" when none
+    public DamageEventData[] damage;
+    public HealEventData[] heals;
+    public StatusEventData[] statuses;
+    public string[] deaths;
+    public bool isEnhanced;
+}
+
+[System.Serializable]
+public class BarEntryData
+{
+    public string lobsterId;
+    public string tick;
+}
+
+[System.Serializable]
+public class BarData
+{
+    public int turn;
+    public BarEntryData[] entries;
+}
+
+[System.Serializable]
+public class ClockData
+{
+    public int remainingMs;
+}
+
+// ─── Editor demo loop (V2 round shape) ───
 
 [System.Serializable]
 public class MovementResult
@@ -251,6 +327,6 @@ public class RoundResult
 [System.Serializable]
 public class BattleEndData
 {
-    public string winner;
+    public string winner;        // "A" | "B" | "draw"
     public bool playerWon;
 }
