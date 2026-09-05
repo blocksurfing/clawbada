@@ -4,7 +4,13 @@
  * Kept in its own file with NO mock.module so the real `@clawbada/game-logic`
  * is used (bun module mocks are process-global).
  */
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, mock } from 'bun:test';
+// bun module mocks are process-global and test files run in an order we do not
+// control: routes/agent.test.ts mocks parts of @clawbada/game-logic (getBaseStats
+// as plain numbers, decodeDNA without body parts) and that leaks into later files.
+// These tests need the REAL engine, so pin the real module first.
+import * as realGameLogic from '../../../../../packages/game-logic/src/index';
+mock.module('@clawbada/game-logic', () => ({ ...realGameLogic }));
 import { v3, EvolutionTier, LobsterClass } from '@clawbada/game-logic';
 import { FakeClock, ShotClock } from '../../lib/battle-session/clock';
 import { BattleSession, type PersistedTurn, type SessionRecord, type SnapshotWrite } from '../../lib/battle-session/session';

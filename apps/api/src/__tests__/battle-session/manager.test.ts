@@ -2,7 +2,13 @@
  * BattleSessionManager with a fake store / chain / drand. Real game-logic, fake clock.
  * No mock.module here (see session.test.ts).
  */
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, mock } from 'bun:test';
+// bun module mocks are process-global and test files run in an order we do not
+// control: routes/agent.test.ts mocks parts of @clawbada/game-logic (getBaseStats
+// as plain numbers, decodeDNA without body parts) and that leaks into later files.
+// These tests need the REAL engine, so pin the real module first.
+import * as realGameLogic from '../../../../../packages/game-logic/src/index';
+mock.module('@clawbada/game-logic', () => ({ ...realGameLogic }));
 import { v3, EvolutionTier, LobsterClass, encodeDNA, LegendStatus } from '@clawbada/game-logic';
 import { FakeClock, ShotClock } from '../../lib/battle-session/clock';
 import { BattleSessionManager, PracticeConflictError, arenaTierFor } from '../../lib/battle-session/manager';
