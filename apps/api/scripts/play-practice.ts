@@ -3,7 +3,7 @@
  * Play a practice battle against the API as a human-proxy bot — the protocol
  * smoke test that needs no browser.
  *
- *   bun run scripts/play-practice.ts --key 0x<hex> [--api http://localhost:3001] [--bot cautious]
+ *   bun run --filter @clawbada/api play-practice -- --key 0x<hex> [--api http://localhost:3001] [--bot cautious]
  *        [--tier elite] [--preset elite_mix | --team <teamId> | --lobsters 1,2,3] [--rest] [--policy balanced]
  *
  * Flow: sign `Clawbada Auth: <ts>` with viem → POST /api/game/combat/practice →
@@ -12,7 +12,7 @@
  * with --rest) → verify each turn_resolved.postStateHash advances → exit 0 on
  * battle_ended. Exit 1 on any protocol error.
  */
-import { privateKeyToAccount } from 'viem/accounts';
+import { privateKeyToAccount } from '@clawbada/chain';
 import { v3 } from '@clawbada/game-logic';
 
 type Args = Record<string, string | boolean>;
@@ -69,7 +69,7 @@ const a = await auth();
 const ws = new WebSocket(`${WS}?address=${a.address}&signature=${a.signature}&timestamp=${a.timestamp}&battleId=${battleId}`);
 const done = new Promise<number>((resolve) => {
   ws.onopen = () => console.log('ws open');
-  ws.onerror = (e) => { console.error('ws error', e); resolve(1); };
+  ws.onerror = () => { console.error(`ws error connecting to ${WS}`); resolve(1); };
   ws.onclose = (e) => { console.log(`ws closed ${e.code} ${e.reason}`); };
   ws.onmessage = async (m) => {
     const msg = JSON.parse(String(m.data));
@@ -89,12 +89,11 @@ const done = new Promise<number>((resolve) => {
         const r = d.result;
         const dmg = r.damage.map((x: any) => `${x.targetId}-${x.amount}${x.isCrit ? '!' : ''}${x.killed ? '†' : ''}`).join(' ');
         console.log(`t${d.turn} ${r.lobsterId} ${r.skipped ? 'STUN' : r.action}${r.targetId ? '→' + r.targetId : ''}${r.path.length ? ` move(${r.path.length})` : ''} ${dmg} [${d.submittedBy}]`);
-        // Re-sync the local mirror from the authoritative HP map (the seedless mirror cannot roll dice).
-        for (const [id, h] of Object.entries<any>(d.hp)) { const l = local.lobsters.find((x) => x.id === id)!; l.hp = BigInt(h.hp); l.alive = h.alive; }
+        applyResolved(d);
         break;
       }
       case 'battle_ended':
-        console.log(`battle ended: winner=${d.winner} reason=${d.reason} turns=${turnsPlayed} finalStateHash=${d.finalStateHash} turnLogHash=${d.turnLogHash}`);
+        console.log(`battle ended: winner=${d.winner} reason=${d.reason} turns=${turnsPlayed} resyncs=${resyncs} finalStateHash=${d.finalStateHash} turnLogHash=${d.turnLogHash}`);
         ws.close(); resolve(0);
         break;
       case 'error':
@@ -110,15 +109,55 @@ const done = new Promise<number>((resolve) => {
   };
 });
 
+/** Mirror a resolved turn onto the local seedless state (HP, alive, position, charge, statuses, turn). */
+function applyResolved(d: any) {
+  const r = d.result;
+  local.turn = d.turn;
+  local.tick = BigInt(r.tick);
+  for (const [id, h] of Object.entries<any>(d.hp)) {
+    const l = local.lobsters.find((x) => x.id === id);
+    if (!l) continue;
+    l.hp = BigInt(h.hp); l.alive = h.alive;
+  }
+  const actor = local.lobsters.find((x) => x.id === r.lobsterId);
+  if (actor) {
+    if (r.path.length) actor.pos = { ...r.path[r.path.length - 1] };
+    actor.charge = r.chargeAfter;
+    actor.defending = r.action === 'defend';
+    actor.lastTick = BigInt(r.tick);
+    actor.turnsTaken += 1;
+    if (r.skipped === 'stun') actor.statuses = actor.statuses.filter((s) => s.type !== 'stun');
+  }
+  for (const ev of r.statuses) {
+    const t = local.lobsters.find((x) => x.id === ev.targetId);
+    if (!t) continue;
+    if (!ev.applied) t.statuses = t.statuses.filter((s) => s.type !== ev.status);
+    else if (!t.statuses.some((s) => s.type === ev.status)) t.statuses.push({ type: ev.status, turns: ev.turns ?? 1, value: 0n, since: d.turn });
+  }
+}
+
+let resyncs = 0;
 async function act(turn: number, lobsterId: string) {
-  // Always fetch the authoritative snapshot before acting: positions/charge/statuses may have changed.
-  const s = await (await fetch(`${API}/api/game/combat/${battleId}/state`, { headers: await authHeaders() })).json();
-  local = v3.fromWire({ ...s.state, vrfSeed: '0' });
-  const actor = local.lobsters.find((l) => l.id === lobsterId)!;
-  const cmd = POLICY(local, actor);
+  let actor = local.lobsters.find((l) => l.id === lobsterId);
+  let cmd = actor ? POLICY(local, actor) : null;
+  // The mirror is approximate (no VRF, coarse statuses): validate locally and re-sync once on doubt.
+  const ok = () => { try { if (actor && cmd) { v3.validateTurn(local, cmd); return true; } } catch { /* fallthrough */ } return false; };
+  if (!ok()) {
+    resyncs++;
+    const res = await fetch(`${API}/api/game/combat/${battleId}/state`, { headers: await authHeaders() });
+    if (res.ok) {
+      const s = await res.json();
+      local = v3.fromWire({ ...s.state, vrfSeed: '0' });
+      actor = local.lobsters.find((l) => l.id === lobsterId);
+      cmd = actor ? POLICY(local, actor) : null;
+    } else {
+      console.error(`state resync failed: ${res.status}`);
+    }
+  }
+  if (!cmd) { console.error('no command for', lobsterId); return; }
   if (USE_REST) {
     const res = await post(`/api/game/combat/${battleId}/turn`, { turn, command: cmd });
-    if (!res.accepted) { console.error('REST turn rejected', res); }
+    if (!res.accepted) console.error('REST turn rejected', res);
   } else {
     ws.send(JSON.stringify({ type: 'submit_turn', battleId, turn, command: cmd }));
   }

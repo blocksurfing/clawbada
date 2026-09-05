@@ -468,7 +468,7 @@ Clawbada/
 
 #### apps/api
 
-**V3 battle sessions (2026-09-05).** `apps/api/src/lib/battle-session/` runs the live ATB loop in the API process (single instance): `BattleSessionManager` (poller for phase-4 battles, practice creation, resume-on-boot), `BattleSession` (shot clock, bot think, stun skips, forfeit, per-turn persistence), `SessionStore` (`battle_sessions` / `battle_turns` / `operator_jobs`), `protocol.ts` (wire shapes). Endpoints: `POST /api/game/combat/practice`, `POST /:battleId/turn`, `GET /:battleId/{state,turns,legal}`. WS: `battle_snapshot` on join, `turn_started` / `turn_committed` / `turn_resolved` / `bar_updated` / `battle_ended`; inbound `submit_turn` / `ping`; `?spectate=1` read-only join for real battles. Runbook: `docs/runbooks/battle-session.md`. Smoke: `bun run scripts/play-practice.ts --key <hex> --preset elite_mix`.
+**V3 battle sessions (2026-09-05).** `apps/api/src/lib/battle-session/` runs the live ATB loop in the API process (single instance): `BattleSessionManager` (poller for phase-4 battles, practice creation, resume-on-boot), `BattleSession` (shot clock, bot think, stun skips, forfeit, per-turn persistence), `SessionStore` (`battle_sessions` / `battle_turns` / `operator_jobs`), `protocol.ts` (wire shapes). Endpoints: `POST /api/game/combat/practice`, `POST /:battleId/turn`, `GET /:battleId/{state,turns,legal}`. WS: `battle_snapshot` on join, `turn_started` / `turn_committed` / `turn_resolved` / `bar_updated` / `battle_ended`; inbound `submit_turn` / `ping`; `?spectate=1` read-only join for real battles. Runbook: `docs/runbooks/battle-session.md`. Smoke: `bun run --filter @clawbada/api play-practice -- --key <hex> --preset elite_mix`.
 
 Hono server. Exposes REST + WebSocket. Primary agent surface.
 
