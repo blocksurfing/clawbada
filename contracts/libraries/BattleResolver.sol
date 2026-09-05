@@ -58,7 +58,13 @@ library BattleResolver {
     // ──────────── VRF Range (×1000) ────────────
     uint256 internal constant VRF_MIN = 850; // 0.85
     uint256 internal constant VRF_MAX = 1150; // 1.15
-    uint256 internal constant VRF_RANGE = 300;
+    // F5-04: VRF_RANGE is the span WIDTH (VRF_MAX - VRF_MIN), NOT the modulo divisor.
+    // The roll domain [VRF_MIN, VRF_MAX] is INCLUSIVE, so it contains VRF_SPAN = 301
+    // distinct values. Map raw randomness with VRF_SPAN (or `vrfRollFromRandom`); a bare
+    // `% VRF_RANGE` is an off-by-one that can never emit VRF_MAX and silently diverges
+    // from the canonical roll stream (would break on-chain replay parity).
+    uint256 internal constant VRF_RANGE = 300; // span width (VRF_MAX - VRF_MIN)
+    uint256 internal constant VRF_SPAN = VRF_MAX - VRF_MIN + 1; // 301 — inclusive count = modulo divisor
 
     // ──────────── HP Scaling ────────────
     uint256 internal constant HP_BATTLE_SCALE = 1; // was 5 (V2 round pacing); ×1 per 2026-08-30 headless pacing sweep
@@ -91,6 +97,11 @@ library BattleResolver {
 
     // ──────────── Errors ────────────
     error InvalidClassId(uint8 classId);
+    /// @dev F5-04: scaleStats given a tier outside {0,1,2,3}. Previously such values
+    ///      silently clamped to Apex, inconsistent with the sibling functions that revert
+    ///      InvalidClassId on out-of-range input. Fail closed so the off-chain mirror and a
+    ///      future on-chain replay agree (both reject) instead of one clamping.
+    error InvalidTier(uint8 tier);
 
     // ──────────── Base Stats ────────────
 
@@ -119,11 +130,15 @@ library BattleResolver {
     /// @param tier 0=Base, 1=Evolved, 2=Elite, 3=Apex
     /// @param legend Whether this lobster is a legend
     function scaleStats(Stats memory base, uint8 tier, bool legend) internal pure returns (Stats memory) {
+        // F5-04: reject out-of-range tiers up front (was a silent clamp-to-Apex). Guarding
+        // first keeps the if/else below total, so `tierMult` is provably always assigned.
+        if (tier > 3) revert InvalidTier(tier);
+
         uint256 tierMult;
         if (tier == 0) tierMult = TIER_MULT_BASE;
         else if (tier == 1) tierMult = TIER_MULT_EVOLVED;
         else if (tier == 2) tierMult = TIER_MULT_ELITE;
-        else tierMult = TIER_MULT_APEX;
+        else tierMult = TIER_MULT_APEX; // tier == 3
 
         uint256 legendMult = legend ? LEGEND_MULT : MULT_DENOM;
 
@@ -266,8 +281,32 @@ library BattleResolver {
     // ──────────── Randomness ────────────
 
     /// @notice Derive a pseudo-random value from a seed and salt.
+    /// @dev S2 PREREQUISITE (deferred — salt-encoding unification). This hashes a `bytes32`
+    ///      salt, while the off-chain engine's `deriveRandom` hashes a UTF-8 `string` salt
+    ///      (e.g. "CRIT", "round_1"); the two CANNOT produce matching digests for the same
+    ///      logical draw. That divergence is harmless today (no on-chain roll derivation
+    ///      exists — S1 disputes resolve via adminResolveDispute), but `BattleResolver.replay()`
+    ///      MUST first pick one canonical salt encoding for both sides. Recommendation:
+    ///      bytes32 everywhere — the off-chain engine hashes its semantic labels to bytes32
+    ///      before packing, so this function stays the single canonical form. Until that
+    ///      decision lands, `vrfRollFromRandom` (pure in `rand`) is the parity-locked surface;
+    ///      `deriveRandom`'s salt path is intentionally NOT cross-asserted in the KAT.
     function deriveRandom(uint256 seed, bytes32 salt) internal pure returns (uint256) {
         return uint256(keccak256(abi.encodePacked(seed, salt)));
+    }
+
+    /// @notice Canonical VRF roll mapping — the SINGLE source of truth for turning a raw
+    ///         random value into the inclusive damage-variance range [VRF_MIN, VRF_MAX]
+    ///         (×1000). Every consumer and the off-chain mirror MUST use this exact mapping;
+    ///         an ad-hoc `% VRF_RANGE` is the F5-04 off-by-one. Pure in `rand`, so it can be
+    ///         cross-checked against the off-chain engine independently of salt encoding.
+    function vrfRollFromRandom(uint256 rand) internal pure returns (uint256) {
+        return VRF_MIN + (rand % VRF_SPAN);
+    }
+
+    /// @notice Convenience: derive a VRF roll directly from a seed + salt.
+    function deriveVrfRoll(uint256 seed, bytes32 salt) internal pure returns (uint256) {
+        return vrfRollFromRandom(deriveRandom(seed, salt));
     }
 
     // ──────────── Internal ────────────

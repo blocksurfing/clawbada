@@ -7,6 +7,8 @@
 
 import { keccak_256 } from '@noble/hashes/sha3.js';
 
+import { VRF_MIN, VRF_SPAN } from './constants';
+
 // ──────────── Encoding helpers ────────────
 
 /** Encode a bigint as a big-endian 32-byte Uint8Array (matching Solidity uint256). */
@@ -113,11 +115,20 @@ export function randomBool(seed: bigint, salt: string, chance: bigint, outOf: bi
 }
 
 /**
- * Derive a VRF roll in the battle damage variance range [850, 1150] (×1000 scale).
+ * Canonical VRF roll mapping — mirrors `BattleResolver.sol::vrfRollFromRandom`.
+ * Maps a raw random value into the INCLUSIVE range [VRF_MIN, VRF_MAX] (×1000).
  *
- * Matches: `VRF_MIN + rand % VRF_RANGE` for the [0.85, 1.15] multiplier.
+ * F5-04: the divisor is VRF_SPAN = VRF_MAX - VRF_MIN + 1 = 301, NOT VRF_RANGE (300).
+ * `% VRF_RANGE` is an off-by-one that can never emit VRF_MAX and diverges from this stream.
+ */
+export function vrfRollFromRandom(rand: bigint): bigint {
+  return VRF_MIN + (rand % VRF_SPAN);
+}
+
+/**
+ * Derive a VRF roll in the battle damage variance range [850, 1150] (×1000 scale)
+ * from a seed + salt. Equivalent to `vrfRollFromRandom(deriveRandom(seed, salt))`.
  */
 export function deriveVrfRoll(seed: bigint, salt: string): bigint {
-  const rand = deriveRandom(seed, salt);
-  return 850n + (rand % 301n); // [850, 1150] inclusive
+  return vrfRollFromRandom(deriveRandom(seed, salt));
 }
