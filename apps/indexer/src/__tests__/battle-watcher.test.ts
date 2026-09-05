@@ -153,6 +153,29 @@ describe('BattleWatcher BattleSettled', () => {
     expect(logger.info.mock.calls[0][0]).toMatchObject({ kind: 'battle', teamRating: { applied: true, ratingA: 1216, ratingB: 1184 } });
   });
 
+  test('V3 draw (winner == address(0)): row settled with winner null, no ELO, participation for both teams', async () => {
+    queueSettleSelects(battleRow({ phase: 5 }));
+    const ZERO = '0x0000000000000000000000000000000000000000';
+    await new BattleWatcher().handleEvent(
+      makeEventLog('BattleSettled', { battleId: 9n, winner: ZERO, winnerPayout: 0n, protocolFee: 0n }),
+    );
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    // Only the battles row — no agents rows are touched on a draw.
+    expect(db.update).toHaveBeenCalledTimes(1);
+    const settleSet = argOf(chainCalls(db.update, 0), 'set');
+    expect(settleSet).toMatchObject({ winner: null, phase: 6, winnerPayout: '0', protocolFee: '0', totalRounds: 3 });
+    expect(settleSet.settledAt).toBeInstanceOf(Date);
+
+    // Nobody won: the winner/loser rating math is skipped, but the match still
+    // counts as PLAYED for both teams.
+    expect(mockApplyBattleOutcome).not.toHaveBeenCalled();
+    expect(mockRecordParticipation).toHaveBeenCalledTimes(2);
+    expect(mockRecordParticipation.mock.calls[0][1]).toEqual({ battleId: 9n, teamId: 11n, opponentTeamId: 22n, epochId: 7 });
+    expect(mockRecordParticipation.mock.calls[1][1]).toEqual({ battleId: 9n, teamId: 22n, opponentTeamId: 11n, epochId: 7 });
+    expect(logger.info.mock.calls.at(-1)?.[1]).toContain('draw settled');
+  });
+
   test("settled straight from Active is a forfeit: kind 'forfeit_loss', winner resolved to teamB", async () => {
     queueSettleSelects(battleRow({ phase: 4 }));
     await new BattleWatcher().handleEvent(settledLog(6n, PLAYER_B));

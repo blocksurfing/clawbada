@@ -70,10 +70,8 @@ export enum BattlePhase {
 export enum OffchainBattleStage {
   /** Matchmaker has paired but no Battle row exists yet (rare; legacy). */
   Matchmaking = 0,
-  /** Off-chain round-commit window after Active. */
-  RoundCommit = 100,
-  /** Off-chain round-reveal window after RoundCommit. */
-  RoundReveal = 101,
+  /** V3: the ATB turn loop is running server-side (on-chain phase is Active). */
+  InProgress = 100,
   /** Server-side completion, before on-chain Settled lands. */
   Completed = 200,
 }

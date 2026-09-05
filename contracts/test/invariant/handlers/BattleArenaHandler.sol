@@ -23,18 +23,15 @@ contract BattleArenaHandler is BaseSetup {
     uint256 public ghostExits;            // total CLAW ever paid out of the arena (payouts + refunds + fees)
     uint256 public ghostSettledBattles;
     uint256 public ghostCancelledBattles;
+    uint256 public ghostDraws;             // settled battles whose winner is address(0)
 
-    // Deterministic salts / moves so commit hashes can be reconstructed on reveal.
+    // V3 settle commitments (any non-zero value).
+    bytes32 internal constant HASH_STATE = keccak256("arena-h-final-state");
+    bytes32 internal constant HASH_LOG = keccak256("arena-h-turn-log");
+
+    // Deterministic salts so team commit hashes can be reconstructed on reveal.
     function _teamSalt(uint256 battleId, bool isA) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked("arena-h-team", battleId, isA));
-    }
-
-    function _moveSalt(uint256 battleId, uint8 round, bool isA) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked("arena-h-move", battleId, round, isA));
-    }
-
-    function _moveData(uint256 battleId, bool isA) internal pure returns (bytes memory) {
-        return abi.encodePacked(battleId, isA);
     }
 
     // ─────────── Bootstrap ───────────
@@ -163,57 +160,21 @@ contract BattleArenaHandler is BaseSetup {
         ) {} catch {}
     }
 
-    function handler_commitMoves(uint256 seed) external {
-        uint256 battleId = _pickBattleId(seed);
-        if (battleId == 0) return;
-
-        uint8 round;
-        try battleArena.getBattle(battleId) returns (BattleArena.Battle memory b) {
-            round = b.currentRound;
-        } catch { return; }
-
-        bytes32 saltA = _moveSalt(battleId, round, true);
-        bytes32 saltB = _moveSalt(battleId, round, false);
-        bytes memory mA = _moveData(battleId, true);
-        bytes memory mB = _moveData(battleId, false);
-
-        bytes32 hashA = keccak256(abi.encodePacked(battleId, round, aliceH, mA, saltA));
-        bytes32 hashB = keccak256(abi.encodePacked(battleId, round, bobH,   mB, saltB));
-
-        vm.prank(aliceH);
-        try battleArena.commitMoves(battleId, hashA) {} catch {}
-        vm.prank(bobH);
-        try battleArena.commitMoves(battleId, hashB) {} catch {}
+    /// @dev V3: outcome % 3 -> alice wins / bob wins / draw (address(0)).
+    function _outcomeWinner(uint8 outcome) internal view returns (address) {
+        uint8 o = outcome % 3;
+        if (o == 0) return aliceH;
+        if (o == 1) return bobH;
+        return address(0);
     }
 
-    function handler_revealMoves(uint256 seed) external {
+    function handler_settle(uint256 seed, uint8 outcome) external {
         uint256 battleId = _pickBattleId(seed);
         if (battleId == 0) return;
 
-        uint8 round;
-        try battleArena.getBattle(battleId) returns (BattleArena.Battle memory b) {
-            round = b.currentRound;
-        } catch { return; }
-
-        vm.prank(aliceH);
-        try battleArena.revealMoves(battleId, _moveData(battleId, true), _moveSalt(battleId, round, true)) {} catch {}
-        vm.prank(bobH);
-        try battleArena.revealMoves(battleId, _moveData(battleId, false), _moveSalt(battleId, round, false)) {} catch {}
-    }
-
-    function handler_advanceRound(uint256 seed) external {
-        uint256 battleId = _pickBattleId(seed);
-        if (battleId == 0) return;
-
-        try battleArena.advanceRound(battleId) {} catch {}
-    }
-
-    function handler_settle(uint256 seed, bool aliceWins) external {
-        uint256 battleId = _pickBattleId(seed);
-        if (battleId == 0) return;
-
-        address winner = aliceWins ? aliceH : bobH;
-        try battleArena.settle(battleId, winner, [uint8(5), 5, 5], [uint8(20), 20, 20]) {} catch {}
+        try battleArena.settle(
+            battleId, _outcomeWinner(outcome), HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]
+        ) {} catch {}
     }
 
     function handler_dispute(uint256 seed, bool byAlice) external {
@@ -249,21 +210,27 @@ contract BattleArenaHandler is BaseSetup {
             if (claw.balanceOf(address(battleArena)) < contractBalBefore) {
                 ghostExits += contractBalBefore - claw.balanceOf(address(battleArena));
                 ghostSettledBattles++;
+                if (battleArena.getBattle(battleId).winner == address(0)) ghostDraws++;
             }
         } catch {}
     }
 
-    function handler_adminResolve(uint256 seed, bool aliceWins) external {
+    function handler_adminResolve(uint256 seed, uint8 outcome, bool sameHashes) external {
         uint256 battleId = _pickBattleId(seed);
         if (battleId == 0) return;
 
-        address winner = aliceWins ? aliceH : bobH;
+        address winner = _outcomeWinner(outcome);
+        // Exercise both bond routes: identical proposal (slash) vs. a changed hash (refund).
+        bytes32 logHash = sameHashes ? HASH_LOG : keccak256(abi.encodePacked(HASH_LOG, seed));
         uint256 contractBalBefore = claw.balanceOf(address(battleArena));
         vm.prank(admin);
-        try battleArena.adminResolveDispute(battleId, winner, [uint8(5), 5, 5], [uint8(20), 20, 20]) {
+        try battleArena.adminResolveDispute(
+            battleId, winner, HASH_STATE, logHash, [uint8(5), 5, 5], [uint8(20), 20, 20]
+        ) {
             if (claw.balanceOf(address(battleArena)) < contractBalBefore) {
                 ghostExits += contractBalBefore - claw.balanceOf(address(battleArena));
                 ghostSettledBattles++;
+                if (winner == address(0)) ghostDraws++;
             }
         } catch {}
     }

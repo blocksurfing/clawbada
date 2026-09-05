@@ -7,9 +7,11 @@
  * POST /api/game/combat/:battleId/reveal-team   — submit team-reveal salt (F5-01:
  *                                                   server-verified, engine submits the
  *                                                   atomic revealTeams — no calldata)
- * POST /api/game/combat/:battleId/commit-moves  — submit move commit hash
- * POST /api/game/combat/:battleId/reveal-moves  — reveal moves (also nudges
- *                                                   the engine to resolve the round)
+ * POST /api/game/combat/:battleId/handle-timeout — permissionless timeout calldata
+ *
+ * V3: battle turns are played off-chain over WebSocket (the battle-session
+ * manager); the V2 per-round `commit-moves` / `reveal-moves` calldata routes are
+ * gone with the on-chain round loop.
  */
 
 import { Hono } from 'hono';
@@ -27,7 +29,6 @@ import { walletAuth } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readBattle, serializeBigInts } from '../../../lib/chain';
 import { buildCalldata, singleStep, multiStep } from '../../../lib/calldata';
-import { battleWS } from '../../../lib/ws';
 
 const log = baseLog.child({ module: 'combat:writes' });
 
@@ -156,60 +157,11 @@ battleWriteRoutes.post(
   }),
 );
 
-battleWriteRoutes.post(
-  '/:battleId/commit-moves',
-  walletAuth,
-  catchErrors(async (c) => {
-    const { battleId } = c.req.param();
-    const body = await c.req.json<{ commitHash: string }>();
-
-    if (!body.commitHash) {
-      throw new ApiError('INVALID_INPUT', 'commitHash required');
-    }
-
-    const calldata = buildCalldata(
-      addresses.battleArena,
-      BattleArenaAbi as any,
-      'commitMoves',
-      [BigInt(battleId), body.commitHash],
-    );
-
-    return c.json(singleStep('Commit round moves hash', calldata));
-  }),
-);
-
-battleWriteRoutes.post(
-  '/:battleId/reveal-moves',
-  walletAuth,
-  catchErrors(async (c) => {
-    const { battleId } = c.req.param();
-    const body = await c.req.json<{ moveData: string; salt: string }>();
-
-    if (!body.moveData || !body.salt) {
-      throw new ApiError('INVALID_INPUT', 'moveData and salt required');
-    }
-
-    const calldata = buildCalldata(
-      addresses.battleArena,
-      BattleArenaAbi as any,
-      'revealMoves',
-      [BigInt(battleId), body.moveData, body.salt],
-    );
-
-    // After returning calldata, schedule a round-resolution check. The actual
-    // round resolution is handled by the engine service (`apps/engine`) — the
-    // API just nudges things along once both reveals appear on-chain.
-    scheduleRoundResolution(BigInt(battleId));
-
-    return c.json(singleStep('Reveal round moves', calldata));
-  }),
-);
-
 /** X13: handleTimeout calldata. The contract's `handleTimeout(battleId)` is
  *  permissionless once the phase's deadline has elapsed (BattleArena.sol:727).
  *  It routes to the right cleanup path per phase:
  *    - Deposit / TeamCommit / TeamReveal → cancel + refund stakes.
- *    - Active → emergency neutral exit.
+ *    - Active → past ACTIVE_WINDOW: mutual cancel with full refunds (V3).
  *    - AwaitingFinalize (undisputed) → finalize payout.
  *  The frontend shows a button when chain.phase has elapsed `phaseDeadline`
  *  (or `payoutDeadline` for AwaitingFinalize); auth here is for telemetry +
@@ -230,29 +182,3 @@ battleWriteRoutes.post(
     return c.json(singleStep('Handle timeout (cancel / finalize stuck battle)', calldata));
   }),
 );
-
-// ──────────── Internal ────────────
-
-function scheduleRoundResolution(battleId: bigint): void {
-  setTimeout(async () => {
-    try {
-      await tryResolveRound(battleId);
-    } catch (err) {
-      log.error({ err, battleId: battleId.toString() }, 'Round resolution failed');
-    }
-  }, 2000); // wait 2s for the on-chain reveal tx to confirm
-}
-
-async function tryResolveRound(battleId: bigint): Promise<void> {
-  const battle = await readBattle(battleId);
-  if (!battle.roundRevealedA || !battle.roundRevealedB) {
-    return; // wait for the other player
-  }
-  // The engine service handles the actual resolveRound call. The API's role
-  // here is just to fan out a "both reveals are in" notification so listeners
-  // know the round is ready to resolve.
-  battleWS.broadcast(battleId.toString(), 'round_reveal_complete', {
-    battleId: battleId.toString(),
-    round: battle.currentRound,
-  });
-}
