@@ -51,15 +51,16 @@ Headless (recommended):
 
 `BuildScript.BuildWebGL` (Assets/Scripts/Editor/BuildScript.cs; also **Clawbada → Build WebGL**
 in the editor menu) sets Brotli compression with the decompression fallback, data caching,
-256 MB initial memory, and writes to `../../apps/web/public/unity-build`. Unity names the
-artifacts after the folder:
+256 MB initial memory, and writes to `../../../apps/web/public/unity-build` (relative to the
+Unity project folder). Unity names the artifacts after the folder; with the decompression
+fallback on, compressed files carry the `.unityweb` suffix and need no server headers:
 
 ```
 apps/web/public/unity-build/Build/
 ├── unity-build.loader.js
-├── unity-build.data.br
-├── unity-build.framework.js.br
-└── unity-build.wasm.br
+├── unity-build.data.unityweb
+├── unity-build.framework.js.unityweb
+└── unity-build.wasm.unityweb
 ```
 
 The web app loads these via `react-unity-webgl` (`apps/web/src/components/battle/BattleStage.tsx`)

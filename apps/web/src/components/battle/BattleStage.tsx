@@ -62,9 +62,9 @@ export function BattleStage(props: BattleStageProps) {
 function UnityStage(props: BattleStageProps) {
   const { unityProvider, sendMessage, isLoaded, loadingProgression, initialisationError } = useUnityContext({
     loaderUrl: `${BUILD_BASE}.loader.js`,
-    dataUrl: `${BUILD_BASE}.data.br`,
-    frameworkUrl: `${BUILD_BASE}.framework.js.br`,
-    codeUrl: `${BUILD_BASE}.wasm.br`,
+    dataUrl: `${BUILD_BASE}.data.unityweb`,
+    frameworkUrl: `${BUILD_BASE}.framework.js.unityweb`,
+    codeUrl: `${BUILD_BASE}.wasm.unityweb`,
   });
   const [unityReady, setUnityReady] = useState(false);
   const initedFor = useRef<string | null>(null);
