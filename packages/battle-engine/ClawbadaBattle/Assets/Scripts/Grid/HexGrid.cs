@@ -293,6 +293,24 @@ public class HexGrid : MonoBehaviour
 
     public bool IsBlocked(int col, int row) => blocked.Contains((col, row));
 
+    /// <summary>Inverse of GetWorldPosition: the hex under a world point, via the same
+    /// Tilemap/Grid the board is drawn on (correct under the grid's authored rotation).
+    /// False when the point is off the board.</summary>
+    public bool WorldToHex(Vector3 world, out int col, out int row)
+    {
+        Vector3Int cell;
+        if (boardTilemap != null) cell = boardTilemap.WorldToCell(world);
+        else if (unityGrid != null) cell = unityGrid.WorldToCell(world);
+        else
+        {
+            col = row = -1;
+            return false;
+        }
+        col = cell.x;
+        row = cell.y;
+        return InBounds(col, row);
+    }
+
     public bool InBounds(int col, int row)
     {
         if (currentLayout == null) return true;

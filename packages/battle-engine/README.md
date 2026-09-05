@@ -35,56 +35,73 @@ The Unity project is at `packages/battle-engine/ClawbadaBattle/`. Open it in Uni
 
 ### WebGL Build
 
-Build output goes to the web app so React can load it:
+Build output goes to the web app so React can load it. The folder is **gitignored**
+(a 30–60 MB binary); build locally and deploy with the Vercel CLI (`apps/web/.vercelignore`
+lets the artifact upload).
 
-1. File → Build Settings → select **Web** platform
-2. Player Settings:
-   - Compression Format: **Brotli**
-   - Data Caching: **Enabled**
-   - Memory Size: **256MB**
-3. Build to: `../../apps/web/public/unity-build/`
+Headless (recommended):
 
-Expected output files:
+```bash
+/Applications/Unity/Hub/Editor/6000.4.2f1/Unity.app/Contents/MacOS/Unity \
+  -batchmode -nographics -quit \
+  -projectPath packages/battle-engine/ClawbadaBattle \
+  -executeMethod BuildScript.BuildWebGL \
+  -logFile /tmp/clawbada-webgl.log
+```
+
+`BuildScript.BuildWebGL` (Assets/Scripts/Editor/BuildScript.cs; also **Clawbada → Build WebGL**
+in the editor menu) sets Brotli compression with the decompression fallback, data caching,
+256 MB initial memory, and writes to `../../apps/web/public/unity-build`. Unity names the
+artifacts after the folder:
+
 ```
 apps/web/public/unity-build/Build/
-├── battle.loader.js
-├── battle.data.br
-├── battle.framework.js.br
-└── battle.wasm.br
+├── unity-build.loader.js
+├── unity-build.data.br
+├── unity-build.framework.js.br
+└── unity-build.wasm.br
 ```
 
-The React app is already wired up to load these files via `react-unity-webgl`.
+The web app loads these via `react-unity-webgl` (`apps/web/src/components/battle/BattleStage.tsx`)
+and falls back to a plain SVG board when the loader is missing, so playtesting never blocks on a build.
 
-### How Communication Works
+### How Communication Works (V3 — one lobster per turn)
 
-**React → Unity** (game state pushed in):
-React calls `SendMessage("BattleBridge", "MethodName", jsonString)`. The BattleBridge script receives it and drives BattleManager/HexGrid.
+**React → Unity** (authoritative state pushed in; Unity only renders):
+React calls `SendMessage("BattleBridge", "MethodName", jsonString)`. The BattleBridge script
+receives it and drives BattleManager/HexGrid. TypeScript twin of every payload:
+`apps/web/src/components/battle/unity-bridge.ts`.
 
 | Method | When | What It Does |
 |--------|------|-------------|
-| `InitBattle` | Match starts | Sets up arena, spawns lobsters, shows badges |
-| `StartPhase` | Each phase begins | Switches to positioning or combat mode |
-| `UpdateTimer` | Every second | Updates countdown |
-| `PlayRound` | After both reveals | Triggers movement + combat animations |
-| `BattleEnd` | Match over | Shows victory/defeat |
+| `InitBattle` | Snapshot received | Builds the board from `arena` (blocked hexes come from the server), spawns both teams (DNA part swap via `partClassIds`) |
+| `StartTurn` | Server `turn_started` (after the previous animation) | Faces the acting lobster; `deadlineMs`, `isPlayer` for cues |
+| `PlayTurn` | Server `turn_resolved` | Animates the path, the action with every damage/heal event at the impact frame, then deaths; ends with `onTurnAnimationComplete` |
+| `UpdateBar` | With each `StartTurn` | Upcoming turn order (the HUD strip itself is React) |
+| `SetClock` | Optional | Remaining shot-clock ms for a visual pulse |
+| `BattleEnd` | Server `battle_ended` | Defeat read for the losing side (`winner` may be `"draw"`) |
+| `ShowSelection` / `ClearHighlights` | Player is choosing | Atomic highlight state (origin > enemy > ally > range) |
 
-**Unity → React** (player input sent out):
-Unity calls JS functions via `JSBridge.jslib` → `window.__clawbada.*`
+**Unity → React** (clicks out, via `JSBridge.jslib` → `window.__clawbada.*`):
 
 | Callback | When | What It Sends |
 |----------|------|--------------|
-| `onPositioningCommit` | Player locks in movement | Destination hex per lobster |
-| `onCombatCommit` | Player locks in actions | Attack/Defend/Special per lobster + targets |
-| `onUnityReady` | Scene loaded | (nothing — just a signal) |
-| `onAnimationComplete` | Round animation done | Round number |
+| `onUnityReady` | Scene loaded | (signal) |
+| `onLobsterSelected` | Click on a living lobster's hex | `{ lobsterId }` |
+| `onHexClicked` | Click on an empty hex | `{ col, row }` |
+| `onTurnAnimationComplete` | PlayTurn finished | `{ turn }` |
+
+React decides what a click means (move destination, attack target, ally target), repaints
+highlights, and submits the turn to the server. `PlayRound` / `onAnimationComplete` remain
+only for the in-editor `BattleDemoLoop`.
 
 ### Key Specs
 
-- **Grid**: 6×5 pointy-top offset hexes, ~20% blocked
+- **Grid**: 6×5 pointy-top offset hexes, 5–6 blocked hexes placed by the server from the battle's VRF seed
 - **Movement ranges**: 1 hex (Bulwark, Leviathan), 2 hex (Sentinel, Abyss, Kraken, Reaver), 3 hex (Mantis, Tempest, Specter, Ember)
-- **Attack distance scaling**: adjacent 100%, 2 hex 75%, 3 hex 50%, 4+ miss
-- **Phase timing**: 60 seconds per phase, proceeds when both players commit
-- **Hex highlight colors**: stone = in range (movement in phase 1, attack max range in phase 2), blue = selected character, red = enemy target, green = ally target (heal/buff)
+- **Attack distance scaling**: adjacent 100%, 2 hex 75%, 3 hex 50%, 4+ miss (Specter: 4 hexes at 40%)
+- **Turn timing**: 60-second shot clock per lobster turn; auto-Defend on expiry; three in a row forfeits
+- **Hex highlight colors**: stone = movement range, blue = selected lobster, red = enemy target, green = ally target
 
 ### Designer Workflow
 
