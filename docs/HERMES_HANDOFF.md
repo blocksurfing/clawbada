@@ -468,6 +468,8 @@ Clawbada/
 
 #### apps/api
 
+**V3 battle sessions (2026-09-05).** `apps/api/src/lib/battle-session/` runs the live ATB loop in the API process (single instance): `BattleSessionManager` (poller for phase-4 battles, practice creation, resume-on-boot), `BattleSession` (shot clock, bot think, stun skips, forfeit, per-turn persistence), `SessionStore` (`battle_sessions` / `battle_turns` / `operator_jobs`), `protocol.ts` (wire shapes). Endpoints: `POST /api/game/combat/practice`, `POST /:battleId/turn`, `GET /:battleId/{state,turns,legal}`. WS: `battle_snapshot` on join, `turn_started` / `turn_committed` / `turn_resolved` / `bar_updated` / `battle_ended`; inbound `submit_turn` / `ping`; `?spectate=1` read-only join for real battles. Runbook: `docs/runbooks/battle-session.md`. Smoke: `bun run scripts/play-practice.ts --key <hex> --preset elite_mix`.
+
 Hono server. Exposes REST + WebSocket. Primary agent surface.
 
 ```
@@ -497,7 +499,7 @@ Long-lived operator-worker process. Five responsibilities today:
 
 1. **Operator-worker** — durable outbox (`operator_jobs` table) drained at 1 s poll cadence. Handlers:
    - `create_battle` — submits on-chain `BattleArena.createBattle` via MATCHMAKER_PRIVATE_KEY wallet, verifies receipt, flips `battles.status = 1 (created)`.
-   - `settle_battle` (V3, lands with the battle-session manager) — submits `BattleArena.settle(battleId, winner|draw, finalStateHash, turnLogHash, damageA, damageB)` via RESOLVER_PRIVATE_KEY wallet once the off-chain ATB battle ends. The V2 `resolve_round` handler (on-chain per-round replay) was deleted on 2026-09-05 together with the contract's round loop.
+   - `settle_battle` (V3) — submits `BattleArena.settle(battleId, winner|draw, finalStateHash, turnLogHash, damageA, damageB)` via RESOLVER_PRIVATE_KEY wallet once the off-chain ATB battle ends. Enqueued by the API's `BattleSessionManager` (`apps/api/src/lib/battle-session/`), which runs the live turn loop, persists every turn to `battle_sessions` / `battle_turns`, and drives practice battles vs bots. Runbook: `docs/runbooks/battle-session.md`. The V2 `resolve_round` handler (on-chain per-round replay) was deleted on 2026-09-05 together with the contract's round loop.
 2. **Season monitor** — 5-min poll loop; auto-rolls seasons via `MiningPool.startSeason()` when emission/duration triggers fire.
 3. **Mining timer** — expedition completion notifications.
 4. **drand beacon submitter** — submits VRF beacons to `BattleVRF` contract for replay reproducibility.
