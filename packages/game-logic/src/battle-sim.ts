@@ -163,7 +163,12 @@ export function simulateBattle(
   };
 }
 
-function rollTeamDamage(seed: bigint, team: string, isWinner: boolean): [number, number, number] {
+/**
+ * Roll the RepairShop damage points for one team (winner 5–15 / loser 20–40 per
+ * lobster, VRF). Exported for the V3 engine (`v3.repairDamage`), which reuses the
+ * exact same bands and derivation.
+ */
+export function rollTeamDamage(seed: bigint, team: string, isWinner: boolean): [number, number, number] {
   const min = isWinner ? WINNER_DAMAGE_MIN : LOSER_DAMAGE_MIN;
   const max = isWinner ? WINNER_DAMAGE_MAX : LOSER_DAMAGE_MAX;
   const result: [number, number, number] = [0, 0, 0];

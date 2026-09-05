@@ -386,7 +386,7 @@ You see your team's power on the Team Builder *before* you queue. The matchmaker
 | 60 – 120 s | ±225 |
 | 120 s+ | ±300 (hard cap) |
 
-Procedurally generated arena layouts with class-themed terrain arrive in S2-3.
+Blocked-hex placement is procedural from S1: the battle's VRF seed deterministically places 5–6 blocked hexes in the interior columns (never on a spawn, every open hex stays reachable), and the same layout is shipped to both players. Class-themed terrain art and designer-authored layouts arrive in S2-3.
 
 ## Hex Grid Arena
 
@@ -441,7 +441,7 @@ If your shot clock expires, the lobster auto-Defends and the bar advances. After
 
 The opponent watches the animation, then their next-Speed lobster acts. Battles typically resolve in **24-36 total turns (~3-5 minutes)**.
 
-**Win condition:** Eliminate all 3 enemy lobsters. There's a 100-turn hard cap with HP% tiebreak as a griefer cutoff (rarely reached in real games).
+**Win condition:** Eliminate all 3 enemy lobsters (a mutual wipeout is a draw). There's a 100-turn hard cap as a griefer cutoff (rarely reached in real games): the team with more remaining HP% wins; if tied, the team that dealt more total damage wins, so a passive team cannot sit out for a draw; only a perfect tie is a draw.
 
 ### 6. Settlement (Proposed)
 The server submits the battle result on-chain: `BattleArena.settle(battleId, winner, finalStateHash, turnLogHash, damageA, damageB)`. The two hashes commit to the off-chain battle — the canonical final state, and `{battleId, VRF seed, arena layout, roster, ordered turn log}` — so a dispute always has something concrete to check against. Repair damage is keyed by player slot. The proposed outcome is recorded but **payout is escrowed for a dispute window** — the winner doesn't immediately receive their stake; first the loser has a chance to challenge.
