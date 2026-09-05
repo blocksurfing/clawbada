@@ -758,7 +758,7 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
   - `Editor/ArenaAuthoringTool*.cs` — in-editor arena layout authoring + JSON exporter.
 - **React side wired up** — `apps/web/src/lib/battle-anim/` is the *animation rig / prototype* used to design choreography, easing, palette FX, particles per Special. Lives alongside (not in place of) the Unity viewer. The battle page is configured to load `unity-build/` artifacts via `react-unity-webgl`.
 - **Asset directories scaffolded** (empty, awaiting designer drops): `Art/Arenas/{Evolved,Elite,Apex}/`, `Art/Characters/`, `Art/HexTiles/`, `Art/Obstacles/`, `Art/UI/`, `Prefabs/Lobsters/`, `Prefabs/VFX/`, `Audio/Music/`, `Audio/SFX/`.
-- **WebGL build target**: Brotli compression, 256 MB memory, output to `../../apps/web/public/unity-build/` (`battle.loader.js`, `battle.data.br`, `battle.framework.js.br`, `battle.wasm.br`).
+- **WebGL build target**: `BuildScript.BuildWebGL` — Brotli + decompression fallback, 256 MB memory, output to `apps/web/public/unity-build/` (`Build/unity-build.loader.js`, `unity-build.data.unityweb`, `unity-build.framework.js.unityweb`, `unity-build.wasm.unityweb`; ~8 MB total, first built 2026-09-05).
 
 **Open Items.**
 - Drop arena art into `Art/Arenas/{Evolved,Elite,Apex}/` and lobster sprites into `Art/Characters/`.
@@ -840,7 +840,7 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 > Locked 2026-05-20: this is the project-wide top blocker, ahead of testnet deploy. Saved as durable memory.
 
 1. **Designer pass — arena / lobster / UI / VFX / audio assets.** Drop into the scaffolded directories under `packages/battle-engine/ClawbadaBattle/Assets/`: `Art/Arenas/{Evolved,Elite,Apex}/`, `Art/Characters/`, `Art/HexTiles/`, `Art/Obstacles/`, `Art/UI/`, `Prefabs/Lobsters/`, `Prefabs/VFX/`, `Audio/Music/`, `Audio/SFX/`. Currently empty; this is the gate.
-2. **First WebGL build.** Unity → File → Build Settings → Web → Brotli compression, 256 MB memory, output to `../../apps/web/public/unity-build/`. Expected artifacts: `battle.loader.js`, `battle.data.br`, `battle.framework.js.br`, `battle.wasm.br`.
+2. **WebGL build.** Headless: `Unity -batchmode -nographics -quit -projectPath packages/battle-engine/ClawbadaBattle -executeMethod BuildScript.BuildWebGL -logFile build.log` (or **Clawbada → Build WebGL** in the editor). Artifacts land in `apps/web/public/unity-build/Build/` as `unity-build.loader.js` + `*.unityweb` (gitignored; deploy with `npx vercel deploy --prod`, which honours `apps/web/.vercelignore`).
 3. **Bridge verification on `/battle/[id]`.** Confirm `react-unity-webgl` loads the build and the React ↔ Unity round-trip works end-to-end: React `SendMessage` → `BattleBridge.cs` → `BattleManager` → callbacks via `JSBridge.jslib` → `window.__clawbada.*`. Editor-mode parity is not sufficient — must run in browser.
 4. **Gameplay playtesting.** Validate battle readability, pacing, target selection, movement, specials, timers, UX. Tune before exposing testnet users. The pure-math engine in `packages/game-logic` is solid; the open question is whether the *experience* lands.
 

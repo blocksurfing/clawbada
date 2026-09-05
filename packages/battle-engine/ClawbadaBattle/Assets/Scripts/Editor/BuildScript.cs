@@ -9,15 +9,18 @@ using UnityEngine;
 /// Headless WebGL build for the web app:
 ///
 ///   Unity -batchmode -nographics -quit -projectPath packages/battle-engine/ClawbadaBattle \
-///         -executeMethod BuildScript.BuildWebGL [-buildPath ../../apps/web/public/unity-build] -logFile build.log
+///         -executeMethod BuildScript.BuildWebGL [-buildPath ../../../apps/web/public/unity-build] -logFile build.log
 ///
-/// Unity names the artifacts after the output folder, so the web app loads
-///   /unity-build/Build/unity-build.loader.js, .data.br, .framework.js.br, .wasm.br
+/// Unity names the artifacts after the output folder. With the decompression fallback on,
+/// compressed files carry the .unityweb suffix (the loader inflates them itself, so the host
+/// needs no Content-Encoding header), so the web app loads
+///   /unity-build/Build/unity-build.loader.js, .data.unityweb, .framework.js.unityweb, .wasm.unityweb
 /// The folder is gitignored; build locally and deploy with the Vercel CLI.
 /// </summary>
 public static class BuildScript
 {
-    private const string DefaultBuildPath = "../../apps/web/public/unity-build";
+    // Relative to the project folder (ClawbadaBattle) → battle-engine → packages → repo root.
+    private const string DefaultBuildPath = "../../../apps/web/public/unity-build";
     private const string Scene = "Assets/Scenes/BattleScene.unity";
 
     [MenuItem("Clawbada/Build WebGL (web app)")]
