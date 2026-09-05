@@ -741,6 +741,8 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 
 ### 6.8 Battle engine package — `packages/battle-engine`
 
+**2026-09-05 (V3 engine PR 4).** Bridge moved to the per-turn contract (`InitBattle`, `StartTurn`, `PlayTurn`, `UpdateBar`, `SetClock`, `BattleEnd`, `ShowSelection`; callbacks `onUnityReady`, `onLobsterSelected`, `onHexClicked`, `onTurnAnimationComplete`). Web: `apps/web/src/components/battle/{LiveBattle,BattleStage,HexBoard,Hud,ActionPanel,DamageLog}.tsx`, `hooks/use-battle-session.ts` (WS client, animation gating, reconnect), `/battle/[id]` is the live page for real and practice battles, `/game/battle` has a Practice tab. The WebGL artifact is gitignored; `apps/web/.vercelignore` lets the CLI deploy upload it; `next.config.ts` serves the Brotli files with the right headers. The SVG board is the fallback when the build is absent.
+
 **Desired Outcome.** Unity 6 WebGL build that renders the live battle on the `/battle/[id]` page. React drives game state in via `SendMessage`; Unity calls back via `JSBridge.jslib` on player commits. WebGL artifacts ship to `apps/web/public/unity-build/` and are loaded by `react-unity-webgl`.
 
 **Current State.**
