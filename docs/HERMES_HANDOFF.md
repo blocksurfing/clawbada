@@ -468,7 +468,9 @@ Clawbada/
 
 #### apps/api
 
-**V3 battle sessions (2026-09-05).** `apps/api/src/lib/battle-session/` runs the live ATB loop in the API process (single instance): `BattleSessionManager` (poller for phase-4 battles, practice creation, resume-on-boot), `BattleSession` (shot clock, bot think, stun skips, forfeit, per-turn persistence), `SessionStore` (`battle_sessions` / `battle_turns` / `operator_jobs`), `protocol.ts` (wire shapes). Endpoints: `POST /api/game/combat/practice`, `POST /:battleId/turn`, `GET /:battleId/{state,turns,legal}`. WS: `battle_snapshot` on join, `turn_started` / `turn_committed` / `turn_resolved` / `bar_updated` / `battle_ended`; inbound `submit_turn` / `ping`; `?spectate=1` read-only join for real battles. Runbook: `docs/runbooks/battle-session.md`. Smoke: `bun run scripts/play-practice.ts --key <hex> --preset elite_mix`.
+**V3 battle sessions (2026-09-05).** `apps/api/src/lib/battle-session/` runs the live ATB loop in the API process (single instance): `BattleSessionManager` (poller for phase-4 battles, practice creation, resume-on-boot), `BattleSession` (shot clock, bot think, stun skips, forfeit, per-turn persistence), `SessionStore` (`battle_sessions` / `battle_turns` / `operator_jobs`), `protocol.ts` (wire shapes). Endpoints: `POST /api/game/combat/practice`, `POST /:battleId/turn`, `GET /:battleId/{state,turns,legal}`. WS: `battle_snapshot` on join, `turn_started` / `turn_committed` / `turn_resolved` / `bar_updated` / `battle_ended`; inbound `submit_turn` / `ping`; `?spectate=1` read-only join for real battles. Runbook: `docs/runbooks/battle-session.md`. Smoke: `bun run --filter @clawbada/api play-practice -- --key <hex> --preset elite_mix`.
+
+**Testing rule (apps/api).** bun module mocks are process-global, so `bun run --filter @clawbada/api test` runs two processes: `test:unit` (`src/__tests__/*.test.ts` + `routes/`) and `test:session` (`src/__tests__/battle-session/`, which needs the real game-logic). Put new suites that must not see route mocks under `battle-session/`, or add a third process.
 
 Hono server. Exposes REST + WebSocket. Primary agent surface.
 
@@ -741,6 +743,8 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 
 ### 6.8 Battle engine package — `packages/battle-engine`
 
+**2026-09-05 (V3 engine PR 4).** Bridge moved to the per-turn contract (`InitBattle`, `StartTurn`, `PlayTurn`, `UpdateBar`, `SetClock`, `BattleEnd`, `ShowSelection`; callbacks `onUnityReady`, `onLobsterSelected`, `onHexClicked`, `onTurnAnimationComplete`). Web: `apps/web/src/components/battle/{LiveBattle,BattleStage,HexBoard,Hud,ActionPanel,DamageLog}.tsx`, `hooks/use-battle-session.ts` (WS client, animation gating, reconnect), `/battle/[id]` is the live page for real and practice battles, `/game/battle` has a Practice tab. The WebGL artifact is gitignored; `apps/web/.vercelignore` lets the CLI deploy upload it; `next.config.ts` serves the Brotli files with the right headers. The SVG board is the fallback when the build is absent.
+
 **Desired Outcome.** Unity 6 WebGL build that renders the live battle on the `/battle/[id]` page. React drives game state in via `SendMessage`; Unity calls back via `JSBridge.jslib` on player commits. WebGL artifacts ship to `apps/web/public/unity-build/` and are loaded by `react-unity-webgl`.
 
 **Current State.**
@@ -754,7 +758,7 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
   - `Editor/ArenaAuthoringTool*.cs` — in-editor arena layout authoring + JSON exporter.
 - **React side wired up** — `apps/web/src/lib/battle-anim/` is the *animation rig / prototype* used to design choreography, easing, palette FX, particles per Special. Lives alongside (not in place of) the Unity viewer. The battle page is configured to load `unity-build/` artifacts via `react-unity-webgl`.
 - **Asset directories scaffolded** (empty, awaiting designer drops): `Art/Arenas/{Evolved,Elite,Apex}/`, `Art/Characters/`, `Art/HexTiles/`, `Art/Obstacles/`, `Art/UI/`, `Prefabs/Lobsters/`, `Prefabs/VFX/`, `Audio/Music/`, `Audio/SFX/`.
-- **WebGL build target**: Brotli compression, 256 MB memory, output to `../../apps/web/public/unity-build/` (`battle.loader.js`, `battle.data.br`, `battle.framework.js.br`, `battle.wasm.br`).
+- **WebGL build target**: `BuildScript.BuildWebGL` — Brotli + decompression fallback, 256 MB memory, output to `apps/web/public/unity-build/` (`Build/unity-build.loader.js`, `unity-build.data.unityweb`, `unity-build.framework.js.unityweb`, `unity-build.wasm.unityweb`; ~8 MB total, first built 2026-09-05).
 
 **Open Items.**
 - Drop arena art into `Art/Arenas/{Evolved,Elite,Apex}/` and lobster sprites into `Art/Characters/`.
@@ -836,7 +840,7 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 > Locked 2026-05-20: this is the project-wide top blocker, ahead of testnet deploy. Saved as durable memory.
 
 1. **Designer pass — arena / lobster / UI / VFX / audio assets.** Drop into the scaffolded directories under `packages/battle-engine/ClawbadaBattle/Assets/`: `Art/Arenas/{Evolved,Elite,Apex}/`, `Art/Characters/`, `Art/HexTiles/`, `Art/Obstacles/`, `Art/UI/`, `Prefabs/Lobsters/`, `Prefabs/VFX/`, `Audio/Music/`, `Audio/SFX/`. Currently empty; this is the gate.
-2. **First WebGL build.** Unity → File → Build Settings → Web → Brotli compression, 256 MB memory, output to `../../apps/web/public/unity-build/`. Expected artifacts: `battle.loader.js`, `battle.data.br`, `battle.framework.js.br`, `battle.wasm.br`.
+2. **WebGL build.** Headless: `Unity -batchmode -nographics -quit -projectPath packages/battle-engine/ClawbadaBattle -executeMethod BuildScript.BuildWebGL -logFile build.log` (or **Clawbada → Build WebGL** in the editor). Artifacts land in `apps/web/public/unity-build/Build/` as `unity-build.loader.js` + `*.unityweb` (gitignored; deploy with `npx vercel deploy --prod`, which honours `apps/web/.vercelignore`).
 3. **Bridge verification on `/battle/[id]`.** Confirm `react-unity-webgl` loads the build and the React ↔ Unity round-trip works end-to-end: React `SendMessage` → `BattleBridge.cs` → `BattleManager` → callbacks via `JSBridge.jslib` → `window.__clawbada.*`. Editor-mode parity is not sufficient — must run in browser.
 4. **Gameplay playtesting.** Validate battle readability, pacing, target selection, movement, specials, timers, UX. Tune before exposing testnet users. The pure-math engine in `packages/game-logic` is solid; the open question is whether the *experience* lands.
 

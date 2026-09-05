@@ -9,6 +9,7 @@
     "test": "bun run test:unit && bun run test:session",
     "test:unit": "bun test src/__tests__/*.test.ts src/__tests__/routes",
     "test:session": "bun test src/__tests__/battle-session",
+    "play-practice": "bun run scripts/play-practice.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
