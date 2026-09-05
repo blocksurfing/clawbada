@@ -48,25 +48,6 @@ export const BreedingLabAbi = [
   },
   {
     "type": "function",
-    "name": "BREED_MULTIPLIERS",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "FINALIZE_MIN_BLOCKS",
     "inputs": [],
     "outputs": [
@@ -462,6 +443,17 @@ export const BreedingLabAbi = [
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "BreedCountOutOfRange",
+    "inputs": [
+      {
+        "name": "breedCount",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
   },
   {
     "type": "error",
