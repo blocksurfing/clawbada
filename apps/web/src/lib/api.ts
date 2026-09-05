@@ -311,7 +311,6 @@ interface ChainBattleData {
   teamIdB: string;
   stakeAmount: string;
   phase: number;
-  currentRound: number;
   winner: string;
   depositA: boolean;
   depositB: boolean;
@@ -319,10 +318,10 @@ interface ChainBattleData {
   teamCommitB: string;
   teamRevealedA: boolean;
   teamRevealedB: boolean;
-  roundCommitA: string;
-  roundCommitB: string;
-  roundRevealedA: boolean;
-  roundRevealedB: boolean;
+  /** V3 settle proposal (AwaitingFinalize+): address(0) == draw. */
+  proposedWinner: string;
+  finalStateHash: string;
+  turnLogHash: string;
 }
 
 interface DbBattleData {
@@ -386,10 +385,6 @@ const combat = {
   // F5-01: reveal returns a status (not calldata) — the resolver submits the atomic tx.
   revealTeam: (battleId: string, teamId: string, salt: string, auth: AuthHeaders) =>
     post<TeamRevealResponse>(`/api/game/combat/${battleId}/reveal-team`, { teamId, salt }, auth),
-  commitMoves: (battleId: string, commitHash: string, auth: AuthHeaders) =>
-    post<StepsResponse>(`/api/game/combat/${battleId}/commit-moves`, { commitHash }, auth),
-  revealMoves: (battleId: string, moveData: string, salt: string, auth: AuthHeaders) =>
-    post<StepsResponse>(`/api/game/combat/${battleId}/reveal-moves`, { moveData, salt }, auth),
 };
 
 // ── Leaderboard ──

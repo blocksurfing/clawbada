@@ -308,7 +308,6 @@ function ActiveBattleView({
           battleId={battleId}
           address={address}
           battleData={battleData}
-          rounds={rounds}
         />
       )}
 

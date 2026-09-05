@@ -23,14 +23,11 @@
  * - VRF beacon polling (drand integration)
  */
 import { log } from './logger';
-import { CombatResolver } from './combat/resolver';
-import { BattleStateMachine } from './combat/state-machine';
 import { MiningTimer } from './mining/timer';
 import { SeasonManager } from './seasons/manager';
 import { DrandClient } from './vrf/drand';
 import { OperatorWorker } from './operator/worker';
 import { createBattleHandler } from './operator/jobs/create-battle';
-import { resolveRoundHandler } from './operator/jobs/resolve-round';
 import { setTeamBoostsHandler } from './operator/jobs/set-team-boosts';
 import { activateBoostEpochHandler } from './operator/jobs/activate-boost-epoch';
 import { wrapHandler } from './operator/errors';
@@ -45,12 +42,6 @@ async function main() {
 
   // ──── Initialize services ────
   const drand = new DrandClient();
-  const resolver = new CombatResolver();
-  // stateMachine intentionally kept around — PR-C registers a resolve_round
-  // handler that delegates to it. Today it's idle (no caller invokes
-  // trackBattle since the legacy engine matchmaker was deleted).
-  const stateMachine = new BattleStateMachine(resolver, drand);
-  void stateMachine;
   const mining = new MiningTimer();
   const seasons = new SeasonManager();
 
@@ -97,12 +88,10 @@ async function main() {
   // contract revert (e.g. InvalidPowerScore) goes dead-no-retry instead
   // of burning all 5 transient retry slots.
   operatorWorker.registerHandler('create_battle', wrapHandler(createBattleHandler));
-  // PR-C: handler for `resolve_round` jobs queued by the indexer when it
-  // sees both MoveRevealed events for a round on chain. The handler reads
-  // chain state, replays prior rounds from on_chain_events, resolves the
-  // current round, persists battle_rounds, and submits advanceRound (or
-  // settle if the resolver reports finished). Closes X2.
-  operatorWorker.registerHandler('resolve_round', wrapHandler(resolveRoundHandler));
+  // V3: battle turns run off-chain in the API's session manager; the engine's
+  // only settlement duty is the `settle_battle` outbox job (lands with the
+  // session-manager PR). The V2 `resolve_round` handler is gone with the
+  // on-chain round loop.
   // Battle-rank mining boost: the weekly epoch job below enqueues these; the
   // handlers sign with the BOOST_ADMIN key (falls back to OPERATOR on testnet).
   operatorWorker.registerHandler('set_team_boosts', wrapHandler(setTeamBoostsHandler));

@@ -141,7 +141,6 @@ export function mockBattle(overrides: Record<string, any> = {}) {
     teamIdB: 2n,
     stakeAmount: 2500n,
     phase: 0,
-    currentRound: 0,
     winner: '0x0000000000000000000000000000000000000000',
     depositA: false,
     depositB: false,
@@ -149,10 +148,9 @@ export function mockBattle(overrides: Record<string, any> = {}) {
     teamCommitB: '0x0',
     teamRevealedA: false,
     teamRevealedB: false,
-    roundCommitA: '0x0',
-    roundCommitB: '0x0',
-    roundRevealedA: false,
-    roundRevealedB: false,
+    proposedWinner: '0x0000000000000000000000000000000000000000',
+    finalStateHash: '0x0',
+    turnLogHash: '0x0',
     ...overrides,
   };
 }

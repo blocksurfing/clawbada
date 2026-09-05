@@ -2,8 +2,13 @@
  * Watches BattleArena events and syncs battle state to DB.
  *
  * Events: BattleCreated, StakeDeposited, TeamCommitted, TeamRevealed,
- *         MoveCommitted, MoveRevealed, BattleSettled, BattleCancelled,
+ *         BattleProposed, BattleSettled, BattleCancelled,
  *         DamageApplied, AntiGriefSlashed
+ *
+ * V3: battle turns run off-chain; there are no per-round MoveCommitted /
+ * MoveRevealed events any more and nothing here enqueues round resolution.
+ * BattleProposed now carries the two battle commitments (finalStateHash,
+ * turnLogHash) and a proposedWinner of address(0) means a draw.
  *
  * F-3D / F-Z1 (PR 8): the StakeDeposited / TeamCommitted / TeamRevealed
  * handlers read chain battle state after each event lands, then update
@@ -23,7 +28,6 @@ import {
   battles,
   battleRounds,
   agents,
-  operatorJobs,
   applyBattleOutcome,
   currentBoostEpochId,
   recordParticipation,
@@ -35,12 +39,14 @@ import { EventWatcher, type WatcherConfig } from '../lib/event-processor';
 // module-scope name. Pino logger calls below use `pinoLog.warn(...)`.
 import { log as pinoLog } from '../logger';
 
-const isTestnet = process.env.CHAIN_ENV !== 'mainnet';
-
 /** F-3D: zero hash sentinel used by Solidity to indicate "no commit yet"
  *  on the Battle struct's teamCommitA/B fields. Compared by string. */
 const ZERO_BYTES32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
+/** V3: `winner == address(0)` on BattleProposed / BattleSettled means a draw. */
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+const isTestnet = process.env.CHAIN_ENV !== 'mainnet';
 
 /** PR-8-FU LOW-04: lazy module-scope arena cache. Avoids reconstructing
  *  the viem `PublicClient` + contract wrapper on every chain read — the
@@ -115,7 +121,6 @@ export class BattleWatcher extends EventWatcher {
     address: addresses.battleArena,
     events: [
       'BattleCreated', 'StakeDeposited', 'TeamCommitted', 'TeamRevealed',
-      'MoveCommitted', 'MoveRevealed',
       // X12: BattleProposed fires from settle() — proposes the outcome and
       // opens the H-01 dispute window. Drives DB phase to AwaitingFinalize (5).
       'BattleProposed',
@@ -277,6 +282,21 @@ export class BattleWatcher extends EventWatcher {
           .set({ phase: 5 }) // BattlePhase.AwaitingFinalize
           .where(and(eq(battles.battleId, battleId), lt(battles.phase, 5)));
 
+        // V3: the proposal carries the battle commitments. Logged here; the
+        // battle-session tables that persist them land with the session manager.
+        pinoLog.info(
+          {
+            battleId: battleId.toString(),
+            proposedWinner: (args.proposedWinner as string | undefined)?.toLowerCase() ?? null,
+            isDraw: (args.proposedWinner as string | undefined)?.toLowerCase() === ZERO_ADDRESS,
+            finalStateHash: args.finalStateHash,
+            turnLogHash: args.turnLogHash,
+            module: 'battle-watcher',
+            op: 'BattleProposed',
+          },
+          'settlement proposed',
+        );
+
         // Boost: the match has been fought to a result, so this is where a
         // battle counts as PLAYED for boost qualification (played, never
         // won) - the outcome is not final until BattleSettled.
@@ -342,6 +362,44 @@ export class BattleWatcher extends EventWatcher {
             .from(battleRounds)
             .where(eq(battleRounds.battleId, battleId));
           const totalRounds = Number(maxRoundRow?.max ?? 0);
+
+          // V3 draw: `_executePayout(winner == address(0))` refunds both sides with
+          // no fee. Nobody won, so wallet ELO / win-loss and the team rating are
+          // left untouched (the rating math is winner/loser only); the match still
+          // counts as PLAYED for boost qualification.
+          if (winnerLower === ZERO_ADDRESS) {
+            await tx
+              .update(battles)
+              .set({
+                winner: null,
+                phase: 6, // Settled
+                settledAt: new Date(),
+                winnerPayout: '0',
+                protocolFee: '0',
+                totalRounds,
+              })
+              .where(eq(battles.battleId, battleId));
+
+            const drawTeams = resolveBattleTeams(existing);
+            if (drawTeams) {
+              const epochId = await currentBoostEpochId(tx);
+              await recordParticipation(tx, { battleId, teamId: drawTeams.teamA, opponentTeamId: drawTeams.teamB, epochId });
+              await recordParticipation(tx, { battleId, teamId: drawTeams.teamB, opponentTeamId: drawTeams.teamA, epochId });
+            }
+
+            pinoLog.info(
+              {
+                battleId: battleId.toString(),
+                totalRounds,
+                teamA: drawTeams?.teamA.toString(),
+                teamB: drawTeams?.teamB.toString(),
+                module: 'battle-watcher',
+                op: 'BattleSettled',
+              },
+              'draw settled: mutual refund, no rating change, participation recorded',
+            );
+            return;
+          }
 
           await tx
             .update(battles)
@@ -469,49 +527,7 @@ export class BattleWatcher extends EventWatcher {
         break;
       }
 
-      case 'MoveRevealed': {
-        // PR-C X2: when both players have revealed for the current round,
-        // enqueue a `resolve_round` operator job. The engine's
-        // resolveRoundHandler reads chain state, replays prior rounds
-        // from on_chain_events (this watcher already stored the args via
-        // event-processor.ts:115), resolves the round, persists
-        // battle_rounds, and submits advanceRound or settle.
-        //
-        // Read the chain to confirm both reveals are present for the
-        // CURRENT round (the second MoveRevealed event for round R could
-        // arrive in a batch with the first; we only enqueue once both are
-        // visible). UNIQUE idempotency_key prevents duplicate enqueue.
-        const battleId = BigInt(args.battleId);
-        const eventRound = Number(args.round);
-        try {
-          const client = getPublicClient(isTestnet) as any;
-          const arena = getBattleArena(client);
-          const b = await arena.read.getBattle([battleId]);
-          if (
-            b.roundRevealedA &&
-            b.roundRevealedB &&
-            Number(b.currentRound) === eventRound
-          ) {
-            await db
-              .insert(operatorJobs)
-              .values({
-                jobType: 'resolve_round',
-                payload: { battleId: battleId.toString(), round: eventRound },
-                idempotencyKey: `resolve_round:${battleId.toString()}:${eventRound}`,
-              })
-              .onConflictDoNothing();
-          }
-        } catch (err) {
-          pinoLog.warn(
-            { err, battleId: battleId.toString(), round: eventRound, module: 'battle-watcher', op: 'MoveRevealed' },
-            'failed to enqueue resolve_round; relying on next MoveRevealed event or backfill',
-          );
-        }
-        break;
-      }
-
       // Other events logged in on_chain_events via base class
-      case 'MoveCommitted':
       case 'DamageApplied':
       case 'AntiGriefSlashed':
         break;

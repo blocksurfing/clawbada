@@ -308,7 +308,6 @@ export interface ChainBattle {
   teamIdB: bigint;
   stakeAmount: bigint;
   phase: number;
-  currentRound: number;
   winner: string;
   depositA: boolean;
   depositB: boolean;
@@ -316,10 +315,12 @@ export interface ChainBattle {
   teamCommitB: string;
   teamRevealedA: boolean;
   teamRevealedB: boolean;
-  roundCommitA: string;
-  roundCommitB: string;
-  roundRevealedA: boolean;
-  roundRevealedB: boolean;
+  /** V3 settle proposal, populated from AwaitingFinalize onward. `proposedWinner`
+   *  is address(0) for a draw; the two hashes commit to the off-chain battle
+   *  (canonical final state; {battleId, VRF seed, layout, roster, turn log}). */
+  proposedWinner: string;
+  finalStateHash: string;
+  turnLogHash: string;
   /** X13: deadline clocks for the X-13 handleTimeout button. The contract
    *  uses `phaseDeadline` for Deposit/TeamCommit/TeamReveal/Active and
    *  `payoutDeadline` for AwaitingFinalize (BattleArena.sol:734). Both are
@@ -347,7 +348,6 @@ export async function readBattle(battleId: bigint): Promise<ChainBattle> {
       teamIdB: data.teamIdB,
       stakeAmount: data.stakeAmount,
       phase: data.phase,
-      currentRound: data.currentRound,
       winner: data.winner as string,
       depositA: data.depositA,
       depositB: data.depositB,
@@ -355,10 +355,9 @@ export async function readBattle(battleId: bigint): Promise<ChainBattle> {
       teamCommitB: data.teamCommitB as string,
       teamRevealedA: data.teamRevealedA,
       teamRevealedB: data.teamRevealedB,
-      roundCommitA: data.roundCommitA as string,
-      roundCommitB: data.roundCommitB as string,
-      roundRevealedA: data.roundRevealedA,
-      roundRevealedB: data.roundRevealedB,
+      proposedWinner: data.proposedWinner as string,
+      finalStateHash: data.finalStateHash as string,
+      turnLogHash: data.turnLogHash as string,
       // X13: expose deadlines for the handleTimeout button.
       phaseDeadline: data.phaseDeadline,
       payoutDeadline: data.payoutDeadline,
