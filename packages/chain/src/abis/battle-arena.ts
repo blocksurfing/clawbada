@@ -37,6 +37,19 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
+    "name": "ACTIVE_WINDOW",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "ANTI_GRIEF_BPS",
     "inputs": [],
     "outputs": [
@@ -50,33 +63,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "AUTO_FORFEIT_THRESHOLD",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "BPS_DENOMINATOR",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "COMMIT_WINDOW",
     "inputs": [],
     "outputs": [
       {
@@ -180,19 +167,6 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "MAX_ROUNDS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "MAX_TEAM_POWER",
     "inputs": [],
     "outputs": [
@@ -284,19 +258,6 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "REVEAL_WINDOW",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "STAKE_BRACKETS",
     "inputs": [
       {
@@ -374,27 +335,24 @@ export const BattleArenaAbi = [
         "internalType": "address"
       },
       {
-        "name": "winnerDamage",
+        "name": "finalStateHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "turnLogHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "damageA",
         "type": "uint8[3]",
         "internalType": "uint8[3]"
       },
       {
-        "name": "loserDamage",
+        "name": "damageB",
         "type": "uint8[3]",
         "internalType": "uint8[3]"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "advanceRound",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -425,24 +383,6 @@ export const BattleArenaAbi = [
       }
     ],
     "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "commitMoves",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "commitHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -669,26 +609,6 @@ export const BattleArenaAbi = [
             "internalType": "enum BattleArena.BattlePhase"
           },
           {
-            "name": "currentRound",
-            "type": "uint8",
-            "internalType": "uint8"
-          },
-          {
-            "name": "lastVerifiedRound",
-            "type": "uint8",
-            "internalType": "uint8"
-          },
-          {
-            "name": "consecutiveTimeoutsA",
-            "type": "uint8",
-            "internalType": "uint8"
-          },
-          {
-            "name": "consecutiveTimeoutsB",
-            "type": "uint8",
-            "internalType": "uint8"
-          },
-          {
             "name": "powerA",
             "type": "uint8",
             "internalType": "uint8"
@@ -744,26 +664,6 @@ export const BattleArenaAbi = [
             "internalType": "bool"
           },
           {
-            "name": "roundCommitA",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "roundCommitB",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "roundRevealedA",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "roundRevealedB",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
             "name": "proposedWinner",
             "type": "address",
             "internalType": "address"
@@ -779,14 +679,24 @@ export const BattleArenaAbi = [
             "internalType": "bool"
           },
           {
-            "name": "proposedWinnerDamage",
+            "name": "proposedDamageA",
             "type": "uint8[3]",
             "internalType": "uint8[3]"
           },
           {
-            "name": "proposedLoserDamage",
+            "name": "proposedDamageB",
             "type": "uint8[3]",
             "internalType": "uint8[3]"
+          },
+          {
+            "name": "finalStateHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "turnLogHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
             "name": "disputer",
@@ -1035,29 +945,6 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "revealMoves",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "moveData",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "salt",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "revealTeams",
     "inputs": [
       {
@@ -1122,12 +1009,22 @@ export const BattleArenaAbi = [
         "internalType": "address"
       },
       {
-        "name": "winnerDamage",
+        "name": "finalStateHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "turnLogHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "damageA",
         "type": "uint8[3]",
         "internalType": "uint8[3]"
       },
       {
-        "name": "loserDamage",
+        "name": "damageB",
         "type": "uint8[3]",
         "internalType": "uint8[3]"
       }
@@ -1351,6 +1248,18 @@ export const BattleArenaAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "finalStateHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "turnLogHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
       }
     ],
     "anonymous": false
@@ -1588,62 +1497,6 @@ export const BattleArenaAbi = [
   },
   {
     "type": "event",
-    "name": "MoveCommitted",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "round",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "uint8"
-      },
-      {
-        "name": "player",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "MoveRevealed",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "round",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "uint8"
-      },
-      {
-        "name": "player",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "moveData",
-        "type": "bytes",
-        "indexed": false,
-        "internalType": "bytes"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "RoleAdminChanged",
     "inputs": [
       {
@@ -1713,25 +1566,6 @@ export const BattleArenaAbi = [
         "type": "address",
         "indexed": true,
         "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RoundStarted",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "round",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "uint8"
       }
     ],
     "anonymous": false
@@ -1855,17 +1689,6 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
-    "name": "AlreadyRevealed",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "BattleDoesNotExist",
     "inputs": [
       {
@@ -1878,28 +1701,6 @@ export const BattleArenaAbi = [
   {
     "type": "error",
     "name": "BattleIsDisputed",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "BothCommitsRequired",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "BothRevealsRequired",
     "inputs": [
       {
         "name": "battleId",
@@ -2050,6 +1851,17 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidSettlementHash",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidStakeAmount",
     "inputs": [
       {
@@ -2115,17 +1927,6 @@ export const BattleArenaAbi = [
         "name": "actual",
         "type": "uint8",
         "internalType": "uint8"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "MaxRoundsReached",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ]
   },
@@ -2202,17 +2003,6 @@ export const BattleArenaAbi = [
         "name": "token",
         "type": "address",
         "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "SettlementRequiresVerifiedRound",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ]
   },
