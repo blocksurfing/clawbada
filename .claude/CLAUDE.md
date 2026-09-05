@@ -171,7 +171,8 @@ Battles take place on a **6×5 pointy-top offset hex grid** (30 total hexes). Mo
 - **Teams spawn on opposite sides** (Team A left, Team B right)
 - Blocked hexes create chokepoints and force strategic pathing
 - **One lobster per hex** (no stacking), lobsters do not block movement (can path around)
-- **S2-3**: procedural board generation with obstacle asset pools (rocks, crates, treasure chests, sunken ships, fire pits, lava flows)
+- **S1**: blocked-hex placement is procedural and deterministic — `v3.generateLayout(vrfSeed, tier)` derives 5–6 interior blocked hexes from the battle's VRF seed (never on a spawn, board always connected), and the server ships the layout to both clients in `InitBattle.arena`
+- **S2-3**: themed obstacle asset pools per tier (rocks, crates, treasure chests, sunken ships, fire pits, lava flows) and designer-authored layouts selected by seed
 
 #### Movement Ranges by Class
 
@@ -235,7 +236,7 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
      - Controlling player has 60s shot clock to commit Move + Action
      - Auto-Defend on timeout
      - Server resolves the action, animates, advances bar, places next tick
-   Battle ends on team wipeout (or 100-turn hard cap with HP% tiebreak)
+   Battle ends on team wipeout (or 100-turn hard cap: HP% tiebreak, then damage dealt, then draw)
    Full turn log persisted server-side for replay/dispute
    ~3-5 minutes typical match duration
 
@@ -382,7 +383,7 @@ Note: status effect durations are in **turns of the affected lobster** (since AT
 5. Charges granted; ATB bar updated with current lobster's next-tick
 6. Animation plays, control passes to next lobster's player
 
-**Win condition:** Eliminate all 3 enemy lobsters. Hard cap: 100 total turns with HP% tiebreak as a griefer cutoff (rarely reached in real games).
+**Win condition:** Eliminate all 3 enemy lobsters (mutual wipeout = draw). Hard cap: 100 total turns as a griefer cutoff (rarely reached in real games) — tiebreak by remaining HP%, then by total damage dealt (so a passive team cannot secure a draw by refusing to engage), then draw.
 
 **Battle pacing:** Turns 1-6 typically establish positioning; Specials become available from each lobster's 3rd turn (or 2nd if Defending). Fast classes get more turns on the bar — a Mantis (130 Spd) takes ~1.86× as many turns as a Leviathan (70 Spd) over the same battle window. Most battles resolve in 24-36 total turns (~3-5 minutes).
 
@@ -465,7 +466,7 @@ enhanced_chance = 5% + (5% × purity_score)
 
 **Rating-banded pairing ships in S1** (pulled forward from S1.5 on 2026-09-02 — load-bearing for the battle-rank mining boost).
 **Cancel-rate throttling** deferred — telemetry-only at launch.
-**Procedurally generated arena layouts**: S2-3 enhancement.
+**Arena layouts**: blocked-hex placement is VRF-derived and deterministic from S1 (`generateLayout`); themed terrain art and designer layouts are the S2-3 enhancement.
 
 #### Trust Model & Dispute System
 Battle outcomes are **server-authoritative during play** with **on-chain dispute resolution** as a backstop. The rollout has two stages — see `~/.claude/projects/-Users-alepore-Clawbada/memory/project_battle_v2_redesign.md` for full S1/S2 detail:
