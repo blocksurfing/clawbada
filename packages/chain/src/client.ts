@@ -25,7 +25,7 @@ export function getWalletClient(testnet = false) {
 
 /**
  * Returns a wallet client configured with the server operator key.
- * Used for privileged on-chain actions: createBattle, settle, advanceRound, submitVRF.
+ * Used for privileged on-chain actions: createBattle, settle, submitVRF.
  * Requires OPERATOR_PRIVATE_KEY env var.
  *
  * Codex cross-cutting HIGH-1: kept for backwards-compat (e.g., season
@@ -53,7 +53,7 @@ export function getMatchmakerClient(testnet = false): any {
   return walletFromKey(key, testnet);
 }
 
-/** Codex cross-cutting HIGH-1: separate signer for `advanceRound` and
+/** Codex cross-cutting HIGH-1: separate signer for `settle` and
  *  `settle` calls (RESOLVER_ROLE). Same fallback semantics as
  *  getMatchmakerClient. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

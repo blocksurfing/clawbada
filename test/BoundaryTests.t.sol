@@ -150,6 +150,9 @@ contract BoundaryTests is Test {
     uint256 constant STAKE_LOW = 2_500e18;
     uint256 constant STAKE_MID = 10_000e18;
     uint256 constant STAKE_HIGH = 50_000e18;
+    // V3 settle commitments (any non-zero value)
+    bytes32 constant HASH_STATE = keccak256("final-state");
+    bytes32 constant HASH_LOG = keccak256("turn-log");
 
     function setUp() public {
         vm.startPrank(admin);
@@ -560,11 +563,6 @@ contract BoundaryTests is Test {
     function test_boundary_settleWithPlayerBAsWinner() public {
         (uint256 battleId,,) = _setupActiveBattle();
 
-        bytes memory movesA = hex"010203";
-        bytes memory movesB = hex"040506";
-        (bytes32 sA, bytes32 sB) = _commitBattleMoves(battleId, movesA, movesB);
-        _revealBattleMoves(battleId, movesA, movesB, sA, sB);
-
         uint256 bobBalBefore = claw.balanceOf(bob);
         uint256 antiGrief = STAKE_LOW * 500 / 10_000;
         uint256 combinedPot = STAKE_LOW * 2;
@@ -573,7 +571,7 @@ contract BoundaryTests is Test {
 
         // Bob wins (not alice) — H-01: settle proposes, finalize pays
         vm.prank(resolver);
-        arena.settle(battleId, bob, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, bob, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
         vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         arena.finalizeBattle(battleId);
 
@@ -588,15 +586,10 @@ contract BoundaryTests is Test {
         TeamManager.Team memory teamA = tm.getTeam(teamIdA);
         _setDamage(teamA.lobsterIds[0], 90);
 
-        bytes memory movesA = hex"010203";
-        bytes memory movesB = hex"040506";
-        (bytes32 sA, bytes32 sB) = _commitBattleMoves(battleId, movesA, movesB);
-        _revealBattleMoves(battleId, movesA, movesB, sA, sB);
-
         // Settle with 15 more damage → 90 + 15 = 105, but should cap at 100
         // H-01: damage application now happens in finalizeBattle, not settle
         vm.prank(resolver);
-        arena.settle(battleId, alice, [uint8(15), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(15), 5, 8], [uint8(30), 25, 35]);
         vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         arena.finalizeBattle(battleId);
 
@@ -607,15 +600,10 @@ contract BoundaryTests is Test {
     function test_boundary_settleInvalidWinnerReverts() public {
         (uint256 battleId,,) = _setupActiveBattle();
 
-        bytes memory movesA = hex"010203";
-        bytes memory movesB = hex"040506";
-        (bytes32 sA, bytes32 sB) = _commitBattleMoves(battleId, movesA, movesB);
-        _revealBattleMoves(battleId, movesA, movesB, sA, sB);
-
         address nobody = makeAddr("nobody");
         vm.prank(resolver);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidWinner.selector, battleId));
-        arena.settle(battleId, nobody, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, nobody, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -1391,29 +1379,4 @@ contract BoundaryTests is Test {
         arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
     }
 
-    function _commitBattleMoves(uint256 battleId, bytes memory movesA, bytes memory movesB)
-        internal
-        returns (bytes32 saltA, bytes32 saltB)
-    {
-        BattleArena.Battle memory b = arena.getBattle(battleId);
-        saltA = bytes32("moveSaltA");
-        saltB = bytes32("moveSaltB");
-
-        bytes32 commitA = keccak256(abi.encodePacked(battleId, b.currentRound, alice, movesA, saltA));
-        bytes32 commitB = keccak256(abi.encodePacked(battleId, b.currentRound, bob, movesB, saltB));
-
-        vm.prank(alice);
-        arena.commitMoves(battleId, commitA);
-        vm.prank(bob);
-        arena.commitMoves(battleId, commitB);
-    }
-
-    function _revealBattleMoves(uint256 battleId, bytes memory movesA, bytes memory movesB, bytes32 saltA, bytes32 saltB)
-        internal
-    {
-        vm.prank(alice);
-        arena.revealMoves(battleId, movesA, saltA);
-        vm.prank(bob);
-        arena.revealMoves(battleId, movesB, saltB);
-    }
 }

@@ -10,9 +10,9 @@ import {TeamManager} from "../../TeamManager.sol";
 import {LobsterNFT} from "../../LobsterNFT.sol";
 
 /// @dev Stateful invariant harness for BattleArena. The handler drives the full
-///      deposit → team commit/reveal → round commit/reveal → settle/dispute/
-///      finalize → timeout state machine; this contract only reads state and
-///      asserts the cross-cutting properties.
+///      deposit → team commit/reveal → (off-chain battle) → settle (win or draw) /
+///      dispute / finalize → timeout state machine; this contract only reads state
+///      and asserts the cross-cutting properties.
 contract InvariantBattleArena is Test {
     BattleArenaHandler internal handler;
 
@@ -23,52 +23,18 @@ contract InvariantBattleArena is Test {
         // Restrict fuzzer to handler_* entrypoints so it doesn't call the
         // inherited BaseSetup.setUp() (which would re-deploy contracts and
         // orphan the battleIds[] ghost array).
-        bytes4[] memory selectors = new bytes4[](13);
-        selectors[0]  = BattleArenaHandler.handler_createAndDeposit.selector;
-        selectors[1]  = BattleArenaHandler.handler_commitTeams.selector;
-        selectors[2]  = BattleArenaHandler.handler_revealTeams.selector;
-        selectors[3]  = BattleArenaHandler.handler_commitMoves.selector;
-        selectors[4]  = BattleArenaHandler.handler_revealMoves.selector;
-        selectors[5]  = BattleArenaHandler.handler_advanceRound.selector;
-        selectors[6]  = BattleArenaHandler.handler_settle.selector;
-        selectors[7]  = BattleArenaHandler.handler_dispute.selector;
-        selectors[8]  = BattleArenaHandler.handler_finalize.selector;
-        selectors[9]  = BattleArenaHandler.handler_adminResolve.selector;
-        selectors[10] = BattleArenaHandler.handler_handleTimeout.selector;
-        selectors[11] = BattleArenaHandler.handler_emergencyWithdraw.selector;
-        selectors[12] = BattleArenaHandler.handler_warp.selector;
+        bytes4[] memory selectors = new bytes4[](10);
+        selectors[0] = BattleArenaHandler.handler_createAndDeposit.selector;
+        selectors[1] = BattleArenaHandler.handler_commitTeams.selector;
+        selectors[2] = BattleArenaHandler.handler_revealTeams.selector;
+        selectors[3] = BattleArenaHandler.handler_settle.selector;
+        selectors[4] = BattleArenaHandler.handler_dispute.selector;
+        selectors[5] = BattleArenaHandler.handler_finalize.selector;
+        selectors[6] = BattleArenaHandler.handler_adminResolve.selector;
+        selectors[7] = BattleArenaHandler.handler_handleTimeout.selector;
+        selectors[8] = BattleArenaHandler.handler_emergencyWithdraw.selector;
+        selectors[9] = BattleArenaHandler.handler_warp.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
-    }
-
-    // ─── I-1: currentRound never exceeds MAX_ROUNDS ───────────────
-    //
-    // N-01 was a concrete failure of this property (round 7 → 8 via
-    // _handleActiveTimeout). Invariant keeps that regression honest
-    // across every path the fuzzer exercises.
-    function invariant_currentRoundBounded() public view {
-        BattleArena arena = handler.getBattleArena();
-        uint8 maxRounds = arena.MAX_ROUNDS();
-        uint256 n = handler.battleIdsLength();
-        for (uint256 i = 0; i < n; i++) {
-            uint256 battleId = handler.battleIds(i);
-            BattleArena.Battle memory b = arena.getBattle(battleId);
-            assertLe(b.currentRound, maxRounds, "currentRound > MAX_ROUNDS");
-        }
-    }
-
-    // ─── I-2: lastVerifiedRound never exceeds currentRound ────────
-    //
-    // revealMoves sets lastVerifiedRound = currentRound only when both
-    // sides have revealed. advanceRound bumps currentRound, resets the
-    // reveal flags — but lastVerifiedRound must never overtake it.
-    function invariant_lastVerifiedRoundLeCurrentRound() public view {
-        BattleArena arena = handler.getBattleArena();
-        uint256 n = handler.battleIdsLength();
-        for (uint256 i = 0; i < n; i++) {
-            uint256 battleId = handler.battleIds(i);
-            BattleArena.Battle memory b = arena.getBattle(battleId);
-            assertLe(b.lastVerifiedRound, b.currentRound, "lastVerifiedRound > currentRound");
-        }
     }
 
     // ─── I-3: escrow coverage ─────────────────────────────────────
@@ -135,31 +101,38 @@ contract InvariantBattleArena is Test {
         }
     }
 
-    // ─── I-5: winner is always a participant once set ─────────────
+    // ─── I-5: winner is a participant, or address(0) for a V3 draw ──
     //
-    // settle() / adminResolveDispute rejects non-participants; but both
+    // settle() / adminResolveDispute reject non-participants; but both
     // paths could go through buggy alternative flows. Invariant catches
-    // any path that writes b.winner to a non-participant address.
-    function invariant_winnerIsParticipant() public view {
+    // any path that writes b.winner to a non-participant address. A
+    // Settled battle with winner == address(0) is a draw and must carry
+    // the two battle commitments that every settlement records.
+    function invariant_winnerIsParticipantOrDraw() public view {
         BattleArena arena = handler.getBattleArena();
         uint256 n = handler.battleIdsLength();
 
         for (uint256 i = 0; i < n; i++) {
             uint256 battleId = handler.battleIds(i);
             BattleArena.Battle memory b = arena.getBattle(battleId);
-            if (b.winner == address(0)) continue;
-            assertTrue(
-                b.winner == b.playerA || b.winner == b.playerB,
-                "winner is not a battle participant"
-            );
+            if (b.winner != address(0)) {
+                assertTrue(
+                    b.winner == b.playerA || b.winner == b.playerB,
+                    "winner is not a battle participant"
+                );
+            } else if (b.phase == BattleArena.BattlePhase.Settled) {
+                assertTrue(b.finalStateHash != bytes32(0), "settled draw without finalStateHash");
+                assertTrue(b.turnLogHash != bytes32(0), "settled draw without turnLogHash");
+            }
         }
     }
 
-    // ─── I-6: AwaitingFinalize battles have a proposed winner ─────
+    // ─── I-6: AwaitingFinalize battles carry a complete proposal ──
     //
-    // settle() always sets proposedWinner before transitioning; anything
-    // that lands in AwaitingFinalize without a valid proposedWinner is a
-    // bug in the phase machine.
+    // settle() always records proposedWinner (participant or address(0)
+    // for a draw), both battle hashes and the payout deadline before
+    // transitioning; anything that lands in AwaitingFinalize without them
+    // is a bug in the phase machine.
     function invariant_awaitingFinalizeHasProposal() public view {
         BattleArena arena = handler.getBattleArena();
         uint256 n = handler.battleIdsLength();
@@ -169,10 +142,44 @@ contract InvariantBattleArena is Test {
             BattleArena.Battle memory b = arena.getBattle(battleId);
             if (b.phase != BattleArena.BattlePhase.AwaitingFinalize) continue;
             assertTrue(
-                b.proposedWinner == b.playerA || b.proposedWinner == b.playerB,
+                b.proposedWinner == b.playerA || b.proposedWinner == b.playerB || b.proposedWinner == address(0),
                 "AwaitingFinalize with invalid proposedWinner"
             );
+            assertTrue(b.finalStateHash != bytes32(0), "AwaitingFinalize without finalStateHash");
+            assertTrue(b.turnLogHash != bytes32(0), "AwaitingFinalize without turnLogHash");
             assertGt(b.payoutDeadline, 0, "AwaitingFinalize with zero payoutDeadline");
         }
+    }
+
+    // ─── I-7: exact token conservation ────────────────────────────
+    //
+    // The arena's CLAW balance equals exactly the escrow it owes: stake +
+    // anti-grief for every deposited side of a non-terminal battle, plus
+    // the dispute bond of every disputed AwaitingFinalize battle. Strictly
+    // stronger than I-3 (>=): no token is ever stuck in the arena after a
+    // win, a draw, a forfeit or a cancel, and none ever leaks out early.
+    function invariant_arenaBalanceEqualsEscrow() public view {
+        BattleArena arena = handler.getBattleArena();
+        ClawToken clawToken = handler.getClaw();
+        uint256 n = handler.battleIdsLength();
+
+        uint256 expected = 0;
+        for (uint256 i = 0; i < n; i++) {
+            uint256 battleId = handler.battleIds(i);
+            BattleArena.Battle memory b = arena.getBattle(battleId);
+            if (
+                b.phase == BattleArena.BattlePhase.Settled ||
+                b.phase == BattleArena.BattlePhase.Cancelled ||
+                b.phase == BattleArena.BattlePhase.None
+            ) continue;
+
+            uint256 antiGrief = b.stakeAmount * arena.ANTI_GRIEF_BPS() / arena.BPS_DENOMINATOR();
+            uint256 perPlayer = b.stakeAmount + antiGrief;
+            if (b.depositA) expected += perPlayer;
+            if (b.depositB) expected += perPlayer;
+            if (b.phase == BattleArena.BattlePhase.AwaitingFinalize && b.disputed) expected += b.disputeBondPaid;
+        }
+
+        assertEq(clawToken.balanceOf(address(arena)), expected, "arena CLAW balance != owed escrow");
     }
 }

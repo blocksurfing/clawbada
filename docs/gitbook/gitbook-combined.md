@@ -422,9 +422,9 @@ Pick your team in the Team Builder, see your Team Power score, and join the queu
 Both players deposit their \$CLAW stake plus a 5% anti-grief deposit into the contract.
 
 ### 3. Team Commit-Reveal
-Both players commit a hash of their team composition, then reveal simultaneously. This prevents counter-picking — neither side sees the other's composition first.
+Both players commit a hash of their team composition. Once both have committed, the resolver opens both teams in a single atomic transaction — neither composition reaches the chain until both are revealed together. This delivers genuine simultaneity: it prevents counter-picking *and* the matchup-dodge it used to enable (a player can no longer see the opponent's team and then back out cheaply, because no one-sided action reveals anything). If the reveal times out, the battle mutually cancels with full refunds — a dropped connection never costs a player their stake.
 
-**MEV protection:** Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Team commits and reveals are on-chain; battle turns themselves run off-chain via WebSocket for speed.
+**MEV protection:** Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Team commits are on-chain and the reveal is a single resolver-submitted transaction; battle turns themselves run off-chain via WebSocket for speed.
 
 ### 4. VRF Beacon
 A single drand beacon is rolled at team-reveal time. It seeds a deterministic randomness stream used for damage variance, critical hits, and enhanced Special procs across the entire battle. Same beacon = same battle, every time — which is what makes replay and dispute resolution possible.
@@ -444,7 +444,13 @@ The opponent watches the animation, then their next-Speed lobster acts. Battles 
 **Win condition:** Eliminate all 3 enemy lobsters. There's a 100-turn hard cap with HP% tiebreak as a griefer cutoff (rarely reached in real games).
 
 ### 6. Settlement (Proposed)
-The server submits the battle result on-chain. The proposed outcome is recorded but **payout is escrowed for a dispute window** — the winner doesn't immediately receive their stake; first the loser has a chance to challenge.
+The server submits the battle result on-chain: `BattleArena.settle(battleId, winner, finalStateHash, turnLogHash, damageA, damageB)`. The two hashes commit to the off-chain battle — the canonical final state, and `{battleId, VRF seed, arena layout, roster, ordered turn log}` — so a dispute always has something concrete to check against. Repair damage is keyed by player slot. The proposed outcome is recorded but **payout is escrowed for a dispute window** — the winner doesn't immediately receive their stake; first the loser has a chance to challenge.
+
+There is no separate signature argument: the resolver's transaction signature is the authentication.
+
+**Draws.** A mutual wipeout, or an exact tie at the 100-turn cap after both tiebreaks, settles as a draw (`winner = address(0)`): both players get their stake and anti-grief deposit back in full, no protocol fee is taken, and repair damage still applies.
+
+**Server outage.** The Active phase has a hard 3-hour ceiling (`ACTIVE_WINDOW`, ~2× the longest possible battle). If the server has not settled by then, anyone can call `handleTimeout()` and the battle mutually cancels with full refunds — a dead server never costs a player their stake.
 
 ### 7. Dispute Window (Optional)
 The dispute window length is per-bracket: **5 min Low / 30 min Mid / 1 hour High** (admin-tunable via a 24h on-chain timelock).
@@ -457,7 +463,7 @@ If the loser thinks the proposed outcome is wrong, they can dispute by:
 
 Outcomes:
 
-- **Disputer was right** (admin's final winner ≠ proposed winner): bond refunded + disputer gets their proper payout
+- **Disputer was right** (admin changes the proposal in any respect — winner, either damage array, or either battle hash): bond refunded + disputer gets their proper payout
 - **Disputer was wrong**: bond is slashed to Treasury (85% burn / 15% dev split)
 
 If no dispute is filed within the window, anyone can call `finalizeBattle()` after the deadline to release the proposed payout. **99% of battles never enter dispute** — the system exists as deterrent and insurance.

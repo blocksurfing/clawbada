@@ -124,7 +124,7 @@ export default function BattleSpectatorPage() {
               <h1 className="font-pixel text-xl text-foreground">Battle #{battleId}</h1>
             </div>
             <p className="text-sm text-text-secondary mt-1">
-              {isSettled ? 'Battle complete' : `Round ${chain.currentRound} in progress`}
+              {isSettled ? 'Battle complete' : 'Battle in progress'}
             </p>
           </div>
           {isSettled && (
@@ -150,7 +150,6 @@ export default function BattleSpectatorPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <InfoCard label="Stake" value={formatClaw(chain.stakeAmount)} accent />
           <InfoCard label="Phase" value={isSettled ? 'Settled' : `Phase ${chain.phase}`} />
-          <InfoCard label="Round" value={String(chain.currentRound)} />
           {db?.winnerPayout && (
             <InfoCard label="Payout" value={formatClaw(db.winnerPayout)} accent />
           )}
