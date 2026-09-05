@@ -48,5 +48,11 @@ export function useAuth() {
     };
   }, [address, signMessageAsync]);
 
-  return { getAuthHeaders, isConnected: !!address };
+  /** Same cached signature as the headers, for the WebSocket upgrade URL params. */
+  const getAuthParams = useCallback(async (): Promise<{ address: string; signature: string; timestamp: string }> => {
+    const h = await getAuthHeaders();
+    return { address: h['X-Wallet-Address'], signature: h['X-Signature'], timestamp: h['X-Timestamp'] };
+  }, [getAuthHeaders]);
+
+  return { getAuthHeaders, getAuthParams, isConnected: !!address };
 }

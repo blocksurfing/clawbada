@@ -1,20 +1,20 @@
 /**
- * Unity ↔ React communication bridge for the Clawbada Battle Engine.
+ * Unity ↔ React contract for the live battle (V3, per turn).
  *
- * Data flow:
- *   Server (WebSocket) → React (game state) → Unity (render)
- *   User input: Unity (hex clicks, action selection) → React (commit to server)
+ *   Server (WebSocket) → React (authoritative state) → Unity (render one turn)
+ *   Unity (hex / lobster click) → React (decides what the click means, submits the turn)
  *
- * Unity calls these JS functions via jslib SendMessage → window.__clawbada.*
- * React calls Unity via unityContext.sendMessage(gameObject, method, data)
+ * React → Unity: unityContext.sendMessage('BattleBridge', method, JSON)
+ * Unity → React: JSBridge.jslib → window.__clawbada.*
+ *
+ * C# twin: packages/battle-engine/ClawbadaBattle/Assets/Scripts/Bridge/BattleBridge.cs
  */
+import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
+import type { BattleSnapshot, RosterEntry, Side, TurnResolvedPayload, WireBarEntry } from '@/lib/battle-protocol';
 
-// ─── Types: React → Unity (game state pushed to Unity for rendering) ───
+export const UNITY_GAME_OBJECT = 'BattleBridge';
 
-export interface HexPosition {
-  col: number;
-  row: number;
-}
+export interface HexPosition { col: number; row: number }
 
 export interface ArenaLayout {
   layoutId: string;
@@ -26,50 +26,30 @@ export interface ArenaLayout {
   tier: 'evolved' | 'elite' | 'apex';
 }
 
-/**
- * Payload for Unity's `ShowSelection` method. Describes the full hex highlight
- * state for the currently selected character as a single atomic update.
- *
- * Dedupe precedence is enemy > ally > range — a hex that appears in both
- * `rangeHexes` and `enemyTargets` renders red only. Origin hex always wins.
- *
- * Populate per phase:
- *   - Phase 1 positioning:  rangeHexes populated; enemy/ally empty
- *   - Phase 2 attack/defend: rangeHexes + enemyTargets populated
- *   - Phase 2 heal/buff:     rangeHexes + allyTargets populated
- */
+/** Atomic highlight state. Precedence in Unity: origin > enemy > ally > range. */
 export interface HexListData {
-  /** Selected character's own hex (renders blue). Use -1 / -1 to skip. */
   originCol: number;
   originRow: number;
-  /** In-range hexes (stone). Movement range in phase 1, attack max range in phase 2. */
   rangeHexes: HexPosition[];
-  /** Enemy-occupied hexes within attack / defend / special range (red). */
   enemyTargets: HexPosition[];
-  /** Friendly hexes targetable by heal / buff specials like Sentinel Rally (green). */
   allyTargets: HexPosition[];
 }
 
 export interface BattleLobster {
   id: string;
-  classId: number;       // 0-9 (Bulwark=0, Mantis=1, ... Ember=9)
+  classId: number;
   className: string;
-  tier: number;          // 1=Evolved, 2=Elite, 3=Apex
-  side: 'a' | 'b';
-  slot: number;          // 0-2
+  tier: number;
+  side: Side;
+  slot: number;
   maxHp: number;
   currentHp: number;
   position: HexPosition;
-  charge: number;        // 0-3
-  damage: number;        // accumulated battle damage
-  moveRange: number;     // 1, 2, or 3
+  charge: number;
+  damage: number;
+  moveRange: number;
   alive: boolean;
-  effects: StatusEffect[];
-}
-
-export interface StatusEffect {
-  type: 'bleed' | 'haunt' | 'stun' | 'fortify' | 'shield';
-  remainingRounds: number;
+  partClassIds?: number[];
 }
 
 export interface BattleInitData {
@@ -77,136 +57,143 @@ export interface BattleInitData {
   arena: ArenaLayout;
   teamA: BattleLobster[];
   teamB: BattleLobster[];
-  playerSide: 'a' | 'b';
-  playerBadge: 'human' | 'agent';
-  opponentBadge: 'human' | 'agent';
-  stakeBracket: 'low' | 'mid' | 'high';
+  playerSide: Side | 'spectator';
+  playerBadge: string;
+  opponentBadge: string;
+  stakeBracket: string;
   stakeAmount: number;
 }
 
-export interface PhaseData {
-  round: number;
-  phase: 'positioning' | 'combat';
-  timeRemaining: number;    // seconds
-  opponentReady: boolean;   // true if opponent already committed
-}
-
-export interface RoundResult {
-  round: number;
-  movements: MovementResult[];
-  actions: ActionResult[];
-  deaths: string[];          // lobster IDs that died this round
-}
-
-export interface MovementResult {
+export interface TurnStartData { turn: number; lobsterId: string; side: Side; deadlineMs: number; isPlayer: boolean }
+export interface DamageEventData { targetId: string; amount: number; kind: string; isCrit: boolean; killed: boolean }
+export interface HealEventData { targetId: string; amount: number }
+export interface StatusEventData { targetId: string; status: string; applied: boolean; turns: number }
+export interface TurnPlayData {
+  turn: number;
   lobsterId: string;
-  from: HexPosition;
-  to: HexPosition;
+  path: HexPosition[];
+  action: string;
+  skipped: string;
+  targetId: string;
+  damage: DamageEventData[];
+  heals: HealEventData[];
+  statuses: StatusEventData[];
+  deaths: string[];
+  isEnhanced: boolean;
 }
+export interface BarData { turn: number; entries: { lobsterId: string; tick: string }[] }
+export interface ClockData { remainingMs: number }
+export interface BattleEndData { winner: Side | 'draw'; playerWon: boolean }
 
-export interface ActionResult {
-  actorId: string;
-  actionType: 'attack' | 'defend' | 'special';
-  targetId?: string;
-  damage: number;
-  healed: number;
-  crit: boolean;
-  distance: number;
-  distanceModifier: number;
-  moveType?: string;       // special name for specials
-  enhanced?: boolean;
-}
-
-// ─── Types: Unity → React (player input from Unity hex grid) ───
-
-export interface PositioningCommit {
-  moves: Array<{
-    lobsterId: string;
-    destinationHex: HexPosition;
-  }>;
-}
-
-export interface CombatCommit {
-  actions: Array<{
-    lobsterId: string;
-    actionType: 'attack' | 'defend' | 'special';
-    targetId?: string;
-  }>;
-}
-
-// ─── Unity Bridge Method Names ───
-
-/** Methods called on the Unity "BattleBridge" GameObject */
 export const UNITY_METHODS = {
-  // Initialization
-  INIT_BATTLE: 'InitBattle',           // JSON: BattleInitData
-  // Phase management
-  START_PHASE: 'StartPhase',           // JSON: PhaseData
-  UPDATE_TIMER: 'UpdateTimer',         // JSON: { timeRemaining: number }
-  OPPONENT_READY: 'OpponentReady',     // no data
-  // Round results (for animation playback)
-  PLAY_ROUND: 'PlayRound',            // JSON: RoundResult
-  // Battle end
-  BATTLE_END: 'BattleEnd',            // JSON: { winner: 'a'|'b', playerWon: boolean }
-  // Selection highlight state (atomic — all four highlight layers in one call)
-  SHOW_SELECTION: 'ShowSelection',     // JSON: HexListData
-  CLEAR_HIGHLIGHTS: 'ClearHighlights', // no data
+  INIT_BATTLE: 'InitBattle',
+  START_TURN: 'StartTurn',
+  PLAY_TURN: 'PlayTurn',
+  UPDATE_BAR: 'UpdateBar',
+  SET_CLOCK: 'SetClock',
+  BATTLE_END: 'BattleEnd',
+  SHOW_SELECTION: 'ShowSelection',
+  CLEAR_HIGHLIGHTS: 'ClearHighlights',
 } as const;
 
-/** JS callback function names registered on window.__clawbada by React */
 export const JS_CALLBACKS = {
-  // Player committed positioning
-  ON_POSITIONING_COMMIT: 'onPositioningCommit',  // JSON: PositioningCommit
-  // Player committed combat actions
-  ON_COMBAT_COMMIT: 'onCombatCommit',            // JSON: CombatCommit
-  // Player clicked a lobster (for info/selection)
-  ON_LOBSTER_SELECTED: 'onLobsterSelected',      // JSON: { lobsterId: string }
-  // Unity scene is loaded and ready
-  ON_UNITY_READY: 'onUnityReady',                // no data
-  // Round animation completed
-  ON_ANIMATION_COMPLETE: 'onAnimationComplete',  // JSON: { round: number }
+  ON_UNITY_READY: 'onUnityReady',
+  ON_LOBSTER_SELECTED: 'onLobsterSelected',
+  ON_HEX_CLICKED: 'onHexClicked',
+  ON_TURN_ANIMATION_COMPLETE: 'onTurnAnimationComplete',
 } as const;
 
-// ─── Bridge Helper ───
-
-export type UnityCallbackHandler = {
-  onPositioningCommit: (commit: PositioningCommit) => void;
-  onCombatCommit: (commit: CombatCommit) => void;
-  onLobsterSelected: (lobsterId: string) => void;
+export interface UnityCallbackHandler {
   onUnityReady: () => void;
-  onAnimationComplete: (round: number) => void;
-};
+  onLobsterSelected: (lobsterId: string) => void;
+  onHexClicked: (hex: HexPosition) => void;
+  onTurnAnimationComplete: (turn: number) => void;
+}
 
-/**
- * Register JS callbacks on window.__clawbada so Unity's jslib can call them.
- * Returns a cleanup function to remove the callbacks.
- */
+/** Register the callbacks Unity's jslib calls. Returns a cleanup. */
 export function registerUnityCallbacks(handlers: UnityCallbackHandler): () => void {
-  const bridge = {
-    [JS_CALLBACKS.ON_POSITIONING_COMMIT]: (json: string) => {
-      handlers.onPositioningCommit(JSON.parse(json));
+  const bridge: Record<string, (json?: string) => void> = {
+    [JS_CALLBACKS.ON_UNITY_READY]: () => handlers.onUnityReady(),
+    [JS_CALLBACKS.ON_LOBSTER_SELECTED]: (json) => handlers.onLobsterSelected(JSON.parse(json ?? '{}').lobsterId),
+    [JS_CALLBACKS.ON_HEX_CLICKED]: (json) => {
+      const { col, row } = JSON.parse(json ?? '{}');
+      handlers.onHexClicked({ col, row });
     },
-    [JS_CALLBACKS.ON_COMBAT_COMMIT]: (json: string) => {
-      handlers.onCombatCommit(JSON.parse(json));
-    },
-    [JS_CALLBACKS.ON_LOBSTER_SELECTED]: (json: string) => {
-      const { lobsterId } = JSON.parse(json);
-      handlers.onLobsterSelected(lobsterId);
-    },
-    [JS_CALLBACKS.ON_UNITY_READY]: () => {
-      handlers.onUnityReady();
-    },
-    [JS_CALLBACKS.ON_ANIMATION_COMPLETE]: (json: string) => {
-      const { round } = JSON.parse(json);
-      handlers.onAnimationComplete(round);
-    },
+    [JS_CALLBACKS.ON_TURN_ANIMATION_COMPLETE]: (json) => handlers.onTurnAnimationComplete(JSON.parse(json ?? '{}').turn),
   };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).__clawbada = bridge;
-
+  (window as unknown as { __clawbada?: unknown }).__clawbada = bridge;
   return () => {
-    delete // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).__clawbada;
+    delete (window as unknown as { __clawbada?: unknown }).__clawbada;
   };
+}
+
+// ─── Adapters: protocol → Unity payloads ───
+
+const MOVE_RANGE: Record<number, number> = { 0: 1, 1: 3, 2: 1, 3: 3, 4: 3, 5: 2, 6: 2, 7: 2, 8: 2, 9: 3 };
+
+export function rosterToLobsters(snapshot: BattleSnapshot, side: Side): BattleLobster[] {
+  return snapshot.roster
+    .filter((r) => r.side === side)
+    .sort((a, b) => a.slot - b.slot)
+    .map((r) => {
+      const l = snapshot.state.lobsters.find((x) => x.id === r.id);
+      return {
+        id: r.id,
+        classId: r.classId,
+        className: CLASS_NAMES_LIST[r.classId] ?? `Class${r.classId}`,
+        tier: Math.max(1, r.tier),
+        side,
+        slot: r.slot,
+        maxHp: Number(l?.maxHp ?? 0),
+        currentHp: Number(l?.hp ?? 0),
+        position: l ? { col: l.pos.col, row: l.pos.row } : { col: 0, row: 0 },
+        charge: l?.charge ?? 0,
+        damage: 0,
+        moveRange: MOVE_RANGE[r.classId] ?? 2,
+        alive: l?.alive ?? true,
+        ...(r.partClassIds ? { partClassIds: r.partClassIds } : {}),
+      };
+    });
+}
+
+export function buildInitData(snapshot: BattleSnapshot, playerSide: Side | 'spectator'): BattleInitData {
+  const { session } = snapshot;
+  const isBot = (owner: string) => owner.startsWith('bot:');
+  const badge = (side: Side) => (isBot(side === 'A' ? session.playerA : session.playerB) ? 'bot' : 'player');
+  return {
+    battleId: session.id,
+    arena: snapshot.state.layout as ArenaLayout,
+    teamA: rosterToLobsters(snapshot, 'A'),
+    teamB: rosterToLobsters(snapshot, 'B'),
+    playerSide,
+    playerBadge: playerSide === 'spectator' ? 'spectator' : badge(playerSide),
+    opponentBadge: playerSide === 'A' ? badge('B') : playerSide === 'B' ? badge('A') : badge('B'),
+    stakeBracket: session.kind,
+    stakeAmount: 0,
+  };
+}
+
+export function turnToPlayData(t: TurnResolvedPayload): TurnPlayData {
+  const r = t.result;
+  return {
+    turn: t.turn,
+    lobsterId: r.lobsterId,
+    path: r.path,
+    action: r.action ?? '',
+    skipped: r.skipped ?? '',
+    targetId: r.targetId ?? '',
+    damage: r.damage.map((d) => ({ targetId: d.targetId, amount: Number(d.amount), kind: d.kind, isCrit: !!d.isCrit, killed: d.killed })),
+    heals: r.heals.map((h) => ({ targetId: h.targetId, amount: Number(h.amount) })),
+    statuses: r.statuses.map((s) => ({ targetId: s.targetId, status: s.status, applied: s.applied, turns: s.turns ?? 0 })),
+    deaths: t.deaths,
+    isEnhanced: r.isEnhanced,
+  };
+}
+
+export function barToData(turn: number, bar: WireBarEntry[]): BarData {
+  return { turn, entries: bar.map((b) => ({ lobsterId: b.lobsterId, tick: b.tick })) };
+}
+
+export function rosterEntry(snapshot: BattleSnapshot, id: string): RosterEntry | undefined {
+  return snapshot.roster.find((r) => r.id === id);
 }
