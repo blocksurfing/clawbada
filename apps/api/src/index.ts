@@ -54,7 +54,11 @@ app.onError((err, c) => {
 // Rate limiting — applied before auth so we limit by IP for unauthenticated routes
 app.use('/api/*', rateLimit(100));
 app.use('/api/faucet/*', rateLimit(5));
-app.use('/api/game/combat/*', rateLimit(30));
+// The 30/min budget guards matchmaking; live-battle turns (V3) can legitimately
+// exceed it (a bot answers in under a second), so they stay on the /api/* default.
+app.use('/api/game/combat/queue', rateLimit(30));
+app.use('/api/game/combat/queue/*', rateLimit(30));
+app.use('/api/game/combat/pool-depth', rateLimit(30));
 
 app.get('/health', (c) =>
   c.json({ status: 'ok', timestamp: Date.now(), version: '0.0.1' }),

@@ -1,0 +1,4 @@
+# Vercel CLI uploads honour this file INSTEAD of .gitignore. Keep it minimal so the
+# gitignored Unity WebGL build (public/unity-build/) ships with `npx vercel deploy`.
+node_modules
+.next

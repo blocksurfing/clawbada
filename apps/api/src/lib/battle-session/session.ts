@@ -273,6 +273,7 @@ export class BattleSession {
 
   /** Apply one session event, emit its results, queue them for persistence. */
   private step(ev: v3.SessionEvent, by: SubmittedBy, command: v3.TurnCommand | null): v3.SessionStep {
+    const logBefore = this.state.log.length;
     const step = v3.reduceSession(this.state, this.timeouts, ev);
     this.timeouts = step.clock;
     step.results.forEach((r, i) => {
@@ -282,7 +283,8 @@ export class BattleSession {
       const submittedBy: SubmittedBy = isForfeit ? 'forfeit' : by;
       this.recent.set(turnNo, wire);
       if (this.recent.size > RECENT_KEEP) this.recent.delete(Math.min(...this.recent.keys()));
-      const postStateHash = this.state.log[this.state.log.length - 1]?.postStateHash ?? v3.hashState(this.state);
+      // One log entry per result (a timeout that trips the forfeit appends two).
+      const postStateHash = this.state.log[logBefore + i]?.postStateHash ?? v3.hashState(this.state);
       this.opts.hooks.emit(this.record.id, 'turn_committed', { turn: turnNo, lobsterId: r.lobsterId, by: submittedBy });
       const resolved: TurnResolvedPayload = {
         turn: turnNo,

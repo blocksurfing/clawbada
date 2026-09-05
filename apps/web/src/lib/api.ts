@@ -1,3 +1,5 @@
+import type { BattleSnapshot, TurnCommand } from './battle-protocol';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export interface CalldataResult {
@@ -346,19 +348,13 @@ interface BattleData {
   db: DbBattleData | null;
 }
 
-interface RoundData {
-  round: number;
-  actions: Array<{
-    actorTeam: string;
-    actorSlot: number;
-    moveType: number;
-    targetSlot: number;
-    damage: string;
-    isCrit: boolean;
-    isEnhanced: boolean;
-  }>;
-  teamAHp: string[];
-  teamBHp: string[];
+export interface CreatePracticeBody {
+  teamId?: string;
+  lobsterIds?: string[];
+  bot?: string;
+  opponent?: 'mirror' | 'random';
+  layoutId?: string;
+  preset?: string;
 }
 
 interface BattleHistoryItem {
@@ -378,7 +374,13 @@ const combat = {
   history: (address: string, limit = 20) =>
     get<{ address: string; count: number; battles: BattleHistoryItem[] }>(`/api/game/combat/history?address=${address}&limit=${limit}`),
   getBattle: (battleId: string) => get<BattleData>(`/api/game/combat/${battleId}`),
-  getRounds: (battleId: string) => get<{ battleId: string; count: number; rounds: RoundData[] }>(`/api/game/combat/${battleId}/rounds`),
+  // V3 live sessions
+  createPractice: (body: CreatePracticeBody, auth: AuthHeaders) => post<{ battleId: string; snapshot: BattleSnapshot }>('/api/game/combat/practice', body, auth),
+  submitTurn: (battleId: string, turn: number, command: TurnCommand, auth: AuthHeaders) =>
+    post<{ accepted: boolean; duplicate: boolean; result: unknown }>(`/api/game/combat/${battleId}/turn`, { turn, command }, auth),
+  getState: (battleId: string, auth?: AuthHeaders) => get<BattleSnapshot>(`/api/game/combat/${battleId}/state`, auth),
+  getTurns: (battleId: string, auth?: AuthHeaders) => get<{ battleId: string; count: number; turns: unknown[] }>(`/api/game/combat/${battleId}/turns`, auth),
+  getLegal: (battleId: string, auth: AuthHeaders) => get<{ turn: number; lobsterId: string; commands: TurnCommand[] }>(`/api/game/combat/${battleId}/legal`, auth),
   deposit: (battleId: string, auth: AuthHeaders) => post<StepsResponse>(`/api/game/combat/${battleId}/deposit`, undefined, auth),
   commitTeam: (battleId: string, commitHash: string, auth: AuthHeaders) =>
     post<StepsResponse>(`/api/game/combat/${battleId}/commit-team`, { commitHash }, auth),
@@ -485,7 +487,6 @@ export type {
   BattleData,
   ChainBattleData,
   DbBattleData,
-  RoundData,
   BattleHistoryItem,
   BattleLeaderboardEntry,
   MiningLeaderboardEntry,

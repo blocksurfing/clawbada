@@ -1,23 +1,16 @@
 mergeInto(LibraryManager.library, {
 
-    SendPositioningCommit: function(jsonPtr) {
-        var json = UTF8ToString(jsonPtr);
-        if (window.__clawbada && window.__clawbada.onPositioningCommit) {
-            window.__clawbada.onPositioningCommit(json);
-        }
-    },
-
-    SendCombatCommit: function(jsonPtr) {
-        var json = UTF8ToString(jsonPtr);
-        if (window.__clawbada && window.__clawbada.onCombatCommit) {
-            window.__clawbada.onCombatCommit(json);
-        }
-    },
-
     SendLobsterSelected: function(jsonPtr) {
         var json = UTF8ToString(jsonPtr);
         if (window.__clawbada && window.__clawbada.onLobsterSelected) {
             window.__clawbada.onLobsterSelected(json);
+        }
+    },
+
+    SendHexClicked: function(jsonPtr) {
+        var json = UTF8ToString(jsonPtr);
+        if (window.__clawbada && window.__clawbada.onHexClicked) {
+            window.__clawbada.onHexClicked(json);
         }
     },
 
@@ -27,6 +20,14 @@ mergeInto(LibraryManager.library, {
         }
     },
 
+    SendTurnAnimationComplete: function(jsonPtr) {
+        var json = UTF8ToString(jsonPtr);
+        if (window.__clawbada && window.__clawbada.onTurnAnimationComplete) {
+            window.__clawbada.onTurnAnimationComplete(json);
+        }
+    },
+
+    // Editor demo loop (V2 round shape) — unused by live battles.
     SendAnimationComplete: function(jsonPtr) {
         var json = UTF8ToString(jsonPtr);
         if (window.__clawbada && window.__clawbada.onAnimationComplete) {

@@ -197,6 +197,10 @@ describe('BattleSession — human vs human (real)', () => {
     expect(h.finished).toHaveLength(1);
     const allTurns = h.persisted.flatMap((p) => p.turns);
     expect(allTurns.at(-1)!.submittedBy).toBe('forfeit');
+    // Every persisted row carries ITS OWN log entry's hash (the auto-Defend and the
+    // forfeit it triggered are two entries, two hashes).
+    expect(allTurns.map((t) => t.postStateHash)).toEqual(h.session.state.log.map((e) => e.postStateHash));
+    expect(new Set(allTurns.map((t) => t.postStateHash)).size).toBe(allTurns.length);
     // Forfeit row gets its own turn slot (no PK collision with the last real turn).
     const turns = allTurns.map((t) => t.turn);
     expect(new Set(turns).size).toBe(turns.length);
