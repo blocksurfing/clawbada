@@ -32,16 +32,14 @@ const PERMANENT_REVERT_NAMES = new Set<string>([
   'InvalidCommitHash',
   'AlreadyDeposited',
   'AlreadyCommitted',
-  'AlreadyRevealed',
   // Resolver / lobster-tier guards
   'LobsterTierTooLow',
   'LobsterDamageTooHigh',
   // Settlement guards
   'InvalidWinner',
-  'SettlementRequiresVerifiedRound',
-  'BothCommitsRequired',
-  'BothRevealsRequired',
-  'MaxRoundsReached',
+  // V3 settle: zero battle hash / settle after ACTIVE_WINDOW are resolver bugs, never transient.
+  'InvalidSettlementHash',
+  'PhaseTimedOut',
   // Timeout / emergency / dispute guards
   'PhaseNotTimedOut',
   'EmergencyWithdrawTooEarly',
