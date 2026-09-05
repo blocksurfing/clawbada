@@ -11,7 +11,7 @@ const mockCurrentBoostEpochId = mock(async (..._args: unknown[]) => 7);
 mock.module('@clawbada/db', () => ({
   db,
   battles: tables.battles,
-  battleRounds: tables.battleRounds,
+  battleSessions: tables.battleSessions,
   agents: tables.agents,
   operatorJobs: tables.operatorJobs,
   onChainEvents: tables.onChainEvents,
@@ -57,9 +57,9 @@ function agentRow(address: string) {
   return { address, elo: 1200, wins: 0, losses: 0, totalBattles: 0 };
 }
 
-/** Select order inside the settle transaction: battle row, max round, winner agent, loser agent. */
+/** Select order inside the settle transaction: battle row, session turn, winner agent, loser agent. */
 function queueSettleSelects(row: Record<string, unknown>) {
-  db.queue('select', [row], [{ max: 3 }], [agentRow(PLAYER_A)], [agentRow(PLAYER_B)]);
+  db.queue('select', [row], [{ turn: 3 }], [agentRow(PLAYER_A)], [agentRow(PLAYER_B)]);
 }
 
 function settledLog(battleId: bigint, winner: string) {
@@ -82,6 +82,8 @@ describe('BattleWatcher BattleProposed', () => {
     await new BattleWatcher().handleEvent(makeEventLog('BattleProposed', { battleId: 1n, proposedWinner: PLAYER_A, payoutDeadline: 0n }));
 
     expect(argOf(chainCalls(db.update, 0), 'set')).toEqual({ phase: 5 });
+    // V3: the session row mirrors the commitments and flips to 'settling'.
+    expect(argOf(chainCalls(db.update, 1), 'set')).toMatchObject({ status: 'settling' });
     expect(mockCurrentBoostEpochId).toHaveBeenCalledTimes(1);
     expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(mockRecordParticipation).toHaveBeenCalledTimes(2);
@@ -104,7 +106,7 @@ describe('BattleWatcher BattleProposed', () => {
     db.queue('select', [battleRow({ teamA: 0n, teamB: 0n, queuedTeamA: null, queuedTeamB: null })]);
     await new BattleWatcher().handleEvent(makeEventLog('BattleProposed', { battleId: 3n, proposedWinner: PLAYER_A, payoutDeadline: 0n }));
 
-    expect(db.update).toHaveBeenCalledTimes(1);
+    expect(db.update).toHaveBeenCalledTimes(2); // battles phase + battle_sessions mirror
     expect(mockRecordParticipation).not.toHaveBeenCalled();
     expect(logMessages(logger.warn).some((m) => m.includes('unknown team ids'))).toBe(true);
   });
@@ -116,7 +118,7 @@ describe('BattleWatcher BattleProposed', () => {
     });
     await new BattleWatcher().handleEvent(makeEventLog('BattleProposed', { battleId: 4n, proposedWinner: PLAYER_A, payoutDeadline: 0n }));
 
-    expect(db.update).toHaveBeenCalledTimes(1);
+    expect(db.update).toHaveBeenCalledTimes(2); // battles phase + battle_sessions mirror
     expect(mockRecordParticipation).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledTimes(1);
   });
@@ -130,8 +132,9 @@ describe('BattleWatcher BattleSettled', () => {
     await new BattleWatcher().handleEvent(settledLog(5n, PLAYER_A));
 
     expect(db.transaction).toHaveBeenCalledTimes(1);
-    // battles row + winner agent + loser agent
-    expect(db.update).toHaveBeenCalledTimes(3);
+    // battles row + battle_sessions status + winner agent + loser agent
+    expect(db.update).toHaveBeenCalledTimes(4);
+    expect(argOf(chainCalls(db.update, 1), 'set')).toMatchObject({ status: 'settled' });
     const settleSet = argOf(chainCalls(db.update, 0), 'set');
     expect(settleSet).toMatchObject({ winner: PLAYER_A, phase: 6, winnerPayout: '4500', protocolFee: '500', totalRounds: 3 });
     expect(settleSet.settledAt).toBeInstanceOf(Date);
@@ -161,8 +164,8 @@ describe('BattleWatcher BattleSettled', () => {
     );
 
     expect(db.transaction).toHaveBeenCalledTimes(1);
-    // Only the battles row — no agents rows are touched on a draw.
-    expect(db.update).toHaveBeenCalledTimes(1);
+    // battles row + battle_sessions status — no agents rows are touched on a draw.
+    expect(db.update).toHaveBeenCalledTimes(2);
     const settleSet = argOf(chainCalls(db.update, 0), 'set');
     expect(settleSet).toMatchObject({ winner: null, phase: 6, winnerPayout: '0', protocolFee: '0', totalRounds: 3 });
     expect(settleSet.settledAt).toBeInstanceOf(Date);
@@ -212,7 +215,7 @@ describe('BattleWatcher BattleSettled', () => {
     queueSettleSelects(battleRow({ teamA: 0n, teamB: 0n, queuedTeamA: null, queuedTeamB: null }));
     await new BattleWatcher().handleEvent(settledLog(9n, PLAYER_A));
 
-    expect(db.update).toHaveBeenCalledTimes(3);
+    expect(db.update).toHaveBeenCalledTimes(4); // battles + battle_sessions + 2 agents
     expect(mockApplyBattleOutcome).not.toHaveBeenCalled();
     expect(logMessages(logger.warn).some((m) => m.includes('unknown team ids'))).toBe(true);
   });
