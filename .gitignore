@@ -32,3 +32,19 @@ dist/
 # Coverage
 coverage/
 .vercel
+
+# Hermes local backups
+_hermes_backups/
+.hermes_backups/
+hermes_backups/
+
+# Unity WebGL build artifact (built locally via BuildScript.BuildWebGL, deployed with vercel CLI)
+apps/web/public/unity-build/
+
+# Guard: a Unity editor opened at packages/ instead of packages/battle-engine/ClawbadaBattle/ writes these here
+packages/Library/
+packages/Logs/
+packages/Temp/
+packages/Packages/
+packages/ProjectSettings/
+packages/UserSettings/

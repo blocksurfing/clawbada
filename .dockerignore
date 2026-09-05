@@ -9,3 +9,6 @@ contracts/
 docs/
 *.md
 .claude/
+
+# Unity project (2,300+ art/prefab files) — never part of an app image
+packages/battle-engine/
