@@ -232,6 +232,10 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
    Critical for replay/dispute reproducibility
 
 5. BATTLE (off-chain via WebSocket, server-authoritative)
+   Run by the API's BattleSessionManager (apps/api/src/lib/battle-session); starts when the
+   indexer mirrors phase 4. Practice mode (POST /api/game/combat/practice) runs the same loop
+   vs a bot with no chain, no stakes, no rating. Turns arrive over WS `submit_turn` or
+   REST POST /api/game/combat/:id/turn; every turn is persisted with its post-state hash.
    ATB initiative bar runs; each lobster takes its turn in order:
      - Controlling player has 60s shot clock to commit Move + Action
      - Auto-Defend on timeout

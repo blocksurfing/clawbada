@@ -3,7 +3,8 @@
  *
  * Two routing dimensions:
  *  - **Battle rooms** keyed by battleId. Joined post-match. Receive battle
- *    lifecycle events: match_found, deposits_confirmed, round_result, etc.
+ *    lifecycle events: match_found, deposits_confirmed, and the V3 live-turn
+ *    stream (battle_snapshot, turn_started, turn_resolved, battle_ended, ...).
  *  - **Address rooms** keyed by lowercase wallet address. Joined during queue.
  *    Receive queue lifecycle events: queue_joined, search_expanded, match_found,
  *    match_cancelled. A single address may have multiple sockets (e.g. a
@@ -20,18 +21,25 @@ interface WSClient {
   address: string;
 }
 
-type BattleEvent =
+export type BattleEvent =
   | 'match_found'
   | 'deposits_confirmed'
-  | 'round_result'
-  | 'round_reveal_complete'
   | 'battle_settled'
-  | 'round_started'
   | 'battle_forfeit'
   // V3 S1 queue lifecycle (sent to address rooms, not battle rooms):
   | 'queue_joined'
   | 'search_expanded'
-  | 'match_cancelled';
+  | 'match_cancelled'
+  // V3 live battle session (battle rooms; see lib/battle-session/protocol.ts):
+  | 'battle_snapshot'
+  | 'turn_started'
+  | 'turn_committed'
+  | 'turn_resolved'
+  | 'bar_updated'
+  | 'battle_ended'
+  | 'turn_ack'
+  | 'error'
+  | 'pong';
 
 interface BattleMessage {
   event: BattleEvent;
@@ -99,6 +107,16 @@ class BattleWSManager {
 
   getRoomSize(battleId: string): number {
     return this.rooms.get(battleId)?.length ?? 0;
+  }
+
+  /** Unicast to one socket (snapshot on join, per-message errors/acks). */
+  sendTo(ws: WebSocket, event: BattleEvent, battleId: string, data: unknown): void {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    try {
+      ws.send(serialize({ event, battleId, data, timestamp: Date.now() }));
+    } catch {
+      // ignore — the close handler prunes the room
+    }
   }
 
   // ──────────── Address-room API (pre-match / queue lifecycle) ────────────

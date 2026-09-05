@@ -10,6 +10,9 @@
  * BattleProposed now carries the two battle commitments (finalStateHash,
  * turnLogHash) and a proposedWinner of address(0) means a draw.
  *
+ * V3: BattleProposed/BattleSettled also mirror onto `battle_sessions`
+ * (hashes, 'settling' → 'settled', total turns).
+ *
  * F-3D / F-Z1 (PR 8): the StakeDeposited / TeamCommitted / TeamRevealed
  * handlers read chain battle state after each event lands, then update
  * the DB phase column based on truth. The previous design read a
@@ -21,12 +24,12 @@
  * latest phase truth.
  */
 import type { Log } from 'viem';
-import { and, eq, lt, sql } from 'drizzle-orm';
+import { and, eq, lt, ne } from 'drizzle-orm';
 import { BattleArenaAbi, addresses, getBattleArena, getPublicClient } from '@clawbada/chain';
 import {
   db,
   battles,
-  battleRounds,
+  battleSessions,
   agents,
   applyBattleOutcome,
   currentBoostEpochId,
@@ -282,8 +285,19 @@ export class BattleWatcher extends EventWatcher {
           .set({ phase: 5 }) // BattlePhase.AwaitingFinalize
           .where(and(eq(battles.battleId, battleId), lt(battles.phase, 5)));
 
-        // V3: the proposal carries the battle commitments. Logged here; the
-        // battle-session tables that persist them land with the session manager.
+        // V3: the proposal carries the battle commitments — mirror them onto the
+        // session row (the API set status 'settling' when it enqueued the settle;
+        // this also covers a settle submitted by hand or by another operator).
+        await db
+          .update(battleSessions)
+          .set({
+            finalStateHash: (args.finalStateHash as string | undefined) ?? null,
+            turnLogHash: (args.turnLogHash as string | undefined) ?? null,
+            status: 'settling',
+            updatedAt: new Date(),
+          })
+          .where(and(eq(battleSessions.id, battleId.toString()), ne(battleSessions.status, 'settled')));
+
         pinoLog.info(
           {
             battleId: battleId.toString(),
@@ -357,11 +371,14 @@ export class BattleWatcher extends EventWatcher {
             return;
           }
 
-          const [maxRoundRow] = await tx
-            .select({ max: sql<number>`COALESCE(MAX(${battleRounds.round}), 0)` })
-            .from(battleRounds)
-            .where(eq(battleRounds.battleId, battleId));
-          const totalRounds = Number(maxRoundRow?.max ?? 0);
+          // V3: total turns come from the live session row (0 when the battle never
+          // reached a session, e.g. a pre-Active forfeit).
+          const [sessionRow] = await tx
+            .select({ turn: battleSessions.turn })
+            .from(battleSessions)
+            .where(eq(battleSessions.id, battleId.toString()))
+            .limit(1);
+          const totalRounds = Number(sessionRow?.turn ?? 0);
 
           // V3 draw: `_executePayout(winner == address(0))` refunds both sides with
           // no fee. Nobody won, so wallet ELO / win-loss and the team rating are
@@ -379,6 +396,10 @@ export class BattleWatcher extends EventWatcher {
                 totalRounds,
               })
               .where(eq(battles.battleId, battleId));
+            await tx
+              .update(battleSessions)
+              .set({ status: 'settled', updatedAt: new Date() })
+              .where(eq(battleSessions.id, battleId.toString()));
 
             const drawTeams = resolveBattleTeams(existing);
             if (drawTeams) {
@@ -412,6 +433,10 @@ export class BattleWatcher extends EventWatcher {
               totalRounds,
             })
             .where(eq(battles.battleId, battleId));
+          await tx
+            .update(battleSessions)
+            .set({ status: 'settled', updatedAt: new Date() })
+            .where(eq(battleSessions.id, battleId.toString()));
 
           const isWinnerA = existing.playerA.toLowerCase() === winnerLower;
           const winnerPlayer = (isWinnerA ? existing.playerA : existing.playerB).toLowerCase();
