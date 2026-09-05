@@ -24,11 +24,11 @@ No new High or Medium severity bug survived adversarial verification. The protoc
 
 | ID | Severity | Status | Contract | Title |
 |----|----------|--------|----------|-------|
-| **F5-01** | Low (claimed Med) | **Fixed (2026-06-12)** | BattleArena | Team-reveal is sequential on-chain + non-reveal is a neutral forfeit, letting a second mover dodge unfavorable matchups for 5% against honest first-revealers |
-| **F5-02** | Low (claimed Med) | **Open — fix optional** | BreedingLab | Outcome-selective breeding re-roll via expire+cancel (the *don't-finalize* variant of B-02, uncovered by the try/catch fix) |
-| **F5-03** | Info | **Open — trivial** | BreedingLab | `getBreedCostPerParent(5, …)` panics with array OOB instead of a clean revert; duplicate multiplier table |
-| **F5-04** | Info | **Open — S2 blocker** | BattleResolver | VRF roll constants off-by-one (inclusive range 301 ≠ `VRF_RANGE` 300) + no canonical on-chain roll mapping; one doc comment already prescribes the wrong mapping |
-| S2-parity cluster | Info | **Tracked** | BattleResolver / BattleVRF | Four individually-non-exploitable on/off-chain divergences that will desync `replay()` (see S2 section) |
+| **F5-01** | Low (claimed Med) | **Fixed (2026-06-12), merged to main #17 (2026-09-04)** | BattleArena | Team-reveal is sequential on-chain + non-reveal is a neutral forfeit, letting a second mover dodge unfavorable matchups for 5% against honest first-revealers |
+| **F5-02** | Low (claimed Med) | **Fixed, merged #22 (2026-09-05)** | BreedingLab | Outcome-selective breeding re-roll via expire+cancel (the *don't-finalize* variant of B-02, uncovered by the try/catch fix) |
+| **F5-03** | Info | **Fixed, merged #22 (2026-09-05)** | BreedingLab | `getBreedCostPerParent(5, …)` panics with array OOB instead of a clean revert; duplicate multiplier table |
+| **F5-04** | Info | **Fixed, merged #21 (2026-09-05)** | BattleResolver | VRF roll constants off-by-one (inclusive range 301 ≠ `VRF_RANGE` 300) + no canonical on-chain roll mapping; one doc comment already prescribes the wrong mapping |
+| S2-parity cluster | Info | **Fixed + parity KAT lock, merged #21 (2026-09-05)** | BattleResolver / BattleVRF | Four individually-non-exploitable on/off-chain divergences that will desync `replay()` (see S2 section) |
 
 Five further candidates verified as **known/accepted** (re-confirmations, no action): the Faucet `setCloseTime`+`sweepUnclaimed` god-key composition (C-05 class), the TM-02 dual-role burned-lobster settlement brick, soulbound→tradeable value via evolution fuel (documented onboarding flow), mining emissions bypassing Treasury (documented "pure issuance, not a fee event"), and the library not modelling distance/Defend terms (documented S2 scope). Details in the appendix.
 
@@ -64,7 +64,7 @@ Either way, align the docs: the spec currently over-promises "simultaneous revea
 ## F5-02 — Outcome-selective breeding re-roll (don't-finalize variant of B-02)
 
 **Severity:** Low (hunter claimed Medium; verifiers: confirmed-Med / confirmed-Low / known-Low)
-**Status:** Open — fix optional (an operational keeper already mitigates; code fix would close it fully)
+**Status:** Fixed — merged to main in #22 (2026-09-05). A committed breed is final: `cancelExpiredRequest` closes the request but refunds neither the fee nor the breed slot, so selective non-finalization gains nothing. Follow-up: `LobsterNFT.decrementBreedCount` now has no caller and can be removed.
 **File:** `contracts/BreedingLab.sol`
 
 **Issue.** The breeding outcome is fully deterministic before finalize: `seed = keccak256(blockhash(targetBlock), requestId)`, offspring DNA a pure function of cached `dnaA/dnaB` + seed. Once `targetBlock` is mined the requester can compute the exact offspring (class, purity, legend bit) off-chain **before deciding whether to finalize**. `finalizeBreed` is permissionless but carries no caller reward, so in practice nobody finalizes someone else's request. A breeder can thus keep good rolls (finalize) and discard bad ones (never finalize; let the 256-block window lapse; call `cancelExpiredRequest`).
@@ -85,7 +85,7 @@ Either way, align the docs: the spec currently over-promises "simultaneous revea
 ## F5-03 — `getBreedCostPerParent` panics at `breedCount == 5`
 
 **Severity:** Info
-**Status:** Open — trivial
+**Status:** Fixed — merged to main in #22 (2026-09-05). `_breedCostPerParent` reverts `BreedCountOutOfRange(breedCount)` at `MAX_BREEDS`; the dead `BREED_MULTIPLIERS` storage table is removed.
 **File:** `contracts/BreedingLab.sol`
 
 The external pure helper `getBreedCostPerParent(uint8 breedCount, …)` forwards `breedCount` straight into a fixed `uint256[5]` table (`_breedCostPerParent`, line ~298). `breedCount == 5` is a legitimate on-chain value (every maxed parent reports `getBreedCount() == 5`), so an integrator pricing a maxed parent's hypothetical next breed gets `Panic(0x32)` (array OOB) instead of a domain error like `BreedLimitReached`. The agent-facing breeding API (`apps/api/src/routes/game/breeding.ts`) does exactly this read-then-price pattern and survives only because the off-chain TS mirror has its own bounds guard the on-chain helper lacks. All state-changing paths pre-validate `breedCount < 5`, so there's no fund risk — purely an external-view robustness gap, the same caller-boundary class that got NatSpec on BattleResolver's R-helpers but was never applied here.
@@ -123,6 +123,10 @@ Eight candidates were killed by the verifier panel. The notable ones are listed 
 - **Soulbound → tradeable via evolution fuel** → claim 5 soulbound + 7K CLAW, breed a tradeable Base offspring (soulbound parents breed tradeable offspring, by spec), evolve it with soulbound fuel (NatSpec explicitly permits soulbound fuel) into a tradeable Evolved NFT. Every step is documented intended behavior (it *is* the onboarding flow); the literal sybil property (soulbound NFTs can't transfer) still holds. Design-intent.
 - **Mining emissions bypass Treasury 85/15** → documented and deliberate ("mining is pure issuance, not a fee event"; MiningPool isn't authorized on Treasury and couldn't call `processFee` if it tried). Only residual is an editorial doc line listing "mining settlement" under the fee split. Design-intent.
 - **Library doesn't model distance_mult / DEFEND_REDUCTION_BPS** → those terms live caller-side in the off-chain engine; the library header and GAME_DESIGN_RATIONALE explicitly scope hex/distance into the deferred S2 `replay()` extension with mandated parity testing. Design-intent (and folds into the S2 cluster above).
+
+## Closure (2026-09-05)
+
+Every code finding in this report is fixed and merged to `main`: F5-01 in #17 (atomic resolver-submitted `revealTeams`), the S2-parity cluster with F5-04 in #21 (canonical `vrfRollFromRandom` / `VRF_SPAN`, TS mirror guards, fail-closed `scaleStats`, `deriveRandomness` salt fix, and a Solidity⇄TS known-answer lock — which caught the 2026-08 balance-constant drift on first rebase, as designed), and F5-02 + F5-03 in #22. Each PR passed the full contracts-audit workflow (10k-run fuzz, 500×100 invariants, Slither `--fail-medium`) and the ABI-freshness gate. Remaining items are operational, not code: widen `TEAM_REVEAL_WINDOW` before mainnet (A13), exercise the reveal watcher against a live chain (A14), remove `LobsterNFT.decrementBreedCount`.
 
 ## Sign-off
 
