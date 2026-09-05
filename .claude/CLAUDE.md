@@ -240,7 +240,10 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
    ~3-5 minutes typical match duration
 
 6. SETTLEMENT (on-chain)
-   Server submits (battleId, winner, finalStateHash, turnLogHash, signature) to BattleArena.settle()
+   Server submits (battleId, winner, finalStateHash, turnLogHash, damageA, damageB) to BattleArena.settle()
+   winner = address(0) is a draw (mutual refund incl. anti-grief, no fee, damage still applied)
+   No signature argument: the RESOLVER_ROLE tx signature is the authentication
+   Active phase has a 3h ACTIVE_WINDOW; past it, handleTimeout() cancels with full refunds
    Winner's payout escrowed pending dispute window
    Protocol fee → Treasury.sol (85% burn / 15% dev split)
 
@@ -473,11 +476,12 @@ Battle outcomes are **server-authoritative during play** with **on-chain dispute
 **Common to both stages:**
 
 - **Server runs `BattleResolver`** during play (pure function, identical to on-chain library); clients request actions and animate results, never compute damage. Closes off the client-side cheat surface.
-- **Settlement on-chain**: server submits `(battleId, winner, finalStateHash, turnLogHash, signature)` to `BattleArena.settle()` after match ends; transitions to `AwaitingFinalize` (no payout yet).
+- **Settlement on-chain**: server submits `(battleId, winner, finalStateHash, turnLogHash, damageA, damageB)` to `BattleArena.settle()` after match ends; transitions to `AwaitingFinalize` (no payout yet). `winner == address(0)` is a draw (mutual refund, no fee). There is no `signature` argument — the resolver's transaction signature is the authentication. `finalStateHash` = keccak of the canonical final state; `turnLogHash` = keccak over `{battleId, VRF seed, layout, roster, ordered turn log}`.
+- **Active-phase ceiling**: `ACTIVE_WINDOW = 3 hours` after the team reveal. Past it `settle()` reverts and anyone can `handleTimeout()` → mutual cancel with full refunds, so a server outage never costs a stake.
 - **Dispute window** per stake bracket (configurable): 5 min (Low) / 30 min (Mid) / 1 hour (High).
 - **Disputer must post a bond** (10% of bracket stake: 250 / 1,000 / 5,000 $CLAW). Bond covers admin/replay overhead + deters frivolous disputes.
 - **Outcomes**:
-  - **Disputer wins** (server lied / replay disagrees) → bond returned, disputer refunded full stake + penalty
+  - **Disputer wins** (admin changes winner, either damage array, or either battle hash / replay disagrees) → bond returned, disputer refunded full stake + penalty
   - **Disputer loses** → bond slashed → Treasury (85% burn / 15% dev)
 - **Rate limit**: 5 disputes per address per rolling 24h window, enforced on-chain via `disputeTimestamps[address]`. Reverts with `DisputeRateLimitExceeded` when exceeded.
 - 99% of battles never enter dispute path. The system exists as deterrent + insurance.
