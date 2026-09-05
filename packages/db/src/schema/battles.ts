@@ -53,24 +53,3 @@ export const battles = pgTable('battles', {
   teamAIdx: index('battles_team_a_idx').on(t.teamA),
   teamBIdx: index('battles_team_b_idx').on(t.teamB),
 }));
-
-export const battleRounds = pgTable('battle_rounds', {
-  id: bigint('id', { mode: 'bigint' }).primaryKey().generatedAlwaysAsIdentity(),
-  battleId: bigint('battle_id', { mode: 'bigint' }).notNull(),
-  round: smallint('round').notNull(),
-  // JSON array of round actions (moves, damage, crits, etc.)
-  // PR-C P0: damage field is bigint at the type level; serialized to
-  // string before insert by the resolve_round handler (drizzle's JSONB
-  // uses JSON.stringify which throws on bigint).
-  actions: jsonb('actions').notNull(),
-  teamAHp: jsonb('team_a_hp').notNull(), // [bigint, bigint, bigint] as strings
-  teamBHp: jsonb('team_b_hp').notNull(),
-  vrfSeed: text('vrf_seed'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => ({
-  /** Codex PR-C P1: makes the resolve_round handler's
-   *  `onConflictDoNothing({ target: [battleId, round] })` effective. Pre-PR-C
-   *  the table had only an identity PK, so retry-after-partial-success
-   *  silently inserted duplicate rows for the same (battle, round). */
-  battleRoundUniq: uniqueIndex('battle_rounds_battle_round_uniq').on(t.battleId, t.round),
-}));
