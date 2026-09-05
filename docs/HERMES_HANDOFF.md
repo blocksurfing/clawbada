@@ -497,7 +497,7 @@ Long-lived operator-worker process. Five responsibilities today:
 
 1. **Operator-worker** — durable outbox (`operator_jobs` table) drained at 1 s poll cadence. Handlers:
    - `create_battle` — submits on-chain `BattleArena.createBattle` via MATCHMAKER_PRIVATE_KEY wallet, verifies receipt, flips `battles.status = 1 (created)`.
-   - `resolve_round` — replays state from `on_chain_events` MoveRevealed, calls game-logic resolver, writes `battle_rounds`, submits `advanceRound` or `settle` via RESOLVER_PRIVATE_KEY wallet.
+   - `settle_battle` (V3, lands with the battle-session manager) — submits `BattleArena.settle(battleId, winner|draw, finalStateHash, turnLogHash, damageA, damageB)` via RESOLVER_PRIVATE_KEY wallet once the off-chain ATB battle ends. The V2 `resolve_round` handler (on-chain per-round replay) was deleted on 2026-09-05 together with the contract's round loop.
 2. **Season monitor** — 5-min poll loop; auto-rolls seasons via `MiningPool.startSeason()` when emission/duration triggers fire.
 3. **Mining timer** — expedition completion notifications.
 4. **drand beacon submitter** — submits VRF beacons to `BattleVRF` contract for replay reproducibility.
@@ -522,7 +522,7 @@ Phase advances are **non-regressing** via `lt(battles.phase, N)` UPDATE guards (
 
 `BattleSettled` handler runs settle accounting in a `db.transaction`: wei→display conversion for winnerPayout/protocolFee, `settledAt IS NULL` idempotency guard, MAX(round) for totalRounds, agent upsert + ELO/wins/losses/totalBattles update.
 
-`MoveRevealed` handler enqueues `resolve_round` operator job when both reveals are present.
+V3 (2026-09-05): there are no per-round `MoveCommitted`/`MoveRevealed` events any more. `BattleProposed` carries `finalStateHash` + `turnLogHash`; a `proposedWinner`/`winner` of `address(0)` is a draw — the settle handler records participation for both teams and skips the winner/loser rating math.
 
 #### apps/web
 
@@ -583,7 +583,7 @@ Migrations under `packages/db/drizzle/`: `0000_steep_shadowcat.sql` (base), `000
 **Critical contract conventions:**
 
 - All custom errors named (no string reverts). Listed in `packages/chain/src/abis/battle-arena.ts`.
-- `MATCHMAKER_ROLE` gates `createBattle`. `RESOLVER_ROLE` gates `advanceRound` + `settle`. `DEFAULT_ADMIN_ROLE` (multisig) gates `adminResolveDispute`. Mainnet `Configure.s.sol` grants these to **different addresses** (DeployHelpers.s.sol enforces `MATCHMAKER_ADDRESS != RESOLVER_ADDRESS`).
+- `MATCHMAKER_ROLE` gates `createBattle`. `RESOLVER_ROLE` gates `revealTeams` (F5-01 atomic reveal) + `settle`. `DEFAULT_ADMIN_ROLE` (multisig) gates `adminResolveDispute`. Mainnet `Configure.s.sol` grants these to **different addresses** (DeployHelpers.s.sol enforces `MATCHMAKER_ADDRESS != RESOLVER_ADDRESS`).
 - `handleTimeout(battleId)` is permissionless and routes to the phase-specific cleanup.
 - `safeERC20` migration applied across 8 contracts (audit I-03/I-04, March 2026).
 - Self-purchase guard on Marketplace (I-01); redundant SSTORE removed in battle-arena (I-02).
@@ -658,7 +658,7 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 
 > **2026-09-02 correction.** This series lived only on the `backend-cleanup` branch (last commit 2026-05-21) and had never been merged into `main` or `engine/v3-atb-sim`; the "shipped" status below was true of that branch's working tree only. PR #13 (`chore/integrate-backend-cleanup`) merged it into `engine/v3-atb-sim`. The battle-rank boost server work (team rating, rating-banded matchmaking, weekly epoch job) builds on it.
 
-**Desired Outcome.** Every operator-signed on-chain tx (createBattle, advanceRound, settle, season rollover) goes through a durable outbox + worker pattern with: idempotency keys, retry-with-backoff, dead status, crash-recovery via priorTxHash reconciliation, role-specific signer wallets (MATCHMAKER for create, RESOLVER for resolve/settle, OPERATOR for season/drand), error classification (contract revert → dead, RPC error → transient).
+**Desired Outcome.** Every operator-signed on-chain tx (createBattle, revealTeams, settle, season rollover) goes through a durable outbox + worker pattern with: idempotency keys, retry-with-backoff, dead status, crash-recovery via priorTxHash reconciliation, role-specific signer wallets (MATCHMAKER for create, RESOLVER for resolve/settle, OPERATOR for season/drand), error classification (contract revert → dead, RPC error → transient).
 
 **Current State (DONE — closes X1 + X2 + X3 + X8 + HIGH-1):**
 
@@ -666,8 +666,8 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 - `types.ts` — `JobStatus`, `JobResult` discriminated union (`{ok:true,txHash?} | {ok:false,retry:'dead'|'transient',error}`), `JobContext.recordTxHash(hash)` with bounded internal retry [200ms, 1s, 5s] + `TxHashPersistError` sentinel.
 - `errors.ts` — `classifyError(err)` walks viem cause chain, 25 BattleArena custom errors → dead. `wrapHandler(fn)` validates result shape (FU2 LOW-5 full union check), routes TxHashPersistError separately.
 - `jobs/create-battle.ts` — handler. priorTxHash uses bounded `waitForTransactionReceipt` (never blind resubmits). Mints WS-equivalent signal via DB `battles.status=1` (X10 cross-process WS deferred). markCreateFailed re-throws DB errors for transient retry.
-- `jobs/resolve-round.ts` — stateless replay from `on_chain_events.MoveRevealed`. battle_rounds INSERT with `onConflictDoNothing({target:[battleId,round]})`. State.finished → settle; else advanceRound. NO accounting writes (moved to indexer's BattleSettled).
-- `index.ts` — registers `wrapHandler(createBattleHandler)` for `create_battle`, `wrapHandler(resolveRoundHandler)` for `resolve_round`.
+- `jobs/resolve-round.ts` — **deleted 2026-09-05** (V3: no on-chain rounds). Its settle-submission + `priorTxHash` reconciliation pattern is the template for the V3 `settle_battle` handler.
+- `index.ts` — registers `wrapHandler(createBattleHandler)` for `create_battle`, plus the boost handlers (`set_team_boosts`, `activate_boost_epoch`).
 
 **68 tests pass** across worker, errors, create-battle, resolve-round, seasons.
 
@@ -1028,7 +1028,7 @@ In order:
 - **operator_jobs** — durable outbox table for operator-worker tasks.
 - **Power score** — sum of evolution-tier weights in a team (Evolved=1/Elite=2/Apex=3, range 3–9 for Evolved-or-better teams).
 - **Purity score** — count of body parts where the dominant allele's class affinity matches the lobster's overall class (0–6).
-- **RESOLVER_ROLE** — contract role granting `advanceRound` + `settle` permission.
+- **RESOLVER_ROLE** — contract role granting `revealTeams` (F5-01 atomic reveal) + `settle` permission.
 - **V3 S1** — third major design iteration; Season 1 of the live game. Mining + Battle parallel economies; Power Matchmaking; admin dispute resolution.
 - **X1, X2, X3, …** — finding IDs from the cross-cutting Codex sweeps. Live in `launch-blockers.md`.
 - **A1, A2, A3, …** — finding IDs from the multi-PR campaign audit. Live in `launch-blockers.md`.
