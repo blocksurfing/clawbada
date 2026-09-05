@@ -10,3 +10,4 @@ export * from './indexer';
 export * from './events';
 export * from './operator-jobs';
 export * from './boost';
+export * from './battle-sessions';

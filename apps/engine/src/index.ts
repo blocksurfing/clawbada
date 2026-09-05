@@ -28,6 +28,7 @@ import { SeasonManager } from './seasons/manager';
 import { DrandClient } from './vrf/drand';
 import { OperatorWorker } from './operator/worker';
 import { createBattleHandler } from './operator/jobs/create-battle';
+import { settleBattleHandler } from './operator/jobs/settle-battle';
 import { setTeamBoostsHandler } from './operator/jobs/set-team-boosts';
 import { activateBoostEpochHandler } from './operator/jobs/activate-boost-epoch';
 import { wrapHandler } from './operator/errors';
@@ -88,10 +89,10 @@ async function main() {
   // contract revert (e.g. InvalidPowerScore) goes dead-no-retry instead
   // of burning all 5 transient retry slots.
   operatorWorker.registerHandler('create_battle', wrapHandler(createBattleHandler));
-  // V3: battle turns run off-chain in the API's session manager; the engine's
-  // only settlement duty is the `settle_battle` outbox job (lands with the
-  // session-manager PR). The V2 `resolve_round` handler is gone with the
-  // on-chain round loop.
+  // V3: battle turns run off-chain in the API's battle-session manager. When a
+  // battle ends the API enqueues `settle_battle`; this handler submits
+  // BattleArena.settle(...) with the RESOLVER key (draw = address(0)).
+  operatorWorker.registerHandler('settle_battle', wrapHandler(settleBattleHandler));
   // Battle-rank mining boost: the weekly epoch job below enqueues these; the
   // handlers sign with the BOOST_ADMIN key (falls back to OPERATOR on testnet).
   operatorWorker.registerHandler('set_team_boosts', wrapHandler(setTeamBoostsHandler));
