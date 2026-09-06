@@ -10,13 +10,14 @@ import { Badge } from '@/components/ui/badge';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { useAuth } from '@/hooks/use-auth';
 import { useBattleSession } from '@/hooks/use-battle-session';
-import type { Side } from '@/lib/battle-protocol';
+import type { Side, TurnCommand } from '@/lib/battle-protocol';
 import { BattleStage } from './BattleStage';
+import { selectionToData } from './unity-bridge';
 import { HexBoard } from './HexBoard';
 import { Hud } from './Hud';
 import { ActionPanel } from './ActionPanel';
 import { DamageLog } from './DamageLog';
-import { useTurnSelection } from './use-turn-selection';
+import { useTurnSelection, type ActionChoice } from './use-turn-selection';
 import { Loader2, Radio, Trophy } from 'lucide-react';
 
 export interface LiveBattleProps {
@@ -54,8 +55,38 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
   const animating = pending.length > 0;
   const myTurn = !!mySide && !!current && current.side === mySide && !ended;
   const canAct = myTurn && !animating;
-  const selection = useTurnSelection(snapshot, current, canAct);
   const [sentTurn, setSentTurn] = useState<number | null>(null);
+  const onSubmit = useCallback((cmd: TurnCommand): boolean => {
+    if (!current) return false;
+    const ok = submitTurn(current.turn, cmd);
+    if (ok) {
+      setSentTurn(current.turn);
+      console.log(`[LiveBattle] submit ${cmd.action} ${cmd.targetId ?? ''}${cmd.moveTo ? ` move(${cmd.moveTo.col},${cmd.moveTo.row})` : ''}`);
+    }
+    return ok;
+  }, [current, submitTurn]);
+  // Unity's action bar submits on tap (LOKR); the React fallback panel confirms explicitly.
+  const selection = useTurnSelection(snapshot, current, canAct, { autoSubmit: gate, onSubmit });
+  const pendingAck = current !== null && sentTurn === current.turn;
+  const selectionData = useMemo(
+    () => (snapshot ? selectionToData(canAct ? selection : null, snapshot.roster, { isPlayerTurn: myTurn, canAct: canAct && !pendingAck, pendingAck }) : null),
+    [snapshot, selection, canAct, myTurn, pendingAck],
+  );
+  const handleActionSelected = useCallback((a: string) => {
+    console.log(`[LiveBattle] unity action ${a}`);
+    selection.pressAction(a as ActionChoice);
+  }, [selection]);
+  const handleUndo = useCallback(() => selection.clearMove(), [selection]);
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    // Harness/agent hook: the legal moves and targets the HUD is working from.
+    (window as unknown as { __clawbada_selection?: unknown }).__clawbada_selection = {
+      actor: selection.actor?.id ?? null, moves: selection.summary?.moves ?? [], attackTargets: selection.summary?.attackTargets ?? [],
+      specialTargets: selection.summary?.specialTargets ?? [], action: selection.action, moveTo: selection.moveTo, targetId: selection.targetId,
+      hint: selection.hint, canSpecial: selection.canSpecial, specialKind: selection.specialKind,
+      lobsters: snapshot?.state.lobsters.map((l) => ({ id: l.id, team: l.team, col: l.pos.col, row: l.pos.row, alive: l.alive })) ?? [],
+    };
+  }, [selection, snapshot]);
 
   useEffect(() => {
     if (lastAck && lastAck.turn === sentTurn) setSentTurn(null);
@@ -69,9 +100,9 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
   }, [ended]);
 
   const handleSubmit = useCallback(() => {
-    if (!current || !selection.command) return;
-    if (submitTurn(current.turn, selection.command)) setSentTurn(current.turn);
-  }, [current, selection.command, submitTurn]);
+    if (!selection.command) return;
+    onSubmit(selection.command);
+  }, [selection.command, onSubmit]);
 
   const handleUnavailable = useCallback(() => setUnityAvailable(false), []);
   const handleReady = useCallback(() => { setUnityAvailable(true); setUnityReady(true); }, []);
@@ -114,15 +145,20 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
           bar={bar}
           ended={ended}
           highlights={highlights}
+          selection={selectionData}
+          previewMove={selection.moveTo}
           onTurnAnimationComplete={markAnimated}
           onHexClick={selection.onHexClick}
           onLobsterClick={selection.onLobsterClick}
+          onActionSelected={handleActionSelected}
+          onUndoMove={handleUndo}
           onUnavailable={handleUnavailable}
           onReady={handleReady}
         />
       )}
-      {/* Tactical map: always rendered. It is the input surface (click a hex to move,
-          a lobster to target) and the fallback picture when the Unity build is missing. */}
+      {/* Fallback board: only when the Unity build is missing or not yet ready — the arena
+          itself is the input surface once Unity's HUD is up. */}
+      {!gate && (
       <FrostedPanel className="p-2">
         {unityAvailable !== false && (
           <p className="text-[10px] text-text-secondary mb-1">
@@ -142,6 +178,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
           />
         )}
       </FrostedPanel>
+      )}
 
       {/* Unity draws the HUD (turn strip, HP, clock, badges) inside the canvas; the React
           HUD is the fallback when the WebGL build is missing or not yet ready. */}
@@ -166,7 +203,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
         </div>
       )}
 
-      {canAct && current && (
+      {!gate && canAct && current && (
         <ActionPanel
           snapshot={snapshot}
           selection={selection}

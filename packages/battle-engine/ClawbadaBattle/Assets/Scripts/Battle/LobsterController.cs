@@ -338,6 +338,17 @@ public class LobsterController : MonoBehaviour
         }
     }
 
+    /// <summary>Instant reposition (preview undo, server snap) with no walk animation.</summary>
+    public void SnapTo(int toCol, int toRow)
+    {
+        col = toCol;
+        row = toRow;
+        if (grid != null) transform.position = grid.GetWorldPosition(col, row);
+        UpdateSortingOrder();
+        FaceEnemySide();
+        PlayState("Idle");
+    }
+
     /// <summary>Optimistic status update from a turn's status events (SyncUnits corrects it).</summary>
     public void SetStatus(string type, bool applied, int turns)
     {

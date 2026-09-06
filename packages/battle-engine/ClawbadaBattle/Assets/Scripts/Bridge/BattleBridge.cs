@@ -9,10 +9,12 @@ using System.Runtime.InteropServices;
 ///   InitBattle(BattleInitData)  StartTurn(TurnStartData)  PlayTurn(TurnPlayData)
 ///   UpdateBar(BarData)  SetClock(ClockData)  BattleEnd(BattleEndData)
 ///   SyncUnits(UnitsSyncData)  ShowSelection(HexListData)  ClearHighlights()
+///   SetSelection(SelectionData)  PreviewMove(PreviewMoveData)
 ///   PlayRound(RoundResult) is kept for the editor demo loop only.
 /// Unity → React: Unity calls JS functions via DllImport (JSBridge.jslib) → window.__clawbada.*
 ///   onUnityReady  onLobsterSelected {lobsterId}  onHexClicked {col,row}
-///   onTurnAnimationComplete {turn}  (onAnimationComplete {round} — demo loop only)
+///   onTurnAnimationComplete {turn}  onActionSelected {action}  onUndoMove
+///   (onAnimationComplete {round} — demo loop only)
 ///
 /// Unity renders; it never decides. Every number here was resolved by the server.
 /// </summary>
@@ -24,6 +26,8 @@ public class BattleBridge : MonoBehaviour
     [DllImport("__Internal")] private static extern void SendUnityReady();
     [DllImport("__Internal")] private static extern void SendAnimationComplete(string json);
     [DllImport("__Internal")] private static extern void SendTurnAnimationComplete(string json);
+    [DllImport("__Internal")] private static extern void SendActionSelected(string json);
+    [DllImport("__Internal")] private static extern void SendUndoMove();
 
     private BattleManager battleManager;
     private HexGrid hexGrid;
@@ -93,6 +97,22 @@ public class BattleBridge : MonoBehaviour
         if (battleManager != null) battleManager.SyncUnits(data);
     }
 
+    /// <summary>React's turn-building state for the in-canvas action bar (armed action,
+    /// legality, hint). A non-player turn hides the bar.</summary>
+    public void SetSelection(string json)
+    {
+        var data = JsonUtility.FromJson<SelectionData>(json);
+        if (battleManager != null) battleManager.SetSelection(data);
+    }
+
+    /// <summary>Tentative move: slide the acting lobster to a cell (or back to its origin)
+    /// before the turn is submitted.</summary>
+    public void PreviewMove(string json)
+    {
+        var data = JsonUtility.FromJson<PreviewMoveData>(json);
+        if (battleManager != null) battleManager.PreviewMove(data);
+    }
+
     /// <summary>Editor demo loop only (V2 round shape). Real battles use PlayTurn.</summary>
     public void PlayRound(string json)
     {
@@ -151,6 +171,26 @@ public class BattleBridge : MonoBehaviour
         SendTurnAnimationComplete(json);
         #else
         Debug.Log($"[BattleBridge] TurnAnimationComplete: turn {turn}");
+        #endif
+    }
+
+    /// <summary>Action-bar press: attack | special | defend | none.</summary>
+    public void NotifyActionSelected(string action)
+    {
+        string json = $"{{\"action\":\"{action}\"}}";
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendActionSelected(json);
+        #else
+        Debug.Log($"[BattleBridge] ActionSelected: {action}");
+        #endif
+    }
+
+    public void NotifyUndoMove()
+    {
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendUndoMove();
+        #else
+        Debug.Log("[BattleBridge] UndoMove");
         #endif
     }
 
@@ -324,6 +364,32 @@ public class UnitsSyncData
 {
     public int turn;
     public UnitSyncData[] units;
+}
+
+/// <summary>React's turn-building state, mirrored on the in-canvas action bar.</summary>
+[System.Serializable]
+public class SelectionData
+{
+    public bool isPlayerTurn;
+    public bool canAct;
+    public string action;        // attack | special | defend | none
+    public bool canSpecial;
+    public string specialName;
+    public string specialKind;   // none | enemy | ally
+    public bool hasMove;
+    public string targetId;
+    public int targetCount;
+    public bool canUndo;
+    public string hint;
+    public bool pendingAck;
+}
+
+[System.Serializable]
+public class PreviewMoveData
+{
+    public string lobsterId;
+    public int col;
+    public int row;
 }
 
 // ─── Editor demo loop (V2 round shape) ───

@@ -67,3 +67,7 @@ every later command then fails `validateTurn` with `not_your_turn`. The web HUD 
 an 8 s watchdog per animated turn so a Unity coroutine that never reports completion
 cannot freeze input, and always renders the SVG tactical map as an input surface next to
 the Unity stage.
+
+## In-canvas input (2026-09-06)
+
+With the Unity HUD up, React sends `SetSelection` (armed action, legality, hint) and `PreviewMove` (tentative cell) and receives `onActionSelected` / `onUndoMove` plus the existing hex/lobster clicks. `use-turn-selection` runs in `autoSubmit` mode: a legal target tap, Defend or Wait submits immediately; Special arms (or submits at once when targetless). The React panel and SVG board render only when the WebGL build is unavailable.

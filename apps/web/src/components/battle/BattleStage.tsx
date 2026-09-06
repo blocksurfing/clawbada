@@ -16,8 +16,10 @@ import {
   registerUnityCallbacks,
   turnToPlayData,
   unitsToSync,
+  IDLE_SELECTION,
   type HexListData,
   type HexPosition,
+  type SelectionData,
 } from './unity-bridge';
 import type { BattleEndedPayload, BattleSnapshot, CurrentTurn, Side, TurnResolvedPayload, WireBarEntry } from '@/lib/battle-protocol';
 
@@ -34,9 +36,15 @@ export interface BattleStageProps {
   bar: WireBarEntry[];
   ended: BattleEndedPayload | null;
   highlights: HexListData | null;
+  /** Action-bar state (null → bar hidden). */
+  selection?: SelectionData | null;
+  /** Tentative move destination for the acting lobster (null → at its origin). */
+  previewMove?: HexPosition | null;
   onTurnAnimationComplete: (turn: number) => void;
   onHexClick: (hex: HexPosition) => void;
   onLobsterClick: (id: string) => void;
+  onActionSelected?: (action: string) => void;
+  onUndoMove?: () => void;
   onUnavailable: () => void;
   onReady: () => void;
 }
@@ -90,6 +98,8 @@ function UnityStage(props: BattleStageProps) {
       onUnityReady: () => setUnityReady(true),
       onLobsterSelected: props.onLobsterClick,
       onHexClicked: props.onHexClick,
+      onActionSelected: props.onActionSelected,
+      onUndoMove: props.onUndoMove,
       onTurnAnimationComplete: (turn) => {
         if (watchdog.current) { clearTimeout(watchdog.current); watchdog.current = null; }
         animating.current = null;
@@ -97,7 +107,7 @@ function UnityStage(props: BattleStageProps) {
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete]);
+  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove]);
 
   useEffect(() => {
     if (initialisationError) {
@@ -170,6 +180,25 @@ function UnityStage(props: BattleStageProps) {
     if (props.highlights) send(UNITY_METHODS.SHOW_SELECTION, props.highlights);
     else send(UNITY_METHODS.CLEAR_HIGHLIGHTS);
   }, [ready, props.highlights, send]);
+
+  // Action-bar state: every change of the player's selection, idle outside their turn.
+  useEffect(() => {
+    if (!ready || !initedFor.current) return;
+    const sel = props.selection ?? IDLE_SELECTION;
+    send(UNITY_METHODS.SET_SELECTION, sel);
+    console.log(`[BattleStage] selection player=${sel.isPlayerTurn} act=${sel.action} canAct=${sel.canAct} targets=${sel.targetCount} pending=${sel.pendingAck}`);
+  }, [ready, props.selection, send]);
+
+  // Tentative move: slide the acting lobster to the chosen cell, or back to its origin.
+  useEffect(() => {
+    if (!ready || !initedFor.current || !props.selection?.isPlayerTurn || !props.current?.lobsterId) return;
+    if (props.nextToAnimate || animating.current !== null) return;
+    const actor = props.snapshot?.state.lobsters.find((l) => l.id === props.current!.lobsterId);
+    if (!actor) return;
+    const to = props.previewMove ?? actor.pos;
+    send(UNITY_METHODS.PREVIEW_MOVE, { lobsterId: actor.id, col: to.col, row: to.row });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, props.previewMove, props.current?.lobsterId, props.selection?.isPlayerTurn, props.nextToAnimate, send]);
 
   useEffect(() => {
     if (!ready || !props.ended || endedSent.current || props.nextToAnimate) return;
