@@ -173,11 +173,19 @@ public class BattleManager : MonoBehaviour
         var cam = Camera.main;
         if (cam != null)
         {
+            // Centre on the backdrop (Background sorting layer) only: foreground frame art
+            // hangs below the frame and would pull the whole arena down.
             var renderers = arenaArtInstance.GetComponentsInChildren<SpriteRenderer>();
-            if (renderers.Length > 0)
+            var frame = new List<SpriteRenderer>();
+            foreach (var r in renderers) if (r.sortingLayerName == "Background") frame.Add(r);
+            if (frame.Count == 0) frame.AddRange(renderers);
+            var dbg = new System.Text.StringBuilder();
+            foreach (var r in renderers) dbg.Append($" {r.name}[{r.sortingLayerName}/{r.sortingOrder}] c=({r.bounds.center.x:F2},{r.bounds.center.y:F2}) s=({r.bounds.size.x:F2},{r.bounds.size.y:F2});");
+            Debug.Log($"[BattleManager] arena '{prefab.name}' cam=({cam.transform.position.x:F2},{cam.transform.position.y:F2}) ortho={cam.orthographicSize:F3} aspect={cam.aspect:F3} renderers:{dbg}");
+            if (frame.Count > 0)
             {
-                var bounds = renderers[0].bounds;
-                foreach (var r in renderers) bounds.Encapsulate(r.bounds);
+                var bounds = frame[0].bounds;
+                foreach (var r in frame) bounds.Encapsulate(r.bounds);
                 Vector3 shift = new Vector3(cam.transform.position.x, cam.transform.position.y, 0f)
                                 - new Vector3(bounds.center.x, bounds.center.y, 0f);
                 arenaArtInstance.transform.position += shift;
