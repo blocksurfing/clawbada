@@ -142,7 +142,28 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
         )}
       </FrostedPanel>
 
-      <Hud snapshot={snapshot} current={current} bar={bar} timeouts={timeouts} mySide={mySide} animating={animating} />
+      {/* Unity draws the HUD (turn strip, HP, clock, badges) inside the canvas; the React
+          HUD is the fallback when the WebGL build is missing or not yet ready. */}
+      {!gate && <Hud snapshot={snapshot} current={current} bar={bar} timeouts={timeouts} mySide={mySide} animating={animating} />}
+      {gate && (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary px-1" data-testid="battle-status-line">
+          <span className="font-pixel text-[10px] text-text-accent">Turn {current?.turn ?? snapshot.state.turn}</span>
+          {ended ? (
+            <span>Battle over</span>
+          ) : animating ? (
+            <span>animating…</span>
+          ) : myTurn ? (
+            <span className="text-claw-gold">Your turn</span>
+          ) : current?.controller === 'bot' ? (
+            <span>Bot thinking…</span>
+          ) : (
+            <span>Opponent's turn</span>
+          )}
+          {(timeouts.A > 0 || timeouts.B > 0) && <span>⏱ A {timeouts.A} · B {timeouts.B}</span>}
+          {sentTurn !== null && sentTurn === current?.turn && <span>Sending…</span>}
+          {error && (error.turn === undefined || error.turn === current?.turn) && <span className="text-destructive">{error.code}: {error.message}</span>}
+        </div>
+      )}
 
       {canAct && current && (
         <ActionPanel

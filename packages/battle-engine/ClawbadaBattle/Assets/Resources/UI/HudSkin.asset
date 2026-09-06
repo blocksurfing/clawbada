@@ -1,0 +1,83 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e0ab5a9a486243e29be15ae63261ec6, type: 3}
+  m_Name: HudSkin
+  m_EditorClassIdentifier: Assembly-CSharp::HudSkin
+  hexFrame56: {fileID: 21300000, guid: 969dd2ec32f9e4096a3aed6da2957003, type: 3}
+  hexMask56: {fileID: 21300000, guid: 94b3828240abb4d1b92003232f208b56, type: 3}
+  hexFrame96: {fileID: 21300000, guid: 4076596abfa414a9fa2c4ce1cebf4a4f, type: 3}
+  hexMask96: {fileID: 21300000, guid: efc0077ad744849f8b90d5015dbb9b03, type: 3}
+  hexButton64: {fileID: 21300000, guid: 368d2f2bb32c94d94b008813bc79473e, type: 3}
+  barBg: {fileID: 21300000, guid: 30baf266c203b43529b2c35430914f64, type: 3}
+  barFill: {fileID: 21300000, guid: 06933283859d74864a3681e5c12e89b6, type: 3}
+  panelBg: {fileID: 21300000, guid: baaaa8c55d9084cd485654366d798c67, type: 3}
+  pip: {fileID: 21300000, guid: 1da441772296a4d8981b8fd518c46977, type: 3}
+  ring: {fileID: 21300000, guid: afffb56f760b74b0daf0ad67a8b4a039, type: 3}
+  iconAttack: {fileID: 21300000, guid: d840c9b13ea6c48efb24196aaa413599, type: 3}
+  iconSpecial: {fileID: 21300000, guid: 3c1fe88a4d93d43e4b79cdc6e2cd1e22, type: 3}
+  iconDefend: {fileID: 21300000, guid: 020ae438d0deb42418bd61ac6d54f918, type: 3}
+  iconWait: {fileID: 21300000, guid: 7f0c1cda01e0341958d941233eecb5eb, type: 3}
+  iconUndo: {fileID: 21300000, guid: a74f422a640634e5d921c7f075728fc3, type: 3}
+  iconClock: {fileID: 21300000, guid: 661fb350622d14041a44f869d7da7111, type: 3}
+  iconKo: {fileID: 21300000, guid: f32b3cef01b684a208b78da74fc5aa6a, type: 3}
+  iconShield: {fileID: 21300000, guid: 27f244500e6fe47bdab48ee036c0d05b, type: 3}
+  badgeHuman: {fileID: 21300000, guid: 0ebed3efc167f431eb3f5bc48dcee531, type: 3}
+  badgeAgent: {fileID: 21300000, guid: 49de3c9f532a7466b810090e550e103c, type: 3}
+  badgeBot: {fileID: 21300000, guid: ec323ed103f51447baf8efbd288d2323, type: 3}
+  statusIcons:
+  - status: bleed
+    sprite: {fileID: 21300000, guid: 95266cc68682b4c56a3ad7e9073c6cc7, type: 3}
+  - status: stun
+    sprite: {fileID: 21300000, guid: 138ca8ab0a74e4922ababbdffa3d4294, type: 3}
+  - status: haunt
+    sprite: {fileID: 21300000, guid: 3c4084d3bb7704b7a85b973792013cae, type: 3}
+  - status: fortify
+    sprite: {fileID: 21300000, guid: f5775f484709948c09a19deec46bba9a, type: 3}
+  - status: reflect
+    sprite: {fileID: 21300000, guid: d815a2b8fa1fc43adb40f1f3d4fa6936, type: 3}
+  - status: shield
+    sprite: {fileID: 21300000, guid: b77d4cce36b8044468d9637f47e2a239, type: 3}
+  - status: slow
+    sprite: {fileID: 21300000, guid: b6873d8d79f074af6a8c3acbb042bcb9, type: 3}
+  - status: taunt
+    sprite: {fileID: 21300000, guid: ac50aa724b0bd4fcb9f1715693e2c4ee, type: 3}
+  font: {fileID: 0}
+  selectorController: {fileID: 9100000, guid: 7c24562e530663043886cf1e52630450, type: 2}
+  selectorSprite: {fileID: -1794730122, guid: f883cc5724df12c44bddcfdc5cbd9d7c, type: 3}
+  selectorOffset: {x: 0, y: -0.02, z: 0}
+  teamA: {r: 0.9764706, g: 0.4392157, b: 0.4, a: 1}
+  teamB: {r: 0.34509805, g: 0.6509804, b: 1, a: 1}
+  hpHigh: {r: 0.24705882, g: 0.7254902, b: 0.627451, a: 1}
+  hpMid: {r: 0.9843137, g: 0.7490196, b: 0.14117648, a: 1}
+  hpLow: {r: 0.972549, g: 0.31764707, b: 0.28627452, a: 1}
+  gold: {r: 0.9843137, g: 0.7490196, b: 0.14117648, a: 1}
+  activeRing: {r: 1, g: 0.8235294, b: 0.5019608, a: 1}
+  clockDanger: {r: 0.972549, g: 0.31764707, b: 0.28627452, a: 1}
+  textPrimary: {r: 1, g: 1, b: 1, a: 1}
+  textSecondary: {r: 0.72156864, g: 0.76862746, b: 0.83137256, a: 1}
+  floatNormal: {r: 1, g: 1, b: 1, a: 1}
+  floatCrit: {r: 0.9843137, g: 0.7490196, b: 0.14117648, a: 1}
+  floatSelf: {r: 0.972549, g: 0.31764707, b: 0.28627452, a: 1}
+  floatHeal: {r: 0.24705882, g: 0.7254902, b: 0.627451, a: 1}
+  buttonNormal: {r: 1, g: 1, b: 1, a: 1}
+  buttonArmed: {r: 1, g: 0.8235294, b: 0.5019608, a: 1}
+  buttonDisabled: {r: 1, g: 1, b: 1, a: 0.35}
+  stripPortrait: 56
+  activePortrait: 96
+  buttonSize: 64
+  overlayBar: {x: 40, y: 4}
+  overlayWorldYOffset: 1.15
+  floatRise: 40
+  floatSeconds: 1.2
+  clockDangerMs: 10000
+  portraitPartScale: 1.6
+  portraitPartOffset: {x: 0, y: -3}

@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -32,6 +33,30 @@ public class BattleManager : MonoBehaviour
     /// <summary>Remaining shot clock in ms, mirrored from React's SetClock (visual cues only).</summary>
     public int clockRemainingMs = 0;
     public BarEntryData[] upcoming = new BarEntryData[0];
+    /// <summary>The turn most recently announced by StartTurn (null before the first).</summary>
+    public TurnStartData activeTurn;
+    public bool isPlayerTurn;
+    public string PlayerSide => initData?.playerSide ?? "";
+    public BattleInitData InitData => initData;
+    public IEnumerable<LobsterController> Lobsters => lobsters.Values;
+    /// <summary>In-canvas HUD, attached in Awake when a HudSkin exists (see BattleHud.Attach).</summary>
+    public BattleHud hud;
+
+    // HUD hooks. BattleHud subscribes; every invocation is null-safe so a build without
+    // generated HUD art still plays (React's fallback HUD covers it).
+    public event Action<BattleInitData> Initialized;
+    /// <summary>(turn data, fallback remaining ms computed from deadlineMs — 0 when unknown).</summary>
+    public event Action<TurnStartData, int> TurnStarted;
+    public event Action<BarData> BarUpdated;
+    public event Action<int> ClockSet;
+    public event Action<UnitsSyncData> UnitsSynced;
+    /// <summary>(target, amount, kind, isCrit) at the impact frame.</summary>
+    public event Action<LobsterController, int, string, bool> DamageApplied;
+    public event Action<LobsterController, int> HealApplied;
+    /// <summary>(target, status, applied, turns).</summary>
+    public event Action<LobsterController, string, bool, int> StatusChanged;
+    public event Action<LobsterController> Died;
+    public event Action<BattleEndData> BattleEnded;
 
     [Header("Prefabs")]
     [Tooltip("Tier+class → rigged lobster prefab. Rebuild via Clawbada/Rebuild Lobster Prefab Library.")]
@@ -65,6 +90,7 @@ public class BattleManager : MonoBehaviour
     private BattleBridge bridge;
     private readonly Dictionary<string, LobsterController> lobsters = new();
     private Transform lobsterRoot;
+    private Coroutine turnRoutine;
 
     void Awake()
     {
@@ -77,11 +103,17 @@ public class BattleManager : MonoBehaviour
         {
             hexGrid.gameObject.AddComponent<HexInput>();
         }
+        // In-canvas HUD, same runtime-attach pattern (no scene wiring to lose).
+        if (hud == null) hud = GetComponent<BattleHud>();
+        if (hud == null) hud = BattleHud.Attach(this);
     }
 
     /// <summary>Initialize battle with full data from React.</summary>
     public void Initialize(BattleInitData data)
     {
+        // Awake does not run in edit mode (HUD smoke test): resolve scene refs lazily.
+        if (hexGrid == null) hexGrid = FindAnyObjectByType<HexGrid>();
+        if (bridge == null) bridge = FindAnyObjectByType<BattleBridge>();
         initData = data;
         currentPhase = BattlePhase.WaitingForInit;
         Debug.Log($"[BattleManager] Initialized battle {data.battleId}, player side: {data.playerSide}, tier: {data.arena.tier}");
@@ -98,8 +130,10 @@ public class BattleManager : MonoBehaviour
         SpawnTeam(data.teamB);
         currentTurn = 0;
         activeLobsterId = "";
+        activeTurn = null;
+        isPlayerTurn = false;
         currentPhase = BattlePhase.Idle;
-        // Badges / stake / HUD are rendered by React over the canvas.
+        Initialized?.Invoke(data);
     }
 
     /// <summary>Replace the arena backdrop with the tier's designer prefab
@@ -120,8 +154,8 @@ public class BattleManager : MonoBehaviour
             return;
         }
 
-        if (arenaArtInstance != null) Destroy(arenaArtInstance);
-        if (initialArenaArt != null) { Destroy(initialArenaArt); initialArenaArt = null; }
+        if (arenaArtInstance != null) SafeDestroy(arenaArtInstance);
+        if (initialArenaArt != null) { SafeDestroy(initialArenaArt); initialArenaArt = null; }
         arenaArtInstance = Instantiate(prefab);
         arenaArtInstance.name = prefab.name;
 
@@ -185,24 +219,60 @@ public class BattleManager : MonoBehaviour
         }
     }
 
-    /// <summary>A lobster's turn started (server-authoritative). Purely a visual cue:
-    /// face the actor toward the enemy side. Highlights come from React via ShowSelection.</summary>
+    /// <summary>A lobster's turn started (server-authoritative). Faces the actor toward the
+    /// enemy side and raises TurnStarted for the HUD (marker, active panel, clock).
+    /// Highlights come from React via ShowSelection.</summary>
     public void StartTurn(TurnStartData data)
     {
         currentTurn = data.turn;
         activeLobsterId = data.lobsterId ?? "";
+        activeTurn = data;
+        isPlayerTurn = data.isPlayer;
         if (lobsters.TryGetValue(activeLobsterId, out var lob) && lob.alive) lob.FaceEnemySide();
         if (currentPhase != BattlePhase.AnimatingTurn && currentPhase != BattlePhase.BattleOver) currentPhase = BattlePhase.Idle;
+
+        // Fallback clock from the epoch deadline; React normally follows up with SetClock.
+        int fallbackMs = 0;
+        if (data.isPlayer && data.deadlineMs > 0 && PlayerSide != "spectator")
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            fallbackMs = (int)Math.Max(0, Math.Min(int.MaxValue, data.deadlineMs - now));
+        }
+        TurnStarted?.Invoke(data, fallbackMs);
     }
 
     public void UpdateBar(BarData data)
     {
         upcoming = data?.entries ?? new BarEntryData[0];
+        BarUpdated?.Invoke(data);
     }
 
     public void SetClock(int remainingMs)
     {
         clockRemainingMs = remainingMs;
+        ClockSet?.Invoke(remainingMs);
+    }
+
+    /// <summary>Server truth for every unit, applied after React has consumed the animated
+    /// turn. If React's watchdog already released the HUD while an animation is still
+    /// running, stop it and snap to the synced state.</summary>
+    public void SyncUnits(UnitsSyncData data)
+    {
+        if (data == null) return;
+        if (currentPhase == BattlePhase.AnimatingTurn && turnRoutine != null)
+        {
+            StopCoroutine(turnRoutine);
+            turnRoutine = null;
+            currentPhase = BattlePhase.Idle;
+        }
+        if (data.units != null)
+        {
+            foreach (var u in data.units)
+            {
+                if (u != null && lobsters.TryGetValue(u.lobsterId ?? "", out var lob)) lob.ApplySync(u, snapPosition: true);
+            }
+        }
+        UnitsSynced?.Invoke(data);
     }
 
     /// <summary>Animate one resolved turn, then tell React so it can send the next.</summary>
@@ -210,7 +280,7 @@ public class BattleManager : MonoBehaviour
     {
         currentPhase = BattlePhase.AnimatingTurn;
         currentTurn = data.turn;
-        StartCoroutine(PlayTurnRoutine(data));
+        turnRoutine = StartCoroutine(PlayTurnRoutine(data));
     }
 
     private IEnumerator PlayTurnRoutine(TurnPlayData data)
@@ -224,6 +294,7 @@ public class BattleManager : MonoBehaviour
         }
         finally
         {
+            turnRoutine = null;
             if (currentPhase != BattlePhase.BattleOver) currentPhase = BattlePhase.Idle;
             bridge?.NotifyTurnAnimationComplete(data.turn);
         }
@@ -251,6 +322,9 @@ public class BattleManager : MonoBehaviour
             {
                 case "defend":
                     actor.PlayDefend();
+                    actor.defending = true;
+                    ApplyTurnEvents(data, actor, actor.transform.position, primaryOnly: false, includePrimary: true);
+                    ApplyStatusEvents(data);
                     yield return new WaitForSeconds(hitDuration);
                     break;
 
@@ -272,6 +346,7 @@ public class BattleManager : MonoBehaviour
                         });
                         // Secondary events (counter hits on the actor, reflects, bleed ticks).
                         ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
+                        ApplyStatusEvents(data);
                         yield return new WaitForSeconds(hitDuration * 0.5f);
                     }
                     break;
@@ -285,7 +360,12 @@ public class BattleManager : MonoBehaviour
         {
             // Skipped turn that still carried events (bleed tick on a stunned/dying lobster).
             ApplyTurnEvents(data, actor, actor.transform.position, primaryOnly: false, includePrimary: true);
+            ApplyStatusEvents(data);
             yield return new WaitForSeconds(hitDuration);
+        }
+        else
+        {
+            ApplyStatusEvents(data);
         }
 
         // 3. Deaths (server-authoritative list).
@@ -296,9 +376,22 @@ public class BattleManager : MonoBehaviour
                 if (lobsters.TryGetValue(deadId, out var lob) && lob.alive)
                 {
                     StartCoroutine(lob.PlayDeath(deathDuration));
+                    Died?.Invoke(lob);
                 }
             }
             yield return new WaitForSeconds(deathDuration);
+        }
+    }
+
+    /// <summary>Status effects applied/expired by this turn (optimistic; SyncUnits corrects).</summary>
+    private void ApplyStatusEvents(TurnPlayData data)
+    {
+        if (data.statuses == null) return;
+        foreach (var s in data.statuses)
+        {
+            if (s == null || !lobsters.TryGetValue(s.targetId ?? "", out var t)) continue;
+            t.SetStatus(s.status, s.applied, s.turns);
+            StatusChanged?.Invoke(t, s.status, s.applied, s.turns);
         }
     }
 
@@ -313,6 +406,7 @@ public class BattleManager : MonoBehaviour
             {
                 if (h == null || !lobsters.TryGetValue(h.targetId ?? "", out var t)) continue;
                 t.ApplyHeal(h.amount);
+                HealApplied?.Invoke(t, h.amount);
                 BattleVfxLibrary.Spawn(vfxLibrary?.status, actor, t, this);
             }
         }
@@ -324,6 +418,7 @@ public class BattleManager : MonoBehaviour
             if (primaryOnly && !primary) continue;
             if (!primaryOnly && primary && !includePrimary) continue;
             t.ApplyDamage(d.amount);
+            DamageApplied?.Invoke(t, d.amount, d.kind, d.isCrit);
             BattleVfxLibrary.Spawn(vfxLibrary?.attackImpact, actor, t, this);
             Vector3 from = t == actor ? t.transform.position + Vector3.right : actorPos;
             StartCoroutine(t.PlayHit(hitDuration, from));
@@ -418,15 +513,15 @@ public class BattleManager : MonoBehaviour
                         if (action.healed > 0)
                         {
                             target.ApplyHeal(action.healed);
+                            HealApplied?.Invoke(target, action.healed);
                             BattleVfxLibrary.Spawn(vfxLibrary?.status, actor, target, this);
-                            // TODO: floating heal number
                         }
                         else
                         {
                             target.ApplyDamage(action.damage);
+                            DamageApplied?.Invoke(target, action.damage, action.actionType, action.crit);
                             BattleVfxLibrary.Spawn(vfxLibrary?.attackImpact, actor, target, this);
                             StartCoroutine(target.PlayHit(hitDuration, actorPos));
-                            // TODO: damage number popup (crit/enhanced styling from action.crit / action.enhanced)
                         }
                     });
                     if (!impactFired && target != null && action.damage > 0)
@@ -448,6 +543,7 @@ public class BattleManager : MonoBehaviour
         currentPhase = BattlePhase.BattleOver;
         Debug.Log($"[BattleManager] Battle over! Winner: {data.winner}, Player won: {data.playerWon}");
         hexGrid?.ClearHighlights();
+        BattleEnded?.Invoke(data);
         if (data.winner == "draw") return;
 
         // Losing team plays Die as a defeat read if the server didn't already kill them.
@@ -458,7 +554,6 @@ public class BattleManager : MonoBehaviour
                 StartCoroutine(lob.PlayDeath(deathDuration));
             }
         }
-        // Result banner is React's.
     }
 
     /// <summary>Look up a spawned lobster's controller (selection, HUD, tests).</summary>
@@ -482,8 +577,16 @@ public class BattleManager : MonoBehaviour
     {
         foreach (var lob in lobsters.Values)
         {
-            if (lob != null) Destroy(lob.gameObject);
+            if (lob != null) SafeDestroy(lob.gameObject);
         }
         lobsters.Clear();
+    }
+
+    /// <summary>Destroy that also works in edit mode (the HUD smoke test runs Initialize there).</summary>
+    private static void SafeDestroy(UnityEngine.Object o)
+    {
+        if (o == null) return;
+        if (Application.isPlaying) Destroy(o);
+        else DestroyImmediate(o);
     }
 }

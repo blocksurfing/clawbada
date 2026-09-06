@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 /// <summary>
 /// Pointer input for the live battle: a click on the board becomes either
@@ -8,8 +9,10 @@ using UnityEngine;
 /// asks Unity to paint highlights via ShowSelection, and submits the turn.
 ///
 /// Attach to the HexGrid GameObject. Uses the legacy Input API (project setting
-/// activeInputHandler = 0).
+/// activeInputHandler = 0). Runs after the EventSystem so clicks on the in-canvas HUD
+/// (uGUI) are recognised and never fall through to the board.
 /// </summary>
+[DefaultExecutionOrder(100)]
 public class HexInput : MonoBehaviour
 {
     private HexGrid hexGrid;
@@ -27,8 +30,9 @@ public class HexInput : MonoBehaviour
     void Update()
     {
         if (!Input.GetMouseButtonDown(0)) return;
-        // The HUD is React HTML outside the canvas, so no in-scene UI hit test is needed
-        // (the project has no uGUI / EventSystem package).
+        // The battle HUD is a uGUI canvas over the board: a click on it must not also count
+        // as a board click.
+        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
         if (hexGrid == null || bridge == null) return;
         var cam = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
         if (cam == null) return;
