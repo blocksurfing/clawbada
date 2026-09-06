@@ -30,7 +30,7 @@ public class UnitOverlay : MonoBehaviour
         o.skin = skin;
 
         o.ring = HudFactory.Image(rt, "Ring", skin.ring, skin.activeRing, new Vector2(44f, 44f));
-        o.ring.rectTransform.anchoredPosition = new Vector2(0f, -22f);
+        o.ring.rectTransform.anchoredPosition = new Vector2(0f, -46f);
         o.ring.enabled = false;
 
         o.bar = HpBar.Create(rt, "Hp", skin, skin.overlayBar, withLabel: false);
@@ -63,7 +63,8 @@ public class UnitOverlay : MonoBehaviour
 
     public void SetActive(bool active)
     {
-        ring.enabled = active && Lobster != null && Lobster.alive && skin.ring != null;
+        // The world-space ActiveMarker already marks the actor; the ring only added clutter.
+        ring.enabled = false;
     }
 
     public void Refresh()

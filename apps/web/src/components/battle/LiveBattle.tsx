@@ -40,7 +40,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
     getAuthParams: isSpectator ? undefined : getAuthParams,
     gateOnAnimation: gate,
   });
-  const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated } = session;
+  const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq } = session;
 
   const mySide: Side | null = useMemo(() => {
     if (!snapshot || !address || isSpectator) return null;
@@ -107,6 +107,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
       {unityAvailable !== false && (
         <BattleStage
           snapshot={snapshot}
+          snapshotSeq={snapshotSeq}
           playerSide={playerSide}
           nextToAnimate={pending[0] ?? null}
           current={current}

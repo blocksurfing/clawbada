@@ -50,6 +50,8 @@ MonoBehaviour:
     sprite: {fileID: 21300000, guid: b6873d8d79f074af6a8c3acbb042bcb9, type: 3}
   - status: taunt
     sprite: {fileID: 21300000, guid: ac50aa724b0bd4fcb9f1715693e2c4ee, type: 3}
+  fillCanvas: 1
+  fillOrthographicSize: 2.8125
   font: {fileID: 0}
   selectorController: {fileID: 9100000, guid: 7c24562e530663043886cf1e52630450, type: 2}
   selectorSprite: {fileID: -1794730122, guid: f883cc5724df12c44bddcfdc5cbd9d7c, type: 3}
@@ -75,7 +77,7 @@ MonoBehaviour:
   activePortrait: 96
   buttonSize: 64
   overlayBar: {x: 40, y: 4}
-  overlayWorldYOffset: 1.15
+  overlayWorldYOffset: 0.72
   floatRise: 40
   floatSeconds: 1.2
   clockDangerMs: 10000

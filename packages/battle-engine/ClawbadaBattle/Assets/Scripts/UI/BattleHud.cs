@@ -56,6 +56,14 @@ public class BattleHud : MonoBehaviour
         built = true;
         Skin = skin;
         cam = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
+        if (cam != null && skin.fillCanvas)
+        {
+            // The pixel-perfect camera snaps to integer zoom and letterboxes the 640x360 arena
+            // inside larger canvases; the HUD wants the arena full-bleed.
+            if (cam.GetComponent("PixelPerfectCamera") is Behaviour ppc && ppc.enabled) ppc.enabled = false;
+            cam.orthographic = true;
+            cam.orthographicSize = skin.fillOrthographicSize;
+        }
 
         HudFactory.EnsureEventSystem();
         Canvas = HudFactory.Canvas("BattleHudCanvas", 100, new Vector2(960f, 540f), 0.5f, 64f);
@@ -148,6 +156,24 @@ public class BattleHud : MonoBehaviour
         else Panel.Clock.StopClock();
         Strip.SetEntries(activeId, manager.upcoming);
         Debug.Log($"[BattleHud] turn {data.turn} active={activeId} strip={Strip.DescribeIds()}");
+        if (data.turn <= 2) DumpLayout();
+    }
+
+    /// <summary>One-off geometry dump (harness diagnostics): every top-level HUD child with its
+    /// active state and screen-space rect.</summary>
+    public void DumpLayout()
+    {
+        var sb = new StringBuilder();
+        sb.Append($"[BattleHud] layout screen={Screen.width}x{Screen.height} canvas={canvasRect.rect.size} scale={Canvas.scaleFactor:F2} cam={(cam != null ? cam.pixelRect.ToString() : "none")} ortho={(cam != null ? cam.orthographicSize : 0f):F2}");
+        var corners = new Vector3[4];
+        for (int i = 0; i < canvasRect.childCount; i++)
+        {
+            var child = canvasRect.GetChild(i) as RectTransform;
+            if (child == null) continue;
+            child.GetWorldCorners(corners);
+            sb.Append($" | {child.name}:{(child.gameObject.activeSelf ? "on" : "off")} [{corners[0].x:F0},{corners[0].y:F0}→{corners[2].x:F0},{corners[2].y:F0}]");
+        }
+        Debug.Log(sb.ToString());
     }
 
     private void OnBarUpdated(BarData data)
