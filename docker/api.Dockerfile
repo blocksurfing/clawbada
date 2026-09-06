@@ -34,4 +34,7 @@ RUN bun install --frozen-lockfile
 ENV NODE_ENV=production
 EXPOSE 3001
 
-CMD ["bun", "run", "apps/api/src/index.ts"]
+# Apply pending drizzle migrations, then start. Railway's Postgres has no public
+# proxy, so the container is the one place that can reach it; drizzle records
+# applied migrations, so this is idempotent on every deploy (single replica).
+CMD ["sh", "-c", "bun run --filter @clawbada/db migrate && exec bun run apps/api/src/index.ts"]

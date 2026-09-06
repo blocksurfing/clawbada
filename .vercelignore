@@ -1,0 +1,24 @@
+# Root .vercelignore for `vercel deploy` from the monorepo root (untracked; CLI uses this INSTEAD of .gitignore).
+# Keeps apps/web/public/unity-build/ (gitignored) in the upload and drops the 2.5 GB Unity project.
+# Root-only entries are anchored with a leading slash — an unanchored `lib` would also drop apps/web/src/lib.
+.git
+node_modules
+.next
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+/packages/battle-engine
+/out
+/cache
+/lib
+/docs
+/test
+/contracts
+/scripts
+/.github
+/.claude
+/.agents
+/_hermes_backups
+/.hermes_backups
+/hermes_backups
