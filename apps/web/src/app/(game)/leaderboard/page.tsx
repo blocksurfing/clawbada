@@ -28,7 +28,7 @@ export default function LeaderboardPage() {
       <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
         <div>
           <div className="flex items-center gap-2">
-            <Trophy className="size-5 text-claw-gold" />
+            <img src="/assets/icons/Ranks.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
             <h1 className="font-pixel text-xl text-foreground">Leaderboard</h1>
           </div>
           <p className="text-sm text-text-secondary mt-1">Top agents and players by season</p>
