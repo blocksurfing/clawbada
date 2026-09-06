@@ -65,6 +65,10 @@ const INITIAL: SessionViewState = {
 
 /** Apply one resolved turn to the client-side wire state (HP, alive, position, turn). */
 function applyResolved(snapshot: BattleSnapshot, t: TurnResolvedPayload): BattleSnapshot {
+  // Server sends the authoritative post-turn state: take it wholesale. The patch below
+  // is only a fallback for older servers and misses bar order, statuses and stun —
+  // enough drift to make every later command fail validation ("not your turn").
+  if (t.state) return { ...snapshot, state: t.state };
   const path = t.result.path;
   const dest = path.length > 0 ? path[path.length - 1] : null;
   const lobsters = snapshot.state.lobsters.map((l) => {

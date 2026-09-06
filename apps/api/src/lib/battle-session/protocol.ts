@@ -130,6 +130,10 @@ export interface TurnResolvedPayload {
   /** Every lobster's HP after this turn — the HUD never derives HP itself. */
   hp: Record<string, { hp: string; maxHp: string; alive: boolean }>;
   nextActorId: string | null;
+  /** Full client-safe state after this turn (no vrfSeed). Clients replace their local
+   *  state with it once the turn has been animated, so legality checks (whose turn,
+   *  stun, charge, statuses) never drift from the server. */
+  state: v3.ClientBattleState;
 }
 export interface BattleEndedPayload {
   winner: Side | 'draw';

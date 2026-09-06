@@ -70,6 +70,13 @@ public class BattleManager : MonoBehaviour
     {
         hexGrid = FindAnyObjectByType<HexGrid>();
         bridge = FindAnyObjectByType<BattleBridge>();
+        // Live input: the click router lives on the HexGrid object. Attach it at runtime so a
+        // scene edit (designer's unity-setup port, prefab rebuild) can never drop it silently —
+        // without it, board clicks never reach React and the HUD cannot pick moves or targets.
+        if (hexGrid != null && hexGrid.GetComponent<HexInput>() == null)
+        {
+            hexGrid.gameObject.AddComponent<HexInput>();
+        }
     }
 
     /// <summary>Initialize battle with full data from React.</summary>
@@ -208,6 +215,22 @@ public class BattleManager : MonoBehaviour
 
     private IEnumerator PlayTurnRoutine(TurnPlayData data)
     {
+        // React holds every later turn until NotifyTurnAnimationComplete arrives, so this
+        // callback must fire even if a prefab/animation step throws — otherwise the HUD
+        // locks for the rest of the battle. C# allows yields inside try/finally.
+        try
+        {
+            yield return PlayTurnBody(data);
+        }
+        finally
+        {
+            if (currentPhase != BattlePhase.BattleOver) currentPhase = BattlePhase.Idle;
+            bridge?.NotifyTurnAnimationComplete(data.turn);
+        }
+    }
+
+    private IEnumerator PlayTurnBody(TurnPlayData data)
+    {
         hexGrid?.ClearHighlights();
         lobsters.TryGetValue(data.lobsterId ?? "", out var actor);
 
@@ -277,9 +300,6 @@ public class BattleManager : MonoBehaviour
             }
             yield return new WaitForSeconds(deathDuration);
         }
-
-        if (currentPhase != BattlePhase.BattleOver) currentPhase = BattlePhase.Idle;
-        bridge?.NotifyTurnAnimationComplete(data.turn);
     }
 
     /// <summary>Apply a turn's damage/heal events to the affected controllers with hit reads.

@@ -29,14 +29,30 @@ public class HexInput : MonoBehaviour
         if (!Input.GetMouseButtonDown(0)) return;
         // The HUD is React HTML outside the canvas, so no in-scene UI hit test is needed
         // (the project has no uGUI / EventSystem package).
-        if (hexGrid == null || bridge == null || Camera.main == null) return;
+        if (hexGrid == null || bridge == null) return;
+        var cam = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
+        if (cam == null) return;
 
-        Vector3 world = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        // Intersect the pointer ray with the board plane (z = 0). Works for orthographic
+        // AND perspective cameras — ScreenToWorldPoint with z = 0 returns the camera's own
+        // position under a perspective camera, which mapped every click to the same cell.
+        Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+        if (Mathf.Approximately(ray.direction.z, 0f)) return;
+        float t = -ray.origin.z / ray.direction.z;
+        Vector3 world = ray.origin + ray.direction * t;
         world.z = 0f;
         if (!hexGrid.WorldToHex(world, out int col, out int row)) return;
 
         var lobster = battleManager != null ? battleManager.GetLobsterAt(col, row) : null;
-        if (lobster != null && lobster.alive) bridge.NotifyLobsterSelected(lobster.lobsterId);
-        else bridge.NotifyHexClicked(col, row);
+        if (lobster != null && lobster.alive)
+        {
+            Debug.Log($"[HexInput] click → lobster {lobster.lobsterId} at ({col},{row})");
+            bridge.NotifyLobsterSelected(lobster.lobsterId);
+        }
+        else
+        {
+            Debug.Log($"[HexInput] click → hex ({col},{row})");
+            bridge.NotifyHexClicked(col, row);
+        }
     }
 }
