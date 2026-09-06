@@ -37,11 +37,7 @@ public class BattleDemoLoop : MonoBehaviour
     [Tooltip("Roll a fresh deterministic obstacle layout per demo battle (seeded by battle index) instead of the JSON's fixed cells.")]
     public bool randomObstacles = true;
 
-    private static readonly string[] Classes =
-    {
-        "Bulwark", "Mantis", "Leviathan", "Tempest", "Specter",
-        "Sentinel", "Reaver", "Abyss", "Kraken", "Ember",
-    };
+    private static readonly string[] Classes = LobsterClasses.Names;
 
     // Classes that read as ranged in playback (telegraph hop instead of lunge).
     private static readonly HashSet<int> RangedClasses = new() { 3, 4, 9 }; // Tempest, Specter, Ember
@@ -97,6 +93,7 @@ public class BattleDemoLoop : MonoBehaviour
             if (randomObstacles) init.arena.blockedHexes = null; // HexGrid rolls a set from battleId
             hexGrid.BuildGrid(init.arena, init.battleId);
             manager.Initialize(init);
+            manager.SyncUnits(BuildSync(0));
             Debug.Log($"[DemoLoop] Battle {battle}: " +
                       $"A [{Classes[units[0].classIdx]}, {Classes[units[1].classIdx]}, {Classes[units[2].classIdx]}] vs " +
                       $"B [{Classes[units[3].classIdx]}, {Classes[units[4].classIdx]}, {Classes[units[5].classIdx]}]");
@@ -104,9 +101,18 @@ public class BattleDemoLoop : MonoBehaviour
 
             for (int round = 1; round <= maxRoundsPerBattle; round++)
             {
+                // V3 HUD signals (turn strip, active panel, clock) around each demo round.
+                var actor = units.Find(u => u.alive);
+                if (actor != null)
+                {
+                    manager.StartTurn(new TurnStartData { turn = round, lobsterId = actor.id, side = actor.side, deadlineMs = 0, isPlayer = actor.side == "A" });
+                    manager.UpdateBar(new BarData { turn = round, entries = BuildBar() });
+                    manager.SetClock(actor.side == "A" ? 15000 : 0);
+                }
                 var result = SimulateRound(round);
                 manager.PlayRound(result);
                 yield return new WaitUntil(() => manager.currentPhase != BattleManager.BattlePhase.AnimatingRound);
+                manager.SyncUnits(BuildSync(round));
                 yield return new WaitForSeconds(roundGap);
 
                 string wiped = WipedSide();
@@ -189,6 +195,8 @@ public class BattleDemoLoop : MonoBehaviour
                 moveRange = 2,
                 alive = true,
             };
+            // One composited portrait per battle so the HUD's DNA path is exercised.
+            if (k == 1) data.partClassIds = new[] { (classIdx + 3) % 10, classIdx, classIdx, (classIdx + 7) % 10, (classIdx + 5) % 10, classIdx };
             if (isA) teamA[slot] = data; else teamB[slot] = data;
         }
 
@@ -319,6 +327,36 @@ public class BattleDemoLoop : MonoBehaviour
             actions = actions.ToArray(),
             deaths = deaths.ToArray(),
         };
+    }
+
+    private BarEntryData[] BuildBar()
+    {
+        var entries = new List<BarEntryData>();
+        var alive = units.FindAll(u => u.alive);
+        for (int i = 0; entries.Count < 8 && alive.Count > 0; i++)
+        {
+            var u = alive[i % alive.Count];
+            entries.Add(new BarEntryData { lobsterId = u.id, tick = (i * 100).ToString() });
+        }
+        return entries.ToArray();
+    }
+
+    private UnitsSyncData BuildSync(int round)
+    {
+        var list = new List<UnitSyncData>();
+        foreach (var u in units)
+        {
+            var statuses = new List<StatusData>();
+            if (round >= 2 && u.side == "B" && u.slot == 0 && u.alive) statuses.Add(new StatusData { type = "bleed", turns = 3 });
+            if (round >= 4 && u.side == "A" && u.slot == 2 && u.alive) statuses.Add(new StatusData { type = "stun", turns = 1 });
+            list.Add(new UnitSyncData
+            {
+                lobsterId = u.id, hp = Mathf.Max(0, u.hp), maxHp = 900, alive = u.alive,
+                charge = round % 4, defending = round % 3 == 0 && u.side == "B",
+                col = u.col, row = u.row, statuses = statuses.ToArray(),
+            });
+        }
+        return new UnitsSyncData { turn = round, units = list.ToArray() };
     }
 
     private DemoUnit NearestEnemy(DemoUnit u)

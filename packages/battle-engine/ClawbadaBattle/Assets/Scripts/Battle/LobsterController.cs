@@ -30,6 +30,13 @@ public class LobsterController : MonoBehaviour
     public int currentHp;
     public int moveRange;
     public bool alive = true;
+    // HUD-facing state (set at spawn, kept in step by BattleManager.SyncUnits).
+    public string className;
+    public int tier;
+    public int charge;
+    public bool defending;
+    public int[] partClassIds;
+    public readonly List<StatusData> statuses = new();
 
     /// <summary>VFX bindings, assigned by BattleManager at spawn. May be null.</summary>
     [System.NonSerialized] public BattleVfxLibrary vfx;
@@ -63,6 +70,12 @@ public class LobsterController : MonoBehaviour
         currentHp = data.currentHp;
         moveRange = data.moveRange;
         alive = data.alive;
+        className = string.IsNullOrEmpty(data.className) ? LobsterClasses.Name(data.classId) : data.className;
+        tier = data.tier;
+        charge = data.charge;
+        defending = false;
+        partClassIds = data.partClassIds;
+        statuses.Clear();
         grid = hexGrid;
 
         animator = GetComponent<Animator>();
@@ -90,11 +103,7 @@ public class LobsterController : MonoBehaviour
     // ─── DNA visual composition ───
 
     // DNA body-part slot order (CLAUDE.md): 0 Carapace, 1 Claws, 2 Tail, 3 Antennae, 4 Eyes, 5 Legs.
-    private static readonly string[] ClassNames =
-    {
-        "Bulwark", "Mantis", "Leviathan", "Tempest", "Specter",
-        "Sentinel", "Reaver", "Abyss", "Kraken", "Ember",
-    };
+    // Class names live in LobsterClasses (shared with the HUD and the demo loop).
 
     /// <summary>Swap body-part sprites to match dominant-gene class affinities.
     /// partClassIds has 6 entries in DNA slot order; parts whose class matches the
@@ -111,9 +120,9 @@ public class LobsterController : MonoBehaviour
             if (slot < 0) continue;
 
             int classId = partClassIds[slot];
-            if (classId < 0 || classId >= ClassNames.Length) continue;
+            if (classId < 0 || classId >= LobsterClasses.Names.Length) continue;
 
-            var replacement = partLibrary.Get(tier, ClassNames[classId], sr.sprite.name);
+            var replacement = partLibrary.Get(tier, LobsterClasses.Names[classId], sr.sprite.name);
             if (replacement != null) sr.sprite = replacement;
         }
     }
@@ -300,6 +309,50 @@ public class LobsterController : MonoBehaviour
         currentHp = Mathf.Min(maxHp, currentHp + amount);
     }
 
+    /// <summary>Server truth for this unit (hp/alive/charge/defending/statuses/cell) after a
+    /// turn has been animated. Position snaps only when asked (a previewed move keeps its
+    /// tentative cell). A unit the server says is dead is dimmed immediately.</summary>
+    public void ApplySync(UnitSyncData u, bool snapPosition)
+    {
+        if (u == null) return;
+        if (u.maxHp > 0) maxHp = u.maxHp;
+        currentHp = Mathf.Clamp(u.hp, 0, maxHp);
+        charge = u.charge;
+        defending = u.defending;
+        statuses.Clear();
+        if (u.statuses != null)
+        {
+            foreach (var s in u.statuses) if (s != null && !string.IsNullOrEmpty(s.type)) statuses.Add(s);
+        }
+        if (snapPosition && grid != null && (col != u.col || row != u.row))
+        {
+            col = u.col;
+            row = u.row;
+            transform.position = grid.GetWorldPosition(col, row);
+            UpdateSortingOrder();
+        }
+        if (!u.alive && alive)
+        {
+            alive = false;
+            Dim();
+        }
+    }
+
+    /// <summary>Optimistic status update from a turn's status events (SyncUnits corrects it).</summary>
+    public void SetStatus(string type, bool applied, int turns)
+    {
+        statuses.RemoveAll(s => s.type == type);
+        if (applied) statuses.Add(new StatusData { type = type, turns = turns });
+    }
+
+    private void Dim()
+    {
+        foreach (var sr in GetComponentsInChildren<SpriteRenderer>())
+        {
+            sr.color = new Color(0.55f, 0.55f, 0.55f, 0.9f);
+        }
+    }
+
     /// <summary>Death: play Die and stay on its final frame as a corpse.</summary>
     public IEnumerator PlayDeath(float duration)
     {
@@ -308,10 +361,7 @@ public class LobsterController : MonoBehaviour
         BattleVfxLibrary.Spawn(vfx?.death, this, null, this);
         yield return new WaitForSeconds(duration);
         // Corpse stays visible; dim it so live lobsters read clearly.
-        foreach (var sr in GetComponentsInChildren<SpriteRenderer>())
-        {
-            sr.color = new Color(0.55f, 0.55f, 0.55f, 0.9f);
-        }
+        Dim();
     }
 
     // ─── Coroutine ownership (one visual routine at a time per lobster) ───
