@@ -1,0 +1,15 @@
+# Upload filter for `railway up` (untracked; mirrors docker/.dockerignore intent).
+# Drops the 2.5 GB Unity project and local-only artifacts from the upload.
+# Root-only entries are anchored with a leading slash — an unanchored `lib` also
+# dropped apps/api/src/lib and crashed the first deploy.
+.git
+node_modules
+.next
+/packages/battle-engine
+/apps/web/public/unity-build
+/out
+/cache
+/lib
+/docs
+/test
+/.vercel
