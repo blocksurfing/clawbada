@@ -68,9 +68,12 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
   // Unity's action bar submits on tap (LOKR); the React fallback panel confirms explicitly.
   const selection = useTurnSelection(snapshot, current, canAct, { autoSubmit: gate, onSubmit });
   const pendingAck = current !== null && sentTurn === current.turn;
+  // The bar belongs to a turn the player can act on: not while earlier turns are still
+  // animating (React's `current` runs ahead of the picture), except to show "Sending…".
+  const barTurn = myTurn && (!animating || pendingAck);
   const selectionData = useMemo(
-    () => (snapshot ? selectionToData(canAct ? selection : null, snapshot.roster, { isPlayerTurn: myTurn, canAct: canAct && !pendingAck, pendingAck }) : null),
-    [snapshot, selection, canAct, myTurn, pendingAck],
+    () => (snapshot ? selectionToData(canAct ? selection : null, snapshot.roster, { isPlayerTurn: barTurn, canAct: canAct && !pendingAck, pendingAck }) : null),
+    [snapshot, selection, canAct, barTurn, pendingAck],
   );
   const handleActionSelected = useCallback((a: string) => {
     console.log(`[LiveBattle] unity action ${a}`);
