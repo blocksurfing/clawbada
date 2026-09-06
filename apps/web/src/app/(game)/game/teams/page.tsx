@@ -55,7 +55,10 @@ export default function TeamsPage() {
       <div className="p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-pixel text-xl text-foreground">Teams</h1>
+            <div className="flex items-center gap-2">
+              <img src="/assets/icons/Teams.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
+              <h1 className="font-pixel text-xl text-foreground">Teams</h1>
+            </div>
             <p className="text-sm text-text-secondary mt-1">Assemble teams of 3 lobsters</p>
           </div>
           <CreateTeamDialog lobsters={availableLobsters} onSuccess={invalidate} />

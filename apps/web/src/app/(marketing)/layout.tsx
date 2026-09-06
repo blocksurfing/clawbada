@@ -10,13 +10,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         backgroundPosition: 'center top',
       }}
     >
-      <div
-        className="relative mx-auto max-w-[2400px] bg-ocean-deep"
-        style={{
-          boxShadow:
-            'inset 6px 0 0 rgba(255,255,255,0.06), inset -6px 0 0 rgba(255,255,255,0.06), inset 10px 0 18px rgba(0,0,0,0.55), inset -10px 0 18px rgba(0,0,0,0.55)',
-        }}
-      >
+      <div className="relative mx-auto max-w-[2400px] bg-ocean-deep">
         {children}
       </div>
     </div>

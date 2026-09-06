@@ -74,7 +74,10 @@ export default function GameDashboard() {
     <PageBackground variant="reef" scene={BACKGROUNDS.dashboard}>
       <div className="p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
         <div>
-          <h1 className="font-pixel text-xl text-foreground">Dashboard</h1>
+          <div className="flex items-center gap-2">
+            <img src="/assets/icons/Dashboard.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
+            <h1 className="font-pixel text-xl text-foreground">Dashboard</h1>
+          </div>
           <p className="text-sm text-text-secondary mt-1">Your Clawbada overview</p>
         </div>
 

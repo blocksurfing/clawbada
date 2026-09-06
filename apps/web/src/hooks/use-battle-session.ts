@@ -30,7 +30,7 @@ const LOG_KEEP = 80;
 
 export type Connection = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
 
-export interface AuthParams { address: string; signature: string; timestamp: string }
+export interface AuthParams { address: string; signature: string; timestamp: string | number }
 
 export interface SessionViewState {
   connection: Connection;
@@ -134,7 +134,7 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
   const fetchSnapshot = useCallback(async () => {
     if (!battleId) return;
     try {
-      const headers = !opts.spectate && opts.getAuthParams ? await opts.getAuthParams().then((p) => ({ 'X-Wallet-Address': p.address, 'X-Signature': p.signature, 'X-Timestamp': p.timestamp })) : undefined;
+      const headers = !opts.spectate && opts.getAuthParams ? await opts.getAuthParams().then((p) => ({ 'X-Wallet-Address': p.address, 'X-Signature': p.signature, 'X-Timestamp': String(p.timestamp) })) : undefined;
       const snap = await api.combat.getState(battleId, headers);
       dispatch({ type: 'snapshot', snapshot: snap });
     } catch {
