@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 /// React → Unity: React calls SendMessage("BattleBridge", "MethodName", jsonString)
 ///   InitBattle(BattleInitData)  StartTurn(TurnStartData)  PlayTurn(TurnPlayData)
 ///   UpdateBar(BarData)  SetClock(ClockData)  BattleEnd(BattleEndData)
-///   ShowSelection(HexListData)  ClearHighlights()
+///   SyncUnits(UnitsSyncData)  ShowSelection(HexListData)  ClearHighlights()
 ///   PlayRound(RoundResult) is kept for the editor demo loop only.
 /// Unity → React: Unity calls JS functions via DllImport (JSBridge.jslib) → window.__clawbada.*
 ///   onUnityReady  onLobsterSelected {lobsterId}  onHexClicked {col,row}
@@ -83,6 +83,14 @@ public class BattleBridge : MonoBehaviour
     {
         var data = JsonUtility.FromJson<ClockData>(json);
         if (battleManager != null) battleManager.SetClock(data.remainingMs);
+    }
+
+    /// <summary>Server truth for every unit (hp, alive, charge, defending, statuses, cell),
+    /// sent right after InitBattle and after each animated turn. Feeds the in-canvas HUD.</summary>
+    public void SyncUnits(string json)
+    {
+        var data = JsonUtility.FromJson<UnitsSyncData>(json);
+        if (battleManager != null) battleManager.SyncUnits(data);
     }
 
     /// <summary>Editor demo loop only (V2 round shape). Real battles use PlayTurn.</summary>
@@ -290,6 +298,34 @@ public class ClockData
     public int remainingMs;
 }
 
+[System.Serializable]
+public class StatusData
+{
+    public string type;          // bleed | stun | haunt | fortify | reflect | shield | slow | taunt
+    public int turns;
+}
+
+[System.Serializable]
+public class UnitSyncData
+{
+    public string lobsterId;
+    public int hp;
+    public int maxHp;
+    public bool alive;
+    public int charge;
+    public bool defending;
+    public int col;
+    public int row;
+    public StatusData[] statuses;
+}
+
+[System.Serializable]
+public class UnitsSyncData
+{
+    public int turn;
+    public UnitSyncData[] units;
+}
+
 // ─── Editor demo loop (V2 round shape) ───
 
 [System.Serializable]
@@ -329,4 +365,5 @@ public class BattleEndData
 {
     public string winner;        // "A" | "B" | "draw"
     public bool playerWon;
+    public string reason;        // wipeout | turn_cap | forfeit | ""
 }

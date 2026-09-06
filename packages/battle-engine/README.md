@@ -79,6 +79,7 @@ receives it and drives BattleManager/HexGrid. TypeScript twin of every payload:
 | `StartTurn` | Server `turn_started` (after the previous animation) | Faces the acting lobster; `deadlineMs`, `isPlayer` for cues |
 | `PlayTurn` | Server `turn_resolved` | Animates the path, the action with every damage/heal event at the impact frame, then deaths; ends with `onTurnAnimationComplete` |
 | `UpdateBar` | With each `StartTurn` | Upcoming turn order (the HUD strip itself is React) |
+| `SyncUnits` | After `InitBattle` and after each animated turn | Server truth for every unit (hp, alive, charge, defending, statuses, cell) — feeds the in-canvas HUD |
 | `SetClock` | Optional | Remaining shot-clock ms for a visual pulse |
 | `BattleEnd` | Server `battle_ended` | Defeat read for the losing side (`winner` may be `"draw"`) |
 | `ShowSelection` / `ClearHighlights` | Player is choosing | Atomic highlight state (origin > enemy > ally > range) |
@@ -111,3 +112,24 @@ only for the in-editor `BattleDemoLoop`.
 3. Test in Unity Editor (BattleBridge logs to console instead of calling JS in editor mode)
 4. When ready to test in the web app: Build → Web → output to the path above
 5. The web app loads the build automatically on the battle page
+
+### In-canvas HUD (Assets/Scripts/UI)
+
+The battle HUD is drawn inside the Unity canvas (Legends-of-Kingdom-Rush style) and
+built entirely in code at runtime by `BattleHud`, attached from `BattleManager.Awake`
+when `Assets/Resources/UI/HudSkin.asset` exists — no scene or prefab wiring:
+
+- `TurnStrip` (top): the acting lobster first, then the next turns from `UpdateBar`,
+  as hex portraits composited from each lobster's Carapace/Antennae/Eyes sprites
+  (`PortraitView` + `LobsterPartLibrary`), with an HP bar each.
+- `UnitOverlay` (per lobster, follows the rig): HP bar, charge pips, defend shield,
+  status icons, KO skull, gold ring on the active unit. `ActiveMarker` draws the
+  animated `hex_selector` under the actor in world space.
+- `ActivePanel` (bottom-left): large portrait, name, tier/team, HP, pips, shot clock
+  (counts down from `SetClock`).
+- `DamageFloat`, `ResultBanner`, `BadgeView` (Human/Agent/Bot per team).
+
+Art: `Clawbada/Generate HUD Placeholder Art` writes placeholder sprites to
+`Assets/Art/UI` and seeds `HudSkin` (only empty slots — designer swaps survive).
+Verify headlessly with `-executeMethod HudSmokeTest.Run` (no `-nographics`). The
+editor demo loop feeds the same signals, so the HUD shows in play mode too.
