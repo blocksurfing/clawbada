@@ -294,6 +294,7 @@ export class BattleSession {
         deaths: r.damage.filter((d) => d.killed).map((d) => d.targetId),
         hp: Object.fromEntries(this.state.lobsters.map((l) => [l.id, { hp: l.hp.toString(), maxHp: l.maxHp.toString(), alive: l.alive }])),
         nextActorId: this.state.finished ? null : v3.nextActor(this.state)?.id ?? null,
+        state: v3.clientView(this.state),
       };
       this.opts.hooks.emit(this.record.id, 'turn_resolved', resolved);
       if (!this.state.finished) this.opts.hooks.emit(this.record.id, 'bar_updated', { turn: turnNo, bar: wire.bar });

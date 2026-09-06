@@ -48,3 +48,7 @@ packages/Temp/
 packages/Packages/
 packages/ProjectSettings/
 packages/UserSettings/
+
+# Unity Performance Testing package scratch, written on every build
+packages/battle-engine/ClawbadaBattle/Assets/Resources/PerformanceTestRun*
+packages/battle-engine/ClawbadaBattle/Assets/Resources.meta

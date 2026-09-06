@@ -57,3 +57,13 @@ select id, status, attempts, last_error, tx_hash from operator_jobs where job_ty
 -- one battle's turn log
 select turn, lobster_id, submitted_by, command, post_state_hash from battle_turns where session_id = '<id>' order by turn;
 ```
+
+## Client state sync (2026-09-06)
+
+`turn_resolved` carries `state: ClientBattleState` — the full client-safe post-turn state
+(no `vrfSeed`). Clients must replace their local state with it once the turn has been
+animated; patching HP/positions alone drifts the bar order, statuses and stun flags, and
+every later command then fails `validateTurn` with `not_your_turn`. The web HUD also runs
+an 8 s watchdog per animated turn so a Unity coroutine that never reports completion
+cannot freeze input, and always renders the SVG tactical map as an input surface next to
+the Unity stage.

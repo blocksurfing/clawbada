@@ -57,6 +57,7 @@ export function HexBoard({ layout, lobsters, roster, highlights, activeId, mySid
           return (
             <polygon
               key={k}
+              data-hex={`${col},${row}`}
               points={hexPoints(x, y, SIZE - 1.5)}
               fill={fill}
               stroke="rgba(255,210,128,0.25)"
@@ -81,7 +82,7 @@ export function HexBoard({ layout, lobsters, roster, highlights, activeId, mySid
         const teamColor = l.team === 'A' ? '#f97066' : '#58a6ff';
         const isActive = l.id === activeId;
         return (
-          <g key={l.id} opacity={l.alive ? 1 : 0.35} className={onLobsterClick && l.alive ? 'cursor-pointer' : ''} onClick={() => l.alive && onLobsterClick?.(l.id)}>
+          <g key={l.id} data-lobster-id={l.id} data-team={l.team} data-alive={l.alive ? '1' : '0'} data-col={l.pos.col} data-row={l.pos.row} opacity={l.alive ? 1 : 0.35} className={onLobsterClick && l.alive ? 'cursor-pointer' : ''} onClick={() => l.alive && onLobsterClick?.(l.id)}>
             {isActive && <circle cx={x} cy={y} r={SIZE * 0.78} fill="none" stroke="#ffd280" strokeWidth={2.5} />}
             <circle cx={x} cy={y} r={SIZE * 0.55} fill={teamColor} stroke={l.team === mySide ? '#ffffff' : 'rgba(0,0,0,0.5)'} strokeWidth={1.5} />
             <text x={x} y={y + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="#0e1e35">{cls.slice(0, 3).toUpperCase()}</text>

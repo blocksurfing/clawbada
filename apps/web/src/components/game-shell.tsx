@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { ConnectKitButton } from 'connectkit';
+import { DevBurnerButton } from '@/components/dev-burner-button';
 import { cn } from '@/lib/utils';
 import { MoreHorizontal, X } from 'lucide-react';
 import { useState } from 'react';
@@ -163,6 +164,7 @@ export function GameShell({ children }: { children: React.ReactNode }) {
 
       {/* Wallet */}
       <div className="px-5 pb-6 pt-3">
+        <DevBurnerButton />
         <ConnectKitButton />
       </div>
     </>
