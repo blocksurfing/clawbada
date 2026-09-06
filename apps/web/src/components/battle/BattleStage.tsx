@@ -15,6 +15,7 @@ import {
   buildInitData,
   registerUnityCallbacks,
   turnToPlayData,
+  unitsToSync,
   type HexListData,
   type HexPosition,
 } from './unity-bridge';
@@ -115,6 +116,8 @@ function UnityStage(props: BattleStageProps) {
     if (initedFor.current?.startsWith(props.snapshot.session.id) && animating.current !== null) return;
     initedFor.current = id;
     send(UNITY_METHODS.INIT_BATTLE, buildInitData(props.snapshot, props.playerSide));
+    // Statuses / defending are not part of InitBattle; the HUD needs them from the start.
+    send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
     props.onReady();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, props.snapshot?.session.id, props.snapshot?.state.turn === 0]);
@@ -134,6 +137,13 @@ function UnityStage(props: BattleStageProps) {
     }, ANIMATION_WATCHDOG_MS);
   }, [ready, props.nextToAnimate, send]);
 
+  // Server truth for every unit once nothing is animating: after each animated turn the
+  // snapshot state changes, and Unity replaces its optimistic HP/charge/statuses with it.
+  useEffect(() => {
+    if (!ready || !props.snapshot || !initedFor.current || props.nextToAnimate || animating.current !== null) return;
+    send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
+  }, [ready, props.snapshot?.state, props.nextToAnimate, send]);
+
   // Announce the current turn once the picture has caught up.
   useEffect(() => {
     if (!ready || !props.current?.lobsterId || props.nextToAnimate || animating.current !== null) return;
@@ -147,6 +157,10 @@ function UnityStage(props: BattleStageProps) {
       isPlayer: props.playerSide !== 'spectator' && props.current.side === props.playerSide,
     });
     send(UNITY_METHODS.UPDATE_BAR, barToData(props.current.turn, props.bar));
+    // Shot clock: Unity counts down locally from what is left right now.
+    if (props.playerSide !== 'spectator' && props.current.side === props.playerSide && props.current.deadline) {
+      send(UNITY_METHODS.SET_CLOCK, { remainingMs: Math.max(0, props.current.deadline - Date.now()) });
+    }
   }, [ready, props.current, props.nextToAnimate, props.bar, props.playerSide, send]);
 
   useEffect(() => {
@@ -158,7 +172,11 @@ function UnityStage(props: BattleStageProps) {
   useEffect(() => {
     if (!ready || !props.ended || endedSent.current || props.nextToAnimate) return;
     endedSent.current = true;
-    send(UNITY_METHODS.BATTLE_END, { winner: props.ended.winner, playerWon: props.playerSide !== 'spectator' && props.ended.winner === props.playerSide });
+    send(UNITY_METHODS.BATTLE_END, {
+      winner: props.ended.winner,
+      playerWon: props.playerSide !== 'spectator' && props.ended.winner === props.playerSide,
+      reason: props.ended.reason,
+    });
   }, [ready, props.ended, props.nextToAnimate, props.playerSide, send]);
 
   return (

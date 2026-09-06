@@ -83,7 +83,21 @@ export interface TurnPlayData {
 }
 export interface BarData { turn: number; entries: { lobsterId: string; tick: string }[] }
 export interface ClockData { remainingMs: number }
-export interface BattleEndData { winner: Side | 'draw'; playerWon: boolean }
+export interface BattleEndData { winner: Side | 'draw'; playerWon: boolean; reason: string }
+/** Server truth for one unit after a turn (feeds the in-canvas HUD). */
+export interface StatusData { type: string; turns: number }
+export interface UnitSyncData {
+  lobsterId: string;
+  hp: number;
+  maxHp: number;
+  alive: boolean;
+  charge: number;
+  defending: boolean;
+  col: number;
+  row: number;
+  statuses: StatusData[];
+}
+export interface UnitsSyncData { turn: number; units: UnitSyncData[] }
 
 export const UNITY_METHODS = {
   INIT_BATTLE: 'InitBattle',
@@ -94,6 +108,7 @@ export const UNITY_METHODS = {
   BATTLE_END: 'BattleEnd',
   SHOW_SELECTION: 'ShowSelection',
   CLEAR_HIGHLIGHTS: 'ClearHighlights',
+  SYNC_UNITS: 'SyncUnits',
 } as const;
 
 export const JS_CALLBACKS = {
@@ -101,6 +116,8 @@ export const JS_CALLBACKS = {
   ON_LOBSTER_SELECTED: 'onLobsterSelected',
   ON_HEX_CLICKED: 'onHexClicked',
   ON_TURN_ANIMATION_COMPLETE: 'onTurnAnimationComplete',
+  ON_ACTION_SELECTED: 'onActionSelected',
+  ON_UNDO_MOVE: 'onUndoMove',
 } as const;
 
 export interface UnityCallbackHandler {
@@ -108,6 +125,9 @@ export interface UnityCallbackHandler {
   onLobsterSelected: (lobsterId: string) => void;
   onHexClicked: (hex: HexPosition) => void;
   onTurnAnimationComplete: (turn: number) => void;
+  /** In-canvas action bar (attack | special | defend | none). Optional until the bar ships. */
+  onActionSelected?: (action: string) => void;
+  onUndoMove?: () => void;
 }
 
 /** Register the callbacks Unity's jslib calls. Returns a cleanup. */
@@ -120,6 +140,8 @@ export function registerUnityCallbacks(handlers: UnityCallbackHandler): () => vo
       handlers.onHexClicked({ col, row });
     },
     [JS_CALLBACKS.ON_TURN_ANIMATION_COMPLETE]: (json) => handlers.onTurnAnimationComplete(JSON.parse(json ?? '{}').turn),
+    [JS_CALLBACKS.ON_ACTION_SELECTED]: (json) => handlers.onActionSelected?.(JSON.parse(json ?? '{}').action),
+    [JS_CALLBACKS.ON_UNDO_MOVE]: () => handlers.onUndoMove?.(),
   };
   (window as unknown as { __clawbada?: unknown }).__clawbada = bridge;
   return () => {
@@ -192,6 +214,24 @@ export function turnToPlayData(t: TurnResolvedPayload): TurnPlayData {
 
 export function barToData(turn: number, bar: WireBarEntry[]): BarData {
   return { turn, entries: bar.map((b) => ({ lobsterId: b.lobsterId, tick: b.tick })) };
+}
+
+/** Authoritative per-unit state for Unity's HUD (sent after InitBattle and after each animated turn). */
+export function unitsToSync(snapshot: BattleSnapshot): UnitsSyncData {
+  return {
+    turn: snapshot.state.turn,
+    units: snapshot.state.lobsters.map((l) => ({
+      lobsterId: l.id,
+      hp: Number(l.hp),
+      maxHp: Number(l.maxHp),
+      alive: l.alive,
+      charge: l.charge,
+      defending: !!l.defending,
+      col: l.pos.col,
+      row: l.pos.row,
+      statuses: (l.statuses ?? []).map((s) => ({ type: s.type, turns: s.turns ?? 0 })),
+    })),
+  };
 }
 
 export function rosterEntry(snapshot: BattleSnapshot, id: string): RosterEntry | undefined {
