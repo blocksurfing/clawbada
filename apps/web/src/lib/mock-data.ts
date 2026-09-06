@@ -71,6 +71,38 @@ function makeDeterministicBodyParts(classId: number, seed: number) {
   });
 }
 
+/**
+ * Encode mock body parts + class/legend/breedType into a uint256 DNA string.
+ * Matches the on-chain DNA encoding layout:
+ *   [255:252] class (4b), [251:250] legend (2b), [249:244] breedType (6b),
+ *   [243:240] reserved (4b), [239:96] 6 parts × 3 alleles × 8b (144b)
+ */
+function encodeMockDna(
+  classId: number,
+  legend: number,
+  breedType: number,
+  bodyParts: ReturnType<typeof makeDeterministicBodyParts>,
+): string {
+  let dna = 0n;
+  dna |= BigInt(classId & 0xF) << 252n;
+  dna |= BigInt(legend & 0x3) << 250n;
+  dna |= BigInt(breedType & 0x3F) << 244n;
+  // reserved [243:240] = 0
+
+  for (let i = 0; i < 6; i++) {
+    const part = bodyParts[i];
+    const alleles = [part.dominant, part.r1, part.r2];
+    for (let a = 0; a < 3; a++) {
+      const allele = alleles[a];
+      const byte = ((allele.classAffinity & 0xF) << 4) | (allele.variant & 0xF);
+      // Part i, allele a: bit offset = 239 - (i * 24 + a * 8) .. same - 7
+      const bitOffset = 232n - BigInt(i * 24 + a * 8);
+      dna |= BigInt(byte) << bitOffset;
+    }
+  }
+  return dna.toString();
+}
+
 const MOCK_SELLERS = [
   '0x1a2b3c4d5e6f7890abcdef1234567890abcdef12',
   '0xdeadbeef00000000000000000000000000000001',
@@ -122,7 +154,7 @@ function buildLobster(cfg: MockLobsterConfig): LobsterData {
   return {
     tokenId: cfg.tokenId,
     owner: MOCK_SELLERS[cfg.seller],
-    dna: '0',
+    dna: encodeMockDna(cfg.classId, cfg.legend, 0, bodyParts),
     class: cfg.classId,
     className: CLASSES[cfg.classId],
     classRole: ROLES[cfg.classId],
@@ -252,3 +284,67 @@ export const CLASS_CARD_COLORS: Record<number, string> = {
   8: '#008080', // Kraken
   9: '#CD7000', // Ember
 };
+
+// ──────────── V3 S1 Power Matchmaker mocks ────────────
+//
+// Used by component-dev / Storybook scenarios when we want to render the
+// queue UI without an active server. Toggle in via `?mock=1` query param.
+
+import type { QueueState } from '@/hooks/use-queue-state';
+import type { PoolDepthAll } from '@/lib/api';
+
+/** Static fixtures for each queue lifecycle state — one per `QueueState.kind`.
+ *  Useful for component snapshots, Storybook, or quick visual QA. */
+export const MOCK_QUEUE_STATES: Record<QueueState['kind'], QueueState> = {
+  idle: { kind: 'idle' },
+  joining: { kind: 'joining' },
+  queued: {
+    kind: 'queued',
+    bracket: 0,
+    power: 6,
+    radius: { low: 6, high: 6, halfWidth: 0 },
+    since: Date.now() - 12_000,
+    teamId: '1',
+  },
+  matched: {
+    kind: 'matched',
+    battleId: '42',
+    opponent: '0xa11ce0000000000000000000000000000000a11c',
+    yourPower: 6,
+    opponentPower: 7,
+    powerDelta: 1,
+    bracket: 0,
+  },
+  cancelling: { kind: 'cancelling' },
+  cancelled: { kind: 'cancelled', reason: 'self_cancel', elapsedSec: 35 },
+  errored: { kind: 'errored', error: 'Already in matchmaking queue' },
+};
+
+/** Plausible pool-depth distribution for component dev. Shape matches the
+ *  server's `GET /pool-depth` (no-args) response. */
+export const MOCK_POOL_DEPTHS: PoolDepthAll = {
+  pools: [
+    // Power 3 (3×Evolved) — the natural starter team. Deep across all stakes.
+    { bracket: 0, power: 3, depth: 47 },
+    { bracket: 1, power: 3, depth: 14 },
+    { bracket: 2, power: 3, depth: 4 },
+    // Mixed compositions sit in thin pools — the smurfing disincentive.
+    { bracket: 0, power: 4, depth: 2 },
+    { bracket: 0, power: 5, depth: 3 },
+    { bracket: 0, power: 7, depth: 1 },
+    // Power 6 (3×Elite) — common mid-tier.
+    { bracket: 0, power: 6, depth: 22 },
+    { bracket: 1, power: 6, depth: 18 },
+    { bracket: 2, power: 6, depth: 6 },
+    // Power 9 (3×Apex) — endgame, thinnest pools.
+    { bracket: 1, power: 9, depth: 3 },
+    { bracket: 2, power: 9, depth: 8 },
+  ],
+};
+
+/** True if the page should swap live API/state for mocks. Reads window query
+ *  params at call time — safe inside `'use client'` components. */
+export function isMockMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('mock') === '1';
+}

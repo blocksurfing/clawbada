@@ -61,7 +61,10 @@ export default function MiningPage() {
     <PageBackground variant="reef" scene={MINE_BACKGROUNDS[0]} sceneDark>
       <div className="p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
         <div>
-          <h1 className="font-pixel text-xl text-foreground">Mining</h1>
+          <div className="flex items-center gap-2">
+            <img src="/assets/icons/Mining.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
+            <h1 className="font-pixel text-xl text-foreground">Mining</h1>
+          </div>
           <p className="text-sm text-text-secondary mt-1">Send teams on 4-hour expeditions to earn $CLAW</p>
         </div>
 

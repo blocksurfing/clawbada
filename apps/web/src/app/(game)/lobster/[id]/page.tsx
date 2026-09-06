@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { api, type LobsterData } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useLobsterImage } from '@/hooks/use-lobster-image';
+import { AnimatedLobster } from '@/components/game/animated-lobster';
 import { StatBars } from '@/components/game/stat-bars';
 import { DNAViewer } from '@/components/game/dna-viewer';
 import { TransactionButton } from '@/components/game/transaction-button';
@@ -41,12 +41,6 @@ export default function LobsterDetailPage({ params }: { params: Promise<{ id: st
     queryFn: () => api.repair.cost(id),
     enabled: !!lobster && lobster.damage > 0,
   });
-
-  const { dataUrl, loading: imageLoading } = useLobsterImage(
-    lobster?.dna,
-    lobster?.evolutionTier ?? 0,
-    8,
-  );
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['lobsters'] });
@@ -91,18 +85,13 @@ export default function LobsterDetailPage({ params }: { params: Promise<{ id: st
           {/* Image spotlight */}
           <div className="space-y-3">
             <FrostedPanel className="relative flex items-center justify-center aspect-square max-w-[384px] overflow-hidden">
-              {imageLoading ? (
-                <div className="animate-pulse bg-ocean-mid/40 w-full h-full" />
-              ) : dataUrl ? (
-                <img
-                  src={dataUrl}
-                  alt={`Lobster #${id}`}
-                  className="w-full h-full object-contain"
-                  style={{ imageRendering: 'pixelated' }}
-                />
-              ) : (
-                <div className="text-text-secondary text-sm">No image</div>
-              )}
+              <AnimatedLobster
+                dna={lobster.dna}
+                evolutionTier={lobster.evolutionTier}
+                displaySize={384}
+                frameSize={240}
+                frames={16}
+              />
 
               <div className="absolute top-2 left-2 flex gap-1">
                 {lobster.legend > 0 && (
