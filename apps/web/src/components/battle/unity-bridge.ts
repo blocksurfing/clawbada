@@ -9,8 +9,10 @@
  *
  * C# twin: packages/battle-engine/ClawbadaBattle/Assets/Scripts/Bridge/BattleBridge.cs
  */
-import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
+import { CLASS_NAMES_LIST, CLASS_SPECIAL_NAMES } from '@clawbada/game-logic';
+import type { LobsterClass } from '@clawbada/game-logic';
 import type { BattleSnapshot, RosterEntry, Side, TurnResolvedPayload, WireBarEntry } from '@/lib/battle-protocol';
+import type { TurnSelection } from './use-turn-selection';
 
 export const UNITY_GAME_OBJECT = 'BattleBridge';
 
@@ -98,6 +100,26 @@ export interface UnitSyncData {
   statuses: StatusData[];
 }
 export interface UnitsSyncData { turn: number; units: UnitSyncData[] }
+/** React's turn-building state, mirrored on Unity's action bar. */
+export interface SelectionData {
+  isPlayerTurn: boolean;
+  canAct: boolean;
+  action: 'attack' | 'special' | 'defend' | 'none';
+  canSpecial: boolean;
+  specialName: string;
+  specialKind: 'none' | 'enemy' | 'ally';
+  hasMove: boolean;
+  targetId: string;
+  targetCount: number;
+  canUndo: boolean;
+  hint: string;
+  pendingAck: boolean;
+}
+export interface PreviewMoveData { lobsterId: string; col: number; row: number }
+export const IDLE_SELECTION: SelectionData = {
+  isPlayerTurn: false, canAct: false, action: 'attack', canSpecial: false, specialName: '', specialKind: 'none',
+  hasMove: false, targetId: '', targetCount: 0, canUndo: false, hint: '', pendingAck: false,
+};
 
 export const UNITY_METHODS = {
   INIT_BATTLE: 'InitBattle',
@@ -109,6 +131,8 @@ export const UNITY_METHODS = {
   SHOW_SELECTION: 'ShowSelection',
   CLEAR_HIGHLIGHTS: 'ClearHighlights',
   SYNC_UNITS: 'SyncUnits',
+  SET_SELECTION: 'SetSelection',
+  PREVIEW_MOVE: 'PreviewMove',
 } as const;
 
 export const JS_CALLBACKS = {
@@ -236,4 +260,30 @@ export function unitsToSync(snapshot: BattleSnapshot): UnitsSyncData {
 
 export function rosterEntry(snapshot: BattleSnapshot, id: string): RosterEntry | undefined {
   return snapshot.roster.find((r) => r.id === id);
+}
+
+/** Action-bar state for Unity. `sel` is null outside the player's turn. */
+export function selectionToData(
+  sel: TurnSelection | null,
+  roster: RosterEntry[],
+  flags: { isPlayerTurn: boolean; canAct: boolean; pendingAck: boolean },
+): SelectionData {
+  if (!sel || !sel.actor || !flags.isPlayerTurn) return { ...IDLE_SELECTION, isPlayerTurn: flags.isPlayerTurn, pendingAck: flags.pendingAck };
+  const entry = roster.find((r) => r.id === sel.actor!.id);
+  const specialName = entry ? CLASS_SPECIAL_NAMES[entry.classId as LobsterClass] ?? 'Special' : 'Special';
+  const targets = sel.action === 'special' && sel.specialKind !== 'none' ? sel.summary?.specialTargets ?? [] : sel.summary?.attackTargets ?? [];
+  return {
+    isPlayerTurn: true,
+    canAct: flags.canAct,
+    action: sel.action,
+    canSpecial: sel.canSpecial,
+    specialName,
+    specialKind: sel.specialKind,
+    hasMove: !!sel.moveTo,
+    targetId: sel.targetId ?? '',
+    targetCount: targets.length,
+    canUndo: !!sel.moveTo,
+    hint: sel.hint ?? '',
+    pendingAck: flags.pendingAck,
+  };
 }

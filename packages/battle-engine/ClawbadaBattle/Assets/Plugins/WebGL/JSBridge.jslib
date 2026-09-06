@@ -27,6 +27,19 @@ mergeInto(LibraryManager.library, {
         }
     },
 
+    SendActionSelected: function(jsonPtr) {
+        var json = UTF8ToString(jsonPtr);
+        if (window.__clawbada && window.__clawbada.onActionSelected) {
+            window.__clawbada.onActionSelected(json);
+        }
+    },
+
+    SendUndoMove: function() {
+        if (window.__clawbada && window.__clawbada.onUndoMove) {
+            window.__clawbada.onUndoMove();
+        }
+    },
+
     // Editor demo loop (V2 round shape) — unused by live battles.
     SendAnimationComplete: function(jsonPtr) {
         var json = UTF8ToString(jsonPtr);
