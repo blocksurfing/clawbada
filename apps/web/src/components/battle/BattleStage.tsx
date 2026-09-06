@@ -25,6 +25,8 @@ const BUILD_BASE = '/unity-build/Build/unity-build';
 
 export interface BattleStageProps {
   snapshot: BattleSnapshot | null;
+  /** Bumps on every full server snapshot (initial load, reconnect) — the only times Unity re-inits. */
+  snapshotSeq: number;
   playerSide: Side | 'spectator';
   /** Oldest resolved turn awaiting animation. */
   nextToAnimate: TurnResolvedPayload | null;
@@ -107,20 +109,20 @@ function UnityStage(props: BattleStageProps) {
 
   const ready = isLoaded && unityReady;
 
-  // InitBattle once per session id (and again after a fresh snapshot on reconnect).
+  // InitBattle once per server snapshot (initial load, and again on a reconnect snapshot).
+  // Never keyed on the turn: re-initialising mid-battle respawns the rigs and rebinds the HUD.
   useEffect(() => {
     if (!ready || !props.snapshot) return;
-    const id = `${props.snapshot.session.id}:${props.snapshot.state.turn}`;
-    if (initedFor.current?.startsWith(props.snapshot.session.id) && props.nextToAnimate) return; // mid-stream: don't re-init while turns are queued
+    const id = `${props.snapshot.session.id}:${props.snapshotSeq}`;
     if (initedFor.current === id) return;
-    if (initedFor.current?.startsWith(props.snapshot.session.id) && animating.current !== null) return;
+    if (initedFor.current?.startsWith(props.snapshot.session.id) && (props.nextToAnimate || animating.current !== null)) return; // wait for the picture to settle
     initedFor.current = id;
     send(UNITY_METHODS.INIT_BATTLE, buildInitData(props.snapshot, props.playerSide));
     // Statuses / defending are not part of InitBattle; the HUD needs them from the start.
     send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
     props.onReady();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, props.snapshot?.session.id, props.snapshot?.state.turn === 0]);
+  }, [ready, props.snapshot?.session.id, props.snapshotSeq, props.nextToAnimate]);
 
   // Play the next resolved turn when idle.
   useEffect(() => {

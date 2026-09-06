@@ -35,7 +35,9 @@ public static class BuildScript
         PlayerSettings.WebGL.decompressionFallback = true;
         PlayerSettings.WebGL.dataCaching = true;
         PlayerSettings.WebGL.initialMemorySize = 256;
-        PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
+        // Full exceptions (no stack traces): a NullReference inside a HUD/animation callback must
+        // surface in the browser console instead of silently killing the WebGL runtime.
+        PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.FullWithoutStacktrace;
 
         var options = new BuildPlayerOptions
         {

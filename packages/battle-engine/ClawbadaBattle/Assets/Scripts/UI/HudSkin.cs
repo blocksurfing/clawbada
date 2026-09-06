@@ -45,6 +45,11 @@ public class HudSkin : ScriptableObject
     public Sprite badgeBot;
     public StatusIcon[] statusIcons;
 
+    [Header("Camera")]
+    [Tooltip("Disable the PixelPerfectCamera's integer zoom while the HUD is up so the 10x5.625-unit arena fills any 16:9 canvas (LOKR-style full bleed).")]
+    public bool fillCanvas = true;
+    public float fillOrthographicSize = 2.8125f;
+
     [Header("Font (null → built-in LegacyRuntime)")]
     public Font font;
 
@@ -77,7 +82,7 @@ public class HudSkin : ScriptableObject
     public float activePortrait = 96f;
     public float buttonSize = 64f;
     public Vector2 overlayBar = new Vector2(40f, 4f);
-    public float overlayWorldYOffset = 1.15f;
+    public float overlayWorldYOffset = 0.72f;
     public float floatRise = 40f;
     public float floatSeconds = 1.2f;
     public int clockDangerMs = 10000;

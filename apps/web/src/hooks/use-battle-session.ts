@@ -46,6 +46,8 @@ export interface SessionViewState {
   ended: BattleEndedPayload | null;
   error: SessionErrorPayload | null;
   lastAck: { turn: number; duplicate: boolean } | null;
+  /** Incremented each time a full server snapshot is applied (initial + reconnects). */
+  snapshotSeq: number;
 }
 
 type Action =
@@ -60,7 +62,7 @@ type Action =
   | { type: 'ack'; data: { turn: number; duplicate: boolean } };
 
 const INITIAL: SessionViewState = {
-  connection: 'idle', snapshot: null, current: null, timeouts: { A: 0, B: 0 }, bar: [], log: [], pending: [], ended: null, error: null, lastAck: null,
+  connection: 'idle', snapshot: null, current: null, timeouts: { A: 0, B: 0 }, bar: [], log: [], pending: [], ended: null, error: null, lastAck: null, snapshotSeq: 0,
 };
 
 /** Apply one resolved turn to the client-side wire state (HP, alive, position, turn). */
@@ -88,7 +90,7 @@ function reducer(s: SessionViewState, a: Action): SessionViewState {
     case 'connection':
       return { ...s, connection: a.value };
     case 'snapshot':
-      return { ...s, snapshot: a.snapshot, current: a.snapshot.current, timeouts: a.snapshot.timeouts, bar: a.snapshot.state.bar, pending: [], error: null };
+      return { ...s, snapshot: a.snapshot, current: a.snapshot.current, timeouts: a.snapshot.timeouts, bar: a.snapshot.state.bar, pending: [], error: null, snapshotSeq: s.snapshotSeq + 1 };
     case 'turn_started':
       return { ...s, current: { turn: a.data.turn, lobsterId: a.data.lobsterId, side: a.data.side, controller: a.data.controller, deadline: a.data.deadline }, bar: a.data.bar };
     case 'turn_resolved': {
