@@ -84,6 +84,8 @@ export interface TurnResolvedPayload {
   deaths: string[];
   hp: Record<string, { hp: string; maxHp: string; alive: boolean }>;
   nextActorId: string | null;
+  /** Full client-safe state after this turn; replaces the local state once animated. */
+  state?: v3.ClientBattleState;
 }
 export interface BarUpdatedPayload { turn: number; bar: WireBarEntry[] }
 export interface BattleEndedPayload {

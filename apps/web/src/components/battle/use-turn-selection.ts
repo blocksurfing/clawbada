@@ -54,6 +54,14 @@ export function useTurnSelection(snapshot: BattleSnapshot | null, current: Curre
   const canSpecial = summary?.canSpecial ?? false;
   const specialKind = summary?.specialKind ?? 'none';
 
+  // Exactly one legal target for the chosen action → pick it, so Attack/Special is one
+  // click away (LOKR-style). The player can still switch by clicking another target.
+  useEffect(() => {
+    if (!summary || targetId) return;
+    const ids = action === 'attack' ? summary.attackTargets : action === 'special' && specialKind !== 'none' ? summary.specialTargets : [];
+    if (ids.length === 1) setTargetId(ids[0]);
+  }, [summary, action, specialKind, targetId]);
+
   const command = useMemo<TurnCommand | null>(() => {
     if (!actor) return null;
     const cmd: TurnCommand = { lobsterId: actor.id, action };

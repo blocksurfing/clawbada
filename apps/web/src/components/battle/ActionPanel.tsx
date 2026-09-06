@@ -26,6 +26,10 @@ export function ActionPanel({ snapshot, selection: s, turn, disabled, pendingAck
     const r = snapshot.roster.find((x) => x.id === id);
     return r ? `${CLASS_NAMES_LIST[r.classId]} (${r.side})` : id;
   };
+  const targetIds: string[] =
+    s.action === 'attack' ? (s.summary?.attackTargets ?? [])
+    : s.action === 'special' && s.specialKind !== 'none' ? (s.summary?.specialTargets ?? [])
+    : [];
   const btn = (active: boolean, extra = '') => `px-3 py-2 rounded text-xs font-pixel transition-colors border ${active ? 'border-claw-gold text-claw-gold bg-claw-gold/10' : 'border-border text-text-secondary hover:text-foreground'} disabled:opacity-40 ${extra}`;
 
   return (
@@ -54,6 +58,26 @@ export function ActionPanel({ snapshot, selection: s, turn, disabled, pendingAck
         <button className={btn(s.action === 'defend')} disabled={disabled} onClick={() => s.setAction('defend')}>Defend</button>
         <button className={btn(s.action === 'none')} disabled={disabled} onClick={() => s.setAction('none')}>Move only</button>
       </div>
+
+      {/* Target chips: every legal target for the chosen action, so a turn can be
+          completed from the HUD alone (board clicks on the arena or map also work). */}
+      {targetIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] text-text-secondary uppercase tracking-wider">Target</span>
+          {targetIds.map((id) => (
+            <button
+              key={id}
+              type="button"
+              data-target-id={id}
+              className={btn(s.targetId === id, 'py-1')}
+              disabled={disabled}
+              onClick={() => s.onLobsterClick(id)}
+            >
+              {targetName(id)}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between pt-2 border-t border-border">
         <span className="text-[11px] text-text-secondary">{s.valid ? 'Ready.' : s.invalidReason ? s.invalidReason : 'Pick an action.'}</span>

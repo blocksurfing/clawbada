@@ -120,8 +120,15 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
           onReady={handleReady}
         />
       )}
-      {unityAvailable === false && (
-        <FrostedPanel className="p-2">
+      {/* Tactical map: always rendered. It is the input surface (click a hex to move,
+          a lobster to target) and the fallback picture when the Unity build is missing. */}
+      <FrostedPanel className="p-2">
+        {unityAvailable !== false && (
+          <p className="text-[10px] text-text-secondary mb-1">
+            Tactical map · click a hex to move, an enemy to target (or click the arena above)
+          </p>
+        )}
+        {(
           <HexBoard
             layout={snapshot.state.layout}
             lobsters={boardLobsters}
@@ -132,8 +139,8 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
             onHexClick={canAct ? selection.onHexClick : undefined}
             onLobsterClick={canAct ? selection.onLobsterClick : undefined}
           />
-        </FrostedPanel>
-      )}
+        )}
+      </FrostedPanel>
 
       <Hud snapshot={snapshot} current={current} bar={bar} timeouts={timeouts} mySide={mySide} animating={animating} />
 

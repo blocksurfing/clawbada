@@ -59,6 +59,8 @@ export function BattleStage(props: BattleStageProps) {
   return <UnityStage {...props} />;
 }
 
+const ANIMATION_WATCHDOG_MS = 8_000;
+
 function UnityStage(props: BattleStageProps) {
   const { unityProvider, sendMessage, isLoaded, loadingProgression, initialisationError } = useUnityContext({
     loaderUrl: `${BUILD_BASE}.loader.js`,
@@ -69,6 +71,9 @@ function UnityStage(props: BattleStageProps) {
   const [unityReady, setUnityReady] = useState(false);
   const initedFor = useRef<string | null>(null);
   const animating = useRef<number | null>(null);
+  /** If Unity never reports a turn's animation as finished (exception inside a coroutine,
+   *  tab throttled, missing prefab), release the HUD anyway so the battle stays playable. */
+  const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastStartedTurn = useRef<number | null>(null);
   const endedSent = useRef(false);
   const send = useCallback((method: string, data?: unknown) => {
@@ -83,6 +88,7 @@ function UnityStage(props: BattleStageProps) {
       onLobsterSelected: props.onLobsterClick,
       onHexClicked: props.onHexClick,
       onTurnAnimationComplete: (turn) => {
+        if (watchdog.current) { clearTimeout(watchdog.current); watchdog.current = null; }
         animating.current = null;
         props.onTurnAnimationComplete(turn);
       },
@@ -91,7 +97,10 @@ function UnityStage(props: BattleStageProps) {
   }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete]);
 
   useEffect(() => {
-    if (initialisationError) props.onUnavailable();
+    if (initialisationError) {
+      console.error('[BattleStage] Unity failed to initialise — falling back to the plain board', initialisationError);
+      props.onUnavailable();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialisationError]);
 
@@ -113,8 +122,16 @@ function UnityStage(props: BattleStageProps) {
   // Play the next resolved turn when idle.
   useEffect(() => {
     if (!ready || !props.nextToAnimate || animating.current !== null || !initedFor.current) return;
-    animating.current = props.nextToAnimate.turn;
+    const turn = props.nextToAnimate.turn;
+    animating.current = turn;
     send(UNITY_METHODS.PLAY_TURN, turnToPlayData(props.nextToAnimate));
+    if (watchdog.current) clearTimeout(watchdog.current);
+    watchdog.current = setTimeout(() => {
+      if (animating.current !== turn) return;
+      console.warn(`[BattleStage] Unity did not report turn ${turn} animation complete within ${ANIMATION_WATCHDOG_MS}ms — releasing the HUD`);
+      animating.current = null;
+      props.onTurnAnimationComplete(turn);
+    }, ANIMATION_WATCHDOG_MS);
   }, [ready, props.nextToAnimate, send]);
 
   // Announce the current turn once the picture has caught up.
