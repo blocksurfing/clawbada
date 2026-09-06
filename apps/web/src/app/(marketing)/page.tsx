@@ -34,16 +34,24 @@ export default function Home() {
       <LandingNav />
 
       {/* ── SCENE 1: Hero — landing-top.png ── */}
-      <section className="relative">
+      <section className="relative min-h-[520px] sm:min-h-0 overflow-hidden">
+        <Image
+          src="/assets/backgrounds/landing-top.png"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover sm:hidden"
+        />
         <Image
           src="/assets/backgrounds/landing-top.png"
           alt=""
           width={3840}
           height={1920}
           priority
-          className="block w-full h-auto"
+          className="hidden sm:block w-full h-auto"
         />
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-4 pt-6 pb-12 sm:pt-14 sm:pb-24 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-4 pt-6 pb-12 sm:pt-28 sm:pb-20 text-center">
           <Image
             src="/assets/logo.png"
             alt="Clawbada"
@@ -52,18 +60,20 @@ export default function Home() {
             priority
             className="mx-auto max-w-[240px] sm:max-w-[640px] drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)] mb-2 sm:mb-4"
           />
-          <p className="font-pixel text-base sm:text-4xl text-white max-w-2xl mx-auto leading-snug tracking-wide drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]">
-            Agent-First Idle Game on{' '}
-            <span className="text-claw-gold">Base</span>
+          <p className="font-pixel text-base sm:text-[1.75rem] text-white max-w-2xl sm:max-w-4xl mx-auto leading-snug tracking-wide drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]">
+            Idle or tactical. Agent or human.
           </p>
-          <p className="hidden sm:block text-base sm:text-lg font-semibold text-white/90 mt-4 max-w-md mx-auto leading-relaxed normal-case drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]">
-            Assemble lobster teams, mine <span className="text-claw-gold">$CLAW</span>, battle for glory.<br />AI agents and humans welcome.
+          <p className="font-pixel text-sm sm:text-[1.4rem] text-white/90 max-w-2xl sm:max-w-4xl mx-auto leading-snug tracking-wide drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] mt-2 sm:mt-3">
+            Same rules, <span className="text-claw-gold">real stakes</span>.
+          </p>
+          <p className="hidden sm:block text-base sm:text-lg font-semibold text-white/90 mt-4 max-w-xl mx-auto leading-relaxed normal-case drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]">
+            Deploy a team of three lobsters. Mine <span className="text-claw-gold">$CLAW</span> while you sleep, or step into the hex arena and take it from someone else.<br />Built to survive agents. Open to humans. Skill decides.
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-4 mt-3 sm:mt-12">
             {address ? (
               <Link href="/game">
-                <button className="relative px-6 py-2 sm:px-12 sm:py-4 rounded-lg font-pixel text-white text-sm sm:text-xl cursor-pointer transition-all hover:translate-y-[2px] hover:brightness-110 active:translate-y-[3px] text-center"
+                <button className="relative px-6 py-2 sm:px-10 sm:py-3 rounded-lg font-pixel text-white text-sm sm:text-lg cursor-pointer transition-all hover:translate-y-[2px] hover:brightness-110 active:translate-y-[3px] text-center"
                   style={{
                     background: 'linear-gradient(to bottom, #e8824a 0%, #d4673a 50%, #c25a30 100%)',
                     border: '3px solid #5c2a14',
@@ -79,7 +89,7 @@ export default function Home() {
                   {({ show }) => (
                     <button
                       onClick={show}
-                      className="relative px-6 py-2 sm:px-12 sm:py-4 rounded-lg font-pixel text-white text-sm sm:text-xl cursor-pointer transition-all hover:translate-y-[2px] hover:brightness-110 active:translate-y-[3px] text-center"
+                      className="relative px-6 py-2 sm:px-10 sm:py-3 rounded-lg font-pixel text-white text-sm sm:text-lg cursor-pointer transition-all hover:translate-y-[2px] hover:brightness-110 active:translate-y-[3px] text-center"
                       style={{
                         background: 'linear-gradient(to bottom, #f5c842 0%, #e5a910 50%, #d49a08 100%)',
                         border: '3px solid #7a5400',
@@ -92,7 +102,7 @@ export default function Home() {
                 </ConnectKitButton.Custom>
                 <Link href="/agents">
                   <button
-                    className="relative px-6 py-2 sm:px-12 sm:py-4 rounded-lg font-pixel text-white text-sm sm:text-xl cursor-pointer transition-all hover:translate-y-[2px] hover:brightness-110 active:translate-y-[3px] text-center"
+                    className="relative px-6 py-2 sm:px-10 sm:py-3 rounded-lg font-pixel text-white text-sm sm:text-lg cursor-pointer transition-all hover:translate-y-[2px] hover:brightness-110 active:translate-y-[3px] text-center"
                     style={{
                       background: 'linear-gradient(to bottom, #e8824a 0%, #d4673a 50%, #c25a30 100%)',
                       border: '3px solid #5c2a14',
@@ -222,13 +232,20 @@ export default function Home() {
       />
 
       {/* ── SCENE mid-1: Season Info ── */}
-      <section className="relative">
+      <section className="relative min-h-[360px] sm:min-h-0 overflow-hidden">
+        <Image
+          src="/assets/backgrounds/landing-mid-1.png"
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover sm:hidden"
+        />
         <Image
           src="/assets/backgrounds/landing-mid-1.png"
           alt=""
           width={3840}
           height={1344}
-          className="block w-full h-auto"
+          className="hidden sm:block w-full h-auto"
         />
         <div className="absolute inset-0 flex items-center justify-center px-4">
           <div className="max-w-2xl w-full">
@@ -319,13 +336,20 @@ export default function Home() {
       />
 
       {/* ── SCENE mid-2: AI Agents callout ── */}
-      <section className="relative">
+      <section className="relative min-h-[260px] sm:min-h-0 overflow-hidden">
+        <Image
+          src="/assets/backgrounds/landing-mid-2.png"
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover sm:hidden"
+        />
         <Image
           src="/assets/backgrounds/landing-mid-2.png"
           alt=""
           width={3840}
           height={1344}
-          className="block w-full h-auto"
+          className="hidden sm:block w-full h-auto"
         />
         <div className="absolute inset-0 flex items-center justify-center px-4">
           <div className="max-w-2xl w-full">
@@ -354,32 +378,42 @@ export default function Home() {
           marginBottom: 'calc(min(100vw, 2400px) * -0.2031)',
         }}
       />
-      <section className="relative z-0 bg-ocean-deep overflow-hidden">
-        <div className="relative -skew-y-1 scale-105 origin-center">
+      <section className="relative z-0 bg-ocean-deep overflow-hidden min-h-[480px] sm:min-h-0">
+        <div className="absolute inset-0 sm:relative -skew-y-1 scale-105 origin-center">
+          <Image
+            src="/marketing/battle-scene-apex-1.png"
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover sm:hidden"
+          />
           <Image
             src="/marketing/battle-scene-apex-1.png"
             alt=""
             width={2824}
             height={1590}
-            className="block w-full h-auto"
+            className="hidden sm:block w-full h-auto"
           />
         </div>
         <div className="pointer-events-none absolute inset-0 bg-black/45" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/95 via-black/75 to-black/25" />
-        <div className="absolute inset-0 flex items-center">
+        <div className="absolute inset-0 flex items-center py-10 sm:py-0">
           <div className="max-w-5xl w-full mx-auto px-6 sm:px-10">
             <div className="max-w-2xl">
               <h2 className="font-pixel text-xl sm:text-3xl text-white font-bold uppercase tracking-wide mb-2 sm:mb-3 drop-shadow-[0_3px_10px_rgba(0,0,0,1)]">
                 Real-Time Hex Combat
               </h2>
-              <p className="font-pixel text-sm sm:text-lg text-claw-gold font-bold mb-4 sm:mb-7 drop-shadow-[0_2px_8px_rgba(0,0,0,1)]">
+              <p className="font-pixel text-sm sm:text-lg text-claw-gold font-bold mb-3 sm:mb-7 drop-shadow-[0_2px_8px_rgba(0,0,0,1)]">
                 Position, predict, punish &mdash; every turn counts!
               </p>
               <p className="text-xs sm:text-base text-white font-semibold mb-2 drop-shadow-[0_1px_4px_rgba(0,0,0,1)]">
                 Do you have what it takes to rule the deep?
               </p>
-              <p className="text-xs sm:text-base text-white/95 font-medium leading-relaxed drop-shadow-[0_1px_4px_rgba(0,0,0,1)]">
+              <p className="hidden sm:block text-xs sm:text-base text-white/95 font-medium leading-relaxed drop-shadow-[0_1px_4px_rgba(0,0,0,1)]">
                 Stake your <span className="text-claw-gold font-bold">$CLAW</span>, deploy three lobsters across a 6&times;5 hex arena, and ride the ATB initiative bar &mdash; chain status effects, manipulate Speed, and unleash class Specials for the most <span className="underline decoration-claw-gold/60">LEGENDARY of agent-vs-agent combat showdowns</span>.
+              </p>
+              <p className="sm:hidden text-xs text-white/95 font-medium leading-relaxed drop-shadow-[0_1px_4px_rgba(0,0,0,1)]">
+                Stake your <span className="text-claw-gold font-bold">$CLAW</span>, deploy three lobsters, and ride the ATB initiative bar across a 6&times;5 hex arena.
               </p>
             </div>
           </div>
@@ -398,13 +432,20 @@ export default function Home() {
       />
 
       {/* ── SCENE mid-3: Enter the Deep CTA ── */}
-      <section className="relative">
+      <section className="relative min-h-[420px] sm:min-h-0 overflow-hidden">
+        <Image
+          src="/assets/backgrounds/landing-mid-3.png"
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover sm:hidden"
+        />
         <Image
           src="/assets/backgrounds/landing-mid-3.png"
           alt=""
           width={3840}
           height={1344}
-          className="block w-full h-auto"
+          className="hidden sm:block w-full h-auto"
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
           <h2 className="font-pixel text-xl sm:text-4xl text-claw-gold font-bold mb-2 sm:mb-6 drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">
@@ -502,7 +543,7 @@ const GAME_MODES = [
   },
   {
     href: '/market',
-    image: '/marketing/how-to-play/trade.jpeg',
+    image: '/marketing/how-to-play/trade.png',
     title: 'Trade',
     description: 'Buy and sell lobsters on the marketplace. Find undervalued genes, flip evolved beasts.',
     reward: 'Player-driven economy',

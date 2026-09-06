@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toHex } from 'viem';
-import { useAccount } from 'wagmi';
 import { teamCommitHash } from '@clawbada/chain';
 import { api, type BattleData } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
@@ -30,9 +29,11 @@ function generateSalt(): string {
   return toHex(bytes);
 }
 
-/** Determine which side the player is on. */
+/** Determine which side the player is on. Returns null when chain is null
+ *  (PR-B X1: pending_create window before the engine confirms createBattle). */
 function getPlayerSide(battleData: BattleData, address: string): 'A' | 'B' | null {
   const chain = battleData.chain;
+  if (!chain) return null;
   if (chain.playerA.toLowerCase() === address.toLowerCase()) return 'A';
   if (chain.playerB.toLowerCase() === address.toLowerCase()) return 'B';
   return null;
@@ -44,9 +45,33 @@ export function BattleMoves({ battleId, address, battleData }: BattleMovesProps)
   const queryClient = useQueryClient();
 
   const side = getPlayerSide(battleData, address);
+
+  // A2: pre-reveal team ID source. `chain.teamIdA/B` are 0 until revealTeam
+  // lands on-chain, so the commit hash must bind the queued team ID instead.
+  // The server-side endpoint returns only the authenticated caller's own
+  // queued team — opponent's stays redacted to preserve commit-reveal secrecy.
+  //
+  // A2-FU MEDIUM: queryKey includes the lowercased wallet address. Without
+  // it, two participant wallets sharing the same browser session could see
+  // each other's cached queued team data via the shared TanStack
+  // QueryClient — a commit-reveal secrecy leak.
+  const lowerAddress = address.toLowerCase();
+  const myTeamQuery = useQuery({
+    queryKey: ['battle-my-team', battleId, lowerAddress],
+    queryFn: async () => {
+      const auth = await getAuthHeaders();
+      return api.combat.getMyTeam(battleId, auth);
+    },
+    enabled: !!side,
+  });
+  const myQueuedTeamId = myTeamQuery.data?.myTeamId ?? null;
+
   if (!side) return null;
 
   const chain = battleData.chain;
+  // PR-B X1: getPlayerSide already returned null if chain was null, so this
+  // re-guard is a no-op at runtime but lets TS narrow chain to non-null.
+  if (!chain) return null;
   const myDeposit = side === 'A' ? chain.depositA : chain.depositB;
   const oppDeposit = side === 'A' ? chain.depositB : chain.depositA;
   const myTeamCommit = side === 'A' ? chain.teamCommitA : chain.teamCommitB;
@@ -81,20 +106,44 @@ export function BattleMoves({ battleId, address, battleData }: BattleMovesProps)
     phase = 'in_battle';
   }
 
+  // X13: surface handleTimeout button when the chain phase deadline has
+  // elapsed. Contract routes to cancel/finalize/emergency-exit per the
+  // current phase (BattleArena.sol:727). Anyone can call on chain — auth
+  // server-side is for telemetry + rate-limit only.
+  const showHandleTimeout = isTimeoutable(chain);
+
   return (
     <div className="space-y-4">
       <PhaseIndicator phase={phase} />
+
+      {showHandleTimeout && (
+        <HandleTimeoutAction battleId={battleId} />
+      )}
 
       {phase === 'deposit' && (
         <DepositAction battleId={battleId} />
       )}
 
       {phase === 'commit_team' && (
-        <TeamCommitAction battleId={battleId} teamId={side === 'A' ? chain.teamIdA : chain.teamIdB} />
+        myQueuedTeamId ? (
+          <TeamCommitAction battleId={battleId} address={address} teamId={myQueuedTeamId} />
+        ) : (
+          <PrivateTeamLoadingOrError query={myTeamQuery} />
+        )
       )}
 
       {phase === 'reveal_team' && (
-        <TeamRevealAction battleId={battleId} teamId={side === 'A' ? chain.teamIdA : chain.teamIdB} />
+        /* A2-FU MEDIUM: no chain-teamId fallback. Pre-reveal `chain.teamIdA/B`
+           is '0' and reveal with teamId=0 reverts (and also defeats the
+           wallet+battle-scoped sessionStorage protection). Gate the action
+           on the API-sourced `myQueuedTeamId`. Reveal still prefers the
+           wallet-scoped sessionStorage teamId stored at commit; this prop
+           is only the fallback if sessionStorage was lost. */
+        myQueuedTeamId ? (
+          <TeamRevealAction battleId={battleId} address={address} teamId={myQueuedTeamId} />
+        ) : (
+          <PrivateTeamLoadingOrError query={myTeamQuery} />
+        )
       )}
 
       {phase === 'in_battle' && (
@@ -162,24 +211,152 @@ function DepositAction({ battleId }: { battleId: string }) {
   );
 }
 
-function TeamCommitAction({ battleId, teamId }: { battleId: string; teamId: string }) {
+/** A2-FU MEDIUM: distinguish "still loading" from "API errored" from
+ *  "API returned null myTeamId" so the user gets the right signal.
+ *  - loading → spinner
+ *  - errored (network / auth-signature timeout / 5xx) → retry button
+ *  - resolved with myTeamId === null → repair-needed (legacy battle row
+ *    predating the A2 schema migration, or indexer-fallback insert)
+ *
+ *  Codex A2-FU-03 follow-up: conflating errored with null-data was
+ *  misleading — a transient signature timeout shouldn't tell the user
+ *  the battle needs ops repair. */
+function PrivateTeamLoadingOrError({
+  query,
+}: {
+  query: {
+    isLoading: boolean;
+    isError: boolean;
+    refetch: () => void;
+    data?: { myTeamId: string | null } | undefined;
+  };
+}) {
+  if (query.isLoading) {
+    return (
+      <div className="border border-border rounded-md p-6 text-center">
+        <Loader2 className="size-5 mx-auto animate-spin text-muted-foreground mb-2" />
+        <p className="text-sm text-muted-foreground">Loading team selection...</p>
+      </div>
+    );
+  }
+  if (query.isError) {
+    return (
+      <div className="border border-coral/40 rounded-md p-6 text-center bg-coral/5">
+        <p className="text-sm font-medium">Couldn&apos;t load team selection</p>
+        <p className="text-xs text-muted-foreground mt-1 mb-3">
+          The server didn&apos;t respond. Check your connection and retry.
+        </p>
+        <Button onClick={() => query.refetch()} size="sm" variant="secondary">
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  // Codex A2-FU2: only render the repair-needed branch when we've actually
+  // observed `myTeamId === null` in a resolved response. TanStack v5's
+  // `isLoading` is "pending && actively fetching" — a paused or
+  // not-yet-fetched query has `data === undefined` AND `isLoading === false`,
+  // which would otherwise fall through to repair-needed and mislead the user.
+  if (query.data?.myTeamId === null) {
+    return (
+      <div className="border border-coral/40 rounded-md p-6 text-center bg-coral/5">
+        <p className="text-sm font-medium">Team selection not available</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          This battle is in a repair-needed state. Please contact support if it persists.
+        </p>
+      </div>
+    );
+  }
+  // data === undefined && !isLoading && !isError → render a neutral
+  // not-ready state. The caller's gating logic should have already routed
+  // to the success branch when data was present.
+  return (
+    <div className="border border-border rounded-md p-6 text-center">
+      <Loader2 className="size-5 mx-auto animate-spin text-muted-foreground mb-2" />
+      <p className="text-sm text-muted-foreground">Preparing battle...</p>
+    </div>
+  );
+}
+
+/** X13: returns true when the chain phase deadline has elapsed AND the
+ *  battle is in a phase the contract's `handleTimeout` will accept (i.e.
+ *  not None/Settled/Cancelled). Mirrors BattleArena.sol:727 phase gate.
+ *
+ *  X13 LOW-01: disputed AwaitingFinalize battles route through
+ *  `adminResolveDispute`, not `handleTimeout` — the contract reverts
+ *  `DisputedBattleRequiresAdmin`. Hide the CTA in that state.
+ *  V3: during Active the resolver settles; only after ACTIVE_WINDOW does
+ *  handleTimeout succeed (mutual cancel + refund). */
+function isTimeoutable(chain: BattleData['chain']): boolean {
+  if (!chain) return false;
+  // Contract phase enum: 0=None, 1=Deposit, 2=TeamCommit, 3=TeamReveal,
+  // 4=Active, 5=AwaitingFinalize, 6=Settled, 7=Cancelled.
+  if (chain.phase < 1 || chain.phase > 5) return false;
+  // LOW-01: dispute path is admin-only.
+  if (chain.phase === 5 && chain.disputed) return false;
+  // V3: the Active phase has a single ACTIVE_WINDOW deadline; past it,
+  // handleTimeout mutually cancels with full refunds (no per-round ladder).
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  // AwaitingFinalize uses `payoutDeadline`; everything else uses `phaseDeadline`.
+  const deadline = chain.phase === 5
+    ? BigInt(chain.payoutDeadline ?? '0')
+    : BigInt(chain.phaseDeadline ?? '0');
+  if (deadline === 0n) return false;
+  return now > deadline;
+}
+
+/** X13: permissionless handleTimeout button. Visible when the chain
+ *  deadline for the current phase has elapsed. Calling it routes through
+ *  the contract's phase-specific cleanup (cancel for stake-time deadlines,
+ *  finalize for AwaitingFinalize, emergency exit for Active stalls).
+ *  See BattleArena.sol:727+. */
+function HandleTimeoutAction({ battleId }: { battleId: string }) {
   const { getAuthHeaders } = useAuth();
-  const { address } = useAccount();
+  const { execute: executeTx, status } = useCalldataTx();
+
+  const handleClick = useCallback(async () => {
+    const auth = await getAuthHeaders();
+    const { steps } = await api.combat.handleTimeout(battleId, auth);
+    await executeTx(steps);
+  }, [battleId, getAuthHeaders, executeTx]);
+
+  const busy = status === 'pending' || status === 'confirming';
+
+  return (
+    <div className="border border-claw-gold/40 rounded-md p-5 text-center space-y-2 bg-claw-gold/5">
+      <p className="text-sm font-medium">Battle stuck past its deadline</p>
+      <p className="text-xs text-text-secondary">
+        Force the contract to resolve this phase (cancel + refund, or finalize the proposed
+        outcome). Anyone can call — auth here is for telemetry.
+      </p>
+      <Button onClick={handleClick} disabled={busy} size="sm" variant="secondary">
+        {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Submitting...</> : 'Handle timeout'}
+      </Button>
+    </div>
+  );
+}
+
+function TeamCommitAction({ battleId, address, teamId }: { battleId: string; address: string; teamId: string }) {
+  const { getAuthHeaders } = useAuth();
   const { execute: executeTx, status } = useCalldataTx();
 
   const handleCommit = useCallback(async () => {
     if (!address) throw new Error('Wallet not connected');
     const salt = generateSalt();
-    // Store salt for reveal phase
-    sessionStorage.setItem(`battle-team-salt-${battleId}`, salt);
-    sessionStorage.setItem(`battle-team-id-${battleId}`, teamId);
+    // A2-FU MEDIUM: sessionStorage keys scoped by lowercased wallet address.
+    // Otherwise wallet B could read wallet A's stored salt/teamId in the
+    // same browser session (commit-reveal secrecy leak + cross-wallet
+    // corruption when wallet B tries to reveal A's commit).
+    const lower = address.toLowerCase();
+    sessionStorage.setItem(`battle-team-salt-${battleId}-${lower}`, salt);
+    sessionStorage.setItem(`battle-team-id-${battleId}-${lower}`, teamId);
     // F5-01: the commit hash MUST include the player address to match BattleArena
     // (keccak256(abi.encodePacked(battleId, player, teamId, salt))). The shared
     // teamCommitHash helper is the single source of truth — an earlier inline version
     // omitted the address, so no reveal could ever validate on-chain.
     const commitHash = teamCommitHash(
       BigInt(battleId),
-      address,
+      address as `0x${string}`,
       BigInt(teamId),
       salt as `0x${string}`,
     );
@@ -201,7 +378,7 @@ function TeamCommitAction({ battleId, teamId }: { battleId: string; teamId: stri
   );
 }
 
-function TeamRevealAction({ battleId, teamId }: { battleId: string; teamId: string }) {
+function TeamRevealAction({ battleId, address, teamId }: { battleId: string; address: string; teamId: string }) {
   const { getAuthHeaders } = useAuth();
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
@@ -214,13 +391,14 @@ function TeamRevealAction({ battleId, teamId }: { battleId: string; teamId: stri
   const handleReveal = useCallback(async () => {
     setBusy(true);
     try {
-      const salt = sessionStorage.getItem(`battle-team-salt-${battleId}`) ?? '';
-      const storedTeamId = sessionStorage.getItem(`battle-team-id-${battleId}`) ?? teamId;
+      const lower = address.toLowerCase();
+      const salt = sessionStorage.getItem(`battle-team-salt-${battleId}-${lower}`) ?? '';
+      const storedTeamId = sessionStorage.getItem(`battle-team-id-${battleId}-${lower}`) ?? teamId;
       const auth = await getAuthHeaders();
       const res = await api.combat.revealTeam(battleId, storedTeamId, salt, auth);
       // Salt is now server-side; safe to clear locally.
-      sessionStorage.removeItem(`battle-team-salt-${battleId}`);
-      sessionStorage.removeItem(`battle-team-id-${battleId}`);
+      sessionStorage.removeItem(`battle-team-salt-${battleId}-${lower}`);
+      sessionStorage.removeItem(`battle-team-id-${battleId}-${lower}`);
       setWaiting(res.status === 'waiting_for_opponent');
     } finally {
       setBusy(false);
