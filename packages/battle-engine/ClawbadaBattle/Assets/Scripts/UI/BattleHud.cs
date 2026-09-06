@@ -21,6 +21,7 @@ public class BattleHud : MonoBehaviour
     public ActivePanel Panel { get; private set; }
     public ResultBanner Banner { get; private set; }
     public ActiveMarker Marker { get; private set; }
+    public ActionBar Bar { get; private set; }
     public IReadOnlyDictionary<string, UnitOverlay> Overlays => overlays;
 
     private BattleManager manager;
@@ -74,6 +75,10 @@ public class BattleHud : MonoBehaviour
         badgeA = BadgeView.Create(canvasRect, "BadgeA", skin, left: true);
         badgeB = BadgeView.Create(canvasRect, "BadgeB", skin, left: false);
         Panel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
+        Bar = ActionBar.Create(canvasRect, skin);
+        var bridge = FindFirstObjectByType<BattleBridge>();
+        Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
+        Bar.UndoPressed += () => bridge?.NotifyUndoMove();
         floatLayer = HudFactory.Stretch(canvasRect, "Floats");
         Banner = ResultBanner.Create(canvasRect, skin);
         Marker = ActiveMarker.Create(skin);
@@ -94,6 +99,12 @@ public class BattleHud : MonoBehaviour
         m.StatusChanged += OnStatusChanged;
         m.Died += OnDied;
         m.BattleEnded += OnBattleEnded;
+        m.SelectionChanged += OnSelectionChanged;
+    }
+
+    private void OnSelectionChanged(SelectionData data)
+    {
+        Bar.Apply(data);
     }
 
     void OnDestroy()
@@ -109,6 +120,7 @@ public class BattleHud : MonoBehaviour
         manager.StatusChanged -= OnStatusChanged;
         manager.Died -= OnDied;
         manager.BattleEnded -= OnBattleEnded;
+        manager.SelectionChanged -= OnSelectionChanged;
     }
 
     // ─── Binding ───
@@ -140,6 +152,7 @@ public class BattleHud : MonoBehaviour
         Panel.Hide();
         Banner.Hide();
         Marker.Hide();
+        Bar.Apply(null);
         Debug.Log($"[BattleHud] bind n={overlays.Count} ids={ids}");
     }
 
@@ -149,6 +162,8 @@ public class BattleHud : MonoBehaviour
     {
         activeId = data.lobsterId ?? "";
         foreach (var kv in overlays) kv.Value.SetActive(kv.Key == activeId);
+        // The bar belongs to the player's own turn; React re-sends the real state right after.
+        if (!data.isPlayer) Bar.Apply(null);
         var lob = manager.GetLobster(activeId);
         Marker.Follow(lob);
         Panel.Show(lob, data.isPlayer);
@@ -174,6 +189,22 @@ public class BattleHud : MonoBehaviour
             sb.Append($" | {child.name}:{(child.gameObject.activeSelf ? "on" : "off")} [{corners[0].x:F0},{corners[0].y:F0}→{corners[2].x:F0},{corners[2].y:F0}]");
         }
         Debug.Log(sb.ToString());
+
+        // Screen position of every in-bounds cell (pixels, y up) — the browser harness
+        // clicks cells and units through this instead of probing.
+        var grid = FindFirstObjectByType<HexGrid>();
+        var arena = manager?.InitData?.arena;
+        if (grid != null && arena != null && cam != null)
+        {
+            var cells = new StringBuilder("[BattleHud] cells");
+            for (int r = 0; r < arena.rows; r++)
+            for (int c = 0; c < arena.cols; c++)
+            {
+                var sp = cam.WorldToScreenPoint(grid.GetWorldPosition(c, r));
+                cells.Append($" ({c},{r})=({sp.x:F0},{sp.y:F0})");
+            }
+            Debug.Log(cells.ToString());
+        }
     }
 
     private void OnBarUpdated(BarData data)
@@ -233,6 +264,7 @@ public class BattleHud : MonoBehaviour
     {
         Panel.Hide();
         Marker.Hide();
+        Bar.Apply(null);
         foreach (var o in overlays.Values) o.SetActive(false);
         ShowBanner(data.winner, data.playerWon, data.reason, manager.PlayerSide);
     }

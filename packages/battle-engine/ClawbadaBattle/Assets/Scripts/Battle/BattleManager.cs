@@ -57,6 +57,15 @@ public class BattleManager : MonoBehaviour
     public event Action<LobsterController, string, bool, int> StatusChanged;
     public event Action<LobsterController> Died;
     public event Action<BattleEndData> BattleEnded;
+    public event Action<SelectionData> SelectionChanged;
+    /// <summary>(lobster, col, row) after a tentative move (or the return to origin).</summary>
+    public event Action<LobsterController, int, int> PreviewMoved;
+
+    /// <summary>React's current turn-building state (null outside a player turn).</summary>
+    public SelectionData selection;
+    private string previewActorId;
+    private int previewOriginCol, previewOriginRow;
+    private Coroutine previewRoutine;
 
     [Header("Prefabs")]
     [Tooltip("Tier+class → rigged lobster prefab. Rebuild via Clawbada/Rebuild Lobster Prefab Library.")]
@@ -132,6 +141,7 @@ public class BattleManager : MonoBehaviour
         activeLobsterId = "";
         activeTurn = null;
         isPlayerTurn = false;
+        ClearPreview();
         currentPhase = BattlePhase.Idle;
         Initialized?.Invoke(data);
     }
@@ -236,6 +246,7 @@ public class BattleManager : MonoBehaviour
         activeLobsterId = data.lobsterId ?? "";
         activeTurn = data;
         isPlayerTurn = data.isPlayer;
+        if (previewActorId != null && previewActorId != activeLobsterId) UndoPreview();
         if (lobsters.TryGetValue(activeLobsterId, out var lob) && lob.alive) lob.FaceEnemySide();
         if (currentPhase != BattlePhase.AnimatingTurn && currentPhase != BattlePhase.BattleOver) currentPhase = BattlePhase.Idle;
 
@@ -261,6 +272,61 @@ public class BattleManager : MonoBehaviour
         ClockSet?.Invoke(remainingMs);
     }
 
+    public void SetSelection(SelectionData data)
+    {
+        selection = data;
+        SelectionChanged?.Invoke(data);
+    }
+
+    /// <summary>Tentative move for the acting lobster: walk to the cell (half speed); a
+    /// cell equal to the origin walks back and clears the preview. The server's resolved
+    /// turn (PlayTurn) reconciles: same destination → no extra walk, otherwise snap home
+    /// first.</summary>
+    public void PreviewMove(PreviewMoveData data)
+    {
+        if (data == null || !lobsters.TryGetValue(data.lobsterId ?? "", out var lob) || !lob.alive) return;
+        if (currentPhase == BattlePhase.AnimatingTurn) return;
+        if (previewActorId != data.lobsterId)
+        {
+            if (previewActorId != null) UndoPreview();
+            previewActorId = data.lobsterId;
+            previewOriginCol = lob.col;
+            previewOriginRow = lob.row;
+        }
+        bool toOrigin = data.col == previewOriginCol && data.row == previewOriginRow;
+        if (lob.col == data.col && lob.row == data.row)
+        {
+            if (toOrigin) previewActorId = null;
+            return;
+        }
+        if (previewRoutine != null) StopCoroutine(previewRoutine);
+        Debug.Log($"[BattleManager] PreviewMove {data.lobsterId} → ({data.col},{data.row}){(toOrigin ? " (origin)" : "")}");
+        previewRoutine = StartCoroutine(PreviewRoutine(lob, data.col, data.row, toOrigin));
+    }
+
+    private IEnumerator PreviewRoutine(LobsterController lob, int col, int row, bool toOrigin)
+    {
+        yield return lob.MoveTo(col, row, secondsPerHexMove * 0.5f);
+        previewRoutine = null;
+        if (toOrigin) previewActorId = null;
+        PreviewMoved?.Invoke(lob, col, row);
+    }
+
+    /// <summary>Snap a previewed lobster back to where the server thinks it stands.</summary>
+    private void UndoPreview()
+    {
+        if (previewActorId == null) return;
+        if (previewRoutine != null) { StopCoroutine(previewRoutine); previewRoutine = null; }
+        if (lobsters.TryGetValue(previewActorId, out var lob) && lob.alive) lob.SnapTo(previewOriginCol, previewOriginRow);
+        previewActorId = null;
+    }
+
+    private void ClearPreview()
+    {
+        if (previewRoutine != null) { StopCoroutine(previewRoutine); previewRoutine = null; }
+        previewActorId = null;
+    }
+
     /// <summary>Server truth for every unit, applied after React has consumed the animated
     /// turn. If React's watchdog already released the HUD while an animation is still
     /// running, stop it and snap to the synced state.</summary>
@@ -277,7 +343,7 @@ public class BattleManager : MonoBehaviour
         {
             foreach (var u in data.units)
             {
-                if (u != null && lobsters.TryGetValue(u.lobsterId ?? "", out var lob)) lob.ApplySync(u, snapPosition: true);
+                if (u != null && lobsters.TryGetValue(u.lobsterId ?? "", out var lob)) lob.ApplySync(u, snapPosition: u.lobsterId != previewActorId);
             }
         }
         UnitsSynced?.Invoke(data);
@@ -313,8 +379,23 @@ public class BattleManager : MonoBehaviour
         hexGrid?.ClearHighlights();
         lobsters.TryGetValue(data.lobsterId ?? "", out var actor);
 
+        // Reconcile a tentative move with the server's resolved one: already standing on
+        // the resolved destination → skip the walk; anything else → snap home first.
+        bool skipMove = false;
+        if (actor != null && previewActorId == actor.lobsterId)
+        {
+            bool endsHere = data.path != null && data.path.Length > 0
+                && data.path[data.path.Length - 1].col == actor.col && data.path[data.path.Length - 1].row == actor.row;
+            if (endsHere) { if (previewRoutine != null) { StopCoroutine(previewRoutine); previewRoutine = null; } previewActorId = null; skipMove = true; }
+            else UndoPreview();
+        }
+        else if (previewActorId != null)
+        {
+            UndoPreview();
+        }
+
         // 1. Movement along the server's path (cell-by-cell hops).
-        if (actor != null && data.path != null && data.path.Length > 0)
+        if (!skipMove && actor != null && data.path != null && data.path.Length > 0)
         {
             var last = data.path[data.path.Length - 1];
             yield return actor.MoveTo(last.col, last.row, secondsPerHexMove);
@@ -551,6 +632,7 @@ public class BattleManager : MonoBehaviour
         currentPhase = BattlePhase.BattleOver;
         Debug.Log($"[BattleManager] Battle over! Winner: {data.winner}, Player won: {data.playerWon}");
         hexGrid?.ClearHighlights();
+        ClearPreview();
         BattleEnded?.Invoke(data);
         if (data.winner == "draw") return;
 
