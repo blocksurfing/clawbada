@@ -108,6 +108,12 @@ public class BattleDemoLoop : MonoBehaviour
                     manager.StartTurn(new TurnStartData { turn = round, lobsterId = actor.id, side = actor.side, deadlineMs = 0, isPlayer = actor.side == "A" });
                     manager.UpdateBar(new BarData { turn = round, entries = BuildBar() });
                     manager.SetClock(actor.side == "A" ? 15000 : 0);
+                    manager.SetSelection(new SelectionData
+                    {
+                        isPlayerTurn = actor.side == "A", canAct = true, action = "attack",
+                        canSpecial = round >= 3, specialName = LobsterClasses.SpecialName(actor.classIdx), specialKind = "enemy",
+                        hasMove = false, targetId = "", targetCount = 1, canUndo = round % 2 == 0, hint = "", pendingAck = false,
+                    });
                 }
                 var result = SimulateRound(round);
                 manager.PlayRound(result);

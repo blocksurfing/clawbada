@@ -39,7 +39,7 @@ export default function BattlePage() {
   if (practice) {
     return (
       <PageBackground variant="deep">
-        <div className="p-4 md:p-8 space-y-4 max-w-4xl mx-auto">
+        <div className="p-4 md:p-8 space-y-4 max-w-6xl mx-auto">
           <Header title="Practice battle" subtitle="Off-chain — no stakes, no rating. Beat the bot." />
           {address ? (
             <LiveBattle battleId={battleId} address={address} />
@@ -83,7 +83,7 @@ export default function BattlePage() {
 
   return (
     <PageBackground variant="deep">
-      <div className="p-4 md:p-8 space-y-4 max-w-4xl mx-auto">
+      <div className="p-4 md:p-8 space-y-4 max-w-6xl mx-auto">
         <Header
           title={`Battle #${battleId}`}
           subtitle={PHASE_LABEL[phase] ?? `Phase ${phase}`}

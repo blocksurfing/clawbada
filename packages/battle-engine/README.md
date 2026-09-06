@@ -80,6 +80,8 @@ receives it and drives BattleManager/HexGrid. TypeScript twin of every payload:
 | `PlayTurn` | Server `turn_resolved` | Animates the path, the action with every damage/heal event at the impact frame, then deaths; ends with `onTurnAnimationComplete` |
 | `UpdateBar` | With each `StartTurn` | Upcoming turn order (the HUD strip itself is React) |
 | `SyncUnits` | After `InitBattle` and after each animated turn | Server truth for every unit (hp, alive, charge, defending, statuses, cell) — feeds the in-canvas HUD |
+| `SetSelection` | On every change of the player's selection | Action-bar state: armed action, legality, hint; a non-player turn hides the bar |
+| `PreviewMove` | When the player picks / undoes a move cell | Slide the acting lobster to the cell (or back); PlayTurn reconciles with the server's path |
 | `SetClock` | Optional | Remaining shot-clock ms for a visual pulse |
 | `BattleEnd` | Server `battle_ended` | Defeat read for the losing side (`winner` may be `"draw"`) |
 | `ShowSelection` / `ClearHighlights` | Player is choosing | Atomic highlight state (origin > enemy > ally > range) |
@@ -128,6 +130,9 @@ when `Assets/Resources/UI/HudSkin.asset` exists — no scene or prefab wiring:
 - `ActivePanel` (bottom-left): large portrait, name, tier/team, HP, pips, shot clock
   (counts down from `SetClock`).
 - `DamageFloat`, `ResultBanner`, `BadgeView` (Human/Agent/Bot per team).
+- `ActionBar` (bottom-centre): Attack / Special / Defend / Wait + Undo. Presses reach React
+  via `onActionSelected {action}` / `onUndoMove`; React validates and submits on tap
+  (LOKR-style: tap an enemy to attack, tap a hex to move first, Undo to return).
 
 Art: `Clawbada/Generate HUD Placeholder Art` writes placeholder sprites to
 `Assets/Art/UI` and seeds `HudSkin` (only empty slots — designer swaps survive).
