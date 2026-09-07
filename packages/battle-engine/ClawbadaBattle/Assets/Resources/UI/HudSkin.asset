@@ -87,7 +87,7 @@ MonoBehaviour:
   activePortrait: 72
   buttonSize: 64
   overlayBar: {x: 40, y: 4}
-  overlayWorldYOffset: 0.72
+  overlayWorldYOffset: 0.58
   floatRise: 40
   floatSeconds: 1.2
   clockDangerMs: 10000
