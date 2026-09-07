@@ -96,8 +96,8 @@ public static class HudFactory
 
         if (icon != null)
         {
-            var ic = Image(rt, "Icon", icon, Color.white, new Vector2(size * 0.45f, size * 0.45f));
-            ic.rectTransform.anchoredPosition = new Vector2(0f, size * 0.12f);
+            var ic = Image(rt, "Icon", icon, Color.white, new Vector2(size * 0.5f, size * 0.5f));
+            ic.rectTransform.anchoredPosition = new Vector2(0f, size * 0.14f);
         }
         var txt = Text(rt, "Label", font, Mathf.RoundToInt(size * 0.17f), Color.white, TextAnchor.MiddleCenter, new Vector2(size * 1.4f, size * 0.3f));
         txt.rectTransform.anchoredPosition = new Vector2(0f, -size * 0.33f);

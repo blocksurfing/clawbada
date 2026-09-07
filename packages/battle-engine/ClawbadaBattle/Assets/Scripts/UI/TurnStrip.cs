@@ -16,8 +16,7 @@ public class TurnStrip : MonoBehaviour
     private class Slot
     {
         public RectTransform root;
-        public PortraitView portrait;
-        public HpBar hp;
+        public CardView card;
         public LobsterController lob;
     }
 
@@ -32,9 +31,10 @@ public class TurnStrip : MonoBehaviour
 
     public static TurnStrip Create(Transform parent, HudSkin skin, LobsterPartLibrary partLibrary)
     {
-        float w = skin.stripPortrait;
+        var size = skin.cardSize;
+        float pitch = size.x + 8f;
         var rt = HudFactory.Rect(parent, "TurnStrip", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -6f), new Vector2(MaxEntries * (w + 6f), w * 1.143f + 30f));
+            new Vector2(0f, -4f), new Vector2(MaxEntries * pitch, size.y * skin.activeCardScale + 24f));
         var strip = rt.gameObject.AddComponent<TurnStrip>();
         strip.Rect = rt;
         strip.skin = skin;
@@ -42,16 +42,13 @@ public class TurnStrip : MonoBehaviour
         for (int i = 0; i < MaxEntries; i++)
         {
             var slotRt = HudFactory.Rect(rt, $"Slot{i}", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0.5f, 1f),
-                Vector2.zero, new Vector2(w, w * 1.143f + 24f));
-            var portrait = PortraitView.Create(slotRt, "Portrait", skin, w);
-            portrait.Rect.anchorMin = portrait.Rect.anchorMax = new Vector2(0.5f, 1f);
-            portrait.Rect.pivot = new Vector2(0.5f, 1f);
-            portrait.Rect.anchoredPosition = new Vector2(0f, -8f);
-            var hp = HpBar.Create(slotRt, "Hp", skin, new Vector2(w - 8f, 4f), withLabel: false);
-            hp.Rect.anchorMin = hp.Rect.anchorMax = new Vector2(0.5f, 1f);
-            hp.Rect.anchoredPosition = new Vector2(0f, -(w * 1.143f) - 12f);
+                Vector2.zero, new Vector2(size.x, size.y));
+            var card = CardView.Create(slotRt, "Card", skin, size, skin.hpSegments);
+            card.Rect.anchorMin = card.Rect.anchorMax = new Vector2(0.5f, 1f);
+            card.Rect.pivot = new Vector2(0.5f, 1f);
+            card.Rect.anchoredPosition = Vector2.zero;
             slotRt.gameObject.SetActive(false);
-            strip.slots.Add(new Slot { root = slotRt, portrait = portrait, hp = hp });
+            strip.slots.Add(new Slot { root = slotRt, card = card });
         }
         return strip;
     }
@@ -79,8 +76,7 @@ public class TurnStrip : MonoBehaviour
             }
         }
 
-        float w = skin.stripPortrait;
-        float pitch = w + 6f;
+        float pitch = skin.cardSize.x + 8f;
         float x0 = -(currentIds.Count - 1) * pitch * 0.5f;
         for (int i = 0; i < slots.Count; i++)
         {
@@ -92,12 +88,12 @@ public class TurnStrip : MonoBehaviour
             if (slot.lob != lob)
             {
                 slot.lob = lob;
-                slot.portrait.Compose(lob, partLibrary);
+                slot.card.Bind(lob, partLibrary);
             }
             bool isActive = i == 0 && currentIds[0] == activeId;
-            slot.root.anchoredPosition = new Vector2(x0 + i * pitch + Rect.sizeDelta.x * 0.5f, isActive ? 0f : -8f);
-            slot.portrait.SetActive(isActive, skin.activeRing);
-            if (!isActive) slot.portrait.SetFrameColor(skin.TeamColor(lob.side));
+            // Active card is scaled about its top-centre pivot; drop the rest so the row reads level.
+            slot.root.anchoredPosition = new Vector2(x0 + i * pitch + Rect.sizeDelta.x * 0.5f, isActive ? 0f : -(skin.cardSize.y * (skin.activeCardScale - 1f)) * 0.5f);
+            slot.card.SetActive(isActive);
         }
         Refresh();
     }
@@ -107,8 +103,7 @@ public class TurnStrip : MonoBehaviour
         foreach (var slot in slots)
         {
             if (slot.lob == null || !slot.root.gameObject.activeSelf) continue;
-            slot.hp.Set(slot.lob.currentHp, slot.lob.maxHp);
-            slot.portrait.SetDimmed(!slot.lob.alive);
+            slot.card.Refresh();
         }
     }
 

@@ -43,7 +43,7 @@ public class ActionBar : MonoBehaviour
         bar.defend = Make(bar, rt, "Defend", skin.iconDefend, "Defend", x0 + pitch * 2f, () => bar.Press("defend"), out bar.defendBg);
         bar.wait = Make(bar, rt, "Wait", skin.iconWait, "Wait", x0 + pitch * 3f, () => bar.Press("none"), out bar.waitBg);
 
-        bar.undo = HudFactory.Button(rt, "Undo", skin.hexButton64, skin.iconUndo, "Undo", font, s * 0.7f, () => bar.PressUndo());
+        bar.undo = HudFactory.Button(rt, "Undo", skin.hexBevel != null ? skin.hexBevel : skin.hexButton64, skin.iconUndo, "Undo", font, s * 0.7f, () => bar.PressUndo());
         var urt = bar.undo.GetComponent<RectTransform>();
         urt.anchorMin = urt.anchorMax = new Vector2(0.5f, 0f);
         urt.pivot = new Vector2(0.5f, 0f);
@@ -55,7 +55,7 @@ public class ActionBar : MonoBehaviour
 
     private static Button Make(ActionBar bar, RectTransform rt, string name, Sprite icon, string label, float x, UnityEngine.Events.UnityAction onClick, out Image bg)
     {
-        var btn = HudFactory.Button(rt, name, bar.skin.hexButton64, icon, label, bar.skin.FontOrDefault(), bar.skin.buttonSize, onClick);
+        var btn = HudFactory.Button(rt, name, bar.skin.hexBevel != null ? bar.skin.hexBevel : bar.skin.hexButton64, icon, label, bar.skin.FontOrDefault(), bar.skin.buttonSize, onClick);
         var brt = btn.GetComponent<RectTransform>();
         brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0f);
         brt.pivot = new Vector2(0.5f, 0f);

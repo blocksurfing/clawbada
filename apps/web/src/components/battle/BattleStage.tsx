@@ -87,6 +87,22 @@ function UnityStage(props: BattleStageProps) {
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastStartedTurn = useRef<number | null>(null);
   const endedSent = useRef(false);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Fullscreen: the stage element itself goes fullscreen; the canvas keeps 16:9 and is
+  // letterboxed on black. Unity re-reads the canvas size, so the HUD rescales with it.
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(document.fullscreenElement === stageRef.current && stageRef.current !== null);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else void el.requestFullscreen?.().catch(() => {});
+  }, []);
   const send = useCallback((method: string, data?: unknown) => {
     if (data === undefined) sendMessage(UNITY_GAME_OBJECT, method);
     else sendMessage(UNITY_GAME_OBJECT, method, JSON.stringify(data));
@@ -211,8 +227,32 @@ function UnityStage(props: BattleStageProps) {
   }, [ready, props.ended, props.nextToAnimate, props.playerSide, send]);
 
   return (
-    <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-ocean-deep">
-      <Unity unityProvider={unityProvider} className="w-full h-full" />
+    <div
+      ref={stageRef}
+      data-battle-stage
+      className={
+        isFullscreen
+          ? 'relative flex h-full w-full items-center justify-center bg-black'
+          : 'relative w-full aspect-video rounded-lg overflow-hidden bg-ocean-deep'
+      }
+    >
+      <div
+        className="relative aspect-video"
+        style={isFullscreen ? { width: 'min(100vw, calc(100vh * 16 / 9))' } : { width: '100%' }}
+      >
+        <Unity unityProvider={unityProvider} className="w-full h-full" />
+      </div>
+      {isLoaded && (
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+          title={isFullscreen ? 'Exit full screen (Esc)' : 'Full screen'}
+          className="absolute bottom-2 right-2 z-10 rounded border border-white/20 bg-black/50 px-2 py-1 font-pixel text-[9px] text-white/80 hover:bg-black/70 hover:text-white"
+        >
+          {isFullscreen ? '✕ EXIT' : '⛶ FULL'}
+        </button>
+      )}
       {!isLoaded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-text-secondary">
           <div className="w-48 h-1.5 rounded-full bg-ocean-mid overflow-hidden">

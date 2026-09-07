@@ -50,6 +50,16 @@ MonoBehaviour:
     sprite: {fileID: 21300000, guid: b6873d8d79f074af6a8c3acbb042bcb9, type: 3}
   - status: taunt
     sprite: {fileID: 21300000, guid: ac50aa724b0bd4fcb9f1715693e2c4ee, type: 3}
+  cardFrame: {fileID: 21300000, guid: 22a19b238309e443eb0e5294fe0ebfcb, type: 3}
+  cardHeader: {fileID: 21300000, guid: 9e9164114ed374d988f13e03c4c4a70a, type: 3}
+  pennant: {fileID: 21300000, guid: 9d8c0ae792c9649fead6141e3708912b, type: 3}
+  hexBevel: {fileID: 21300000, guid: 13877da9930984bba867ce66f0630c67, type: 3}
+  segBg: {fileID: 21300000, guid: bc0fa610693774b73863f16b98940f4d, type: 3}
+  segFill: {fileID: 21300000, guid: 7315a86abb3d64e8d837c452007da527, type: 3}
+  cardSize: {x: 64, y: 76}
+  activeCardScale: 1.18
+  hpSegments: 8
+  cardInner: {r: 0.0627451, g: 0.101960786, b: 0.15294118, a: 1}
   fillCanvas: 1
   fillOrthographicSize: 2.8125
   font: {fileID: 0}
@@ -81,5 +91,5 @@ MonoBehaviour:
   floatRise: 40
   floatSeconds: 1.2
   clockDangerMs: 10000
-  portraitPartScale: 1.6
-  portraitPartOffset: {x: 0, y: -3}
+  portraitPartScale: 2.1
+  portraitPartOffset: {x: 0, y: -8}

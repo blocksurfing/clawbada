@@ -45,6 +45,18 @@ public class HudSkin : ScriptableObject
     public Sprite badgeBot;
     public StatusIcon[] statusIcons;
 
+    [Header("Cards (LOKR-style)")]
+    public Sprite cardFrame;    // 9-sliced bevelled frame
+    public Sprite cardHeader;   // 9-sliced band, tinted per team
+    public Sprite pennant;      // flag under the active card
+    public Sprite hexBevel;     // filled bevelled hex for action buttons
+    public Sprite segBg;        // one HP segment cell
+    public Sprite segFill;      // segment fill (tinted)
+    public Vector2 cardSize = new Vector2(64f, 76f);
+    public float activeCardScale = 1.18f;
+    public int hpSegments = 8;
+    public Color cardInner = C("#101a27");
+
     [Header("Camera")]
     [Tooltip("Disable the PixelPerfectCamera's integer zoom while the HUD is up so the 10x5.625-unit arena fills any 16:9 canvas (LOKR-style full bleed).")]
     public bool fillCanvas = true;
@@ -87,8 +99,8 @@ public class HudSkin : ScriptableObject
     public float floatSeconds = 1.2f;
     public int clockDangerMs = 10000;
     [Tooltip("Body-part sprites are 64px; scale them up so the carapace fills the hex.")]
-    public float portraitPartScale = 1.6f;
-    public Vector2 portraitPartOffset = new Vector2(0f, -3f);
+    public float portraitPartScale = 2.1f;
+    public Vector2 portraitPartOffset = new Vector2(0f, -8f);
 
     public Font FontOrDefault()
     {

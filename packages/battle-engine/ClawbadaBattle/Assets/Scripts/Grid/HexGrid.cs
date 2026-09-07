@@ -298,14 +298,34 @@ public class HexGrid : MonoBehaviour
     /// False when the point is off the board.</summary>
     public bool WorldToHex(Vector3 world, out int col, out int row)
     {
+        col = row = -1;
+        // The board is authored tilted (30° about X), while lobsters, highlights and the
+        // pointer ray all live on the flattened z = 0 plane (GetWorldPosition forces z = 0).
+        // Tilemap.WorldToCell on that flat point drifts by a row away from the pivot, so
+        // map a click by the nearest visible cell centre instead.
+        if (currentLayout != null)
+        {
+            float best = float.MaxValue;
+            for (int r = 0; r < currentLayout.rows; r++)
+            for (int c = 0; c < currentLayout.cols; c++)
+            {
+                Vector3 p = GetWorldPosition(c, r);
+                float dx = p.x - world.x, dy = p.y - world.y;
+                float d = dx * dx + dy * dy;
+                if (d < best) { best = d; col = c; row = r; }
+            }
+            if (col < 0) return false;
+            // Accept clicks within a little over half a cell pitch of the centre.
+            Vector3 a = GetWorldPosition(0, 0), bb = GetWorldPosition(Mathf.Min(1, currentLayout.cols - 1), 0);
+            float pitch = Mathf.Max(0.5f, Mathf.Abs(bb.x - a.x));
+            float tol = pitch * 0.62f;
+            return best <= tol * tol;
+        }
+
         Vector3Int cell;
         if (boardTilemap != null) cell = boardTilemap.WorldToCell(world);
         else if (unityGrid != null) cell = unityGrid.WorldToCell(world);
-        else
-        {
-            col = row = -1;
-            return false;
-        }
+        else return false;
         col = cell.x;
         row = cell.y;
         return InBounds(col, row);
@@ -368,14 +388,14 @@ public class HexGrid : MonoBehaviour
 
         var claimed = new HashSet<(int, int)>();
         if (data.originCol >= 0 && data.originRow >= 0 && claimed.Add((data.originCol, data.originRow)))
-            PaintHighlight(data.originCol, data.originRow, selectedTile);
+            PaintHighlight(data.originCol, data.originRow, selectedTile, SelectedTint);
 
         foreach (var h in data.enemyTargets)
-            if (claimed.Add((h.col, h.row))) PaintHighlight(h.col, h.row, attackTile);
+            if (claimed.Add((h.col, h.row))) PaintHighlight(h.col, h.row, attackTile, AttackTint);
         foreach (var h in data.allyTargets)
-            if (claimed.Add((h.col, h.row))) PaintHighlight(h.col, h.row, allyTile);
+            if (claimed.Add((h.col, h.row))) PaintHighlight(h.col, h.row, allyTile, AllyTint);
         foreach (var h in data.rangeHexes)
-            if (claimed.Add((h.col, h.row))) PaintHighlight(h.col, h.row, moveTile);
+            if (claimed.Add((h.col, h.row))) PaintHighlight(h.col, h.row, moveTile, MoveTint);
     }
 
     /// <summary>Restore all highlighted cells back to the plain board tile.</summary>
@@ -396,14 +416,20 @@ public class HexGrid : MonoBehaviour
         highlightedCells.Clear();
     }
 
-    private void PaintHighlight(int col, int row, TileBase tile)
+    // Highlight tints: the authored highlight tiles are near-grey and read like plain board
+    // on the darker arenas (Apex especially), so each kind gets a strong, distinct colour.
+    private static readonly Color MoveTint = new Color(0.45f, 0.95f, 0.85f, 1f);     // teal — reachable cell
+    private static readonly Color AttackTint = new Color(1f, 0.55f, 0.5f, 1f);       // coral — enemy in range
+    private static readonly Color AllyTint = new Color(0.55f, 0.95f, 0.55f, 1f);     // green — ally target
+    private static readonly Color SelectedTint = new Color(1f, 0.85f, 0.45f, 1f);    // gold — the actor's cell
+
+    private void PaintHighlight(int col, int row, TileBase tile, Color tint)
     {
         if (!InBounds(col, row) || tile == null) return;
         var cell = new Vector3Int(col, row, 0);
         boardTilemap.SetTile(cell, tile);
-        // Highlights render as authored — clear any tier tint left on the cell.
         boardTilemap.SetTileFlags(cell, TileFlags.None);
-        boardTilemap.SetColor(cell, Color.white);
+        boardTilemap.SetColor(cell, tint);
         highlightedCells.Add(cell);
     }
 
