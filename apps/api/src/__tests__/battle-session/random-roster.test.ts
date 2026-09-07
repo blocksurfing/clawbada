@@ -23,3 +23,19 @@ describe('rollRandomRoster', () => {
     expect(() => rollRandomRoster('base')).toThrow(/unknown random tier/);
   });
 });
+
+describe('rollTrioRoster', () => {
+  test('three of one class at the requested tier with genetics, purity 3', async () => {
+    const { rollTrioRoster, TRIO_PRESET_RE } = await import('../../lib/battle-session/random-roster');
+    const { LobsterClass } = await import('@clawbada/game-logic');
+    expect(TRIO_PRESET_RE.test('trio_ember')).toBe(true);
+    expect(TRIO_PRESET_RE.test('trio_ember_apex')).toBe(true);
+    expect(TRIO_PRESET_RE.test('trio_dragon')).toBe(false);
+    const r = rollTrioRoster('ember', 'apex');
+    expect(r.tier).toBe(EvolutionTier.Apex);
+    expect(r.classes).toEqual([LobsterClass.Ember, LobsterClass.Ember, LobsterClass.Ember]);
+    expect(r.purity).toEqual([3, 3, 3]);
+    for (const p of r.partClassIds) expect(p).toHaveLength(6);
+    expect(() => rollTrioRoster('dragon')).toThrow();
+  });
+});

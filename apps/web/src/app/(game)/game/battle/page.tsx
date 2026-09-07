@@ -32,6 +32,7 @@ const PRESETS = [
   { id: 'evolved_mix', label: 'Evolved trio' },
   { id: 'elite_mix', label: 'Elite trio' },
   { id: 'apex_mix', label: 'Apex trio' },
+  ...(['Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter', 'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember'] as const).map((c) => ({ id: `trio_${c.toLowerCase()}`, label: `Trio · ${c} (Elite)` })),
 ] as const;
 
 // Pick a random arena scene on page load (Evolved tier default for queue view)
