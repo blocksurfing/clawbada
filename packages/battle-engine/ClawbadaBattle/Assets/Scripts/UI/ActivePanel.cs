@@ -13,10 +13,10 @@ public class ActivePanel : MonoBehaviour
 
     private HudSkin skin;
     private LobsterPartLibrary partLibrary;
-    private PortraitView portrait;
+    private CardView card;
     private Text nameText;
     private Text subText;
-    private HpBar hp;
+    private Text hpText;
     private Image[] pips;
 
     public static ActivePanel Create(Transform parent, HudSkin skin, LobsterPartLibrary partLibrary)
@@ -29,10 +29,11 @@ public class ActivePanel : MonoBehaviour
         HudFactory.AddImage(rt, skin.panelBg, new Color(1f, 1f, 1f, 0.92f));
 
         float pw = skin.activePortrait;
-        p.portrait = PortraitView.Create(rt, "Portrait", skin, pw);
-        p.portrait.Rect.anchorMin = p.portrait.Rect.anchorMax = new Vector2(0f, 0.5f);
-        p.portrait.Rect.pivot = new Vector2(0f, 0.5f);
-        p.portrait.Rect.anchoredPosition = new Vector2(8f, 0f);
+        var cardSize = new Vector2(pw, pw * skin.cardSize.y / skin.cardSize.x);
+        p.card = CardView.Create(rt, "Card", skin, cardSize, skin.hpSegments);
+        p.card.Rect.anchorMin = p.card.Rect.anchorMax = new Vector2(0f, 0.5f);
+        p.card.Rect.pivot = new Vector2(0f, 0.5f);
+        p.card.Rect.anchoredPosition = new Vector2(8f, 0f);
 
         var font = skin.FontOrDefault();
         p.nameText = HudFactory.Text(rt, "Name", font, 16, skin.textPrimary, TextAnchor.MiddleLeft, new Vector2(130f, 22f));
@@ -45,10 +46,10 @@ public class ActivePanel : MonoBehaviour
         p.subText.rectTransform.pivot = new Vector2(0f, 1f);
         p.subText.rectTransform.anchoredPosition = new Vector2(pw + 16f, -32f);
 
-        p.hp = HpBar.Create(rt, "Hp", skin, new Vector2(124f, 10f), withLabel: true, labelSize: 10);
-        p.hp.Rect.anchorMin = p.hp.Rect.anchorMax = new Vector2(0f, 1f);
-        p.hp.Rect.pivot = new Vector2(0f, 1f);
-        p.hp.Rect.anchoredPosition = new Vector2(pw + 16f, -54f);
+        p.hpText = HudFactory.Text(rt, "HpText", font, 13, skin.textPrimary, TextAnchor.MiddleLeft, new Vector2(130f, 18f));
+        p.hpText.rectTransform.anchorMin = p.hpText.rectTransform.anchorMax = new Vector2(0f, 1f);
+        p.hpText.rectTransform.pivot = new Vector2(0f, 1f);
+        p.hpText.rectTransform.anchoredPosition = new Vector2(pw + 16f, -52f);
 
         p.pips = new Image[3];
         for (int i = 0; i < 3; i++)
@@ -74,8 +75,8 @@ public class ActivePanel : MonoBehaviour
         Lobster = lob;
         if (lob == null) { Hide(); return; }
         gameObject.SetActive(true);
-        portrait.Compose(lob, partLibrary);
-        portrait.SetFrameColor(isPlayer ? skin.activeRing : skin.TeamColor(lob.side));
+        card.Bind(lob, partLibrary);
+        card.SetActive(isPlayer, scale: false, showPennant: false);
         nameText.text = string.IsNullOrEmpty(lob.className) ? LobsterClasses.Name(lob.classId) : lob.className;
         nameText.color = skin.TeamColor(lob.side);
         subText.text = $"{LobsterClasses.TierName(lob.tier)} · Team {lob.side}{(isPlayer ? " · you" : "")}";
@@ -93,8 +94,9 @@ public class ActivePanel : MonoBehaviour
     {
         var lob = Lobster;
         if (lob == null || !gameObject.activeSelf) return;
-        hp.Set(lob.currentHp, lob.maxHp);
+        card.Refresh();
+        hpText.text = lob.alive ? $"HP {lob.currentHp} / {lob.maxHp}" : "KO";
+        hpText.color = skin.HpColor(lob.currentHp, lob.maxHp);
         for (int i = 0; i < pips.Length; i++) pips[i].color = i < lob.charge ? skin.gold : new Color(1f, 1f, 1f, 0.25f);
-        portrait.SetDimmed(!lob.alive);
     }
 }
