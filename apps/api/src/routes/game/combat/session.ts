@@ -12,6 +12,7 @@
  */
 import { Hono } from 'hono';
 import { v3, EvolutionTier, LobsterClass } from '@clawbada/game-logic';
+import { rollRandomRoster, RANDOM_PRESET_RE } from '../../../lib/battle-session/random-roster';
 import { walletAuth, verifyWalletSignature } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readLobster, readTeam, serializeBigInts } from '../../../lib/chain';
@@ -33,19 +34,7 @@ const PRESETS: Record<string, { tier: EvolutionTier; classes: LobsterClass[] }> 
   apex_mix: { tier: EvolutionTier.Apex, classes: [LobsterClass.Leviathan, LobsterClass.Ember, LobsterClass.Abyss] },
 };
 
-/** `random_<tier>`: three distinct classes drawn from all ten, random purity 0–6. */
-const RANDOM_PRESET_RE = /^random_(evolved|elite|apex)$/;
-const RANDOM_TIERS: Record<string, EvolutionTier> = { evolved: EvolutionTier.Evolved, elite: EvolutionTier.Elite, apex: EvolutionTier.Apex };
-const ALL_CLASSES: LobsterClass[] = Object.values(LobsterClass).filter((v): v is LobsterClass => typeof v === 'number');
-
-export function rollRandomRoster(tierName: string, rng: () => number = Math.random): { tier: EvolutionTier; classes: LobsterClass[]; purity: number[] } {
-  const tier = RANDOM_TIERS[tierName];
-  const pool = [...ALL_CLASSES];
-  const classes: LobsterClass[] = [];
-  while (classes.length < 3 && pool.length) classes.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
-  const purity = classes.map(() => Math.floor(rng() * 7));
-  return { tier, classes, purity };
-}
+export { rollRandomRoster, RANDOM_PRESET_RE } from '../../../lib/battle-session/random-roster';
 
 function presetsEnabled(): boolean {
   if (process.env.PRACTICE_PRESETS === 'true') return true;
@@ -116,7 +105,7 @@ sessionRoutes.post(
       if (!presetsEnabled()) throw new ApiError('INVALID_INPUT', 'preset rosters are disabled');
       if (randomPreset) {
         const r = rollRandomRoster(randomPreset[1]);
-        lobsters = r.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: r.tier, purity: r.purity[i], legend: false } }));
+        lobsters = r.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: r.tier, purity: r.purity[i], legend: false }, partClassIds: r.partClassIds[i] }));
       } else {
         const p = PRESETS[body.preset];
         if (!p) throw new ApiError('INVALID_INPUT', `preset must be one of random_evolved, random_elite, random_apex, ${Object.keys(PRESETS).join(', ')}`);

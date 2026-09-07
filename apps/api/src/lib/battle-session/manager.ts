@@ -14,7 +14,7 @@
  * that never throws out of a tick; every external dependency is injected.
  */
 import { randomUUID, getRandomValues } from 'node:crypto';
-import { v3, deriveRandom, type EvolutionTier, type LobsterClass } from '@clawbada/game-logic';
+import { v3, deriveRandom, randomDNA, calculatePurity, type EvolutionTier, type LobsterClass } from '@clawbada/game-logic';
 import { ShotClock } from './clock';
 import type { BattleSnapshot, RosterEntry, SessionEventName, Side } from './protocol';
 import { BattleSession, endReason, type SessionRecord } from './session';
@@ -167,8 +167,18 @@ export class BattleSessionManager {
     const teamA = opts.lobsters.map((l) => ({ ...l.input }));
     const tier = arenaTierFor(teamA);
     const teamB: v3.LobsterInput[] = teamA.map((l, i) => ({ id: `bot-${i}`, class: l.class, tier: l.tier, purity: l.purity, legend: false }));
+    // Bot genetics: a mirror copies the player's body parts; a random opponent rolls a seeded
+    // DNA per slot (reproducible from the battle seed) and takes its purity from that DNA.
+    const botParts: (number[] | undefined)[] = opts.lobsters.map((l) => l.partClassIds);
     if (opts.opponent === 'random') {
-      for (let i = 0; i < 3; i++) teamB[i].class = Number(deriveClass(vrfSeed, i)) as LobsterClass;
+      for (let i = 0; i < 3; i++) {
+        teamB[i].class = Number(deriveClass(vrfSeed, i)) as LobsterClass;
+        let k = 0;
+        const rng = () => Number(deriveRandom(vrfSeed, `practice_bot_dna_${i}_${k++}`) % 1_000_000n) / 1_000_000;
+        const dna = randomDNA(teamB[i].class, rng);
+        teamB[i].purity = calculatePurity(dna);
+        botParts[i] = v3.partClassIds(dna);
+      }
     }
     const layout = opts.layoutId ? this.deps.layoutById?.(opts.layoutId) : undefined;
     if (opts.layoutId && !layout) throw new Error(`unknown layout ${opts.layoutId}`);
@@ -176,7 +186,7 @@ export class BattleSessionManager {
 
     const roster: RosterEntry[] = [
       ...opts.lobsters.map((l, i) => ({ id: l.input.id, side: 'A' as Side, slot: i, classId: l.input.class, tier: l.input.tier, purity: l.input.purity, legend: !!l.input.legend, owner, ...(l.partClassIds ? { partClassIds: l.partClassIds } : {}), ...(l.tokenId ? { tokenId: l.tokenId } : {}) })),
-      ...teamB.map((l, i) => ({ id: l.id, side: 'B' as Side, slot: i, classId: l.class, tier: l.tier, purity: l.purity, legend: false, owner: `bot:${opts.bot}` })),
+      ...teamB.map((l, i) => ({ id: l.id, side: 'B' as Side, slot: i, classId: l.class, tier: l.tier, purity: l.purity, legend: false, owner: `bot:${opts.bot}`, ...(botParts[i] ? { partClassIds: botParts[i] } : {}) })),
     ];
     const record: SessionRecord = { id, kind: 'practice', tier, playerA: owner, playerB: `bot:${opts.bot}`, bot: opts.bot, vrfRound: null, roster, createdAt: new Date() };
     const inserted = await this.deps.store.insertSession({

@@ -145,6 +145,20 @@ export function encodeDNA(
 }
 
 /** Validate that DNA has a valid class, legend, and all allele class affinities in range. */
+/**
+ * Random genetics for a lobster of a given class: random breed type, and every one of
+ * the 18 alleles drawn uniformly (class affinity 0–9, variant 0–15). Purity therefore
+ * follows the faucet-like distribution (~0.6 matching dominants on average) rather than a
+ * chosen value — read it back with calculatePurity. `rng` returns [0, 1); pass a seeded
+ * generator for reproducible rosters (practice bots).
+ */
+export function randomDNA(class_: LobsterClass, rng: () => number = Math.random): bigint {
+  const u = (n: number) => Math.min(n - 1, Math.floor(rng() * n));
+  const alleles: number[] = [];
+  for (let i = 0; i < TOTAL_ALLELES; i++) alleles.push(encodeAllele({ classAffinity: u(NUM_CLASSES), variant: u(16) }));
+  return encodeDNA(class_, LegendStatus.Normal, u(64), alleles);
+}
+
 export function isValidDNA(dna: bigint): boolean {
   const class_ = Number((dna >> CLASS_SHIFT) & CLASS_MASK);
   if (class_ >= NUM_CLASSES) return false;

@@ -72,7 +72,7 @@ beforeEach(() => {
 
 describe('POST /practice', () => {
   test('random_<tier> preset → 201 with three distinct classes at that tier, random purity', async () => {
-    const { rollRandomRoster } = await import('../../routes/game/combat/session');
+    const { rollRandomRoster } = await import('../../lib/battle-session/random-roster');
     const { EvolutionTier } = await import('@clawbada/game-logic');
     let k = 0; const seq = [0.01, 0.99, 0.5, 0.2, 0.9, 0.6];
     const r = rollRandomRoster('elite', () => seq[k++ % seq.length]);
@@ -80,11 +80,15 @@ describe('POST /practice', () => {
     expect(r.classes).toHaveLength(3);
     expect(new Set(r.classes).size).toBe(3);
     for (const p of r.purity) { expect(p).toBeGreaterThanOrEqual(0); expect(p).toBeLessThanOrEqual(6); }
+    // Genetics are asserted with the REAL game-logic module in battle-session/random-roster.test.ts
+    // (route test files stub @clawbada/game-logic process-wide).
+    for (let i = 0; i < 3; i++) expect(Array.isArray(r.partClassIds[i])).toBe(true);
     mockStartPractice.mockResolvedValue(fakeSession(P_ID));
     const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'random_apex' }) });
     expect(res.status).toBe(201);
-    const args = mockStartPractice.mock.calls[0][0] as { lobsters: Array<{ input: { class: number; tier: number; purity: number } }>; opponent: string };
+    const args = mockStartPractice.mock.calls[0][0] as { lobsters: Array<{ input: { class: number; tier: number; purity: number }; partClassIds?: number[] }>; opponent: string };
     expect(args.lobsters).toHaveLength(3);
+    for (const l of args.lobsters) expect(Array.isArray(l.partClassIds)).toBe(true);
     expect(new Set(args.lobsters.map((l) => l.input.class)).size).toBe(3);
     for (const l of args.lobsters) { expect(l.input.tier).toBe(EvolutionTier.Apex); expect(l.input.purity).toBeGreaterThanOrEqual(0); expect(l.input.purity).toBeLessThanOrEqual(6); }
     expect(args.opponent).toBe('random'); // a random roster defaults to a random opponent
