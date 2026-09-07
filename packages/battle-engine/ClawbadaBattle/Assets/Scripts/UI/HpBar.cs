@@ -8,6 +8,7 @@ public class HpBar : MonoBehaviour
     private HudSkin skin;
     private Image fill;
     private Text label;
+    private Image[] segments;
 
     public static HpBar Create(Transform parent, string name, HudSkin skin, Vector2 size, bool withLabel, int labelSize = 11)
     {
@@ -29,8 +30,40 @@ public class HpBar : MonoBehaviour
         return bar;
     }
 
+    /// <summary>LOKR-style segmented bar: N cells, lit from the left, tinted by HP band.</summary>
+    public static HpBar CreateSegmented(Transform parent, string name, HudSkin skin, Vector2 size, int count)
+    {
+        var rt = HudFactory.Rect(parent, name, HudFactory.Center, HudFactory.Center, HudFactory.Center, Vector2.zero, size);
+        var bar = rt.gameObject.AddComponent<HpBar>();
+        bar.Rect = rt;
+        bar.skin = skin;
+        count = Mathf.Max(1, count);
+        bar.segments = new Image[count];
+        float gap = 1f;
+        float w = (size.x - gap * (count - 1)) / count;
+        for (int i = 0; i < count; i++)
+        {
+            var cellRt = HudFactory.Rect(rt, $"Seg{i}", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(i * (w + gap), 0f), new Vector2(w, 0f));
+            HudFactory.AddImage(cellRt, skin.segBg, Color.white);
+            var fillRt = HudFactory.Stretch(cellRt, "Fill");
+            fillRt.offsetMin = new Vector2(1f, 1f);
+            fillRt.offsetMax = new Vector2(-1f, -1f);
+            bar.segments[i] = HudFactory.AddImage(fillRt, skin.segFill, skin.hpHigh);
+        }
+        return bar;
+    }
+
     public void Set(int hp, int max)
     {
+        if (segments != null)
+        {
+            float f = max > 0 ? Mathf.Clamp01((float)hp / max) : 0f;
+            int lit = hp > 0 ? Mathf.Max(1, Mathf.CeilToInt(f * segments.Length)) : 0;
+            var c = skin.HpColor(hp, max);
+            for (int i = 0; i < segments.Length; i++) { segments[i].enabled = i < lit; segments[i].color = c; }
+            if (label != null) label.text = hp > 0 ? $"{hp}/{max}" : "KO";
+            return;
+        }
         float frac = max > 0 ? Mathf.Clamp01((float)hp / max) : 0f;
         var rt = fill.rectTransform;
         rt.anchorMax = new Vector2(frac, 1f);

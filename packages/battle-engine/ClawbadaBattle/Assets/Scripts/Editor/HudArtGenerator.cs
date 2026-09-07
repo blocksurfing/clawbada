@@ -39,6 +39,12 @@ public static class HudArtGenerator
         made["panel_bg"] = WritePng("panel_bg", Box(16, 16, Panel, new Color(0.2f, 0.3f, 0.42f, 1f), 3));
         made["pip"] = WritePng("pip", Disc(8, Ink));
         made["ring"] = WritePng("ring", Ring(44, 3, Ink));
+        made["card_frame"] = WritePng("card_frame", CardFrame(32, 32));
+        made["card_header"] = WritePng("card_header", Box(8, 8, Ink, new Color(0.75f, 0.75f, 0.75f, 1f), 1));
+        made["pennant"] = WritePng("pennant", Pennant(14, 18));
+        made["hex_bevel_64"] = WritePng("hex_bevel_64", HexBevel(64, 74));
+        made["seg_bg"] = WritePng("seg_bg", Box(6, 6, new Color(0.05f, 0.08f, 0.12f, 1f), new Color(0.22f, 0.26f, 0.3f, 1f), 1));
+        made["seg_fill"] = WritePng("seg_fill", Box(4, 4, Ink, Ink, 0));
 
         made["icon_attack"] = WritePng("icon_attack", Glyph(Glyphs.Attack, Ink));
         made["icon_special"] = WritePng("icon_special", Glyph(Glyphs.Special, Ink));
@@ -67,6 +73,9 @@ public static class HudArtGenerator
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         SetBorder(made["bar_bg"], new Vector4(3, 3, 3, 3));
         SetBorder(made["panel_bg"], new Vector4(5, 5, 5, 5));
+        SetBorder(made["card_frame"], new Vector4(7, 7, 7, 7));
+        SetBorder(made["card_header"], new Vector4(2, 2, 2, 2));
+        SetBorder(made["seg_bg"], new Vector4(2, 2, 2, 2));
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
@@ -109,6 +118,12 @@ public static class HudArtGenerator
         if (skin.badgeHuman == null) skin.badgeHuman = S("badge_human");
         if (skin.badgeAgent == null) skin.badgeAgent = S("badge_agent");
         if (skin.badgeBot == null) skin.badgeBot = S("badge_bot");
+        if (skin.cardFrame == null) skin.cardFrame = S("card_frame");
+        if (skin.cardHeader == null) skin.cardHeader = S("card_header");
+        if (skin.pennant == null) skin.pennant = S("pennant");
+        if (skin.hexBevel == null) skin.hexBevel = S("hex_bevel_64");
+        if (skin.segBg == null) skin.segBg = S("seg_bg");
+        if (skin.segFill == null) skin.segFill = S("seg_fill");
 
         var icons = new List<HudSkin.StatusIcon>(skin.statusIcons ?? new HudSkin.StatusIcon[0]);
         foreach (var key in Glyphs.Statuses.Keys)
@@ -229,6 +244,75 @@ public static class HudArtGenerator
         {
             bool edge = x < borderPx || y < borderPx || x >= w - borderPx || y >= h - borderPx;
             tex.SetPixel(x, y, edge ? border : fill);
+        }
+        tex.Apply();
+        return tex;
+    }
+
+    /// <summary>LOKR-style bevelled card frame: dark outline, light rim, shadow line, dark body.</summary>
+    private static Texture2D CardFrame(int w, int h)
+    {
+        var tex = NewTex(w, h);
+        var outline = new Color(0.08f, 0.07f, 0.06f, 1f);
+        var rimLight = new Color(0.86f, 0.83f, 0.76f, 1f);
+        var rimDark = new Color(0.55f, 0.52f, 0.47f, 1f);
+        var shadow = new Color(0.18f, 0.17f, 0.16f, 1f);
+        var body = new Color(0.06f, 0.1f, 0.15f, 1f);
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+        {
+            int d = Mathf.Min(Mathf.Min(x, w - 1 - x), Mathf.Min(y, h - 1 - y)); // distance to the edge
+            bool corner = (x == 0 || x == w - 1) && (y == 0 || y == h - 1);
+            Color c;
+            if (corner) c = Clear;
+            else if (d == 0) c = outline;
+            else if (d <= 3) c = (x <= y) ? rimLight : rimDark; // lit top-left, shaded bottom-right
+            else if (d == 4) c = shadow;
+            else if (d == 5) c = outline;
+            else c = body;
+            tex.SetPixel(x, y, c);
+        }
+        tex.Apply();
+        return tex;
+    }
+
+    /// <summary>Filled hexagon with a lit/shaded bevel and a dark inner face (action buttons).</summary>
+    private static Texture2D HexBevel(int w, int h)
+    {
+        var tex = NewTex(w, h);
+        var outline = new Color(0.05f, 0.06f, 0.08f, 1f);
+        var lit = new Color(0.82f, 0.86f, 0.9f, 1f);
+        var shade = new Color(0.36f, 0.42f, 0.5f, 1f);
+        var ring = new Color(0.17f, 0.22f, 0.3f, 1f);
+        var face = new Color(0.08f, 0.12f, 0.18f, 1f);
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+        {
+            float px = x + 0.5f, py = y + 0.5f;
+            if (!InHex(px, py, w, h, 0.5f)) continue;
+            Color c;
+            if (!InHex(px, py, w, h, 2.5f)) c = outline;
+            else if (!InHex(px, py, w, h, 6.5f)) c = (px + py > w * 0.5f + h * 0.5f) ? lit : shade; // top-right lit
+            else if (!InHex(px, py, w, h, 8.5f)) c = ring;
+            else c = face;
+            tex.SetPixel(x, y, c);
+        }
+        tex.Apply();
+        return tex;
+    }
+
+    /// <summary>Downward-pointing pennant (active card marker).</summary>
+    private static Texture2D Pennant(int w, int h)
+    {
+        var tex = NewTex(w, h);
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+        {
+            // Rectangle for the top 60 %, then a triangle to the bottom point.
+            float t = (h - 1 - y) / (float)(h - 1); // 0 at top, 1 at bottom
+            float halfW = t < 0.6f ? w * 0.5f : w * 0.5f * (1f - (t - 0.6f) / 0.4f);
+            float dx = Mathf.Abs(x + 0.5f - w * 0.5f);
+            if (dx <= halfW) tex.SetPixel(x, y, dx > halfW - 1.2f || (t < 0.6f && y == h - 1) ? new Color(0.35f, 0.25f, 0.05f, 1f) : Ink);
         }
         tex.Apply();
         return tex;

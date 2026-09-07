@@ -33,7 +33,7 @@ public class UnitOverlay : MonoBehaviour
         o.ring.rectTransform.anchoredPosition = new Vector2(0f, -46f);
         o.ring.enabled = false;
 
-        o.bar = HpBar.Create(rt, "Hp", skin, skin.overlayBar, withLabel: false);
+        o.bar = HpBar.CreateSegmented(rt, "Hp", skin, skin.overlayBar, 6);
         o.bar.Rect.anchoredPosition = new Vector2(0f, 6f);
 
         for (int i = 0; i < 3; i++)

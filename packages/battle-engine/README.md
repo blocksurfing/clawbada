@@ -122,12 +122,14 @@ built entirely in code at runtime by `BattleHud`, attached from `BattleManager.A
 when `Assets/Resources/UI/HudSkin.asset` exists — no scene or prefab wiring:
 
 - `TurnStrip` (top): the acting lobster first, then the next turns from `UpdateBar`,
-  as hex portraits composited from each lobster's Carapace/Antennae/Eyes sprites
-  (`PortraitView` + `LobsterPartLibrary`), with an HP bar each.
+  as LOKR-style character cards (`CardView`): bevelled frame, team-coloured header
+  band, the portrait composited from each lobster's Carapace/Antennae/Eyes sprites
+  (`LobsterPartLibrary`), and a segmented HP bar inside the card. The active card is
+  scaled up, rimmed gold and carries a pennant.
 - `UnitOverlay` (per lobster, follows the rig): HP bar, charge pips, defend shield,
   status icons, KO skull, gold ring on the active unit. `ActiveMarker` draws the
   animated `hex_selector` under the actor in world space.
-- `ActivePanel` (bottom-left): large portrait, name, tier/team, HP, pips, shot clock
+- `ActivePanel` (bottom-left): large card, name, tier/team, HP numbers, pips, shot clock
   (counts down from `SetClock`).
 - `DamageFloat`, `ResultBanner`, `BadgeView` (Human/Agent/Bot per team).
 - `ActionBar` (bottom-centre): Attack / Special / Defend / Wait + Undo. Presses reach React
@@ -135,6 +137,17 @@ when `Assets/Resources/UI/HudSkin.asset` exists — no scene or prefab wiring:
   (LOKR-style: tap an enemy to attack, tap a hex to move first, Undo to return).
 
 Art: `Clawbada/Generate HUD Placeholder Art` writes placeholder sprites to
-`Assets/Art/UI` and seeds `HudSkin` (only empty slots — designer swaps survive).
-Verify headlessly with `-executeMethod HudSmokeTest.Run` (no `-nographics`). The
-editor demo loop feeds the same signals, so the HUD shows in play mode too.
+`Assets/Art/UI` (hex frames, card frame/header, pennant, bevelled hex button, HP
+segments, icons, badges) and seeds `HudSkin` (only empty slots — designer swaps
+survive). Verify headlessly with `-executeMethod HudSmokeTest.Run` (no `-nographics`).
+The editor demo loop feeds the same signals, so the HUD shows in play mode too.
+
+Click mapping: the board is authored tilted 30° about X while units, highlights and the
+pointer ray live on the flattened z = 0 plane, so `HexGrid.WorldToHex` maps a click to
+the nearest visible cell centre (not `Tilemap.WorldToCell`, which drifts by a row away
+from the pivot). `-executeMethod HexInputSmokeTest.Run` round-trips every cell of a 6×5
+board on all three tiers. Range highlights are tinted per kind (teal reachable, coral
+enemy, green ally, gold actor) so they stand out on the dark Apex arena.
+
+Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (top-right of the
+canvas); the stage element goes fullscreen and the canvas stays 16:9, letterboxed.
