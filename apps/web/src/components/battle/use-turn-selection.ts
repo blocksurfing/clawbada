@@ -187,7 +187,16 @@ export function useTurnSelection(
 
   const onLobsterClick = useCallback((id: string) => {
     if (!actor || !state || !summary) return;
-    if (id === actor.id) { setMoveTo(null); setTargetId(null); return; }
+    if (id === actor.id) {
+      // Self is a legal target for ally Specials (Rally): with the Special armed, tapping
+      // the actor casts it on itself instead of cancelling the tentative move.
+      if (autoSubmit && action === 'special' && specialKind === 'ally' && canSpecial && summary.specialTargets.includes(id)) {
+        setTargetId(id);
+        trySubmit(withMove({ lobsterId: actor.id, action: 'special', targetId: id }));
+        return;
+      }
+      setMoveTo(null); setTargetId(null); return;
+    }
     const target = state.lobsters.find((l) => l.id === id);
     if (!target) return;
     const enemy = target.team !== actor.team;
