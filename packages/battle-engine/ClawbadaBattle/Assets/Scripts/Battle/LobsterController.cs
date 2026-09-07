@@ -333,8 +333,9 @@ public class LobsterController : MonoBehaviour
         }
         if (!u.alive && alive)
         {
-            alive = false;
-            Dim();
+            // The turn that killed this unit was not animated here (watchdog release,
+            // reconnect, skipped tick): play the death now instead of just tinting it.
+            StartCoroutine(PlayDeath(0.9f));
         }
     }
 
@@ -356,22 +357,55 @@ public class LobsterController : MonoBehaviour
         if (applied) statuses.Add(new StatusData { type = type, turns = turns });
     }
 
+    /// <summary>Corpse look: near-black and almost transparent — a faint crumpled pile.</summary>
+    public static readonly Color CorpseTint = new Color(0.16f, 0.16f, 0.2f, 0.26f);
+
     private void Dim()
     {
         foreach (var sr in GetComponentsInChildren<SpriteRenderer>())
         {
-            sr.color = new Color(0.55f, 0.55f, 0.55f, 0.9f);
+            sr.color = CorpseTint;
         }
     }
 
-    /// <summary>Death: play Die and stay on its final frame as a corpse.</summary>
+    private static readonly int DieHash = Animator.StringToHash("Die");
+
+    /// <summary>Death: play Die once, then freeze on its final frame (the Animator is
+    /// disabled, so nothing can move the corpse again) and fade to the corpse tint.</summary>
     public IEnumerator PlayDeath(float duration)
     {
+        if (deathPlayed) yield break;
+        deathPlayed = true;
         alive = false;
-        PlayState("Die");
+        defending = false;
+        bool hasDie = PlayState("Die", 0.05f);
         BattleVfxLibrary.Spawn(vfx?.death, this, null, this);
-        yield return new WaitForSeconds(duration);
-        // Corpse stays visible; dim it so live lobsters read clearly.
+        float wait = duration;
+        if (hasDie && animator != null)
+        {
+            yield return null; // let the cross-fade start so the state info is the Die clip
+            var info = animator.GetCurrentAnimatorStateInfo(0);
+            if (info.shortNameHash == DieHash && info.length > 0f && !float.IsInfinity(info.length))
+                wait = Mathf.Max(0.2f, Mathf.Min(duration, info.length / Mathf.Max(0.01f, info.speed)));
+        }
+        yield return new WaitForSeconds(wait);
+        FreezeAsCorpse();
+    }
+
+    private bool deathPlayed;
+
+    /// <summary>Hold the last Die frame and stop the Animator: dead lobsters never move.</summary>
+    public void FreezeAsCorpse()
+    {
+        if (animator != null && animator.enabled)
+        {
+            if (animator.HasState(0, DieHash))
+            {
+                animator.Play(DieHash, 0, 0.999f);
+                animator.Update(0f);
+            }
+            animator.enabled = false;
+        }
         Dim();
     }
 

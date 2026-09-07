@@ -86,6 +86,9 @@ public class BattleManager : MonoBehaviour
 
     private GameObject arenaArtInstance;
 
+    [Tooltip("Scale applied to the arena's decorative Foreground-layer art (rocks, shells, seaweed) about the camera centre. Playtest 2026-09-06: 0.85 so the board feels less crowded.")]
+    public float decorScale = 0.85f;
+
     [Header("Animation Timing")]
     public float secondsPerHexMove = 0.35f;
     public float attackDuration = 0.55f;
@@ -199,6 +202,21 @@ public class BattleManager : MonoBehaviour
                 Vector3 shift = new Vector3(cam.transform.position.x, cam.transform.position.y, 0f)
                                 - new Vector3(bounds.center.x, bounds.center.y, 0f);
                 arenaArtInstance.transform.position += shift;
+            }
+
+            // Decorative overhang (Foreground layer) shrinks about the camera centre so the
+            // board reads less crowded; backdrop and ground stay full-frame.
+            if (!Mathf.Approximately(decorScale, 1f) && decorScale > 0f)
+            {
+                Vector3 centre = new Vector3(cam.transform.position.x, cam.transform.position.y, 0f);
+                foreach (var r in renderers)
+                {
+                    if (r.sortingLayerName != "Foreground") continue;
+                    var t = r.transform;
+                    Vector3 p = t.position;
+                    t.position = new Vector3(centre.x + (p.x - centre.x) * decorScale, centre.y + (p.y - centre.y) * decorScale, p.z);
+                    t.localScale = new Vector3(t.localScale.x * decorScale, t.localScale.y * decorScale, t.localScale.z);
+                }
             }
         }
     }

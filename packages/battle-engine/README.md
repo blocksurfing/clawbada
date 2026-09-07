@@ -149,5 +149,14 @@ from the pivot). `-executeMethod HexInputSmokeTest.Run` round-trips every cell o
 board on all three tiers. Range highlights are tinted per kind (teal reachable, coral
 enemy, green ally, gold actor) so they stand out on the dark Apex arena.
 
+Playtest tunables (2026-09-06): `HexGrid.obstacleScale` (0.8 — obstacles 20 % smaller),
+`BattleManager.decorScale` (0.85 — Foreground-layer arena decoration shrinks about the
+camera centre; backdrop and Ground stay full-frame), Evolved `Idle` state speed 0.75 in
+`AC_Evolved.controller`. Death: `LobsterController.PlayDeath` plays `Die` once, then
+`FreezeAsCorpse` holds the last frame with the Animator disabled (dead lobsters never
+move) and tints to `CorpseTint` (near-black, ~26 % alpha). A death that arrives only via
+`SyncUnits` (turn not animated locally) runs the same routine. The Elite `Die.anim` no
+longer loops.
+
 Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (top-right of the
 canvas); the stage element goes fullscreen and the canvas stays 16:9, letterboxed.
