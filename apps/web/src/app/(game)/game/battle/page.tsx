@@ -32,6 +32,7 @@ const PRESETS = [
   { id: 'evolved_mix', label: 'Evolved trio' },
   { id: 'elite_mix', label: 'Elite trio' },
   { id: 'apex_mix', label: 'Apex trio' },
+  ...(['Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter', 'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember'] as const).map((c) => ({ id: `trio_${c.toLowerCase()}`, label: `Trio · ${c} (Elite)` })),
 ] as const;
 
 // Pick a random arena scene on page load (Evolved tier default for queue view)
@@ -473,6 +474,12 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const presetsAllowed = process.env.NEXT_PUBLIC_PRACTICE_PRESETS === 'true' || process.env.NODE_ENV !== 'production';
+  // Deep link: /game/battle?preset=trio_ember pre-selects a dev preset (harness + designer VFX previews).
+  useEffect(() => {
+    if (!presetsAllowed || typeof window === 'undefined') return;
+    const p = new URLSearchParams(window.location.search).get('preset');
+    if (p && PRESETS.some((x) => x.id === p)) { setPreset(p); setTeamId(''); if (p.startsWith('random_')) setOpponent('random'); }
+  }, [presetsAllowed]);
 
   const start = useCallback(async () => {
     setBusy(true);
