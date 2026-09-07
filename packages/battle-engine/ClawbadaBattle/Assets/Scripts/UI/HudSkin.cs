@@ -52,7 +52,7 @@ public class HudSkin : ScriptableObject
     public Sprite hexBevel;     // filled bevelled hex for action buttons
     public Sprite segBg;        // one HP segment cell
     public Sprite segFill;      // segment fill (tinted)
-    public Vector2 cardSize = new Vector2(64f, 76f);
+    public Vector2 cardSize = new Vector2(54f, 64f);
     public float activeCardScale = 1.18f;
     public int hpSegments = 8;
     public Color cardInner = C("#101a27");
@@ -91,7 +91,7 @@ public class HudSkin : ScriptableObject
 
     [Header("Sizes (canvas units at the 960x540 reference)")]
     public float stripPortrait = 56f;
-    public float activePortrait = 96f;
+    public float activePortrait = 72f;
     public float buttonSize = 64f;
     public Vector2 overlayBar = new Vector2(40f, 4f);
     public float overlayWorldYOffset = 0.72f;
