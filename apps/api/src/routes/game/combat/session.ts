@@ -33,6 +33,20 @@ const PRESETS: Record<string, { tier: EvolutionTier; classes: LobsterClass[] }> 
   apex_mix: { tier: EvolutionTier.Apex, classes: [LobsterClass.Leviathan, LobsterClass.Ember, LobsterClass.Abyss] },
 };
 
+/** `random_<tier>`: three distinct classes drawn from all ten, random purity 0–6. */
+const RANDOM_PRESET_RE = /^random_(evolved|elite|apex)$/;
+const RANDOM_TIERS: Record<string, EvolutionTier> = { evolved: EvolutionTier.Evolved, elite: EvolutionTier.Elite, apex: EvolutionTier.Apex };
+const ALL_CLASSES: LobsterClass[] = Object.values(LobsterClass).filter((v): v is LobsterClass => typeof v === 'number');
+
+export function rollRandomRoster(tierName: string, rng: () => number = Math.random): { tier: EvolutionTier; classes: LobsterClass[]; purity: number[] } {
+  const tier = RANDOM_TIERS[tierName];
+  const pool = [...ALL_CLASSES];
+  const classes: LobsterClass[] = [];
+  while (classes.length < 3 && pool.length) classes.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  const purity = classes.map(() => Math.floor(rng() * 7));
+  return { tier, classes, purity };
+}
+
 function presetsEnabled(): boolean {
   if (process.env.PRACTICE_PRESETS === 'true') return true;
   if (process.env.PRACTICE_PRESETS === 'false') return false;
@@ -92,15 +106,22 @@ sessionRoutes.post(
 
     const bot = body.bot ?? 'balanced';
     if (!v3.isBotName(bot)) throw new ApiError('INVALID_INPUT', `bot must be one of ${v3.BOT_NAMES.join(', ')}`);
-    const opponent = body.opponent ?? 'mirror';
+    const randomPreset = body.preset ? RANDOM_PRESET_RE.exec(body.preset) : null;
+    // A random roster defaults to a random opponent too (a mirror of a random team is less interesting).
+    const opponent = body.opponent ?? (randomPreset ? 'random' : 'mirror');
     if (opponent !== 'mirror' && opponent !== 'random') throw new ApiError('INVALID_INPUT', "opponent must be 'mirror' or 'random'");
 
     let lobsters: PracticeLobster[];
     if (body.preset) {
       if (!presetsEnabled()) throw new ApiError('INVALID_INPUT', 'preset rosters are disabled');
-      const p = PRESETS[body.preset];
-      if (!p) throw new ApiError('INVALID_INPUT', `preset must be one of ${Object.keys(PRESETS).join(', ')}`);
-      lobsters = p.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: p.tier, purity: 3, legend: false } }));
+      if (randomPreset) {
+        const r = rollRandomRoster(randomPreset[1]);
+        lobsters = r.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: r.tier, purity: r.purity[i], legend: false } }));
+      } else {
+        const p = PRESETS[body.preset];
+        if (!p) throw new ApiError('INVALID_INPUT', `preset must be one of random_evolved, random_elite, random_apex, ${Object.keys(PRESETS).join(', ')}`);
+        lobsters = p.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: p.tier, purity: 3, legend: false } }));
+      }
     } else {
       let tokenIds: bigint[];
       if (body.teamId) {

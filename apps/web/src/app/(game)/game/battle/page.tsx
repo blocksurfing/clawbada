@@ -26,6 +26,9 @@ import { useEffect } from 'react';
 
 const BOTS = ['balanced', 'aggressive', 'cautious', 'greedy', 'charger', 'focus', 'roles', 'deep'] as const;
 const PRESETS = [
+  { id: 'random_evolved', label: 'Random team · Evolved' },
+  { id: 'random_elite', label: 'Random team · Elite' },
+  { id: 'random_apex', label: 'Random team · Apex' },
   { id: 'evolved_mix', label: 'Evolved trio' },
   { id: 'elite_mix', label: 'Elite trio' },
   { id: 'apex_mix', label: 'Apex trio' },
@@ -505,7 +508,7 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
           {presetsAllowed && (
             <>
               <label className="text-sm text-text-secondary block pt-1">…or a dev preset roster</label>
-              <Select value={preset} onValueChange={(v) => { setPreset(v); setTeamId(''); }}>
+              <Select value={preset} onValueChange={(v) => { setPreset(v); setTeamId(''); if (v.startsWith('random_')) setOpponent('random'); }}>
                 <SelectTrigger className="bg-ocean-mid/50 border-border"><SelectValue placeholder="Preset (dev only)" /></SelectTrigger>
                 <SelectContent>
                   {PRESETS.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}

@@ -171,11 +171,15 @@ public class BattleHud : MonoBehaviour
         else Panel.Clock.StopClock();
         Strip.SetEntries(activeId, manager.upcoming);
         Debug.Log($"[BattleHud] turn {data.turn} active={activeId} strip={Strip.DescribeIds()}");
-        if (data.turn <= 2) DumpLayout();
+        // Layout dump for the harness: the first two turns, plus the player's first two own
+        // turns (the bots may act first, so turn <= 2 alone can miss the player entirely).
+        if (data.turn <= 2 || (data.isPlayer && playerTurnsDumped++ < 2)) DumpLayout();
     }
 
     /// <summary>One-off geometry dump (harness diagnostics): every top-level HUD child with its
     /// active state and screen-space rect.</summary>
+    private int playerTurnsDumped;
+
     public void DumpLayout()
     {
         var sb = new StringBuilder();
