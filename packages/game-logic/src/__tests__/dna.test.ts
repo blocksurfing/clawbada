@@ -429,3 +429,24 @@ describe('isValidDNA', () => {
     expect(isValidDNA(0n)).toBe(true);
   });
 });
+
+describe('randomDNA', () => {
+  test('encodes the requested class with 18 random alleles and DNA-consistent purity', async () => {
+    const { randomDNA, decodeDNA, isValidDNA, calculatePurity } = await import('../dna');
+    const { LobsterClass, LegendStatus } = await import('../types');
+    let k = 0; const seq = [0.02, 0.5, 0.97, 0.31, 0.77, 0.13, 0.66, 0.44];
+    const rng = () => seq[k++ % seq.length];
+    for (const cls of [LobsterClass.Bulwark, LobsterClass.Ember, LobsterClass.Kraken]) {
+      const dna = randomDNA(cls, rng);
+      expect(isValidDNA(dna)).toBe(true);
+      const d = decodeDNA(dna);
+      expect(d.class).toBe(cls);
+      expect(d.legend).toBe(LegendStatus.Normal);
+      expect(d.bodyParts).toHaveLength(6);
+      expect(calculatePurity(dna)).toBe(d.bodyParts.filter((p) => p.dominant.classAffinity === cls).length);
+      for (const p of d.bodyParts) for (const a of [p.dominant, p.r1, p.r2]) { expect(a.classAffinity).toBeLessThan(10); expect(a.variant).toBeLessThan(16); }
+    }
+    // Different rolls differ.
+    expect(randomDNA(LobsterClass.Mantis, Math.random)).not.toBe(randomDNA(LobsterClass.Mantis, Math.random));
+  });
+});
