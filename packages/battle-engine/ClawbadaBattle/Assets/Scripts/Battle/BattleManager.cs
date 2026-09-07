@@ -86,8 +86,8 @@ public class BattleManager : MonoBehaviour
 
     private GameObject arenaArtInstance;
 
-    [Tooltip("Scale applied to the arena's decorative Foreground-layer art (rocks, shells, seaweed) about the camera centre. Playtest 2026-09-06: 0.85 so the board feels less crowded.")]
-    public float decorScale = 0.85f;
+    [Tooltip("Scale applied to the arena's decorative Foreground-layer art about the camera centre. Keep at 1: the designer's decor layers are full-frame sprites, so scaling them lifts rocks and shells off the arena edge (playtest 2026-09-06). Only useful once decor ships as separate, edge-anchored sprites.")]
+    public float decorScale = 1f;
 
     [Header("Animation Timing")]
     public float secondsPerHexMove = 0.35f;

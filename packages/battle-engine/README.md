@@ -150,13 +150,15 @@ board on all three tiers. Range highlights are tinted per kind (teal reachable, 
 enemy, green ally, gold actor) so they stand out on the dark Apex arena.
 
 Playtest tunables (2026-09-06): `HexGrid.obstacleScale` (0.8 — obstacles 20 % smaller),
-`BattleManager.decorScale` (0.85 — Foreground-layer arena decoration shrinks about the
-camera centre; backdrop and Ground stay full-frame), Evolved `Idle` state speed 0.75 in
-`AC_Evolved.controller`. Death: `LobsterController.PlayDeath` plays `Die` once, then
-`FreezeAsCorpse` holds the last frame with the Animator disabled (dead lobsters never
-move) and tints to `CorpseTint` (near-black, ~26 % alpha). A death that arrives only via
-`SyncUnits` (turn not animated locally) runs the same routine. The Elite `Die.anim` no
-longer loops.
+`BattleManager.decorScale` (keep 1 — the decor layers are full-frame sprites, so scaling
+them about the centre floats rocks/shells off the arena edge; shrinking decoration needs
+separate edge-anchored sprites from the designer). Cards: `HudSkin.cardSize` 54×64,
+`activePortrait` 72; team tags are compact bands with no letter tile. Evolved `Idle`
+state speed 0.75 in `AC_Evolved.controller`. Death: `LobsterController.PlayDeath` plays
+`Die` once, then `FreezeAsCorpse` holds the last frame with the Animator disabled (dead
+lobsters never move) and tints to `CorpseTint` (near-black, ~26 % alpha). A death that
+arrives only via `SyncUnits` (turn not animated locally) runs the same routine. The Elite
+`Die.anim` no longer loops.
 
-Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (top-right of the
+Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (bottom-right of the
 canvas); the stage element goes fullscreen and the canvas stays 16:9, letterboxed.
