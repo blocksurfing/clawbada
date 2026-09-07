@@ -109,6 +109,10 @@ only for the in-editor `BattleDemoLoop`.
 
 ### Designer Workflow
 
+Special VFX drop (2026-09): see `docs/DESIGNER_VFX_LANDING.md` — branch `design/vfx-specials`
+(cut from `main`), folders, `BattleVfxLibrary.asset` slots, Play-mode preview, do-not-touch list.
+
+
 1. Open the project in Unity
 2. Work on arena art, hex tile sprites, lobster animations, VFX
 3. Test in Unity Editor (BattleBridge logs to console instead of calling JS in editor mode)
