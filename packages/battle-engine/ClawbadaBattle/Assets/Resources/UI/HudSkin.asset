@@ -56,7 +56,7 @@ MonoBehaviour:
   hexBevel: {fileID: 21300000, guid: 13877da9930984bba867ce66f0630c67, type: 3}
   segBg: {fileID: 21300000, guid: bc0fa610693774b73863f16b98940f4d, type: 3}
   segFill: {fileID: 21300000, guid: 7315a86abb3d64e8d837c452007da527, type: 3}
-  cardSize: {x: 64, y: 76}
+  cardSize: {x: 54, y: 64}
   activeCardScale: 1.18
   hpSegments: 8
   cardInner: {r: 0.0627451, g: 0.101960786, b: 0.15294118, a: 1}
@@ -84,7 +84,7 @@ MonoBehaviour:
   buttonArmed: {r: 1, g: 0.8235294, b: 0.5019608, a: 1}
   buttonDisabled: {r: 1, g: 1, b: 1, a: 0.35}
   stripPortrait: 56
-  activePortrait: 96
+  activePortrait: 72
   buttonSize: 64
   overlayBar: {x: 40, y: 4}
   overlayWorldYOffset: 0.72
