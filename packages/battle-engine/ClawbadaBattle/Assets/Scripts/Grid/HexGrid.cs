@@ -45,6 +45,8 @@ public class HexGrid : MonoBehaviour
     [Tooltip("Visual nudge of the sprite from the hex centre, in world units. Purely cosmetic: the depth line " +
              "stays at the hex centre (the SortingGroup root), matching where lobsters' feet sort from.")]
     public Vector2 obstacleOffset = new Vector2(0f, -0.15f);
+    [Tooltip("Uniform scale applied to every obstacle sprite (1 = authored size). Playtest 2026-09-06: 0.8.")]
+    public float obstacleScale = 0.8f;
     [Tooltip("When a layout arrives with no blockedHexes, roll a deterministic random set from the battle id.")]
     public bool randomizeWhenUnspecified = true;
     [Tooltip("Blocked-cell count range for randomized layouts (inclusive).")]
@@ -179,7 +181,7 @@ public class HexGrid : MonoBehaviour
 
             var root = new GameObject($"Obstacle_{b.col}_{b.row}_{sprite.name}");
             root.transform.SetParent(parent, false);
-            root.transform.localScale = Vector3.one * (tileScale / parentScale);
+            root.transform.localScale = Vector3.one * (tileScale / parentScale) * Mathf.Max(0.05f, obstacleScale);
             Vector3 anchor = GetWorldPosition(b.col, b.row);
             // World-upright like the lobsters: this HexGrid object is tilted 30° on X to
             // foreshorten the board, and a sprite inheriting that tilt renders squashed
