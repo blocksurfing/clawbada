@@ -245,14 +245,36 @@ public class LobsterController : MonoBehaviour
     /// target's hit reaction lines up with the swing. Melee (adjacent) attacks lunge
     /// most of the way into the target's hex so the exchange reads as contact;
     /// ranged attacks stay home with a short telegraph hop.</summary>
+    /// <summary>Length of the named clip on this rig's controller (0 when absent).
+    /// Clips are the designer's per-class assets (Attack) or the tier's shared ones
+    /// (Hit, Move, Die, Idle, Defense); the engine's fixed timings are only floors.</summary>
+    public float ClipLength(string clipName)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return 0f;
+        var clips = animator.runtimeAnimatorController.animationClips;
+        if (clips == null) return 0f;
+        foreach (var c in clips) if (c != null && c.name == clipName) return c.length;
+        return 0f;
+    }
+
+    /// <summary>Fraction of the Attack clip at which the hit lands (impact frame).</summary>
+    public static float AttackImpactFraction = 0.5f;
+
     public IEnumerator PlayAttack(Vector3 targetWorldPos, float duration, bool melee, System.Action onImpact)
     {
         FaceToward(targetWorldPos);
         PlayState("Attack");
 
+        // Never cut the designer's swing short: the lunge stretches to the clip's length
+        // (Bulwark 1.0 s, Mantis up to 1.6 s, Reaver 1.4 s…) instead of the 0.55 s floor.
+        float clip = ClipLength("Attack");
+        float total = Mathf.Max(duration, clip);
+        if (clip > duration + 0.01f) Debug.Log($"[LobsterController] attack {className} clip={clip:F2}s (floor {duration:F2}s)");
+
         Vector3 start = transform.position;
         Vector3 apex = Vector3.Lerp(start, targetWorldPos, melee ? 0.7f : 0.12f);
-        float half = duration * 0.5f;
+        float half = total * Mathf.Clamp(AttackImpactFraction, 0.2f, 0.8f);
+        float back = Mathf.Max(0.05f, total - half);
 
         float t = 0f;
         while (t < half)
@@ -265,10 +287,10 @@ public class LobsterController : MonoBehaviour
         onImpact?.Invoke();
 
         t = 0f;
-        while (t < half)
+        while (t < back)
         {
             t += Time.deltaTime;
-            transform.position = Vector3.Lerp(apex, start, Mathf.Clamp01(t / half));
+            transform.position = Vector3.Lerp(apex, start, Mathf.Clamp01(t / back));
             yield return null;
         }
 
@@ -291,7 +313,8 @@ public class LobsterController : MonoBehaviour
     {
         FaceToward(attackerWorldPos);
         PlayState("Hit");
-        yield return new WaitForSeconds(duration);
+        // Evolved's Hit clip is 1.0 s (Elite/Apex 0.33 s): let it finish before returning to Idle.
+        yield return new WaitForSeconds(Mathf.Max(duration, ClipLength("Hit")));
         if (alive)
         {
             FaceEnemySide();
