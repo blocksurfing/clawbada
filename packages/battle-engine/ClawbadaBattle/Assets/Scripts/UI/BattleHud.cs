@@ -19,6 +19,17 @@ public class BattleHud : MonoBehaviour
     public Canvas Canvas { get; private set; }
     public TurnStrip Strip { get; private set; }
     public ActivePanel Panel { get; private set; }
+    /// <summary>Shot clock, bottom-right in its own box (players only). Sits above the
+    /// React fullscreen button that occupies the very corner.</summary>
+    public ClockView Clock { get; private set; }
+    private RectTransform clockBox;
+
+    /// <summary>Start the shot clock (box shown) or stop it (box hidden — no empty frame on bot turns).</summary>
+    private void SetClock(int remainingMs)
+    {
+        if (remainingMs > 0) { clockBox.gameObject.SetActive(true); Clock.StartClock(remainingMs); }
+        else { Clock.StopClock(); clockBox.gameObject.SetActive(false); }
+    }
     public ResultBanner Banner { get; private set; }
     public ActiveMarker Marker { get; private set; }
     public ActionBar Bar { get; private set; }
@@ -75,6 +86,13 @@ public class BattleHud : MonoBehaviour
         badgeA = BadgeView.Create(canvasRect, "BadgeA", skin, left: true);
         badgeB = BadgeView.Create(canvasRect, "BadgeB", skin, left: false);
         Panel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
+        clockBox = HudFactory.Rect(canvasRect, "ClockBox", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-8f, 34f), new Vector2(96f, 40f));
+        HudFactory.AddImage(clockBox, skin.panelBg, new Color(1f, 1f, 1f, 0.92f));
+        Clock = ClockView.Create(clockBox, "Clock", skin, 20);
+        Clock.Rect.anchorMin = Clock.Rect.anchorMax = new Vector2(0.5f, 0.5f);
+        Clock.Rect.pivot = new Vector2(0.5f, 0.5f);
+        Clock.Rect.anchoredPosition = new Vector2(6f, 0f);
+        clockBox.gameObject.SetActive(false);
         Bar = ActionBar.Create(canvasRect, skin);
         var bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
@@ -150,6 +168,7 @@ public class BattleHud : MonoBehaviour
 
         activeId = "";
         Panel.Hide();
+        SetClock(0);
         Banner.Hide();
         Marker.Hide();
         Bar.Apply(null);
@@ -167,8 +186,7 @@ public class BattleHud : MonoBehaviour
         var lob = manager.GetLobster(activeId);
         Marker.Follow(lob);
         Panel.Show(lob, data.isPlayer);
-        if (data.isPlayer && fallbackRemainingMs > 0) Panel.Clock.StartClock(fallbackRemainingMs);
-        else Panel.Clock.StopClock();
+        SetClock(data.isPlayer ? fallbackRemainingMs : 0);
         Strip.SetEntries(activeId, manager.upcoming);
         Debug.Log($"[BattleHud] turn {data.turn} active={activeId} strip={Strip.DescribeIds()}");
         // Layout dump for the harness: the first two turns, plus the player's first two own
@@ -219,8 +237,7 @@ public class BattleHud : MonoBehaviour
 
     private void OnClockSet(int remainingMs)
     {
-        if (manager.isPlayerTurn && remainingMs > 0) Panel.Clock.StartClock(remainingMs);
-        else Panel.Clock.StopClock();
+        SetClock(manager.isPlayerTurn ? remainingMs : 0);
         Debug.Log($"[BattleHud] clock {remainingMs}");
     }
 
@@ -267,6 +284,7 @@ public class BattleHud : MonoBehaviour
     private void OnBattleEnded(BattleEndData data)
     {
         Panel.Hide();
+        SetClock(0);
         Marker.Hide();
         Bar.Apply(null);
         foreach (var o in overlays.Values) o.SetActive(false);
