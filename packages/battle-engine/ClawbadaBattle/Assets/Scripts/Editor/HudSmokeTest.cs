@@ -70,7 +70,7 @@ public static class HudSmokeTest
             Check(hud.Panel.gameObject.activeSelf && hud.Panel.Lobster != null && hud.Panel.Lobster.lobsterId == "A1", "active panel shows A1");
             var nameText = hud.Panel.transform.Find("Name").GetComponent<Text>();
             Check(nameText.text == "Mantis", $"active panel name is Mantis (got '{nameText.text}')");
-            Check(hud.Panel.Clock.Running && hud.Panel.Clock.RemainingSeconds > 8f, "clock running from 15 s");
+            Check(hud.Clock.Running && hud.Clock.RemainingSeconds > 8f, "clock running from 15 s");
             Check(hud.Banner.Visible, "banner visible");
             var a1 = manager.GetLobster("A1");
             Check(a1.currentHp == 300 && a1.charge == 3 && a1.statuses.Count == 1 && a1.statuses[0].type == "bleed", "SyncUnits applied hp/charge/statuses");
@@ -93,7 +93,7 @@ public static class HudSmokeTest
             Check(Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() != null, "EventSystem present");
             Check(hud.Marker != null && hud.Marker.gameObject.activeSelf, "marker follows the active lobster");
 
-            string msg = $"[HudSmokeTest] OK — {images} images, {texts} texts, strip [{hud.Strip.DescribeIds()}], clock {hud.Panel.Clock.RemainingSeconds:F1}s";
+            string msg = $"[HudSmokeTest] OK — {images} images, {texts} texts, strip [{hud.Strip.DescribeIds()}], clock {hud.Clock.RemainingSeconds:F1}s";
             Debug.Log(msg);
             if (Application.isBatchMode) System.Console.WriteLine(msg);
         }
