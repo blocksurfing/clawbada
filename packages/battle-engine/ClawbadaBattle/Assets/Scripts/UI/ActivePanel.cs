@@ -8,7 +8,6 @@ using UnityEngine.UI;
 public class ActivePanel : MonoBehaviour
 {
     public RectTransform Rect { get; private set; }
-    public ClockView Clock { get; private set; }
     public LobsterController Lobster { get; private set; }
 
     private HudSkin skin;
@@ -36,20 +35,22 @@ public class ActivePanel : MonoBehaviour
         p.card.Rect.anchoredPosition = new Vector2(8f, 0f);
 
         var font = skin.FontOrDefault();
-        p.nameText = HudFactory.Text(rt, "Name", font, 16, skin.textPrimary, TextAnchor.MiddleLeft, new Vector2(130f, 22f));
+        float tx = pw + 14f;           // text column to the right of the card
+        float tw = 176f - tx - 6f;     // ~84 px wide
+        p.nameText = HudFactory.Text(rt, "Name", font, 14, skin.textPrimary, TextAnchor.MiddleLeft, new Vector2(tw, 20f));
         p.nameText.rectTransform.anchorMin = p.nameText.rectTransform.anchorMax = new Vector2(0f, 1f);
         p.nameText.rectTransform.pivot = new Vector2(0f, 1f);
-        p.nameText.rectTransform.anchoredPosition = new Vector2(pw + 16f, -10f);
+        p.nameText.rectTransform.anchoredPosition = new Vector2(tx, -10f);
 
-        p.subText = HudFactory.Text(rt, "Sub", font, 11, skin.textSecondary, TextAnchor.MiddleLeft, new Vector2(130f, 16f));
+        p.subText = HudFactory.Text(rt, "Sub", font, 10, skin.textSecondary, TextAnchor.MiddleLeft, new Vector2(tw, 14f));
         p.subText.rectTransform.anchorMin = p.subText.rectTransform.anchorMax = new Vector2(0f, 1f);
         p.subText.rectTransform.pivot = new Vector2(0f, 1f);
-        p.subText.rectTransform.anchoredPosition = new Vector2(pw + 16f, -32f);
+        p.subText.rectTransform.anchoredPosition = new Vector2(tx, -30f);
 
-        p.hpText = HudFactory.Text(rt, "HpText", font, 13, skin.textPrimary, TextAnchor.MiddleLeft, new Vector2(130f, 18f));
+        p.hpText = HudFactory.Text(rt, "HpText", font, 12, skin.textPrimary, TextAnchor.MiddleLeft, new Vector2(tw, 16f));
         p.hpText.rectTransform.anchorMin = p.hpText.rectTransform.anchorMax = new Vector2(0f, 1f);
         p.hpText.rectTransform.pivot = new Vector2(0f, 1f);
-        p.hpText.rectTransform.anchoredPosition = new Vector2(pw + 16f, -52f);
+        p.hpText.rectTransform.anchoredPosition = new Vector2(tx, -48f);
 
         p.pips = new Image[3];
         for (int i = 0; i < 3; i++)
@@ -57,14 +58,9 @@ public class ActivePanel : MonoBehaviour
             var pip = HudFactory.Image(rt, $"Pip{i}", skin.pip, skin.gold, new Vector2(8f, 8f));
             pip.rectTransform.anchorMin = pip.rectTransform.anchorMax = new Vector2(0f, 1f);
             pip.rectTransform.pivot = new Vector2(0f, 1f);
-            pip.rectTransform.anchoredPosition = new Vector2(pw + 16f + i * 12f, -70f);
+            pip.rectTransform.anchoredPosition = new Vector2(tx + i * 12f, -70f);
             p.pips[i] = pip;
         }
-
-        p.Clock = ClockView.Create(rt, "Clock", skin, 18);
-        p.Clock.Rect.anchorMin = p.Clock.Rect.anchorMax = new Vector2(0f, 0f);
-        p.Clock.Rect.pivot = new Vector2(0f, 0f);
-        p.Clock.Rect.anchoredPosition = new Vector2(pw + 44f, 6f);
 
         rt.gameObject.SetActive(false);
         return p;
@@ -79,14 +75,13 @@ public class ActivePanel : MonoBehaviour
         card.SetActive(isPlayer, scale: false, showPennant: false);
         nameText.text = string.IsNullOrEmpty(lob.className) ? LobsterClasses.Name(lob.classId) : lob.className;
         nameText.color = skin.TeamColor(lob.side);
-        subText.text = $"{LobsterClasses.TierName(lob.tier)} · Team {lob.side}{(isPlayer ? " · you" : "")}";
+        subText.text = $"{LobsterClasses.TierName(lob.tier)} · {lob.side}{(isPlayer ? " · you" : "")}";
         Refresh();
     }
 
     public void Hide()
     {
         Lobster = null;
-        Clock.StopClock();
         gameObject.SetActive(false);
     }
 

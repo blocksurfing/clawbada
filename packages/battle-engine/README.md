@@ -133,8 +133,10 @@ when `Assets/Resources/UI/HudSkin.asset` exists — no scene or prefab wiring:
 - `UnitOverlay` (per lobster, follows the rig): HP bar, charge pips, defend shield,
   status icons, KO skull, gold ring on the active unit. `ActiveMarker` draws the
   animated `hex_selector` under the actor in world space.
-- `ActivePanel` (bottom-left): large card, name, tier/team, HP numbers, pips, shot clock
-  (counts down from `SetClock`).
+- `ActivePanel` (bottom-left, 176×108): card, name, tier/team, HP numbers, pips — sized to
+  stay clear of the board's bottom-left cell. The shot clock (`BattleHud.Clock`, counts
+  down from `SetClock`) lives in its own bottom-right box, above the React fullscreen
+  button in the corner.
 - `DamageFloat`, `ResultBanner`, `BadgeView` (Human/Agent/Bot per team).
 - `ActionBar` (bottom-centre): Attack / Special / Defend / Wait + Undo. Presses reach React
   via `onActionSelected {action}` / `onUndoMove`; React validates and submits on tap
