@@ -328,7 +328,7 @@ public class BattleHud : MonoBehaviour
         {
             var o = kv.Value;
             var lob = o.Lobster;
-            if (lob == null) continue;
+            if (lob == null) { if (o.gameObject.activeSelf) o.gameObject.SetActive(false); continue; } // its rig was despawned
             o.Rect.anchoredPosition = CanvasPointFor(lob.transform.position + Vector3.up * Skin.overlayWorldYOffset);
             o.Refresh();
         }

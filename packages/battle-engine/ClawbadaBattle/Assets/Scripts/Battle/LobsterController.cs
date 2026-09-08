@@ -89,6 +89,14 @@ public class LobsterController : MonoBehaviour
         FaceEnemySide();
         UpdateSortingOrder();
         PlayState("Idle");
+        if (!alive)
+        {
+            // Spawned from a snapshot in which this lobster is already dead (reconnect /
+            // re-init mid-battle): show the corpse, never a coloured idle rig.
+            deathPlayed = true;
+            FreezeAsCorpse();
+            Debug.Log($"[LobsterController] spawn dead {lobsterId} → corpse");
+        }
     }
 
     private static Transform FindDeep(Transform root, string name)
@@ -354,7 +362,7 @@ public class LobsterController : MonoBehaviour
             transform.position = grid.GetWorldPosition(col, row);
             UpdateSortingOrder();
         }
-        if (!u.alive && alive)
+        if (!u.alive && !deathPlayed)
         {
             // The turn that killed this unit was not animated here (watchdog release,
             // reconnect, skipped tick): play the death now instead of just tinting it.
