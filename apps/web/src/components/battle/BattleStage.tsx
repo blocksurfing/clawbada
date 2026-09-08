@@ -81,6 +81,7 @@ function UnityStage(props: BattleStageProps) {
   });
   const [unityReady, setUnityReady] = useState(false);
   const initedFor = useRef<string | null>(null);
+  const syncedSeq = useRef<number>(0);
   const animating = useRef<number | null>(null);
   /** If Unity never reports a turn's animation as finished (exception inside a coroutine,
    *  tab throttled, missing prefab), release the HUD anyway so the battle stays playable. */
@@ -135,20 +136,35 @@ function UnityStage(props: BattleStageProps) {
 
   const ready = isLoaded && unityReady;
 
-  // InitBattle once per server snapshot (initial load, and again on a reconnect snapshot).
-  // Never keyed on the turn: re-initialising mid-battle respawns the rigs and rebinds the HUD.
+  // InitBattle once per battle. Never keyed on the turn or on later snapshots: re-initialising
+  // mid-battle respawns the rigs and rebinds the HUD.
   useEffect(() => {
     if (!ready || !props.snapshot) return;
-    const id = `${props.snapshot.session.id}:${props.snapshotSeq}`;
+    // Re-init only when the battle itself changes. A reconnect (the WS auth expires every
+    // 5 min) delivers a fresh snapshot of the SAME battle: respawning every rig for it made
+    // dead lobsters pop back as idle rigs and left the HUD mid-reset — that case is handled
+    // below with a SyncUnits instead.
+    const id = props.snapshot.session.id;
     if (initedFor.current === id) return;
-    if (initedFor.current?.startsWith(props.snapshot.session.id) && (props.nextToAnimate || animating.current !== null)) return; // wait for the picture to settle
     initedFor.current = id;
+    syncedSeq.current = props.snapshotSeq;
     send(UNITY_METHODS.INIT_BATTLE, buildInitData(props.snapshot, props.playerSide));
     // Statuses / defending are not part of InitBattle; the HUD needs them from the start.
     send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
     props.onReady();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, props.snapshot?.session.id, props.snapshotSeq, props.nextToAnimate]);
+
+  // Reconnect mid-battle: same session, new snapshot → hand Unity the server truth (hp,
+  // alive, positions, statuses) without tearing the scene down.
+  useEffect(() => {
+    if (!ready || !props.snapshot || initedFor.current !== props.snapshot.session.id) return;
+    if (syncedSeq.current === props.snapshotSeq) return;
+    if (props.nextToAnimate || animating.current !== null) return; // wait for the picture to settle
+    syncedSeq.current = props.snapshotSeq;
+    send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
+    console.log('[BattleStage] reconnect snapshot → SyncUnits', props.snapshotSeq);
+  }, [ready, props.snapshot, props.snapshotSeq, props.nextToAnimate, send]);
 
   // Play the next resolved turn when idle.
   useEffect(() => {

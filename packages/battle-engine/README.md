@@ -171,5 +171,12 @@ lobsters never move) and tints to `CorpseTint` (near-black, ~26 % alpha). A deat
 arrives only via `SyncUnits` (turn not animated locally) runs the same routine. The Elite
 `Die.anim` no longer loops.
 
+Reconnects (2026-09-08): the WS auth expires every 5 min and the client reconnects with a fresh
+snapshot. `BattleStage` sends `InitBattle` once per battle and hands later snapshots of the same
+battle to Unity as `SyncUnits` — re-initialising mid-battle respawned every rig (dead lobsters
+came back as coloured idle rigs) and reset the HUD. Belt and braces on the Unity side: a lobster
+spawned already dead is frozen as a corpse in `Setup`, `ApplySync` plays the death whenever the
+death visuals have not run yet, and overlays whose rig was despawned are hidden.
+
 Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (bottom-right of the
 canvas); the stage element goes fullscreen and the canvas stays 16:9, letterboxed.
