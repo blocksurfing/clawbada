@@ -153,6 +153,11 @@ from the pivot). `-executeMethod HexInputSmokeTest.Run` round-trips every cell o
 board on all three tiers. Range highlights are tinted per kind (teal reachable, coral
 enemy, green ally, gold actor) so they stand out on the dark Apex arena.
 
+Animation timing (2026-09-08): `BattleManager.attackDuration` / `hitDuration` are floors —
+`LobsterController.PlayAttack` and `PlayHit` stretch to the rig's own clip length
+(`ClipLength("Attack")` / `"Hit"`), so a 1.5 s Mantis swing or Evolved's 1.0 s hit read is
+never cut off; the impact frame lands at `AttackImpactFraction` (0.5) of the swing.
+
 Playtest tunables (2026-09-06): `HexGrid.obstacleScale` (0.8 — obstacles 20 % smaller),
 `BattleManager.decorScale` (keep 1 — the decor layers are full-frame sprites, so scaling
 them about the centre floats rocks/shells off the arena edge; shrinking decoration needs
