@@ -53,8 +53,22 @@ existing `FX_Generic_*` prefabs; copy one of those as a template. Import setting
 | `moveStep` | every hex hop while moving | actor feet |
 | `status` | heal / buff / debuff lands | target feet |
 
-Each slot has `anchor` (ActorAttackFx / TargetImpactFx / ActorFeet / TargetFeet),
-`delay` (seconds after the moment) and `mirrorWithFacing`. Effects spawn in world
+Each slot has `anchor` (ActorAttackFx / TargetImpactFx / ActorFeet / TargetFeet /
+**CameraCenter**), `delay` (seconds after the moment), `mirrorWithFacing`, and for Specials
+**`impactAt`** (seconds after the effect starts when the hit beat lands — damage, hit reads and
+per-target impacts wait for it; 0 = the caster's swing timing) and **`hideChildrenPrefix`**
+(children such as `Hit_A/B/C` timing guides are disabled at spawn).
+
+`CameraCenter` is for full-screen layers (Maelstrom's storm): the prefab is placed at the
+camera centre — a 10 × 5.625 unit sprite fills the frame exactly — never mirrored, and sorted
+above the arena's front decor and every lobster (the HUD stays on top). Per-target hit effects
+go in **`specialImpactByClass[classId]`**: spawned on every enemy the Special damages, at the
+impact beat (falls back to the generic `attackImpact`).
+
+Worked example — Tempest Maelstrom (`Clawbada ▸ VFX ▸ Bind Tempest Maelstrom` does this):
+`specialByClass[3]` = `FX_Tempest_Maelstrom` (CameraCenter, impactAt 3.9 s = the lightning
+flash, hide `Hit_`), `specialImpactByClass[3]` = `FX_Tempest_Maelstrom_Hit` (TargetImpactFx).
+The turn holds until the storm is nearly done; the web watchdog allows 12 s per turn. Effects spawn in world
 space, sorted just above their owner, so rig mirroring and corpse tints never distort
 them. The Elite/Apex "enhanced" versions of a Special can be a second prefab later;
 for this drop one prefab per class is the target.
