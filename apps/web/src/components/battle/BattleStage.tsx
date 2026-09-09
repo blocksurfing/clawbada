@@ -70,7 +70,7 @@ export function BattleStage(props: BattleStageProps) {
   return <UnityStage {...props} />;
 }
 
-const ANIMATION_WATCHDOG_MS = 8_000;
+const ANIMATION_WATCHDOG_MS = 12_000; // cinematic Specials (Maelstrom ≈ 6 s) + hit reads + deaths
 
 function UnityStage(props: BattleStageProps) {
   const { unityProvider, sendMessage, isLoaded, loadingProgression, initialisationError } = useUnityContext({

@@ -21,6 +21,7 @@ public class BattleVfxLibrary : ScriptableObject
         TargetImpactFx,  // the target's authored ImpactFX transform
         ActorFeet,       // the attacker's root (hex center)
         TargetFeet,      // the target's root (hex center)
+        CameraCenter,    // full-screen layer: the camera's centre, above arena and lobsters (never mirrored)
     }
 
     [System.Serializable]
@@ -32,6 +33,11 @@ public class BattleVfxLibrary : ScriptableObject
         public float delay = 0f;
         [Tooltip("Mirror the effect horizontally when its owner faces left.")]
         public bool mirrorWithFacing = true;
+        [Tooltip("Specials only: seconds after this effect starts when the hit beat lands (damage, hit reads, per-target " +
+                 "impact effects). 0 = use the attacker's swing timing.")]
+        public float impactAt = 0f;
+        [Tooltip("Children whose name starts with this prefix are disabled at spawn (designer timing guides such as Hit_A/B/C).")]
+        public string hideChildrenPrefix = "";
     }
 
     [Header("Attack (all classes)")]
@@ -54,6 +60,32 @@ public class BattleVfxLibrary : ScriptableObject
     [Tooltip("0 Bulwark, 1 Mantis, 2 Leviathan, 3 Tempest, 4 Specter, 5 Sentinel, 6 Reaver, 7 Abyss, 8 Kraken, 9 Ember")]
     public VfxSlot[] specialByClass = new VfxSlot[10];
 
+    [Header("Special impacts (index = classId; falls back to Attack Impact)")]
+    [Tooltip("Spawned on EVERY target hit by the class Special at its impact beat (e.g. Maelstrom's electric hit).")]
+    public VfxSlot[] specialImpactByClass = new VfxSlot[10];
+
+    /// <summary>Per-target impact effect for a class Special, falling back to the generic impact.</summary>
+    public VfxSlot SpecialImpactFor(int classId)
+    {
+        if (specialImpactByClass != null && classId >= 0 && classId < specialImpactByClass.Length)
+        {
+            var slot = specialImpactByClass[classId];
+            if (slot != null && slot.prefab != null) return slot;
+        }
+        return attackImpact;
+    }
+
+    /// <summary>Length of the longest clip on a prefab's Animator (0 when none) — how long a one-shot effect plays.</summary>
+    public static float ClipLength(GameObject prefab)
+    {
+        if (prefab == null) return 0f;
+        var animator = prefab.GetComponent<Animator>();
+        if (animator == null || animator.runtimeAnimatorController == null) return 0f;
+        float len = 0f;
+        foreach (var c in animator.runtimeAnimatorController.animationClips) if (c != null && c.length > len) len = c.length;
+        return len;
+    }
+
     /// <summary>Special windup for a class, falling back to the generic windup.</summary>
     public VfxSlot SpecialFor(int classId)
     {
@@ -74,6 +106,17 @@ public class BattleVfxLibrary : ScriptableObject
     public static void Spawn(VfxSlot slot, LobsterController actor, LobsterController target, MonoBehaviour host)
     {
         if (slot == null || slot.prefab == null || host == null) return;
+
+        if (slot.anchor == AnchorPoint.CameraCenter)
+        {
+            // Full-screen layer (e.g. Maelstrom's storm): centred on the camera, never mirrored,
+            // sorted above the arena's front decor and every lobster; HUD is a separate overlay canvas.
+            var cam = Camera.main;
+            Vector3 centre = cam != null ? new Vector3(cam.transform.position.x, cam.transform.position.y, 0f) : Vector3.zero;
+            if (slot.delay > 0f) host.StartCoroutine(SpawnScreenAfterDelay(slot, centre));
+            else SpawnScreen(slot, centre);
+            return;
+        }
 
         LobsterController owner = slot.anchor switch
         {
@@ -106,9 +149,35 @@ public class BattleVfxLibrary : ScriptableObject
         if (owner != null) SpawnNow(slot, owner, position);
     }
 
+    private static IEnumerator SpawnScreenAfterDelay(VfxSlot slot, Vector3 centre)
+    {
+        yield return new WaitForSeconds(slot.delay);
+        SpawnScreen(slot, centre);
+    }
+
+    private static GameObject SpawnScreen(VfxSlot slot, Vector3 centre)
+    {
+        var fx = Instantiate(slot.prefab, centre, Quaternion.identity);
+        HideGuideChildren(fx, slot.hideChildrenPrefix);
+        var group = fx.GetComponent<SortingGroup>();
+        if (group == null) group = fx.AddComponent<SortingGroup>();
+        group.sortingLayerName = DepthSort.Layer;
+        group.sortingOrder = DepthSort.ArenaFrontOrderBase + 60;
+        if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
+        return fx;
+    }
+
+    private static void HideGuideChildren(GameObject fx, string prefix)
+    {
+        if (string.IsNullOrEmpty(prefix)) return;
+        foreach (var t in fx.GetComponentsInChildren<Transform>(true))
+            if (t != fx.transform && t.name.StartsWith(prefix)) t.gameObject.SetActive(false);
+    }
+
     private static void SpawnNow(VfxSlot slot, LobsterController owner, Vector3 position)
     {
         var fx = Instantiate(slot.prefab, position, Quaternion.identity);
+        HideGuideChildren(fx, slot.hideChildrenPrefix);
 
         if (slot.mirrorWithFacing && owner.IsFacingLeft)
         {

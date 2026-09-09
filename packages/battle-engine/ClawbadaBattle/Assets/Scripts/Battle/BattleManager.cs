@@ -442,19 +442,41 @@ public class BattleManager : MonoBehaviour
                         Vector3 targetPos = target != null ? target.transform.position : actor.transform.position;
                         Vector3 actorPos = actor.transform.position;
                         bool melee = target == null || HexCoord.Distance(actor.col, actor.row, target.col, target.row) <= 1;
-                        var windup = data.action == "special"
+                        bool special = data.action == "special";
+                        var windup = special
                             ? vfxLibrary != null ? vfxLibrary.SpecialFor(actor.classId) : null
                             : vfxLibrary != null ? vfxLibrary.attackWindup : null;
+                        var impactSlot = special && vfxLibrary != null ? vfxLibrary.SpecialImpactFor(actor.classId) : null;
                         BattleVfxLibrary.Spawn(windup, actor, target, this);
 
-                        yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
+                        if (special && windup != null && windup.prefab != null && windup.impactAt > 0f)
                         {
-                            ApplyTurnEvents(data, actor, actorPos, primaryOnly: true);
-                        });
-                        // Secondary events (counter hits on the actor, reflects, bleed ticks).
-                        ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
-                        ApplyStatusEvents(data);
-                        yield return new WaitForSeconds(hitDuration * 0.5f);
+                            // Cinematic Special (e.g. Maelstrom): the effect owns the timing. The caster
+                            // plays its cast swing now; damage, hit reads and per-target impacts land at
+                            // the effect's impact beat; the turn holds until the effect is nearly done.
+                            float clip = BattleVfxLibrary.ClipLength(windup.prefab);
+                            float t0 = Time.time;
+                            Debug.Log($"[BattleManager] special {actor.className} effect clip={clip:F2}s impactAt={windup.impactAt:F2}s");
+                            yield return actor.PlayAttack(actorPos, attackDuration, false, null);
+                            float untilImpact = windup.impactAt - (Time.time - t0);
+                            if (untilImpact > 0f) yield return new WaitForSeconds(untilImpact);
+                            ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot);
+                            ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
+                            ApplyStatusEvents(data);
+                            float untilEnd = Mathf.Max(hitDuration * 0.5f, clip - 0.8f - (Time.time - t0));
+                            yield return new WaitForSeconds(untilEnd);
+                        }
+                        else
+                        {
+                            yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
+                            {
+                                ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot);
+                            });
+                            // Secondary events (counter hits on the actor, reflects, bleed ticks).
+                            ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
+                            ApplyStatusEvents(data);
+                            yield return new WaitForSeconds(hitDuration * 0.5f);
+                        }
                     }
                     break;
 
@@ -505,7 +527,7 @@ public class BattleManager : MonoBehaviour
     /// <summary>Apply a turn's damage/heal events to the affected controllers with hit reads.
     /// Primary = the actor's own attack/special hits (played at the impact frame);
     /// secondary = counter/reflect/bleed/self events (played right after).</summary>
-    private void ApplyTurnEvents(TurnPlayData data, LobsterController actor, Vector3 actorPos, bool primaryOnly, bool includePrimary = false)
+    private void ApplyTurnEvents(TurnPlayData data, LobsterController actor, Vector3 actorPos, bool primaryOnly, bool includePrimary = false, BattleVfxLibrary.VfxSlot impactSlot = null)
     {
         if (data.heals != null && (primaryOnly || includePrimary))
         {
@@ -526,7 +548,7 @@ public class BattleManager : MonoBehaviour
             if (!primaryOnly && primary && !includePrimary) continue;
             t.ApplyDamage(d.amount);
             DamageApplied?.Invoke(t, d.amount, d.kind, d.isCrit);
-            BattleVfxLibrary.Spawn(vfxLibrary?.attackImpact, actor, t, this);
+            BattleVfxLibrary.Spawn(primary && impactSlot != null ? impactSlot : vfxLibrary?.attackImpact, actor, t, this);
             Vector3 from = t == actor ? t.transform.position + Vector3.right : actorPos;
             StartCoroutine(t.PlayHit(hitDuration, from));
         }

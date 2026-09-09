@@ -171,6 +171,14 @@ lobsters never move) and tints to `CorpseTint` (near-black, ~26 % alpha). A deat
 arrives only via `SyncUnits` (turn not animated locally) runs the same routine. The Elite
 `Die.anim` no longer loops.
 
+Cinematic Specials (2026-09-09, Tempest Maelstrom first): a Special slot with `impactAt > 0`
+owns the turn's timing — `BattleManager` plays the caster's swing, waits for the effect's
+impact beat, then applies damage / hit reads / `specialImpactByClass` per-target effects, and
+holds until the effect is nearly done (`BattleVfxLibrary.ClipLength`). `AnchorPoint.CameraCenter`
+places full-screen layers at the camera centre above arena + lobsters; `hideChildrenPrefix`
+disables designer timing-guide children. `MaelstromVfxBinder` builds the electric-hit prefab
+and binds the library. Web animation watchdog: 12 s.
+
 Reconnects (2026-09-08): the WS auth expires every 5 min and the client reconnects with a fresh
 snapshot. `BattleStage` sends `InitBattle` once per battle and hands later snapshots of the same
 battle to Unity as `SyncUnits` — re-initialising mid-battle respawned every rig (dead lobsters
