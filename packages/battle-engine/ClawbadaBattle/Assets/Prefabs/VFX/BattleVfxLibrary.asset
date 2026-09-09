@@ -17,69 +17,162 @@ MonoBehaviour:
     anchor: 0
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   attackImpact:
     prefab: {fileID: 8702148402230174246, guid: 6fc84e57c80d248c0bbdb0013df7aaed, type: 3}
     anchor: 1
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   defend:
     prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   death:
     prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   moveStep:
     prefab: {fileID: 2198418038747152603, guid: e4c3850d6ee9442168b4c3922d6ec7f7, type: 3}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   status:
     prefab: {fileID: 0}
     anchor: 3
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   specialByClass:
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 2139694229694905937, guid: cc2be06c01024d94dab44044409f2f80, type: 3}
+    anchor: 4
+    delay: 0
+    mirrorWithFacing: 0
+    impactAt: 3.9
+    hideChildrenPrefix: Hit_
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  specialImpactByClass:
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 4173446450485092133, guid: 3e6f2d887954942c99e3c57c5797daa1, type: 3}
+    anchor: 1
+    delay: 0
+    mirrorWithFacing: 0
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
+  - prefab: {fileID: 0}
+    anchor: 2
+    delay: 0
+    mirrorWithFacing: 1
+    impactAt: 0
+    hideChildrenPrefix: 
