@@ -117,6 +117,19 @@ space, sorted just above their owner, so rig mirroring and corpse tints never di
 them. The Elite/Apex "enhanced" versions of a Special can be a second prefab later;
 for this drop one prefab per class is the target.
 
+## 3b. Review a Special in the browser without playing
+
+On a build with practice presets enabled, open
+
+```
+/game/battle?preset=trio_specter&auto=1&speed=2
+```
+
+`preset` picks the trio (`trio_<class>[_<tier>]` or `random_<tier>`), `auto=1` lets the bot
+policy play your side so the battle runs itself, and `speed=2` scales Unity's playback (any
+value 0.25–4). Both params carry through "Start practice" to the battle page and can also be
+added to an existing `/battle/p_…` URL and refreshed.
+
 ## 4. Preview without the server
 
 Open `Assets/Scenes/BattleScene.unity` and press Play. `BattleDemoLoop` runs a fake
