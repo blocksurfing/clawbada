@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &2829630902376267146
+GameObject:
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3617040030047846996}
+  - component: {fileID: 8313432442458072208}
+  - component: {fileID: 4148780365385383599}
+  - component: {fileID: 2865935474190741997}
+  m_Layer: 0
+  m_Name: FX_Specter_Haunt_SpiritSpawn
+  m_TagString: Untagged
+  m_IsActive: 1
+--- !u!4 &3617040030047846996
+Transform:
+  m_GameObject: {fileID: 2829630902376267146}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+--- !u!212 &8313432442458072208
+SpriteRenderer:
+  m_GameObject: {fileID: 2829630902376267146}
+  m_Enabled: 1
+  m_Materials:
+  - {fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}
+  m_SortingOrder: 30
+  m_Sprite: {fileID: 7940682111638906875, guid: 4138c7a492104eaeaeabe800378862a8, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+--- !u!95 &4148780365385383599
+Animator:
+  m_GameObject: {fileID: 2829630902376267146}
+  m_Enabled: 1
+  m_Controller: {fileID: 9100000, guid: 8c8fd93112fb4bdea73b888eebebecc6, type: 2}
+--- !u!114 &2865935474190741997
+MonoBehaviour:
+  m_GameObject: {fileID: 2829630902376267146}
+  m_Enabled: 1
+  m_Script: {fileID: 11500000, guid: 6086980889c8d4e66895bc6a66aaa95c, type: 3}
+  m_EditorClassIdentifier: Assembly-CSharp::OneShotVfx
+  extraLifetime: 0.05
+  fallbackLifetime: 0.8
