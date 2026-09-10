@@ -39,6 +39,7 @@ public static class HudSmokeTest
             manager.Initialize(init);
 
             Check(hud.Overlays.Count == 6, $"6 unit overlays (got {hud.Overlays.Count})");
+            Check(hud.Options != null && hud.Options.gameObject.activeSelf && !hud.Options.IsOpen, "options gear shown (closed) for a participant");
             manager.StartTurn(new TurnStartData { turn = 3, lobsterId = "A1", side = "A", deadlineMs = 0, isPlayer = true });
             manager.UpdateBar(new BarData
             {
@@ -92,6 +93,7 @@ public static class HudSmokeTest
             Check(nullSprites == 0, $"no enabled Image without a sprite ({nullSprites})");
             Check(Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() != null, "EventSystem present");
             Check(hud.Marker != null && hud.Marker.gameObject.activeSelf, "marker follows the active lobster");
+            Check(hud.Options != null && !hud.Options.gameObject.activeSelf, "options gear hidden once the battle has ended");
 
             string msg = $"[HudSmokeTest] OK — {images} images, {texts} texts, strip [{hud.Strip.DescribeIds()}], clock {hud.Clock.RemainingSeconds:F1}s";
             Debug.Log(msg);

@@ -78,9 +78,15 @@ than one fixed timeline: the runtime owns how long the middle part lasts.
 status to three prefabs: `spawn` (one-shot when it lands), `loop` (**no OneShotVfx**; shown while
 the status is active) and `end` (one-shot when it expires or is cleansed). The runtime parents
 the loop under the lobster, so it follows hex moves and mirrors with facing, and drops it on
-death. Depth comes from the prefab's own `sortingOrder` inside the rig: negative = under the body
-(a sigil on the ground), above 15 = over it (an overhead mark). Reconnects rebuild loops from the
-snapshot without the spawn animation.
+death. Reconnects rebuild loops from the snapshot without the spawn animation.
+
+**Depth of a status visual is the prefab's own business, and the sorting LAYER matters more than
+the order.** The rig's body parts live on the **Default** layer at orders 0–15, all inside one
+SortingGroup, and inside a group the layer is compared before the order — so a child on
+Foreground draws in front of the body no matter how negative its order is. Author status prefabs
+on **Default**: order below 0 puts the art under the body (Haunt's sigil is −5, a curse mark on
+the ground), order above 15 puts it over (an overhead mark). The runtime no longer rewrites the
+layer, so what you set in the prefab is what you get.
 
 `CameraCenter` is for full-screen layers (Maelstrom's storm): the prefab is placed at the
 camera centre — a 10 × 5.625 unit sprite fills the frame exactly — never mirrored, and sorted

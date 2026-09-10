@@ -40,6 +40,12 @@ mergeInto(LibraryManager.library, {
         }
     },
 
+    SendForfeit: function() {
+        if (window.__clawbada && window.__clawbada.onForfeit) {
+            window.__clawbada.onForfeit();
+        }
+    },
+
     // Editor demo loop (V2 round shape) — unused by live battles.
     SendAnimationComplete: function(jsonPtr) {
         var json = UTF8ToString(jsonPtr);
