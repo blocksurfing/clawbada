@@ -229,7 +229,7 @@ MonoBehaviour:
     travelSpeed: 7
     launchAt: 0
     impactLead: 0
-  - prefab: {fileID: 4173446450485092133, guid: 3e6f2d887954942c99e3c57c5797daa1, type: 3}
+  - prefab: {fileID: 7873616403485943416, guid: cc0f58b488bc540e79bf2602b7ddc387, type: 3}
     anchor: 1
     delay: 0
     mirrorWithFacing: 0
