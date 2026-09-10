@@ -30,6 +30,7 @@ import { isPracticeId, CHAIN_ID_RE } from '../../lib/battle-session/protocol';
 import { PracticeConflictError } from '../../lib/battle-session/manager';
 const mockStartPractice = mock<any>();
 const mockSubmit = mock<any>();
+const mockForfeit = mock<any>();
 const mockGet = mock<any>();
 const mockSnapshotFor = mock<any>();
 const mockIsParticipant = mock<any>();
@@ -42,6 +43,7 @@ mock.module('../../lib/battle-session', () => ({
   battleSessions: {
     startPractice: mockStartPractice,
     submit: mockSubmit,
+    forfeit: mockForfeit,
     get: mockGet,
     snapshotFor: mockSnapshotFor,
     isParticipant: mockIsParticipant,
@@ -66,7 +68,7 @@ function fakeSession(id: string, side: 'A' | 'B' | null = 'A') {
 }
 
 beforeEach(() => {
-  for (const m of [mockStartPractice, mockSubmit, mockGet, mockSnapshotFor, mockIsParticipant, mockStoreGet, mockListTurns, mockReadTeam, mockReadLobster]) m.mockReset();
+  for (const m of [mockStartPractice, mockSubmit, mockForfeit, mockGet, mockSnapshotFor, mockIsParticipant, mockStoreGet, mockListTurns, mockReadTeam, mockReadLobster]) m.mockReset();
   process.env.PRACTICE_PRESETS = 'true';
 });
 
@@ -163,6 +165,36 @@ describe('POST /:battleId/turn', () => {
     expect(mockSubmit).not.toHaveBeenCalled();
     // Bad id shape.
     expect((await app.request(`/api/game/combat/0x10/turn`, { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ turn: 1, command: {} }) })).status).toBe(400);
+  });
+});
+
+describe('POST /:battleId/forfeit', () => {
+  test('participant → 200 { ok, winner }; stranger → 401; unknown → 404; already over → 409; unauthenticated → 401; bad id → 400', async () => {
+    // forfeit is sync in the real manager; the route awaits nothing.
+    mockForfeit.mockImplementation(() => ({ ok: true, winner: 'B' }));
+    let res = await app.request(`/api/game/combat/${P_ID}/forfeit`, { method: 'POST', headers: authHeaders() });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, winner: 'B' });
+    expect(mockForfeit.mock.calls[0]).toEqual([P_ID, TEST_ADDRESS.toLowerCase()]);
+
+    mockForfeit.mockImplementation(() => ({ ok: false, code: 'not_participant', message: 'You are not a participant in this battle' }));
+    res = await app.request('/api/game/combat/42/forfeit', { method: 'POST', headers: authHeaders(OTHER_ADDRESS) });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: 'UNAUTHORIZED' });
+
+    mockForfeit.mockImplementation(() => ({ ok: false, code: 'session_not_found', message: 'No live battle with that id' }));
+    expect((await app.request('/api/game/combat/42/forfeit', { method: 'POST', headers: authHeaders() })).status).toBe(404);
+
+    mockForfeit.mockImplementation(() => ({ ok: false, code: 'finished', message: 'Battle is over' }));
+    res = await app.request('/api/game/combat/42/forfeit', { method: 'POST', headers: authHeaders() });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: 'BATTLE_PHASE_ERROR', code: 'finished' });
+
+    // Auth and id-shape guards run before the manager is ever consulted.
+    mockForfeit.mockClear();
+    expect((await app.request('/api/game/combat/42/forfeit', { method: 'POST' })).status).toBe(401);
+    expect((await app.request('/api/game/combat/0x10/forfeit', { method: 'POST', headers: authHeaders() })).status).toBe(400);
+    expect(mockForfeit).not.toHaveBeenCalled();
   });
 });
 

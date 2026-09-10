@@ -208,6 +208,30 @@ describe('real battles', () => {
     expect(ended.data.damage).toEqual({ damageA: job.damageA, damageB: job.damageB });
   });
 
+  test('forfeit resolves the caller to a side, settles the battle for the opponent, and refuses strangers / unknown ids', async () => {
+    const store = new FakeStore();
+    store.pending.push({ battleId: 504n, playerA: ALICE, playerB: BOB, teamA: 11n, teamB: 22n });
+    const { mgr, events } = make(store, { chain: chainWith(teams, lobsters) });
+    await mgr.pollOnce();
+    const s = mgr.get('504')!;
+    expect(mgr.forfeit('504', '0xcccccccccccccccccccccccccccccccccccccccc')).toMatchObject({ ok: false, code: 'not_participant' });
+    expect(mgr.forfeit('999', ALICE)).toMatchObject({ ok: false, code: 'session_not_found' });
+
+    expect(mgr.forfeit('504', ALICE)).toEqual({ ok: true, winner: 'B' });
+    expect(s.state.finished).toBe(true);
+    expect(s.state.winner).toBe('B');
+    await s.flushed();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(store.jobs).toHaveLength(1);
+    expect(store.jobs[0]).toMatchObject({ battleId: '504', winner: BOB, finalStateHash: v3.hashState(s.state) });
+    expect(store.rows.get('504')!.status).toBe('settling');
+    const ended = events.find((e) => e.id === '504' && e.event === 'battle_ended')!;
+    expect(ended.data).toMatchObject({ winner: 'B', reason: 'forfeit', settle: 'queued' });
+    // The session is retired, so a repeat call has nothing to forfeit.
+    expect(mgr.liveCount()).toBe(0);
+    expect(mgr.forfeit('504', ALICE)).toMatchObject({ ok: false, code: 'session_not_found' });
+  });
+
   test('resume rebuilds active rows, re-arms the pending clock, drops claims without state, and abandons non-Active real battles', async () => {
     const store = new FakeStore();
     const seedState = v3.createBattle({ battleId: '601', vrfSeed: 5n, tier: 'evolved',

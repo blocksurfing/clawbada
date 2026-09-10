@@ -5,7 +5,8 @@
  *     Active (phase 4) with no session yet, claims each by inserting its
  *     `battle_sessions` row (PK = chain id, so two replicas cannot both start it),
  *     loads the two revealed teams from chain, rolls one drand beacon as the VRF
- *     seed, and starts the loop. On finish it enqueues `settle_battle` for the
+ *     seed, and starts the loop. On finish — wipeout, turn cap, timeout forfeit or
+ *     a player's `forfeit()` resignation — it enqueues `settle_battle` for the
  *     engine's operator worker.
  *   - practice battles: created on demand by the API route; off-chain only.
  *   - resume(): on boot, every 'active' row is deserialized and its clock re-armed.
@@ -152,6 +153,17 @@ export class BattleSessionManager {
     const cmd = v3.parseTurnCommand(rawCmd);
     if (!cmd) return { ok: false, code: 'bad_command', message: 'Malformed turn command' };
     return session.submit(side, turn, cmd);
+  }
+
+  /** Route a player's resignation. The caller's own side forfeits; the other side wins. */
+  forfeit(id: string, address: string): { ok: true; winner: Side } | { ok: false; code: string; message: string } {
+    const session = this.sessions.get(id);
+    if (!session) return { ok: false, code: 'session_not_found', message: 'No live battle with that id' };
+    const side = session.sideOf(address);
+    if (!side) return { ok: false, code: 'not_participant', message: 'You are not a participant in this battle' };
+    const res = session.resign(side);
+    if (!res.ok) return res;
+    return { ok: true, winner: side === 'A' ? 'B' : 'A' };
   }
 
   // ── practice ──

@@ -1,5 +1,6 @@
 /**
- * BattleSession runtime: shot clock, bot think, stun skips, forfeit, submit
+ * BattleSession runtime: shot clock, bot think, stun skips, forfeit (timeout and
+ * player resign), submit
  * semantics, persistence ordering. Real game-logic; fake clock; captured hooks.
  * Kept in its own file with NO mock.module so the real `@clawbada/game-logic`
  * is used (bun module mocks are process-global).
@@ -10,7 +11,7 @@
 import { describe, test, expect } from 'bun:test';
 import { v3, EvolutionTier, LobsterClass } from '@clawbada/game-logic';
 import { FakeClock, ShotClock } from '../../lib/battle-session/clock';
-import { BattleSession, type PersistedTurn, type SessionRecord, type SnapshotWrite } from '../../lib/battle-session/session';
+import { BattleSession, endReason, type PersistedTurn, type SessionRecord, type SnapshotWrite } from '../../lib/battle-session/session';
 import type { RosterEntry } from '../../lib/battle-session/protocol';
 
 const ALICE = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -280,6 +281,107 @@ describe('BattleSession — practice vs bot', () => {
     expect(turns).toEqual([...turns].sort((a, b) => a - b));
     expect(new Set(turns).size).toBe(turns.length);
     expect(turns.length).toBe(h.session.state.log.length);
+  });
+});
+
+describe('BattleSession — resign', () => {
+  test('a resign finishes the battle for the other side, appends the forfeit log entry, settles once, and a second resign is refused', async () => {
+    const h = harness();
+    h.session.start();
+    const turnBefore = h.session.state.turn;
+    const res = h.session.resign('A');
+    expect(res.ok).toBe(true);
+
+    expect(h.session.state.finished).toBe(true);
+    expect(h.session.state.winner).toBe('B');
+    expect(h.session.status).toBe('finished');
+    expect(h.session.current()).toMatchObject({ turn: 0, lobsterId: null, deadline: null });
+    // The forfeit terminator schedules no turn: state.turn does not advance.
+    expect(h.session.state.turn).toBe(turnBefore);
+    expect(h.session.state.log.at(-1)).toMatchObject({ action: 'forfeit', loser: 'A', lobsterId: '' });
+
+    const resolved = h.ev('turn_resolved').at(-1);
+    expect(resolved.submittedBy).toBe('forfeit');
+    expect(resolved.result.finished).toBe(true);
+    expect(resolved.result.winner).toBe('B');
+    expect(resolved.nextActorId).toBeNull();
+    expect(h.ev('turn_committed').at(-1)).toMatchObject({ turn: turnBefore + 1, lobsterId: '', by: 'forfeit' });
+    expect(h.ev('bar_updated')).toHaveLength(0); // nothing left to schedule
+    expect(h.fake.pendingCount()).toBe(0); // shot clock cancelled, no new timers
+
+    await h.session.flushed();
+    expect(h.finished).toHaveLength(1); // battle_ended / settle runs exactly once
+    const allTurns = h.persisted.flatMap((p) => p.turns);
+    expect(allTurns).toHaveLength(1);
+    expect(allTurns[0]).toMatchObject({ turn: turnBefore + 1, lobsterId: '', submittedBy: 'forfeit', command: null });
+    expect(allTurns[0].postStateHash).toBe(h.session.state.log.at(-1)!.postStateHash);
+    expect(h.persisted.at(-1)!.snap.deadline).toBeNull();
+    expect(h.errors).toHaveLength(0);
+
+    // A second resign (from either side) is refused and changes nothing.
+    const again = h.session.resign('A');
+    expect(again.ok).toBe(false);
+    if (!again.ok) expect(again.code).toBe('finished');
+    expect(h.session.resign('B').ok).toBe(false);
+    await h.session.flushed();
+    expect(h.finished).toHaveLength(1);
+    expect(h.session.state.log.filter((e) => e.action === 'forfeit')).toHaveLength(1);
+    expect(h.persisted.flatMap((p) => p.turns)).toHaveLength(1);
+  });
+
+  test('a resign is legal off-turn and mid-battle; the opponent wins from wherever the bar was', async () => {
+    const h = harness();
+    h.session.start();
+    // Play a few turns so the resign lands mid-battle.
+    for (let i = 0; i < 4; i++) {
+      const cur = h.session.current();
+      const actor = h.session.state.lobsters.find((l) => l.id === cur.lobsterId)!;
+      const r = h.session.submit(cur.side!, cur.turn, v3.BOTS.balanced(h.session.state, actor));
+      if (!r.ok) throw new Error(r.message);
+    }
+    const cur = h.session.current();
+    const offTurn = cur.side === 'A' ? 'B' : 'A';
+    const turnBefore = h.session.state.turn;
+    expect(h.session.resign(offTurn).ok).toBe(true);
+    expect(h.session.state.winner).toBe(offTurn === 'A' ? 'B' : 'A');
+    expect(h.session.state.log.at(-1)).toMatchObject({ action: 'forfeit', loser: offTurn });
+    // The forfeit row gets its own turn slot (no PK collision with the last real turn).
+    await h.session.flushed();
+    const turns = h.persisted.flatMap((p) => p.turns).map((t) => t.turn);
+    expect(new Set(turns).size).toBe(turns.length);
+    expect(turns.at(-1)).toBe(turnBefore + 1);
+    expect(h.finished).toHaveLength(1);
+  });
+
+  test('a practice player can resign to the bot', async () => {
+    const h = harness({ bot: 'balanced', botThinkMs: 800 });
+    h.session.start();
+    expect(h.session.resign('A').ok).toBe(true);
+    expect(h.session.state.winner).toBe('B');
+    expect(h.fake.pendingCount()).toBe(0); // bot think timer cancelled too
+    h.fake.advance(5_000);
+    await h.session.flushed();
+    expect(h.finished).toHaveLength(1);
+    expect(h.errors).toHaveLength(0);
+  });
+
+  test('resign is refused on a stopped session and never starts a timer', () => {
+    const h = harness();
+    h.session.start();
+    h.session.stop();
+    const res = h.session.resign('A');
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.code).toBe('session_stopped');
+    expect(h.session.state.finished).toBe(false);
+    expect(h.finished).toHaveLength(0);
+    expect(h.fake.pendingCount()).toBe(0);
+  });
+
+  test('endReason reports forfeit for a resigned battle', () => {
+    const h = harness();
+    h.session.start();
+    h.session.resign('B');
+    expect(endReason(h.session.state)).toBe('forfeit');
   });
 });
 
