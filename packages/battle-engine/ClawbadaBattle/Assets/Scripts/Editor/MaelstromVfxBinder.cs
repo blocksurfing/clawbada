@@ -44,6 +44,7 @@ public static class MaelstromVfxBinder
         lib.specialImpactByClass[Tempest] = new BattleVfxLibrary.VfxSlot
         {
             prefab = hitPrefab, anchor = BattleVfxLibrary.AnchorPoint.TargetImpactFx, delay = 0f, mirrorWithFacing = false,
+            onTop = true, // above the storm's dim overlay and clouds (it was drawn behind them)
         };
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
