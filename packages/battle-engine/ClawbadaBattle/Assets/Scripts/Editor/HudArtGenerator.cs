@@ -12,9 +12,9 @@ using UnityEngine;
 /// </summary>
 public static class HudArtGenerator
 {
-    private const string ArtFolder = "Assets/Art/UI";
-    private const string SkinFolder = "Assets/Resources/UI";
-    private const string SkinPath = SkinFolder + "/HudSkin.asset";
+    internal const string ArtFolder = "Assets/Art/UI";
+    internal const string SkinFolder = "Assets/Resources/UI";
+    internal const string SkinPath = SkinFolder + "/HudSkin.asset";
 
     private static readonly Color Ink = new Color(0.98f, 0.98f, 0.98f, 1f);
     private static readonly Color Dark = new Color(0.08f, 0.14f, 0.22f, 1f);
@@ -153,7 +153,7 @@ public static class HudArtGenerator
     /// <summary>Sprite sub-asset of a freshly imported texture. LoadAssetAtPath&lt;Sprite&gt;
     /// can miss sub-assets imported earlier in the same batch session; scan all assets at
     /// the path and log what is there when nothing matches.</summary>
-    private static Sprite LoadSprite(string path)
+    internal static Sprite LoadSprite(string path)
     {
         var direct = AssetDatabase.LoadAssetAtPath<Sprite>(path);
         if (direct != null) return direct;
@@ -171,7 +171,7 @@ public static class HudArtGenerator
 
     // ─── Texture builders ───
 
-    private static string WritePng(string name, Texture2D tex)
+    internal static string WritePng(string name, Texture2D tex)
     {
         string assetPath = $"{ArtFolder}/{name}.png";
         string absolute = Path.Combine(Application.dataPath, "Art/UI", name + ".png");
@@ -202,7 +202,7 @@ public static class HudArtGenerator
         imp.SaveAndReimport();
     }
 
-    private static Texture2D NewTex(int w, int h)
+    internal static Texture2D NewTex(int w, int h)
     {
         var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
         var px = new Color[w * h];
@@ -385,7 +385,7 @@ public static class HudArtGenerator
         return tex;
     }
 
-    private static void EnsureFolder(string path)
+    internal static void EnsureFolder(string path)
     {
         if (AssetDatabase.IsValidFolder(path)) return;
         string parent = Path.GetDirectoryName(path).Replace('\\', '/');
