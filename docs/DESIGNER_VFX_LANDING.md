@@ -73,6 +73,15 @@ the runtime mirrors it for leftward shots and pitches it along the path. On arri
 Author projectile Specials as **three sheets** (formation / travel loop / impact) rather
 than one fixed timeline: the runtime owns how long the middle part lasts.
 
+**Status visuals** (Specter Haunt's sigil first) are persistent marks tied to an engine status
+(`haunt`, `bleed`, `stun`, `slow`, `fortify`, `shield`…). `BattleVfxLibrary.statusVisuals` maps a
+status to three prefabs: `spawn` (one-shot when it lands), `loop` (**no OneShotVfx**; shown while
+the status is active) and `end` (one-shot when it expires or is cleansed). The runtime parents
+the loop under the lobster, so it follows hex moves and mirrors with facing, and drops it on
+death. Depth comes from the prefab's own `sortingOrder` inside the rig: negative = under the body
+(a sigil on the ground), above 15 = over it (an overhead mark). Reconnects rebuild loops from the
+snapshot without the spawn animation.
+
 `CameraCenter` is for full-screen layers (Maelstrom's storm): the prefab is placed at the
 camera centre — a 10 × 5.625 unit sprite fills the frame exactly — never mirrored, and sorted
 above the arena's front decor and every lobster (the HUD stays on top). Per-target hit effects
@@ -95,6 +104,13 @@ at 12 fps, then binds `specialByClass[9]` = Spawn (ActorAttackFx, mirrored, `tra
 Travel, `travelSpeed` 7 u/s, `launchAt` 1.83 s = the strip's last frame, `impactLead` 0.42 s =
 the burst on impact frame 5) and `specialImpactByClass[9]` = Impact (TargetImpactFx, onTop).
 Ember's self-damage plays as the generic impact + hit read on the caster right after the burst.
+
+Worked example — Specter Haunt (`Clawbada ▸ VFX ▸ Bind Specter Haunt`): modular drop, no
+umbrella prefab. Spirit = projectile slot: `specialByClass[4]` = `FX_Specter_Haunt_SpiritSpawn`
+(ActorAttackFx, mirrored, `travelPrefab` = `FX_Specter_Haunt_SpiritTravel`, 5.5 u/s, `launchAt`
+0.5 s = the last spawn frame, `impactLead` 0.08 s), `specialImpactByClass[4]` =
+`FX_Specter_Haunt_PossessImpact` (TargetImpactFx). Sigil = status visual `haunt`: SigilSpawn →
+SigilIdle (loop, sortingOrder −5 = under the body) → SigilOut on expiry/cleanse.
 
 Effects spawn in world
 space, sorted just above their owner, so rig mirroring and corpse tints never distort

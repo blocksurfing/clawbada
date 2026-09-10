@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6797530525760967097
+GameObject:
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5063286047846048672}
+  - component: {fileID: 7566833036363956888}
+  - component: {fileID: 5541673810871804873}
+  - component: {fileID: 2387712637582341996}
+  m_Layer: 0
+  m_Name: FX_Specter_Haunt_PossessImpact
+  m_TagString: Untagged
+  m_IsActive: 1
+--- !u!4 &5063286047846048672
+Transform:
+  m_GameObject: {fileID: 6797530525760967097}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+--- !u!212 &7566833036363956888
+SpriteRenderer:
+  m_GameObject: {fileID: 6797530525760967097}
+  m_Enabled: 1
+  m_Materials:
+  - {fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}
+  m_SortingOrder: 30
+  m_Sprite: {fileID: 2074075804585130872, guid: 995186c9dd6042b18cf0f137added0c8, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+--- !u!95 &5541673810871804873
+Animator:
+  m_GameObject: {fileID: 6797530525760967097}
+  m_Enabled: 1
+  m_Controller: {fileID: 9100000, guid: dcab20e624dd4dba89470f6bb244416d, type: 2}
+--- !u!114 &2387712637582341996
+MonoBehaviour:
+  m_GameObject: {fileID: 6797530525760967097}
+  m_Enabled: 1
+  m_Script: {fileID: 11500000, guid: 6086980889c8d4e66895bc6a66aaa95c, type: 3}
+  m_EditorClassIdentifier: Assembly-CSharp::OneShotVfx
+  extraLifetime: 0.05
+  fallbackLifetime: 0.8

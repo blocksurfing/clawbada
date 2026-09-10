@@ -62,11 +62,12 @@ public static class InfernoVfxBinder
         if (Application.isBatchMode) System.Console.WriteLine(msg);
     }
 
-    /// <summary>Headless one-shot: rebinds Maelstrom (hit now sorted above the storm) then Inferno.</summary>
+    /// <summary>Headless one-shot: rebinds every Special drop — Maelstrom, Inferno, Haunt.</summary>
     public static void BindAll()
     {
         MaelstromVfxBinder.Bind();
         Bind();
+        HauntVfxBinder.Bind();
     }
 
     private static GameObject BuildPrefab(string name, string sheet, int expectedFrames, bool loop, bool oneShot)
