@@ -13,7 +13,7 @@
  */
 import { Hono } from 'hono';
 import { v3, EvolutionTier, LobsterClass } from '@clawbada/game-logic';
-import { rollRandomRoster, rollTrioRoster, RANDOM_PRESET_RE, TRIO_PRESET_RE } from '../../../lib/battle-session/random-roster';
+import { rollRandomRoster, rollTrioRoster, rollSpecialsRoster, RANDOM_PRESET_RE, TRIO_PRESET_RE, SPECIALS_PRESET_RE } from '../../../lib/battle-session/random-roster';
 import { walletAuth, verifyWalletSignature } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readLobster, readTeam, serializeBigInts } from '../../../lib/chain';
@@ -35,7 +35,7 @@ const PRESETS: Record<string, { tier: EvolutionTier; classes: LobsterClass[] }> 
   apex_mix: { tier: EvolutionTier.Apex, classes: [LobsterClass.Leviathan, LobsterClass.Ember, LobsterClass.Abyss] },
 };
 
-export { rollRandomRoster, rollTrioRoster, RANDOM_PRESET_RE, TRIO_PRESET_RE } from '../../../lib/battle-session/random-roster';
+export { rollRandomRoster, rollTrioRoster, rollSpecialsRoster, RANDOM_PRESET_RE, TRIO_PRESET_RE, SPECIALS_PRESET_RE, VFX_READY_CLASSES } from '../../../lib/battle-session/random-roster';
 
 function presetsEnabled(): boolean {
   if (process.env.PRACTICE_PRESETS === 'true') return true;
@@ -98,6 +98,7 @@ sessionRoutes.post(
     if (!v3.isBotName(bot)) throw new ApiError('INVALID_INPUT', `bot must be one of ${v3.BOT_NAMES.join(', ')}`);
     const randomPreset = body.preset ? RANDOM_PRESET_RE.exec(body.preset) : null;
     const trioPreset = body.preset ? TRIO_PRESET_RE.exec(body.preset) : null;
+    const specialsPreset = body.preset ? SPECIALS_PRESET_RE.exec(body.preset) : null;
     // A random roster defaults to a random opponent too (a mirror of a random team is less interesting).
     const opponent = body.opponent ?? (randomPreset ? 'random' : 'mirror');
     if (opponent !== 'mirror' && opponent !== 'random') throw new ApiError('INVALID_INPUT', "opponent must be 'mirror' or 'random'");
@@ -105,12 +106,14 @@ sessionRoutes.post(
     let lobsters: PracticeLobster[];
     if (body.preset) {
       if (!presetsEnabled()) throw new ApiError('INVALID_INPUT', 'preset rosters are disabled');
-      if (randomPreset || trioPreset) {
-        const r = randomPreset ? rollRandomRoster(randomPreset[1]) : rollTrioRoster(trioPreset![1], trioPreset![2] ?? 'elite');
+      if (randomPreset || trioPreset || specialsPreset) {
+        const r = randomPreset ? rollRandomRoster(randomPreset[1])
+          : specialsPreset ? rollSpecialsRoster(specialsPreset[1] ?? 'elite')
+          : rollTrioRoster(trioPreset![1], trioPreset![2] ?? 'elite');
         lobsters = r.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: r.tier, purity: r.purity[i], legend: false }, partClassIds: r.partClassIds[i] }));
       } else {
         const p = PRESETS[body.preset];
-        if (!p) throw new ApiError('INVALID_INPUT', `preset must be one of random_<tier>, trio_<class>[_<tier>], ${Object.keys(PRESETS).join(', ')}`);
+        if (!p) throw new ApiError('INVALID_INPUT', `preset must be one of random_<tier>, trio_<class>[_<tier>], specials[_<tier>], ${Object.keys(PRESETS).join(', ')}`);
         lobsters = p.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: p.tier, purity: 3, legend: false } }));
       }
     } else {
