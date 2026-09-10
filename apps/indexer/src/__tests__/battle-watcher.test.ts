@@ -156,6 +156,17 @@ describe('BattleWatcher BattleSettled', () => {
     expect(logger.info.mock.calls[0][0]).toMatchObject({ kind: 'battle', teamRating: { applied: true, ratingA: 1216, ratingB: 1184 } });
   });
 
+  test('BattleCreated for an unknown battle: fallback insert is phase Deposit with status created', async () => {
+    db.queue('select', []); // no matchmaker row for this battle
+    await new BattleWatcher().handleEvent(
+      makeEventLog('BattleCreated', { battleId: 77n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: 2500n * WEI, powerA: 3, powerB: 4 }),
+    );
+    expect(db.insert).toHaveBeenCalledTimes(1);
+    const values = argOf(chainCalls(db.insert, 0), 'values');
+    expect(values).toMatchObject({ battleId: 77n, phase: 1, status: 1, stakeAmount: '2500', powerA: 3, powerB: 4, teamA: 0n, teamB: 0n });
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
   test('V3 draw (winner == address(0)): row settled with winner null, no ELO, participation for both teams', async () => {
     queueSettleSelects(battleRow({ phase: 5 }));
     const ZERO = '0x0000000000000000000000000000000000000000';
