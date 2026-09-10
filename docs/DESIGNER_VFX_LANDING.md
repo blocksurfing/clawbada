@@ -56,8 +56,22 @@ existing `FX_Generic_*` prefabs; copy one of those as a template. Import setting
 Each slot has `anchor` (ActorAttackFx / TargetImpactFx / ActorFeet / TargetFeet /
 **CameraCenter**), `delay` (seconds after the moment), `mirrorWithFacing`, and for Specials
 **`impactAt`** (seconds after the effect starts when the hit beat lands — damage, hit reads and
-per-target impacts wait for it; 0 = the caster's swing timing) and **`hideChildrenPrefix`**
-(children such as `Hit_A/B/C` timing guides are disabled at spawn).
+per-target impacts wait for it; 0 = the caster's swing timing), **`hideChildrenPrefix`**
+(children such as `Hit_A/B/C` timing guides are disabled at spawn) and **`onTop`** (sort the
+effect above full-screen layers and front decor — per-target hits that must read over a storm).
+
+**Projectile Specials** (Ember Inferno first) add four fields to the windup slot:
+`travelPrefab` (a *looping* prefab — the fireball), `travelSpeed` (world units per second;
+hex centres are ~1.73 units apart), `launchAt` (seconds into the windup when the projectile
+leaves the caster, ≈ the formation clip's length) and `impactLead` (seconds after arrival
+when the hit beat lands — the burst frame of the impact effect). The runtime plays the windup
+at the caster's `AttackFX`, then flies `travelPrefab` from there to the target's `ImpactFX` at
+`travelSpeed` — so the travel loop lasts exactly as long as the caster→target distance, whether
+the target is adjacent (~0.25 s) or four hexes away (~1 s). The sheet is authored flying right;
+the runtime mirrors it for leftward shots and pitches it along the path. On arrival the
+`specialImpactByClass` effect spawns on the target and damage lands `impactLead` later.
+Author projectile Specials as **three sheets** (formation / travel loop / impact) rather
+than one fixed timeline: the runtime owns how long the middle part lasts.
 
 `CameraCenter` is for full-screen layers (Maelstrom's storm): the prefab is placed at the
 camera centre — a 10 × 5.625 unit sprite fills the frame exactly — never mirrored, and sorted
@@ -68,7 +82,17 @@ impact beat (falls back to the generic `attackImpact`).
 Worked example — Tempest Maelstrom (`Clawbada ▸ VFX ▸ Bind Tempest Maelstrom` does this):
 `specialByClass[3]` = `FX_Tempest_Maelstrom` (CameraCenter, impactAt 3.9 s = the lightning
 flash, hide `Hit_`), `specialImpactByClass[3]` = `FX_Tempest_Maelstrom_Hit` (TargetImpactFx).
-The turn holds until the storm is nearly done; the web watchdog allows 12 s per turn. Effects spawn in world
+The turn holds until the storm is nearly done; the web watchdog allows 12 s per turn.
+
+Worked example — Ember Inferno (`Clawbada ▸ VFX ▸ Bind Ember Inferno`): the binder slices the
+designer's three 128 × 128 sheets into `FX_Ember_Inferno_Spawn` (23 frames, one-shot),
+`FX_Ember_Inferno_Travel` (5 frames, loop) and `FX_Ember_Inferno_Impact` (12 frames, one-shot)
+at 12 fps, then binds `specialByClass[9]` = Spawn (ActorAttackFx, mirrored, `travelPrefab` =
+Travel, `travelSpeed` 7 u/s, `launchAt` 1.83 s = the strip's last frame, `impactLead` 0.42 s =
+the burst on impact frame 5) and `specialImpactByClass[9]` = Impact (TargetImpactFx, onTop).
+Ember's self-damage plays as the generic impact + hit read on the caster right after the burst.
+
+Effects spawn in world
 space, sorted just above their owner, so rig mirroring and corpse tints never distort
 them. The Elite/Apex "enhanced" versions of a Special can be a second prefab later;
 for this drop one prefab per class is the target.
