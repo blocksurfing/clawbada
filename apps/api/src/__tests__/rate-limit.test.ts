@@ -37,6 +37,18 @@ function createApp(max: number, windowMs: number) {
 }
 
 describe('rateLimit middleware', () => {
+  test('stacked limiters keep separate counters (a general 100/min plus a faucet 5/min)', async () => {
+    const app = new Hono();
+    app.onError((err, c) => (err instanceof ApiError ? c.json({ error: err.code }, err.status as any) : c.json({ error: 'INTERNAL_ERROR' }, 500)));
+    app.use('*', rateLimit(100, 60_000));
+    app.use('/faucet/*', rateLimit(5, 60_000));
+    app.get('/faucet/x', (c) => c.text('ok'));
+    const ip = uniqueIp();
+    const codes: number[] = [];
+    for (let i = 0; i < 6; i++) codes.push((await app.request('/faucet/x', { headers: { 'x-forwarded-for': ip } })).status);
+    expect(codes).toEqual([200, 200, 200, 200, 200, 429]);
+  });
+
   test('first request passes with 200', async () => {
     const app = createApp(5, 60_000);
     const ip = uniqueIp();

@@ -38,6 +38,11 @@ export function resolveBackfillStart(lastBlock: bigint, configuredStart: bigint 
   return from;
 }
 
+/** Event args for the JSON `on_chain_events.args` column: bigints (every uint) become decimal strings. */
+export function serializeEventArgs(args: unknown): unknown {
+  return JSON.parse(JSON.stringify(args ?? {}, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)));
+}
+
 export abstract class EventWatcher {
   protected running = false;
   protected unwatch?: () => void;
@@ -144,7 +149,10 @@ export abstract class EventWatcher {
       blockNumber: log.blockNumber ?? 0n,
       txHash: log.transactionHash ?? '',
       logIndex: log.logIndex ?? 0,
-      args: (log as any).args ?? {},
+      // viem decodes uint args as bigint; JSON columns cannot take them. Before this every
+      // game event (LobsterMinted, StakeDeposited, SeasonStarted…) threw here and its handler
+      // never ran — only bigint-free events such as RoleGranted were indexed.
+      args: serializeEventArgs((log as any).args),
     });
 
     // Let subclass handle the specific event
