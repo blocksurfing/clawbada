@@ -216,6 +216,14 @@ death visuals have not run yet, and overlays whose rig was despawned are hidden.
 Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (bottom-right of the
 canvas); the stage element goes fullscreen and the canvas stays 16:9, letterboxed.
 
+Board on demand (2026-09-10, LOKR-style): the hex grid is invisible at rest. `HexGrid` no longer
+pre-paints the plain tile on every open cell and `ClearHighlights` clears cells instead of
+restoring it, so between turns the arena reads as painted ground and hexes appear only while a
+selection is on screen — which React already scopes to the player's own actionable turn
+(`highlights = canAct ? selection.highlights : null`). Clicks are unaffected: `HexInput` maps a
+world point through `Tilemap.WorldToCell`, which is grid maths and needs no tile present. Set
+`HexGrid.showBoardAtRest` in the Inspector to get the full grid back while authoring a layout.
+
 HUD pass (2026-09-10): the action bar has painted plates instead of one shared bevel —
 `HudButtonArt` (menu *Clawbada ▸ Generate HUD Button Art*, headless `-executeMethod
 HudButtonArt.Generate`) rasterises six bevelled hex plates, an armed glow ring and six shaded
