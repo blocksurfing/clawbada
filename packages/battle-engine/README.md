@@ -191,6 +191,12 @@ dim overlay). `InfernoVfxBinder` builds the three prefabs from the designer's sh
 (`BindAll` also re-runs the Maelstrom binder). Windups now spawn after the caster turns to face
 its target, so a mirrored windup faces the right way.
 
+Maelstrom strike (2026-09-10): the designer's `FX_Tempest_Maelstrom_LightningBolt` (pivot at the
+tip) is combined with the electric hit into `FX_Tempest_Maelstrom_Strike` — a root with
+`OneShotVfx` (fallback lifetime = longest child clip) and two nested prefab instances, sparks
+sorted above the bolt — bound as `specialImpactByClass[3]` with `onTop`, so every struck enemy
+takes a bolt from above at the flash.
+
 Reconnects (2026-09-08): the WS auth expires every 5 min and the client reconnects with a fresh
 snapshot. `BattleStage` sends `InitBattle` once per battle and hands later snapshots of the same
 battle to Unity as `SyncUnits` — re-initialising mid-battle respawned every rig (dead lobsters
