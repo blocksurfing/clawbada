@@ -110,7 +110,10 @@ export const rateLimit = (maxRequests = 100, windowMs = 60_000): MiddlewareHandl
     // resolve the connection peer when TRUST_PROXY is off (the default).
     const server = (c.env as { server?: Parameters<typeof getClientIp>[1] } | undefined)?.server;
     const ip = getClientIp(c.req.raw, server);
-    const key = address ?? ip;
+    // Scope the counter to this limiter: stacked limiters (`/api/*` at 100 and
+    // `/api/faucet/*` at 5) used to share one bucket per caller, so every faucet
+    // request counted twice and the faucet allowed 2 calls a minute, not 5.
+    const key = `${maxRequests}/${windowMs}:${address ?? ip}`;
 
     const b = await getBackend();
     const count = await b.hit(key, windowMs);
