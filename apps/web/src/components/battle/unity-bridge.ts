@@ -133,6 +133,8 @@ export const UNITY_METHODS = {
   SYNC_UNITS: 'SyncUnits',
   SET_SELECTION: 'SetSelection',
   PREVIEW_MOVE: 'PreviewMove',
+  /** Playback speed multiplier (Unity Time.timeScale) — designer review tool. */
+  SET_SPEED: 'SetSpeed',
 } as const;
 
 export const JS_CALLBACKS = {

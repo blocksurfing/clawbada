@@ -6,6 +6,7 @@
  *   - real, Active+ or practice: the live V3 session (Unity stage or SVG board + HUD + actions)
  */
 import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 import { api } from '@/lib/api';
@@ -25,6 +26,14 @@ export default function BattlePage() {
   const battleId = params.id as string;
   const { address } = useAccount();
   const practice = isPracticeId(battleId);
+  // Review tools (designer VFX passes, harness): ?auto=1 lets the bot policy play this wallet's
+  // turns; ?speed=2 scales Unity playback. Read after mount to avoid a Suspense boundary.
+  const [review, setReview] = useState<{ autoPlay: boolean; speed: number }>({ autoPlay: false, speed: 1 });
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const speed = Number(q.get('speed') ?? '1');
+    setReview({ autoPlay: q.get('auto') === '1', speed: Number.isFinite(speed) && speed > 0 ? speed : 1 });
+  }, []);
 
   const { data: battleData, isLoading, error } = useQuery({
     queryKey: ['battle', battleId],
@@ -42,7 +51,7 @@ export default function BattlePage() {
         <div className="p-4 md:p-8 space-y-4 max-w-6xl mx-auto">
           <Header title="Practice battle" subtitle="Off-chain — no stakes, no rating. Beat the bot." />
           {address ? (
-            <LiveBattle battleId={battleId} address={address} />
+            <LiveBattle battleId={battleId} address={address} autoPlay={review.autoPlay} speed={review.speed} />
           ) : (
             <FrostedPanel className="py-10 text-center text-sm text-text-secondary">Connect the wallet that started this practice battle.</FrostedPanel>
           )}
@@ -111,7 +120,7 @@ export default function BattlePage() {
         )}
 
         {/* Live session (participants act, everyone else spectates) */}
-        {live && <LiveBattle battleId={battleId} address={address} spectate={!participant} />}
+        {live && <LiveBattle battleId={battleId} address={address} spectate={!participant} autoPlay={review.autoPlay} speed={review.speed} />}
 
         {db?.battleId && (
           <p className="text-center text-xs text-text-secondary pt-4">
