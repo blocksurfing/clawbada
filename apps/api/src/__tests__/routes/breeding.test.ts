@@ -34,6 +34,7 @@ function _serializeBigInts(obj: any): any {
 }
 
 mock.module('../../lib/chain', () => ({
+  readBreedCost: mock(async () => 1000n * 10n ** 18n),
   readLobster: mockReadLobster,
   readCooldownEnd: mockReadCooldownEnd,
   serializeBigInts: _serializeBigInts,

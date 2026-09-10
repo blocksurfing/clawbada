@@ -41,6 +41,8 @@ function _serializeBigInts(obj: any): any {
 }
 
 mock.module('../../lib/chain', () => ({
+  readRepairRate: mock(async (tier: number) => [0n, 5n, 15n, 40n][tier] * 10n ** 18n),
+  WEI: 10n ** 18n,
   readLobster: mockReadLobster,
   serializeBigInts: _serializeBigInts,
 }));
@@ -123,6 +125,9 @@ describe('repair routes', () => {
       expect(body.steps).toHaveLength(2);
       expect(body.steps[0].description).toContain('Approve');
       expect(body.steps[1].description).toContain('Repair');
+      // Approve is rate(tier) × points in wei — the display cost is that divided by 1e18.
+      const approve = (mockEncodeFunctionData.mock.calls as unknown as any[][]).find((c) => c[0]?.functionName === 'approve');
+      expect(approve?.[0]?.args?.[1]).toBe(BigInt(body.preview.cost) * 10n ** 18n);
     });
 
     test('returns 400 when lobster has no damage', async () => {

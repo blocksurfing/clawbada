@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { RepairShopAbi, ClawTokenAbi, addresses } from '@clawbada/chain';
-import { repairCost, REPAIR_RATES, DAMAGE_THRESHOLD, EvolutionTier } from '@clawbada/game-logic';
+import { REPAIR_RATES, DAMAGE_THRESHOLD, EvolutionTier } from '@clawbada/game-logic';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
-import { readLobster, serializeBigInts } from '../../lib/chain';
+import { readLobster, readRepairRate, serializeBigInts, WEI } from '../../lib/chain';
 import { buildCalldata, multiStep } from '../../lib/calldata';
 
 export const repairRoutes = new Hono();
@@ -28,8 +28,11 @@ repairRoutes.get(
       });
     }
 
-    const cost = repairCost(lobster.evolutionTier as EvolutionTier, actualPoints);
-    const fullRepairCost = repairCost(lobster.evolutionTier as EvolutionTier, lobster.damage);
+    // Live rate from the contract (bps of MiningPool.currentBaseReward — drifts with the glide);
+    // game-logic's static table is only the launch value.
+    const rateWei = await readRepairRate(lobster.evolutionTier);
+    const cost = (rateWei * BigInt(actualPoints)) / WEI;
+    const fullRepairCost = (rateWei * BigInt(lobster.damage)) / WEI;
     const ratePerPoint = REPAIR_RATES[lobster.evolutionTier as EvolutionTier];
 
     return c.json(serializeBigInts({
@@ -80,13 +83,15 @@ repairRoutes.post(
       throw new ApiError('INVALID_INPUT', 'pointsToRepair must be > 0');
     }
 
-    const cost = repairCost(lobster.evolutionTier as EvolutionTier, actualPoints);
+    const rateWei = await readRepairRate(lobster.evolutionTier);
+    const costWei = rateWei * BigInt(actualPoints);
+    const cost = costWei / WEI;
 
     const approveCalldata = buildCalldata(
       addresses.clawToken,
       ClawTokenAbi as any,
       'approve',
-      [addresses.repairShop, cost],
+      [addresses.repairShop, costWei],
     );
 
     const repairCalldata = buildCalldata(

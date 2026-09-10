@@ -10,7 +10,7 @@ import {
 } from '@clawbada/game-logic';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
-import { readLobster, serializeBigInts } from '../../lib/chain';
+import { readLobster, readEvolutionCost, serializeBigInts } from '../../lib/chain';
 import { buildCalldata, multiStep } from '../../lib/calldata';
 
 export const evolutionRoutes = new Hono();
@@ -107,12 +107,15 @@ evolutionRoutes.post(
     }
 
     const reqs = evolutionRequirements(lobster.evolutionTier as EvolutionTier)!;
+    // The contract charges wei (EvolutionLab.EVOLUTION_COSTS); game-logic's clawCost is the
+    // display number. Approving the display number left the allowance ~1e18x short.
+    const clawCostWei = await readEvolutionCost(lobster.evolutionTier);
 
     const approveCalldata = buildCalldata(
       addresses.clawToken,
       ClawTokenAbi as any,
       'approve',
-      [addresses.evolutionLab, reqs.clawCost],
+      [addresses.evolutionLab, clawCostWei],
     );
 
     const evolveCalldata = buildCalldata(
@@ -131,6 +134,7 @@ evolutionRoutes.post(
         lobsterId,
         fuelBurned: [fuelId1, fuelId2],
         clawCost: reqs.clawCost,
+        clawCostWei,
         fromTier: EvolutionTier[lobster.evolutionTier],
         toTier: EvolutionTier[lobster.evolutionTier + 1],
       }),
