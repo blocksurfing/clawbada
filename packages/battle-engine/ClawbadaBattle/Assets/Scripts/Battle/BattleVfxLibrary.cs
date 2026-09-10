@@ -75,6 +75,33 @@ public class BattleVfxLibrary : ScriptableObject
     [Tooltip("0 Bulwark, 1 Mantis, 2 Leviathan, 3 Tempest, 4 Specter, 5 Sentinel, 6 Reaver, 7 Abyss, 8 Kraken, 9 Ember")]
     public VfxSlot[] specialByClass = new VfxSlot[10];
 
+    [System.Serializable]
+    public class StatusVfx
+    {
+        [Tooltip("Engine status type this visual tracks: haunt, bleed, stun, slow, fortify, shield…")]
+        public string status;
+        [Tooltip("One-shot played when the status lands (OneShotVfx). Optional.")]
+        public GameObject spawn;
+        [Tooltip("Looping prefab (NO OneShotVfx) shown while the status is active; parented to the lobster so it follows hex moves.")]
+        public GameObject loop;
+        [Tooltip("One-shot played when the status ends (expires or is cleansed). Optional.")]
+        public GameObject end;
+        [Tooltip("Local Y offset from the lobster's root (hex centre). Sigils sit at 0; overhead marks go up.")]
+        public float yOffset = 0f;
+    }
+
+    [Header("Status visuals (persistent marks driven by status apply/remove events)")]
+    [Tooltip("Sprite sortingOrder inside the prefab decides depth against the rig: negative = under the body (sigils), >15 = over it.")]
+    public StatusVfx[] statusVisuals = new StatusVfx[0];
+
+    /// <summary>Status visual bound to an engine status type, or null.</summary>
+    public StatusVfx StatusFor(string status)
+    {
+        if (statusVisuals == null || string.IsNullOrEmpty(status)) return null;
+        foreach (var s in statusVisuals) if (s != null && string.Equals(s.status, status, System.StringComparison.OrdinalIgnoreCase)) return s;
+        return null;
+    }
+
     [Header("Special impacts (index = classId; falls back to Attack Impact)")]
     [Tooltip("Spawned on EVERY target hit by the class Special at its impact beat (e.g. Maelstrom's electric hit).")]
     public VfxSlot[] specialImpactByClass = new VfxSlot[10];

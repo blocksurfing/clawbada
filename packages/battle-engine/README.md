@@ -197,6 +197,15 @@ tip) is combined with the electric hit into `FX_Tempest_Maelstrom_Strike` — a 
 sorted above the bolt — bound as `specialImpactByClass[3]` with `onTop`, so every struck enemy
 takes a bolt from above at the flash.
 
+Status visuals (2026-09-10, Specter Haunt first): `BattleVfxLibrary.statusVisuals` binds an
+engine status type to spawn / loop / end prefabs. `LobsterController.SetStatus` shows the spawn
+one-shot then parents the loop under the rig (follows hex moves, mirrors with facing, sorted by
+the prefab's own `sortingOrder` inside the rig's SortingGroup — Haunt's sigil is −5, under the
+body) and plays the end one-shot when the status is removed (expiry at the target's turn or a
+cleanse — both arrive as `applied:false` status events); `ApplySync` reconciles loops from
+snapshots without the spawn animation; death clears them. Haunt's spirit reuses the projectile
+slot (`HauntVfxBinder`; `InfernoVfxBinder.BindAll` runs every binder).
+
 Reconnects (2026-09-08): the WS auth expires every 5 min and the client reconnects with a fresh
 snapshot. `BattleStage` sends `InitBattle` once per battle and hands later snapshots of the same
 battle to Unity as `SyncUnits` — re-initialising mid-battle respawned every rig (dead lobsters
