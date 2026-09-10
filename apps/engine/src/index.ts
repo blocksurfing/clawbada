@@ -34,6 +34,7 @@ import { activateBoostEpochHandler } from './operator/jobs/activate-boost-epoch'
 import { wrapHandler } from './operator/errors';
 import { BoostEpochService } from './boost/service';
 import { RevealWatcher } from './combat/reveal-watcher';
+import { FinalizeWatcher } from './combat/finalize-watcher';
 import { EpochClock } from './boost/epoch-clock';
 import { db } from '@clawbada/db';
 import { getMiningPool, getPublicClient } from '@clawbada/chain';
@@ -116,8 +117,13 @@ async function main() {
   boostEpochs.start();
 
   // F5-01: submits the atomic revealTeams once both players' salts are in (2 s poll).
-  const revealWatcher = new RevealWatcher();
+  const revealWatcher = RevealWatcher.fromEnv();
   revealWatcher.start();
+
+  // H-01: pays out proposed results once the dispute window has closed (permissionless
+  // finalizeBattle; nothing else calls it). Chain-time based, so it works on a warped local chain.
+  const finalizeWatcher = FinalizeWatcher.fromEnv();
+  finalizeWatcher.start();
 
   // 5. Verify drand connectivity
   try {
@@ -151,6 +157,7 @@ async function main() {
     seasons.stop();
     boostEpochs.stop();
     revealWatcher.stop();
+    finalizeWatcher.stop();
     mining.stopAll();
     await operatorWorker.stop();
     process.exit(0);
