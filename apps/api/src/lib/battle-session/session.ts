@@ -78,6 +78,8 @@ export type SubmitResult =
   | { ok: true; result: WireTurnResult; duplicate: boolean }
   | { ok: false; code: string; message: string; turn?: number };
 
+export type ResignResult = { ok: true } | { ok: false; code: string; message: string };
+
 const RECENT_KEEP = 4;
 
 export class BattleSession {
@@ -187,6 +189,21 @@ export class BattleSession {
     const result = this.recent.get(step.results[0].turn)!;
     this.advance();
     return { ok: true, result, duplicate: false };
+  }
+
+  /**
+   * Player-initiated forfeit (resign). Legal on any turn — the resigner does not
+   * have to be the current actor. The other side wins immediately and the normal
+   * finish path runs (same one a wipeout takes): the forfeit turn is persisted,
+   * `battle_ended` is broadcast, and the session is marked settled / enqueued.
+   */
+  resign(side: Side): ResignResult {
+    if (this.stopped) return { ok: false, code: 'session_stopped', message: 'Battle session is not running' };
+    if (this.status !== 'active' || this.state.finished) return { ok: false, code: 'finished', message: 'Battle is over' };
+    this.opts.clock.cancel(this.key);
+    this.step({ type: 'resign', team: side }, 'forfeit', null);
+    this.advance();
+    return { ok: true };
   }
 
   // ── internals ──
