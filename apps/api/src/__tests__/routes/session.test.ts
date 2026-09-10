@@ -96,6 +96,34 @@ describe('POST /practice', () => {
     expect(args.opponent).toBe('random'); // a random roster defaults to a random opponent
   });
 
+  test('specials preset → 201 with Ember/Tempest/Specter, purity 3, mirrored opponent', async () => {
+    const { EvolutionTier } = await import('@clawbada/game-logic');
+    mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+    const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'specials' }) });
+    expect(res.status).toBe(201);
+    const args = mockStartPractice.mock.calls[0][0] as { lobsters: Array<{ input: { class: number; tier: number; purity: number }; partClassIds?: number[] }>; opponent: string };
+    expect(args.lobsters).toHaveLength(3);
+    expect(new Set(args.lobsters.map((l) => l.input.class)).size).toBe(3);
+    for (const l of args.lobsters) {
+      expect(l.input.tier).toBe(EvolutionTier.Elite);
+      expect(l.input.purity).toBe(3);
+      expect(Array.isArray(l.partClassIds)).toBe(true);   // real genetics, like the other rolled rosters
+    }
+    // Mirrored so both sides cast the finished Specials (class ids are asserted against the
+    // real game-logic enum in battle-session/random-roster.test.ts).
+    expect(args.opponent).toBe('mirror');
+
+    mockStartPractice.mockClear();
+    mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+    const apex = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'specials_apex' }) });
+    expect(apex.status).toBe(201);
+    const apexArgs = mockStartPractice.mock.calls[0][0] as { lobsters: Array<{ input: { tier: number } }> };
+    for (const l of apexArgs.lobsters) expect(l.input.tier).toBe(EvolutionTier.Apex);
+
+    const bad = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'specials_base' }) });
+    expect(bad.status).toBe(400);
+  });
+
   test('preset roster → 201 with battleId + snapshot; bot + opponent validated', async () => {
     mockStartPractice.mockImplementation(async (opts: any) => fakeSession(P_ID) && { record: { id: P_ID }, snapshot: () => ({ ok: true, bot: opts.bot, n: opts.lobsters.length }) });
     const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', bot: 'cautious' }) });
