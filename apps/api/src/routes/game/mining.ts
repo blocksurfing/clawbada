@@ -11,8 +11,7 @@ import {
   readActiveExpedition,
   readCurrentSeason,
   readSeasonConfig,
-  serializeBigInts,
-} from '../../lib/chain';
+  serializeBigInts, readChainNow } from '../../lib/chain';
 import { buildCalldata, singleStep } from '../../lib/calldata';
 
 export const miningRoutes = new Hono();
@@ -54,7 +53,7 @@ miningRoutes.get(
     const exp = await readExpedition(BigInt(expeditionId));
 
     const completionTime = exp.startTime + BigInt(EXPEDITION_DURATION_SECONDS);
-    const now = BigInt(Math.floor(Date.now() / 1000));
+    const now = await readChainNow();
     const remainingSeconds = completionTime > now ? Number(completionTime - now) : 0;
 
     return c.json(serializeBigInts({

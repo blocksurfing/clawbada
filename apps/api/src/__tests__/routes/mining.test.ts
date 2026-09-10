@@ -38,6 +38,7 @@ function _serializeBigInts(obj: any): any {
 }
 
 mock.module('../../lib/chain', () => ({
+  readChainNow: mock(async () => BigInt(Math.floor(Date.now() / 1000))),
   readTeamsByOwner: mockReadTeamsByOwner,
   readTeam: mockReadTeam,
   readLobster: mockReadLobster,

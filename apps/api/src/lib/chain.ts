@@ -7,6 +7,8 @@ import {
   getBreedingLab,
   getMarketplace,
   getBattleArena,
+  getEvolutionLab,
+  getRepairShop,
   addresses,
 } from '@clawbada/chain';
 import {
@@ -173,13 +175,44 @@ export interface ChainExpedition {
   isComplete: boolean;
 }
 
+/** Current chain time (latest block timestamp). Contracts gate on block.timestamp, not the
+ *  server's wall clock — the two diverge on a local chain with time travel. */
+export async function readChainNow(): Promise<bigint> {
+  const block = await client().getBlock({ blockTag: 'latest' });
+  return BigInt(block.timestamp);
+}
+
+export const WEI = 10n ** 18n;
+
+/** $CLAW cost (wei) to evolve a lobster from `fromTier`, as EvolutionLab charges it. */
+export async function readEvolutionCost(fromTier: number): Promise<bigint> {
+  const lab = getEvolutionLab(client()) as any;
+  return BigInt(await lab.read.EVOLUTION_COSTS([BigInt(fromTier)]));
+}
+
+/** Total $CLAW cost (wei) to breed two parents, per BreedingLab's own schedule. */
+export async function readBreedCost(a: { breedCount: number; generation: number }, b: { breedCount: number; generation: number }): Promise<bigint> {
+  const lab = getBreedingLab(client()) as any;
+  const [costA, costB] = await Promise.all([
+    lab.read.getBreedCostPerParent([a.breedCount, a.generation]),
+    lab.read.getBreedCostPerParent([b.breedCount, b.generation]),
+  ]);
+  return BigInt(costA) + BigInt(costB);
+}
+
+/** $CLAW per damage point (wei) for a tier — bps of the live MiningPool base reward. */
+export async function readRepairRate(tier: number): Promise<bigint> {
+  const shop = getRepairShop(client()) as any;
+  return BigInt(await shop.read.repairRate([tier]));
+}
+
 export async function readExpedition(expeditionId: bigint): Promise<ChainExpedition> {
   const c = client();
   const pool = getMiningPool(c);
 
   try {
     const data = await pool.read.getExpedition([expeditionId]);
-    const now = BigInt(Math.floor(Date.now() / 1000));
+    const now = await readChainNow();
     const isComplete = now >= data.startTime + BigInt(4 * 60 * 60);
 
     return {

@@ -38,6 +38,21 @@ public class BattleVfxLibrary : ScriptableObject
         public float impactAt = 0f;
         [Tooltip("Children whose name starts with this prefix are disabled at spawn (designer timing guides such as Hit_A/B/C).")]
         public string hideChildrenPrefix = "";
+        [Tooltip("Sort above full-screen effects and front decor — for per-target Special impacts that must read over a storm layer.")]
+        public bool onTop = false;
+
+        [Header("Projectile Specials (Inferno)")]
+        [Tooltip("Looping projectile prefab. When set, the Special is a projectile: this prefab flies from the caster's AttackFX " +
+                 "to the target's ImpactFX after `launchAt`, looping for exactly the flight time, and the hit beat lands on arrival.")]
+        public GameObject travelPrefab;
+        [Tooltip("Flight speed in world units per second (hex centres are ~1.73 units apart). Flight time = distance / speed.")]
+        public float travelSpeed = 7f;
+        [Tooltip("Seconds after this effect starts when the projectile leaves the caster (≈ the formation clip's length).")]
+        public float launchAt = 0f;
+        [Tooltip("Seconds after the projectile arrives before the hit beat (the burst frame of the per-target impact effect).")]
+        public float impactLead = 0f;
+
+        public bool IsProjectile => travelPrefab != null;
     }
 
     [Header("Attack (all classes)")]
@@ -155,6 +170,48 @@ public class BattleVfxLibrary : ScriptableObject
         SpawnScreen(slot, centre);
     }
 
+    /// <summary>Fly a projectile slot's travel prefab from <paramref name="from"/> to <paramref name="to"/> at
+    /// <c>slot.travelSpeed</c>. The prefab's looping clip plays for exactly the flight time (the loop's
+    /// duration equals the caster→target distance), the sprite is mirrored for leftward flight and pitched
+    /// along the path, and the projectile is destroyed on arrival. Yields until arrival.</summary>
+    public static IEnumerator Fly(VfxSlot slot, Vector3 from, Vector3 to)
+    {
+        if (slot == null || slot.travelPrefab == null) yield break;
+        Vector3 dir = to - from;
+        float dist = dir.magnitude;
+        float duration = Mathf.Max(0.12f, dist / Mathf.Max(0.5f, slot.travelSpeed));
+
+        var fx = Instantiate(slot.travelPrefab, from, Quaternion.identity);
+        // The sheet is authored flying right: mirror for leftward flight, then pitch along the path.
+        float angle = dist > 0.001f ? Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg : 0f;
+        if (dir.x < 0f)
+        {
+            var s = fx.transform.localScale;
+            s.x = -s.x;
+            fx.transform.localScale = s;
+            angle -= 180f;
+        }
+        fx.transform.rotation = Quaternion.Euler(0f, 0f, angle);
+
+        var group = fx.GetComponent<SortingGroup>();
+        if (group == null) group = fx.AddComponent<SortingGroup>();
+        group.sortingLayerName = DepthSort.Layer;
+        group.sortingOrder = DepthSort.ArenaFrontOrderBase + 60; // crosses the board above lobsters and decor
+        var oneShot = fx.GetComponent<OneShotVfx>();
+        if (oneShot != null) Destroy(oneShot);   // lifetime is the flight, not the loop clip
+        Destroy(fx, duration + 1f);               // safety net if the host coroutine dies mid-flight
+
+        float t = 0f;
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            if (fx == null) yield break;
+            fx.transform.position = Vector3.Lerp(from, to, Mathf.Clamp01(t / duration));
+            yield return null;
+        }
+        if (fx != null) Destroy(fx);
+    }
+
     private static GameObject SpawnScreen(VfxSlot slot, Vector3 centre)
     {
         var fx = Instantiate(slot.prefab, centre, Quaternion.identity);
@@ -186,11 +243,12 @@ public class BattleVfxLibrary : ScriptableObject
             fx.transform.localScale = s;
         }
 
-        // Sort just above the owner so effects never vanish behind their lobster.
+        // Sort just above the owner so effects never vanish behind their lobster; `onTop`
+        // effects (per-target Special impacts) go above full-screen layers and front decor.
         var group = fx.GetComponent<SortingGroup>();
         if (group == null) group = fx.AddComponent<SortingGroup>();
-        group.sortingLayerName = "Foreground";
-        group.sortingOrder = owner.SortingOrder + 1;
+        group.sortingLayerName = DepthSort.Layer;
+        group.sortingOrder = slot.onTop ? DepthSort.ArenaFrontOrderBase + 61 : owner.SortingOrder + 1;
 
         if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
     }

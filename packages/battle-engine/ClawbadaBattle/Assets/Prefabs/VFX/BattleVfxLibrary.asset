@@ -19,6 +19,11 @@ MonoBehaviour:
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   attackImpact:
     prefab: {fileID: 8702148402230174246, guid: 6fc84e57c80d248c0bbdb0013df7aaed, type: 3}
     anchor: 1
@@ -26,6 +31,11 @@ MonoBehaviour:
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   defend:
     prefab: {fileID: 0}
     anchor: 2
@@ -33,6 +43,11 @@ MonoBehaviour:
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   death:
     prefab: {fileID: 0}
     anchor: 2
@@ -40,6 +55,11 @@ MonoBehaviour:
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   moveStep:
     prefab: {fileID: 2198418038747152603, guid: e4c3850d6ee9442168b4c3922d6ec7f7, type: 3}
     anchor: 2
@@ -47,6 +67,11 @@ MonoBehaviour:
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   status:
     prefab: {fileID: 0}
     anchor: 3
@@ -54,6 +79,11 @@ MonoBehaviour:
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   specialByClass:
   - prefab: {fileID: 0}
     anchor: 2
@@ -61,60 +91,110 @@ MonoBehaviour:
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 2139694229694905937, guid: cc2be06c01024d94dab44044409f2f80, type: 3}
     anchor: 4
     delay: 0
     mirrorWithFacing: 0
     impactAt: 3.9
     hideChildrenPrefix: Hit_
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
-  - prefab: {fileID: 0}
-    anchor: 2
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
+  - prefab: {fileID: 90676729667897657, guid: be73e6b841bd24adc9757d63b68230d4, type: 3}
+    anchor: 0
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 5060112115610440276, guid: f69ff932ab11e4669b7df47abc414952, type: 3}
+    travelSpeed: 7
+    launchAt: 1.8333334
+    impactLead: 0.41666666
   specialImpactByClass:
   - prefab: {fileID: 0}
     anchor: 2
@@ -122,57 +202,107 @@ MonoBehaviour:
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 4173446450485092133, guid: 3e6f2d887954942c99e3c57c5797daa1, type: 3}
     anchor: 1
     delay: 0
     mirrorWithFacing: 0
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 1
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
-  - prefab: {fileID: 0}
-    anchor: 2
+    onTop: 0
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0
+  - prefab: {fileID: 4175517491069299043, guid: d56c4852ace3b45e6a868c7621ed7b37, type: 3}
+    anchor: 1
     delay: 0
-    mirrorWithFacing: 1
+    mirrorWithFacing: 0
     impactAt: 0
     hideChildrenPrefix: 
+    onTop: 1
+    travelPrefab: {fileID: 0}
+    travelSpeed: 7
+    launchAt: 0
+    impactLead: 0

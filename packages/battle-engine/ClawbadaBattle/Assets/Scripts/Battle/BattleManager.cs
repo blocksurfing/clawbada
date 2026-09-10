@@ -447,9 +447,34 @@ public class BattleManager : MonoBehaviour
                             ? vfxLibrary != null ? vfxLibrary.SpecialFor(actor.classId) : null
                             : vfxLibrary != null ? vfxLibrary.attackWindup : null;
                         var impactSlot = special && vfxLibrary != null ? vfxLibrary.SpecialImpactFor(actor.classId) : null;
+                        if (target != null && target != actor) actor.FaceToward(targetPos); // so a mirrored windup faces the target
                         BattleVfxLibrary.Spawn(windup, actor, target, this);
 
-                        if (special && windup != null && windup.prefab != null && windup.impactAt > 0f)
+                        if (special && windup != null && windup.IsProjectile)
+                        {
+                            // Projectile Special (Inferno): the formation effect plays at the caster's claws
+                            // while it casts; at `launchAt` the projectile flies to the target at a fixed
+                            // speed (its travel loop lasts exactly the flight); the per-target impact spawns
+                            // on arrival and damage / hit reads land on its burst frame (`impactLead`).
+                            float t0 = Time.time;
+                            Vector3 from = actor.AttackFxAnchor.position;
+                            Vector3 to = target != null ? target.ImpactFxAnchor.position
+                                                        : from + (actor.IsFacingLeft ? Vector3.left : Vector3.right) * 2f;
+                            float flight = Vector3.Distance(from, to) / Mathf.Max(0.5f, windup.travelSpeed);
+                            Debug.Log($"[BattleManager] special {actor.className} projectile launchAt={windup.launchAt:F2}s dist={Vector3.Distance(from, to):F2} flight={flight:F2}s impactLead={windup.impactLead:F2}s");
+                            StartCoroutine(actor.PlayAttack(targetPos, attackDuration, false, null));
+                            float untilLaunch = windup.launchAt - (Time.time - t0);
+                            if (untilLaunch > 0f) yield return new WaitForSeconds(untilLaunch);
+                            yield return BattleVfxLibrary.Fly(windup, from, to);
+                            if (target != null) BattleVfxLibrary.Spawn(impactSlot, actor, target, this);
+                            if (windup.impactLead > 0f) yield return new WaitForSeconds(windup.impactLead);
+                            ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot, spawnImpactFx: false);
+                            ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
+                            ApplyStatusEvents(data);
+                            float impactClip = impactSlot != null ? BattleVfxLibrary.ClipLength(impactSlot.prefab) : 0f;
+                            yield return new WaitForSeconds(Mathf.Max(hitDuration * 0.5f, impactClip - windup.impactLead - 0.15f));
+                        }
+                        else if (special && windup != null && windup.prefab != null && windup.impactAt > 0f)
                         {
                             // Cinematic Special (e.g. Maelstrom): the effect owns the timing. The caster
                             // plays its cast swing now; damage, hit reads and per-target impacts land at
@@ -527,7 +552,7 @@ public class BattleManager : MonoBehaviour
     /// <summary>Apply a turn's damage/heal events to the affected controllers with hit reads.
     /// Primary = the actor's own attack/special hits (played at the impact frame);
     /// secondary = counter/reflect/bleed/self events (played right after).</summary>
-    private void ApplyTurnEvents(TurnPlayData data, LobsterController actor, Vector3 actorPos, bool primaryOnly, bool includePrimary = false, BattleVfxLibrary.VfxSlot impactSlot = null)
+    private void ApplyTurnEvents(TurnPlayData data, LobsterController actor, Vector3 actorPos, bool primaryOnly, bool includePrimary = false, BattleVfxLibrary.VfxSlot impactSlot = null, bool spawnImpactFx = true)
     {
         if (data.heals != null && (primaryOnly || includePrimary))
         {
@@ -548,7 +573,7 @@ public class BattleManager : MonoBehaviour
             if (!primaryOnly && primary && !includePrimary) continue;
             t.ApplyDamage(d.amount);
             DamageApplied?.Invoke(t, d.amount, d.kind, d.isCrit);
-            BattleVfxLibrary.Spawn(primary && impactSlot != null ? impactSlot : vfxLibrary?.attackImpact, actor, t, this);
+            if (spawnImpactFx || !primary) BattleVfxLibrary.Spawn(primary && impactSlot != null ? impactSlot : vfxLibrary?.attackImpact, actor, t, this);
             Vector3 from = t == actor ? t.transform.position + Vector3.right : actorPos;
             StartCoroutine(t.PlayHit(hitDuration, from));
         }

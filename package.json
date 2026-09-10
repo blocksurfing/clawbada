@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "scripts/e2e"
   ],
   "scripts": {
     "dev:api": "bun run --filter @clawbada/api dev",
@@ -20,7 +21,8 @@
     "extract-abis": "bun run packages/chain/scripts/extract-abis.ts",
     "forge:build": "forge build",
     "forge:test": "forge test",
-    "prepare": "husky"
+    "prepare": "husky",
+    "e2e": "bun run --filter @clawbada/e2e start"
   },
   "overrides": {
     "viem": "^2.21.0"

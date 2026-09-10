@@ -51,3 +51,8 @@ packages/UserSettings/
 
 # Unity Performance Testing package scratch, written on every build
 packages/battle-engine/ClawbadaBattle/Assets/Resources/PerformanceTestRun*
+
+# local e2e run artifacts
+scripts/e2e/.runs/
+broadcast/
+deployments/base-sepolia.json
