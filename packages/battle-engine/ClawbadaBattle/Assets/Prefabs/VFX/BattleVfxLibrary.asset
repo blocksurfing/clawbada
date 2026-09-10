@@ -129,17 +129,17 @@ MonoBehaviour:
     travelSpeed: 7
     launchAt: 0
     impactLead: 0
-  - prefab: {fileID: 0}
-    anchor: 2
+  - prefab: {fileID: 2829630902376267146, guid: d9996599837449f2bb4874d0e75063a9, type: 3}
+    anchor: 0
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
     hideChildrenPrefix: 
     onTop: 0
-    travelPrefab: {fileID: 0}
-    travelSpeed: 7
-    launchAt: 0
-    impactLead: 0
+    travelPrefab: {fileID: 1477470113331906288, guid: 8c40182493084162bc4ce558b2182cd5, type: 3}
+    travelSpeed: 5.5
+    launchAt: 0.5
+    impactLead: 0.083333336
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
@@ -195,6 +195,12 @@ MonoBehaviour:
     travelSpeed: 7
     launchAt: 1.8333334
     impactLead: 0.41666666
+  statusVisuals:
+  - status: haunt
+    spawn: {fileID: 5622220106418988105, guid: 602feb341cc548bcb941926bb2197816, type: 3}
+    loop: {fileID: 8104621801275862504, guid: 5ae1677d78514144bbeb140ed53b2d23, type: 3}
+    end: {fileID: 1748921289384165550, guid: a6d61d23ad484644a2213c96a572863d, type: 3}
+    yOffset: 0
   specialImpactByClass:
   - prefab: {fileID: 0}
     anchor: 2
@@ -240,10 +246,10 @@ MonoBehaviour:
     travelSpeed: 7
     launchAt: 0
     impactLead: 0
-  - prefab: {fileID: 0}
-    anchor: 2
+  - prefab: {fileID: 6797530525760967097, guid: fecd1b04c8374c0895b2c17da43edfbf, type: 3}
+    anchor: 1
     delay: 0
-    mirrorWithFacing: 1
+    mirrorWithFacing: 0
     impactAt: 0
     hideChildrenPrefix: 
     onTop: 0

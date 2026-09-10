@@ -355,6 +355,7 @@ public class LobsterController : MonoBehaviour
         {
             foreach (var s in u.statuses) if (s != null && !string.IsNullOrEmpty(s.type)) statuses.Add(s);
         }
+        SyncStatusVfx();
         if (snapPosition && grid != null && (col != u.col || row != u.row))
         {
             col = u.col;
@@ -386,6 +387,78 @@ public class LobsterController : MonoBehaviour
     {
         statuses.RemoveAll(s => s.type == type);
         if (applied) statuses.Add(new StatusData { type = type, turns = turns });
+        if (applied) ShowStatusVfx(type, animateIn: true);
+        else HideStatusVfx(type, animateOut: true);
+    }
+
+    // ─── Status visuals (persistent marks such as Haunt's sigil) ───
+
+    private readonly Dictionary<string, GameObject> statusFx = new();
+    private readonly Dictionary<string, Coroutine> statusFxPending = new();
+
+    /// <summary>Show the bound visual for a status: spawn one-shot, then the loop (parented so it
+    /// follows hex moves and mirrors with facing). Idempotent while the status stays active.</summary>
+    private void ShowStatusVfx(string type, bool animateIn)
+    {
+        var def = vfx != null ? vfx.StatusFor(type) : null;
+        if (def == null || (def.loop == null && def.spawn == null) || deathPlayed) return;
+        if (statusFx.ContainsKey(type) || statusFxPending.ContainsKey(type)) return;
+        if (animateIn && def.spawn != null) statusFxPending[type] = StartCoroutine(SpawnThenLoop(type, def));
+        else AttachStatusLoop(type, def);
+    }
+
+    private IEnumerator SpawnThenLoop(string type, BattleVfxLibrary.StatusVfx def)
+    {
+        AttachStatusChild(def.spawn, def);                       // one-shot: destroys itself
+        yield return new WaitForSeconds(BattleVfxLibrary.ClipLength(def.spawn));
+        statusFxPending.Remove(type);
+        if (!deathPlayed && statuses.Exists(s => s.type == type)) AttachStatusLoop(type, def);
+    }
+
+    private void AttachStatusLoop(string type, BattleVfxLibrary.StatusVfx def)
+    {
+        if (def.loop == null || statusFx.ContainsKey(type)) return;
+        var go = AttachStatusChild(def.loop, def);
+        var oneShot = go.GetComponent<OneShotVfx>();
+        if (oneShot != null) Destroy(oneShot);                   // loops live until the status ends
+        statusFx[type] = go;
+    }
+
+    private GameObject AttachStatusChild(GameObject prefab, BattleVfxLibrary.StatusVfx def)
+    {
+        var go = Instantiate(prefab, transform);
+        go.transform.localPosition = new Vector3(0f, def.yOffset, 0f);
+        go.transform.localRotation = Quaternion.identity;
+        go.transform.localScale = Vector3.one;
+        // Sorted inside this rig's SortingGroup by the prefab's own sortingOrder (sigils < 0 = under the body).
+        foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>(true)) sr.sortingLayerName = DepthSort.Layer;
+        return go;
+    }
+
+    private void HideStatusVfx(string type, bool animateOut)
+    {
+        if (statusFxPending.TryGetValue(type, out var co)) { if (co != null) StopCoroutine(co); statusFxPending.Remove(type); }
+        bool wasShown = statusFx.TryGetValue(type, out var go);
+        if (wasShown) { if (go != null) Destroy(go); statusFx.Remove(type); }
+        var def = vfx != null ? vfx.StatusFor(type) : null;
+        if (animateOut && wasShown && def != null && def.end != null && !deathPlayed) AttachStatusChild(def.end, def);
+    }
+
+    /// <summary>Drop every status visual at once (death, re-init) — no end animations.</summary>
+    private void ClearStatusVfx()
+    {
+        foreach (var co in statusFxPending.Values) if (co != null) StopCoroutine(co);
+        statusFxPending.Clear();
+        foreach (var go in statusFx.Values) if (go != null) Destroy(go);
+        statusFx.Clear();
+    }
+
+    /// <summary>Reconcile visuals with the status list after a snapshot (reconnect / un-animated turn).</summary>
+    private void SyncStatusVfx()
+    {
+        var shown = new List<string>(statusFx.Keys);
+        foreach (var key in shown) if (!statuses.Exists(s => s.type == key)) HideStatusVfx(key, animateOut: true);
+        foreach (var st in statuses) ShowStatusVfx(st.type, animateIn: false);
     }
 
     /// <summary>Corpse look: near-black and almost transparent — a faint crumpled pile.</summary>
@@ -405,6 +478,7 @@ public class LobsterController : MonoBehaviour
     /// disabled, so nothing can move the corpse again) and fade to the corpse tint.</summary>
     public IEnumerator PlayDeath(float duration)
     {
+        ClearStatusVfx();
         if (deathPlayed) yield break;
         deathPlayed = true;
         alive = false;
@@ -428,6 +502,7 @@ public class LobsterController : MonoBehaviour
     /// <summary>Hold the last Die frame and stop the Animator: dead lobsters never move.</summary>
     public void FreezeAsCorpse()
     {
+        ClearStatusVfx();
         if (animator != null && animator.enabled)
         {
             if (animator.HasState(0, DieHash))
