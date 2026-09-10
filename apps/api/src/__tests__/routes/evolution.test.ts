@@ -50,6 +50,7 @@ function _serializeBigInts(obj: any): any {
 }
 
 mock.module('../../lib/chain', () => ({
+  readEvolutionCost: mock(async (tier: number) => [2000n, 10000n, 50000n][tier] * 10n ** 18n),
   readLobster: mockReadLobster,
   serializeBigInts: _serializeBigInts,
 }));
@@ -119,6 +120,11 @@ describe('evolution routes', () => {
       expect(body.steps).toHaveLength(2);
       expect(body.steps[0].description).toContain('Approve');
       expect(body.steps[1].description).toContain('Evolve');
+      // The approve step carries the contract's wei cost (2,000 $CLAW), not the display number.
+      expect(body.preview.clawCost).toBe('2000');
+      expect(body.preview.clawCostWei).toBe((2000n * 10n ** 18n).toString());
+      const approve = (mockEncodeFunctionData.mock.calls as unknown as any[][]).find((c) => c[0]?.functionName === 'approve');
+      expect(approve?.[0]?.args?.[1]).toBe(2000n * 10n ** 18n);
       expect(body.preview).toBeDefined();
     });
 

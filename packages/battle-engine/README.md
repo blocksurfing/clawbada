@@ -179,6 +179,18 @@ places full-screen layers at the camera centre above arena + lobsters; `hideChil
 disables designer timing-guide children. `MaelstromVfxBinder` builds the electric-hit prefab
 and binds the library. Web animation watchdog: 12 s.
 
+Projectile Specials (2026-09-10, Ember Inferno first): a Special slot with a `travelPrefab` is a
+projectile — `BattleManager` faces the caster at its target, spawns the formation windup at the
+caster's `AttackFX` while the cast swing plays, waits `launchAt`, then `BattleVfxLibrary.Fly`
+moves the looping travel prefab from the windup's position to the target's `ImpactFX` at
+`travelSpeed` (the loop runs for exactly the flight time — distance / speed — mirrored for
+leftward shots and pitched along the path, sorted above the board). On arrival the per-target
+impact spawns and damage / hit reads land `impactLead` later (the burst frame). `VfxSlot.onTop`
+sorts per-target impacts above full-screen layers (the Maelstrom hit was drawn behind the storm's
+dim overlay). `InfernoVfxBinder` builds the three prefabs from the designer's sheets at 12 fps
+(`BindAll` also re-runs the Maelstrom binder). Windups now spawn after the caster turns to face
+its target, so a mirrored windup faces the right way.
+
 Reconnects (2026-09-08): the WS auth expires every 5 min and the client reconnects with a fresh
 snapshot. `BattleStage` sends `InitBattle` once per battle and hands later snapshots of the same
 battle to Unity as `SyncUnits` — re-initialising mid-battle respawned every rig (dead lobsters
