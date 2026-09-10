@@ -19,6 +19,25 @@ export interface WatcherConfig {
 const isTestnet = process.env.CHAIN_ENV !== 'mainnet';
 const BACKFILL_BATCH_SIZE = 2000n;
 
+/** `INDEXER_START_BLOCK` as a bigint, or null when unset / not a non-negative integer. */
+export function parseStartBlock(raw: string | undefined): bigint | null {
+  if (raw === undefined || raw.trim() === '') return null;
+  if (!/^\d+$/.test(raw.trim())) return null;
+  return BigInt(raw.trim());
+}
+
+/**
+ * Where a watcher's backfill starts. A stored `lastProcessedBlock` always wins (resume from
+ * the next block). On a cold start (no row) the configured start block is used, so a fresh
+ * database catches up on everything since the deploy — including `SeasonStarted` from
+ * Configure, which the boost epoch clock needs. Unset on a cold start → null: live only.
+ */
+export function resolveBackfillStart(lastBlock: bigint, configuredStart: bigint | null, currentBlock: bigint): bigint | null {
+  const from = lastBlock > 0n ? lastBlock + 1n : configuredStart;
+  if (from === null || from > currentBlock) return null;
+  return from;
+}
+
 export abstract class EventWatcher {
   protected running = false;
   protected unwatch?: () => void;
@@ -47,9 +66,16 @@ export abstract class EventWatcher {
 
     this.log.info({ fromBlock: lastBlock.toString(), currentBlock: currentBlock.toString() }, 'Starting watcher');
 
-    // Backfill missed blocks
-    if (lastBlock > 0n && lastBlock < currentBlock) {
-      await this.backfill(client, lastBlock + 1n, currentBlock);
+    // Backfill missed blocks (resume), or everything since INDEXER_START_BLOCK on a cold start.
+    const configuredStart = parseStartBlock(process.env.INDEXER_START_BLOCK);
+    const backfillFrom = resolveBackfillStart(lastBlock, configuredStart, currentBlock);
+    if (backfillFrom !== null) {
+      await this.backfill(client, backfillFrom, currentBlock);
+    } else if (lastBlock === 0n) {
+      this.log.warn(
+        { currentBlock: currentBlock.toString() },
+        'cold start with no INDEXER_START_BLOCK — watching live from the current block; events emitted before now (e.g. SeasonStarted) are not indexed',
+      );
     }
 
     // Start live watching

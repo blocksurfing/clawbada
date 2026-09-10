@@ -174,6 +174,9 @@ export class BattleWatcher extends EventWatcher {
             stakeBracket: 0,
             stakeAmount: stakeDisplay.toString(),
             phase: 1, // BattlePhase.Deposit
+            // The battle exists on-chain (BattleCreated fired), so the row is `created`;
+            // without this the session poller (phase = 4 AND status = 1) never claims it.
+            status: 1,
             // F-04: matchmaker's power snapshot is canonical. Defensive cast —
             // viem may surface the args as numbers or bigints depending on
             // version; Number(...) handles both for the smallint columns.
