@@ -1,17 +1,39 @@
 /**
- * Random practice rosters (`random_<tier>` presets): three distinct classes drawn from all
- * ten, each with real random genetics (randomDNA) so Unity rigs and HUD portraits composite
- * mixed-class body parts and purity follows from the DNA.
+ * Rolled practice rosters. `random_<tier>` draws three distinct classes from all ten;
+ * `trio_<class>` fields three of one class; `specials` fields one of each class whose Special
+ * VFX is finished. All three use real random genetics (randomDNA), so Unity rigs and HUD
+ * portraits composite mixed-class body parts.
  */
 import { v3, EvolutionTier, LobsterClass, randomDNA, calculatePurity } from '@clawbada/game-logic';
 
 export const RANDOM_PRESET_RE = /^random_(evolved|elite|apex)$/;
+/**
+ * Classes whose Special VFX are finished and bound in the battle engine — Tempest Maelstrom,
+ * Specter Haunt, Ember Inferno. Append a class here as its drop lands; the `specials` preset
+ * and the picker entry follow automatically.
+ */
+export const VFX_READY_CLASSES = ['ember', 'tempest', 'specter'] as const;
+/** `specials[_<tier>]`: one lobster of each VFX-ready class — every finished Special in one battle. */
+export const SPECIALS_PRESET_RE = /^specials(?:_(evolved|elite|apex))?$/;
 /** `trio_<class>[_<tier>]`: three lobsters of one class (default Elite) — for exercising one Special on demand. */
 export const TRIO_PRESET_RE = /^trio_(bulwark|mantis|leviathan|tempest|specter|sentinel|reaver|abyss|kraken|ember)(?:_(evolved|elite|apex))?$/;
 const CLASS_BY_NAME: Record<string, LobsterClass> = {
   bulwark: LobsterClass.Bulwark, mantis: LobsterClass.Mantis, leviathan: LobsterClass.Leviathan, tempest: LobsterClass.Tempest, specter: LobsterClass.Specter,
   sentinel: LobsterClass.Sentinel, reaver: LobsterClass.Reaver, abyss: LobsterClass.Abyss, kraken: LobsterClass.Kraken, ember: LobsterClass.Ember,
 };
+
+/**
+ * One lobster of each VFX-ready class (Ember, Tempest, Specter) with random genetics and
+ * purity 3, so a single practice battle shows every Special whose art is finished. Mirrored
+ * by default, so both sides cast them.
+ */
+export function rollSpecialsRoster(tierName = 'elite', rng: () => number = Math.random): RandomRoster {
+  const tier = RANDOM_TIERS[tierName];
+  if (tier === undefined) throw new Error(`unknown specials tier ${tierName}`);
+  const classes = VFX_READY_CLASSES.map((name) => CLASS_BY_NAME[name]);
+  const dna = classes.map((c) => randomDNA(c, rng));
+  return { tier, classes, purity: dna.map(() => 3), partClassIds: dna.map((d) => v3.partClassIds(d)), dna };
+}
 
 /** Three of one class with random genetics; purity is forced to 3 so the Special is a typical bred one. */
 export function rollTrioRoster(className: string, tierName = 'elite', rng: () => number = Math.random): RandomRoster {
