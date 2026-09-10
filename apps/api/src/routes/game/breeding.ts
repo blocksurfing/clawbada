@@ -10,7 +10,7 @@ import {
 } from '@clawbada/game-logic';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
-import { readLobster, readCooldownEnd, serializeBigInts } from '../../lib/chain';
+import { readLobster, readCooldownEnd, readBreedCost, serializeBigInts } from '../../lib/chain';
 import { buildCalldata, multiStep } from '../../lib/calldata';
 
 export const breedingRoutes = new Hono();
@@ -141,12 +141,14 @@ breedingRoutes.post(
     if (cdB > now) throw new ApiError('COOLDOWN_ACTIVE', `Parent B (#${parentBId}) is on cooldown`);
 
     const cost = totalBreedCost(parentA.breedCount, parentA.generation, parentB.breedCount, parentB.generation);
+    // BreedingLab charges wei per its own schedule; approve exactly what it will pull.
+    const costWei = await readBreedCost(parentA, parentB);
 
     const approveCalldata = buildCalldata(
       addresses.clawToken,
       ClawTokenAbi as any,
       'approve',
-      [addresses.breedingLab, cost],
+      [addresses.breedingLab, costWei],
     );
 
     const breedCalldata = buildCalldata(
@@ -161,7 +163,7 @@ breedingRoutes.post(
         { description: `Approve ${cost} $CLAW for breeding`, calldata: approveCalldata },
         { description: 'Breed two lobsters', calldata: breedCalldata },
       ),
-      preview: serializeBigInts({ totalCost: cost, parentA: parentAId, parentB: parentBId }),
+      preview: serializeBigInts({ totalCost: cost, totalCostWei: costWei, parentA: parentAId, parentB: parentBId }),
     });
   }),
 );
