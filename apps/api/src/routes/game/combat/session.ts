@@ -4,6 +4,7 @@
  *
  * POST /api/game/combat/practice          — start an off-chain practice battle vs a bot
  * POST /api/game/combat/:battleId/turn    — submit the current turn { turn, command }
+ * POST /api/game/combat/:battleId/forfeit — resign: the caller's side forfeits
  * GET  /api/game/combat/:battleId/state   — battle_snapshot (live or persisted)
  * GET  /api/game/combat/:battleId/turns   — applied turns (replaces V2 /rounds)
  * GET  /api/game/combat/:battleId/legal   — legal commands for the caller's current actor
@@ -165,6 +166,25 @@ sessionRoutes.post(
       return c.json({ error: 'BATTLE_PHASE_ERROR', code: res.code, message: res.message, turn: res.turn }, 409);
     }
     return c.json({ accepted: true, duplicate: res.duplicate, result: res.result });
+  }),
+);
+
+// ──────────── POST /:battleId/forfeit ────────────
+
+sessionRoutes.post(
+  '/:battleId/forfeit',
+  walletAuth,
+  catchErrors(async (c) => {
+    const { battleId } = c.req.param();
+    assertBattleId(battleId);
+    const address = (c.get('address') as string).toLowerCase();
+    const res = battleSessions.forfeit(battleId, address);
+    if (!res.ok) {
+      if (res.code === 'session_not_found') throw new ApiError('NOT_FOUND', res.message);
+      if (res.code === 'not_participant') throw new ApiError('UNAUTHORIZED', res.message);
+      return c.json({ error: 'BATTLE_PHASE_ERROR', code: res.code, message: res.message }, 409);
+    }
+    return c.json({ ok: true, winner: res.winner });
   }),
 );
 
