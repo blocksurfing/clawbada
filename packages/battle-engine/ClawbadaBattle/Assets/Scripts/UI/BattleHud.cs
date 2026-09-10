@@ -33,13 +33,14 @@ public class BattleHud : MonoBehaviour
     public ResultBanner Banner { get; private set; }
     public ActiveMarker Marker { get; private set; }
     public ActionBar Bar { get; private set; }
+    /// <summary>Gear menu, top-right. Participants only; carries the forfeit.</summary>
+    public OptionsMenu Options { get; private set; }
     public IReadOnlyDictionary<string, UnitOverlay> Overlays => overlays;
 
     private BattleManager manager;
     private RectTransform canvasRect;
     private RectTransform overlayLayer;
     private RectTransform floatLayer;
-    private BadgeView badgeA, badgeB;
     private readonly Dictionary<string, UnitOverlay> overlays = new();
     private Camera cam;
     private string activeId = "";
@@ -83,8 +84,6 @@ public class BattleHud : MonoBehaviour
 
         overlayLayer = HudFactory.Stretch(canvasRect, "Overlays");
         Strip = TurnStrip.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
-        badgeA = BadgeView.Create(canvasRect, "BadgeA", skin, left: true);
-        badgeB = BadgeView.Create(canvasRect, "BadgeB", skin, left: false);
         Panel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
         clockBox = HudFactory.Rect(canvasRect, "ClockBox", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-8f, 34f), new Vector2(96f, 40f));
         HudFactory.AddImage(clockBox, skin.panelBg, new Color(1f, 1f, 1f, 0.92f));
@@ -97,6 +96,8 @@ public class BattleHud : MonoBehaviour
         var bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
         Bar.UndoPressed += () => bridge?.NotifyUndoMove();
+        Options = OptionsMenu.Create(canvasRect, skin);
+        Options.ForfeitConfirmed += () => bridge?.NotifyForfeit();
         floatLayer = HudFactory.Stretch(canvasRect, "Floats");
         Banner = ResultBanner.Create(canvasRect, skin);
         Marker = ActiveMarker.Create(skin);
@@ -160,11 +161,11 @@ public class BattleHud : MonoBehaviour
         Strip.Bind(manager.Lobsters);
         Strip.SetEntries("", null);
 
+        // Team corners used to carry TEAM A · YOU / TEAM B · BOT plates. Sides read from
+        // facing, the move prompt and the active-lobster card, so the corners stay clear —
+        // which is also where the gear now lives.
         string playerSide = init?.playerSide ?? "";
-        string kindA = playerSide == "A" ? init.playerBadge : playerSide == "B" ? init.opponentBadge : "";
-        string kindB = playerSide == "B" ? init.playerBadge : init?.opponentBadge ?? "";
-        badgeA.Set("TEAM A" + (playerSide == "A" ? " · YOU" : ""), kindA, Skin.teamA);
-        badgeB.Set("TEAM B" + (playerSide == "B" ? " · YOU" : ""), kindB, Skin.teamB);
+        Options.SetAvailable(playerSide == "A" || playerSide == "B");
 
         activeId = "";
         Panel.Hide();
@@ -283,6 +284,7 @@ public class BattleHud : MonoBehaviour
 
     private void OnBattleEnded(BattleEndData data)
     {
+        Options.SetAvailable(false);
         Panel.Hide();
         SetClock(0);
         Marker.Hide();
@@ -302,6 +304,9 @@ public class BattleHud : MonoBehaviour
 
     public void ShowBanner(string winner, bool playerWon, string reason, string playerSide)
     {
+        // The banner means the battle is decided, whoever raised it (live end, demo loop, test):
+        // there is nothing left to forfeit.
+        Options.SetAvailable(false);
         Banner.Show(winner, playerWon, reason, playerSide);
     }
 

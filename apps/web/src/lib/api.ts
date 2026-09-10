@@ -515,6 +515,9 @@ const combat = {
   createPractice: (body: CreatePracticeBody, auth: AuthHeaders) => post<{ battleId: string; snapshot: BattleSnapshot }>('/api/game/combat/practice', body, auth),
   submitTurn: (battleId: string, turn: number, command: TurnCommand, auth: AuthHeaders) =>
     post<{ accepted: boolean; duplicate: boolean; result: unknown }>(`/api/game/combat/${battleId}/turn`, { turn, command }, auth),
+  /** Quit a live battle: the caller loses, the opponent wins, both clients get battle_ended. */
+  forfeit: (battleId: string, auth: AuthHeaders) =>
+    post<{ ok: true; winner: 'A' | 'B' }>(`/api/game/combat/${battleId}/forfeit`, undefined, auth),
   getState: (battleId: string, auth?: AuthHeaders) => get<BattleSnapshot>(`/api/game/combat/${battleId}/state`, auth),
   getTurns: (battleId: string, auth?: AuthHeaders) => get<{ battleId: string; count: number; turns: unknown[] }>(`/api/game/combat/${battleId}/turns`, auth),
   getLegal: (battleId: string, auth: AuthHeaders) => get<{ turn: number; lobsterId: string; commands: TurnCommand[] }>(`/api/game/combat/${battleId}/legal`, auth),

@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { useBattleSession } from '@/hooks/use-battle-session';
 import type { Side, TurnCommand } from '@/lib/battle-protocol';
@@ -34,7 +35,7 @@ export interface LiveBattleProps {
 }
 
 export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed }: LiveBattleProps) {
-  const { getAuthParams } = useAuth();
+  const { getAuthParams, getAuthHeaders } = useAuth();
   const [unityAvailable, setUnityAvailable] = useState<boolean | null>(null);
   const [unityReady, setUnityReady] = useState(false);
   const gate = unityAvailable === true && unityReady;
@@ -138,6 +139,23 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   }, [autoPlay, canAct, pendingAck, snapshot, current, onSubmit]);
 
   const handleUnavailable = useCallback(() => setUnityAvailable(false), []);
+
+  // Forfeit from the in-canvas gear menu (already confirmed there). The server ends the
+  // battle and broadcasts battle_ended to both sockets, so there is no local state to set.
+  const [forfeitError, setForfeitError] = useState<string | null>(null);
+  const handleForfeit = useCallback(async () => {
+    if (isSpectator || ended) return;
+    try {
+      setForfeitError(null);
+      const auth = await getAuthHeaders();
+      const res = await api.combat.forfeit(battleId, auth);
+      console.log(`[LiveBattle] forfeit accepted — ${res.winner} wins`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not forfeit';
+      console.warn('[LiveBattle] forfeit failed', e);
+      setForfeitError(msg);
+    }
+  }, [battleId, ended, isSpectator, getAuthHeaders]);
   const handleReady = useCallback(() => { setUnityAvailable(true); setUnityReady(true); }, []);
 
   if (!snapshot) {
@@ -170,6 +188,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
       {/* Stage: Unity when deployed, SVG board otherwise */}
       {unityAvailable !== false && (
         <BattleStage
+          onForfeit={handleForfeit}
           speed={speed}
           snapshot={snapshot}
           snapshotSeq={snapshotSeq}
@@ -234,6 +253,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
           {(timeouts.A > 0 || timeouts.B > 0) && <span>⏱ A {timeouts.A} · B {timeouts.B}</span>}
           {sentTurn !== null && sentTurn === current?.turn && <span>Sending…</span>}
           {error && (error.turn === undefined || error.turn === current?.turn) && <span className="text-destructive">{error.code}: {error.message}</span>}
+          {forfeitError && <span className="text-destructive">Forfeit failed: {forfeitError}</span>}
         </div>
       )}
 

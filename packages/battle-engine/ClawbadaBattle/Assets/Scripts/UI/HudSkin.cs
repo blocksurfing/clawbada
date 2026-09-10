@@ -43,7 +43,17 @@ public class HudSkin : ScriptableObject
     public Sprite badgeHuman;
     public Sprite badgeAgent;
     public Sprite badgeBot;
+    public Sprite iconGear;     // options menu
     public StatusIcon[] statusIcons;
+
+    [Header("Action plates (painted, one per action — Clawbada/Generate HUD Button Art)")]
+    public Sprite btnAttack;
+    public Sprite btnSpecial;
+    public Sprite btnDefend;
+    public Sprite btnWait;
+    public Sprite btnNeutral;   // undo
+    public Sprite btnGear;      // options
+    public Sprite hexGlow;      // armed ring, drawn over the plate
 
     [Header("Cards (LOKR-style)")]
     public Sprite cardFrame;    // 9-sliced bevelled frame

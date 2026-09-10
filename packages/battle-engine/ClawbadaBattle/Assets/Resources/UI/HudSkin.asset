@@ -22,17 +22,18 @@ MonoBehaviour:
   panelBg: {fileID: 21300000, guid: baaaa8c55d9084cd485654366d798c67, type: 3}
   pip: {fileID: 21300000, guid: 1da441772296a4d8981b8fd518c46977, type: 3}
   ring: {fileID: 21300000, guid: afffb56f760b74b0daf0ad67a8b4a039, type: 3}
-  iconAttack: {fileID: 21300000, guid: d840c9b13ea6c48efb24196aaa413599, type: 3}
-  iconSpecial: {fileID: 21300000, guid: 3c1fe88a4d93d43e4b79cdc6e2cd1e22, type: 3}
-  iconDefend: {fileID: 21300000, guid: 020ae438d0deb42418bd61ac6d54f918, type: 3}
-  iconWait: {fileID: 21300000, guid: 7f0c1cda01e0341958d941233eecb5eb, type: 3}
-  iconUndo: {fileID: 21300000, guid: a74f422a640634e5d921c7f075728fc3, type: 3}
+  iconAttack: {fileID: 21300000, guid: 5347c80b1461f43b3a31a7f458485d38, type: 3}
+  iconSpecial: {fileID: 21300000, guid: 075f44d10a1ca450c8d86337ac77ce13, type: 3}
+  iconDefend: {fileID: 21300000, guid: 061d784a863fb4875bfd21776d51ce84, type: 3}
+  iconWait: {fileID: 21300000, guid: 2e83d19b543374434ab95b8d00af39ca, type: 3}
+  iconUndo: {fileID: 21300000, guid: 3b6de39f221444258a0140d95a45cf45, type: 3}
   iconClock: {fileID: 21300000, guid: 661fb350622d14041a44f869d7da7111, type: 3}
   iconKo: {fileID: 21300000, guid: f32b3cef01b684a208b78da74fc5aa6a, type: 3}
   iconShield: {fileID: 21300000, guid: 27f244500e6fe47bdab48ee036c0d05b, type: 3}
   badgeHuman: {fileID: 21300000, guid: 0ebed3efc167f431eb3f5bc48dcee531, type: 3}
   badgeAgent: {fileID: 21300000, guid: 49de3c9f532a7466b810090e550e103c, type: 3}
   badgeBot: {fileID: 21300000, guid: ec323ed103f51447baf8efbd288d2323, type: 3}
+  iconGear: {fileID: 21300000, guid: 4abb94a9d839f400d80350fe1ff760ca, type: 3}
   statusIcons:
   - status: bleed
     sprite: {fileID: 21300000, guid: 95266cc68682b4c56a3ad7e9073c6cc7, type: 3}
@@ -50,6 +51,13 @@ MonoBehaviour:
     sprite: {fileID: 21300000, guid: b6873d8d79f074af6a8c3acbb042bcb9, type: 3}
   - status: taunt
     sprite: {fileID: 21300000, guid: ac50aa724b0bd4fcb9f1715693e2c4ee, type: 3}
+  btnAttack: {fileID: 21300000, guid: bdce6bbfd3c944ce6b358f9ee9b8dc3a, type: 3}
+  btnSpecial: {fileID: 21300000, guid: d1499b5ec4f2a45998ecd6d3dd6f6482, type: 3}
+  btnDefend: {fileID: 21300000, guid: cc7a64f3dd8354917b2a050149b3cb37, type: 3}
+  btnWait: {fileID: 21300000, guid: 10434a0c0dcc24b93bcf356750958991, type: 3}
+  btnNeutral: {fileID: 21300000, guid: a65b64430dc4e470bbfc3300ed96bdd6, type: 3}
+  btnGear: {fileID: 21300000, guid: 52b3630e3d2bf4250a72b9c746762fc9, type: 3}
+  hexGlow: {fileID: 21300000, guid: 660c82333a38e4b47b163d13b8fbc928, type: 3}
   cardFrame: {fileID: 21300000, guid: 22a19b238309e443eb0e5294fe0ebfcb, type: 3}
   cardHeader: {fileID: 21300000, guid: 9e9164114ed374d988f13e03c4c4a70a, type: 3}
   pennant: {fileID: 21300000, guid: 9d8c0ae792c9649fead6141e3708912b, type: 3}
