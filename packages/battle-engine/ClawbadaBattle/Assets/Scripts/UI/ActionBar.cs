@@ -16,7 +16,7 @@ public class ActionBar : MonoBehaviour
 
     private HudSkin skin;
     private Button attack, special, defend, wait, undo;
-    private Image attackBg, specialBg, defendBg, waitBg;
+    private Image attackGlow, specialGlow, defendGlow, waitGlow;
     private Text specialLabel;
     private Text hint;
     private SelectionData last;
@@ -37,13 +37,13 @@ public class ActionBar : MonoBehaviour
         bar.hint.rectTransform.anchoredPosition = new Vector2(0f, 0f);
 
         float x0 = -pitch * 1.5f - 20f;
-        bar.attack = Make(bar, rt, "Attack", skin.iconAttack, "Attack", x0, () => bar.Press("attack"), out bar.attackBg);
-        bar.special = Make(bar, rt, "Special", skin.iconSpecial, "Special", x0 + pitch, () => bar.Press("special"), out bar.specialBg);
+        bar.attack = Make(bar, rt, "Attack", Plate(skin, skin.btnAttack), skin.iconAttack, "Attack", x0, () => bar.Press("attack"), out bar.attackGlow);
+        bar.special = Make(bar, rt, "Special", Plate(skin, skin.btnSpecial), skin.iconSpecial, "Special", x0 + pitch, () => bar.Press("special"), out bar.specialGlow);
         bar.specialLabel = bar.special.transform.Find("Label").GetComponent<Text>();
-        bar.defend = Make(bar, rt, "Defend", skin.iconDefend, "Defend", x0 + pitch * 2f, () => bar.Press("defend"), out bar.defendBg);
-        bar.wait = Make(bar, rt, "Wait", skin.iconWait, "Wait", x0 + pitch * 3f, () => bar.Press("none"), out bar.waitBg);
+        bar.defend = Make(bar, rt, "Defend", Plate(skin, skin.btnDefend), skin.iconDefend, "Defend", x0 + pitch * 2f, () => bar.Press("defend"), out bar.defendGlow);
+        bar.wait = Make(bar, rt, "Wait", Plate(skin, skin.btnWait), skin.iconWait, "Wait", x0 + pitch * 3f, () => bar.Press("none"), out bar.waitGlow);
 
-        bar.undo = HudFactory.Button(rt, "Undo", skin.hexBevel != null ? skin.hexBevel : skin.hexButton64, skin.iconUndo, "Undo", font, s * 0.7f, () => bar.PressUndo());
+        bar.undo = HudFactory.Button(rt, "Undo", Plate(skin, skin.btnNeutral), skin.iconUndo, "Undo", font, s * 0.7f, () => bar.PressUndo());
         var urt = bar.undo.GetComponent<RectTransform>();
         urt.anchorMin = urt.anchorMax = new Vector2(0.5f, 0f);
         urt.pivot = new Vector2(0.5f, 0f);
@@ -53,14 +53,31 @@ public class ActionBar : MonoBehaviour
         return bar;
     }
 
-    private static Button Make(ActionBar bar, RectTransform rt, string name, Sprite icon, string label, float x, UnityEngine.Events.UnityAction onClick, out Image bg)
+    /// <summary>Painted plate for an action, falling back to the placeholder bevel.</summary>
+    private static Sprite Plate(HudSkin skin, Sprite plate) =>
+        plate != null ? plate : skin.hexBevel != null ? skin.hexBevel : skin.hexButton64;
+
+    private static Button Make(ActionBar bar, RectTransform rt, string name, Sprite plate, Sprite icon, string label, float x, UnityEngine.Events.UnityAction onClick, out Image glow)
     {
-        var btn = HudFactory.Button(rt, name, bar.skin.hexBevel != null ? bar.skin.hexBevel : bar.skin.hexButton64, icon, label, bar.skin.FontOrDefault(), bar.skin.buttonSize, onClick);
+        var btn = HudFactory.Button(rt, name, plate, icon, label, bar.skin.FontOrDefault(), bar.skin.buttonSize, onClick);
         var brt = btn.GetComponent<RectTransform>();
         brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0f);
         brt.pivot = new Vector2(0.5f, 0f);
         brt.anchoredPosition = new Vector2(x, 0f);
-        bg = btn.GetComponent<Image>();
+
+        // Armed state is a warm ring straddling the plate edge instead of tinting the plate
+        // (the painted faces are already coloured, so a tint just muddies them). Sorted first
+        // so the glyph and caption stay on top. Sized from the sprites so it lines up exactly.
+        glow = null;
+        var ring = bar.skin.hexGlow;
+        if (ring != null && plate != null)
+        {
+            float w = bar.skin.buttonSize * (ring.rect.width / plate.rect.width);
+            float h = bar.skin.buttonSize * 1.143f * (ring.rect.height / plate.rect.height);
+            glow = HudFactory.Image(btn.transform, "Glow", ring, Color.white, new Vector2(w, h));
+            glow.transform.SetAsFirstSibling();
+            glow.enabled = false;
+        }
         return btn;
     }
 
@@ -93,11 +110,10 @@ public class ActionBar : MonoBehaviour
         undo.interactable = live;
 
         specialLabel.text = string.IsNullOrEmpty(d.specialName) ? "Special" : d.specialName;
-        Tint(attackBg, d.action == "attack");
-        Tint(specialBg, d.action == "special");
-        Tint(defendBg, d.action == "defend");
-        Tint(waitBg, d.action == "none");
-        specialBg.color = d.canSpecial ? specialBg.color : skin.buttonDisabled;
+        SetArmed(attackGlow, d.action == "attack");
+        SetArmed(specialGlow, d.action == "special");
+        SetArmed(defendGlow, d.action == "defend");
+        SetArmed(waitGlow, d.action == "none");
 
         hint.text = d.pendingAck ? "Sending…" : !string.IsNullOrEmpty(d.hint) ? d.hint : DefaultHint(d);
         Canvas.ForceUpdateCanvases();
@@ -114,9 +130,9 @@ public class ActionBar : MonoBehaviour
         }
     }
 
-    private void Tint(Image img, bool armed)
+    private static void SetArmed(Image glow, bool armed)
     {
-        img.color = armed ? skin.buttonArmed : skin.buttonNormal;
+        if (glow != null) glow.enabled = armed;
     }
 
     /// <summary>Harness signal: button rects in screen pixels (x, y-from-bottom, w, h).</summary>

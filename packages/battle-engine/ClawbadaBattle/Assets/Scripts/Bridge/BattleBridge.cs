@@ -28,6 +28,7 @@ public class BattleBridge : MonoBehaviour
     [DllImport("__Internal")] private static extern void SendTurnAnimationComplete(string json);
     [DllImport("__Internal")] private static extern void SendActionSelected(string json);
     [DllImport("__Internal")] private static extern void SendUndoMove();
+    [DllImport("__Internal")] private static extern void SendForfeit();
 
     private BattleManager battleManager;
     private HexGrid hexGrid;
@@ -201,6 +202,16 @@ public class BattleBridge : MonoBehaviour
         SendUndoMove();
         #else
         Debug.Log("[BattleBridge] UndoMove");
+        #endif
+    }
+
+    /// <summary>Options-menu forfeit, already confirmed by the player. React calls the API.</summary>
+    public void NotifyForfeit()
+    {
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendForfeit();
+        #else
+        Debug.Log("[BattleBridge] Forfeit");
         #endif
     }
 

@@ -144,6 +144,7 @@ export const JS_CALLBACKS = {
   ON_TURN_ANIMATION_COMPLETE: 'onTurnAnimationComplete',
   ON_ACTION_SELECTED: 'onActionSelected',
   ON_UNDO_MOVE: 'onUndoMove',
+  ON_FORFEIT: 'onForfeit',
 } as const;
 
 export interface UnityCallbackHandler {
@@ -154,6 +155,8 @@ export interface UnityCallbackHandler {
   /** In-canvas action bar (attack | special | defend | none). Optional until the bar ships. */
   onActionSelected?: (action: string) => void;
   onUndoMove?: () => void;
+  /** Options-menu forfeit, already confirmed in the canvas. React calls the API. */
+  onForfeit?: () => void;
 }
 
 /** Register the callbacks Unity's jslib calls. Returns a cleanup. */
@@ -168,6 +171,7 @@ export function registerUnityCallbacks(handlers: UnityCallbackHandler): () => vo
     [JS_CALLBACKS.ON_TURN_ANIMATION_COMPLETE]: (json) => handlers.onTurnAnimationComplete(JSON.parse(json ?? '{}').turn),
     [JS_CALLBACKS.ON_ACTION_SELECTED]: (json) => handlers.onActionSelected?.(JSON.parse(json ?? '{}').action),
     [JS_CALLBACKS.ON_UNDO_MOVE]: () => handlers.onUndoMove?.(),
+    [JS_CALLBACKS.ON_FORFEIT]: () => handlers.onForfeit?.(),
   };
   (window as unknown as { __clawbada?: unknown }).__clawbada = bridge;
   return () => {

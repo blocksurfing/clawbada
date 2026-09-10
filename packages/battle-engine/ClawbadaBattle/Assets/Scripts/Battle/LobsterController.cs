@@ -430,8 +430,11 @@ public class LobsterController : MonoBehaviour
         go.transform.localPosition = new Vector3(0f, def.yOffset, 0f);
         go.transform.localRotation = Quaternion.identity;
         go.transform.localScale = Vector3.one;
-        // Sorted inside this rig's SortingGroup by the prefab's own sortingOrder (sigils < 0 = under the body).
-        foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>(true)) sr.sortingLayerName = DepthSort.Layer;
+        // Depth is the prefab's own business: inside this rig's SortingGroup the child's
+        // sorting LAYER outranks its order, and the rig's parts sit on Default (0…15). Forcing
+        // the child onto Foreground here put Haunt's sigil in front of the body whatever its
+        // order said, so the layer is left exactly as the designer authored it (sigil = −5,
+        // under the body; an overhead mark would use an order above the parts).
         return go;
     }
 

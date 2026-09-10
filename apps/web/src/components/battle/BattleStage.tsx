@@ -45,6 +45,7 @@ export interface BattleStageProps {
   onLobsterClick: (id: string) => void;
   onActionSelected?: (action: string) => void;
   onUndoMove?: () => void;
+  onForfeit?: () => void;
   onUnavailable: () => void;
   onReady: () => void;
   /** Playback speed multiplier for Unity (1 = normal). Review tool: /battle/<id>?speed=2. */
@@ -119,6 +120,7 @@ function UnityStage(props: BattleStageProps) {
       onHexClicked: props.onHexClick,
       onActionSelected: props.onActionSelected,
       onUndoMove: props.onUndoMove,
+      onForfeit: props.onForfeit,
       onTurnAnimationComplete: (turn) => {
         if (watchdog.current) { clearTimeout(watchdog.current); watchdog.current = null; }
         animating.current = null;
@@ -126,7 +128,7 @@ function UnityStage(props: BattleStageProps) {
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove]);
+  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit]);
 
   useEffect(() => {
     if (initialisationError) {

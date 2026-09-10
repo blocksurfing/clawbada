@@ -216,6 +216,20 @@ death visuals have not run yet, and overlays whose rig was despawned are hidden.
 Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (bottom-right of the
 canvas); the stage element goes fullscreen and the canvas stays 16:9, letterboxed.
 
+HUD pass (2026-09-10): the action bar has painted plates instead of one shared bevel —
+`HudButtonArt` (menu *Clawbada ▸ Generate HUD Button Art*, headless `-executeMethod
+HudButtonArt.Generate`) rasterises six bevelled hex plates, an armed glow ring and six shaded
+glyphs from polygon/SDF geometry at 4x and box-downsamples them, so `HudSkin.btn*` / `hexGlow` /
+`icon*` are anti-aliased art rather than 1-bit stencils. `ActionBar` picks the plate per action
+and shows the glow ring for the armed action (tinting a coloured plate just muddied it).
+`OptionsMenu` adds the gear in the top-right corner with the in-battle forfeit (confirmed in the
+canvas, then `BattleBridge.NotifyForfeit` → `window.__clawbada.onForfeit` → React calls
+`POST /api/game/combat/:id/forfeit`); it is built for participants only and hidden once the
+result banner shows. The `TEAM A · YOU` / `TEAM B` corner badges are gone — facing, the move
+prompt and the active-lobster card already say whose turn it is, and the corner is now the gear's.
+Status visuals keep the sorting layer the designer authored (see DESIGNER_VFX_LANDING): forcing
+them onto Foreground put Haunt's sigil in front of the body.
+
 Review tools (2026-09-10): `BattleBridge.SetSpeed({speed})` sets `Time.timeScale` (0.25–4) so a
 designer can watch Specials faster or slower; the web sends it after `InitBattle` when the battle
 URL carries `?speed=`. `?auto=1` on the web makes the balanced bot policy play the wallet's own
