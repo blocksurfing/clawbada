@@ -47,6 +47,17 @@ Their client is behind: the turn number they submitted is not `state.turn + 1`. 
 **Someone disputes a settled battle.**
 Evidence lives in `battle_turns` (command, result, `post_state_hash` per turn) and `battle_sessions` (`final_state_hash`, `turn_log_hash`, `roster`, `vrf_round`). `v3.verifyLog(config, log)` re-executes the log and pinpoints the first inconsistent turn; `v3.turnLogHash` must equal the on-chain value.
 
+## A battle sits in AwaitingFinalize (phase 5)
+
+`BattleArena.settle` only proposes the result; the payout waits behind the bracket's dispute
+window (`payoutDeadline`: 5 min Low / 30 min Mid / 1 h High). The engine's **FinalizeWatcher**
+(`apps/engine/src/combat/finalize-watcher.ts`, `FINALIZE_POLL_MS`, default 10 s) calls the
+permissionless `finalizeBattle` once the **chain clock** (latest block timestamp) is past the
+deadline, then the indexer mirrors `BattleSettled` (phase 6, winner, payouts). If a battle
+stays in phase 5 after the window: check the engine log for `finalizeBattle failed`, confirm
+`getBattle(id).disputed` is false (disputed battles need `adminResolveDispute`), and that the
+operator key has gas. Anyone can also call `finalizeBattle(id)` by hand.
+
 ## Useful SQL
 
 ```sql
