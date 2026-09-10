@@ -81,7 +81,11 @@ impact beat (falls back to the generic `attackImpact`).
 
 Worked example — Tempest Maelstrom (`Clawbada ▸ VFX ▸ Bind Tempest Maelstrom` does this):
 `specialByClass[3]` = `FX_Tempest_Maelstrom` (CameraCenter, impactAt 3.9 s = the lightning
-flash, hide `Hit_`), `specialImpactByClass[3]` = `FX_Tempest_Maelstrom_Hit` (TargetImpactFx).
+flash, hide `Hit_`), `specialImpactByClass[3]` = `FX_Tempest_Maelstrom_Strike` (TargetImpactFx,
+onTop) — a composite the binder builds from the designer's `FX_Tempest_Maelstrom_LightningBolt`
+(5 frames, 48 × 304; the binder offsets it so the tip lands on the target and the bolt rises
+above — set the sheet's pivot to Custom/bottom if you want to author that yourself) plus the
+electric sparks on the body. Drop a new bolt or hit sheet and re-run the binder; nothing else changes.
 The turn holds until the storm is nearly done; the web watchdog allows 12 s per turn.
 
 Worked example — Ember Inferno (`Clawbada ▸ VFX ▸ Bind Ember Inferno`): the binder slices the

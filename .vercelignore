@@ -15,7 +15,9 @@ node_modules
 /docs
 /test
 /contracts
-/scripts
+/scripts/*
+!/scripts/e2e
+/scripts/e2e/.runs
 /.github
 /.claude
 /.agents
