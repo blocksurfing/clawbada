@@ -11,6 +11,8 @@ using System.Collections.Generic;
 ///     tiles, and painted art always agree on where a hex is,
 ///   • paints the visible board onto the runtime Tilemap with the designer's
 ///     hex_default tile (blocked cells stay unpainted — no tile = not walkable),
+///   • leaves the board empty at rest and paints hexes only for the current selection
+///     (see showBoardAtRest), so the arena reads as painted ground between turns,
 ///   • spawns one obstacle sprite per blocked cell (ObstacleLibrary, seeded pick per
 ///     cell) and rolls a deterministic random blocked set when a layout arrives
 ///     without one (ObstacleLayoutGenerator, seeded by battle id),
@@ -37,6 +39,12 @@ public class HexGrid : MonoBehaviour
     public TileBase selectedTile; // selected character's own hex
 
     [Header("Obstacles")]
+    [Tooltip("Paint the plain board tile on every open cell, so the whole grid is visible all the time. " +
+             "Off (default, LOKR-style): the board reads as painted arena floor and hexes appear only while a " +
+             "selection is on screen — i.e. the player's own turn, showing exactly where that lobster can go " +
+             "and what it can hit. Turn it on in the editor when authoring a layout.")]
+    public bool showBoardAtRest;
+
     [Tooltip("Tier-scoped obstacle sprites for blocked cells (Art/Obstacles/ObstacleLibrary).")]
     public ObstacleLibrary obstacleLibrary;
     [Tooltip("Parent for spawned obstacles. Defaults to this transform — NOT the designer's Grid, whose z-scale of 0 " +
@@ -118,7 +126,7 @@ public class HexGrid : MonoBehaviour
         {
             boardTilemap.ClearAllTiles();
             highlightedCells.Clear();
-            if (defaultTile != null)
+            if (defaultTile != null && showBoardAtRest)
             {
                 for (int r = 0; r < layout.rows; r++)
                 {
@@ -400,20 +408,17 @@ public class HexGrid : MonoBehaviour
             if (claimed.Add((h.col, h.row))) PaintHighlight(h.col, h.row, moveTile, MoveTint);
     }
 
-    /// <summary>Restore all highlighted cells back to the plain board tile.</summary>
+    /// <summary>Drop every highlight. The cells go back to the board's resting look: empty
+    /// (nothing but arena art) unless `showBoardAtRest` is on, in which case the plain tile
+    /// is repainted. Blocked cells are never painted either way — they carry an obstacle.</summary>
     public void ClearHighlights()
     {
         if (boardTilemap == null) { highlightedCells.Clear(); return; }
         foreach (var cell in highlightedCells)
         {
-            if (blocked.Contains((cell.x, cell.y)))
-            {
-                boardTilemap.SetTile(cell, null);
-            }
-            else
-            {
-                PaintDefaultTile(cell);
-            }
+            bool paintPlain = showBoardAtRest && defaultTile != null && !blocked.Contains((cell.x, cell.y));
+            if (paintPlain) PaintDefaultTile(cell);
+            else boardTilemap.SetTile(cell, null);
         }
         highlightedCells.Clear();
     }
