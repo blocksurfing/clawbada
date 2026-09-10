@@ -215,3 +215,10 @@ death visuals have not run yet, and overlays whose rig was despawned are hidden.
 
 Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (bottom-right of the
 canvas); the stage element goes fullscreen and the canvas stays 16:9, letterboxed.
+
+Review tools (2026-09-10): `BattleBridge.SetSpeed({speed})` sets `Time.timeScale` (0.25–4) so a
+designer can watch Specials faster or slower; the web sends it after `InitBattle` when the battle
+URL carries `?speed=`. `?auto=1` on the web makes the balanced bot policy play the wallet's own
+turns (client-side, same policy as the server bot) so a practice battle runs itself. Both carry
+through `/game/battle?preset=…` → "Start practice". The in-canvas clock is unaffected (React
+sends the remaining ms).

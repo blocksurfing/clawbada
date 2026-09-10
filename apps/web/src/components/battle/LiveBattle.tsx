@@ -11,6 +11,7 @@ import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { useAuth } from '@/hooks/use-auth';
 import { useBattleSession } from '@/hooks/use-battle-session';
 import type { Side, TurnCommand } from '@/lib/battle-protocol';
+import { v3 } from '@clawbada/game-logic';
 import { BattleStage } from './BattleStage';
 import { selectionToData } from './unity-bridge';
 import { HexBoard } from './HexBoard';
@@ -26,9 +27,13 @@ export interface LiveBattleProps {
   /** Force read-only even when the wallet is a participant. */
   spectate?: boolean;
   onEnded?: () => void;
+  /** Review tool: the balanced bot policy plays this wallet's turns (URL ?auto=1). */
+  autoPlay?: boolean;
+  /** Review tool: Unity playback speed multiplier (URL ?speed=2). */
+  speed?: number;
 }
 
-export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleProps) {
+export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed }: LiveBattleProps) {
   const { getAuthParams } = useAuth();
   const [unityAvailable, setUnityAvailable] = useState<boolean | null>(null);
   const [unityReady, setUnityReady] = useState(false);
@@ -107,6 +112,31 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
     onSubmit(selection.command);
   }, [selection.command, onSubmit]);
 
+  // Auto-play (designer / harness review tool): once the previous turn has finished animating,
+  // let the balanced bot policy choose this wallet's turn — the battle plays itself while the
+  // viewer watches the VFX. Same policy the server bot uses; falls back to Defend on any error.
+  useEffect(() => {
+    if (!autoPlay || !canAct || pendingAck || !snapshot || !current) return;
+    const turn = current.turn;
+    const t = setTimeout(() => {
+      let cmd: TurnCommand = { lobsterId: current.lobsterId, action: 'defend' } as TurnCommand;
+      try {
+        const state = v3.fromWire({ ...snapshot.state, vrfSeed: '0' });
+        const actor = state.lobsters.find((l) => l.id === current.lobsterId);
+        if (actor) {
+          const chosen = v3.botPolicy('balanced')(state, actor) as TurnCommand;
+          v3.validateTurn(state, chosen);
+          cmd = chosen;
+        }
+      } catch (e) {
+        console.warn('[LiveBattle] autoplay: policy failed, defending', e);
+      }
+      console.log(`[LiveBattle] autoplay turn ${turn}: ${cmd.action} ${cmd.targetId ?? ''}`);
+      onSubmit(cmd);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [autoPlay, canAct, pendingAck, snapshot, current, onSubmit]);
+
   const handleUnavailable = useCallback(() => setUnityAvailable(false), []);
   const handleReady = useCallback(() => { setUnityAvailable(true); setUnityReady(true); }, []);
 
@@ -140,6 +170,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded }: LiveBattleP
       {/* Stage: Unity when deployed, SVG board otherwise */}
       {unityAvailable !== false && (
         <BattleStage
+          speed={speed}
           snapshot={snapshot}
           snapshotSeq={snapshotSeq}
           playerSide={playerSide}

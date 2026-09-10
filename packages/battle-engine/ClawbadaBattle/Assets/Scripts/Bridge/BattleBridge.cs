@@ -89,6 +89,16 @@ public class BattleBridge : MonoBehaviour
         if (battleManager != null) battleManager.SetClock(data.remainingMs);
     }
 
+    /// <summary>Playback speed multiplier (designer / harness review tool): scales every
+    /// animation, effect and hold via Time.timeScale. Clamped to 0.25–4; 1 = normal.</summary>
+    public void SetSpeed(string json)
+    {
+        var data = JsonUtility.FromJson<SpeedData>(json);
+        float speed = data != null && data.speed > 0f ? Mathf.Clamp(data.speed, 0.25f, 4f) : 1f;
+        Time.timeScale = speed;
+        Debug.Log($"[BattleBridge] SetSpeed {speed:F2}x");
+    }
+
     /// <summary>Server truth for every unit (hp, alive, charge, defending, statuses, cell),
     /// sent right after InitBattle and after each animated turn. Feeds the in-canvas HUD.</summary>
     public void SyncUnits(string json)
@@ -336,6 +346,12 @@ public class BarData
 public class ClockData
 {
     public int remainingMs;
+}
+
+[System.Serializable]
+public class SpeedData
+{
+    public float speed;
 }
 
 [System.Serializable]

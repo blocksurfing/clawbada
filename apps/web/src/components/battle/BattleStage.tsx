@@ -47,6 +47,8 @@ export interface BattleStageProps {
   onUndoMove?: () => void;
   onUnavailable: () => void;
   onReady: () => void;
+  /** Playback speed multiplier for Unity (1 = normal). Review tool: /battle/<id>?speed=2. */
+  speed?: number;
 }
 
 export function BattleStage(props: BattleStageProps) {
@@ -151,6 +153,7 @@ function UnityStage(props: BattleStageProps) {
     send(UNITY_METHODS.INIT_BATTLE, buildInitData(props.snapshot, props.playerSide));
     // Statuses / defending are not part of InitBattle; the HUD needs them from the start.
     send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
+    if (props.speed && props.speed !== 1) send(UNITY_METHODS.SET_SPEED, { speed: props.speed });
     props.onReady();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, props.snapshot?.session.id, props.snapshotSeq, props.nextToAnimate]);
