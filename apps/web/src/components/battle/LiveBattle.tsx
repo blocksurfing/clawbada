@@ -35,7 +35,7 @@ export interface LiveBattleProps {
 }
 
 export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed }: LiveBattleProps) {
-  const { getAuthParams, getAuthHeaders } = useAuth();
+  const { getAuthParams, getAuthHeaders, getSessionToken } = useAuth();
   const [unityAvailable, setUnityAvailable] = useState<boolean | null>(null);
   const [unityReady, setUnityReady] = useState(false);
   const gate = unityAvailable === true && unityReady;
@@ -45,6 +45,8 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     address,
     spectate: isSpectator,
     getAuthParams: isSpectator ? undefined : getAuthParams,
+    getAuthHeaders: isSpectator ? undefined : getAuthHeaders,
+    getSessionToken: isSpectator ? undefined : getSessionToken,
     gateOnAnimation: gate,
   });
   const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq } = session;

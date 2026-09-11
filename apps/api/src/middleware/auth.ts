@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { verifyMessage, getAddress } from '@clawbada/chain';
 import { ApiError } from '../lib/errors';
+import { bearerFrom, verifySessionToken } from '../lib/session-token';
 
 /** Maximum allowable backdating of the timestamp (signed message in the past). */
 export const AUTH_PAST_WINDOW_SEC = 5 * 60;
@@ -85,31 +86,41 @@ export async function verifyWalletSignature(input: {
 }
 
 /**
- * Wallet-based authentication middleware (REST).
+ * Resolve the caller from a request's headers, by either accepted proof:
  *
- * Expected headers:
- *   X-Wallet-Address: 0x...
- *   X-Signature: 0x...
- *   X-Timestamp: Unix timestamp in seconds
+ *   Authorization: Bearer <session token>   — a wallet signature already exchanged for a token
+ *   X-Wallet-Address / X-Signature / X-Timestamp — a fresh EIP-191 signature
+ *
+ * The token path exists so a player is not asked to sign in the middle of a battle; the
+ * signature path stays first-class for agents, which sign per request and hold no session.
+ * Returns the EIP-55 checksum address. Throws ApiError(UNAUTHORIZED) if neither proof holds.
  */
-export const walletAuth: MiddlewareHandler = async (c, next) => {
-  const address = c.req.header('X-Wallet-Address');
-  const signature = c.req.header('X-Signature');
-  const timestampStr = c.req.header('X-Timestamp');
+export async function resolveCaller(req: { header(name: string): string | undefined }): Promise<string> {
+  const bearer = bearerFrom(req.header('Authorization'));
+  if (bearer) return verifySessionToken(bearer).checksumAddress;
 
+  const address = req.header('X-Wallet-Address');
+  const signature = req.header('X-Signature');
+  const timestampStr = req.header('X-Timestamp');
   if (!address || !signature || !timestampStr) {
     throw new ApiError(
       'UNAUTHORIZED',
-      'Missing auth headers: X-Wallet-Address, X-Signature, X-Timestamp',
+      'Missing auth: send Authorization: Bearer <session token>, or X-Wallet-Address, X-Signature and X-Timestamp',
     );
   }
-
   const { checksumAddress } = await verifyWalletSignature({
     address,
     signature,
     timestamp: Number(timestampStr),
   });
+  return checksumAddress;
+}
 
-  c.set('address', checksumAddress);
+/**
+ * Wallet-based authentication middleware (REST). Accepts a session token or a fresh signature —
+ * see `resolveCaller`.
+ */
+export const walletAuth: MiddlewareHandler = async (c, next) => {
+  c.set('address', await resolveCaller(c.req));
   await next();
 };

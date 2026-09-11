@@ -481,6 +481,23 @@ interface BattleHistoryItem {
   timestamp?: number;
 }
 
+/** Sign once, then hold a bearer token — so a battle is never interrupted by a wallet modal. */
+export interface SessionTokenResponse {
+  token: string;
+  address: string;
+  /** Unix seconds: refresh before this. */
+  expiresAt: number;
+  /** Unix seconds: past this the wallet must sign again. */
+  sessionEndsAt: number;
+}
+
+const auth = {
+  /** Exchange a fresh wallet signature for a session token. */
+  session: (headers: AuthHeaders) => post<SessionTokenResponse>('/api/auth/session', undefined, headers),
+  /** Renew a token with the token itself — never touches the wallet. */
+  refresh: (token: string) => post<SessionTokenResponse>('/api/auth/session/refresh', undefined, { Authorization: `Bearer ${token}` }),
+};
+
 const combat = {
   joinQueue: (teamId: string, stakeAmount: string, auth: AuthHeaders) =>
     post<QueueResponse>('/api/game/combat/queue', { teamId, stakeAmount }, auth),
@@ -604,6 +621,7 @@ export const api = {
   evolution,
   repair,
   market,
+  auth,
   combat,
   leaderboard,
   activity,
