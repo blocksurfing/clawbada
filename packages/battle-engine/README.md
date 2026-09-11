@@ -216,6 +216,22 @@ death visuals have not run yet, and overlays whose rig was despawned are hidden.
 Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (bottom-right of the
 canvas); the stage element goes fullscreen and the canvas stays 16:9, letterboxed.
 
+Decor scale (2026-09-10): the boards read less crowded because the arena's Foreground art is
+shrunk to `BattleManager.decorScale` (0.8). Every arena layer the designer ships is a full-frame
+640×360 canvas, so a sprite's bounds say nothing about what is painted in it — scaling a layer
+about the camera centre (the first attempt) pulled every painted edge inward and left the art
+floating off the frame. `ArenaDecorBaker` (menu *Clawbada ▸ Arena ▸ Bake Decor Anchors*, headless
+`-executeMethod ArenaDecorBaker.Bake`) measures each layer's opaque content into
+`Resources/ArenaDecorAnchors.asset`, keyed `Tier/Sprite` because layer names repeat across
+arenas; `BattleManager.ShrinkDecor` then scales each layer about the edge its content is welded
+to — a bottom rock ledge shrinks downward and stays glued to the bottom, a clam at the left
+shrinks toward the left — and leaves an axis alone when the content spans it, which is what
+stops the gaps. Background and Default layers (backdrop, ground, glow) are never touched: the
+hex grid is aligned to them. Re-run the bake after an arena art drop; an unbaked layer is simply
+left at full size. The in-canvas action bar no longer prints a prompt line ("Tap an enemy to
+attack") — the armed plate, the lit hexes and the target rings say it, and React still shows
+"Sending…" under the canvas.
+
 Board on demand (2026-09-10, LOKR-style): the hex grid is invisible at rest. `HexGrid` no longer
 pre-paints the plain tile on every open cell and `ClearHighlights` clears cells instead of
 restoring it, so between turns the arena reads as painted ground and hexes appear only while a
