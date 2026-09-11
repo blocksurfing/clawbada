@@ -7,6 +7,8 @@ using UnityEngine;
 ///  • Spirit  = projectile Special: FX_Specter_Haunt_SpiritSpawn at the caster's AttackFX, then
 ///    FX_Specter_Haunt_SpiritTravel (loop) flown to the target by BattleVfxLibrary.Fly, then
 ///    FX_Specter_Haunt_PossessImpact on the target; damage lands on the impact.
+///    The possession lands on the target's BODY CENTRE (AnchorPoint.TargetBody) and the spirit
+///    flies to that same point, so it is absorbed into the lobster rather than stopping at its feet.
 ///  • Sigil   = status visual for the engine's "haunt" status: FX_Specter_Haunt_SigilSpawn →
 ///    FX_Specter_Haunt_SigilIdle (loop, parented under the target, sortingOrder −5 = under the
 ///    body, follows hex moves) → FX_Specter_Haunt_SigilOut when the status expires or is cleansed.
@@ -46,7 +48,9 @@ public static class HauntVfxBinder
         };
         lib.specialImpactByClass[Specter] = new BattleVfxLibrary.VfxSlot
         {
-            prefab = possess, anchor = BattleVfxLibrary.AnchorPoint.TargetImpactFx, delay = 0f, mirrorWithFacing = false, onTop = false,
+            // Body centre, not the rig's ImpactFX (every rig authors that at the root = the feet):
+            // the spirit should read as being absorbed into the target, not landing beside it.
+            prefab = possess, anchor = BattleVfxLibrary.AnchorPoint.TargetBody, delay = 0f, mirrorWithFacing = false, onTop = false,
         };
 
         var visuals = new System.Collections.Generic.List<BattleVfxLibrary.StatusVfx>(lib.statusVisuals ?? new BattleVfxLibrary.StatusVfx[0]);
