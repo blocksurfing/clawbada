@@ -119,7 +119,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
   - prefab: {fileID: 2139694229694905937, guid: cc2be06c01024d94dab44044409f2f80, type: 3}
-    anchor: 4
+    anchor: 6
     delay: 0
     mirrorWithFacing: 0
     impactAt: 3.9
@@ -247,7 +247,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
   - prefab: {fileID: 6797530525760967097, guid: fecd1b04c8374c0895b2c17da43edfbf, type: 3}
-    anchor: 1
+    anchor: 5
     delay: 0
     mirrorWithFacing: 0
     impactAt: 0

@@ -52,6 +52,19 @@ public class LobsterController : MonoBehaviour
     public Transform AttackFxAnchor => attackFxAnchor != null ? attackFxAnchor : transform;
     public Transform ImpactFxAnchor => impactFxAnchor != null ? impactFxAnchor : transform;
 
+    [Tooltip("Height above the rig root of the lobster's body centre, in world units. Effects bound to " +
+             "an ActorBody/TargetBody anchor land here. It cannot be measured at runtime: every body part " +
+             "is a full 1x1 canvas sprite centred on the root, so the renderer bounds are identical for all " +
+             "of them and say nothing about where the creature is painted. Tune per rig prefab if a tier " +
+             "needs it.")]
+    public float bodyCenterHeight = 0.22f;
+
+    /// <summary>Middle of the lobster's body in world space — where an effect lands so it reads as
+    /// hitting the creature rather than the ground under it. The rig root is the hex centre (its
+    /// feet) and every rig authors ImpactFX there, so a "hit" effect bound to that anchor plays at
+    /// the target's feet. Pinned horizontally to the root, so a facing flip cannot shift it.</summary>
+    public Vector3 BodyCenter => transform.position + new Vector3(0f, bodyCenterHeight, 0f);
+
     /// <summary>Rigs face left at identity; Y=180 mirrors to face right.</summary>
     public bool IsFacingLeft => Mathf.Abs(Mathf.DeltaAngle(transform.localEulerAngles.y, FaceRightY)) > 90f;
 

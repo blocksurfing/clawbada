@@ -213,11 +213,19 @@ Don't run `Clawbada ▸ Generate HUD Button Art` after that — it overwrites th
 names. Everything else in the HUD (cards, turn strip, bars, result banner) is built from
 `HudSkin` too, so the same swap applies.
 
-## 4. Preview without the server
+## 4. Automated playback for reviewing — two ways, no server needed
 
-Open `Assets/Scenes/BattleScene.unity` and press Play. `BattleDemoLoop` runs a fake
-battle: attacks, defends, deaths, and **one Special per round from round 3**, so every
-slot fires within a minute. Tune `delay` and anchors live in the Inspector.
+**In the editor (the quickest loop).** Open `Assets/Scenes/BattleScene.unity` and press Play.
+`BattleDemoLoop` plays battle after battle on its own — moves, attacks, defends, deaths, and
+**one Special per round from round 3** — so every slot fires within a minute and you can tune
+`delay`, anchors and clip timing in the Inspector while it runs. It now drives the **same
+per-turn playback the live game uses**, so a projectile Special really flies, a cinematic
+Special owns its own timing, and per-target impacts and status marks appear exactly as they
+will in a real battle. Knobs on the `BattleDemoLoop` component: `roundGap`, `battleGap`,
+`maxRoundsPerBattle`, `tier` (which arena) and `randomObstacles`.
+
+**In the browser (what the playtest actually runs).** Add `&auto=1` to a practice URL and the
+battle plays itself — see section 3b — with `&speed=2` to run it faster.
 
 ## 5. Please don't touch (or tell us first)
 

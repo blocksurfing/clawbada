@@ -101,23 +101,28 @@ public class BattleDemoLoop : MonoBehaviour
 
             for (int round = 1; round <= maxRoundsPerBattle; round++)
             {
-                // V3 HUD signals (turn strip, active panel, clock) around each demo round.
-                var actor = units.Find(u => u.alive);
-                if (actor != null)
-                {
-                    manager.StartTurn(new TurnStartData { turn = round, lobsterId = actor.id, side = actor.side, deadlineMs = 0, isPlayer = actor.side == "A" });
-                    manager.UpdateBar(new BarData { turn = round, entries = BuildBar() });
-                    manager.SetClock(actor.side == "A" ? 15000 : 0);
-                    manager.SetSelection(new SelectionData
-                    {
-                        isPlayerTurn = actor.side == "A", canAct = true, action = "attack",
-                        canSpecial = round >= 3, specialName = LobsterClasses.SpecialName(actor.classIdx), specialKind = "enemy",
-                        hasMove = false, targetId = "", targetCount = 1, canUndo = round % 2 == 0, hint = "", pendingAck = false,
-                    });
-                }
+                // One PlayTurn per acting lobster — the same entry point the live battle uses, so
+                // what a designer sees in Play mode is what the game does: projectile Specials fly,
+                // cinematic Specials own their timing, per-target impacts and status marks appear.
                 var result = SimulateRound(round);
-                manager.PlayRound(result);
-                yield return new WaitUntil(() => manager.currentPhase != BattleManager.BattlePhase.AnimatingRound);
+                foreach (var turn in ToTurns(result, round))
+                {
+                    var actor = units.Find(u => u.id == turn.lobsterId);
+                    if (actor != null)
+                    {
+                        manager.StartTurn(new TurnStartData { turn = round, lobsterId = actor.id, side = actor.side, deadlineMs = 0, isPlayer = actor.side == "A" });
+                        manager.UpdateBar(new BarData { turn = round, entries = BuildBar() });
+                        manager.SetClock(actor.side == "A" ? 15000 : 0);
+                        manager.SetSelection(new SelectionData
+                        {
+                            isPlayerTurn = actor.side == "A", canAct = true, action = turn.action,
+                            canSpecial = round >= 3, specialName = LobsterClasses.SpecialName(actor.classIdx), specialKind = "enemy",
+                            hasMove = false, targetId = "", targetCount = 1, canUndo = round % 2 == 0, hint = "", pendingAck = false,
+                        });
+                    }
+                    manager.PlayTurn(turn);
+                    yield return new WaitUntil(() => manager.currentPhase != BattleManager.BattlePhase.AnimatingTurn);
+                }
                 manager.SyncUnits(BuildSync(round));
                 yield return new WaitForSeconds(roundGap);
 
@@ -218,6 +223,51 @@ public class BattleDemoLoop : MonoBehaviour
             stakeBracket = "demo",
             stakeAmount = 0,
         };
+    }
+
+    /// <summary>Flatten a simulated round into the per-turn payloads the live engine plays:
+    /// one per lobster, its move folded into its own turn, and a mover that never acted still
+    /// gets a turn so the walk is animated. Deaths ride on the turn that caused them.</summary>
+    private List<TurnPlayData> ToTurns(RoundResult result, int round)
+    {
+        var turns = new List<TurnPlayData>();
+        var moves = new Dictionary<string, MovementResult>();
+        if (result.movements != null) foreach (var m in result.movements) if (m != null) moves[m.lobsterId] = m;
+
+        if (result.actions != null)
+        {
+            foreach (var a in result.actions)
+            {
+                if (a == null) continue;
+                var path = moves.TryGetValue(a.actorId, out var mv) ? new[] { mv.to } : new HexPosition[0];
+                moves.Remove(a.actorId);
+                var damage = new List<DamageEventData>();
+                var heals = new List<HealEventData>();
+                if (!string.IsNullOrEmpty(a.targetId))
+                {
+                    if (a.healed > 0) heals.Add(new HealEventData { targetId = a.targetId, amount = a.healed });
+                    else if (a.damage > 0) damage.Add(new DamageEventData { targetId = a.targetId, amount = a.damage, kind = a.actionType, isCrit = a.crit, killed = false });
+                }
+                turns.Add(new TurnPlayData
+                {
+                    turn = round, lobsterId = a.actorId, path = path, action = a.actionType, skipped = "",
+                    targetId = a.targetId ?? "", damage = damage.ToArray(), heals = heals.ToArray(),
+                    statuses = new StatusEventData[0], deaths = new string[0], isEnhanced = a.enhanced,
+                });
+            }
+        }
+        // Anyone who moved but never acted still walks.
+        foreach (var m in moves.Values)
+        {
+            turns.Add(new TurnPlayData
+            {
+                turn = round, lobsterId = m.lobsterId, path = new[] { m.to }, action = "none", skipped = "",
+                targetId = "", damage = new DamageEventData[0], heals = new HealEventData[0],
+                statuses = new StatusEventData[0], deaths = new string[0], isEnhanced = false,
+            });
+        }
+        if (result.deaths is { Length: > 0 } && turns.Count > 0) turns[turns.Count - 1].deaths = result.deaths;
+        return turns;
     }
 
     private RoundResult SimulateRound(int round)

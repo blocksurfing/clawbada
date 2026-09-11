@@ -21,6 +21,8 @@ public class BattleVfxLibrary : ScriptableObject
         TargetImpactFx,  // the target's authored ImpactFX transform
         ActorFeet,       // the attacker's root (hex center)
         TargetFeet,      // the target's root (hex center)
+        ActorBody,       // middle of the attacker's body (measured from its parts, not the hex centre)
+        TargetBody,      // middle of the target's body — use for anything that should read as entering it
         CameraCenter,    // full-screen layer: the camera's centre, above arena and lobsters (never mirrored)
     }
 
@@ -160,29 +162,44 @@ public class BattleVfxLibrary : ScriptableObject
             return;
         }
 
-        LobsterController owner = slot.anchor switch
-        {
-            AnchorPoint.TargetImpactFx => target != null ? target : actor,
-            AnchorPoint.TargetFeet => target != null ? target : actor,
-            _ => actor,
-        };
+        LobsterController owner = OwnerFor(slot, actor, target);
         if (owner == null) return;
-
-        Transform anchorT = slot.anchor switch
-        {
-            AnchorPoint.ActorAttackFx => owner.AttackFxAnchor,
-            AnchorPoint.TargetImpactFx => owner.ImpactFxAnchor,
-            _ => owner.transform,
-        };
+        Vector3 pos = AnchorPosition(slot, actor, target, owner.transform.position);
 
         if (slot.delay > 0f)
         {
-            host.StartCoroutine(SpawnAfterDelay(slot, owner, anchorT.position, host));
+            host.StartCoroutine(SpawnAfterDelay(slot, owner, pos, host));
         }
         else
         {
-            SpawnNow(slot, owner, anchorT.position);
+            SpawnNow(slot, owner, pos);
         }
+    }
+
+    /// <summary>Which lobster a slot hangs off — target-anchored slots fall back to the actor.</summary>
+    public static LobsterController OwnerFor(VfxSlot slot, LobsterController actor, LobsterController target)
+    {
+        if (slot == null) return actor;
+        return slot.anchor switch
+        {
+            AnchorPoint.TargetImpactFx or AnchorPoint.TargetFeet or AnchorPoint.TargetBody => target != null ? target : actor,
+            _ => actor,
+        };
+    }
+
+    /// <summary>Exactly where a slot's effect will appear. Public so playback can aim a projectile
+    /// at the point its own impact will play, instead of guessing a second anchor.</summary>
+    public static Vector3 AnchorPosition(VfxSlot slot, LobsterController actor, LobsterController target, Vector3 fallback)
+    {
+        var owner = OwnerFor(slot, actor, target);
+        if (slot == null || owner == null) return fallback;
+        return slot.anchor switch
+        {
+            AnchorPoint.ActorAttackFx => owner.AttackFxAnchor.position,
+            AnchorPoint.TargetImpactFx => owner.ImpactFxAnchor.position,
+            AnchorPoint.ActorBody or AnchorPoint.TargetBody => owner.BodyCenter,
+            _ => owner.transform.position,
+        };
     }
 
     private static IEnumerator SpawnAfterDelay(VfxSlot slot, LobsterController owner, Vector3 position, MonoBehaviour host)
