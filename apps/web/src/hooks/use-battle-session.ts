@@ -123,6 +123,10 @@ export interface UseBattleSessionOptions {
   address?: string;
   spectate?: boolean;
   getAuthParams?: () => Promise<AuthParams>;
+  /** Bearer headers for REST reads. */
+  getAuthHeaders?: () => Promise<Record<string, string>>;
+  /** Session token for the socket — no signature, so a battle never prompts the wallet. */
+  getSessionToken?: () => Promise<string>;
   /** Hold resolved turns until the renderer acknowledges them (Unity). */
   gateOnAnimation: boolean;
   enabled?: boolean;
@@ -140,17 +144,17 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
   const fetchSnapshot = useCallback(async () => {
     if (!battleId) return;
     try {
-      const headers = !opts.spectate && opts.getAuthParams ? await opts.getAuthParams().then((p) => ({ 'X-Wallet-Address': p.address, 'X-Signature': p.signature, 'X-Timestamp': String(p.timestamp) })) : undefined;
+      const headers = !opts.spectate && opts.getAuthHeaders ? await opts.getAuthHeaders() : undefined;
       const snap = await api.combat.getState(battleId, headers);
       dispatch({ type: 'snapshot', snapshot: snap });
     } catch {
       // not started yet — the WS will deliver a snapshot / turn_started
     }
-  }, [battleId, opts.spectate, opts.getAuthParams]);
+  }, [battleId, opts.spectate, opts.getAuthHeaders]);
 
   useEffect(() => {
     if (!battleId || opts.enabled === false) return;
-    if (!opts.spectate && !opts.getAuthParams) return;
+    if (!opts.spectate && !opts.getSessionToken) return;
     let attempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     closedByUs.current = false;
@@ -161,8 +165,8 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
       try {
         if (opts.spectate) url = `${WS_URL}?battleId=${encodeURIComponent(battleId)}&spectate=1`;
         else {
-          const p = await opts.getAuthParams!();
-          url = `${WS_URL}?address=${p.address}&signature=${p.signature}&timestamp=${p.timestamp}&battleId=${encodeURIComponent(battleId)}`;
+          const token = await opts.getSessionToken!();
+          url = `${WS_URL}?token=${encodeURIComponent(token)}&battleId=${encodeURIComponent(battleId)}`;
         }
       } catch {
         dispatch({ type: 'connection', value: 'error' });

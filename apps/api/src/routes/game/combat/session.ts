@@ -14,7 +14,7 @@
 import { Hono } from 'hono';
 import { v3, EvolutionTier, LobsterClass } from '@clawbada/game-logic';
 import { rollRandomRoster, rollTrioRoster, rollSpecialsRoster, RANDOM_PRESET_RE, TRIO_PRESET_RE, SPECIALS_PRESET_RE } from '../../../lib/battle-session/random-roster';
-import { walletAuth, verifyWalletSignature } from '../../../middleware/auth';
+import { walletAuth, resolveCaller } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readLobster, readTeam, serializeBigInts } from '../../../lib/chain';
 import {
@@ -50,12 +50,8 @@ function assertBattleId(id: string): void {
 /** Practice battles are owner-only: require headers and a participant match. */
 async function requireParticipantIfPractice(c: { req: { header(name: string): string | undefined } }, battleId: string): Promise<string | null> {
   if (!isPracticeId(battleId)) return null;
-  const address = c.req.header('X-Wallet-Address');
-  const signature = c.req.header('X-Signature');
-  const timestamp = c.req.header('X-Timestamp');
-  if (!address || !signature || !timestamp) throw new ApiError('UNAUTHORIZED', 'Practice battles are private: sign the request');
-  const { checksumAddress } = await verifyWalletSignature({ address, signature, timestamp: Number(timestamp) });
-  const lower = checksumAddress.toLowerCase();
+  // Either proof is fine here (session token or signature) — resolveCaller throws if neither holds.
+  const lower = (await resolveCaller(c.req)).toLowerCase();
   if (!(await battleSessions.isParticipant(battleId, lower))) throw new ApiError('UNAUTHORIZED', 'Not a participant in this battle');
   return lower;
 }
