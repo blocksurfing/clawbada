@@ -86,8 +86,11 @@ public class BattleManager : MonoBehaviour
 
     private GameObject arenaArtInstance;
 
-    [Tooltip("Scale applied to the arena's decorative Foreground-layer art about the camera centre. Keep at 1: the designer's decor layers are full-frame sprites, so scaling them lifts rocks and shells off the arena edge (playtest 2026-09-06). Only useful once decor ships as separate, edge-anchored sprites.")]
-    public float decorScale = 1f;
+    [Tooltip("Uniform shrink applied to the arena's decorative Foreground-layer art, so the boards read less " +
+             "crowded. Each layer is scaled about the frame edge its painted content is welded to (see " +
+             "ArenaDecorAnchors), never about the camera centre — centre-scaling a full-frame layer pulls the art " +
+             "off the edges and leaves it floating. A layer whose content spans an axis is not scaled on that axis.")]
+    public float decorScale = 0.8f;
 
     [Header("Animation Timing")]
     public float secondsPerHexMove = 0.35f;
@@ -204,20 +207,57 @@ public class BattleManager : MonoBehaviour
                 arenaArtInstance.transform.position += shift;
             }
 
-            // Decorative overhang (Foreground layer) shrinks about the camera centre so the
-            // board reads less crowded; backdrop and ground stay full-frame.
-            if (!Mathf.Approximately(decorScale, 1f) && decorScale > 0f)
-            {
-                Vector3 centre = new Vector3(cam.transform.position.x, cam.transform.position.y, 0f);
-                foreach (var r in renderers)
-                {
-                    if (r.sortingLayerName != "Foreground") continue;
-                    var t = r.transform;
-                    Vector3 p = t.position;
-                    t.position = new Vector3(centre.x + (p.x - centre.x) * decorScale, centre.y + (p.y - centre.y) * decorScale, p.z);
-                    t.localScale = new Vector3(t.localScale.x * decorScale, t.localScale.y * decorScale, t.localScale.z);
-                }
-            }
+            ShrinkDecor(renderers, tier);
+        }
+    }
+
+    /// <summary>Shrink the arena's decorative Foreground art so the board reads less crowded.
+    ///
+    /// Every layer is a full-frame canvas, so the sprite's bounds say nothing about what is
+    /// painted in it — the content box comes from ArenaDecorAnchors. Each layer is scaled about
+    /// the edge its content is welded to: a rock ledge along the bottom shrinks downward and
+    /// stays glued to the bottom of the frame, a clam at the left shrinks toward the left. An
+    /// axis whose content spans the whole canvas is left at full size, because shrinking it
+    /// would pull the art in from both edges — that is the "floating decor" this replaces.
+    /// Backdrop and ground (Background / Default layers) are never touched: the hex grid is
+    /// aligned to them.</summary>
+    private void ShrinkDecor(SpriteRenderer[] renderers, string tier)
+    {
+        if (Mathf.Approximately(decorScale, 1f) || decorScale <= 0f) return;
+        var anchors = Resources.Load<ArenaDecorAnchors>(ArenaDecorAnchors.ResourcePath);
+        if (anchors == null)
+        {
+            Debug.LogWarning("[BattleManager] no Resources/ArenaDecorAnchors — decor left at full size. " +
+                             "Run Clawbada/Arena/Bake Decor Anchors.");
+            return;
+        }
+
+        const float Tol = 0.01f;   // content within 1 % of an edge counts as touching it
+        foreach (var r in renderers)
+        {
+            if (r.sortingLayerName != "Foreground" || r.sprite == null) continue;
+            var box = anchors.For(tier, r.sprite.name);
+            if (box == null) { Debug.LogWarning($"[BattleManager] no baked content box for '{tier}/{r.sprite.name}' — left at full size."); continue; }
+
+            Vector4 c = box.Value;                       // fractions of the canvas, y up
+            bool spansX = c.x <= Tol && c.z >= 1f - Tol;
+            bool spansY = c.y <= Tol && c.w >= 1f - Tol;
+            float sx = spansX ? 1f : decorScale;
+            float sy = spansY ? 1f : decorScale;
+            if (Mathf.Approximately(sx, 1f) && Mathf.Approximately(sy, 1f)) continue;
+
+            // Anchor on the touched edge; fall back to the content's own centre (x) or its
+            // base (y), so a free-standing prop shrinks in place instead of drifting upward.
+            float nx = (c.x <= Tol && c.z < 1f - Tol) ? c.x : (c.z >= 1f - Tol && c.x > Tol) ? c.z : (c.x + c.z) * 0.5f;
+            float ny = (c.y <= Tol && c.w < 1f - Tol) ? c.y : (c.w >= 1f - Tol && c.y > Tol) ? c.w : c.y;
+
+            var b = r.bounds;                            // the whole canvas, in world units
+            float ax = b.min.x + nx * b.size.x;
+            float ay = b.min.y + ny * b.size.y;
+            var t = r.transform;
+            Vector3 p = t.position;
+            t.position = new Vector3(ax + (p.x - ax) * sx, ay + (p.y - ay) * sy, p.z);
+            t.localScale = new Vector3(t.localScale.x * sx, t.localScale.y * sy, t.localScale.z);
         }
     }
 

@@ -7,7 +7,9 @@ using UnityEngine.UI;
 /// Bottom-centre action bar (LOKR-style): hex buttons Attack / Special / Defend / Wait
 /// and a small Undo for a tentative move. Unity only reports presses; React decides
 /// what they mean and submits the turn. Its state (which action is armed, what is
-/// legal, the hint line) arrives through SetSelection.
+/// legal) arrives through SetSelection. No prompt line: the armed plate, the lit hexes
+/// and the target rings already say what to do, and React still shows "Sending…" in the
+/// status row under the canvas.
 /// </summary>
 public class ActionBar : MonoBehaviour
 {
@@ -18,7 +20,6 @@ public class ActionBar : MonoBehaviour
     private Button attack, special, defend, wait, undo;
     private Image attackGlow, specialGlow, defendGlow, waitGlow;
     private Text specialLabel;
-    private Text hint;
     private SelectionData last;
 
     public static ActionBar Create(Transform parent, HudSkin skin)
@@ -26,15 +27,10 @@ public class ActionBar : MonoBehaviour
         float s = skin.buttonSize;
         float pitch = s + 10f;
         var rt = HudFactory.Rect(parent, "ActionBar", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-            new Vector2(0f, 8f), new Vector2(pitch * 4f + 70f, s * 1.143f + 34f));
+            new Vector2(0f, 8f), new Vector2(pitch * 4f + 70f, s * 1.143f + 10f));
         var bar = rt.gameObject.AddComponent<ActionBar>();
         bar.skin = skin;
         var font = skin.FontOrDefault();
-
-        bar.hint = HudFactory.Text(rt, "Hint", font, 12, skin.textPrimary, TextAnchor.MiddleCenter, new Vector2(360f, 20f));
-        bar.hint.rectTransform.anchorMin = bar.hint.rectTransform.anchorMax = new Vector2(0.5f, 1f);
-        bar.hint.rectTransform.pivot = new Vector2(0.5f, 1f);
-        bar.hint.rectTransform.anchoredPosition = new Vector2(0f, 0f);
 
         float x0 = -pitch * 1.5f - 20f;
         bar.attack = Make(bar, rt, "Attack", Plate(skin, skin.btnAttack), skin.iconAttack, "Attack", x0, () => bar.Press("attack"), out bar.attackGlow);
@@ -115,19 +111,8 @@ public class ActionBar : MonoBehaviour
         SetArmed(defendGlow, d.action == "defend");
         SetArmed(waitGlow, d.action == "none");
 
-        hint.text = d.pendingAck ? "Sending…" : !string.IsNullOrEmpty(d.hint) ? d.hint : DefaultHint(d);
         Canvas.ForceUpdateCanvases();
         LogButtons();
-    }
-
-    private string DefaultHint(SelectionData d)
-    {
-        switch (d.action)
-        {
-            case "attack": return d.targetCount > 0 ? "Tap an enemy to attack" : "No enemy in range — move, Defend or Wait";
-            case "special": return d.specialKind == "none" ? "" : d.specialKind == "ally" ? "Tap an ally" : "Tap an enemy in range";
-            default: return "";
-        }
     }
 
     private static void SetArmed(Image glow, bool armed)
