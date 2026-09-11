@@ -30,6 +30,8 @@ import { faucetRoutes } from './routes/faucet';
 import { leaderboardRoutes } from './routes/leaderboard';
 import { activityRoutes } from './routes/activity';
 import { walletAuth, verifyWalletSignature, WS_AUTH_LIFETIME_SEC } from './middleware/auth';
+import { authRoutes } from './routes/auth';
+import { verifySessionToken } from './lib/session-token';
 import { rateLimit } from './middleware/rate-limit';
 import { ApiError } from './lib/errors';
 import { battleWS } from './lib/ws';
@@ -64,6 +66,7 @@ app.get('/health', (c) =>
   c.json({ status: 'ok', timestamp: Date.now(), version: '0.0.1' }),
 );
 
+app.route('/api/auth', authRoutes);
 app.route('/api/game', gameRoutes);
 app.route('/api/agent', agentRoutes);
 app.route('/api/faucet', faucetRoutes);
@@ -194,18 +197,27 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
     };
   }
 
-  if (!address || !signature || !timestampStr) {
-    throw new ApiError(
-      'UNAUTHORIZED',
-      'Missing auth params: address, signature, timestamp',
-    );
+  // A session token is the normal path for a player: the socket then lives as long as the token
+  // instead of the 5-minute signature window, which is what used to drop the connection — and pop
+  // a signing modal — in the middle of a battle. Agents can still pass a signature.
+  const tokenParam = url.searchParams.get('token');
+  let checksumAddress: string;
+  let expiresAt: number;
+  if (tokenParam) {
+    ({ checksumAddress, expiresAt } = verifySessionToken(tokenParam));
+  } else {
+    if (!address || !signature || !timestampStr) {
+      throw new ApiError(
+        'UNAUTHORIZED',
+        'Missing auth params: token, or address + signature + timestamp',
+      );
+    }
+    ({ checksumAddress, expiresAt } = await verifyWalletSignature({
+      address,
+      signature,
+      timestamp: Number(timestampStr),
+    }));
   }
-
-  const { checksumAddress, expiresAt } = await verifyWalletSignature({
-    address,
-    signature,
-    timestamp: Number(timestampStr),
-  });
   const lowerAddr = checksumAddress.toLowerCase();
 
   // F-06: battle-room subscriptions must come from a battle participant.
