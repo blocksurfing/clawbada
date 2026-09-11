@@ -70,6 +70,7 @@ public class LobsterController : MonoBehaviour
 
     public int SortingOrder => sortingGroup != null ? sortingGroup.sortingOrder : 0;
 
+    private static readonly HashSet<string> warnedStates = new();
     private static readonly int IdleHash = Animator.StringToHash("Idle");
 
     public void Setup(BattleLobsterData data, HexGrid hexGrid)
@@ -178,6 +179,11 @@ public class LobsterController : MonoBehaviour
             animator.CrossFade(hash, fade);
             return true;
         }
+        // Falling back to Idle is silent by design (Evolved has no Defense), but a missing state
+        // looks like "the animation just doesn't play" — say so once per class+state so a rig that
+        // never got a clip is obvious instead of mysterious.
+        if (warnedStates.Add($"{className}/{stateName}"))
+            Debug.LogWarning($"[LobsterController] {className} ({LobsterPrefabLibrary.TierName(tier)}) has no '{stateName}' state — holding Idle.");
         animator.CrossFade(IdleHash, fade);
         return false;
     }
@@ -233,6 +239,7 @@ public class LobsterController : MonoBehaviour
         }
 
         PlayState("Move");
+        Debug.Log($"[LobsterController] move {className} {path.Count} hex @ {secondsPerHex:F2}s each");
 
         foreach (var step in path)
         {
