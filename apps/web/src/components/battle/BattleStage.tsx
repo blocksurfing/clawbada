@@ -89,7 +89,9 @@ function UnityStage(props: BattleStageProps) {
   /** If Unity never reports a turn's animation as finished (exception inside a coroutine,
    *  tab throttled, missing prefab), release the HUD anyway so the battle stays playable. */
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastStartedTurn = useRef<number | null>(null);
+  /** The turn Unity was last told about — actor included, because the same number can be
+   *  announced for a different lobster after a reconnect. */
+  const lastStartedTurn = useRef<{ turn: number; lobsterId: string } | null>(null);
   const endedSent = useRef(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -168,7 +170,13 @@ function UnityStage(props: BattleStageProps) {
     if (props.nextToAnimate || animating.current !== null) return; // wait for the picture to settle
     syncedSeq.current = props.snapshotSeq;
     send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
-    console.log('[BattleStage] reconnect snapshot → SyncUnits', props.snapshotSeq);
+    // The snapshot reducer clears `pending`, so whatever Unity was told before the drop may no
+    // longer be the live turn. Forget it, and let the effect below re-announce from server truth
+    // — otherwise the active-lobster ring and card keep pointing at the previous actor while the
+    // action bar belongs to the real one (seen in a playtest: the ring sat on a bot's lobster
+    // during the player's own turn, after a wallet prompt interrupted a Special).
+    lastStartedTurn.current = null;
+    console.log('[BattleStage] reconnect snapshot → SyncUnits + re-announce turn', props.snapshotSeq);
   }, [ready, props.snapshot, props.snapshotSeq, props.nextToAnimate, send]);
 
   // Play the next resolved turn when idle.
@@ -196,8 +204,10 @@ function UnityStage(props: BattleStageProps) {
   // Announce the current turn once the picture has caught up.
   useEffect(() => {
     if (!ready || !props.current?.lobsterId || props.nextToAnimate || animating.current !== null) return;
-    if (lastStartedTurn.current === props.current.turn) return;
-    lastStartedTurn.current = props.current.turn;
+    const last = lastStartedTurn.current;
+    if (last && last.turn === props.current.turn && last.lobsterId === props.current.lobsterId) return;
+    if (last && props.current.turn < last.turn) return;   // out-of-order leftover from a dropped socket
+    lastStartedTurn.current = { turn: props.current.turn, lobsterId: props.current.lobsterId };
     send(UNITY_METHODS.START_TURN, {
       turn: props.current.turn,
       lobsterId: props.current.lobsterId,
