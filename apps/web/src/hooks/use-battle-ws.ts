@@ -129,7 +129,7 @@ export function useBattleWs(battleId: string | null, address: string | undefined
   // restarts the reconnect loop. Bumped by `retry()` so the effect re-runs
   // with fresh local state.
   const [retryNonce, setRetryNonce] = useReducer((n: number) => n + 1, 0);
-  const { getAuthParams, invalidateAuthCache } = useAuth();
+  const { getSessionToken, invalidateAuthCache } = useAuth();
 
   useEffect(() => {
     if (!address) return;
@@ -166,9 +166,9 @@ export function useBattleWs(battleId: string | null, address: string | undefined
       if (cancelled || terminal) return;
       dispatch({ type: 'connecting' });
 
-      let auth: Awaited<ReturnType<typeof getAuthParams>>;
+      let token: string;
       try {
-        auth = await getAuthParams();
+        token = await getSessionToken();
       } catch {
         // Signature rejected, wallet not connected, etc. — bail; the next
         // re-render with a connected wallet will retry.
@@ -177,13 +177,9 @@ export function useBattleWs(battleId: string | null, address: string | undefined
       }
       if (cancelled) return;
 
-      // Defensive: server lower-cases address before joining rooms; mirror it
-      // so server logs and address-room keys agree.
-      const params = new URLSearchParams({
-        address: auth.address.toLowerCase(),
-        signature: auth.signature,
-        timestamp: String(auth.timestamp),
-      });
+      // A session token instead of a signature: the socket then lives as long as the token
+      // rather than the five-minute signature window, so a battle is not interrupted to re-sign.
+      const params = new URLSearchParams({ token });
       if (battleId) params.set('battleId', battleId);
       const url = `${WS_URL}?${params.toString()}`;
 
@@ -348,7 +344,7 @@ export function useBattleWs(battleId: string | null, address: string | undefined
       }
       wsRef.current = null;
     };
-  }, [battleId, address, getAuthParams, invalidateAuthCache, retryNonce]);
+  }, [battleId, address, getSessionToken, invalidateAuthCache, retryNonce]);
 
   const reset = useCallback(() => dispatch({ type: 'reset' }), []);
   // F-2N-a: explicit recovery for the terminal state. Calling `retry()` bumps
