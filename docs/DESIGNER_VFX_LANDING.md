@@ -1,9 +1,36 @@
-# Landing the Special VFX in Unity — designer guide (2026-09-06)
+# Landing the Special VFX in Unity — designer guide (updated 2026-09-11)
 
 Everything the battle engine needs is already wired: the server triggers Specials
 in playtests, Unity plays the class Special at the right frame, and every gameplay
 moment has an empty VFX slot waiting for a prefab. Your job is to drop the art into
 those slots. No code changes are needed for the standard delivery.
+
+## 0. Where we are — three Specials are live
+
+Maelstrom, Haunt and Inferno are integrated and playable on the deployed build. Every
+drop so far needed **no** change to your workflow: sheets + clip + prefab, pushed to
+`design/vfx-specials`, and we bind and time them.
+
+| Slot | Bound | Still empty |
+|---|---|---|
+| `specialByClass` / `specialImpactByClass` | Tempest (Maelstrom), Specter (Haunt), Ember (Inferno) | Bulwark, Mantis, Leviathan, Sentinel, Reaver, Abyss, Kraken |
+| `statusVisuals` | `haunt` (Specter's sigil) | `bleed`, `stun`, `slow`, `fortify`, `shield`, `reflect`, `taunt` |
+| Generic moments | `attackImpact` (HitSpark), `moveStep` (StepDust) | `attackWindup`, `defend`, `death`, `status` |
+
+`FX_Generic_ImpactDust`, `FX_Generic_GroundCrack` and `FX_Generic_Shockwave` exist in the
+project but are not bound to anything — tell us where you want them and we will wire them,
+or drop replacements into the empty generic slots.
+
+Three things learned from the drops so far, worth knowing before the next one:
+
+- **We read the committed clip, not the handoff note.** Inferno's note said 24 fps while
+  `FX_Ember_Inferno.anim` was authored at 12; we followed the clip. If the two disagree,
+  the clip wins.
+- **A sheet's custom pivot only counts when its alignment is set to Custom.** The Maelstrom
+  bolt had a tip pivot typed in but alignment left at Center, so Unity ignored it and we
+  offset the bolt in code instead. Set alignment to Custom if you want to own the anchor.
+- **Modular beats one fixed timeline** for anything that travels or persists — see the
+  projectile and status-visual notes in section 3.
 
 ## 1. Branch — pull this first
 
@@ -16,7 +43,8 @@ has been cut from `main` for you:
 git stash -u            # or copy the new files out of the project folder
 
 git fetch origin
-git checkout design/vfx-specials     # == main as of 2026-09-06 (7d8e700)
+git checkout design/vfx-specials     # kept identical to main — last synced 2026-09-11
+git pull                             # fast-forward; we push main here after every merge
 git lfs pull                         # PNGs inside packages/battle-engine are Git LFS
 ```
 
@@ -131,10 +159,59 @@ On a build with practice presets enabled, open
 /game/battle?preset=trio_specter&auto=1&speed=2
 ```
 
-`preset` picks the trio (`trio_<class>[_<tier>]` or `random_<tier>`), `auto=1` lets the bot
-policy play your side so the battle runs itself, and `speed=2` scales Unity's playback (any
-value 0.25–4). Both params carry through "Start practice" to the battle page and can also be
-added to an existing `/battle/p_…` URL and refreshed.
+`preset` picks the roster, `auto=1` lets the bot policy play your side so the battle runs
+itself, and `speed=2` scales Unity's playback (any value 0.25–4). Both params carry through
+"Start practice" to the battle page and can also be added to an existing `/battle/p_…` URL
+and refreshed.
+
+Rosters worth knowing: **`specials`** fields one Ember + one Tempest + one Specter, so every
+finished Special shows up in a single battle (`specials_evolved` / `specials_apex` for the
+other two arenas); `trio_<class>[_<tier>]` fields three of one class; `random_<tier>` rolls
+three classes at random.
+
+One thing that is deliberate and not a bug: **the hex grid is invisible until it is your
+turn.** Between turns the board is painted arena art only, and the hexes appear for the
+lobster that is about to act — its reachable cells, its own hex and its targets.
+
+## 3c. Arena layers — what the engine now does to them
+
+You author arenas as full-frame 640 × 360 layers in
+`Assets/Art/Arenas/<Tier>/ArenaArt_<Tier>.prefab`. Two automatic rules apply to the
+**Foreground** layers, so it is worth knowing how the engine reads them:
+
+- **Decor is shrunk to 80 %** so the boards read less crowded. Each layer is scaled about
+  the frame edge its painted content touches — a rock ledge along the bottom gets thinner
+  and stays glued to the bottom, a clam at the left shrinks toward the left — and an axis
+  whose content spans the whole canvas is left alone, so a full-width band never pulls in
+  from the ends. That measurement comes from the layer's opaque pixels, not its canvas.
+- **Only the bottom lip draws in front of the lobsters.** A layer whose content stops
+  below 60 % of the frame height is treated as bottom-edge art and renders over the
+  characters (a front-row lobster stands behind it). Anything taller is side art and
+  renders behind them, so cliffs and rock columns no longer clip the outer columns.
+
+Both rules read a small generated file. **After you add or repaint an arena layer, run
+`Clawbada ▸ Arena ▸ Bake Decor Anchors`** (or just tell us and we will). An unbaked layer
+is left at full size and drawn in front, which is the safe default for bottom-edge art but
+wrong for anything tall.
+
+Backdrop and ground (Background / Default sorting layers) are never scaled or re-sorted —
+the hex board is aligned to them.
+
+## 3d. HUD and UI art — the contract when you get to it
+
+The action buttons, the gear and the glyphs currently in the build are **placeholder art we
+generate procedurally**, so they are meant to be replaced. Two ways in, both no-code:
+
+1. Drop PNGs over the generated ones in `Assets/Art/UI/` using the same names —
+   `btn_attack`, `btn_special`, `btn_defend`, `btn_wait`, `btn_neutral`, `btn_gear`,
+   `hex_glow`, `ic_attack`, `ic_special`, `ic_defend`, `ic_wait`, `ic_gear`, `ic_undo`.
+   Plates are 96 × 110 (pointy-top hex), glyphs 64 × 64, `hex_glow` is the ring shown on the
+   armed action.
+2. Or assign your own sprites to the matching slots in `Assets/Resources/UI/HudSkin.asset`.
+
+Don't run `Clawbada ▸ Generate HUD Button Art` after that — it overwrites the generated
+names. Everything else in the HUD (cards, turn strip, bars, result banner) is built from
+`HudSkin` too, so the same swap applies.
 
 ## 4. Preview without the server
 
@@ -161,5 +238,10 @@ slot fires within a minute. Tune `delay` and anchors live in the Inspector.
 - [ ] Dragged into `BattleVfxLibrary.asset` → `specialByClass[classId]`
 - [ ] Looks right in Play mode (`BattleDemoLoop`), both facings
 - [ ] `git push origin design/vfx-specials` (LFS uploads the PNGs automatically)
+
+For a **projectile** Special, deliver three pieces instead of one timeline — a spawn/format
+one-shot, a looping travel prefab (no `OneShotVfx`), and an impact one-shot — and the runtime
+decides how long the travel lasts from the caster→target distance. For a **persistent status**
+mark, deliver spawn / loop / end and tell us which status it belongs to.
 
 Visual spec per class (palettes, timing, enhanced variants): `docs/SPECIAL_MOVE_VFX_HANDOFF.md`.
