@@ -216,6 +216,16 @@ death visuals have not run yet, and overlays whose rig was despawned are hidden.
 Fullscreen: the React stage (`BattleStage`) offers a Full-screen toggle (bottom-right of the
 canvas); the stage element goes fullscreen and the canvas stays 16:9, letterboxed.
 
+Frame-art depth (2026-09-10): only the **bottom lip** of the arena's Foreground art draws in
+front of the lobsters. Every Foreground layer used to be lifted above the actors wholesale,
+which clipped the lobsters in the outer spawn columns behind art that climbs the sides — Apex's
+cliff walls swallowed the right-hand team, and Evolved's rock columns would have done the same.
+`BattleManager.LiftFrameArt` uses the baked content boxes (see below): a layer whose painted
+content stops below 60 % of the frame height is bottom-lip art and is lifted; anything taller
+keeps its authored order and stays behind the actors. A layer with no baked box is lifted, which
+is the safe default for new bottom-edge art. The split is logged per battle
+(`frame art in front: [...] behind actors: [...]`).
+
 Decor scale (2026-09-10): the boards read less crowded because the arena's Foreground art is
 shrunk to `BattleManager.decorScale` (0.8). Every arena layer the designer ships is a full-frame
 640×360 canvas, so a sprite's bounds say nothing about what is painted in it — scaling a layer

@@ -175,13 +175,7 @@ public class BattleManager : MonoBehaviour
         arenaArtInstance = Instantiate(prefab);
         arenaArtInstance.name = prefab.name;
 
-        // Frame art authored on the Foreground layer (FG_1, FG_2, …) always renders in
-        // front of lobsters and obstacles, whatever order the prefab shipped with.
-        foreach (var r in arenaArtInstance.GetComponentsInChildren<SpriteRenderer>(true))
-        {
-            if (r.sortingLayerName == DepthSort.Layer && r.sortingOrder < DepthSort.ArenaFrontOrderBase)
-                r.sortingOrder += DepthSort.ArenaFrontOrderBase;
-        }
+        LiftFrameArt(arenaArtInstance.GetComponentsInChildren<SpriteRenderer>(true), tier);
 
         // The arena prefabs aren't authored around a common origin (Evolved bakes in
         // the camera's y=1 offset, Apex is centered at zero). Center the combined
@@ -209,6 +203,41 @@ public class BattleManager : MonoBehaviour
 
             ShrinkDecor(renderers, tier);
         }
+    }
+
+    /// <summary>Decide which Foreground arena layers draw in front of the lobsters.
+    ///
+    /// Only the bottom lip of the frame belongs in front: the plants and rocks a lobster on the
+    /// front row should stand behind. Art that climbs the sides — Apex's cliff walls, Evolved's
+    /// rock columns — must stay behind the actors, or it clips the lobsters spawned in the
+    /// outer columns (visible on Apex: the right-hand team disappeared into the cliff).
+    ///
+    /// A layer is "bottom lip" when its painted content stops below FrontBandTop of the frame,
+    /// measured from the baked content boxes — the sprites are all full-frame canvases, so
+    /// there is nothing else to go on. Layers with no baked box keep the old behaviour (in
+    /// front), which is the safe default for a designer's new bottom-edge art.</summary>
+    private void LiftFrameArt(SpriteRenderer[] renderers, string tier)
+    {
+        const float FrontBandTop = 0.6f;
+        var anchors = Resources.Load<ArenaDecorAnchors>(ArenaDecorAnchors.ResourcePath);
+        var front = new List<string>();
+        var behind = new List<string>();
+        foreach (var r in renderers)
+        {
+            if (r.sortingLayerName != DepthSort.Layer || r.sortingOrder >= DepthSort.ArenaFrontOrderBase) continue;
+            var box = r.sprite != null && anchors != null ? anchors.For(tier, r.sprite.name) : null;
+            bool bottomLip = box == null || box.Value.w <= FrontBandTop;
+            if (bottomLip)
+            {
+                r.sortingOrder += DepthSort.ArenaFrontOrderBase;
+                front.Add(r.name);
+            }
+            else
+            {
+                behind.Add($"{r.name}(top {box.Value.w:F2})");
+            }
+        }
+        Debug.Log($"[BattleManager] arena '{tier}' frame art in front: [{string.Join(", ", front)}] behind actors: [{string.Join(", ", behind)}]");
     }
 
     /// <summary>Shrink the arena's decorative Foreground art so the board reads less crowded.
