@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f6ae359e86a34a0a82f17a1ed2b0e4e, type: 3}
+  m_Name: ArenaDecorAnchors
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaDecorAnchors
+  entries:
+  - sprite: Apex/BG - 1
+    content: {x: 0, y: 0.15, z: 1, w: 0.8055556}
+  - sprite: Apex/BG - 2
+    content: {x: 0, y: 0, z: 1, w: 0.89444447}
+  - sprite: Apex/BG - 3
+    content: {x: 0, y: 0, z: 1, w: 1}
+  - sprite: Apex/FG - 1
+    content: {x: 0, y: 0.38333333, z: 1, w: 0.9361111}
+  - sprite: Apex/FG - 2
+    content: {x: 0, y: 0.175, z: 1, w: 0.86388886}
+  - sprite: Apex/FG - 3
+    content: {x: 0, y: 0, z: 1, w: 0.5222222}
+  - sprite: Apex/Ground
+    content: {x: 0, y: 0, z: 1, w: 0.76666665}
+  - sprite: Elite/BG - 2
+    content: {x: 0, y: 0.6638889, z: 1, w: 0.99444443}
+  - sprite: Elite/BG - 3
+    content: {x: 0, y: 0, z: 1, w: 1}
+  - sprite: Elite/FG - 1 - Rock
+    content: {x: 0, y: 0, z: 1, w: 0.3861111}
+  - sprite: Elite/FG - 2 - Shell
+    content: {x: 0.003125, y: 0.34166667, z: 0.0953125, w: 0.4861111}
+  - sprite: Elite/Glow
+    content: {x: 0.078125, y: 0.094444446, z: 0.921875, w: 0.78055555}
+  - sprite: Elite/Ground
+    content: {x: 0.0234375, y: 0, z: 0.975, w: 0.82222223}
+  - sprite: Elite/Seaweed
+    content: {x: 0.8015625, y: 0.12777779, z: 0.84375, w: 0.26944444}
+  - sprite: Elite/Treasure
+    content: {x: 0.94375, y: 0.5861111, z: 1, w: 0.78333336}
+  - sprite: Evolved/BG_1
+    content: {x: 0, y: 0, z: 1, w: 1}
+  - sprite: Evolved/BG_2
+    content: {x: 0, y: 0, z: 1, w: 0.85555553}
+  - sprite: Evolved/BG_3
+    content: {x: 0, y: 0, z: 1, w: 0.80277777}
+  - sprite: Evolved/BG_4
+    content: {x: 0, y: 0.5611111, z: 1, w: 0.93333334}
+  - sprite: Evolved/FG_1
+    content: {x: 0, y: 0, z: 1, w: 0.30833334}
+  - sprite: Evolved/FG_2
+    content: {x: 0, y: 0, z: 1, w: 1}
+  - sprite: Evolved/Foam
+    content: {x: 0.246875, y: 0.78333336, z: 0.7921875, w: 0.8111111}
