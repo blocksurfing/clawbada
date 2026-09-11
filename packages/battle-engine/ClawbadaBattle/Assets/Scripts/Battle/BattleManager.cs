@@ -93,7 +93,9 @@ public class BattleManager : MonoBehaviour
     public float decorScale = 0.8f;
 
     [Header("Animation Timing")]
-    public float secondsPerHexMove = 0.35f;
+    [Tooltip("Seconds to cross one hex. Playtest 2026-09-11: slowed 25% (0.35 → 0.467); the Move state " +
+             "speed in every rig controller is scaled to match, so the walk cycle does not skate.")]
+    public float secondsPerHexMove = 0.4667f;
     public float attackDuration = 0.55f;
     public float hitDuration = 0.45f;
     public float deathDuration = 0.9f;
