@@ -95,6 +95,22 @@ public static class HudSmokeTest
             Check(hud.Marker != null && hud.Marker.gameObject.activeSelf, "marker follows the active lobster");
             Check(hud.Options != null && !hud.Options.gameObject.activeSelf, "options gear hidden once the battle has ended");
 
+            // Nzib 2026-09-11: the possession has to read as entering the target, so an impact
+            // bound to TargetBody must land on the body, not at the rig root (= the hex centre,
+            // where every rig authors ImpactFX and where a "hit" effect used to play).
+            var victim = manager.GetLobster("B0");
+            if (victim != null)
+            {
+                Vector3 feet = victim.transform.position;
+                Vector3 body = victim.BodyCenter;
+                var slot = new BattleVfxLibrary.VfxSlot { anchor = BattleVfxLibrary.AnchorPoint.TargetBody };
+                Vector3 anchored = BattleVfxLibrary.AnchorPosition(slot, manager.GetLobster("A1"), victim, feet);
+                Check(body.y > feet.y + 0.1f, $"body anchor sits above the feet (+{body.y - feet.y:F2})");
+                Check(body.y - feet.y < 0.5f, "body anchor stays inside the rig's canvas (< 0.5)");
+                Check(Mathf.Approximately(body.x, feet.x), "body anchor stays centred on the rig (flip-proof)");
+                Check(anchored == body, "TargetBody anchor resolves to the target's body centre");
+            }
+
             string msg = $"[HudSmokeTest] OK — {images} images, {texts} texts, strip [{hud.Strip.DescribeIds()}], clock {hud.Clock.RemainingSeconds:F1}s";
             Debug.Log(msg);
             if (Application.isBatchMode) System.Console.WriteLine(msg);

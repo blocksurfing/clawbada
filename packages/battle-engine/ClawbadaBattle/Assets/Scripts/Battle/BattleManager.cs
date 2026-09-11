@@ -527,8 +527,11 @@ public class BattleManager : MonoBehaviour
                             // on arrival and damage / hit reads land on its burst frame (`impactLead`).
                             float t0 = Time.time;
                             Vector3 from = actor.AttackFxAnchor.position;
-                            Vector3 to = target != null ? target.ImpactFxAnchor.position
-                                                        : from + (actor.IsFacingLeft ? Vector3.left : Vector3.right) * 2f;
+                            // Land on the impact's own anchor, so a spirit bound to TargetBody is
+                            // absorbed into the body instead of stopping at the target's feet.
+                            Vector3 to = target != null
+                                ? BattleVfxLibrary.AnchorPosition(impactSlot, actor, target, target.ImpactFxAnchor.position)
+                                : from + (actor.IsFacingLeft ? Vector3.left : Vector3.right) * 2f;
                             float flight = Vector3.Distance(from, to) / Mathf.Max(0.5f, windup.travelSpeed);
                             Debug.Log($"[BattleManager] special {actor.className} projectile launchAt={windup.launchAt:F2}s dist={Vector3.Distance(from, to):F2} flight={flight:F2}s impactLead={windup.impactLead:F2}s");
                             StartCoroutine(actor.PlayAttack(targetPos, attackDuration, false, null));
