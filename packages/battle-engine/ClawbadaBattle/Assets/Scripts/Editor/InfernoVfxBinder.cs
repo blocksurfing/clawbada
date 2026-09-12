@@ -62,9 +62,10 @@ public static class InfernoVfxBinder
         if (Application.isBatchMode) System.Console.WriteLine(msg);
     }
 
-    /// <summary>Headless one-shot: rebinds every Special drop — Maelstrom, Inferno, Haunt.</summary>
+    /// <summary>Headless one-shot: rebinds every Special drop currently landed in this branch.</summary>
     public static void BindAll()
     {
+        BulwarkFortifyVfxBinder.Bind();
         MaelstromVfxBinder.Bind();
         Bind();
         HauntVfxBinder.Bind();
