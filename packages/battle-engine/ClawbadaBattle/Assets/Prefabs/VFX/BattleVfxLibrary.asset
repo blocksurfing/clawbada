@@ -85,11 +85,11 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
   specialByClass:
-  - prefab: {fileID: 0}
+  - prefab: {fileID: 7285892762597218119, guid: 70c7a829feea7e847931fe76269421df, type: 3}
     anchor: 2
     delay: 0
-    mirrorWithFacing: 1
-    impactAt: 0
+    mirrorWithFacing: 0
+    impactAt: 3.3
     hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
