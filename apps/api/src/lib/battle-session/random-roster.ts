@@ -12,7 +12,7 @@ export const RANDOM_PRESET_RE = /^random_(evolved|elite|apex)$/;
  * Specter Haunt, Ember Inferno. Append a class here as its drop lands; the `specials` preset
  * and the picker entry follow automatically.
  */
-export const VFX_READY_CLASSES = ['ember', 'tempest', 'specter'] as const;
+export const VFX_READY_CLASSES = ['bulwark', 'tempest', 'specter'] as const;
 /** `specials[_<tier>]`: one lobster of each VFX-ready class — every finished Special in one battle. */
 export const SPECIALS_PRESET_RE = /^specials(?:_(evolved|elite|apex))?$/;
 /** `trio_<class>[_<tier>]`: three lobsters of one class (default Elite) — for exercising one Special on demand. */
