@@ -23,6 +23,7 @@ export interface WireRules {
   moveRange: Record<string, number>; attackMult: Record<string, string>;
   specialCost: number; specialPower: Record<string, string>;
   rendBleedPerTurn: string; hauntReduction: string;
+  fortifyRadiusByTier: Record<number, number>;
   fortifyTaunt: boolean; focusFalloffBps: string; guardPenaltyBps: string; rallyHealPct: string;
   attackRange: Record<string, number>; firstHitReduction: Record<string, string>;
 }
@@ -83,6 +84,7 @@ export function rulesToWire(r: BattleRules): WireRules {
     moveRange: numMap(r.moveRange), attackMult: strMap(r.attackMult),
     specialCost: r.specialCost, specialPower: strMap(r.specialPower),
     rendBleedPerTurn: s(r.rendBleedPerTurn), hauntReduction: s(r.hauntReduction),
+    fortifyRadiusByTier: { ...r.fortifyRadiusByTier },
     fortifyTaunt: r.fortifyTaunt, focusFalloffBps: s(r.focusFalloffBps), guardPenaltyBps: s(r.guardPenaltyBps), rallyHealPct: s(r.rallyHealPct),
     attackRange: numMap(r.attackRange), firstHitReduction: strMap(r.firstHitReduction),
   };
@@ -94,6 +96,7 @@ export function rulesFromWire(w: WireRules): BattleRules {
     moveRange: numMapBack(w.moveRange), attackMult: bigMapBack(w.attackMult),
     specialCost: w.specialCost, specialPower: bigMapBack(w.specialPower),
     rendBleedPerTurn: BigInt(w.rendBleedPerTurn), hauntReduction: BigInt(w.hauntReduction),
+    fortifyRadiusByTier: { ...w.fortifyRadiusByTier },
     fortifyTaunt: w.fortifyTaunt, focusFalloffBps: BigInt(w.focusFalloffBps), guardPenaltyBps: BigInt(w.guardPenaltyBps), rallyHealPct: BigInt(w.rallyHealPct),
     attackRange: numMapBack(w.attackRange), firstHitReduction: bigMapBack(w.firstHitReduction),
   };

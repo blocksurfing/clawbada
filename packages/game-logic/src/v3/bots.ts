@@ -117,9 +117,16 @@ function specialValue(state: AtbBattleState, actor: AtbLobster, target: AtbLobst
   const power = specialPowerOf(state, actor.class);
   switch (actor.class) {
     case LobsterClass.Bulwark: {
-      // Fortify: 40% of what the team is about to take.
+      // Fortify: 40% of what the COVERED allies are about to take. Only allies inside the
+      // caster's tier radius benefit (the caster always does), so a bot that ignored range
+      // would happily cast into empty space and overvalue it.
+      const radius = state.rules.fortifyRadiusByTier[actor.tier] ?? 2;
       let incoming = 0;
-      for (const ally of state.lobsters) if (ally.alive && ally.team === actor.team) incoming += exposure(state, ally, ally.pos, false);
+      for (const ally of state.lobsters) {
+        if (!ally.alive || ally.team !== actor.team) continue;
+        if (ally.id !== actor.id && hexDistance(pos, ally.pos) > radius) continue;
+        incoming += exposure(state, ally, ally.pos, false);
+      }
       return incoming * (n(FORTIFY_REDUCTION) / 1000) * 1.2;
     }
     case LobsterClass.Tempest: {

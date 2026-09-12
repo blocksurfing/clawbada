@@ -61,8 +61,13 @@ export function resolveSpecial(
   const base = specialPowerOf(state, actor.class);
   switch (actor.class) {
     case LobsterClass.Bulwark: {
+      // Fortify covers allies within the caster's tier radius (Evolved 2 / Elite 3 / Apex 4),
+      // evaluated once at cast. The caster is always covered, so a cast is never wasted —
+      // worst case it is a self-shield. Radius is a tunable rule, not a constant.
+      const radius = state.rules.fortifyRadiusByTier[actor.tier] ?? 2;
       for (const ally of state.lobsters) {
         if (ally.team !== actor.team || !ally.alive) continue;
+        if (ally.id !== actor.id && hexDistance(actor.pos, ally.pos) > radius) continue;
         addStatus(ally, { type: 'fortify', turns: FORTIFY_TURNS, value: FORTIFY_REDUCTION }, out);
         const reflect = isEnhanced ? state.rules.fortifyReflectEnhanced : state.rules.fortifyReflectBase;
         if (reflect > 0n) addStatus(ally, { type: 'reflect', turns: FORTIFY_TURNS, value: reflect }, out);

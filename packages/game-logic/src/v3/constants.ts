@@ -70,6 +70,19 @@ export const SPECIAL_RANGE: Readonly<Record<LobsterClass, number>> = {
 // ──────────── Special effect tuning (durations in turns of the affected lobster) ────────────
 export const FORTIFY_REDUCTION = 400n; // -40% incoming (×1000)
 export const FORTIFY_TURNS = 2;
+/**
+ * Fortify's aura radius in hexes, by the CASTER's own tier (a team may mix tiers).
+ * The caster is always covered regardless of radius, so a cast is never wasted.
+ * Range is evaluated ONCE, at cast — an ally that walks out keeps the buff for its
+ * remaining turns, matching how every other `turns`-based status already works.
+ * Set a radius of 99 to reproduce the pre-2026-09-12 team-wide behaviour.
+ */
+export const FORTIFY_RADIUS_BY_TIER: Record<number, number> = {
+  0: 2, // Base — cannot enter battle; present so a lookup never returns undefined
+  1: 2, // Evolved
+  2: 3, // Elite
+  3: 4, // Apex
+};
 export const FORTIFY_REFLECT_BASE = 0n; // spec: no reflect unless enhanced (×1000)
 export const FORTIFY_ENHANCED_REFLECT = 200n; // 20% of blocked damage reflected (×1000)
 export const HAUNT_REDUCTION = 200n; // -20% Atk/Armor (×1000)

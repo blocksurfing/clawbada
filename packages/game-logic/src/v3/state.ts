@@ -76,6 +76,8 @@ export interface BattleRules {
   /** Haunt Atk/Armor reduction ×1000 (enhanced adds +100). Spec: 200. */
   hauntReduction: bigint;
   // ── Anti-focus experiments (2026-08-31), all default-off ──
+  /** Fortify aura radius (hexes) by caster tier; caster always covered. Spec: FORTIFY_RADIUS_BY_TIER. */
+  fortifyRadiusByTier: Record<number, number>;
   /** Fortify also taunts: while active on the caster, adjacent enemies must target it. */
   fortifyTaunt: boolean;
   /** Each direct hit on a target since its last turn reduces the next by this much (bps), floored at 40%. */
