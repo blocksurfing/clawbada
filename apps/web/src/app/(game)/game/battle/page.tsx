@@ -28,7 +28,7 @@ const BOTS = ['balanced', 'aggressive', 'cautious', 'greedy', 'charger', 'focus'
 const PRESETS = [
   // Every Special whose VFX is finished, one lobster each (Ember Inferno, Tempest Maelstrom,
   // Specter Haunt) — the roster to reach for when reviewing battle art.
-  { id: 'specials', label: 'Live specials · Ember/Tempest/Specter (Elite)' },
+  { id: 'specials', label: 'Live specials · Bulwark/Tempest/Specter (Elite)' },
   { id: 'specials_evolved', label: 'Live specials · Evolved' },
   { id: 'specials_apex', label: 'Live specials · Apex' },
   { id: 'random_evolved', label: 'Random team · Evolved' },
