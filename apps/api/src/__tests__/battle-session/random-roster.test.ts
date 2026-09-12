@@ -33,11 +33,11 @@ describe('rollSpecialsRoster', () => {
     expect(SPECIALS_PRESET_RE.test('specials_base')).toBe(false);
     expect(SPECIALS_PRESET_RE.test('specials_')).toBe(false);
     // The roster is exactly the VFX-ready list, in order, so a reviewer knows what to expect.
-    expect([...VFX_READY_CLASSES]).toEqual(['ember', 'tempest', 'specter']);
+    expect([...VFX_READY_CLASSES]).toEqual(['bulwark', 'tempest', 'specter']);
 
     const r = rollSpecialsRoster();
     expect(r.tier).toBe(EvolutionTier.Elite);
-    expect(r.classes).toEqual([LobsterClass.Ember, LobsterClass.Tempest, LobsterClass.Specter]);
+    expect(r.classes).toEqual([LobsterClass.Bulwark, LobsterClass.Tempest, LobsterClass.Specter]);
     expect(new Set(r.classes).size).toBe(3);
     expect(r.purity).toEqual([3, 3, 3]);
     for (let i = 0; i < 3; i++) {
