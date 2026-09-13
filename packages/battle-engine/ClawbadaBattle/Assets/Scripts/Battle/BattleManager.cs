@@ -570,6 +570,9 @@ public class BattleManager : MonoBehaviour
                         {
                             yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
                             {
+                                // Basic attacks only: a Special's cast swing runs through PlayAttack too,
+                                // and it gets its own sound once those land rather than the attack one.
+                                if (!special) BattleSfx.PlayAttack(actor.classId);
                                 ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot);
                             });
                             // Secondary events (counter hits on the actor, reflects, bleed ticks).
