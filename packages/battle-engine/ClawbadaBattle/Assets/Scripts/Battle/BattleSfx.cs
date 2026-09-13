@@ -27,6 +27,10 @@ public static class BattleSfx
 
     public static void PlayAttack(int classId) => Play(Library?.AttackFor(classId));
 
+    /// <summary>Fires at the start of the cast, not the impact: a Special's sound is a whole
+    /// phrase over a multi-second sequence, where an attack is a single point of contact.</summary>
+    public static void PlaySpecial(int classId, int tier) => Play(Library?.SpecialFor(classId, tier));
+
     private static BattleSfxLibrary Library
     {
         get

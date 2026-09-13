@@ -520,6 +520,10 @@ public class BattleManager : MonoBehaviour
                             : vfxLibrary != null ? vfxLibrary.attackWindup : null;
                         var impactSlot = special && vfxLibrary != null ? vfxLibrary.SpecialImpactFor(actor.classId) : null;
                         if (target != null && target != actor) actor.FaceToward(targetPos); // so a mirrored windup faces the target
+                        // One hook for all three Special branches (projectile / cinematic / plain):
+                        // the sound starts with the windup, so it underscores the whole cast rather
+                        // than punctuating an impact the way a basic attack does.
+                        if (special) BattleSfx.PlaySpecial(actor.classId, actor.tier);
                         BattleVfxLibrary.Spawn(windup, actor, target, this);
 
                         if (special && windup != null && windup.IsProjectile)
