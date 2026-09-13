@@ -23,3 +23,44 @@ MonoBehaviour:
   - {fileID: 8300000, guid: bb600b55d6a084587989a0807ae8b544, type: 3}
   - {fileID: 8300000, guid: fcaebf506cb9747e091aaf2851f1b3d5, type: 3}
   - {fileID: 8300000, guid: 56994ff311c274e778485eed2db82481, type: 3}
+  specialByClass:
+  - shared: {fileID: 0}
+    evolved: {fileID: 0}
+    elite: {fileID: 0}
+    apex: {fileID: 0}
+  - shared: {fileID: 0}
+    evolved: {fileID: 0}
+    elite: {fileID: 0}
+    apex: {fileID: 0}
+  - shared: {fileID: 0}
+    evolved: {fileID: 0}
+    elite: {fileID: 0}
+    apex: {fileID: 0}
+  - shared: {fileID: 0}
+    evolved: {fileID: 0}
+    elite: {fileID: 0}
+    apex: {fileID: 0}
+  - shared: {fileID: 0}
+    evolved: {fileID: 8300000, guid: 0cab62ff8819b40b2a3392b8961a3503, type: 3}
+    elite: {fileID: 8300000, guid: a53201d1bf34f448c9e1136ad8314627, type: 3}
+    apex: {fileID: 8300000, guid: 5d4cff4ff2ce64a15b074d318bbdb109, type: 3}
+  - shared: {fileID: 0}
+    evolved: {fileID: 0}
+    elite: {fileID: 0}
+    apex: {fileID: 0}
+  - shared: {fileID: 0}
+    evolved: {fileID: 0}
+    elite: {fileID: 0}
+    apex: {fileID: 0}
+  - shared: {fileID: 0}
+    evolved: {fileID: 0}
+    elite: {fileID: 0}
+    apex: {fileID: 0}
+  - shared: {fileID: 0}
+    evolved: {fileID: 0}
+    elite: {fileID: 0}
+    apex: {fileID: 0}
+  - shared: {fileID: 0}
+    evolved: {fileID: 0}
+    elite: {fileID: 0}
+    apex: {fileID: 0}
