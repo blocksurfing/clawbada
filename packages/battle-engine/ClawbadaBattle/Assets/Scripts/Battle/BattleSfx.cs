@@ -1,9 +1,14 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// One-line playback for battle sounds: BattleSfx.PlayAttack(classId) at the moment the
-/// hit lands. Owns a single 2D AudioSource created on first use, so nothing has to be
-/// wired into the scene or carried through BattleManager.
+/// One-line playback for battle sounds. Owns a single 2D AudioSource created on first use,
+/// so nothing has to be wired into the scene or carried through BattleManager.
+///
+/// Attacks fire on the contact frame. Specials have two phases: the cast clip starts with
+/// the windup, and the impact clip is scheduled against the hit beat so that its loudest
+/// moment — the crack of the strike — lands ON the beat rather than after it. The lead
+/// for that comes from the library (measured from the file by the binder).
 ///
 /// Headroom matters more than it looks. Sound-pack files are mastered to 0 dBFS, and an
 /// ATB battle overlaps hits freely — six lobsters, bleed ticks, counters — so playing them
@@ -23,13 +28,34 @@ public static class BattleSfx
 
     private static BattleSfxLibrary library;
     private static AudioSource source;
+    private static BattleSfxRunner runner;
     private static bool libraryMissingLogged;
 
-    public static void PlayAttack(int classId) => Play(Library?.AttackFor(classId));
+    public static void PlayAttack(int classId) => Play(Library?.AttackFor(classId), "attack");
 
-    /// <summary>Fires at the start of the cast, not the impact: a Special's sound is a whole
-    /// phrase over a multi-second sequence, where an attack is a single point of contact.</summary>
-    public static void PlaySpecial(int classId, int tier) => Play(Library?.SpecialFor(classId, tier));
+    /// <summary>Cast phase — fires with the windup and underscores the whole sequence.</summary>
+    public static void PlaySpecial(int classId, int tier) => Play(Library?.SpecialCastFor(classId, tier), "cast");
+
+    /// <summary>Impact phase, right now. For the plain branch, where the beat is the swing's own contact frame.</summary>
+    public static void PlaySpecialImpact(int classId, int tier) => Play(Library?.SpecialImpactFor(classId, tier), "impact");
+
+    /// <summary>
+    /// Impact phase against a beat that is <paramref name="secondsUntilBeat"/> away: starts
+    /// `impactLead` seconds early so the clip's loudest moment coincides with the hit. Waits in
+    /// scaled time, the same clock the battle timeline runs on, so ?speed=N keeps them aligned.
+    /// </summary>
+    public static void PlaySpecialImpactIn(int classId, int tier, float secondsUntilBeat)
+    {
+        var lib = Library;
+        if (lib == null || !Application.isPlaying) return;
+        var clip = lib.SpecialImpactFor(classId, tier);
+        if (clip == null) return;
+        float lead = lib.SpecialImpactLead(classId);
+        float delay = Mathf.Max(0f, secondsUntilBeat - lead);
+        Debug.Log($"[BattleSfx] {clip.name} (impact) scheduled: beat in {secondsUntilBeat:F2}s, lead {lead:F2}s → starts in {delay:F2}s");
+        EnsureSource();
+        runner.StartCoroutine(PlayAfter(clip, delay));
+    }
 
     private static BattleSfxLibrary Library
     {
@@ -47,18 +73,31 @@ public static class BattleSfx
         }
     }
 
-    private static void Play(AudioClip clip)
+    private static void Play(AudioClip clip, string phase)
     {
         if (clip == null || !Application.isPlaying) return;
-        if (source == null)
-        {
-            var go = new GameObject("BattleSfx") { hideFlags = HideFlags.HideAndDontSave };
-            Object.DontDestroyOnLoad(go);
-            source = go.AddComponent<AudioSource>();
-            source.playOnAwake = false;
-            source.spatialBlend = 0f; // 2D: the board is small and not meaningfully panned
-        }
+        EnsureSource();
         source.PlayOneShot(clip, Headroom);
-        Debug.Log($"[BattleSfx] {clip.name} @ {Headroom:F2}");
+        Debug.Log($"[BattleSfx] {clip.name} ({phase}) @ {Headroom:F2}");
+    }
+
+    private static IEnumerator PlayAfter(AudioClip clip, float delay)
+    {
+        if (delay > 0f) yield return new WaitForSeconds(delay);
+        Play(clip, "impact");
+    }
+
+    private static void EnsureSource()
+    {
+        if (source != null) return;
+        var go = new GameObject("BattleSfx") { hideFlags = HideFlags.HideAndDontSave };
+        Object.DontDestroyOnLoad(go);
+        source = go.AddComponent<AudioSource>();
+        source.playOnAwake = false;
+        source.spatialBlend = 0f; // 2D: the board is small and not meaningfully panned
+        runner = go.AddComponent<BattleSfxRunner>();
     }
 }
+
+/// <summary>Coroutine host for BattleSfx's scheduled plays. Lives on the hidden BattleSfx object.</summary>
+internal class BattleSfxRunner : MonoBehaviour { }
