@@ -137,6 +137,7 @@ public class BattleManager : MonoBehaviour
         Debug.Log($"[BattleManager] Initialized battle {data.battleId}, player side: {data.playerSide}, tier: {data.arena.tier}");
 
         SwapArenaArt(data.arena.tier);
+        BattleMusic.PlayArena(data.arena.tier);
         ClearLobsters();
         if (lobsterRoot == null)
         {
@@ -787,6 +788,7 @@ public class BattleManager : MonoBehaviour
         Debug.Log($"[BattleManager] Battle over! Winner: {data.winner}, Player won: {data.playerWon}");
         hexGrid?.ClearHighlights();
         ClearPreview();
+        BattleMusic.Stop();
         BattleEnded?.Invoke(data);
         if (data.winner == "draw") return;
 

@@ -57,6 +57,9 @@ public static class BattleSfx
         runner.StartCoroutine(PlayAfter(clip, delay));
     }
 
+    /// <summary>The bound library, or null if none — for BattleMusic, which shares it.</summary>
+    internal static BattleSfxLibrary LibraryOrNull => Library;
+
     private static BattleSfxLibrary Library
     {
         get

@@ -24,6 +24,7 @@ public static class BattleSfxBinder
 {
     private const string AttackDir = "Assets/Audio/SFX/Attack/";
     private const string SpecialDir = "Assets/Audio/SFX/Special/";
+    private const string MusicDir = "Assets/Audio/Music/";
     private const string LibraryPath = "Assets/Resources/BattleSfxLibrary.asset";
 
     /// <summary>Index = LobsterClass. Order is the enum's, not alphabetical — do not sort.</summary>
@@ -89,11 +90,23 @@ public static class BattleSfxBinder
                                  (impactN > 0 ? $" lead {slot.impactLead:F2}s" : ""));
         }
 
+        // Arena music: licensed tracks only. Placeholders live under Audio/Music/Resources/Placeholders/
+        // and are resolved at runtime by BattleMusic, so no GUID of an unlicensed file ever lands in
+        // this committed asset.
+        if (lib.arenaMusic == null) lib.arenaMusic = new BattleSfxLibrary.TierClips();
+        int musicN = Fill(lib.arenaMusic, MusicDir + "BGM_Arena");
+        string placeholderDir = MusicDir + "Resources/Placeholders";
+        int placeholders = Directory.Exists(placeholderDir) ? Directory.GetFiles(placeholderDir, "*.wav").Length : 0;
+        if (placeholders > 0)
+            Debug.LogWarning($"[BattleSfxBinder] {placeholders} PLACEHOLDER track(s) under {placeholderDir} — unlicensed, " +
+                             "local testing only; not bound, BuildWebGL refuses them without -allowPlaceholderAudio.");
+
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
         Debug.Log($"[BattleSfxBinder] attack: {bound.Count}/{Classes.Length} bound" +
                   (missing.Count > 0 ? $" — MISSING {string.Join(", ", missing)}" : "") +
                   $" | special: {(specialBound.Count > 0 ? string.Join("; ", specialBound) : "none")}" +
+                  $" | music: {musicN} licensed track(s){(placeholders > 0 ? $", {placeholders} placeholder(s) unbound" : "")}" +
                   $" → {LibraryPath}");
     }
 
