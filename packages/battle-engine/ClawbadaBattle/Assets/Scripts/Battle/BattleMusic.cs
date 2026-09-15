@@ -10,8 +10,9 @@ using UnityEngine;
 ///   1. the bound library — Assets/Audio/Music/BGM_Arena[_&lt;Tier&gt;].wav (licensed, committed)
 ///   2. a PLACEHOLDER — Resources/Placeholders/BGM_Arena[_&lt;Tier&gt;] under Assets/Audio/Music/
 /// Placeholders are gitignored and BuildScript refuses to ship them without
-/// -allowPlaceholderAudio; they exist so an unlicensed track can be auditioned locally
-/// without ever entering git, LFS or a production bundle. Binding one logs a warning on
+/// -allowPlaceholderAudio; they exist so candidate tracks can be auditioned locally
+/// without entering git, LFS or a production bundle until one is chosen (a 3-minute WAV
+/// is ~30 MB in LFS history per candidate). The same locks cover unlicensed material. Binding one logs a warning on
 /// every battle so it cannot be mistaken for the real thing.
 /// </summary>
 public static class BattleMusic
@@ -52,8 +53,8 @@ public static class BattleMusic
             return;
         }
         if (placeholder)
-            Debug.LogWarning($"[BattleMusic] PLACEHOLDER track '{clip.name}' for {tierName} — unlicensed, local testing only. " +
-                             "It is gitignored and BuildWebGL will refuse to ship it without -allowPlaceholderAudio.");
+            Debug.LogWarning($"[BattleMusic] AUDITION track '{clip.name}' for {tierName} — from Resources/Placeholders, not committed. " +
+                             "Gitignored; BuildWebGL refuses to ship it without -allowPlaceholderAudio. Promote it to Audio/Music/ to keep it.");
 
         Ensure();
         if (source.clip == clip && source.isPlaying) return;

@@ -57,7 +57,7 @@ scripts/e2e/.runs/
 broadcast/
 deployments/base-sepolia.json
 
-# Unlicensed placeholder audio for local testing only — never in git, never in LFS, and
+# Audition-only placeholder audio (candidates not yet chosen, or not cleared to ship) — never in git or LFS, and
 # BuildScript.BuildWebGL refuses to ship it without -allowPlaceholderAudio. Drop files at
 # Assets/Audio/<Music|SFX>/Resources/Placeholders/ ; BattleMusic falls back to them at runtime.
 packages/battle-engine/ClawbadaBattle/Assets/Audio/**/Resources/
