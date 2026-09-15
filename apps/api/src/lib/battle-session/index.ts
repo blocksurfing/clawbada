@@ -9,7 +9,7 @@ import { log as baseLog } from '../../logger';
 import { readBattle, readLobster, readTeam } from '../chain';
 import { battleWS } from '../ws';
 import { getLayoutById } from '../../data/arenas';
-import { BattleSessionManager, DEFAULT_BOT_THINK_MS, DEFAULT_POLL_MS, DEFAULT_SHOT_CLOCK_MS } from './manager';
+import { BattleSessionManager, DEFAULT_BOT_THINK_MS, DEFAULT_FIRST_TURN_GRACE_MS, DEFAULT_POLL_MS, DEFAULT_SHOT_CLOCK_MS } from './manager';
 import { SessionStore } from './store';
 
 export * from './protocol';
@@ -39,6 +39,7 @@ export const battleSessions = new BattleSessionManager({
   log,
   shotClockMs: envInt('BATTLE_SHOT_CLOCK_MS', DEFAULT_SHOT_CLOCK_MS),
   botThinkMs: envInt('BOT_THINK_MS', DEFAULT_BOT_THINK_MS),
+  firstTurnGraceMs: envInt('BATTLE_FIRST_TURN_GRACE_MS', DEFAULT_FIRST_TURN_GRACE_MS),
   pollMs: envInt('BATTLE_SESSION_POLL_MS', DEFAULT_POLL_MS),
   layoutById: (id) => getLayoutById(id) as v3.ArenaLayout | undefined,
 });

@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: '/unity-build/Build/:file*.unityweb', headers: [{ key: 'Content-Type', value: 'application/octet-stream' }] },
+      // Arena music is content-hashed by scripts/build-music.ts (BGM_Arena_<Tier>.<sha8>.m4a), so it can be
+      // cached for a year and still invalidate the moment a track changes — independent of Unity rebuilds.
+      { source: '/audio/music/:file*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
     ];
   },
   webpack: (config, { isServer }) => {

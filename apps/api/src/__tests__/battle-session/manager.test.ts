@@ -111,6 +111,25 @@ describe('practice', () => {
     expect(s2.record.roster.filter((r) => r.side === 'B').map((r) => r.classId)).toEqual(botClasses);
   });
 
+  test("each side's first human turn of a fresh battle gets the load grace; later turns get the plain clock", async () => {
+    const store = new FakeStore();
+    const { mgr, fake } = make(store, { shotClockMs: 1_000, firstTurnGraceMs: 500, botThinkMs: 100 });
+    const s = await mgr.startPractice({ owner: ALICE, lobsters: practiceLobsters, bot: 'aggressive', opponent: 'mirror' });
+    const toHuman = () => { let cur = s.current(); for (let g = 0; g < 50 && cur.controller === 'bot'; g++) { fake.advance(100); cur = s.current(); } return cur; };
+    // The clock is armed at creation, before the browser has loaded the arena: the first
+    // human turn carries the grace on top of the shot clock.
+    let cur = toHuman();
+    expect(cur.side).toBe('A');
+    expect(cur.deadline! - fake.now()).toBe(1_500);
+    const actor = s.state.lobsters.find((l) => l.id === cur.lobsterId)!;
+    const r = mgr.submit(s.record.id, ALICE, cur.turn, v3.BOTS.aggressive(s.state, actor));
+    if (!r.ok) throw new Error(r.message);
+    // From the second human turn on, the plain shot clock.
+    cur = toHuman();
+    expect(cur.side).toBe('A');
+    expect(cur.deadline! - fake.now()).toBe(1_000);
+  });
+
   test('submit routes by address, rejects strangers and bad commands, and a finished practice writes finished + no settle job', async () => {
     const store = new FakeStore();
     const { mgr, fake, events } = make(store, { botThinkMs: 100 });
