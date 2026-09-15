@@ -24,43 +24,113 @@ MonoBehaviour:
   - {fileID: 8300000, guid: fcaebf506cb9747e091aaf2851f1b3d5, type: 3}
   - {fileID: 8300000, guid: 56994ff311c274e778485eed2db82481, type: 3}
   specialByClass:
-  - shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}
-  - shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}
-  - shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}
-  - shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}
-  - shared: {fileID: 0}
-    evolved: {fileID: 8300000, guid: 0cab62ff8819b40b2a3392b8961a3503, type: 3}
-    elite: {fileID: 8300000, guid: a53201d1bf34f448c9e1136ad8314627, type: 3}
-    apex: {fileID: 8300000, guid: 5d4cff4ff2ce64a15b074d318bbdb109, type: 3}
-  - shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}
-  - shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}
-  - shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}
-  - shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}
-  - shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}
+  - cast:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impact:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0
+  - cast:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impact:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0
+  - cast:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impact:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0
+  - cast:
+      shared: {fileID: 8300000, guid: fa0a95e224f4a476e88c6f6a75e297e5, type: 3}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impact:
+      shared: {fileID: 8300000, guid: 3da3bc36ea3724336b73dedd3e18916d, type: 3}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0.3
+  - cast:
+      shared: {fileID: 0}
+      evolved: {fileID: 8300000, guid: 0cab62ff8819b40b2a3392b8961a3503, type: 3}
+      elite: {fileID: 8300000, guid: a53201d1bf34f448c9e1136ad8314627, type: 3}
+      apex: {fileID: 8300000, guid: 5d4cff4ff2ce64a15b074d318bbdb109, type: 3}
+    impact:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0
+  - cast:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impact:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0
+  - cast:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impact:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0
+  - cast:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impact:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0
+  - cast:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impact:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0
+  - cast:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impact:
+      shared: {fileID: 0}
+      evolved: {fileID: 0}
+      elite: {fileID: 0}
+      apex: {fileID: 0}
+    impactLead: 0
