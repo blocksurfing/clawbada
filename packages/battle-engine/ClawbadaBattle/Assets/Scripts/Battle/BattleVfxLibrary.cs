@@ -277,6 +277,12 @@ public class BattleVfxLibrary : ScriptableObject
 
     private static void SpawnNow(VfxSlot slot, LobsterController owner, Vector3 position)
     {
+        if (IsAbyssDevour(slot.prefab))
+        {
+            SpawnAbyssDevourSplitLayers(slot, owner, position);
+            return;
+        }
+
         var fx = Instantiate(slot.prefab, position, Quaternion.identity);
         HideGuideChildren(fx, slot.hideChildrenPrefix);
 
@@ -287,12 +293,75 @@ public class BattleVfxLibrary : ScriptableObject
             fx.transform.localScale = s;
         }
 
-        // Sort just above the owner so effects never vanish behind their lobster; `onTop`
-        // effects (per-target Special impacts) go above full-screen layers and front decor.
         var group = fx.GetComponent<SortingGroup>();
         if (group == null) group = fx.AddComponent<SortingGroup>();
         group.sortingLayerName = DepthSort.Layer;
         group.sortingOrder = slot.onTop ? DepthSort.ArenaFrontOrderBase + 61 : owner.SortingOrder + 1;
+
+        if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
+    }
+
+    private static bool IsAbyssDevour(GameObject prefab)
+    {
+        return prefab != null && prefab.name.Contains("Abyss_Devour");
+    }
+
+    private static void SpawnAbyssDevourSplitLayers(VfxSlot slot, LobsterController owner, Vector3 position)
+    {
+        // Abyss Devour must straddle the lobster depth:
+        //   ground vortex on Default/-1 below lobster sprites, SuckIdle on Foreground/0 above them.
+        // Character art is authored on Default, so putting the ground vortex on Foreground
+        // will always render it above the lobster no matter what sortingOrder says.
+        // Spawn two synchronized copies, each with one forced root depth.
+        var ground = Instantiate(slot.prefab, position, Quaternion.identity);
+        PrepareAbyssDevourLayer(ground, slot, owner, keepSuck: false, sortingLayer: "Default", sortingOrder: -1, suffix: "_GroundLayer");
+
+        var suck = Instantiate(slot.prefab, position, Quaternion.identity);
+        PrepareAbyssDevourLayer(suck, slot, owner, keepSuck: true, sortingLayer: "Foreground", sortingOrder: 0, suffix: "_SuckLayer");
+    }
+
+    private static void PrepareAbyssDevourLayer(GameObject fx, VfxSlot slot, LobsterController owner, bool keepSuck, string sortingLayer, int sortingOrder, string suffix)
+    {
+        fx.name = fx.name.Replace("(Clone)", suffix);
+        HideGuideChildren(fx, slot.hideChildrenPrefix);
+
+        if (slot.mirrorWithFacing && owner.IsFacingLeft)
+        {
+            var s = fx.transform.localScale;
+            s.x = -s.x;
+            fx.transform.localScale = s;
+        }
+
+        foreach (var t in fx.GetComponentsInChildren<Transform>(true))
+        {
+            if (t == fx.transform) continue;
+            bool isSuck = t.name.Contains("Suck");
+            if (keepSuck != isSuck)
+            {
+                t.gameObject.SetActive(false);
+                Destroy(t.gameObject);
+            }
+        }
+
+        foreach (var childGroup in fx.GetComponentsInChildren<SortingGroup>(true))
+        {
+            if (childGroup.transform == fx.transform) continue;
+            childGroup.enabled = false;
+            childGroup.sortAtRoot = false;
+            Destroy(childGroup);
+        }
+
+        var rootGroup = fx.GetComponent<SortingGroup>();
+        if (rootGroup == null) rootGroup = fx.AddComponent<SortingGroup>();
+        rootGroup.sortingLayerName = sortingLayer;
+        rootGroup.sortingOrder = sortingOrder;
+        rootGroup.sortAtRoot = true;
+
+        foreach (var sr in fx.GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            sr.sortingLayerName = sortingLayer;
+            sr.sortingOrder = 0;
+        }
 
         if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
     }

@@ -66,9 +66,11 @@ public static class InfernoVfxBinder
     public static void BindAll()
     {
         BulwarkFortifyVfxBinder.Bind();
+        MantisAmbushVfxBinder.Bind();
         MaelstromVfxBinder.Bind();
         Bind();
         HauntVfxBinder.Bind();
+        KrakenBindVfxBinder.Bind();
     }
 
     private static GameObject BuildPrefab(string name, string sheet, int expectedFrames, bool loop, bool oneShot)
