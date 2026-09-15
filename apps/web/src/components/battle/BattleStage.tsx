@@ -200,12 +200,18 @@ function UnityStage(props: BattleStageProps) {
     animating.current = turn;
     send(UNITY_METHODS.PLAY_TURN, turnToPlayData(props.nextToAnimate));
     if (watchdog.current) clearTimeout(watchdog.current);
+    // Unity's holds run in scaled time (?speed=0.25 makes a 6 s Fortify take 24 s of wall time)
+    // but this timer is wall time. Unscaled, slow review playback tripped it on every Special,
+    // releasing the HUD mid-hold so the next turn's routine ran on top of the previous one —
+    // three Fortify domes on screen at once. Stretch it for speeds below 1; never shorten it.
+    const watchdogMs = Math.round(ANIMATION_WATCHDOG_MS / Math.min(1, props.speed && props.speed > 0 ? props.speed : 1));
     watchdog.current = setTimeout(() => {
       if (animating.current !== turn) return;
-      console.warn(`[BattleStage] Unity did not report turn ${turn} animation complete within ${ANIMATION_WATCHDOG_MS}ms — releasing the HUD`);
+      console.warn(`[BattleStage] Unity did not report turn ${turn} animation complete within ${watchdogMs}ms — releasing the HUD`);
       animating.current = null;
       props.onTurnAnimationComplete(turn);
-    }, ANIMATION_WATCHDOG_MS);
+    }, watchdogMs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, props.nextToAnimate, send]);
 
   // Server truth for every unit once nothing is animating: after each animated turn the
