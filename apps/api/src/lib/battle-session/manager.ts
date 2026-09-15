@@ -43,6 +43,7 @@ export interface ManagerDeps {
   clock?: ShotClock;
   shotClockMs?: number;
   botThinkMs?: number;
+  firstTurnGraceMs?: number;
   pollMs?: number;
   /** Test hook: deterministic practice seeds. */
   randomSeed?: () => bigint;
@@ -68,6 +69,8 @@ export const DEFAULT_BOT_THINK_MS = 800;
 export const DEFAULT_POLL_MS = 2_000;
 /** A resumed human turn always gets at least this long, even if its deadline had passed. */
 export const RESUME_MIN_CLOCK_MS = 5_000;
+/** Extra time on each side's first human turn of a fresh battle — covers the browser loading the arena. */
+export const DEFAULT_FIRST_TURN_GRACE_MS = 15_000;
 
 const TIER_NAMES: Record<number, v3.ArenaLayout['tier']> = { 0: 'evolved', 1: 'evolved', 2: 'elite', 3: 'apex' };
 
@@ -92,12 +95,14 @@ export class BattleSessionManager {
   private inFlight = false;
   private readonly shotClockMs: number;
   private readonly botThinkMs: number;
+  private readonly firstTurnGraceMs: number;
   private readonly pollMs: number;
 
   constructor(private readonly deps: ManagerDeps) {
     this.clock = deps.clock ?? new ShotClock();
     this.shotClockMs = deps.shotClockMs ?? DEFAULT_SHOT_CLOCK_MS;
     this.botThinkMs = deps.botThinkMs ?? DEFAULT_BOT_THINK_MS;
+    this.firstTurnGraceMs = deps.firstTurnGraceMs ?? DEFAULT_FIRST_TURN_GRACE_MS;
     this.pollMs = deps.pollMs ?? DEFAULT_POLL_MS;
   }
 
@@ -111,7 +116,7 @@ export class BattleSessionManager {
     }
     if (this.timer !== null) return;
     this.timer = setInterval(() => void this.pollOnce(), this.pollMs);
-    this.deps.log.info({ pollMs: this.pollMs, shotClockMs: this.shotClockMs, botThinkMs: this.botThinkMs }, 'battle_session_manager_started');
+    this.deps.log.info({ pollMs: this.pollMs, shotClockMs: this.shotClockMs, botThinkMs: this.botThinkMs, firstTurnGraceMs: this.firstTurnGraceMs }, 'battle_session_manager_started');
   }
 
   stop(): void {
@@ -337,6 +342,7 @@ export class BattleSessionManager {
         botSide: bot.botSide,
         botPolicy: bot.botPolicy,
         firstTurnClockMs: resume?.firstTurnClockMs,
+        firstTurnGraceMs: this.firstTurnGraceMs,
         hooks: {
           emit: this.deps.emit,
           persist: (s, turns, snap) => this.deps.store.writeTurns(s.record.id, turns, snap),
