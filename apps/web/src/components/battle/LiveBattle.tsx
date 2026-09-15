@@ -52,7 +52,8 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     gateOnAnimation: gate,
   });
   const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq } = session;
-  useArenaMusic(snapshot?.session.tier, !!ended);
+  // The bed waits for the arena to be visible: Unity bound, or the plain board shown because Unity is unavailable.
+  useArenaMusic(snapshot?.session.tier, gate || unityAvailable === false, !!ended);
   const handleAudioPref = useCallback((p: AudioPrefChange) => (p.kind === 'music' ? setMusicPref(p.on) : setSfxPref(p.on)), []);
 
   const mySide: Side | null = useMemo(() => {
