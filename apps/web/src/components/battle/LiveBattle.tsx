@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { useBattleSession } from '@/hooks/use-battle-session';
 import { useArenaMusic } from '@/hooks/use-arena-music';
+import { setMusicPref, setSfxPref, type AudioPrefChange } from '@/lib/audio-prefs';
 import type { Side, TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
 import { BattleStage } from './BattleStage';
@@ -52,6 +53,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   });
   const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq } = session;
   useArenaMusic(snapshot?.session.tier, !!ended);
+  const handleAudioPref = useCallback((p: AudioPrefChange) => (p.kind === 'music' ? setMusicPref(p.on) : setSfxPref(p.on)), []);
 
   const mySide: Side | null = useMemo(() => {
     if (!snapshot || !address || isSpectator) return null;
@@ -193,6 +195,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
       {unityAvailable !== false && (
         <BattleStage
           onForfeit={handleForfeit}
+          onAudioPref={handleAudioPref}
           speed={speed}
           snapshot={snapshot}
           snapshotSeq={snapshotSeq}

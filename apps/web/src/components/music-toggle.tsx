@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { isArenaMusicActive, MUSIC_EVENT } from '@/lib/arena-music';
+import { isArenaMusicActive } from '@/lib/arena-music';
+import { getMusicPref, setMusicPref, MUSIC_EVENT } from '@/lib/audio-prefs';
 
 /**
  * Persistent music player — lives in the root layout so audio continues
@@ -29,7 +30,7 @@ export function MusicToggle() {
   useEffect(() => {
     if (_initialized) {
       // Reconnect state on re-mount (page navigation)
-      setPlaying(localStorage.getItem('clawbada_music') === 'on');
+      setPlaying(getMusicPref());
       setReady(true);
       return;
     }
@@ -45,12 +46,18 @@ export function MusicToggle() {
     setReady(true);
   }, []);
 
+  // Follow changes made elsewhere (the in-battle options menu, another tab).
+  useEffect(() => {
+    const sync = () => setPlaying(getMusicPref());
+    window.addEventListener(MUSIC_EVENT, sync);
+    return () => window.removeEventListener(MUSIC_EVENT, sync);
+  }, []);
+
   const toggle = useCallback(() => {
     const audio = getThemeAudio();
-    const on = localStorage.getItem('clawbada_music') !== 'on';
-    localStorage.setItem('clawbada_music', on ? 'on' : 'off');
+    const on = !getMusicPref();
+    setMusicPref(on);          // persists and announces; arena-music and the Unity menu follow
     setPlaying(on);
-    window.dispatchEvent(new CustomEvent(MUSIC_EVENT, { detail: on ? 'on' : 'off' }));
     if (!on) audio.pause();
     else if (!isArenaMusicActive()) audio.play().catch(() => {}); // in a battle the arena bed takes over
   }, []);
