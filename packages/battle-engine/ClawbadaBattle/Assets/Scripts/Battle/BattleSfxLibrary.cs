@@ -12,17 +12,14 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "BattleSfxLibrary", menuName = "Clawbada/Battle SFX Library")]
 public class BattleSfxLibrary : ScriptableObject
 {
-    [Tooltip("Basic attack, one per class, indexed by LobsterClass. Empty slots are silent, not an error.")]
-    public AudioClip[] attackByClass = new AudioClip[10];
-
     /// <summary>
-    /// A class's Special, optionally different per tier. `shared` covers classes that ship one
-    /// sound for all three — a tier set is three purchases, and most Specials won't warrant it.
+    /// One sound, optionally different per tier. `shared` covers a class that ships a single
+    /// clip for all three — a tier set is three purchases, and most won't warrant it.
     /// </summary>
     [System.Serializable]
-    public class SpecialClips
+    public class TierClips
     {
-        [Tooltip("SFX_<Class>_<Ability>.wav — used for any tier with no clip of its own.")]
+        [Tooltip("No tier suffix — used for any tier with no clip of its own.")]
         public AudioClip shared;
         public AudioClip evolved;
         public AudioClip elite;
@@ -38,16 +35,34 @@ public class BattleSfxLibrary : ScriptableObject
         }
     }
 
+    /// <summary>
+    /// A Special has two phases, the same split as BattleVfxLibrary's windup + impact slots.
+    /// `cast` starts with the windup and underscores the whole sequence; `impact` lands on the
+    /// hit beat. Either may be empty — Haunt ships only a cast, Maelstrom ships both.
+    /// </summary>
+    [System.Serializable]
+    public class SpecialClips
+    {
+        public TierClips cast = new TierClips();
+        public TierClips impact = new TierClips();
+        [Tooltip("Seconds BEFORE the hit beat to start the impact clip, so its loudest moment lands on the " +
+                 "beat instead of after it. Measured from the file by the binder; edit here to override.")]
+        public float impactLead;
+    }
+
+    [Tooltip("Basic attack, one per class, indexed by LobsterClass. Empty slots are silent, not an error.")]
+    public AudioClip[] attackByClass = new AudioClip[10];
+
     [Tooltip("Special move, one entry per class, indexed by LobsterClass.")]
     public SpecialClips[] specialByClass = new SpecialClips[10];
 
     public AudioClip AttackFor(int classId) =>
         attackByClass != null && classId >= 0 && classId < attackByClass.Length ? attackByClass[classId] : null;
 
-    public AudioClip SpecialFor(int classId, int tier)
-    {
-        if (specialByClass == null || classId < 0 || classId >= specialByClass.Length) return null;
-        var slot = specialByClass[classId];
-        return slot != null ? slot.For(tier) : null;
-    }
+    public SpecialClips SpecialSlot(int classId) =>
+        specialByClass != null && classId >= 0 && classId < specialByClass.Length ? specialByClass[classId] : null;
+
+    public AudioClip SpecialCastFor(int classId, int tier) => SpecialSlot(classId)?.cast?.For(tier);
+    public AudioClip SpecialImpactFor(int classId, int tier) => SpecialSlot(classId)?.impact?.For(tier);
+    public float SpecialImpactLead(int classId) => SpecialSlot(classId)?.impactLead ?? 0f;
 }
