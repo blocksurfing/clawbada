@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { isArenaMusicActive } from '@/lib/arena-music';
+import { getMusicPref, setMusicPref, MUSIC_EVENT } from '@/lib/audio-prefs';
 
 /**
  * Persistent music player — lives in the root layout so audio continues
@@ -11,7 +13,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 let _audio: HTMLAudioElement | null = null;
 let _initialized = false;
 
-function getAudio(): HTMLAudioElement {
+export function getThemeAudio(): HTMLAudioElement {
   if (!_audio) {
     _audio = new Audio('/audio/theme.m4a');
     _audio.loop = true;
@@ -28,13 +30,12 @@ export function MusicToggle() {
   useEffect(() => {
     if (_initialized) {
       // Reconnect state on re-mount (page navigation)
-      const audio = getAudio();
-      setPlaying(!audio.paused);
+      setPlaying(getMusicPref());
       setReady(true);
       return;
     }
     _initialized = true;
-    const audio = getAudio();
+    const audio = getThemeAudio();
 
     // Restore preference
     const saved = localStorage.getItem('clawbada_music');
@@ -45,18 +46,20 @@ export function MusicToggle() {
     setReady(true);
   }, []);
 
+  // Follow changes made elsewhere (the in-battle options menu, another tab).
+  useEffect(() => {
+    const sync = () => setPlaying(getMusicPref());
+    window.addEventListener(MUSIC_EVENT, sync);
+    return () => window.removeEventListener(MUSIC_EVENT, sync);
+  }, []);
+
   const toggle = useCallback(() => {
-    const audio = getAudio();
-    if (audio.paused) {
-      audio.play().then(() => {
-        setPlaying(true);
-        localStorage.setItem('clawbada_music', 'on');
-      }).catch(() => {});
-    } else {
-      audio.pause();
-      setPlaying(false);
-      localStorage.setItem('clawbada_music', 'off');
-    }
+    const audio = getThemeAudio();
+    const on = !getMusicPref();
+    setMusicPref(on);          // persists and announces; arena-music and the Unity menu follow
+    setPlaying(on);
+    if (!on) audio.pause();
+    else if (!isArenaMusicActive()) audio.play().catch(() => {}); // in a battle the arena bed takes over
   }, []);
 
   if (!ready) return null;

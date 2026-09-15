@@ -98,6 +98,8 @@ public class BattleHud : MonoBehaviour
         Bar.UndoPressed += () => bridge?.NotifyUndoMove();
         Options = OptionsMenu.Create(canvasRect, skin);
         Options.ForfeitConfirmed += () => bridge?.NotifyForfeit();
+        Options.MusicToggled += on => bridge?.NotifyAudioPref("music", on);
+        Options.SfxToggled += on => bridge?.NotifyAudioPref("sfx", on);
         floatLayer = HudFactory.Stretch(canvasRect, "Floats");
         Banner = ResultBanner.Create(canvasRect, skin);
         Marker = ActiveMarker.Create(skin);

@@ -56,6 +56,7 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("Special move, one entry per class, indexed by LobsterClass.")]
     public SpecialClips[] specialByClass = new SpecialClips[10];
 
+
     public AudioClip AttackFor(int classId) =>
         attackByClass != null && classId >= 0 && classId < attackByClass.Length ? attackByClass[classId] : null;
 

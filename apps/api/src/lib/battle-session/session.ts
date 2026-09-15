@@ -72,6 +72,14 @@ export interface SessionOptions {
   botPolicy: v3.Policy | null;
   /** Resume: clock for the FIRST human turn only (remaining time, floored). */
   firstTurnClockMs?: number;
+  /**
+   * Extra time on each side's FIRST human turn of a freshly created battle. The clock is
+   * armed at creation, before a human's browser has loaded the arena (~5–10 s of WebGL
+   * init), so without this the first turn is already partly spent when it appears. Agents
+   * don't need it and aren't harmed by it. Not applied on resume — that side has its own
+   * floor (RESUME_MIN_CLOCK_MS).
+   */
+  firstTurnGraceMs?: number;
 }
 
 export type SubmitResult =
@@ -92,6 +100,8 @@ export class BattleSession {
   private pending: PersistedTurn[] = [];
   private persistQueue: Promise<void> = Promise.resolve();
   private firstTurnClockMs: number | undefined;
+  /** Which sides still have their first-turn load grace owed (fresh battles only). */
+  private graceOwed: Record<Side, boolean>;
 
   constructor(
     public readonly record: SessionRecord,
@@ -101,6 +111,8 @@ export class BattleSession {
   ) {
     this.timeouts = { timeouts: { A: resume?.timeouts.A ?? 0, B: resume?.timeouts.B ?? 0 } };
     this.firstTurnClockMs = opts.firstTurnClockMs;
+    const fresh = resume === undefined;
+    this.graceOwed = { A: fresh, B: fresh };
     if (state.finished) this.status = 'finished';
   }
 
@@ -235,8 +247,16 @@ export class BattleSession {
 
   private armHumanTurn(actor: v3.AtbLobster): void {
     const turn = this.state.turn + 1;
-    const ms = this.firstTurnClockMs ?? this.opts.shotClockMs;
-    this.firstTurnClockMs = undefined;
+    let ms: number;
+    if (this.firstTurnClockMs !== undefined) {
+      ms = this.firstTurnClockMs;           // resume: the remaining time, floored by the manager
+      this.firstTurnClockMs = undefined;
+    } else if (this.graceOwed[actor.team]) {
+      ms = this.opts.shotClockMs + (this.opts.firstTurnGraceMs ?? 0);
+    } else {
+      ms = this.opts.shotClockMs;
+    }
+    this.graceOwed[actor.team] = false;
     this.deadline = this.opts.clock.arm(this.key, ms, () => this.onTimeout(turn));
     const payload: TurnStartedPayload = {
       turn,

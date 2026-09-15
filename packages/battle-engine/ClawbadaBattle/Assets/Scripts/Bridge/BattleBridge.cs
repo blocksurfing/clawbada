@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using System.Runtime.InteropServices;
 
@@ -29,6 +30,7 @@ public class BattleBridge : MonoBehaviour
     [DllImport("__Internal")] private static extern void SendActionSelected(string json);
     [DllImport("__Internal")] private static extern void SendUndoMove();
     [DllImport("__Internal")] private static extern void SendForfeit();
+    [DllImport("__Internal")] private static extern void SendAudioPref(string json);
 
     private BattleManager battleManager;
     private HexGrid hexGrid;
@@ -98,6 +100,33 @@ public class BattleBridge : MonoBehaviour
         float speed = data != null && data.speed > 0f ? Mathf.Clamp(data.speed, 0.25f, 4f) : 1f;
         Time.timeScale = speed;
         Debug.Log($"[BattleBridge] SetSpeed {speed:F2}x");
+    }
+
+    [Serializable] private class AudioPrefsData { public bool music = true; public bool sfx = true; }
+    [Serializable] private class AudioPrefEvent { public string kind; public bool on; }
+
+    /// <summary>Site-wide audio preferences from React's localStorage — sent after InitBattle and
+    /// whenever either changes (floating toggle, another tab). SFX is applied here; music is
+    /// React's, so it only refreshes the options menu's label. React is the single source of
+    /// truth: a row press in the menu goes out via NotifyAudioPref and comes back through here.</summary>
+    public void SetAudioPrefs(string json)
+    {
+        var d = JsonUtility.FromJson<AudioPrefsData>(json) ?? new AudioPrefsData();
+        BattleSfx.Enabled = d.sfx;
+        var hud = FindFirstObjectByType<BattleHud>();
+        hud?.Options?.SetAudioState(d.music, d.sfx);
+        Debug.Log($"[BattleBridge] SetAudioPrefs music={d.music} sfx={d.sfx}");
+    }
+
+    /// <summary>Options-menu row pressed: tell React, which persists it and echoes SetAudioPrefs.</summary>
+    public void NotifyAudioPref(string kind, bool on)
+    {
+        string json = JsonUtility.ToJson(new AudioPrefEvent { kind = kind, on = on });
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendAudioPref(json);
+        #else
+        Debug.Log($"[BattleBridge] audio pref (editor) {json}");
+        #endif
     }
 
     /// <summary>Server truth for every unit (hp, alive, charge, defending, statuses, cell),
