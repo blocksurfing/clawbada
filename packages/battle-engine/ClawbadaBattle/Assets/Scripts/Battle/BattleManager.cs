@@ -442,6 +442,15 @@ public class BattleManager : MonoBehaviour
     /// <summary>Animate one resolved turn, then tell React so it can send the next.</summary>
     public void PlayTurn(TurnPlayData data)
     {
+        // React only sends the next turn after this one reports complete — or after its watchdog
+        // gives up waiting. In the second case the previous routine is still mid-hold; two turn
+        // routines interleaving spawn effects on top of each other and apply reads out of order,
+        // so the old one is stopped. Its spawned effects are OneShotVfx and expire on their own.
+        if (turnRoutine != null && currentPhase == BattlePhase.AnimatingTurn)
+        {
+            Debug.LogWarning($"[BattleManager] turn {currentTurn} routine still running when turn {data.turn} arrived — cut short");
+            StopCoroutine(turnRoutine);
+        }
         currentPhase = BattlePhase.AnimatingTurn;
         currentTurn = data.turn;
         turnRoutine = StartCoroutine(PlayTurnRoutine(data));
