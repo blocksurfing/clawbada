@@ -68,7 +68,8 @@ public class HudSkin : ScriptableObject
     public Color cardInner = C("#101a27");
 
     [Header("Camera")]
-    [Tooltip("Disable the PixelPerfectCamera's integer zoom while the HUD is up so the 10x5.625-unit arena fills any 16:9 canvas (LOKR-style full bleed).")]
+    [Tooltip("Let BattleHud choose the camera mode: pixel-perfect integer zoom when the canvas is an exact 640k×360k (React snaps it on retina/tablet), " +
+             "otherwise disable the PixelPerfectCamera and fill the canvas (LOKR-style full bleed). Off = leave the camera alone.")]
     public bool fillCanvas = true;
     public float fillOrthographicSize = 2.8125f;
 
