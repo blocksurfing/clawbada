@@ -135,6 +135,8 @@ export const UNITY_METHODS = {
   PREVIEW_MOVE: 'PreviewMove',
   /** Playback speed multiplier (Unity Time.timeScale) — designer review tool. */
   SET_SPEED: 'SetSpeed',
+  /** Site-wide music/SFX preferences ({music, sfx}); Unity applies SFX and refreshes its options menu. */
+  SET_AUDIO_PREFS: 'SetAudioPrefs',
 } as const;
 
 export const JS_CALLBACKS = {
@@ -145,6 +147,7 @@ export const JS_CALLBACKS = {
   ON_ACTION_SELECTED: 'onActionSelected',
   ON_UNDO_MOVE: 'onUndoMove',
   ON_FORFEIT: 'onForfeit',
+  ON_AUDIO_PREF: 'onAudioPref',
 } as const;
 
 export interface UnityCallbackHandler {
@@ -157,6 +160,8 @@ export interface UnityCallbackHandler {
   onUndoMove?: () => void;
   /** Options-menu forfeit, already confirmed in the canvas. React calls the API. */
   onForfeit?: () => void;
+  /** Options-menu Music/SFX row pressed. React persists it; the echo (SetAudioPrefs) refreshes the menu. */
+  onAudioPref?: (pref: { kind: 'music' | 'sfx'; on: boolean }) => void;
 }
 
 /** Register the callbacks Unity's jslib calls. Returns a cleanup. */
@@ -172,6 +177,10 @@ export function registerUnityCallbacks(handlers: UnityCallbackHandler): () => vo
     [JS_CALLBACKS.ON_ACTION_SELECTED]: (json) => handlers.onActionSelected?.(JSON.parse(json ?? '{}').action),
     [JS_CALLBACKS.ON_UNDO_MOVE]: () => handlers.onUndoMove?.(),
     [JS_CALLBACKS.ON_FORFEIT]: () => handlers.onForfeit?.(),
+    [JS_CALLBACKS.ON_AUDIO_PREF]: (json) => {
+      const p = JSON.parse(json ?? '{}');
+      if (p.kind === 'music' || p.kind === 'sfx') handlers.onAudioPref?.({ kind: p.kind, on: !!p.on });
+    },
   };
   (window as unknown as { __clawbada?: unknown }).__clawbada = bridge;
   return () => {

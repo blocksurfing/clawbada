@@ -26,6 +26,9 @@ public static class BattleSfx
     /// <summary>Playback gain for every battle SFX. ~-6 dB, room for roughly four overlapping hits.</summary>
     private const float Headroom = 0.5f;
 
+    /// <summary>Site-wide SFX preference, pushed from React via BattleBridge.SetAudioPrefs. Off = every Play is a no-op.</summary>
+    public static bool Enabled = true;
+
     private static BattleSfxLibrary library;
     private static AudioSource source;
     private static BattleSfxRunner runner;
@@ -47,7 +50,7 @@ public static class BattleSfx
     public static void PlaySpecialImpactIn(int classId, int tier, float secondsUntilBeat)
     {
         var lib = Library;
-        if (lib == null || !Application.isPlaying) return;
+        if (!Enabled || lib == null || !Application.isPlaying) return;
         var clip = lib.SpecialImpactFor(classId, tier);
         if (clip == null) return;
         float lead = lib.SpecialImpactLead(classId);
@@ -75,7 +78,7 @@ public static class BattleSfx
 
     private static void Play(AudioClip clip, string phase)
     {
-        if (clip == null || !Application.isPlaying) return;
+        if (!Enabled || clip == null || !Application.isPlaying) return;
         EnsureSource();
         source.PlayOneShot(clip, Headroom);
         Debug.Log($"[BattleSfx] {clip.name} ({phase}) @ {Headroom:F2}");

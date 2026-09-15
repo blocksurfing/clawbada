@@ -13,12 +13,12 @@
  */
 import { ARENA_MUSIC, type ArenaTier } from './arena-music.generated';
 import { getThemeAudio } from '@/components/music-toggle';
+import { getMusicPref, MUSIC_EVENT } from './audio-prefs';
+export { MUSIC_EVENT };
 
 const GAIN = 0.35;          // under Unity's SFX at 0.5 and the theme's 0.4
 const FADE_IN_MS = 1500;
 const FADE_OUT_MS = 2000;
-const PREF_KEY = 'clawbada_music';
-export const MUSIC_EVENT = 'clawbada:music';
 
 let audio: HTMLAudioElement | null = null;
 let fadeTimer: number | null = null;
@@ -26,7 +26,7 @@ let activeTier: ArenaTier | null = null;   // non-null while a battle is in prog
 let themeWasPlaying = false;
 
 const log = (...a: unknown[]) => console.log('[ArenaMusic]', ...a);
-const prefOff = () => { try { return localStorage.getItem(PREF_KEY) === 'off'; } catch { return false; } };
+const prefOff = () => !getMusicPref();
 
 export function isArenaMusicActive(): boolean { return activeTier !== null; }
 

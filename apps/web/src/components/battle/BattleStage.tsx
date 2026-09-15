@@ -7,6 +7,7 @@
  * page falls back to the SVG board.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getMusicPref, getSfxPref, MUSIC_EVENT, SFX_EVENT, type AudioPrefChange } from '@/lib/audio-prefs';
 import { Unity, useUnityContext } from 'react-unity-webgl';
 import {
   UNITY_GAME_OBJECT,
@@ -46,6 +47,8 @@ export interface BattleStageProps {
   onActionSelected?: (action: string) => void;
   onUndoMove?: () => void;
   onForfeit?: () => void;
+  /** Options-menu Music/SFX row pressed in the canvas. */
+  onAudioPref?: (pref: AudioPrefChange) => void;
   onUnavailable: () => void;
   onReady: () => void;
   /** Playback speed multiplier for Unity (1 = normal). Review tool: /battle/<id>?speed=2. */
@@ -123,6 +126,7 @@ function UnityStage(props: BattleStageProps) {
       onActionSelected: props.onActionSelected,
       onUndoMove: props.onUndoMove,
       onForfeit: props.onForfeit,
+      onAudioPref: props.onAudioPref,
       onTurnAnimationComplete: (turn) => {
         if (watchdog.current) { clearTimeout(watchdog.current); watchdog.current = null; }
         animating.current = null;
@@ -130,7 +134,16 @@ function UnityStage(props: BattleStageProps) {
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit]);
+  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit, props.onAudioPref]);
+
+  // Site-wide audio preferences → Unity, on init and whenever they change (floating toggle,
+  // options-menu echo, another tab). Unity applies SFX and refreshes its menu labels.
+  const pushAudioPrefs = useCallback(() => send(UNITY_METHODS.SET_AUDIO_PREFS, { music: getMusicPref(), sfx: getSfxPref() }), [send]);
+  useEffect(() => {
+    window.addEventListener(MUSIC_EVENT, pushAudioPrefs);
+    window.addEventListener(SFX_EVENT, pushAudioPrefs);
+    return () => { window.removeEventListener(MUSIC_EVENT, pushAudioPrefs); window.removeEventListener(SFX_EVENT, pushAudioPrefs); };
+  }, [pushAudioPrefs]);
 
   useEffect(() => {
     if (initialisationError) {
@@ -158,6 +171,7 @@ function UnityStage(props: BattleStageProps) {
     // Statuses / defending are not part of InitBattle; the HUD needs them from the start.
     send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
     if (props.speed && props.speed !== 1) send(UNITY_METHODS.SET_SPEED, { speed: props.speed });
+    pushAudioPrefs();
     props.onReady();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, props.snapshot?.session.id, props.snapshotSeq, props.nextToAnimate]);
