@@ -98,8 +98,8 @@ public static class BattleSfxBinder
         string placeholderDir = MusicDir + "Resources/Placeholders";
         int placeholders = Directory.Exists(placeholderDir) ? Directory.GetFiles(placeholderDir, "*.wav").Length : 0;
         if (placeholders > 0)
-            Debug.LogWarning($"[BattleSfxBinder] {placeholders} PLACEHOLDER track(s) under {placeholderDir} — unlicensed, " +
-                             "local testing only; not bound, BuildWebGL refuses them without -allowPlaceholderAudio.");
+            Debug.LogWarning($"[BattleSfxBinder] {placeholders} audition track(s) under {placeholderDir} — not committed, " +
+                             "deliberately not bound; BuildWebGL refuses them without -allowPlaceholderAudio.");
 
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();

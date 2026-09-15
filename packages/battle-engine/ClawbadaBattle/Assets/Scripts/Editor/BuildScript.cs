@@ -35,7 +35,7 @@ public static class BuildScript
         // (scripts/deploy-web.sh) refuses to ship it; a clean build removes the marker again.
         string marker = Path.Combine(fullPath, PlaceholderMarker);
         if (placeholders.Length > 0)
-            File.WriteAllText(marker, "LOCAL TEST BUILD — contains unlicensed placeholder audio. Do NOT deploy.\n" +
+            File.WriteAllText(marker, "LOCAL AUDITION BUILD — contains uncommitted placeholder audio. Do NOT deploy.\n" +
                                       "Rebuild without -allowPlaceholderAudio first.\n" + string.Join("\n", placeholders) + "\n");
         else if (File.Exists(marker))
             File.Delete(marker);
@@ -68,8 +68,8 @@ public static class BuildScript
     }
 
     /// <summary>
-    /// Placeholder audio (Assets/Audio/**/Resources/Placeholders/) is unlicensed material for local
-    /// auditioning. It is gitignored, but a Resources folder is always compiled into the bundle —
+    /// Placeholder audio (Assets/Audio/**/Resources/Placeholders/) is local-only audition material —
+    /// candidate tracks not yet chosen, or anything not cleared to ship. It is gitignored, but a Resources folder is always compiled into the bundle —
     /// so without this guard it would ride the next `vercel deploy --prod` onto a public site.
     /// A local test build passes -allowPlaceholderAudio explicitly; a production build never does.
     /// </summary>
@@ -88,9 +88,9 @@ public static class BuildScript
             a => string.Equals(a, "-allowPlaceholderAudio", StringComparison.OrdinalIgnoreCase));
         string list = string.Join("\n  ", found);
         if (!allowed)
-            throw new Exception($"[BuildScript] REFUSING to build: {found.Length} unlicensed PLACEHOLDER audio file(s) would ship:\n  {list}\n" +
+            throw new Exception($"[BuildScript] REFUSING to build: {found.Length} uncommitted PLACEHOLDER audio file(s) would ship:\n  {list}\n" +
                                 "Remove them, or pass -allowPlaceholderAudio for a LOCAL test build that must not be deployed.");
-        Debug.LogWarning($"[BuildScript] -allowPlaceholderAudio: building WITH {found.Length} unlicensed placeholder(s) — LOCAL TEST ONLY, do not deploy:\n  {list}");
+        Debug.LogWarning($"[BuildScript] -allowPlaceholderAudio: building WITH {found.Length} placeholder(s) — LOCAL AUDITION ONLY, do not deploy:\n  {list}");
         return found;
     }
 
