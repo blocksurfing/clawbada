@@ -11,6 +11,7 @@ import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { useBattleSession } from '@/hooks/use-battle-session';
+import { useArenaMusic } from '@/hooks/use-arena-music';
 import type { Side, TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
 import { BattleStage } from './BattleStage';
@@ -50,6 +51,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     gateOnAnimation: gate,
   });
   const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq } = session;
+  useArenaMusic(snapshot?.session.tier, !!ended);
 
   const mySide: Side | null = useMemo(() => {
     if (!snapshot || !address || isSpectator) return null;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { isArenaMusicActive, MUSIC_EVENT } from '@/lib/arena-music';
 
 /**
  * Persistent music player — lives in the root layout so audio continues
@@ -11,7 +12,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 let _audio: HTMLAudioElement | null = null;
 let _initialized = false;
 
-function getAudio(): HTMLAudioElement {
+export function getThemeAudio(): HTMLAudioElement {
   if (!_audio) {
     _audio = new Audio('/audio/theme.m4a');
     _audio.loop = true;
@@ -28,13 +29,12 @@ export function MusicToggle() {
   useEffect(() => {
     if (_initialized) {
       // Reconnect state on re-mount (page navigation)
-      const audio = getAudio();
-      setPlaying(!audio.paused);
+      setPlaying(localStorage.getItem('clawbada_music') === 'on');
       setReady(true);
       return;
     }
     _initialized = true;
-    const audio = getAudio();
+    const audio = getThemeAudio();
 
     // Restore preference
     const saved = localStorage.getItem('clawbada_music');
@@ -46,17 +46,13 @@ export function MusicToggle() {
   }, []);
 
   const toggle = useCallback(() => {
-    const audio = getAudio();
-    if (audio.paused) {
-      audio.play().then(() => {
-        setPlaying(true);
-        localStorage.setItem('clawbada_music', 'on');
-      }).catch(() => {});
-    } else {
-      audio.pause();
-      setPlaying(false);
-      localStorage.setItem('clawbada_music', 'off');
-    }
+    const audio = getThemeAudio();
+    const on = localStorage.getItem('clawbada_music') !== 'on';
+    localStorage.setItem('clawbada_music', on ? 'on' : 'off');
+    setPlaying(on);
+    window.dispatchEvent(new CustomEvent(MUSIC_EVENT, { detail: on ? 'on' : 'off' }));
+    if (!on) audio.pause();
+    else if (!isArenaMusicActive()) audio.play().catch(() => {}); // in a battle the arena bed takes over
   }, []);
 
   if (!ready) return null;
