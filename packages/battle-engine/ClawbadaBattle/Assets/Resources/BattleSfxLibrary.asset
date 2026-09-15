@@ -134,8 +134,3 @@ MonoBehaviour:
       elite: {fileID: 0}
       apex: {fileID: 0}
     impactLead: 0
-  arenaMusic:
-    shared: {fileID: 0}
-    evolved: {fileID: 0}
-    elite: {fileID: 0}
-    apex: {fileID: 0}

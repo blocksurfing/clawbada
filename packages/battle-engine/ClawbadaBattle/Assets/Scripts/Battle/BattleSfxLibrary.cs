@@ -56,9 +56,6 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("Special move, one entry per class, indexed by LobsterClass.")]
     public SpecialClips[] specialByClass = new SpecialClips[10];
 
-    [Tooltip("Looping arena bed by tier — Assets/Audio/Music/BGM_Arena[_<Tier>].wav. Licensed tracks only; " +
-             "an unlicensed placeholder goes under Audio/Music/Resources/Placeholders/ and never binds here.")]
-    public TierClips arenaMusic = new TierClips();
 
     public AudioClip AttackFor(int classId) =>
         attackByClass != null && classId >= 0 && classId < attackByClass.Length ? attackByClass[classId] : null;
@@ -69,5 +66,4 @@ public class BattleSfxLibrary : ScriptableObject
     public AudioClip SpecialCastFor(int classId, int tier) => SpecialSlot(classId)?.cast?.For(tier);
     public AudioClip SpecialImpactFor(int classId, int tier) => SpecialSlot(classId)?.impact?.For(tier);
     public float SpecialImpactLead(int classId) => SpecialSlot(classId)?.impactLead ?? 0f;
-    public AudioClip ArenaMusicFor(int tier) => arenaMusic?.For(tier);
 }
