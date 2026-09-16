@@ -53,6 +53,11 @@ export interface BattleStageProps {
   onReady: () => void;
   /** Playback speed multiplier for Unity (1 = normal). Review tool: /battle/<id>?speed=2. */
   speed?: number;
+  /** Tear the stage down cleanly — leave fullscreen, quit the Unity instance — then call onClosed. */
+  closing?: boolean;
+  onClosed?: () => void;
+  /** Drawn over the canvas, bottom-centre — inside the stage so it survives fullscreen. */
+  overlay?: React.ReactNode;
 }
 
 export function BattleStage(props: BattleStageProps) {
@@ -70,6 +75,11 @@ export function BattleStage(props: BattleStageProps) {
     if (available === false) props.onUnavailable();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [available]);
+  // Nothing to tear down without a Unity stage (build missing, or the HEAD check still pending).
+  useEffect(() => {
+    if (props.closing && available !== true) props.onClosed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.closing, available]);
 
   if (available === null) return <div className="aspect-video w-full rounded-lg bg-ocean-mid/40 animate-pulse" />;
   if (available === false) return null;
@@ -107,6 +117,8 @@ function UnityStage(props: BattleStageProps) {
    *  announced for a different lobster after a reconnect. */
   const lastStartedTurn = useRef<{ turn: number; lobsterId: string } | null>(null);
   const endedSent = useRef(false);
+  /** Set once the close sequence starts: no message may reach a quit instance. */
+  const closed = useRef(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -153,6 +165,7 @@ function UnityStage(props: BattleStageProps) {
   }, [isFullscreen]);
 
   const send = useCallback((method: string, data?: unknown) => {
+    if (closed.current) return;
     if (data === undefined) sendMessage(UNITY_GAME_OBJECT, method);
     else sendMessage(UNITY_GAME_OBJECT, method, JSON.stringify(data));
   }, [sendMessage]);
@@ -184,6 +197,25 @@ function UnityStage(props: BattleStageProps) {
     window.addEventListener(SFX_EVENT, pushAudioPrefs);
     return () => { window.removeEventListener(MUSIC_EVENT, pushAudioPrefs); window.removeEventListener(SFX_EVENT, pushAudioPrefs); };
   }, [pushAudioPrefs]);
+
+  // Clean close: leave fullscreen, then hand back so the view can navigate. Quitting Unity is
+  // the unmount's job — react-unity-webgl parks the instance on a hidden cleanup canvas, Quit()s
+  // it there and removes the canvas once Quit resolves, which frees the WebGL context (browsers
+  // hand out only a few; one left behind is the harness's "GLctx" failure on the next battle).
+  // Calling unload() here as well made the unmount Quit a second time; that one never resolves
+  // and its cleanup canvas stays in <body> for good.
+  useEffect(() => {
+    if (!props.closing || closed.current) return;
+    closed.current = true;
+    let cancelled = false;
+    (async () => {
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+      console.log('[BattleStage] closing — Unity quits on unmount');
+      if (!cancelled) props.onClosed?.();
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.closing]);
 
   useEffect(() => {
     if (initialisationError) {
@@ -333,6 +365,11 @@ function UnityStage(props: BattleStageProps) {
       >
         <Unity unityProvider={unityProvider} className="w-full h-full" devicePixelRatio={snap ? snap.dpr : undefined} />
       </div>
+      {props.overlay && (
+        <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded border border-white/20 bg-black/60 px-3 py-1.5 text-white/90 backdrop-blur-sm">
+          {props.overlay}
+        </div>
+      )}
       {isLoaded && (
         <button
           type="button"

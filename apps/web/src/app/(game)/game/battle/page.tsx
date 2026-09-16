@@ -496,10 +496,10 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
       const auth = await getAuthHeaders();
       const body = teamId ? { teamId, bot, opponent } : { preset, bot, opponent };
       const res = await api.combat.createPractice(body, auth);
-      // Carry the review-tool params (?auto=1&speed=2) through to the battle page.
+      // Carry the review-tool params (?auto=1&speed=2&stay=1) through to the battle page.
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
-      for (const k of ['auto', 'speed']) { const v = q.get(k); if (v) carry.set(k, v); }
+      for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
       router.push(`/battle/${res.battleId}${carry.size ? `?${carry}` : ''}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not start the practice battle');
