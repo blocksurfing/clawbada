@@ -18,7 +18,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -30,7 +31,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -42,7 +44,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -54,7 +57,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -66,7 +70,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -78,7 +83,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -90,7 +96,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 0
     impactAt: 3.3
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -101,7 +108,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -112,7 +120,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -123,6 +132,7 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 0
     impactAt: 3.9
+    frontChildPrefix: 
     hideChildrenPrefix: Hit_
     onTop: 0
     travelPrefab: {fileID: 0}
@@ -134,7 +144,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 1477470113331906288, guid: 8c40182493084162bc4ce558b2182cd5, type: 3}
     travelSpeed: 5.5
@@ -145,7 +156,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -156,7 +168,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -167,7 +180,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 0
     impactAt: 0.5
-    hideChildrenPrefix:
+    frontChildPrefix: Suck
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -178,7 +192,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -189,7 +204,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 5060112115610440276, guid: f69ff932ab11e4669b7df47abc414952, type: 3}
     travelSpeed: 7
@@ -207,7 +223,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -218,7 +235,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -229,7 +247,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -240,7 +259,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 0
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 1
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -251,7 +271,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 0
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -262,7 +283,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -273,7 +295,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -284,7 +307,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 1
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -295,7 +319,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 0
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 1
     travelPrefab: {fileID: 0}
     travelSpeed: 7
@@ -306,7 +331,8 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 0
     impactAt: 0
-    hideChildrenPrefix:
+    frontChildPrefix: 
+    hideChildrenPrefix: 
     onTop: 1
     travelPrefab: {fileID: 0}
     travelSpeed: 7

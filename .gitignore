@@ -56,3 +56,18 @@ packages/battle-engine/ClawbadaBattle/Assets/Resources/PerformanceTestRun*
 scripts/e2e/.runs/
 broadcast/
 deployments/base-sepolia.json
+
+# Audition-only placeholder audio (candidates not yet chosen, or not cleared to ship) — never in git or LFS, and
+# BuildScript.BuildWebGL refuses to ship it without -allowPlaceholderAudio. Drop files at
+# Assets/Audio/<Music|SFX>/Resources/Placeholders/ ; BattleMusic falls back to them at runtime.
+packages/battle-engine/ClawbadaBattle/Assets/Audio/**/Resources/
+packages/battle-engine/ClawbadaBattle/Assets/Audio/**/Resources.meta
+
+# Audio masters (WAV) for scripts/build-music.ts — encoded into apps/web/public/audio/music/, never committed themselves.
+audio-masters/
+
+# Browser playtest harness (scripts/harness): per-run output, headless Chrome profile and log
+scripts/harness/out/
+scripts/harness/chrome-profile/
+scripts/harness/chrome.log
+scripts/harness/*.out

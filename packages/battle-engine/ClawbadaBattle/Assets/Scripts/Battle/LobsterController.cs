@@ -228,7 +228,11 @@ public class LobsterController : MonoBehaviour
 
     /// <summary>Walk to a hex cell-by-cell along a BFS path from HexGrid, playing the
     /// Move state during transit. Hopping through cell centers (instead of one straight
-    /// world lerp) keeps the movement visibly locked to the board.</summary>
+    /// world lerp) keeps the movement visibly locked to the board; each hop fires the
+    /// step VFX and one movement sound (a random pick, so a walk doesn't loop one sample).
+    /// Previews walk too — for the local player's own turn the preview IS the visible
+    /// move (PlayTurn skips it when it already ended at the destination), so they must
+    /// not be silent.</summary>
     public IEnumerator MoveTo(int toCol, int toRow, float secondsPerHex)
     {
         var path = grid.FindPath(col, row, toCol, toRow);
@@ -247,6 +251,7 @@ public class LobsterController : MonoBehaviour
             Vector3 end = grid.GetWorldPosition(step.x, step.y);
             FaceToward(end);
             BattleVfxLibrary.Spawn(vfx?.moveStep, this, null, this);
+            BattleSfx.PlayMove();
 
             float t = 0f;
             while (t < secondsPerHex)
@@ -337,6 +342,24 @@ public class LobsterController : MonoBehaviour
 
     /// <summary>Hit reaction: turn to face the attacker, flinch, then back to Idle
     /// (unless dead by then) and re-face the enemy side.</summary>
+    /// <summary>A short visibility blink — the read for "this lobster just received a heal or buff"
+    /// (Devour's lifesteal on the caster, Rally on an ally). Toggles the rig's renderers rather
+    /// than tinting: the parts carry their own palettes and a multiplied tint can only darken.</summary>
+    public IEnumerator PlayBlink(float seconds = 0.24f, int times = 2)
+    {
+        var renderers = GetComponentsInChildren<SpriteRenderer>(false);
+        if (renderers.Length == 0 || times <= 0) yield break;
+        Debug.Log($"[LobsterController] blink {className} ×{times} over {seconds:F2}s");
+        float step = seconds / (times * 2f);
+        for (int i = 0; i < times; i++)
+        {
+            foreach (var r in renderers) if (r != null) r.enabled = false;
+            yield return new WaitForSeconds(step);
+            foreach (var r in renderers) if (r != null) r.enabled = true;
+            yield return new WaitForSeconds(step);
+        }
+    }
+
     public IEnumerator PlayHit(float duration, Vector3 attackerWorldPos)
     {
         FaceToward(attackerWorldPos);

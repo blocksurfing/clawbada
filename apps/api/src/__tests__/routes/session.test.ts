@@ -124,6 +124,30 @@ describe('POST /practice', () => {
     expect(bad.status).toBe(400);
   });
 
+  test('team preset → 201 with the named classes in order at the named tier, mirrored', async () => {
+    const { EvolutionTier, LobsterClass } = await import('@clawbada/game-logic');
+    mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+    const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_abyss_apex' }) });
+    expect(res.status).toBe(201);
+    const args = mockStartPractice.mock.calls[0][0] as { lobsters: Array<{ input: { class: number; tier: number; purity: number }; partClassIds?: number[] }>; opponent: string };
+    expect(args.lobsters.map((l) => l.input.class)).toEqual([LobsterClass.Kraken, LobsterClass.Ember, LobsterClass.Abyss]);
+    for (const l of args.lobsters) {
+      expect(l.input.tier).toBe(EvolutionTier.Apex);
+      expect(l.input.purity).toBe(3);
+      expect(Array.isArray(l.partClassIds)).toBe(true);
+    }
+    expect(args.opponent).toBe('mirror');
+
+    mockStartPractice.mockClear();
+    mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+    const elite = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_abyss' }) });
+    expect(elite.status).toBe(201);
+    for (const l of (mockStartPractice.mock.calls[0][0] as { lobsters: Array<{ input: { tier: number } }> }).lobsters) expect(l.input.tier).toBe(EvolutionTier.Elite);
+
+    const bad = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_dragon' }) });
+    expect(bad.status).toBe(400);
+  });
+
   test('preset roster → 201 with battleId + snapshot; bot + opponent validated', async () => {
     mockStartPractice.mockImplementation(async (opts: any) => fakeSession(P_ID) && { record: { id: P_ID }, snapshot: () => ({ ok: true, bot: opts.bot, n: opts.lobsters.length }) });
     const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', bot: 'cautious' }) });
