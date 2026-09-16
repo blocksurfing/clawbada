@@ -381,6 +381,9 @@ export default {
       const remainingMs = authExpiresAt * 1000 - Date.now();
       if (remainingMs > 0) {
         ws.__authTimer = setTimeout(() => {
+          // Mid-battle this is a dropped press for the player (the client queues it and
+          // reconnects with a fresh token); worth a line so the timing can be correlated.
+          log.info({ battleId, address, remainingMs }, 'ws_closed_auth_expired');
           try {
             ws.close(1008, 'Signature expired');
           } catch {
@@ -451,6 +454,8 @@ export default {
       }
       // Identity is the authenticated socket address — never the payload.
       const res = battleSessions.submit(msg.battleId, data.address, msg.turn, msg.command);
+      // A rejected turn is the player's "the game froze" report of tomorrow: keep the reason.
+      if (!res.ok) log.warn({ battleId: msg.battleId, address: data.address, turn: msg.turn, code: res.code, message: res.message }, 'battle_turn_rejected');
       if (res.ok) {
         battleWS.sendTo(ws, 'turn_ack', msg.battleId, { turn: res.result.turn, duplicate: res.duplicate });
       } else {

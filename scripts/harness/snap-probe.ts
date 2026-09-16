@@ -24,7 +24,11 @@ export default async function (b: Browser) {
     const t0 = Date.now();
     while (Date.now() - t0 < 150000) { if (b.logs.some((l) => /\[BattleHud\] bind/.test(l)) && b.logs.some((l) => /\[BattleHud\] cells/.test(l))) { inited = true; break; } if (b.logs.some((l) => /GLctx/.test(l))) break; await b.sleep(500); }
   }
-  if (!inited) { console.log('FAIL Unity never bound'); return; }
+  if (!inited) {
+    const why = b.logs.filter((l) => /GLctx|WebGL|exception|Error|failed/i.test(l)).slice(0, 6).map((l) => l.slice(0, 160));
+    console.log(`FAIL Unity never bound — ${b.logs.length} console lines; first hints: ${JSON.stringify(why)}`);
+    return;
+  }
   await b.sleep(1500);
   const geom = await b.eval(`(() => { const c = document.querySelector('canvas'); const r = c.getBoundingClientRect(); return { cssW: +r.width.toFixed(2), cssH: +r.height.toFixed(2), backingW: c.width, backingH: c.height, dpr: window.devicePixelRatio, column: c.closest('[data-battle-stage]')?.clientWidth }; })()`) as any;
   console.log('canvas:', JSON.stringify(geom));

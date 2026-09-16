@@ -20,6 +20,7 @@ export default async function (b: Browser) {
   console.log(layout.replace(/^\[log\] /, ''));
   console.log(cells.replace(/^\[log\] /, ''));
   await b.eval(`document.querySelector('canvas')?.scrollIntoView({ block: 'start' })`); await b.sleep(1000);
+  const geom0 = await b.eval(`(() => { const c = document.querySelector('canvas'); const st = document.querySelector('[data-battle-stage]'); const r = c.getBoundingClientRect(); const s = st.getBoundingClientRect(); return { bw: c.width, bh: c.height, cssW: Math.round(r.width), cssH: Math.round(r.height), stageW: Math.round(s.width), stageH: Math.round(s.height), overflow: Math.round(r.width - s.width), fs: !!document.fullscreenElement, inner: [innerWidth, innerHeight] } })()`);
   const before = b.logs.filter((l) => /\[BattleHud\] layout/.test(l)).length;
   // Enter fullscreen through the real button (needs a user gesture — a CDP mouse click counts).
   const fb = await b.eval(`(() => { const el = Array.from(document.querySelectorAll('button')).find(x => /FULL/.test(x.textContent)); if (!el) return null; const q = el.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
@@ -35,4 +36,26 @@ export default async function (b: Browser) {
   console.log('layout lines after fullscreen:', lays.length - before, (lays.slice(-1)[0] ?? '').replace(/^\[log\] /, '').slice(0, 260));
   const geom = await b.eval(`(() => { const c = document.querySelector('canvas'); return { bw: c.width, bh: c.height, css: c.getBoundingClientRect().width } })()`);
   console.log('canvas', JSON.stringify(geom));
+
+  // Leave fullscreen through the same button (now "EXIT") and check the stage returns to the
+  // column layout: canvas CSS box back to the pre-fullscreen size, inside the stage's box, and
+  // the snap log agreeing. A stale fullscreen size here is the "one-third of the arena" report.
+  const geomFn = `(() => { const c = document.querySelector('canvas'); const st = document.querySelector('[data-battle-stage]'); const r = c.getBoundingClientRect(); const s = st.getBoundingClientRect(); return { bw: c.width, bh: c.height, cssW: Math.round(r.width), cssH: Math.round(r.height), stageW: Math.round(s.width), stageH: Math.round(s.height), overflow: Math.round(r.width - s.width), fs: !!document.fullscreenElement, inner: [innerWidth, innerHeight] } })()`;
+  const pre = geom0;
+  const eb = await b.eval(`(() => { const el = Array.from(document.querySelectorAll('button')).find(x => /EXIT/.test(x.textContent)); if (!el) return null; const q = el.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
+  console.log('exit button', JSON.stringify(eb));
+  const snapsBefore = b.logs.filter((l) => /\[BattleStage\] canvas (snap|fill)/.test(l)).length;
+  if (eb) { await b.clickAt(eb.x, eb.y); }
+  await b.sleep(2500);
+  const post = await b.eval(geomFn);
+  console.log('canvas before fullscreen', JSON.stringify(pre));
+  console.log('canvas after exit      ', JSON.stringify(post));
+  const dom = await b.eval(`(() => { const st = document.querySelector('[data-battle-stage]'); const inner = st.firstElementChild; return { stageClass: st.className, innerStyle: inner.getAttribute('style'), columnW: st.parentElement.clientWidth, stageClientW: st.clientWidth } })()`);
+  console.log('dom after exit         ', JSON.stringify(dom));
+  const snaps = b.logs.filter((l) => /\[BattleStage\] canvas (snap|fill)/.test(l));
+  console.log(`snap logs: ${snaps.length} total, ${snaps.length - snapsBefore} after the exit click`);
+  for (const l of snaps) console.log('  snap:', l.replace(/^\[log\] /, '').slice(0, 160));
+  await b.screenshot(`${S}/fs-probe-after-exit.png`);
+  const ok = !post.fs && post.overflow <= 1 && Math.abs(post.cssW - pre.cssW) <= 1 && Math.abs(post.cssH - pre.cssH) <= 1;
+  console.log(ok ? 'ok   stage restored after leaving fullscreen' : `FAIL stage not restored after leaving fullscreen (overflow ${post.overflow}px, css ${post.cssW}×${post.cssH} vs ${pre.cssW}×${pre.cssH})`);
 }

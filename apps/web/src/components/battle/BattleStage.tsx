@@ -138,9 +138,14 @@ function UnityStage(props: BattleStageProps) {
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
+    // Measure the COLUMN (the stage's parent), never the stage itself: once a snapped canvas is
+    // inside it, the stage's own width is the canvas's width, and measuring that keeps whatever
+    // size was last chosen. Leaving fullscreen made that concrete — the 1280-px fullscreen
+    // canvas stayed 1280 px in a 1020-px column, showing a third of the arena.
+    const column = el.parentElement ?? el;
     const compute = () => {
       const dpr = window.devicePixelRatio || 1;
-      const availW = isFullscreen ? Math.min(window.innerWidth, (window.innerHeight * 16) / 9) : el.clientWidth;
+      const availW = isFullscreen ? Math.min(window.innerWidth, (window.innerHeight * 16) / 9) : column.clientWidth;
       const backing = Math.floor(availW * dpr);
       const k = Math.floor(backing / 640);
       const w = (640 * k) / dpr;
@@ -159,7 +164,7 @@ function UnityStage(props: BattleStageProps) {
     };
     compute();
     const ro = new ResizeObserver(compute);
-    ro.observe(el);
+    ro.observe(column);
     window.addEventListener('resize', compute);
     return () => { ro.disconnect(); window.removeEventListener('resize', compute); };
   }, [isFullscreen]);
@@ -353,10 +358,15 @@ function UnityStage(props: BattleStageProps) {
     <div
       ref={stageRef}
       data-battle-stage
+      // [contain:inline-size]: the snapped canvas has an explicit pixel width, and without
+      // containment that width feeds the page column's intrinsic (min-content) size — the
+      // column grows to fit the canvas, compute() then measures the grown column, and the
+      // size chosen in fullscreen (1280 px) survives leaving it, in a 1020 px column: a third
+      // of the arena. Containment makes the stage's inline size the column's, never the reverse.
       className={
         isFullscreen
           ? 'relative flex h-full w-full items-center justify-center bg-black'
-          : `relative w-full aspect-video rounded-lg overflow-hidden bg-ocean-deep${snap ? ' flex items-center justify-center' : ''}`
+          : `relative w-full aspect-video rounded-lg overflow-hidden bg-ocean-deep [contain:inline-size]${snap ? ' flex items-center justify-center' : ''}`
       }
     >
       <div

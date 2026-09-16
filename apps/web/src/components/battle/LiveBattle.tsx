@@ -59,7 +59,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     getSessionToken: isSpectator ? undefined : getSessionToken,
     gateOnAnimation: gate,
   });
-  const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq } = session;
+  const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq, refreshSnapshot } = session;
   // The bed waits for the arena to be visible: Unity bound, or the plain board shown because Unity is unavailable.
   useArenaMusic(snapshot?.session.tier, gate || unityAvailable === false, !!ended);
   const handleAudioPref = useCallback((p: AudioPrefChange) => (p.kind === 'music' ? setMusicPref(p.on) : setSfxPref(p.on)), []);
@@ -92,9 +92,10 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   // The bar belongs to a turn the player can act on: not while earlier turns are still
   // animating (React's `current` runs ahead of the picture), except to show "Sending…".
   const barTurn = myTurn && (!animating || pendingAck);
+  const currentError = error && (error.turn === undefined || error.turn === current?.turn) ? error.message : null;
   const selectionData = useMemo(
-    () => (snapshot ? selectionToData(canAct ? selection : null, snapshot.roster, { isPlayerTurn: barTurn, canAct: canAct && !pendingAck, pendingAck }) : null),
-    [snapshot, selection, canAct, barTurn, pendingAck],
+    () => (snapshot ? selectionToData(canAct ? selection : null, snapshot.roster, { isPlayerTurn: barTurn, canAct: canAct && !pendingAck, pendingAck, error: currentError }) : null),
+    [snapshot, selection, canAct, barTurn, pendingAck, currentError],
   );
   const handleActionSelected = useCallback((a: string) => {
     console.log(`[LiveBattle] unity action ${a}`);
@@ -118,6 +119,13 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   useEffect(() => {
     if (error && error.turn === sentTurn) setSentTurn(null);
   }, [error, sentTurn]);
+  useEffect(() => {
+    if (!error) return;
+    console.warn(`[LiveBattle] server rejected: ${error.code} — ${error.message}${error.turn !== undefined ? ` (turn ${error.turn})` : ''}`);
+    // The client's idea of the current turn is behind or ahead of the server's: pull the
+    // authoritative snapshot rather than leave the player pressing at a turn that isn't there.
+    if (error.code === 'turn_mismatch') void refreshSnapshot();
+  }, [error, refreshSnapshot]);
   useEffect(() => {
     if (ended) onEnded?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
