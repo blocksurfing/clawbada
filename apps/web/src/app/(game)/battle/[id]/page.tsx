@@ -5,8 +5,8 @@
  *   - real, pre-Active: header + the on-chain prep flow (deposit / commit / reveal) for participants
  *   - real, Active+ or practice: the live V3 session (Unity stage or SVG board + HUD + actions)
  */
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 import { api } from '@/lib/api';
@@ -23,17 +23,27 @@ const PHASE_LABEL: Record<number, string> = { 0: 'Not created', 1: 'Deposits', 2
 
 export default function BattlePage() {
   const params = useParams();
+  const router = useRouter();
   const battleId = params.id as string;
   const { address } = useAccount();
   const practice = isPracticeId(battleId);
   // Review tools (designer VFX passes, harness): ?auto=1 lets the bot policy play this wallet's
-  // turns; ?speed=2 scales Unity playback. Read after mount to avoid a Suspense boundary.
-  const [review, setReview] = useState<{ autoPlay: boolean; speed: number }>({ autoPlay: false, speed: 1 });
+  // turns; ?speed=2 scales Unity playback; ?stay=1 keeps the view open after the result instead
+  // of returning to the arena page. Read after mount to avoid a Suspense boundary.
+  const [review, setReview] = useState<{ autoPlay: boolean; speed: number; stay: boolean }>({ autoPlay: false, speed: 1, stay: false });
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const speed = Number(q.get('speed') ?? '1');
-    setReview({ autoPlay: q.get('auto') === '1', speed: Number.isFinite(speed) && speed > 0 ? speed : 1 });
+    setReview({ autoPlay: q.get('auto') === '1', speed: Number.isFinite(speed) && speed > 0 ? speed : 1, stay: q.get('stay') === '1' });
   }, []);
+  // After the result the view closes itself and comes back here. A practice session is gone
+  // once it ends (in-memory), so Back must not lead into it: replace. A chain battle keeps its
+  // settlement page reachable: push.
+  const leave = useCallback(() => {
+    console.log(`[BattlePage] leaving ${battleId} → /game/battle`);
+    if (practice) router.replace('/game/battle');
+    else router.push('/game/battle');
+  }, [practice, router, battleId]);
 
   const { data: battleData, isLoading, error } = useQuery({
     queryKey: ['battle', battleId],
@@ -51,7 +61,7 @@ export default function BattlePage() {
         <div className="p-4 md:p-8 space-y-4 max-w-6xl mx-auto">
           <Header title="Practice battle" subtitle="Off-chain — no stakes, no rating. Beat the bot." />
           {address ? (
-            <LiveBattle battleId={battleId} address={address} autoPlay={review.autoPlay} speed={review.speed} />
+            <LiveBattle battleId={battleId} address={address} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} onClose={leave} />
           ) : (
             <FrostedPanel className="py-10 text-center text-sm text-text-secondary">Connect the wallet that started this practice battle.</FrostedPanel>
           )}
@@ -120,7 +130,7 @@ export default function BattlePage() {
         )}
 
         {/* Live session (participants act, everyone else spectates) */}
-        {live && <LiveBattle battleId={battleId} address={address} spectate={!participant} autoPlay={review.autoPlay} speed={review.speed} />}
+        {live && <LiveBattle battleId={battleId} address={address} spectate={!participant} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} onClose={leave} />}
 
         {db?.battleId && (
           <p className="text-center text-xs text-text-secondary pt-4">

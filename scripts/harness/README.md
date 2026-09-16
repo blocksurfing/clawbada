@@ -49,6 +49,7 @@ and reads as a bug.
 | `autoplay.ts` | `?auto=1&speed=N` review tools advance the battle with no clicks | `TRIO` `SPEED` |
 | `gridvis.ts` | hex grid hidden at rest, shown only when the player can act | — |
 | `forfeit.ts` | options menu → forfeit → `battle_ended` | — |
+| `autoclose.ts` | after the result banner the view closes itself: countdown under the result, Unity quit, music faded, back on `/game/battle`; `STAY=1` checks the `?stay=1` opt-out | `PRESET` `SPEED` `STAY` |
 | `movecheck.ts` | measured seconds per hex hop | — |
 | `timing.ts` / `reconnect-probe.ts` | full battle to the banner; reconnect keeps the active-turn ring honest | — |
 | `arena-shot.ts` / `dpr-probe.ts` / `resize-probe.ts` / `fs-probe.ts` / `layout-probe.ts` | screenshots and geometry dumps for layout work | — |
@@ -81,6 +82,9 @@ and reads as a bug.
   1.0. For zoom, read `[BattleHud] camera mode … ortho= px/unit=` from the camera itself.
 - **Probe output only shows what the probe prints.** Unity logs are in `b.logs`; grep them
   explicitly, or a real signal (`[BattleSfx]`, `[ArenaMusic]`) is invisible.
+- **The battle page leaves on its own ~6 s after the result banner** (back to `/game/battle`,
+  Unity quit). A probe that reads the page after the result must do so inside that window, or
+  open the battle with `&stay=1` — the picker carries it through like `auto` and `speed`.
 - **`timeout` does not exist on macOS** (`gtimeout`); `bun cdp.ts` scripts run to completion.
 - **Local practice-create can fail** with `TEAM_MANAGER_ADDRESS is not set` on the dev API — an
   env gap, not the probe; the next attempt usually lands.
