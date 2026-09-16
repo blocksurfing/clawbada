@@ -36,6 +36,9 @@ public static class BattleSfx
 
     public static void PlayAttack(int classId) => Play(Library?.AttackFor(classId), "attack");
 
+    /// <summary>One hex step of movement — a random pick from the bound set (see BattleSfxLibrary.move).</summary>
+    public static void PlayMove() => Play(Library?.RandomMove(), "move");
+
     /// <summary>Cast phase — fires with the windup and underscores the whole sequence.</summary>
     public static void PlaySpecial(int classId, int tier) => Play(Library?.SpecialCastFor(classId, tier), "cast");
 
