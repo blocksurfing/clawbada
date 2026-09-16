@@ -27,18 +27,28 @@ export default async function (b: Browser) {
   }
   console.log('battle ended:', ended);
   const count = (re: RegExp) => b.logs.filter((l) => re.test(l)).length;
+  // Full console for grepping after the fact (the summaries below only show the first few lines of each kind).
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  mkdirSync('out', { recursive: true });
+  const dump = `out/sfx-probe-${process.env.PRESET ?? 'trio_' + CLASS.toLowerCase()}.log`;
+  writeFileSync(dump, b.logs.join('\n'));
+  console.log('console dump:', dump, `(${b.logs.length} lines)`);
   console.log('--- over the whole run ---');
   console.log('turns with action=attack :', count(/PlayTurn:.*"action":"attack"/));
   console.log('turns with action=special:', count(/PlayTurn:.*"action":"special"/));
   console.log('turns with action=defend :', count(/PlayTurn:.*"action":"defend"/));
   console.log('PlayAttack animations    :', count(/\[LobsterController\] attack/));
   console.log('BattleSfx plays          :', count(/\[BattleSfx\]/));
-  const clips = b.logs.filter((l) => /\[BattleSfx\]/.test(l)).map((l) => (l.match(/SFX_[A-Za-z_]+/) || [''])[0]);
+  const clips = b.logs.filter((l) => /\[BattleSfx\]/.test(l)).map((l) => (l.match(/SFX_[A-Za-z0-9_]+/) || [''])[0]);
   const tally: Record<string, number> = {};
   for (const c of clips) tally[c] = (tally[c] || 0) + 1;
   console.log('clips:', JSON.stringify(tally));
   const phase = (tag: string) => b.logs.filter((l) => new RegExp(`\\[BattleSfx\\] .* \\(${tag}\\) @`).test(l)).length;
-  console.log(`phases: attack=${phase('attack')} cast=${phase('cast')} impact=${phase('impact')}`);
+  console.log(`phases: attack=${phase('attack')} cast=${phase('cast')} impact=${phase('impact')} move=${phase('move')}`);
+  // Movement: one play per hex hop, a random pick from the bound set — every bound clip should show up.
+  const hops = b.logs.map((l) => l.match(/\[LobsterController\] move \w+ (\d+) hex/)).filter(Boolean).reduce((n, m) => n + Number(m![1]), 0);
+  const moveClips = Object.entries(tally).filter(([k]) => /^SFX_Move_/.test(k));
+  console.log(`move: hops=${hops} plays=${phase('move')} clips=${JSON.stringify(Object.fromEntries(moveClips))} → per-hop: ${hops === phase('move')} both heard: ${moveClips.length >= 2}`);
   for (const l of b.logs.filter((x) => /\[ArenaMusic\]/.test(x)).slice(0, 8)) console.log('  music:', l.replace(/^\[log\] /, '').slice(0, 170));
   const el = await b.eval(`(() => { const m = window.__clawbadaArenaMusic; if (!m) return null; const a = m.audio; return { tier: m.tier, src: a.src.split('/').pop(), paused: a.paused, currentTime: +a.currentTime.toFixed(1), volume: +a.volume.toFixed(2), duration: +a.duration.toFixed(1), loop: a.loop, readyState: a.readyState }; })()`);
   console.log('  <audio>:', JSON.stringify(el));
