@@ -660,6 +660,9 @@ public class BattleManager : MonoBehaviour
                 t.ApplyHeal(h.amount);
                 HealApplied?.Invoke(t, h.amount);
                 BattleVfxLibrary.Spawn(vfxLibrary?.status, actor, t, this);
+                // The designer's read for receiving a heal/buff on the beat (Devour: the caster
+                // "blinks and receives the buff" as the target takes the hit).
+                if (t.alive) StartCoroutine(t.PlayBlink());
             }
         }
         if (data.damage == null) return;
