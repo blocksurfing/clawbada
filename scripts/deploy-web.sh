@@ -14,4 +14,8 @@ if [ -f "$MARKER" ]; then
   exit 1
 fi
 cd "$ROOT"
-exec npx vercel deploy --prod --yes "$@"
+# Pinned: a bare `npx vercel` pulls whatever is newest, and the first run of a freshly
+# installed CLI has failed "Not authorized" three deploys running (59.16, 59.18, 59.19) —
+# the retry then succeeds. Bump deliberately, not as a side effect of deploying.
+VERCEL_CLI_VERSION="${VERCEL_CLI_VERSION:-59.19.0}"
+exec npx "vercel@${VERCEL_CLI_VERSION}" deploy --prod --yes "$@"
