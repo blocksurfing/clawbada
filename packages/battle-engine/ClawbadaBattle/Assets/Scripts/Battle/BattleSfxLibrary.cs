@@ -56,6 +56,12 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("Special move, one entry per class, indexed by LobsterClass.")]
     public SpecialClips[] specialByClass = new SpecialClips[10];
 
+    [Tooltip("Movement scuttle — one clip per hex step, picked at random from this set so a three-hex walk " +
+             "doesn't repeat one sample. Bound from Assets/Audio/SFX/Move/SFX_Move_*.wav in name order.")]
+    public AudioClip[] move = new AudioClip[0];
+
+    /// <summary>A random movement clip, or null when none are bound.</summary>
+    public AudioClip RandomMove() => move != null && move.Length > 0 ? move[Random.Range(0, move.Length)] : null;
 
     public AudioClip AttackFor(int classId) =>
         attackByClass != null && classId >= 0 && classId < attackByClass.Length ? attackByClass[classId] : null;

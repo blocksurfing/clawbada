@@ -9,6 +9,7 @@ using UnityEngine;
 ///   Assets/Audio/SFX/Attack/SFX_&lt;Class&gt;_Attack.wav
 ///   Assets/Audio/SFX/Special/SFX_&lt;Class&gt;_&lt;Ability&gt;[_&lt;Tier&gt;].wav          (cast phase)
 ///   Assets/Audio/SFX/Special/SFX_&lt;Class&gt;_&lt;Ability&gt;_Impact[_&lt;Tier&gt;].wav   (impact phase)
+///   Assets/Audio/SFX/Move/SFX_Move_*.wav                                    (movement, any number)
 /// so a misspelled class (Spectre for Specter) binds nothing and that class is simply silent.
 ///
 /// For every impact clip the binder also measures where its loudest 50 ms sits and stores that
@@ -24,6 +25,7 @@ public static class BattleSfxBinder
 {
     private const string AttackDir = "Assets/Audio/SFX/Attack/";
     private const string SpecialDir = "Assets/Audio/SFX/Special/";
+    private const string MoveDir = "Assets/Audio/SFX/Move";
     private const string LibraryPath = "Assets/Resources/BattleSfxLibrary.asset";
 
     /// <summary>Index = LobsterClass. Order is the enum's, not alphabetical — do not sort.</summary>
@@ -89,11 +91,28 @@ public static class BattleSfxBinder
                                  (impactN > 0 ? $" lead {slot.impactLead:F2}s" : ""));
         }
 
+        // Movement: every SFX_Move_*.wav, in name order. Playback picks one at random per hex
+        // step, so two files are enough for a scuttle that doesn't sound like a loop.
+        var moveClips = new List<AudioClip>();
+        if (AssetDatabase.IsValidFolder(MoveDir))
+        {
+            foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { MoveDir }))
+            {
+                string p = AssetDatabase.GUIDToAssetPath(guid);
+                if (!Path.GetFileName(p).StartsWith("SFX_Move_", System.StringComparison.OrdinalIgnoreCase)) continue;
+                var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(p);
+                if (clip != null) moveClips.Add(clip);
+            }
+        }
+        moveClips.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+        lib.move = moveClips.ToArray();
+
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
         Debug.Log($"[BattleSfxBinder] attack: {bound.Count}/{Classes.Length} bound" +
                   (missing.Count > 0 ? $" — MISSING {string.Join(", ", missing)}" : "") +
                   $" | special: {(specialBound.Count > 0 ? string.Join("; ", specialBound) : "none")}" +
+                  $" | move ×{lib.move.Length}" +
                   $" → {LibraryPath}");
     }
 

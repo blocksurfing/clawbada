@@ -228,7 +228,11 @@ public class LobsterController : MonoBehaviour
 
     /// <summary>Walk to a hex cell-by-cell along a BFS path from HexGrid, playing the
     /// Move state during transit. Hopping through cell centers (instead of one straight
-    /// world lerp) keeps the movement visibly locked to the board.</summary>
+    /// world lerp) keeps the movement visibly locked to the board; each hop fires the
+    /// step VFX and one movement sound (a random pick, so a walk doesn't loop one sample).
+    /// Previews walk too — for the local player's own turn the preview IS the visible
+    /// move (PlayTurn skips it when it already ended at the destination), so they must
+    /// not be silent.</summary>
     public IEnumerator MoveTo(int toCol, int toRow, float secondsPerHex)
     {
         var path = grid.FindPath(col, row, toCol, toRow);
@@ -247,6 +251,7 @@ public class LobsterController : MonoBehaviour
             Vector3 end = grid.GetWorldPosition(step.x, step.y);
             FaceToward(end);
             BattleVfxLibrary.Spawn(vfx?.moveStep, this, null, this);
+            BattleSfx.PlayMove();
 
             float t = 0f;
             while (t < secondsPerHex)

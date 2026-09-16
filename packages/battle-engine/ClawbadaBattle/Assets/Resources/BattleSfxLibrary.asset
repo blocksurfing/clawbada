@@ -134,3 +134,4 @@ MonoBehaviour:
       elite: {fileID: 0}
       apex: {fileID: 0}
     impactLead: 0
+  move: []
