@@ -65,3 +65,9 @@ packages/battle-engine/ClawbadaBattle/Assets/Audio/**/Resources.meta
 
 # Audio masters (WAV) for scripts/build-music.ts — encoded into apps/web/public/audio/music/, never committed themselves.
 audio-masters/
+
+# Browser playtest harness (scripts/harness): per-run output, headless Chrome profile and log
+scripts/harness/out/
+scripts/harness/chrome-profile/
+scripts/harness/chrome.log
+scripts/harness/*.out
