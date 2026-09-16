@@ -130,6 +130,14 @@ export default async function (b: Browser) {
           for (const l of grab(b, /OneShotVfx|Destroy|Fortify/i)) console.log('[Bulwark-vfx]', l.slice(0, 200));
           for (const l of grab(b, /BattleManager\] special|StatusChanged|SetStatus|fortify/i)) console.log('[Bulwark-log]', l.slice(0, 220));
         }
+        if ((CLASS === 'Mantis' || CLASS === 'Kraken' || CLASS === 'Abyss') && casts === 0) {
+          // New drop (2026-09-15): burst through the cast so the frames can be eyeballed —
+          // Ambush is a 0.5 s slash at the claws, Bind a per-target tentacle impact, Devour a
+          // vortex under the target with its impact at 0.5 s.
+          await b.sleep(250);
+          for (let f = 0; f < 10; f++) { await b.screenshot(`${S}/specials-${CLASS}-f${f}.png`); await b.sleep(300); }
+          for (const l of grab(b, /BattleManager\] special|Devour|Bind|Ambush|SortingGroup|Exception/i)) console.log(`[${CLASS}-log]`, l.slice(0, 220));
+        }
         if (CLASS === 'Specials') {
           // Mixed roster: capture each finished Special as it fires.
           await b.sleep(500);
