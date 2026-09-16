@@ -63,20 +63,66 @@ public class BattleHud : MonoBehaviour
         return hud;
     }
 
+    private Behaviour ppc;
+    private int lastScreenW = -1, lastScreenH = -1;
+
+    /// <summary>
+    /// Two camera modes, chosen from the canvas size alone so React and Unity can never disagree:
+    ///  • pixel-perfect — the canvas is an exact 640k×360k (k ≥ 2), which React only produces on
+    ///    purpose (BattleStage snaps the canvas on retina/tablet screens). The PixelPerfectCamera
+    ///    is enabled and lands on integer zoom k with no letterbox: every art pixel is k device
+    ///    pixels, and the framing is the authored 10×5.625 units exactly as before.
+    ///  • fill — any other size (phones, non-retina desktops, k = 1). The PPC would letterbox the
+    ///    arena inside the canvas, so it is disabled and the camera fills the canvas as it always
+    ///    has (fractional scale, the pre-2026-09-15 behaviour).
+    /// Re-evaluated whenever the screen size changes (fullscreen toggle, window resize).
+    /// </summary>
+    private void ApplyCameraMode()
+    {
+        if (cam == null) return;
+        lastScreenW = Screen.width;
+        lastScreenH = Screen.height;
+        int kw = Screen.width / 640, kh = Screen.height / 360;
+        bool exact = Skin != null && Skin.fillCanvas
+            && Screen.width % 640 == 0 && Screen.height % 360 == 0 && kw == kh && kw >= 2;
+        cam.orthographic = true;
+        if (exact && ppc != null)
+        {
+            ppc.enabled = true;   // the PPC sets the orthographic size itself: 360 / (2 × 64) = 2.8125 at integer zoom
+            StartCoroutine(LogCameraAfterFrame($"pixel-perfect k={kw}"));
+        }
+        else
+        {
+            if (ppc != null && ppc.enabled) ppc.enabled = false;
+            if (Skin != null && Skin.fillCanvas) cam.orthographicSize = Skin.fillOrthographicSize;
+            StartCoroutine(LogCameraAfterFrame("fill"));
+        }
+    }
+
+    /// <summary>The PPC applies its orthographic size during rendering, so read it a frame later.
+    /// Pixels per world unit = Screen.height / (2 × orthographicSize): 192.0 is integer zoom 3.</summary>
+    private System.Collections.IEnumerator LogCameraAfterFrame(string mode)
+    {
+        yield return null;
+        yield return null;
+        if (cam == null) yield break;
+        float ppu = Screen.height / (2f * cam.orthographicSize);
+        Debug.Log($"[BattleHud] camera mode {mode} ({Screen.width}x{Screen.height}) ortho={cam.orthographicSize:F4} px/unit={ppu:F2} zoom={ppu / 64f:F3}x");
+    }
+
+    void Update()
+    {
+        if (built && (Screen.width != lastScreenW || Screen.height != lastScreenH)) ApplyCameraMode();
+    }
+
     public void Build(HudSkin skin)
     {
         if (built) return;
         built = true;
         Skin = skin;
         cam = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
-        if (cam != null && skin.fillCanvas)
-        {
-            // The pixel-perfect camera snaps to integer zoom and letterboxes the 640x360 arena
-            // inside larger canvases; the HUD wants the arena full-bleed.
-            if (cam.GetComponent("PixelPerfectCamera") is Behaviour ppc && ppc.enabled) ppc.enabled = false;
-            cam.orthographic = true;
-            cam.orthographicSize = skin.fillOrthographicSize;
-        }
+        ppc = cam != null ? cam.GetComponent("PixelPerfectCamera") as Behaviour : null;
+        ApplyCameraMode();
 
         HudFactory.EnsureEventSystem();
         Canvas = HudFactory.Canvas("BattleHudCanvas", 100, new Vector2(960f, 540f), 0.5f, 64f);
@@ -98,6 +144,8 @@ public class BattleHud : MonoBehaviour
         Bar.UndoPressed += () => bridge?.NotifyUndoMove();
         Options = OptionsMenu.Create(canvasRect, skin);
         Options.ForfeitConfirmed += () => bridge?.NotifyForfeit();
+        Options.MusicToggled += on => bridge?.NotifyAudioPref("music", on);
+        Options.SfxToggled += on => bridge?.NotifyAudioPref("sfx", on);
         floatLayer = HudFactory.Stretch(canvasRect, "Floats");
         Banner = ResultBanner.Create(canvasRect, skin);
         Marker = ActiveMarker.Create(skin);

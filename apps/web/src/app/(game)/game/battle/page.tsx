@@ -37,6 +37,9 @@ const PRESETS = [
   { id: 'evolved_mix', label: 'Evolved trio' },
   { id: 'elite_mix', label: 'Elite trio' },
   { id: 'apex_mix', label: 'Apex trio' },
+  // Fixed compositions under tuning, at the tiers they're being tuned for (`team_<a>_<b>_<c>_<tier>`).
+  { id: 'team_kraken_ember_abyss_elite', label: 'Kraken · Ember · Abyss (Elite)' },
+  { id: 'team_kraken_ember_abyss_apex', label: 'Kraken · Ember · Abyss (Apex)' },
   ...(['Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter', 'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember'] as const).map((c) => ({ id: `trio_${c.toLowerCase()}`, label: `Trio · ${c} (Elite)` })),
 ] as const;
 

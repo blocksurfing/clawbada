@@ -38,6 +38,10 @@ public class BattleVfxLibrary : ScriptableObject
         [Tooltip("Specials only: seconds after this effect starts when the hit beat lands (damage, hit reads, per-target " +
                  "impact effects). 0 = use the attacker's swing timing.")]
         public float impactAt = 0f;
+        [Tooltip("Effects that straddle the owner's depth (Devour: vortex under the lobster, suck above it). Direct children " +
+                 "whose name starts with this render just ABOVE the owner; every other child renders just BELOW it. " +
+                 "Empty = the whole effect sits just above the owner, as usual.")]
+        public string frontChildPrefix = "";
         [Tooltip("Children whose name starts with this prefix are disabled at spawn (designer timing guides such as Hit_A/B/C).")]
         public string hideChildrenPrefix = "";
         [Tooltip("Sort above full-screen effects and front decor — for per-target Special impacts that must read over a storm layer.")]
@@ -277,9 +281,9 @@ public class BattleVfxLibrary : ScriptableObject
 
     private static void SpawnNow(VfxSlot slot, LobsterController owner, Vector3 position)
     {
-        if (IsAbyssDevour(slot.prefab))
+        if (!string.IsNullOrEmpty(slot.frontChildPrefix))
         {
-            SpawnAbyssDevourSplitLayers(slot, owner, position);
+            SpawnStraddling(slot, owner, position);
             return;
         }
 
@@ -301,68 +305,52 @@ public class BattleVfxLibrary : ScriptableObject
         if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
     }
 
-    private static bool IsAbyssDevour(GameObject prefab)
+    /// <summary>
+    /// An effect that must straddle its owner's depth — Devour's vortex under the lobster and its
+    /// suck particles above it. A SortingGroup confines its children, so ONE instance cannot sort
+    /// both below and above the owner; two synchronised instances can: each keeps only its half
+    /// of the direct children and takes one order. Lobsters sort on DepthSort.Layer at ActorOrder,
+    /// so the halves sit at owner−1 / owner+1 on that same layer — above the arena floor (Default),
+    /// which is where a Default/−1 attempt ended up buried.
+    /// </summary>
+    private static void SpawnStraddling(VfxSlot slot, LobsterController owner, Vector3 position)
     {
-        return prefab != null && prefab.name.Contains("Abyss_Devour");
+        SpawnHalf(slot, owner, position, front: false, owner.SortingOrder - 1, "_Below");
+        SpawnHalf(slot, owner, position, front: true, owner.SortingOrder + 1, "_Above");
     }
 
-    private static void SpawnAbyssDevourSplitLayers(VfxSlot slot, LobsterController owner, Vector3 position)
+    private static void SpawnHalf(VfxSlot slot, LobsterController owner, Vector3 position, bool front, int order, string suffix)
     {
-        // Abyss Devour must straddle the lobster depth:
-        //   ground vortex on Default/-1 below lobster sprites, SuckIdle on Foreground/0 above them.
-        // Character art is authored on Default, so putting the ground vortex on Foreground
-        // will always render it above the lobster no matter what sortingOrder says.
-        // Spawn two synchronized copies, each with one forced root depth.
-        var ground = Instantiate(slot.prefab, position, Quaternion.identity);
-        PrepareAbyssDevourLayer(ground, slot, owner, keepSuck: false, sortingLayer: "Default", sortingOrder: -1, suffix: "_GroundLayer");
-
-        var suck = Instantiate(slot.prefab, position, Quaternion.identity);
-        PrepareAbyssDevourLayer(suck, slot, owner, keepSuck: true, sortingLayer: "Foreground", sortingOrder: 0, suffix: "_SuckLayer");
-    }
-
-    private static void PrepareAbyssDevourLayer(GameObject fx, VfxSlot slot, LobsterController owner, bool keepSuck, string sortingLayer, int sortingOrder, string suffix)
-    {
+        var fx = Instantiate(slot.prefab, position, Quaternion.identity);
         fx.name = fx.name.Replace("(Clone)", suffix);
         HideGuideChildren(fx, slot.hideChildrenPrefix);
-
         if (slot.mirrorWithFacing && owner.IsFacingLeft)
         {
             var s = fx.transform.localScale;
             s.x = -s.x;
             fx.transform.localScale = s;
         }
-
-        foreach (var t in fx.GetComponentsInChildren<Transform>(true))
+        // Decide by the direct child (whole subtree goes with it), so nested sprites follow their parent.
+        for (int i = fx.transform.childCount - 1; i >= 0; i--)
         {
-            if (t == fx.transform) continue;
-            bool isSuck = t.name.Contains("Suck");
-            if (keepSuck != isSuck)
-            {
-                t.gameObject.SetActive(false);
-                Destroy(t.gameObject);
-            }
+            var child = fx.transform.GetChild(i);
+            bool isFront = child.name.StartsWith(slot.frontChildPrefix, System.StringComparison.OrdinalIgnoreCase);
+            if (isFront != front) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
         }
-
-        foreach (var childGroup in fx.GetComponentsInChildren<SortingGroup>(true))
-        {
-            if (childGroup.transform == fx.transform) continue;
-            childGroup.enabled = false;
-            childGroup.sortAtRoot = false;
-            Destroy(childGroup);
-        }
-
-        var rootGroup = fx.GetComponent<SortingGroup>();
-        if (rootGroup == null) rootGroup = fx.AddComponent<SortingGroup>();
-        rootGroup.sortingLayerName = sortingLayer;
-        rootGroup.sortingOrder = sortingOrder;
-        rootGroup.sortAtRoot = true;
-
+        foreach (var nested in fx.GetComponentsInChildren<SortingGroup>(true))
+            if (nested.transform != fx.transform) Destroy(nested);
+        var group = fx.GetComponent<SortingGroup>();
+        if (group == null) group = fx.AddComponent<SortingGroup>();
+        group.sortingLayerName = DepthSort.Layer;
+        group.sortingOrder = order;
         foreach (var sr in fx.GetComponentsInChildren<SpriteRenderer>(true))
         {
-            sr.sortingLayerName = sortingLayer;
+            sr.sortingLayerName = DepthSort.Layer;
             sr.sortingOrder = 0;
         }
-
         if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
     }
+
+
+
 }

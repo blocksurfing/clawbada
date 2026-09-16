@@ -442,6 +442,15 @@ public class BattleManager : MonoBehaviour
     /// <summary>Animate one resolved turn, then tell React so it can send the next.</summary>
     public void PlayTurn(TurnPlayData data)
     {
+        // React only sends the next turn after this one reports complete — or after its watchdog
+        // gives up waiting. In the second case the previous routine is still mid-hold; two turn
+        // routines interleaving spawn effects on top of each other and apply reads out of order,
+        // so the old one is stopped. Its spawned effects are OneShotVfx and expire on their own.
+        if (turnRoutine != null && currentPhase == BattlePhase.AnimatingTurn)
+        {
+            Debug.LogWarning($"[BattleManager] turn {currentTurn} routine still running when turn {data.turn} arrived — cut short");
+            StopCoroutine(turnRoutine);
+        }
         currentPhase = BattlePhase.AnimatingTurn;
         currentTurn = data.turn;
         turnRoutine = StartCoroutine(PlayTurnRoutine(data));
@@ -541,6 +550,9 @@ public class BattleManager : MonoBehaviour
                                 : from + (actor.IsFacingLeft ? Vector3.left : Vector3.right) * 2f;
                             float flight = Vector3.Distance(from, to) / Mathf.Max(0.5f, windup.travelSpeed);
                             Debug.Log($"[BattleManager] special {actor.className} projectile launchAt={windup.launchAt:F2}s dist={Vector3.Distance(from, to):F2} flight={flight:F2}s impactLead={windup.impactLead:F2}s");
+                            // The hit beat is known up front, so the impact sound is scheduled now and
+                            // lands with the burst even if the flight is retimed.
+                            BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, windup.launchAt + flight + windup.impactLead);
                             StartCoroutine(actor.PlayAttack(targetPos, attackDuration, false, null));
                             float untilLaunch = windup.launchAt - (Time.time - t0);
                             if (untilLaunch > 0f) yield return new WaitForSeconds(untilLaunch);
@@ -561,6 +573,9 @@ public class BattleManager : MonoBehaviour
                             float clip = BattleVfxLibrary.ClipLength(windup.prefab);
                             float t0 = Time.time;
                             Debug.Log($"[BattleManager] special {actor.className} effect clip={clip:F2}s impactAt={windup.impactAt:F2}s");
+                            // The effect owns the beat, so the impact sound is scheduled against it here
+                            // rather than fired when the wait below ends — its crack has to START early.
+                            BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, windup.impactAt);
                             yield return actor.PlayAttack(actorPos, attackDuration, false, null);
                             float untilImpact = windup.impactAt - (Time.time - t0);
                             if (untilImpact > 0f) yield return new WaitForSeconds(untilImpact);
@@ -574,9 +589,10 @@ public class BattleManager : MonoBehaviour
                         {
                             yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
                             {
-                                // Basic attacks only: a Special's cast swing runs through PlayAttack too,
-                                // and it gets its own sound once those land rather than the attack one.
+                                // A basic attack gets its attack sound here; a Special with no VFX yet gets
+                                // its impact phase here instead — the swing's contact frame IS its beat.
                                 if (!special) BattleSfx.PlayAttack(actor.classId);
+                                else BattleSfx.PlaySpecialImpact(actor.classId, actor.tier);
                                 ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot);
                             });
                             // Secondary events (counter hits on the actor, reflects, bleed ticks).
@@ -644,6 +660,9 @@ public class BattleManager : MonoBehaviour
                 t.ApplyHeal(h.amount);
                 HealApplied?.Invoke(t, h.amount);
                 BattleVfxLibrary.Spawn(vfxLibrary?.status, actor, t, this);
+                // The designer's read for receiving a heal/buff on the beat (Devour: the caster
+                // "blinks and receives the buff" as the target takes the hit).
+                if (t.alive) StartCoroutine(t.PlayBlink());
             }
         }
         if (data.damage == null) return;

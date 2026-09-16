@@ -46,6 +46,13 @@ mergeInto(LibraryManager.library, {
         }
     },
 
+    SendAudioPref: function(jsonPtr) {
+        var json = UTF8ToString(jsonPtr);
+        if (window.__clawbada && window.__clawbada.onAudioPref) {
+            window.__clawbada.onAudioPref(json);
+        }
+    },
+
     // Editor demo loop (V2 round shape) — unused by live battles.
     SendAnimationComplete: function(jsonPtr) {
         var json = UTF8ToString(jsonPtr);

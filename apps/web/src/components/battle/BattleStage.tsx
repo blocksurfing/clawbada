@@ -7,6 +7,7 @@
  * page falls back to the SVG board.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getMusicPref, getSfxPref, MUSIC_EVENT, SFX_EVENT, type AudioPrefChange } from '@/lib/audio-prefs';
 import { Unity, useUnityContext } from 'react-unity-webgl';
 import {
   UNITY_GAME_OBJECT,
@@ -46,6 +47,8 @@ export interface BattleStageProps {
   onActionSelected?: (action: string) => void;
   onUndoMove?: () => void;
   onForfeit?: () => void;
+  /** Options-menu Music/SFX row pressed in the canvas. */
+  onAudioPref?: (pref: AudioPrefChange) => void;
   onUnavailable: () => void;
   onReady: () => void;
   /** Playback speed multiplier for Unity (1 = normal). Review tool: /battle/<id>?speed=2. */
@@ -83,6 +86,17 @@ function UnityStage(props: BattleStageProps) {
     codeUrl: `${BUILD_BASE}.wasm.unityweb`,
   });
   const [unityReady, setUnityReady] = useState(false);
+  /**
+   * Pixel-perfect canvas snapping. The arena is authored at 640×360 (PPU 64); at an integer
+   * zoom k every art pixel is exactly k device pixels and Unity's PixelPerfectCamera can run.
+   * An integer zoom can't fill an arbitrary column, so instead of letterboxing inside a
+   * full-width canvas we size the CANVAS to exactly 640k×360k device pixels and centre it.
+   * Only when k ≥ 2 (retina laptops, tablets, large screens); below that the crisp canvas
+   * would be well under half the column, so the full-bleed fractional fit stays.
+   * Unity picks the matching camera mode on its own from Screen.width/height being an exact
+   * multiple — no bridge message, so the two sides cannot disagree.
+   */
+  const [snap, setSnap] = useState<{ w: number; h: number; k: number; dpr: number } | null>(null);
   const initedFor = useRef<string | null>(null);
   const syncedSeq = useRef<number>(0);
   const animating = useRef<number | null>(null);
@@ -109,6 +123,35 @@ function UnityStage(props: BattleStageProps) {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     else void el.requestFullscreen?.().catch(() => {});
   }, []);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const compute = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const availW = isFullscreen ? Math.min(window.innerWidth, (window.innerHeight * 16) / 9) : el.clientWidth;
+      const backing = Math.floor(availW * dpr);
+      const k = Math.floor(backing / 640);
+      const w = (640 * k) / dpr;
+      const h = (360 * k) / dpr;
+      // The CSS size must be whole: a fractional width is rounded by the browser and the backing
+      // store lands a device pixel off the multiple, which the pixel-perfect camera answers with
+      // a letterbox. (dpr 2: always whole; dpr 1.5 / 3: only every third k.)
+      const next = k >= 2 && Number.isInteger(w) && Number.isInteger(h) ? { w, h, k, dpr } : null;
+      setSnap((prev) => {
+        if ((prev?.w ?? 0) === (next?.w ?? 0) && (prev?.h ?? 0) === (next?.h ?? 0) && (prev?.k ?? 0) === (next?.k ?? 0) && (prev?.dpr ?? 0) === (next?.dpr ?? 0)) return prev;
+        console.log(next
+          ? `[BattleStage] canvas snap k=${next.k} → ${next.w}×${next.h} css @ dpr ${next.dpr} = ${640 * next.k}×${360 * next.k} device px (column ${Math.round(availW)} css)`
+          : `[BattleStage] canvas fill (k=${k} < 2 or non-integer css) — column ${Math.round(availW)} css @ dpr ${dpr}`);
+        return next;
+      });
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    window.addEventListener('resize', compute);
+    return () => { ro.disconnect(); window.removeEventListener('resize', compute); };
+  }, [isFullscreen]);
+
   const send = useCallback((method: string, data?: unknown) => {
     if (data === undefined) sendMessage(UNITY_GAME_OBJECT, method);
     else sendMessage(UNITY_GAME_OBJECT, method, JSON.stringify(data));
@@ -123,6 +166,7 @@ function UnityStage(props: BattleStageProps) {
       onActionSelected: props.onActionSelected,
       onUndoMove: props.onUndoMove,
       onForfeit: props.onForfeit,
+      onAudioPref: props.onAudioPref,
       onTurnAnimationComplete: (turn) => {
         if (watchdog.current) { clearTimeout(watchdog.current); watchdog.current = null; }
         animating.current = null;
@@ -130,7 +174,16 @@ function UnityStage(props: BattleStageProps) {
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit]);
+  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit, props.onAudioPref]);
+
+  // Site-wide audio preferences → Unity, on init and whenever they change (floating toggle,
+  // options-menu echo, another tab). Unity applies SFX and refreshes its menu labels.
+  const pushAudioPrefs = useCallback(() => send(UNITY_METHODS.SET_AUDIO_PREFS, { music: getMusicPref(), sfx: getSfxPref() }), [send]);
+  useEffect(() => {
+    window.addEventListener(MUSIC_EVENT, pushAudioPrefs);
+    window.addEventListener(SFX_EVENT, pushAudioPrefs);
+    return () => { window.removeEventListener(MUSIC_EVENT, pushAudioPrefs); window.removeEventListener(SFX_EVENT, pushAudioPrefs); };
+  }, [pushAudioPrefs]);
 
   useEffect(() => {
     if (initialisationError) {
@@ -158,6 +211,7 @@ function UnityStage(props: BattleStageProps) {
     // Statuses / defending are not part of InitBattle; the HUD needs them from the start.
     send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
     if (props.speed && props.speed !== 1) send(UNITY_METHODS.SET_SPEED, { speed: props.speed });
+    pushAudioPrefs();
     props.onReady();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, props.snapshot?.session.id, props.snapshotSeq, props.nextToAnimate]);
@@ -186,12 +240,18 @@ function UnityStage(props: BattleStageProps) {
     animating.current = turn;
     send(UNITY_METHODS.PLAY_TURN, turnToPlayData(props.nextToAnimate));
     if (watchdog.current) clearTimeout(watchdog.current);
+    // Unity's holds run in scaled time (?speed=0.25 makes a 6 s Fortify take 24 s of wall time)
+    // but this timer is wall time. Unscaled, slow review playback tripped it on every Special,
+    // releasing the HUD mid-hold so the next turn's routine ran on top of the previous one —
+    // three Fortify domes on screen at once. Stretch it for speeds below 1; never shorten it.
+    const watchdogMs = Math.round(ANIMATION_WATCHDOG_MS / Math.min(1, props.speed && props.speed > 0 ? props.speed : 1));
     watchdog.current = setTimeout(() => {
       if (animating.current !== turn) return;
-      console.warn(`[BattleStage] Unity did not report turn ${turn} animation complete within ${ANIMATION_WATCHDOG_MS}ms — releasing the HUD`);
+      console.warn(`[BattleStage] Unity did not report turn ${turn} animation complete within ${watchdogMs}ms — releasing the HUD`);
       animating.current = null;
       props.onTurnAnimationComplete(turn);
-    }, ANIMATION_WATCHDOG_MS);
+    }, watchdogMs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, props.nextToAnimate, send]);
 
   // Server truth for every unit once nothing is animating: after each animated turn the
@@ -264,14 +324,14 @@ function UnityStage(props: BattleStageProps) {
       className={
         isFullscreen
           ? 'relative flex h-full w-full items-center justify-center bg-black'
-          : 'relative w-full aspect-video rounded-lg overflow-hidden bg-ocean-deep'
+          : `relative w-full aspect-video rounded-lg overflow-hidden bg-ocean-deep${snap ? ' flex items-center justify-center' : ''}`
       }
     >
       <div
         className="relative aspect-video"
-        style={isFullscreen ? { width: 'min(100vw, calc(100vh * 16 / 9))' } : { width: '100%' }}
+        style={snap ? { width: snap.w, height: snap.h } : isFullscreen ? { width: 'min(100vw, calc(100vh * 16 / 9))' } : { width: '100%' }}
       >
-        <Unity unityProvider={unityProvider} className="w-full h-full" />
+        <Unity unityProvider={unityProvider} className="w-full h-full" devicePixelRatio={snap ? snap.dpr : undefined} />
       </div>
       {isLoaded && (
         <button
