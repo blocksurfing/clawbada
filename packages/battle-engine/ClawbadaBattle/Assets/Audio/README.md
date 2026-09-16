@@ -20,6 +20,23 @@ discarded twice before anyone hears them — keep those as an archive outside th
 you want re-master headroom. Everything is pinned to 48 kHz at import regardless, so a
 44.1 kHz pack converts once here rather than resampling on every playback.
 
+## SFX naming — the binder finds clips by filename
+
+`Scripts/Editor/BattleSfxBinder.cs` (**Clawbada ▸ Audio ▸ Bind Battle SFX**, headless
+`-executeMethod BattleSfxBinder.Bind`) fills `Resources/BattleSfxLibrary.asset` from these
+paths. A misnamed file binds nothing and that sound is simply silent — no error.
+
+| Sound | Path under `Assets/Audio/` |
+|---|---|
+| Basic attack, per class | `SFX/Attack/SFX_<Class>_Attack.wav` |
+| Special cast, per class, optional per tier | `SFX/Special/SFX_<Class>_<Ability>[_<Tier>].wav` |
+| Special impact (lands on the hit beat) | `SFX/Special/SFX_<Class>_<Ability>_Impact[_<Tier>].wav` |
+| Movement, one hex step | `SFX/Move/SFX_Move_01.wav`, `SFX_Move_02.wav`, … — any number; one is picked at random per step |
+
+`<Class>` = Bulwark Mantis Leviathan Tempest Specter Sentinel Reaver Abyss Kraken Ember ·
+`<Ability>` = Fortify Ambush Crush Maelstrom Haunt Rally Rend Devour Bind Inferno ·
+`<Tier>` = Evolved Elite Apex. Re-run the bind after every drop.
+
 ## Budget
 
 The WebGL build is ~8 MB today. The landing-page theme is 41 MB as WAV. Audio will

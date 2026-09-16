@@ -1,8 +1,9 @@
 /**
  * Rolled practice rosters. `random_<tier>` draws three distinct classes from all ten;
- * `trio_<class>` fields three of one class; `specials` fields one of each class whose Special
- * VFX is finished. All three use real random genetics (randomDNA), so Unity rigs and HUD
- * portraits composite mixed-class body parts.
+ * `trio_<class>` fields three of one class; `team_<class>_<class>_<class>` fields a named
+ * composition; `specials` fields one of each class whose Special VFX is finished. All use
+ * real random genetics (randomDNA), so Unity rigs and HUD portraits composite mixed-class
+ * body parts.
  */
 import { v3, EvolutionTier, LobsterClass, randomDNA, calculatePurity } from '@clawbada/game-logic';
 
@@ -17,6 +18,8 @@ export const VFX_READY_CLASSES = ['bulwark', 'tempest', 'specter'] as const;
 export const SPECIALS_PRESET_RE = /^specials(?:_(evolved|elite|apex))?$/;
 /** `trio_<class>[_<tier>]`: three lobsters of one class (default Elite) — for exercising one Special on demand. */
 export const TRIO_PRESET_RE = /^trio_(bulwark|mantis|leviathan|tempest|specter|sentinel|reaver|abyss|kraken|ember)(?:_(evolved|elite|apex))?$/;
+/** `team_<class>_<class>_<class>[_<tier>]`: a named three-class composition (default Elite) — the fixed teams the picker offers, e.g. `team_kraken_ember_abyss_apex`. */
+export const TEAM_PRESET_RE = /^team_(bulwark|mantis|leviathan|tempest|specter|sentinel|reaver|abyss|kraken|ember)_(bulwark|mantis|leviathan|tempest|specter|sentinel|reaver|abyss|kraken|ember)_(bulwark|mantis|leviathan|tempest|specter|sentinel|reaver|abyss|kraken|ember)(?:_(evolved|elite|apex))?$/;
 const CLASS_BY_NAME: Record<string, LobsterClass> = {
   bulwark: LobsterClass.Bulwark, mantis: LobsterClass.Mantis, leviathan: LobsterClass.Leviathan, tempest: LobsterClass.Tempest, specter: LobsterClass.Specter,
   sentinel: LobsterClass.Sentinel, reaver: LobsterClass.Reaver, abyss: LobsterClass.Abyss, kraken: LobsterClass.Kraken, ember: LobsterClass.Ember,
@@ -41,6 +44,14 @@ export function rollTrioRoster(className: string, tierName = 'elite', rng: () =>
   const tier = RANDOM_TIERS[tierName];
   if (cls === undefined || tier === undefined) throw new Error(`unknown trio preset ${className}/${tierName}`);
   const classes = [cls, cls, cls];
+  const dna = classes.map((c) => randomDNA(c, rng));
+  return { tier, classes, purity: dna.map(() => 3), partClassIds: dna.map((d) => v3.partClassIds(d)), dna };
+}
+/** A named three-class composition with random genetics; purity 3 like the trio, so each Special is a typical bred one. */
+export function rollTeamRoster(classNames: readonly string[], tierName = 'elite', rng: () => number = Math.random): RandomRoster {
+  const tier = RANDOM_TIERS[tierName];
+  const classes = classNames.map((n) => CLASS_BY_NAME[n]);
+  if (classes.length !== 3 || classes.some((c) => c === undefined) || tier === undefined) throw new Error(`unknown team preset ${classNames.join('/')}/${tierName}`);
   const dna = classes.map((c) => randomDNA(c, rng));
   return { tier, classes, purity: dna.map(() => 3), partClassIds: dna.map((d) => v3.partClassIds(d)), dna };
 }

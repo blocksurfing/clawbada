@@ -69,3 +69,23 @@ describe('rollTrioRoster', () => {
     expect(() => rollTrioRoster('dragon')).toThrow();
   });
 });
+
+describe('rollTeamRoster', () => {
+  test('a named composition at the requested tier with genetics, purity 3', async () => {
+    const { rollTeamRoster, TEAM_PRESET_RE } = await import('../../lib/battle-session/random-roster');
+    const { LobsterClass } = await import('@clawbada/game-logic');
+    expect(TEAM_PRESET_RE.test('team_kraken_ember_abyss')).toBe(true);
+    expect(TEAM_PRESET_RE.test('team_kraken_ember_abyss_apex')).toBe(true);
+    expect(TEAM_PRESET_RE.test('team_kraken_ember')).toBe(false);
+    expect(TEAM_PRESET_RE.test('team_kraken_ember_dragon')).toBe(false);
+    const m = TEAM_PRESET_RE.exec('team_kraken_ember_abyss_apex')!;
+    const r = rollTeamRoster([m[1], m[2], m[3]], m[4]);
+    expect(r.tier).toBe(EvolutionTier.Apex);
+    expect(r.classes).toEqual([LobsterClass.Kraken, LobsterClass.Ember, LobsterClass.Abyss]);
+    expect(r.purity).toEqual([3, 3, 3]);
+    for (const p of r.partClassIds) expect(p).toHaveLength(6);
+    expect(rollTeamRoster(['kraken', 'ember', 'abyss']).tier).toBe(EvolutionTier.Elite);
+    expect(() => rollTeamRoster(['kraken', 'ember'])).toThrow(/unknown team preset/);
+    expect(() => rollTeamRoster(['kraken', 'ember', 'dragon'])).toThrow(/unknown team preset/);
+  });
+});
