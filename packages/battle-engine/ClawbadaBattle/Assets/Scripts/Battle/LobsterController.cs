@@ -337,6 +337,24 @@ public class LobsterController : MonoBehaviour
 
     /// <summary>Hit reaction: turn to face the attacker, flinch, then back to Idle
     /// (unless dead by then) and re-face the enemy side.</summary>
+    /// <summary>A short visibility blink — the read for "this lobster just received a heal or buff"
+    /// (Devour's lifesteal on the caster, Rally on an ally). Toggles the rig's renderers rather
+    /// than tinting: the parts carry their own palettes and a multiplied tint can only darken.</summary>
+    public IEnumerator PlayBlink(float seconds = 0.24f, int times = 2)
+    {
+        var renderers = GetComponentsInChildren<SpriteRenderer>(false);
+        if (renderers.Length == 0 || times <= 0) yield break;
+        Debug.Log($"[LobsterController] blink {className} ×{times} over {seconds:F2}s");
+        float step = seconds / (times * 2f);
+        for (int i = 0; i < times; i++)
+        {
+            foreach (var r in renderers) if (r != null) r.enabled = false;
+            yield return new WaitForSeconds(step);
+            foreach (var r in renderers) if (r != null) r.enabled = true;
+            yield return new WaitForSeconds(step);
+        }
+    }
+
     public IEnumerator PlayHit(float duration, Vector3 attackerWorldPos)
     {
         FaceToward(attackerWorldPos);

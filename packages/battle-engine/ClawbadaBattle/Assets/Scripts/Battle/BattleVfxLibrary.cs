@@ -38,6 +38,10 @@ public class BattleVfxLibrary : ScriptableObject
         [Tooltip("Specials only: seconds after this effect starts when the hit beat lands (damage, hit reads, per-target " +
                  "impact effects). 0 = use the attacker's swing timing.")]
         public float impactAt = 0f;
+        [Tooltip("Effects that straddle the owner's depth (Devour: vortex under the lobster, suck above it). Direct children " +
+                 "whose name starts with this render just ABOVE the owner; every other child renders just BELOW it. " +
+                 "Empty = the whole effect sits just above the owner, as usual.")]
+        public string frontChildPrefix = "";
         [Tooltip("Children whose name starts with this prefix are disabled at spawn (designer timing guides such as Hit_A/B/C).")]
         public string hideChildrenPrefix = "";
         [Tooltip("Sort above full-screen effects and front decor — for per-target Special impacts that must read over a storm layer.")]
@@ -277,6 +281,12 @@ public class BattleVfxLibrary : ScriptableObject
 
     private static void SpawnNow(VfxSlot slot, LobsterController owner, Vector3 position)
     {
+        if (!string.IsNullOrEmpty(slot.frontChildPrefix))
+        {
+            SpawnStraddling(slot, owner, position);
+            return;
+        }
+
         var fx = Instantiate(slot.prefab, position, Quaternion.identity);
         HideGuideChildren(fx, slot.hideChildrenPrefix);
 
@@ -287,8 +297,6 @@ public class BattleVfxLibrary : ScriptableObject
             fx.transform.localScale = s;
         }
 
-        // Sort just above the owner so effects never vanish behind their lobster; `onTop`
-        // effects (per-target Special impacts) go above full-screen layers and front decor.
         var group = fx.GetComponent<SortingGroup>();
         if (group == null) group = fx.AddComponent<SortingGroup>();
         group.sortingLayerName = DepthSort.Layer;
@@ -296,4 +304,53 @@ public class BattleVfxLibrary : ScriptableObject
 
         if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
     }
+
+    /// <summary>
+    /// An effect that must straddle its owner's depth — Devour's vortex under the lobster and its
+    /// suck particles above it. A SortingGroup confines its children, so ONE instance cannot sort
+    /// both below and above the owner; two synchronised instances can: each keeps only its half
+    /// of the direct children and takes one order. Lobsters sort on DepthSort.Layer at ActorOrder,
+    /// so the halves sit at owner−1 / owner+1 on that same layer — above the arena floor (Default),
+    /// which is where a Default/−1 attempt ended up buried.
+    /// </summary>
+    private static void SpawnStraddling(VfxSlot slot, LobsterController owner, Vector3 position)
+    {
+        SpawnHalf(slot, owner, position, front: false, owner.SortingOrder - 1, "_Below");
+        SpawnHalf(slot, owner, position, front: true, owner.SortingOrder + 1, "_Above");
+    }
+
+    private static void SpawnHalf(VfxSlot slot, LobsterController owner, Vector3 position, bool front, int order, string suffix)
+    {
+        var fx = Instantiate(slot.prefab, position, Quaternion.identity);
+        fx.name = fx.name.Replace("(Clone)", suffix);
+        HideGuideChildren(fx, slot.hideChildrenPrefix);
+        if (slot.mirrorWithFacing && owner.IsFacingLeft)
+        {
+            var s = fx.transform.localScale;
+            s.x = -s.x;
+            fx.transform.localScale = s;
+        }
+        // Decide by the direct child (whole subtree goes with it), so nested sprites follow their parent.
+        for (int i = fx.transform.childCount - 1; i >= 0; i--)
+        {
+            var child = fx.transform.GetChild(i);
+            bool isFront = child.name.StartsWith(slot.frontChildPrefix, System.StringComparison.OrdinalIgnoreCase);
+            if (isFront != front) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
+        }
+        foreach (var nested in fx.GetComponentsInChildren<SortingGroup>(true))
+            if (nested.transform != fx.transform) Destroy(nested);
+        var group = fx.GetComponent<SortingGroup>();
+        if (group == null) group = fx.AddComponent<SortingGroup>();
+        group.sortingLayerName = DepthSort.Layer;
+        group.sortingOrder = order;
+        foreach (var sr in fx.GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            sr.sortingLayerName = DepthSort.Layer;
+            sr.sortingOrder = 0;
+        }
+        if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
+    }
+
+
+
 }
