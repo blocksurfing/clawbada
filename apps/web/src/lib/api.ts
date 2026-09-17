@@ -458,6 +458,8 @@ export interface CreatePracticeBody {
   opponent?: 'mirror' | 'random';
   layoutId?: string;
   preset?: string;
+  /** Board to fight on; omitted = the team's own tier. */
+  arena?: 'evolved' | 'elite' | 'apex';
 }
 
 interface BattleHistoryItem {

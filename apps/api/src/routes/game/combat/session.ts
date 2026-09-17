@@ -88,7 +88,7 @@ sessionRoutes.post(
   catchErrors(async (c) => {
     if (process.env.PRACTICE_ENABLED === 'false') throw new ApiError('NOT_FOUND', 'Practice mode is disabled');
     const address = (c.get('address') as string).toLowerCase();
-    const body = await c.req.json<{ teamId?: string; lobsterIds?: string[]; bot?: string; opponent?: string; layoutId?: string; preset?: string }>().catch(() => ({} as Record<string, never>));
+    const body = await c.req.json<{ teamId?: string; lobsterIds?: string[]; bot?: string; opponent?: string; layoutId?: string; preset?: string; arena?: string }>().catch(() => ({} as Record<string, never>));
 
     const bot = body.bot ?? 'balanced';
     if (!v3.isBotName(bot)) throw new ApiError('INVALID_INPUT', `bot must be one of ${v3.BOT_NAMES.join(', ')}`);
@@ -99,6 +99,9 @@ sessionRoutes.post(
     // A random roster defaults to a random opponent too (a mirror of a random team is less interesting).
     const opponent = body.opponent ?? (randomPreset ? 'random' : 'mirror');
     if (opponent !== 'mirror' && opponent !== 'random') throw new ApiError('INVALID_INPUT', "opponent must be 'mirror' or 'random'");
+    // The board is a free choice for practice: the tier only sets the layout, art and music.
+    const arena = body.arena === undefined ? undefined : body.arena;
+    if (arena !== undefined && arena !== 'evolved' && arena !== 'elite' && arena !== 'apex') throw new ApiError('INVALID_INPUT', "arena must be 'evolved', 'elite' or 'apex'");
 
     let lobsters: PracticeLobster[];
     if (body.preset) {
@@ -138,7 +141,7 @@ sessionRoutes.post(
     }
 
     try {
-      const session = await battleSessions.startPractice({ owner: address, lobsters, bot, opponent, layoutId: body.layoutId });
+      const session = await battleSessions.startPractice({ owner: address, lobsters, bot, opponent, layoutId: body.layoutId, arena });
       return c.json({ battleId: session.record.id, snapshot: session.snapshot() }, 201);
     } catch (err) {
       if (err instanceof PracticeConflictError) throw new ApiError('BATTLE_PHASE_ERROR', `You already have an active practice battle: ${err.existingId}`);

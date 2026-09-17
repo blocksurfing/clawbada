@@ -62,6 +62,10 @@ export interface StartPracticeOptions {
   bot: v3.BotName;
   opponent: 'mirror' | 'random';
   layoutId?: string;
+  /** Board to fight on. Defaults to the team's own tier; any tier is allowed (Apex lobsters on
+   *  the Evolved board) because the tier only picks the layout, the arena art and the music —
+   *  every lobster's stats come from its own tier. */
+  arena?: v3.ArenaLayout['tier'];
 }
 
 export const DEFAULT_SHOT_CLOCK_MS = 60_000;
@@ -182,7 +186,7 @@ export class BattleSessionManager {
     const id = `p_${randomUUID()}`;
     const vrfSeed = (this.deps.randomSeed ?? randomSeed)();
     const teamA = opts.lobsters.map((l) => ({ ...l.input }));
-    const tier = arenaTierFor(teamA);
+    const tier = opts.arena ?? arenaTierFor(teamA);
     const teamB: v3.LobsterInput[] = teamA.map((l, i) => ({ id: `bot-${i}`, class: l.class, tier: l.tier, purity: l.purity, legend: false }));
     // Bot genetics: a mirror copies the player's body parts; a random opponent rolls a seeded
     // DNA per slot (reproducible from the battle seed) and takes its purity from that DNA.

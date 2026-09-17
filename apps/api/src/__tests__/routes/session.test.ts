@@ -159,6 +159,13 @@ describe('POST /practice', () => {
 
     const bad = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', bot: 'gpt5' }) });
     expect(bad.status).toBe(400);
+    mockStartPractice.mockClear();
+    mockStartPractice.mockImplementation(async (opts: any) => fakeSession(P_ID) && { record: { id: P_ID }, snapshot: () => ({ ok: true, bot: opts.bot, n: opts.lobsters.length }) });
+    const onApex = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', arena: 'apex' }) });
+    expect(onApex.status).toBe(201);
+    expect(mockStartPractice.mock.calls[0][0]).toMatchObject({ arena: 'apex' });
+    const badArena = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', arena: 'base' }) });
+    expect(badArena.status).toBe(400);
     const badOpp = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', opponent: 'clone' }) });
     expect(badOpp.status).toBe(400);
   });
