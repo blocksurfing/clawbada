@@ -308,7 +308,7 @@ public class BattleHud : MonoBehaviour
     {
         Color c = kind == "self" ? Skin.floatSelf : isCrit ? Skin.floatCrit : Skin.floatNormal;
         string text = "-" + amount + (isCrit ? "!" : "");
-        SpawnFloatFor(target, text, c, isCrit ? 22 : 16);
+        SpawnFloatFor(target, text, c, isCrit ? 24 : 16);   // Silkscreen sits on an 8 px grid: 16 / 24, never 22
         Debug.Log($"[BattleHud] float {target.lobsterId} {text} {kind}");
     }
 
