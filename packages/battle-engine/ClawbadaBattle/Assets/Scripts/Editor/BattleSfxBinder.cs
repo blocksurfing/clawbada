@@ -10,6 +10,8 @@ using UnityEngine;
 ///   Assets/Audio/SFX/Special/SFX_&lt;Class&gt;_&lt;Ability&gt;[_&lt;Tier&gt;].wav          (cast phase)
 ///   Assets/Audio/SFX/Special/SFX_&lt;Class&gt;_&lt;Ability&gt;_Impact[_&lt;Tier&gt;].wav   (impact phase)
 ///   Assets/Audio/SFX/Move/SFX_Move_*.wav                                    (movement, any number)
+///   Assets/Audio/SFX/Defend/SFX_Defend.wav                                   (defend, shared)
+///   Assets/Audio/SFX/Defend/SFX_&lt;Class&gt;_Defend.wav                           (defend, per-class override)
 /// so a misspelled class (Spectre for Specter) binds nothing and that class is simply silent.
 ///
 /// For every impact clip the binder also measures where its loudest 50 ms sits and stores that
@@ -26,6 +28,7 @@ public static class BattleSfxBinder
     private const string AttackDir = "Assets/Audio/SFX/Attack/";
     private const string SpecialDir = "Assets/Audio/SFX/Special/";
     private const string MoveDir = "Assets/Audio/SFX/Move";
+    private const string DefendDir = "Assets/Audio/SFX/Defend/";
     private const string LibraryPath = "Assets/Resources/BattleSfxLibrary.asset";
 
     /// <summary>Index = LobsterClass. Order is the enum's, not alphabetical — do not sort.</summary>
@@ -107,12 +110,23 @@ public static class BattleSfxBinder
         moveClips.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
         lib.move = moveClips.ToArray();
 
+        // Defend: one shared clip, with a per-class file overriding it where present.
+        lib.defend = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DefendDir}SFX_Defend.wav");
+        if (lib.defendByClass == null || lib.defendByClass.Length != Classes.Length) lib.defendByClass = new AudioClip[Classes.Length];
+        int defendOverrides = 0;
+        for (int i = 0; i < Classes.Length; i++)
+        {
+            lib.defendByClass[i] = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DefendDir}SFX_{Classes[i]}_Defend.wav");
+            if (lib.defendByClass[i] != null) defendOverrides++;
+        }
+
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
         Debug.Log($"[BattleSfxBinder] attack: {bound.Count}/{Classes.Length} bound" +
                   (missing.Count > 0 ? $" — MISSING {string.Join(", ", missing)}" : "") +
                   $" | special: {(specialBound.Count > 0 ? string.Join("; ", specialBound) : "none")}" +
                   $" | move ×{lib.move.Length}" +
+                  $" | defend: {(lib.defend != null ? "shared" : "none")}{(defendOverrides > 0 ? $" + {defendOverrides} class override(s)" : "")}" +
                   $" → {LibraryPath}");
     }
 

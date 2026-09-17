@@ -60,6 +60,19 @@ public class BattleSfxLibrary : ScriptableObject
              "doesn't repeat one sample. Bound from Assets/Audio/SFX/Move/SFX_Move_*.wav in name order.")]
     public AudioClip[] move = new AudioClip[0];
 
+    [Tooltip("Defend stance, shared by every class: Assets/Audio/SFX/Defend/SFX_Defend.wav.")]
+    public AudioClip defend;
+    [Tooltip("Optional per-class Defend, indexed by LobsterClass: SFX/Defend/SFX_<Class>_Defend.wav. Empty slots fall back to the shared clip.")]
+    public AudioClip[] defendByClass = new AudioClip[10];
+
+    /// <summary>The class's own Defend clip if one is bound, else the shared one, else null.</summary>
+    public AudioClip DefendFor(int classId)
+    {
+        AudioClip c = defendByClass != null && classId >= 0 && classId < defendByClass.Length ? defendByClass[classId] : null;
+        if (c != null) return c;
+        return defend != null ? defend : null;
+    }
+
     /// <summary>A random movement clip, or null when none are bound.</summary>
     public AudioClip RandomMove() => move != null && move.Length > 0 ? move[Random.Range(0, move.Length)] : null;
 

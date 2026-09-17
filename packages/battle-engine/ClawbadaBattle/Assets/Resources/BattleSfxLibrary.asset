@@ -137,3 +137,15 @@ MonoBehaviour:
   move:
   - {fileID: 8300000, guid: 9ceda9dc534a546d3b8245419b963958, type: 3}
   - {fileID: 8300000, guid: deafd23ecffc543c589427bfac0dc019, type: 3}
+  defend: {fileID: 0}
+  defendByClass:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
