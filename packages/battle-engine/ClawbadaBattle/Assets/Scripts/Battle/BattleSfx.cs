@@ -39,6 +39,13 @@ public static class BattleSfx
     /// <summary>One hex step of movement — a random pick from the bound set (see BattleSfxLibrary.move).</summary>
     public static void PlayMove() => Play(Library?.RandomMove(), "move");
 
+    /// <summary>Defend stance, on the read. Per-class clip when bound, else the shared one.</summary>
+    public static void PlayDefend(int classId) => Play(Library?.DefendFor(classId), "defend");
+
+    /// <summary>An in-game panel opening (options menu, confirm step) / closing. Same two clips for every panel.</summary>
+    public static void PlayUiOpen() => Play(Library?.uiOpen, "ui-open");
+    public static void PlayUiClose() => Play(Library?.uiClose, "ui-close");
+
     /// <summary>Cast phase — fires with the windup and underscores the whole sequence.</summary>
     public static void PlaySpecial(int classId, int tier) => Play(Library?.SpecialCastFor(classId, tier), "cast");
 
