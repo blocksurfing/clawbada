@@ -3,7 +3,7 @@ const CLASS = process.env.TRIO ?? 'Kraken';
 
 export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${process.env.PRESET ?? 'trio_' + CLASS.toLowerCase()}&auto=1&speed=3`);
+  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${process.env.PRESET ?? 'trio_' + CLASS.toLowerCase()}&auto=1&speed=3${process.env.ARENA ? `&arena=${process.env.ARENA}` : ''}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let i = 0; i < 4; i++) {
     await b.sleep(800);
@@ -33,6 +33,9 @@ export default async function (b: Browser) {
   const dump = `out/sfx-probe-${process.env.PRESET ?? 'trio_' + CLASS.toLowerCase()}.log`;
   writeFileSync(dump, b.logs.join('\n'));
   console.log('console dump:', dump, `(${b.logs.length} lines)`);
+  // Board the battle was set up on (ARENA=<tier> puts any team on that board; default = the team's tier).
+  const init = b.logs.find((l) => /\[BattleManager\] Initialized battle/.test(l)) ?? '';
+  console.log('arena:', (init.match(/tier: (\w+)/) || [])[1] ?? '?', process.env.ARENA ? `(asked for ${process.env.ARENA})` : '(team tier)');
   console.log('--- over the whole run ---');
   console.log('turns with action=attack :', count(/PlayTurn:.*"action":"attack"/));
   console.log('turns with action=special:', count(/PlayTurn:.*"action":"special"/));
