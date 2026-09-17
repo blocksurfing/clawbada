@@ -341,6 +341,7 @@ public class LobsterController : MonoBehaviour
     {
         PlayState("Defense");
         BattleVfxLibrary.Spawn(vfx?.defend, this, null, this);
+        BattleSfx.PlayDefend(classId);   // both the turn and the round routines come through here
     }
 
     /// <summary>Hit reaction: turn to face the attacker, flinch, then back to Idle

@@ -60,6 +60,25 @@ public class BattleSfxLibrary : ScriptableObject
              "doesn't repeat one sample. Bound from Assets/Audio/SFX/Move/SFX_Move_*.wav in name order.")]
     public AudioClip[] move = new AudioClip[0];
 
+    [Tooltip("Defend stance, shared by every class — one is picked at random per Defend. Bound from " +
+             "Assets/Audio/SFX/Defend/SFX_Defend_*.wav (or a single SFX_Defend.wav) in name order.")]
+    public AudioClip[] defend = new AudioClip[0];
+    [Tooltip("Optional per-class Defend, indexed by LobsterClass: SFX/Defend/SFX_<Class>_Defend.wav. Empty slots fall back to the shared pool.")]
+    public AudioClip[] defendByClass = new AudioClip[10];
+
+    [Tooltip("In-game UI opening (the options menu, confirm steps): Assets/Audio/SFX/UI/SFX_UI_Open.wav.")]
+    public AudioClip uiOpen;
+    [Tooltip("In-game UI closing: Assets/Audio/SFX/UI/SFX_UI_Close.wav.")]
+    public AudioClip uiClose;
+
+    /// <summary>The class's own Defend clip if one is bound, else a random pick from the shared pool, else null.</summary>
+    public AudioClip DefendFor(int classId)
+    {
+        AudioClip c = defendByClass != null && classId >= 0 && classId < defendByClass.Length ? defendByClass[classId] : null;
+        if (c != null) return c;
+        return defend != null && defend.Length > 0 ? defend[Random.Range(0, defend.Length)] : null;
+    }
+
     /// <summary>A random movement clip, or null when none are bound.</summary>
     public AudioClip RandomMove() => move != null && move.Length > 0 ? move[Random.Range(0, move.Length)] : null;
 
