@@ -56,8 +56,8 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("Special move, one entry per class, indexed by LobsterClass.")]
     public SpecialClips[] specialByClass = new SpecialClips[10];
 
-    [Tooltip("Movement scuttle — one clip per hex step, picked at random from this set so a three-hex walk " +
-             "doesn't repeat one sample. Bound from Assets/Audio/SFX/Move/SFX_Move_*.wav in name order.")]
+    [Tooltip("Movement scuttle — one clip per walk, picked at random from this set and looped for exactly as long " +
+             "as the lobster moves. Bound from Assets/Audio/SFX/Move/SFX_Move_*.wav in name order.")]
     public AudioClip[] move = new AudioClip[0];
 
     [Tooltip("Defend stance, shared by every class — one is picked at random per Defend. Bound from " +
