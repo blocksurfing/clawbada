@@ -26,18 +26,72 @@ public static class BattleSfx
     /// <summary>Playback gain for every battle SFX. ~-6 dB, room for roughly four overlapping hits.</summary>
     private const float Headroom = 0.5f;
 
-    /// <summary>Site-wide SFX preference, pushed from React via BattleBridge.SetAudioPrefs. Off = every Play is a no-op.</summary>
-    public static bool Enabled = true;
+    /// <summary>Site-wide SFX preference, pushed from React via BattleBridge.SetAudioPrefs. Off = every Play is a
+    /// no-op, and a movement loop already playing stops.</summary>
+    public static bool Enabled
+    {
+        get => enabled;
+        set { enabled = value; if (!value && moveSource != null && moveSource.isPlaying) moveSource.Stop(); }
+    }
+    private static bool enabled = true;
 
     private static BattleSfxLibrary library;
     private static AudioSource source;
+    /// <summary>Dedicated, looping: a walk is ONE sound that lasts exactly as long as the walk (see StartMove).</summary>
+    private static AudioSource moveSource;
+    private static Coroutine moveFade;
+    private static float moveStartedAt;
     private static BattleSfxRunner runner;
     private static bool libraryMissingLogged;
 
     public static void PlayAttack(int classId) => Play(Library?.AttackFor(classId), "attack");
 
-    /// <summary>One hex step of movement — a random pick from the bound set (see BattleSfxLibrary.move).</summary>
-    public static void PlayMove() => Play(Library?.RandomMove(), "move");
+    /// <summary>
+    /// The lobster starts walking: a random clip from the bound set, looped, until <see cref="StopMove"/>.
+    /// One sound per walk rather than one per hop — the takes (1.9 s) are longer than a hop (0.7 s), and
+    /// stacking one per hop spilled well past the moment the lobster stopped, on short walks and long.
+    /// </summary>
+    public static void StartMove()
+    {
+        var lib = Library;
+        if (!Enabled || lib == null || !Application.isPlaying) return;
+        var clip = lib.RandomMove();
+        if (clip == null) return;
+        EnsureSource();
+        if (moveFade != null) { runner.StopCoroutine(moveFade); moveFade = null; }
+        moveSource.clip = clip;
+        moveSource.volume = Headroom;
+        moveSource.loop = true;
+        moveSource.Play();
+        moveStartedAt = Time.unscaledTime;
+        Debug.Log($"[BattleSfx] {clip.name} (move) start @ {Headroom:F2}");
+    }
+
+    /// <summary>The walk ended: a few frames of fade so the cut isn't a click, then stop.</summary>
+    public static void StopMove()
+    {
+        if (moveSource == null || !moveSource.isPlaying || runner == null) return;
+        if (moveFade != null) runner.StopCoroutine(moveFade);
+        moveFade = runner.StartCoroutine(FadeOutMove(0.12f));
+    }
+
+    private static IEnumerator FadeOutMove(float seconds)
+    {
+        string name = moveSource.clip != null ? moveSource.clip.name : "?";
+        float played = Time.unscaledTime - moveStartedAt;
+        float v0 = moveSource.volume;
+        float t = 0f;
+        while (t < seconds && moveSource.isPlaying)
+        {
+            t += Time.unscaledDeltaTime;
+            moveSource.volume = Mathf.Lerp(v0, 0f, t / seconds);
+            yield return null;
+        }
+        moveSource.Stop();
+        moveSource.volume = Headroom;
+        moveFade = null;
+        Debug.Log($"[BattleSfx] {name} (move) stop after {played:F2}s");
+    }
 
     /// <summary>Defend stance, on the read. Per-class clip when bound, else the shared one.</summary>
     public static void PlayDefend(int classId) => Play(Library?.DefendFor(classId), "defend");
@@ -108,6 +162,9 @@ public static class BattleSfx
         source = go.AddComponent<AudioSource>();
         source.playOnAwake = false;
         source.spatialBlend = 0f; // 2D: the board is small and not meaningfully panned
+        moveSource = go.AddComponent<AudioSource>();
+        moveSource.playOnAwake = false;
+        moveSource.spatialBlend = 0f;
         runner = go.AddComponent<BattleSfxRunner>();
     }
 }
