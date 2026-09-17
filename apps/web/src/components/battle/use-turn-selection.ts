@@ -125,23 +125,27 @@ export function useTurnSelection(
 
   /** Validate with the real rules and hand the command to the session. */
   const trySubmit = useCallback((cmd: TurnCommand): boolean => {
-    if (!state || !enabled) return false;
+    // Every way out of here that is not a send is logged: in the Unity view the hint is the
+    // only feedback, and a press that goes nowhere reads as a frozen game.
+    if (!state || !enabled) { console.warn(`[TurnSelection] press ignored — cannot act now (${!state ? 'no state' : 'not enabled'})`, cmd); return false; }
     try {
       v3.validateTurn(state, cmd);
     } catch (err) {
-      setHint(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[TurnSelection] turn rejected locally: ${msg}`, cmd);
+      setHint(msg);
       return false;
     }
     const ok = onSubmit ? onSubmit(cmd) : false;
     if (ok) setHint(null);
-    else setHint('Could not send the turn — check the connection');
+    else { console.warn('[TurnSelection] turn not sent — socket not open', cmd); setHint('Could not send the turn — check the connection'); }
     return ok;
   }, [state, enabled, onSubmit]);
 
   const withMove = useCallback((cmd: TurnCommand): TurnCommand => (moveTo ? { ...cmd, moveTo } : cmd), [moveTo]);
 
   const pressAction = useCallback((a: ActionChoice) => {
-    if (!actor || !summary) return;
+    if (!actor || !summary) { console.warn(`[TurnSelection] press ${a} ignored — no actor/summary`); return; }
     if (!autoSubmit) {
       setActionState(a);
       if (a === 'defend' || a === 'none') setTargetId(null);

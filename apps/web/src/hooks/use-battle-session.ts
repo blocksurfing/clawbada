@@ -138,6 +138,8 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
   const gateRef = useRef(opts.gateOnAnimation);
   gateRef.current = opts.gateOnAnimation;
   const closedByUs = useRef(false);
+  /** A command pressed while the socket was down — sent the moment it is back (see submitTurn). */
+  const queued = useRef<{ turn: number; command: TurnCommand } | null>(null);
   const snapshotRef = useRef<BattleSnapshot | null>(null);
   snapshotRef.current = state.snapshot;
 
@@ -176,8 +178,15 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
       const ws = new WebSocket(url);
       wsRef.current = ws;
       ws.onopen = () => {
+        console.log(`[BattleSession] socket open${attempt > 0 ? ` (reconnect #${attempt})` : ''}`);
         attempt = 0;
         dispatch({ type: 'connection', value: 'open' });
+        const q = queued.current;
+        if (q) {
+          queued.current = null;
+          console.log(`[BattleSession] socket back — sending the queued turn ${q.turn}`);
+          ws.send(JSON.stringify({ type: 'submit_turn', battleId, turn: q.turn, command: q.command }));
+        }
       };
       ws.onmessage = (evt) => {
         let msg: WsEnvelope;
@@ -190,13 +199,19 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
           case 'battle_snapshot':
             dispatch({ type: 'snapshot', snapshot: msg.data as BattleSnapshot });
             break;
-          case 'turn_started':
+          case 'turn_started': {
             if (!snapshotRef.current) void fetchSnapshot();
-            dispatch({ type: 'turn_started', data: msg.data as TurnStartedPayload });
+            const d = msg.data as TurnStartedPayload;
+            if (queued.current && queued.current.turn !== d.turn) queued.current = null;   // the clock or a reconnect moved on
+            dispatch({ type: 'turn_started', data: d });
             break;
-          case 'turn_resolved':
-            dispatch({ type: 'turn_resolved', data: msg.data as TurnResolvedPayload, gate: gateRef.current });
+          }
+          case 'turn_resolved': {
+            const d = msg.data as TurnResolvedPayload;
+            if (queued.current && queued.current.turn <= d.turn) queued.current = null;
+            dispatch({ type: 'turn_resolved', data: d, gate: gateRef.current });
             break;
+          }
           case 'bar_updated':
             dispatch({ type: 'bar_updated', data: msg.data as BarUpdatedPayload });
             break;
@@ -213,12 +228,13 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
             break;
         }
       };
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
         wsRef.current = null;
         if (closedByUs.current) return;
         dispatch({ type: 'connection', value: 'closed' });
-        // Auth expiry (1008) and drops: reconnect with backoff; a fresh signature is requested.
+        // Auth expiry (1008) and drops: reconnect with backoff; the session token renews silently.
         const delay = Math.min(10_000, 1_000 * 2 ** Math.min(attempt++, 3));
+        console.warn(`[BattleSession] socket closed code=${ev.code}${ev.reason ? ` reason=${ev.reason}` : ''} — reconnecting in ${delay} ms`);
         retryTimer = setTimeout(() => void connect(), delay);
       };
       ws.onerror = () => {
@@ -238,7 +254,16 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
   const submitTurn = useCallback(
     (turn: number, command: TurnCommand): boolean => {
       const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN || !battleId) return false;
+      if (!battleId) return false;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        // Socket mid-reconnect (a network blip, a dropped connection): keep the press and send
+        // it on open instead of dropping it — to the player a dropped press is a frozen game.
+        // The server dedups by turn; a turn the clock has already resolved answers
+        // turn_mismatch, which the view treats as "resync", not as a failure.
+        queued.current = { turn, command };
+        console.warn(`[BattleSession] socket ${ws ? `state ${ws.readyState}` : 'absent'} — turn ${turn} queued until it reconnects`);
+        return true;
+      }
       ws.send(JSON.stringify({ type: 'submit_turn', battleId, turn, command }));
       return true;
     },
