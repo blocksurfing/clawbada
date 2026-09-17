@@ -14,8 +14,21 @@ if [ -f "$MARKER" ]; then
   exit 1
 fi
 cd "$ROOT"
-# Pinned: a bare `npx vercel` pulls whatever is newest, and the first run of a freshly
-# installed CLI has failed "Not authorized" three deploys running (59.16, 59.18, 59.19) —
-# the retry then succeeds. Bump deliberately, not as a side effect of deploying.
+# Pinned so a deploy never doubles as a CLI upgrade. Bump deliberately.
 VERCEL_CLI_VERSION="${VERCEL_CLI_VERSION:-59.19.0}"
-exec npx "vercel@${VERCEL_CLI_VERSION}" deploy --prod --yes "$@"
+VERCEL="npx vercel@${VERCEL_CLI_VERSION}"
+
+# The first CLI call after a while answers `"Not authorized"` and the very next one succeeds
+# (seen on 59.16, 59.18 and twice on the pinned 59.19 — so not the version). It behaves like
+# a stale auth token that the failed call refreshes. Warm the session with a cheap call first,
+# and if the deploy still says Not authorized, run it once more before giving up.
+$VERCEL whoami >/dev/null 2>&1 || true
+for attempt in 1 2; do
+  out="$($VERCEL deploy --prod --yes "$@" 2>&1 | tee /dev/stderr)" || true
+  if ! grep -q '"Not authorized"' <<<"$out"; then
+    grep -q '"readyState": "READY"' <<<"$out" && exit 0
+    exit 1
+  fi
+  [ "$attempt" = 1 ] && echo "deploy-web: Not authorized on the first call — retrying once" >&2
+done
+exit 1
