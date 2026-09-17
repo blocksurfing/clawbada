@@ -12,6 +12,7 @@ using UnityEngine;
 ///   Assets/Audio/SFX/Move/SFX_Move_*.wav                                    (movement, any number)
 ///   Assets/Audio/SFX/Defend/SFX_Defend.wav                                   (defend, shared)
 ///   Assets/Audio/SFX/Defend/SFX_&lt;Class&gt;_Defend.wav                           (defend, per-class override)
+///   Assets/Audio/SFX/UI/SFX_UI_Open.wav, SFX_UI_Close.wav                     (in-game panels)
 /// so a misspelled class (Spectre for Specter) binds nothing and that class is simply silent.
 ///
 /// For every impact clip the binder also measures where its loudest 50 ms sits and stores that
@@ -29,6 +30,7 @@ public static class BattleSfxBinder
     private const string SpecialDir = "Assets/Audio/SFX/Special/";
     private const string MoveDir = "Assets/Audio/SFX/Move";
     private const string DefendDir = "Assets/Audio/SFX/Defend/";
+    private const string UiDir = "Assets/Audio/SFX/UI/";
     private const string LibraryPath = "Assets/Resources/BattleSfxLibrary.asset";
 
     /// <summary>Index = LobsterClass. Order is the enum's, not alphabetical — do not sort.</summary>
@@ -120,6 +122,10 @@ public static class BattleSfxBinder
             if (lib.defendByClass[i] != null) defendOverrides++;
         }
 
+        // In-game panels: one open and one close clip, shared by every panel.
+        lib.uiOpen = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Open.wav");
+        lib.uiClose = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Close.wav");
+
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
         Debug.Log($"[BattleSfxBinder] attack: {bound.Count}/{Classes.Length} bound" +
@@ -127,6 +133,7 @@ public static class BattleSfxBinder
                   $" | special: {(specialBound.Count > 0 ? string.Join("; ", specialBound) : "none")}" +
                   $" | move ×{lib.move.Length}" +
                   $" | defend: {(lib.defend != null ? "shared" : "none")}{(defendOverrides > 0 ? $" + {defendOverrides} class override(s)" : "")}" +
+                  $" | ui: open {(lib.uiOpen != null ? "✓" : "—")} close {(lib.uiClose != null ? "✓" : "—")}" +
                   $" → {LibraryPath}");
     }
 

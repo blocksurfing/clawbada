@@ -65,6 +65,11 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("Optional per-class Defend, indexed by LobsterClass: SFX/Defend/SFX_<Class>_Defend.wav. Empty slots fall back to the shared clip.")]
     public AudioClip[] defendByClass = new AudioClip[10];
 
+    [Tooltip("In-game UI opening (the options menu, confirm steps): Assets/Audio/SFX/UI/SFX_UI_Open.wav.")]
+    public AudioClip uiOpen;
+    [Tooltip("In-game UI closing: Assets/Audio/SFX/UI/SFX_UI_Close.wav.")]
+    public AudioClip uiClose;
+
     /// <summary>The class's own Defend clip if one is bound, else the shared one, else null.</summary>
     public AudioClip DefendFor(int classId)
     {

@@ -149,3 +149,5 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
+  uiOpen: {fileID: 0}
+  uiClose: {fileID: 0}
