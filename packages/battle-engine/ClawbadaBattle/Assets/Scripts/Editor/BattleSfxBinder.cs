@@ -10,7 +10,7 @@ using UnityEngine;
 ///   Assets/Audio/SFX/Special/SFX_&lt;Class&gt;_&lt;Ability&gt;[_&lt;Tier&gt;].wav          (cast phase)
 ///   Assets/Audio/SFX/Special/SFX_&lt;Class&gt;_&lt;Ability&gt;_Impact[_&lt;Tier&gt;].wav   (impact phase)
 ///   Assets/Audio/SFX/Move/SFX_Move_*.wav                                    (movement, any number)
-///   Assets/Audio/SFX/Defend/SFX_Defend.wav                                   (defend, shared)
+///   Assets/Audio/SFX/Defend/SFX_Defend[_NN].wav                              (defend, shared pool — random pick)
 ///   Assets/Audio/SFX/Defend/SFX_&lt;Class&gt;_Defend.wav                           (defend, per-class override)
 ///   Assets/Audio/SFX/UI/SFX_UI_Open.wav, SFX_UI_Close.wav                     (in-game panels)
 /// so a misspelled class (Spectre for Specter) binds nothing and that class is simply silent.
@@ -29,7 +29,7 @@ public static class BattleSfxBinder
     private const string AttackDir = "Assets/Audio/SFX/Attack/";
     private const string SpecialDir = "Assets/Audio/SFX/Special/";
     private const string MoveDir = "Assets/Audio/SFX/Move";
-    private const string DefendDir = "Assets/Audio/SFX/Defend/";
+    private const string DefendDir = "Assets/Audio/SFX/Defend";
     private const string UiDir = "Assets/Audio/SFX/UI/";
     private const string LibraryPath = "Assets/Resources/BattleSfxLibrary.asset";
 
@@ -112,13 +112,27 @@ public static class BattleSfxBinder
         moveClips.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
         lib.move = moveClips.ToArray();
 
-        // Defend: one shared clip, with a per-class file overriding it where present.
-        lib.defend = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DefendDir}SFX_Defend.wav");
+        // Defend: a shared pool (SFX_Defend.wav and/or SFX_Defend_NN.wav — playback picks one at
+        // random, like movement), with a per-class file overriding the pool where present.
+        var defendClips = new List<AudioClip>();
+        if (AssetDatabase.IsValidFolder(DefendDir))
+        {
+            foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { DefendDir }))
+            {
+                string p = AssetDatabase.GUIDToAssetPath(guid);
+                string file = Path.GetFileNameWithoutExtension(p);
+                if (!(file == "SFX_Defend" || file.StartsWith("SFX_Defend_", System.StringComparison.OrdinalIgnoreCase))) continue;
+                var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(p);
+                if (clip != null) defendClips.Add(clip);
+            }
+        }
+        defendClips.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+        lib.defend = defendClips.ToArray();
         if (lib.defendByClass == null || lib.defendByClass.Length != Classes.Length) lib.defendByClass = new AudioClip[Classes.Length];
         int defendOverrides = 0;
         for (int i = 0; i < Classes.Length; i++)
         {
-            lib.defendByClass[i] = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DefendDir}SFX_{Classes[i]}_Defend.wav");
+            lib.defendByClass[i] = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DefendDir}/SFX_{Classes[i]}_Defend.wav");
             if (lib.defendByClass[i] != null) defendOverrides++;
         }
 
@@ -132,7 +146,7 @@ public static class BattleSfxBinder
                   (missing.Count > 0 ? $" — MISSING {string.Join(", ", missing)}" : "") +
                   $" | special: {(specialBound.Count > 0 ? string.Join("; ", specialBound) : "none")}" +
                   $" | move ×{lib.move.Length}" +
-                  $" | defend: {(lib.defend != null ? "shared" : "none")}{(defendOverrides > 0 ? $" + {defendOverrides} class override(s)" : "")}" +
+                  $" | defend ×{lib.defend.Length}{(defendOverrides > 0 ? $" + {defendOverrides} class override(s)" : "")}" +
                   $" | ui: open {(lib.uiOpen != null ? "✓" : "—")} close {(lib.uiClose != null ? "✓" : "—")}" +
                   $" → {LibraryPath}");
     }

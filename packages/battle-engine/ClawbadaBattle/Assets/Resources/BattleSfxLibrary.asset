@@ -137,7 +137,9 @@ MonoBehaviour:
   move:
   - {fileID: 8300000, guid: 9ceda9dc534a546d3b8245419b963958, type: 3}
   - {fileID: 8300000, guid: deafd23ecffc543c589427bfac0dc019, type: 3}
-  defend: {fileID: 0}
+  defend:
+  - {fileID: 8300000, guid: a1ca088a723444f909bbd53a8e2549c4, type: 3}
+  - {fileID: 8300000, guid: 6bb5bd10d60334da9ad8e2547945e8ef, type: 3}
   defendByClass:
   - {fileID: 0}
   - {fileID: 0}
@@ -149,5 +151,5 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
-  uiOpen: {fileID: 0}
-  uiClose: {fileID: 0}
+  uiOpen: {fileID: 8300000, guid: 9e96661ff575749bc9c1377d08162045, type: 3}
+  uiClose: {fileID: 8300000, guid: 24db77162692246f79cb0b0c6798e4eb, type: 3}
