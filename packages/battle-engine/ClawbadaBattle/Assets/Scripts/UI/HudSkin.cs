@@ -75,6 +75,18 @@ public class HudSkin : ScriptableObject
 
     [Header("Font (null → built-in LegacyRuntime)")]
     public Font font;
+    [Tooltip("Pixel face for floating combat numbers (null → Resources/UI/Fonts/Silkscreen-Regular, the web's pixel heading font).")]
+    public Font pixelFont;
+    [System.NonSerialized] private Font pixelFallback;
+
+    /// <summary>The pixel face for damage/heal/buff numbers — the designer's ask so they rhyme with the
+    /// site's pixel headings. Falls back to the HUD font if the resource is missing.</summary>
+    public Font PixelFontOrDefault()
+    {
+        if (pixelFont != null) return pixelFont;
+        if (pixelFallback == null) pixelFallback = Resources.Load<Font>("UI/Fonts/Silkscreen-Regular");
+        return pixelFallback != null ? pixelFallback : FontOrDefault();
+    }
 
     [Header("Active-unit marker (world space, under the actor)")]
     public RuntimeAnimatorController selectorController;

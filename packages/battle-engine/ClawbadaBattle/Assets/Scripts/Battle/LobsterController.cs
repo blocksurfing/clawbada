@@ -93,6 +93,9 @@ public class LobsterController : MonoBehaviour
         grid = hexGrid;
 
         animator = GetComponent<Animator>();
+        frozen = false;
+        inHitRead = false;
+        if (animator != null) animator.speed = 1f;
         sortingGroup = GetComponent<SortingGroup>();
         if (sortingGroup == null) sortingGroup = gameObject.AddComponent<SortingGroup>();
 
@@ -362,15 +365,21 @@ public class LobsterController : MonoBehaviour
 
     public IEnumerator PlayHit(float duration, Vector3 attackerWorldPos)
     {
+        // A stunned (frozen) rig still flinches when hit; the freeze re-applies once the read ends.
+        inHitRead = true;
+        if (animator != null && frozen) { animator.speed = 1f; frozen = false; }
         FaceToward(attackerWorldPos);
         PlayState("Hit");
         // Evolved's Hit clip is 1.0 s (Elite/Apex 0.33 s): let it finish before returning to Idle.
         yield return new WaitForSeconds(Mathf.Max(duration, ClipLength("Hit")));
-        if (alive)
+        inHitRead = false;
+        bool stunned = alive && statuses.Exists(s => s.type == "stun");
+        if (alive && !stunned)
         {
             FaceEnemySide();
             PlayState("Idle");
         }
+        RefreshFreeze();   // stunned: hold the flinch's last frame instead of settling back to Idle
     }
 
     public void ApplyDamage(int amount)
@@ -399,6 +408,7 @@ public class LobsterController : MonoBehaviour
             foreach (var s in u.statuses) if (s != null && !string.IsNullOrEmpty(s.type)) statuses.Add(s);
         }
         SyncStatusVfx();
+        RefreshFreeze();
         if (snapPosition && grid != null && (col != u.col || row != u.row))
         {
             col = u.col;
@@ -430,8 +440,29 @@ public class LobsterController : MonoBehaviour
     {
         statuses.RemoveAll(s => s.type == type);
         if (applied) statuses.Add(new StatusData { type = type, turns = turns });
+        Debug.Log($"[LobsterController] status {type} {(applied ? "on" : "off")} {lobsterId} ({className}) turns={turns}");
         if (applied) ShowStatusVfx(type, animateIn: true);
         else HideStatusVfx(type, animateOut: true);
+        RefreshFreeze();
+    }
+
+    // ─── Stun freeze ───
+
+    private bool frozen;
+    private bool inHitRead;
+
+    /// <summary>Designer's read for a stun: the rig pauses in place — Animator speed 0 — for as
+    /// long as the "stun" status holds, and resumes when it ends. Hit and death reads still play
+    /// (they manage the speed themselves and re-check on exit).</summary>
+    private void RefreshFreeze()
+    {
+        if (animator == null || inHitRead) return;
+        bool stunned = alive && !deathPlayed && statuses.Exists(s => s.type == "stun");
+        if (stunned == frozen) return;
+        frozen = stunned;
+        animator.speed = frozen ? 0f : 1f;
+        Debug.Log($"[LobsterController] {lobsterId} ({className}) {(frozen ? "frozen (stun)" : "unfrozen")}");
+        if (!frozen && alive) { FaceEnemySide(); PlayState("Idle"); }
     }
 
     // ─── Status visuals (persistent marks such as Haunt's sigil) ───
@@ -470,6 +501,7 @@ public class LobsterController : MonoBehaviour
     private GameObject AttachStatusChild(GameObject prefab, BattleVfxLibrary.StatusVfx def)
     {
         var go = Instantiate(prefab, transform);
+        Debug.Log($"[LobsterController] status fx {prefab.name} on {lobsterId} ({className})");
         go.transform.localPosition = new Vector3(0f, def.yOffset, 0f);
         go.transform.localRotation = Quaternion.identity;
         go.transform.localScale = Vector3.one;
@@ -527,6 +559,7 @@ public class LobsterController : MonoBehaviour
         ClearStatusVfx();
         if (deathPlayed) yield break;
         deathPlayed = true;
+        if (animator != null) { animator.speed = 1f; frozen = false; }   // a frozen rig still dies on screen
         alive = false;
         defending = false;
         bool hasDie = PlayState("Die", 0.05f);

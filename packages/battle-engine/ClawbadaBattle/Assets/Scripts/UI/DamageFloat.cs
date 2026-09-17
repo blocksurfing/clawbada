@@ -16,7 +16,7 @@ public class DamageFloat : MonoBehaviour
         var textRt = HudFactory.Rect(layer, "Float", HudFactory.Center, HudFactory.Center, HudFactory.Center, canvasPos, new Vector2(120f, 30f));
         var f = textRt.gameObject.AddComponent<DamageFloat>();
         f.rt = textRt;
-        f.text = HudFactory.AddText(textRt, skin.FontOrDefault(), fontSize, color, TextAnchor.MiddleCenter);
+        f.text = HudFactory.AddText(textRt, skin.PixelFontOrDefault(), fontSize, color, TextAnchor.MiddleCenter);
         f.text.text = label;
         f.outline = textRt.GetComponent<Outline>();
         f.start = canvasPos;
