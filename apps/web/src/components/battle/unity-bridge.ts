@@ -281,7 +281,7 @@ export function rosterEntry(snapshot: BattleSnapshot, id: string): RosterEntry |
 export function selectionToData(
   sel: TurnSelection | null,
   roster: RosterEntry[],
-  flags: { isPlayerTurn: boolean; canAct: boolean; pendingAck: boolean },
+  flags: { isPlayerTurn: boolean; canAct: boolean; pendingAck: boolean; error?: string | null },
 ): SelectionData {
   if (!sel || !sel.actor || !flags.isPlayerTurn) return { ...IDLE_SELECTION, isPlayerTurn: flags.isPlayerTurn, pendingAck: flags.pendingAck };
   const entry = roster.find((r) => r.id === sel.actor!.id);
@@ -298,7 +298,8 @@ export function selectionToData(
     targetId: sel.targetId ?? '',
     targetCount: targets.length,
     canUndo: !!sel.moveTo,
-    hint: sel.hint ?? '',
+    // The local hint (legality, "could not send") or the server's rejection — the bar draws it.
+    hint: sel.hint ?? flags.error ?? '',
     pendingAck: flags.pendingAck,
   };
 }
