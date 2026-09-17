@@ -50,6 +50,7 @@ and reads as a bug.
 | `autoplay.ts` | `?auto=1&speed=N` review tools advance the battle with no clicks | `TRIO` `SPEED` |
 | `gridvis.ts` | hex grid hidden at rest, shown only when the player can act | — |
 | `forfeit.ts` | options menu → forfeit → `battle_ended` | — |
+| `stunprobe.ts` | Kraken Bind as a stun hold: tentacles Spawn on the hit → Idle loop while the victim is stunned (through its skipped turn) → Out when the stun ends; victim's rig frozen meanwhile; follows one victim by id; frames in `out/stun-*.png` | `PRESET` `SPEED` |
 | `movedefend.ts` | the reported freeze: click a move hex, let the preview walk, press Defend in the Unity bar — the turn goes out and resolves; `OFFLINE_TURN=n` closes the socket for real before the press on own turn *n* and checks the press is queued, "Sending…" shows in the canvas, and it is sent on reconnect | `PRESET` `TURNS` `OFFLINE_TURN` |
 | `autoclose.ts` | after the result banner the view closes itself: countdown under the result, Unity quit, music faded, back on `/game/battle`; `STAY=1` checks the `?stay=1` opt-out | `PRESET` `SPEED` `STAY` |
 | `movecheck.ts` | measured seconds per hex hop | — |

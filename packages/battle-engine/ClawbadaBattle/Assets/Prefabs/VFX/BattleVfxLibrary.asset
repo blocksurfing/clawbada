@@ -217,6 +217,11 @@ MonoBehaviour:
     loop: {fileID: 8104621801275862504, guid: 5ae1677d78514144bbeb140ed53b2d23, type: 3}
     end: {fileID: 1748921289384165550, guid: a6d61d23ad484644a2213c96a572863d, type: 3}
     yOffset: 0
+  - status: stun
+    spawn: {fileID: 8165875145703886652, guid: 8c548af4366a343dc8b5ef0c845515a6, type: 3}
+    loop: {fileID: 523226009090535377, guid: 19820ae8b6b18470ba5602f7970482df, type: 3}
+    end: {fileID: 6920183790019206059, guid: 2c105f5c7b69e4ea78362bc8ad5fda01, type: 3}
+    yOffset: 0
   specialImpactByClass:
   - prefab: {fileID: 0}
     anchor: 2
@@ -314,14 +319,14 @@ MonoBehaviour:
     travelSpeed: 7
     launchAt: 0
     impactLead: 0
-  - prefab: {fileID: 7128380980103087915, guid: 323e4c9a6935b794ab727578a3ae5ebc, type: 3}
-    anchor: 5
+  - prefab: {fileID: 0}
+    anchor: 2
     delay: 0
-    mirrorWithFacing: 0
+    mirrorWithFacing: 1
     impactAt: 0
     frontChildPrefix: 
     hideChildrenPrefix: 
-    onTop: 1
+    onTop: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
