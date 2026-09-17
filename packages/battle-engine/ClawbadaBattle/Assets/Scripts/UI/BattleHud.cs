@@ -165,8 +165,15 @@ public class BattleHud : MonoBehaviour
         m.HealApplied += OnHealApplied;
         m.StatusChanged += OnStatusChanged;
         m.Died += OnDied;
+        m.TurnSkipped += OnTurnSkipped;
         m.BattleEnded += OnBattleEnded;
         m.SelectionChanged += OnSelectionChanged;
+    }
+
+    private void OnTurnSkipped(LobsterController lob, string reason)
+    {
+        SpawnFloatFor(lob, reason == "stun" ? "STUNNED" : reason.ToUpperInvariant(), Skin.textSecondary, 14);
+        Debug.Log($"[BattleHud] float {lob.lobsterId} {reason} skip");
     }
 
     private void OnSelectionChanged(SelectionData data)
@@ -186,6 +193,7 @@ public class BattleHud : MonoBehaviour
         manager.HealApplied -= OnHealApplied;
         manager.StatusChanged -= OnStatusChanged;
         manager.Died -= OnDied;
+        manager.TurnSkipped -= OnTurnSkipped;
         manager.BattleEnded -= OnBattleEnded;
         manager.SelectionChanged -= OnSelectionChanged;
     }
