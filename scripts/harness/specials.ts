@@ -177,6 +177,21 @@ export default async function (b: Browser) {
   expect(errors.length === 0, `${CLASS}: no turn errors: ${errors.slice(0, 3).join(' | ')}`);
   const exc = b.logs.filter((l) => /\[exception\]|NullReference|GLctx/.test(l) && !/Family Accounts/.test(l));
   expect(exc.length === 0, `${CLASS}: no Unity/page exceptions: ${exc.slice(0, 2).join(' | ')}`);
+  // Plain Specials that asked for their effect on the contact frame (Ambush): the effect must
+  // fire at the swing's midpoint, not at t=0.
+  const onContact = grab(b, /\[BattleManager\] special .* effect on contact at/);
+  for (const l of onContact.slice(0, 4)) console.log('  contact:', l.slice(0, 120));
+  if (onContact.length) {
+    const ts = onContact.map((l) => Number((l.match(/at ([\d.]+)s/) || [])[1] ?? '0'));
+    expect(ts.every((t) => t >= 0.3), `${CLASS}: effect spawned on the contact frame, not at the turn start (${ts.map((t) => t.toFixed(2)).join(', ')} s)`);
+  }
+  const held = grab(b, /\[BattleManager\] special .* effect held to/);
+  for (const l of held.slice(0, 4)) console.log('  hold:', l.slice(0, 120));
+  if (held.length) {
+    // The turn must hold until the effect is (nearly) done — 15 % tail on a short clip, 0.8 s on a long one.
+    const short = held.map((l) => l.match(/held to ([\d.]+)s of ([\d.]+)s/)).filter(Boolean).map((m) => [Number(m![1]), Number(m![2])] as const);
+    expect(short.every(([t, clip]) => t >= clip - Math.min(0.8, clip * 0.15) - 0.05), `${CLASS}: every cinematic held to its clip's end (${short.map(([t, c]) => `${t}/${c}`).join(', ')})`);
+  }
   const cine = grab(b, /\[BattleManager\] special .* effect clip=/);
   if (cine.length) console.log(`[${CLASS}] cinematic special timing: ${cine[0]}`);
   const floats = grab(b, /\[BattleHud\] float .* special/);

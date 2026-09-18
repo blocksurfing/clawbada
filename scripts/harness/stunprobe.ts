@@ -40,16 +40,22 @@ export default async function (b: Browser) {
   if (!inited) return;
   await b.eval(`document.querySelector('canvas')?.scrollIntoView({ block: 'start' })`);
 
-  // Wait for the first stun to land (a Kraken needs 3 charge, so a few turns in).
+  // Wait for the first FRESH stun to land (a Kraken needs 3 charge, so a few turns in). Fresh =
+  // the tentacles Spawn; a Bind on an already-stunned lobster only refreshes the status and keeps
+  // the tentacles it has, so its "stun on" line has no Spawn and would confuse the sequence check.
   const started = Date.now();
   let onIdx = -1;
   while (Date.now() - started < 240_000) {
-    onIdx = b.logs.findIndex((l) => /\[LobsterController\] status stun on/.test(l));
-    if (onIdx >= 0) break;
+    const spawnIdx = b.logs.findIndex((l) => /status fx FX_Kraken_Bind_Spawn on (\S+)/.test(l));
+    if (spawnIdx >= 0) {
+      const who = (b.logs[spawnIdx].match(/Spawn on (\S+)/) || [])[1];
+      for (let i = spawnIdx; i >= 0; i--) if (b.logs[i].includes(`status stun on ${who}`)) { onIdx = i; break; }
+      if (onIdx >= 0) break;
+    }
     if (grab(b, /\[BattleHud\] banner/).length > 0) break;
     await b.sleep(100);
   }
-  expect(onIdx >= 0, 'a stun was applied');
+  expect(onIdx >= 0, 'a fresh stun was applied (tentacles spawned)');
   if (onIdx < 0) return;
   const tOn = Date.now();
   await b.sleep(700);  await b.screenshot(`${S}/stun-1-spawn.png`);
@@ -58,7 +64,8 @@ export default async function (b: Browser) {
   // Wait for that stun to end.
   let offIdx = -1;
   while (Date.now() - tOn < 90_000) {
-    offIdx = b.logs.findIndex((l, i) => i > onIdx && /\[LobsterController\] status stun off/.test(l));
+    const who = (b.logs[onIdx].match(/status stun on (\S+)/) || [])[1];
+    offIdx = b.logs.findIndex((l, i) => i > onIdx && l.includes(`status stun off ${who}`));
     if (offIdx >= 0) break;
     if (grab(b, /\[BattleHud\] banner/).length > 0) break;
     await b.sleep(100);
@@ -76,7 +83,7 @@ export default async function (b: Browser) {
   console.log(`[stun] victim: ${victim}; full console → out/stunprobe-console.log (${b.logs.length} lines)`);
   const seq = b.logs.slice(onIdx, (offIdx >= 0 ? offIdx : b.logs.length) + 12)
     .map((l) => l.replace(/^\[\w+\] /, ''))
-    .filter((l) => /status (stun|fx)|frozen|unfrozen|PlayTurn:|banner|BattleHud\] sync/.test(l))
+    .filter((l) => /status (stun|fx)|frozen|unfrozen|PlayTurn:|banner|BattleHud\] sync|stunned — skips|stun skip/.test(l))
     .map((l) => l.slice(0, 120));
   console.log('[stun] sequence:'); for (const l of seq) console.log('   ', l);
   const mine = (l: string) => l.includes(victim);
@@ -98,6 +105,13 @@ export default async function (b: Browser) {
   expect(!outEarly, 'no Out before the stun ended');
   expect(iOff >= 0 && iOut > iOff, 'Out plays when the stun ends');
   expect(iUnfrozen > iOff, 'victim unfrozen when the stun ends');
+  // The skipped turn is a held beat now: "STUNNED" over the frozen rig, then the stun's end read.
+  const iSkip = idx(/stunned — skips \(hold/, iOn);
+  const iFloat = idx(/float \S+ stun skip/, iOn);
+  expect(iSkip > iOn && iSkip < iOff, 'the victim\'s skipped turn is held before the stun ends');
+  expect(iFloat > iOn && iFloat < iOff, '"STUNNED" float shown on the skipped turn');
+  const held = (tOff - tOn) / 1000;
+  expect(held >= 1.5, `tentacles on screen ≥ 1.5 s even when the victim is next on the bar (${held.toFixed(1)} s)`);
   const errs = grab(b, /Exception|GLctx|Uncaught|\[exception\]/).filter((l) => !/Family|Aave|hydrat/i.test(l));
   expect(errs.length === 0, `no exceptions (${errs.length})`);
   for (const l of errs.slice(0, 4)) console.log('  err:', l.slice(0, 160));

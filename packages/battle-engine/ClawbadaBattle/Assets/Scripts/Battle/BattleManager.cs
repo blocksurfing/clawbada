@@ -56,6 +56,8 @@ public class BattleManager : MonoBehaviour
     /// <summary>(target, status, applied, turns).</summary>
     public event Action<LobsterController, string, bool, int> StatusChanged;
     public event Action<LobsterController> Died;
+    /// <summary>(lobster, reason) when a turn is skipped — a stunned lobster's turn, held on screen for a beat.</summary>
+    public event Action<LobsterController, string> TurnSkipped;
     public event Action<BattleEndData> BattleEnded;
     public event Action<SelectionData> SelectionChanged;
     /// <summary>(lobster, col, row) after a tentative move (or the return to origin).</summary>
@@ -99,6 +101,10 @@ public class BattleManager : MonoBehaviour
     public float secondsPerHexMove = 0.7f;
     public float attackDuration = 0.55f;
     public float hitDuration = 0.45f;
+    /// <summary>How long a stunned lobster's skipped turn stays on screen before the stun's end read
+    /// (tentacles out, rig unfrozen). Without a beat the skip was instant, and when the victim was next
+    /// on the bar the Bind tentacles vanished a moment after they appeared.</summary>
+    public float stunSkipHold = 1.2f;
     public float deathDuration = 0.9f;
     public float delayBetweenActions = 0.2f;
 
@@ -533,7 +539,12 @@ public class BattleManager : MonoBehaviour
                         // the sound starts with the windup, so it underscores the whole cast rather
                         // than punctuating an impact the way a basic attack does.
                         if (special) BattleSfx.PlaySpecial(actor.classId, actor.tier);
-                        BattleVfxLibrary.Spawn(windup, actor, target, this);
+                        // A plain Special can ask for its effect on the contact frame instead (Ambush's slash
+                        // used to flash at t=0 and be gone 0.3 s before the hit landed at the swing's midpoint).
+                        bool windupAtContact = special && windup != null && windup.prefab != null && windup.spawnAtContact
+                                               && !windup.IsProjectile && !(windup.impactAt > 0f);
+                        if (!windupAtContact) BattleVfxLibrary.Spawn(windup, actor, target, this);
+                        float castStartedAt = Time.time;
 
                         if (special && windup != null && windup.IsProjectile)
                         {
@@ -576,28 +587,42 @@ public class BattleManager : MonoBehaviour
                             // The effect owns the beat, so the impact sound is scheduled against it here
                             // rather than fired when the wait below ends — its crack has to START early.
                             BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, windup.impactAt);
-                            yield return actor.PlayAttack(actorPos, attackDuration, false, null);
+                            // The caster's cast swing runs alongside the effect, not before it: waiting for
+                            // the swing pushed Devour's hit to ~1.0 s into a 1.5 s clip whose beat is at 0.5.
+                            StartCoroutine(actor.PlayAttack(actorPos, attackDuration, false, null));
                             float untilImpact = windup.impactAt - (Time.time - t0);
                             if (untilImpact > 0f) yield return new WaitForSeconds(untilImpact);
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot);
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
                             ApplyStatusEvents(data);
-                            float untilEnd = Mathf.Max(hitDuration * 0.5f, clip - 0.8f - (Time.time - t0));
+                            // Hold until the effect is done, less a tail the next turn may overlap: 0.8 s on
+                            // a long cast (Maelstrom's fade), but never more than 15 % of a short one — the
+                            // old flat 0.8 s let the next turn start while Devour's Out was still playing.
+                            float tail = Mathf.Min(0.8f, clip * 0.15f);
+                            float untilEnd = Mathf.Max(hitDuration * 0.5f, clip - tail - (Time.time - t0));
                             yield return new WaitForSeconds(untilEnd);
+                            Debug.Log($"[BattleManager] special {actor.className} effect held to {Time.time - t0:F2}s of {clip:F2}s");
                         }
                         else
                         {
                             yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
                             {
+                                if (windupAtContact)
+                                {
+                                    BattleVfxLibrary.Spawn(windup, actor, target, this);
+                                    Debug.Log($"[BattleManager] special {actor.className} effect on contact at {Time.time - castStartedAt:F2}s");
+                                }
                                 // A basic attack gets its attack sound here; a Special with no VFX yet gets
                                 // its impact phase here instead — the swing's contact frame IS its beat.
                                 if (!special) BattleSfx.PlayAttack(actor.classId);
                                 else BattleSfx.PlaySpecialImpact(actor.classId, actor.tier);
                                 ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot);
+                                // Statuses land with the blow, not after the swing settles — Bind's
+                                // tentacles (a status visual) appear on the contact frame.
+                                ApplyStatusEvents(data);
                             });
                             // Secondary events (counter hits on the actor, reflects, bleed ticks).
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
-                            ApplyStatusEvents(data);
                             yield return new WaitForSeconds(hitDuration * 0.5f);
                         }
                     }
@@ -608,9 +633,21 @@ public class BattleManager : MonoBehaviour
                     break;
             }
         }
+        else if (actor != null && data.skipped == "stun")
+        {
+            // A stunned lobster's turn: hold on it for a beat — "STUNNED" over the frozen rig with the
+            // bind still on it — and only then let the status end (tentacles Out, rig unfrozen).
+            Debug.Log($"[BattleManager] {data.lobsterId} stunned — skips (hold {stunSkipHold:F2}s)");
+            TurnSkipped?.Invoke(actor, "stun");
+            yield return new WaitForSeconds(stunSkipHold);
+            if (data.damage != null && data.damage.Length > 0)
+                ApplyTurnEvents(data, actor, actor.transform.position, primaryOnly: false, includePrimary: true);
+            ApplyStatusEvents(data);
+            yield return new WaitForSeconds(hitDuration * 0.5f);
+        }
         else if (actor != null && data.damage != null && data.damage.Length > 0)
         {
-            // Skipped turn that still carried events (bleed tick on a stunned/dying lobster).
+            // Skipped turn that still carried events (bleed tick on a dying lobster).
             ApplyTurnEvents(data, actor, actor.transform.position, primaryOnly: false, includePrimary: true);
             ApplyStatusEvents(data);
             yield return new WaitForSeconds(hitDuration);
