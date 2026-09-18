@@ -213,12 +213,16 @@ MonoBehaviour:
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
-      variants: []
+      variants:
+      - {fileID: 8300000, guid: 47a217abd77ab4f2eaab44f462676cdc, type: 3}
+      - {fileID: 8300000, guid: e2b1ebb110856494d9fa365cfeaf74d9, type: 3}
       sharedBeat: 0
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
-      variantBeats: []
+      variantBeats:
+      - 1
+      - 0.7
     impact:
       shared: {fileID: 0}
       evolved: {fileID: 0}
