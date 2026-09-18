@@ -52,6 +52,7 @@ public static class MantisAmbushVfxBinder
             prefab = prefab,
             anchor = BattleVfxLibrary.AnchorPoint.ActorAttackFx,
             delay = 0f,
+            spawnAtContact = true,   // the slash sits on the hit (swing midpoint), not on the turn start
             mirrorWithFacing = true,
             impactAt = 0f,
         };

@@ -46,6 +46,10 @@ public class BattleVfxLibrary : ScriptableObject
         public string hideChildrenPrefix = "";
         [Tooltip("Sort above full-screen effects and front decor — for per-target Special impacts that must read over a storm layer.")]
         public bool onTop = false;
+        [Tooltip("Plain (non-cinematic, non-projectile) Specials only: spawn this effect on the swing's contact " +
+                 "frame — the same frame the damage lands — instead of when the turn starts. For a melee strike " +
+                 "like Ambush the slash then sits on the hit, whatever length the class's Attack clip is.")]
+        public bool spawnAtContact = false;
 
         [Header("Projectile Specials (Inferno)")]
         [Tooltip("Looping projectile prefab. When set, the Special is a projectile: this prefab flies from the caster's AttackFX " +

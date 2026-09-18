@@ -21,6 +21,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -34,6 +35,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -47,6 +49,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -60,6 +63,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -73,6 +77,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -86,6 +91,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -99,11 +105,12 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
     impactLead: 0
-  - prefab: {fileID: 4675103762393943258, guid: f2b13de95c994cc4798ea70769301e44, type: 3}
+  - prefab: {fileID: 300243558014422531, guid: f2b13de95c994cc4798ea70769301e44, type: 3}
     anchor: 0
     delay: 0
     mirrorWithFacing: 1
@@ -111,6 +118,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 1
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -123,6 +131,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -135,6 +144,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: Hit_
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -147,6 +157,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 1477470113331906288, guid: 8c40182493084162bc4ce558b2182cd5, type: 3}
     travelSpeed: 5.5
     launchAt: 0.5
@@ -159,6 +170,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -171,6 +183,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -183,6 +196,7 @@ MonoBehaviour:
     frontChildPrefix: Suck
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -195,6 +209,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -207,6 +222,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 5060112115610440276, guid: f69ff932ab11e4669b7df47abc414952, type: 3}
     travelSpeed: 7
     launchAt: 1.8333334
@@ -231,6 +247,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -243,6 +260,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -255,6 +273,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -267,6 +286,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 1
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -279,6 +299,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -291,6 +312,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -303,6 +325,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -315,6 +338,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -327,6 +351,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
@@ -339,6 +364,7 @@ MonoBehaviour:
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 1
+    spawnAtContact: 0
     travelPrefab: {fileID: 0}
     travelSpeed: 7
     launchAt: 0
