@@ -539,7 +539,12 @@ public class BattleManager : MonoBehaviour
                         // the sound starts with the windup, so it underscores the whole cast rather
                         // than punctuating an impact the way a basic attack does.
                         if (special) BattleSfx.PlaySpecial(actor.classId, actor.tier);
-                        BattleVfxLibrary.Spawn(windup, actor, target, this);
+                        // A plain Special can ask for its effect on the contact frame instead (Ambush's slash
+                        // used to flash at t=0 and be gone 0.3 s before the hit landed at the swing's midpoint).
+                        bool windupAtContact = special && windup != null && windup.prefab != null && windup.spawnAtContact
+                                               && !windup.IsProjectile && !(windup.impactAt > 0f);
+                        if (!windupAtContact) BattleVfxLibrary.Spawn(windup, actor, target, this);
+                        float castStartedAt = Time.time;
 
                         if (special && windup != null && windup.IsProjectile)
                         {
@@ -602,6 +607,11 @@ public class BattleManager : MonoBehaviour
                         {
                             yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
                             {
+                                if (windupAtContact)
+                                {
+                                    BattleVfxLibrary.Spawn(windup, actor, target, this);
+                                    Debug.Log($"[BattleManager] special {actor.className} effect on contact at {Time.time - castStartedAt:F2}s");
+                                }
                                 // A basic attack gets its attack sound here; a Special with no VFX yet gets
                                 // its impact phase here instead — the swing's contact frame IS its beat.
                                 if (!special) BattleSfx.PlayAttack(actor.classId);

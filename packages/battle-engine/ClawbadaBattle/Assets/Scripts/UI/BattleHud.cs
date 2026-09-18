@@ -227,12 +227,13 @@ public class BattleHud : MonoBehaviour
     {
         foreach (var o in overlays.Values) if (o != null) Destroy(o.gameObject);
         overlays.Clear();
+        sideOfPlayer = init?.playerSide ?? "";
         var ids = new StringBuilder();
         foreach (var lob in manager.Lobsters)
         {
             if (lob == null) continue;
             var overlay = UnitOverlay.Create(overlayLayer, Skin);
-            overlay.Bind(lob);
+            overlay.Bind(lob, friendly: !string.IsNullOrEmpty(sideOfPlayer) && lob.side == sideOfPlayer);
             overlays[lob.lobsterId] = overlay;
             if (ids.Length > 0) ids.Append(',');
             ids.Append(lob.lobsterId);
@@ -245,7 +246,6 @@ public class BattleHud : MonoBehaviour
         // which is also where the gear now lives.
         string playerSide = init?.playerSide ?? "";
         Options.SetAvailable(playerSide == "A" || playerSide == "B");
-        sideOfPlayer = playerSide;
         lastHitEnemyId = "";
         targetedId = "";
         lastFieldBarDesc = "";

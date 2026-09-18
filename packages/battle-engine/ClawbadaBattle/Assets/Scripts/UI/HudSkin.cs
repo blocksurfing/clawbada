@@ -116,8 +116,16 @@ public class HudSkin : ScriptableObject
     public float stripPortrait = 56f;
     public float activePortrait = 72f;
     public float buttonSize = 64f;
-    public Vector2 overlayBar = new Vector2(48f, 6f);   // the tight field bar (last-hit enemy / target only)
-    public float overlayWorldYOffset = 0.58f; // 20 % closer to the unit (playtest 2026-09-06)
+    public Vector2 overlayBar = new Vector2(52f, 10f);  // the field bar's cells (LOKR: about the character's width, chunky)
+    [Tooltip("World units above the rig's origin (the body centre, on the hex) where the field bar's frame sits. The rigs " +
+             "are wide and ~0.3 u tall; 0.58 floated the bar a head above them, which read as a neighbour's when units " +
+             "bunched. NOTE: Resources/UI/HudSkin.asset carries the shipped value — this default only seeds a new asset.")]
+    public float overlayWorldYOffset = 0.22f;
+    [Header("Field bar (LOKR): dark slate frame with a lighter rim; fill by team, not by HP band")]
+    public Color fieldBarFrame = C("#242b38");
+    public Color fieldBarRim = C("#8391aa");
+    public Color fieldBarFriend = C("#5fd64a");
+    public Color fieldBarEnemy = C("#e2473f");
     public float floatRise = 40f;
     public float floatSeconds = 1.2f;
     public int clockDangerMs = 10000;
