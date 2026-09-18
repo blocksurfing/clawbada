@@ -116,7 +116,7 @@ public class HudSkin : ScriptableObject
     public float stripPortrait = 56f;
     public float activePortrait = 72f;
     public float buttonSize = 64f;
-    public Vector2 overlayBar = new Vector2(40f, 4f);
+    public Vector2 overlayBar = new Vector2(48f, 6f);   // the tight field bar (last-hit enemy / target only)
     public float overlayWorldYOffset = 0.58f; // 20 % closer to the unit (playtest 2026-09-06)
     public float floatRise = 40f;
     public float floatSeconds = 1.2f;
