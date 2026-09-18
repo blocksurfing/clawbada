@@ -47,7 +47,8 @@ export default async function (b: Browser) {
   for (const c of clips) tally[c] = (tally[c] || 0) + 1;
   console.log('clips:', JSON.stringify(tally));
   const phase = (tag: string) => b.logs.filter((l) => new RegExp(`\\[BattleSfx\\] .* \\(${tag}\\) @`).test(l)).length;
-  console.log(`phases: attack=${phase('attack')} cast=${phase('cast')} impact=${phase('impact')} defend=${phase('defend')}`);
+  const deaths = b.logs.filter((l) => /\[LobsterController\] death /.test(l)).length;
+  console.log(`phases: attack=${phase('attack')} cast=${phase('cast')} impact=${phase('impact')} defend=${phase('defend')} death=${phase('death')} (deaths on screen: ${deaths})`);
   // Movement: ONE looped sound per walk, started with the first hop and stopped when the lobster
   // stops — never a tail past the walk. Every bound clip should show up across the battle.
   const walks = b.logs.filter((l) => /\[LobsterController\] move \w+ \d+ hex/.test(l)).length;

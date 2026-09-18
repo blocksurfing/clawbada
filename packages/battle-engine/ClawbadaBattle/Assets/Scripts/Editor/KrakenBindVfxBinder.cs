@@ -66,8 +66,9 @@ public static class KrakenBindVfxBinder
         if (lib.specialByClass == null || lib.specialByClass.Length < 10) lib.specialByClass = new BattleVfxLibrary.VfxSlot[10];
         if (lib.specialImpactByClass == null || lib.specialImpactByClass.Length < 10) lib.specialImpactByClass = new BattleVfxLibrary.VfxSlot[10];
 
-        // No caster windup and no impact slot: the status visual below is the whole read.
-        lib.specialByClass[Kraken] = new BattleVfxLibrary.VfxSlot { prefab = null };
+        // No caster windup and no impact slot: the status visual below is the whole read. The cast
+        // swing runs at half speed (contact ~0.6 s instead of 0.29) so a Bind sound can build first.
+        lib.specialByClass[Kraken] = new BattleVfxLibrary.VfxSlot { prefab = null, castSpeed = 0.5f };
         lib.specialImpactByClass[Kraken] = new BattleVfxLibrary.VfxSlot { prefab = null };
         var visuals = new List<BattleVfxLibrary.StatusVfx>(lib.statusVisuals ?? new BattleVfxLibrary.StatusVfx[0]);
         visuals.RemoveAll(v => v != null && string.Equals(v.status, "stun", System.StringComparison.OrdinalIgnoreCase));

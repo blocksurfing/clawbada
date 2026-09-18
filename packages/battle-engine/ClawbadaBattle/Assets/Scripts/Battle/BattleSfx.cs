@@ -96,12 +96,23 @@ public static class BattleSfx
     /// <summary>Defend stance, on the read. Per-class clip when bound, else the shared one.</summary>
     public static void PlayDefend(int classId) => Play(Library?.DefendFor(classId), "defend");
 
+    /// <summary>A lobster going down, on the death read. Per-class clip when bound, else a random pick from the pool.</summary>
+    public static void PlayDeath(int classId) => Play(Library?.DeathFor(classId), "death");
+
     /// <summary>An in-game panel opening (options menu, confirm step) / closing. Same two clips for every panel.</summary>
     public static void PlayUiOpen() => Play(Library?.uiOpen, "ui-open");
     public static void PlayUiClose() => Play(Library?.uiClose, "ui-close");
 
-    /// <summary>Cast phase — fires with the windup and underscores the whole sequence.</summary>
-    public static void PlaySpecial(int classId, int tier) => Play(Library?.SpecialCastFor(classId, tier), "cast");
+    /// <summary>Cast phase — fires with the windup and underscores the whole sequence. Returns the beat inside the
+    /// chosen clip (seconds; 0 when none or unmeasured) so a plain Special can time its contact frame to it.</summary>
+    public static float PlaySpecial(int classId, int tier)
+    {
+        var slot = Library?.SpecialSlot(classId);
+        float beat = 0f;
+        var clip = slot?.cast?.Pick(tier, out beat);
+        Play(clip, "cast");
+        return clip != null ? beat : 0f;
+    }
 
     /// <summary>Impact phase, right now. For the plain branch, where the beat is the swing's own contact frame.</summary>
     public static void PlaySpecialImpact(int classId, int tier) => Play(Library?.SpecialImpactFor(classId, tier), "impact");

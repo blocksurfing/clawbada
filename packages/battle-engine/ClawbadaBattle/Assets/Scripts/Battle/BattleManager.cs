@@ -538,7 +538,7 @@ public class BattleManager : MonoBehaviour
                         // One hook for all three Special branches (projectile / cinematic / plain):
                         // the sound starts with the windup, so it underscores the whole cast rather
                         // than punctuating an impact the way a basic attack does.
-                        if (special) BattleSfx.PlaySpecial(actor.classId, actor.tier);
+                        float castBeat = special ? BattleSfx.PlaySpecial(actor.classId, actor.tier) : 0f;
                         // A plain Special can ask for its effect on the contact frame instead (Ambush's slash
                         // used to flash at t=0 and be gone 0.3 s before the hit landed at the swing's midpoint).
                         bool windupAtContact = special && windup != null && windup.prefab != null && windup.spawnAtContact
@@ -605,8 +605,20 @@ public class BattleManager : MonoBehaviour
                         }
                         else
                         {
+                            float castSpeed = special && windup != null && windup.castSpeed > 0f ? windup.castSpeed : 1f;
+                            // A cast clip that carries its own landing (two connected Bind takes): hold the swing so
+                            // the contact frame lands on the hit inside the file — the binder measured where it is —
+                            // instead of asking the sound to fit a 0.3 s window.
+                            if (special && castBeat > 0f)
+                            {
+                                float contactAt = Mathf.Max(attackDuration, actor.ClipLength("Attack") / castSpeed) * LobsterController.AttackImpactFraction;
+                                float hold = castBeat - contactAt;
+                                Debug.Log($"[BattleManager] special {actor.className} cast beat {castBeat:F2}s, contact at {contactAt:F2}s of the swing → hold {Mathf.Max(0f, hold):F2}s");
+                                if (hold > 0.02f) yield return new WaitForSeconds(hold);
+                            }
                             yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
                             {
+                                if (special) Debug.Log($"[BattleManager] special {actor.className} contact at {Time.time - castStartedAt:F2}s (cast speed {castSpeed:F2}x)");
                                 if (windupAtContact)
                                 {
                                     BattleVfxLibrary.Spawn(windup, actor, target, this);
@@ -620,7 +632,7 @@ public class BattleManager : MonoBehaviour
                                 // Statuses land with the blow, not after the swing settles — Bind's
                                 // tentacles (a status visual) appear on the contact frame.
                                 ApplyStatusEvents(data);
-                            });
+                            }, castSpeed);
                             // Secondary events (counter hits on the actor, reflects, bleed ticks).
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
                             yield return new WaitForSeconds(hitDuration * 0.5f);
