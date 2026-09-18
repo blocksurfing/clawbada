@@ -27,14 +27,28 @@ public class BattleSfxLibrary : ScriptableObject
         [Tooltip("Numbered takes (SFX_<Class>_<Ability>_01.wav, _02, …): one is picked at random each time, for any tier " +
                  "with no clip of its own. Two takes stop a Special from sounding like a loop.")]
         public AudioClip[] variants = new AudioClip[0];
+        [Tooltip("Seconds into each clip where its loudest 50 ms sits — the hit inside the file. Measured by the binder. " +
+                 "For a cast clip the engine delays the swing so the contact frame lands on it.")]
+        public float sharedBeat, evolvedBeat, eliteBeat, apexBeat;
+        public float[] variantBeats = new float[0];
 
-        public AudioClip For(int tier)
+        public AudioClip For(int tier) => Pick(tier, out _);
+
+        /// <summary>The clip for a tier plus the beat inside it (0 when unmeasured).</summary>
+        public AudioClip Pick(int tier, out float beat)
         {
             AudioClip c = tier == 2 ? elite : tier == 3 ? apex : evolved;
+            beat = tier == 2 ? eliteBeat : tier == 3 ? apexBeat : evolvedBeat;
             // Explicit != null, never ??: an unassigned Object field deserializes as a destroyed
             // wrapper that the null-coalescing operators treat as non-null.
             if (c != null) return c;
-            if (variants != null && variants.Length > 0) return variants[Random.Range(0, variants.Length)];
+            if (variants != null && variants.Length > 0)
+            {
+                int i = Random.Range(0, variants.Length);
+                beat = variantBeats != null && i < variantBeats.Length ? variantBeats[i] : 0f;
+                return variants[i];
+            }
+            beat = sharedBeat;
             return shared != null ? shared : null;
         }
     }

@@ -103,8 +103,16 @@ public static class BattleSfx
     public static void PlayUiOpen() => Play(Library?.uiOpen, "ui-open");
     public static void PlayUiClose() => Play(Library?.uiClose, "ui-close");
 
-    /// <summary>Cast phase — fires with the windup and underscores the whole sequence.</summary>
-    public static void PlaySpecial(int classId, int tier) => Play(Library?.SpecialCastFor(classId, tier), "cast");
+    /// <summary>Cast phase — fires with the windup and underscores the whole sequence. Returns the beat inside the
+    /// chosen clip (seconds; 0 when none or unmeasured) so a plain Special can time its contact frame to it.</summary>
+    public static float PlaySpecial(int classId, int tier)
+    {
+        var slot = Library?.SpecialSlot(classId);
+        float beat = 0f;
+        var clip = slot?.cast?.Pick(tier, out beat);
+        Play(clip, "cast");
+        return clip != null ? beat : 0f;
+    }
 
     /// <summary>Impact phase, right now. For the plain branch, where the beat is the swing's own contact frame.</summary>
     public static void PlaySpecialImpact(int classId, int tier) => Play(Library?.SpecialImpactFor(classId, tier), "impact");

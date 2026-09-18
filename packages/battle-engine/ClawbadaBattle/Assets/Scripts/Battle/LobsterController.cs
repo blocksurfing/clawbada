@@ -297,14 +297,17 @@ public class LobsterController : MonoBehaviour
     /// <summary>Fraction of the Attack clip at which the hit lands (impact frame).</summary>
     public static float AttackImpactFraction = 0.5f;
 
-    public IEnumerator PlayAttack(Vector3 targetWorldPos, float duration, bool melee, System.Action onImpact)
+    public IEnumerator PlayAttack(Vector3 targetWorldPos, float duration, bool melee, System.Action onImpact, float animSpeed = 1f)
     {
         FaceToward(targetWorldPos);
         PlayState("Attack");
+        // A slowed swing (Bind casts at 0.5×): the Animator runs slower for the swing only, and the
+        // lunge stretches to match, so the contact frame lands later — room for a cast sound to build.
+        if (animator != null && animSpeed > 0f && animSpeed != 1f) animator.speed = animSpeed;
 
         // Never cut the designer's swing short: the lunge stretches to the clip's length
         // (Bulwark 1.0 s, Mantis up to 1.6 s, Reaver 1.4 s…) instead of the 0.55 s floor.
-        float clip = ClipLength("Attack");
+        float clip = ClipLength("Attack") / Mathf.Max(0.05f, animSpeed);
         float total = Mathf.Max(duration, clip);
         if (clip > duration + 0.01f) Debug.Log($"[LobsterController] attack {className} clip={clip:F2}s (floor {duration:F2}s)");
 
@@ -332,6 +335,7 @@ public class LobsterController : MonoBehaviour
         }
 
         transform.position = start;
+        if (animator != null && !frozen) animator.speed = 1f;   // the swing's own speed ends with it (a stun freeze keeps 0)
         FaceEnemySide();
         PlayState("Idle");
     }

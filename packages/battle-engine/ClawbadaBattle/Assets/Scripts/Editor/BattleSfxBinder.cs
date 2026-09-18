@@ -96,8 +96,9 @@ public static class BattleSfxBinder
             lib.specialByClass[i] = slot;
 
             if (castN + impactN > 0)
-                specialBound.Add($"{Classes[i]}/{Abilities[i]} cast×{castN} impact×{impactN}" +
-                                 (impactN > 0 ? $" lead {slot.impactLead:F2}s" : ""));
+                specialBound.Add($"{Classes[i]}/{Abilities[i]} cast×{castN}" +
+                                 (slot.cast.variantBeats.Length > 0 ? $" (beats {string.Join("/", System.Array.ConvertAll(slot.cast.variantBeats, b => b.ToString("F2")))}s)" : "") +
+                                 $" impact×{impactN}" + (impactN > 0 ? $" lead {slot.impactLead:F2}s" : ""));
         }
 
         // Movement: every SFX_Move_*.wav, in name order. Playback picks one at random per hex
@@ -179,13 +180,24 @@ public static class BattleSfxBinder
         t.evolved = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{Tiers[0]}.wav");
         t.elite = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{Tiers[1]}.wav");
         t.apex = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{Tiers[2]}.wav");
+        // Where the hit sits inside each file: a cast clip that carries its own landing (two
+        // connected Bind takes) has the swing timed to it; an impact clip is started early by it.
+        t.sharedBeat = t.shared != null ? MeasureLoudestMoment($"{stem}.wav") : 0f;
+        t.evolvedBeat = t.evolved != null ? MeasureLoudestMoment($"{stem}_{Tiers[0]}.wav") : 0f;
+        t.eliteBeat = t.elite != null ? MeasureLoudestMoment($"{stem}_{Tiers[1]}.wav") : 0f;
+        t.apexBeat = t.apex != null ? MeasureLoudestMoment($"{stem}_{Tiers[2]}.wav") : 0f;
         var takes = new List<AudioClip>();
+        var beats = new List<float>();
         for (int n = 1; n <= 20; n++)
         {
-            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{n:00}.wav");
-            if (clip != null) takes.Add(clip);
+            string p = $"{stem}_{n:00}.wav";
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(p);
+            if (clip == null) continue;
+            takes.Add(clip);
+            beats.Add(MeasureLoudestMoment(p));
         }
         t.variants = takes.ToArray();
+        t.variantBeats = beats.ToArray();
         return (t.shared != null ? 1 : 0) + (t.evolved != null ? 1 : 0) + (t.elite != null ? 1 : 0) + (t.apex != null ? 1 : 0) + takes.Count;
     }
 

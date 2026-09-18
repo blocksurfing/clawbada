@@ -179,6 +179,7 @@ export default async function (b: Browser) {
   expect(exc.length === 0, `${CLASS}: no Unity/page exceptions: ${exc.slice(0, 2).join(' | ')}`);
   // Plain Specials that asked for their effect on the contact frame (Ambush): the effect must
   // fire at the swing's midpoint, not at t=0.
+  for (const l of grab(b, /\[BattleManager\] special .* (contact at .*cast speed|cast beat)/).slice(0, 6)) console.log('  swing:', l.slice(0, 130));
   const onContact = grab(b, /\[BattleManager\] special .* effect on contact at/);
   for (const l of onContact.slice(0, 4)) console.log('  contact:', l.slice(0, 120));
   if (onContact.length) {

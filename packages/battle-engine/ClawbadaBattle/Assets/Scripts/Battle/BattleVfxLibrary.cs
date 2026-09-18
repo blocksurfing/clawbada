@@ -50,6 +50,9 @@ public class BattleVfxLibrary : ScriptableObject
                  "frame — the same frame the damage lands — instead of when the turn starts. For a melee strike " +
                  "like Ambush the slash then sits on the hit, whatever length the class's Attack clip is.")]
         public bool spawnAtContact = false;
+        [Tooltip("Plain Specials only: playback speed of the caster's swing (1 = the class's normal attack). 0.5 halves it, " +
+                 "so the contact frame lands twice as late — room for a cast sound to build before the hit.")]
+        public float castSpeed = 1f;
 
         [Header("Projectile Specials (Inferno)")]
         [Tooltip("Looping projectile prefab. When set, the Special is a projectile: this prefab flies from the caster's AttackFX " +
@@ -144,7 +147,9 @@ public class BattleVfxLibrary : ScriptableObject
         if (specialByClass != null && classId >= 0 && classId < specialByClass.Length)
         {
             var slot = specialByClass[classId];
-            if (slot != null && slot.prefab != null) return slot;
+            // The class's own slot wins even without a prefab: its settings (castSpeed, spawnAtContact)
+            // still describe the cast; Spawn() ignores a slot with no prefab.
+            if (slot != null && (slot.prefab != null || slot.castSpeed != 1f)) return slot;
         }
         return attackWindup;
     }
