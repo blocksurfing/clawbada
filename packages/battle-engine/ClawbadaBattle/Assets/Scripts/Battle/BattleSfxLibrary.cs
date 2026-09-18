@@ -24,6 +24,9 @@ public class BattleSfxLibrary : ScriptableObject
         public AudioClip evolved;
         public AudioClip elite;
         public AudioClip apex;
+        [Tooltip("Numbered takes (SFX_<Class>_<Ability>_01.wav, _02, …): one is picked at random each time, for any tier " +
+                 "with no clip of its own. Two takes stop a Special from sounding like a loop.")]
+        public AudioClip[] variants = new AudioClip[0];
 
         public AudioClip For(int tier)
         {
@@ -31,6 +34,7 @@ public class BattleSfxLibrary : ScriptableObject
             // Explicit != null, never ??: an unassigned Object field deserializes as a destroyed
             // wrapper that the null-coalescing operators treat as non-null.
             if (c != null) return c;
+            if (variants != null && variants.Length > 0) return variants[Random.Range(0, variants.Length)];
             return shared != null ? shared : null;
         }
     }

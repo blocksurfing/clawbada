@@ -9,6 +9,7 @@ using UnityEngine;
 ///   Assets/Audio/SFX/Attack/SFX_&lt;Class&gt;_Attack.wav
 ///   Assets/Audio/SFX/Special/SFX_&lt;Class&gt;_&lt;Ability&gt;[_&lt;Tier&gt;].wav          (cast phase)
 ///   Assets/Audio/SFX/Special/SFX_&lt;Class&gt;_&lt;Ability&gt;_Impact[_&lt;Tier&gt;].wav   (impact phase)
+///   Assets/Audio/SFX/Special/SFX_&lt;Class&gt;_&lt;Ability&gt;[_Impact]_NN.wav        (numbered takes, random pick)
 ///   Assets/Audio/SFX/Move/SFX_Move_*.wav                                    (movement, any number)
 ///   Assets/Audio/SFX/Defend/SFX_Defend[_NN].wav                              (defend, shared pool — random pick)
 ///   Assets/Audio/SFX/Defend/SFX_&lt;Class&gt;_Defend.wav                           (defend, per-class override)
@@ -170,19 +171,27 @@ public static class BattleSfxBinder
         return n;
     }
 
-    /// <summary>Loads `stem.wav` into shared and `stem_&lt;Tier&gt;.wav` into each tier. Returns how many bound.</summary>
+    /// <summary>Loads `stem.wav` into shared, `stem_&lt;Tier&gt;.wav` into each tier and `stem_NN.wav` into the numbered
+    /// takes. Returns how many bound.</summary>
     private static int Fill(BattleSfxLibrary.TierClips t, string stem)
     {
         t.shared = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}.wav");
         t.evolved = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{Tiers[0]}.wav");
         t.elite = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{Tiers[1]}.wav");
         t.apex = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{Tiers[2]}.wav");
-        return (t.shared != null ? 1 : 0) + (t.evolved != null ? 1 : 0) + (t.elite != null ? 1 : 0) + (t.apex != null ? 1 : 0);
+        var takes = new List<AudioClip>();
+        for (int n = 1; n <= 20; n++)
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{n:00}.wav");
+            if (clip != null) takes.Add(clip);
+        }
+        t.variants = takes.ToArray();
+        return (t.shared != null ? 1 : 0) + (t.evolved != null ? 1 : 0) + (t.elite != null ? 1 : 0) + (t.apex != null ? 1 : 0) + takes.Count;
     }
 
     private static string FirstExisting(string stem)
     {
-        foreach (var suffix in new[] { "", $"_{Tiers[0]}", $"_{Tiers[1]}", $"_{Tiers[2]}" })
+        foreach (var suffix in new[] { "", $"_{Tiers[0]}", $"_{Tiers[1]}", $"_{Tiers[2]}", "_01" })
         {
             string p = $"{stem}{suffix}.wav";
             if (AssetDatabase.LoadAssetAtPath<AudioClip>(p) != null) return p;
