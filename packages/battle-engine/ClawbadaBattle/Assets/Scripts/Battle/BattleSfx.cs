@@ -96,6 +96,9 @@ public static class BattleSfx
     /// <summary>Defend stance, on the read. Per-class clip when bound, else the shared one.</summary>
     public static void PlayDefend(int classId) => Play(Library?.DefendFor(classId), "defend");
 
+    /// <summary>A lobster going down, on the death read. Per-class clip when bound, else a random pick from the pool.</summary>
+    public static void PlayDeath(int classId) => Play(Library?.DeathFor(classId), "death");
+
     /// <summary>An in-game panel opening (options menu, confirm step) / closing. Same two clips for every panel.</summary>
     public static void PlayUiOpen() => Play(Library?.uiOpen, "ui-open");
     public static void PlayUiClose() => Play(Library?.uiClose, "ui-close");

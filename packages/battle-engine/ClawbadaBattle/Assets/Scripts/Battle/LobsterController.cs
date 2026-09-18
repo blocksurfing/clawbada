@@ -562,6 +562,8 @@ public class LobsterController : MonoBehaviour
         if (deathPlayed) yield break;
         deathPlayed = true;
         if (animator != null) { animator.speed = 1f; frozen = false; }   // a frozen rig still dies on screen
+        Debug.Log($"[LobsterController] death {lobsterId} ({className})");
+        BattleSfx.PlayDeath(classId);
         alive = false;
         defending = false;
         bool hasDie = PlayState("Die", 0.05f);

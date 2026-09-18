@@ -151,5 +151,17 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
+  death: []
+  deathByClass:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
   uiOpen: {fileID: 8300000, guid: 9e96661ff575749bc9c1377d08162045, type: 3}
   uiClose: {fileID: 8300000, guid: 24db77162692246f79cb0b0c6798e4eb, type: 3}

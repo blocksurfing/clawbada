@@ -66,6 +66,12 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("Optional per-class Defend, indexed by LobsterClass: SFX/Defend/SFX_<Class>_Defend.wav. Empty slots fall back to the shared pool.")]
     public AudioClip[] defendByClass = new AudioClip[10];
 
+    [Tooltip("Death — one is picked at random when a lobster goes down. Bound from Assets/Audio/SFX/Death/SFX_Death_*.wav " +
+             "(or a single SFX_Death.wav) in name order.")]
+    public AudioClip[] death = new AudioClip[0];
+    [Tooltip("Optional per-class death, indexed by LobsterClass: SFX/Death/SFX_<Class>_Death.wav. Empty slots fall back to the shared pool.")]
+    public AudioClip[] deathByClass = new AudioClip[10];
+
     [Tooltip("In-game UI opening (the options menu, confirm steps): Assets/Audio/SFX/UI/SFX_UI_Open.wav.")]
     public AudioClip uiOpen;
     [Tooltip("In-game UI closing: Assets/Audio/SFX/UI/SFX_UI_Close.wav.")]
@@ -77,6 +83,14 @@ public class BattleSfxLibrary : ScriptableObject
         AudioClip c = defendByClass != null && classId >= 0 && classId < defendByClass.Length ? defendByClass[classId] : null;
         if (c != null) return c;
         return defend != null && defend.Length > 0 ? defend[Random.Range(0, defend.Length)] : null;
+    }
+
+    /// <summary>The class's own death clip if one is bound, else a random pick from the shared pool, else null.</summary>
+    public AudioClip DeathFor(int classId)
+    {
+        AudioClip c = deathByClass != null && classId >= 0 && classId < deathByClass.Length ? deathByClass[classId] : null;
+        if (c != null) return c;
+        return death != null && death.Length > 0 ? death[Random.Range(0, death.Length)] : null;
     }
 
     /// <summary>A random movement clip, or null when none are bound.</summary>

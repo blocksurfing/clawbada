@@ -33,6 +33,7 @@ paths. A misnamed file binds nothing and that sound is simply silent — no erro
 | Special impact (lands on the hit beat) | `SFX/Special/SFX_<Class>_<Ability>_Impact[_<Tier>].wav` |
 | Movement, one walk | `SFX/Move/SFX_Move_01.wav`, `SFX_Move_02.wav`, … — any number; one is picked at random per walk and looped for exactly as long as the lobster moves, so a take can be any length |
 | Defend stance | `SFX/Defend/SFX_Defend_01.wav`, `SFX_Defend_02.wav`, … (or a single `SFX_Defend.wav`) — shared by every class, one picked at random per Defend; drop `SFX/Defend/SFX_<Class>_Defend.wav` to give a class its own |
+| Death | `SFX/Death/SFX_Death_01.wav`, `SFX_Death_02.wav`, … (or a single `SFX_Death.wav`) — shared by every class, one picked at random as a lobster goes down; drop `SFX/Death/SFX_<Class>_Death.wav` to give a class its own |
 | In-game UI opening / closing | `SFX/UI/SFX_UI_Open.wav`, `SFX/UI/SFX_UI_Close.wav` — the options menu and its confirm step today; every future in-game panel uses the same pair |
 
 `<Class>` = Bulwark Mantis Leviathan Tempest Specter Sentinel Reaver Abyss Kraken Ember ·
