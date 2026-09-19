@@ -191,6 +191,8 @@ public class OptionsMenu : MonoBehaviour
         if (IsOpen) { Close(); return; }
         ShowMain();
         panel.gameObject.SetActive(true);
+        BattleSfx.PlayUiOpen();
+        Debug.Log("[BattleHud] options opened");
         Canvas.ForceUpdateCanvases();
         LogRects();
     }
@@ -198,7 +200,11 @@ public class OptionsMenu : MonoBehaviour
     private void Close()
     {
         if (panel == null) return;
-        if (panel.gameObject.activeSelf) Debug.Log("[BattleHud] options closed");
+        if (panel.gameObject.activeSelf)
+        {
+            BattleSfx.PlayUiClose();   // the Close clip covers every way out: X, gear again, forfeit confirmed
+            Debug.Log("[BattleHud] options closed");
+        }
         panel.gameObject.SetActive(false);
     }
 

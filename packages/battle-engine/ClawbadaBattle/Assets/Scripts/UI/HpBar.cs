@@ -9,6 +9,13 @@ public class HpBar : MonoBehaviour
     private Image fill;
     private Text label;
     private Image[] segments;
+    private Color? tint;
+
+    /// <summary>A fixed fill colour — LOKR's team read (green = yours, red = theirs) — instead of the HP band.</summary>
+    public void SetTint(Color? c)
+    {
+        tint = c;
+    }
 
     public static HpBar Create(Transform parent, string name, HudSkin skin, Vector2 size, bool withLabel, int labelSize = 11)
     {
@@ -39,7 +46,7 @@ public class HpBar : MonoBehaviour
         bar.skin = skin;
         count = Mathf.Max(1, count);
         bar.segments = new Image[count];
-        float gap = 1f;
+        float gap = size.y >= 8f ? 2f : 1f;   // the chunky field bar wants a visible seam between cells
         float w = (size.x - gap * (count - 1)) / count;
         for (int i = 0; i < count; i++)
         {
@@ -59,7 +66,7 @@ public class HpBar : MonoBehaviour
         {
             float f = max > 0 ? Mathf.Clamp01((float)hp / max) : 0f;
             int lit = hp > 0 ? Mathf.Max(1, Mathf.CeilToInt(f * segments.Length)) : 0;
-            var c = skin.HpColor(hp, max);
+            var c = tint ?? skin.HpColor(hp, max);
             for (int i = 0; i < segments.Length; i++) { segments[i].enabled = i < lit; segments[i].color = c; }
             if (label != null) label.text = hp > 0 ? $"{hp}/{max}" : "KO";
             return;

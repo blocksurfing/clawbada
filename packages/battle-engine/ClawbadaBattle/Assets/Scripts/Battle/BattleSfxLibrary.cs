@@ -24,13 +24,31 @@ public class BattleSfxLibrary : ScriptableObject
         public AudioClip evolved;
         public AudioClip elite;
         public AudioClip apex;
+        [Tooltip("Numbered takes (SFX_<Class>_<Ability>_01.wav, _02, …): one is picked at random each time, for any tier " +
+                 "with no clip of its own. Two takes stop a Special from sounding like a loop.")]
+        public AudioClip[] variants = new AudioClip[0];
+        [Tooltip("Seconds into each clip where its loudest 50 ms sits — the hit inside the file. Measured by the binder. " +
+                 "For a cast clip the engine delays the swing so the contact frame lands on it.")]
+        public float sharedBeat, evolvedBeat, eliteBeat, apexBeat;
+        public float[] variantBeats = new float[0];
 
-        public AudioClip For(int tier)
+        public AudioClip For(int tier) => Pick(tier, out _);
+
+        /// <summary>The clip for a tier plus the beat inside it (0 when unmeasured).</summary>
+        public AudioClip Pick(int tier, out float beat)
         {
             AudioClip c = tier == 2 ? elite : tier == 3 ? apex : evolved;
+            beat = tier == 2 ? eliteBeat : tier == 3 ? apexBeat : evolvedBeat;
             // Explicit != null, never ??: an unassigned Object field deserializes as a destroyed
             // wrapper that the null-coalescing operators treat as non-null.
             if (c != null) return c;
+            if (variants != null && variants.Length > 0)
+            {
+                int i = Random.Range(0, variants.Length);
+                beat = variantBeats != null && i < variantBeats.Length ? variantBeats[i] : 0f;
+                return variants[i];
+            }
+            beat = sharedBeat;
             return shared != null ? shared : null;
         }
     }
@@ -48,6 +66,9 @@ public class BattleSfxLibrary : ScriptableObject
         [Tooltip("Seconds BEFORE the hit beat to start the impact clip, so its loudest moment lands on the " +
                  "beat instead of after it. Measured from the file by the binder; edit here to override.")]
         public float impactLead;
+        [Tooltip("Restorative — plays when the Special actually restored HP (Devour's heal, Rally). A heal of 0 is silent. " +
+                 "SFX/Special/SFX_<Class>_<Ability>_Heal.wav")]
+        public TierClips heal = new TierClips();
     }
 
     [Tooltip("Basic attack, one per class, indexed by LobsterClass. Empty slots are silent, not an error.")]
@@ -56,9 +77,42 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("Special move, one entry per class, indexed by LobsterClass.")]
     public SpecialClips[] specialByClass = new SpecialClips[10];
 
-    [Tooltip("Movement scuttle — one clip per hex step, picked at random from this set so a three-hex walk " +
-             "doesn't repeat one sample. Bound from Assets/Audio/SFX/Move/SFX_Move_*.wav in name order.")]
+    [Tooltip("Movement scuttle — one clip per walk, picked at random from this set and looped for exactly as long " +
+             "as the lobster moves. Bound from Assets/Audio/SFX/Move/SFX_Move_*.wav in name order.")]
     public AudioClip[] move = new AudioClip[0];
+
+    [Tooltip("Defend stance, shared by every class — one is picked at random per Defend. Bound from " +
+             "Assets/Audio/SFX/Defend/SFX_Defend_*.wav (or a single SFX_Defend.wav) in name order.")]
+    public AudioClip[] defend = new AudioClip[0];
+    [Tooltip("Optional per-class Defend, indexed by LobsterClass: SFX/Defend/SFX_<Class>_Defend.wav. Empty slots fall back to the shared pool.")]
+    public AudioClip[] defendByClass = new AudioClip[10];
+
+    [Tooltip("Death — one is picked at random when a lobster goes down. Bound from Assets/Audio/SFX/Death/SFX_Death_*.wav " +
+             "(or a single SFX_Death.wav) in name order.")]
+    public AudioClip[] death = new AudioClip[0];
+    [Tooltip("Optional per-class death, indexed by LobsterClass: SFX/Death/SFX_<Class>_Death.wav. Empty slots fall back to the shared pool.")]
+    public AudioClip[] deathByClass = new AudioClip[10];
+
+    [Tooltip("In-game UI opening (the options menu, confirm steps): Assets/Audio/SFX/UI/SFX_UI_Open.wav.")]
+    public AudioClip uiOpen;
+    [Tooltip("In-game UI closing: Assets/Audio/SFX/UI/SFX_UI_Close.wav.")]
+    public AudioClip uiClose;
+
+    /// <summary>The class's own Defend clip if one is bound, else a random pick from the shared pool, else null.</summary>
+    public AudioClip DefendFor(int classId)
+    {
+        AudioClip c = defendByClass != null && classId >= 0 && classId < defendByClass.Length ? defendByClass[classId] : null;
+        if (c != null) return c;
+        return defend != null && defend.Length > 0 ? defend[Random.Range(0, defend.Length)] : null;
+    }
+
+    /// <summary>The class's own death clip if one is bound, else a random pick from the shared pool, else null.</summary>
+    public AudioClip DeathFor(int classId)
+    {
+        AudioClip c = deathByClass != null && classId >= 0 && classId < deathByClass.Length ? deathByClass[classId] : null;
+        if (c != null) return c;
+        return death != null && death.Length > 0 ? death[Random.Range(0, death.Length)] : null;
+    }
 
     /// <summary>A random movement clip, or null when none are bound.</summary>
     public AudioClip RandomMove() => move != null && move.Length > 0 ? move[Random.Range(0, move.Length)] : null;
@@ -72,4 +126,5 @@ public class BattleSfxLibrary : ScriptableObject
     public AudioClip SpecialCastFor(int classId, int tier) => SpecialSlot(classId)?.cast?.For(tier);
     public AudioClip SpecialImpactFor(int classId, int tier) => SpecialSlot(classId)?.impact?.For(tier);
     public float SpecialImpactLead(int classId) => SpecialSlot(classId)?.impactLead ?? 0f;
+    public AudioClip SpecialHealFor(int classId, int tier) => SpecialSlot(classId)?.heal?.For(tier);
 }

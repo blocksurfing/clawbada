@@ -48,6 +48,7 @@ public static class MaelstromVfxBinder
         {
             prefab = storm, anchor = BattleVfxLibrary.AnchorPoint.CameraCenter, delay = 0f,
             mirrorWithFacing = false, impactAt = ImpactAt, hideChildrenPrefix = "Hit_",
+            shakeAmplitude = 0.10f, shakeSeconds = 0.45f,   // the lightning hits the ground (designer's ask)
         };
         lib.specialImpactByClass[Tempest] = new BattleVfxLibrary.VfxSlot
         {

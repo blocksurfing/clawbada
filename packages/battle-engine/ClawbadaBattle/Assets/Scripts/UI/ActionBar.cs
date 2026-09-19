@@ -7,9 +7,11 @@ using UnityEngine.UI;
 /// Bottom-centre action bar (LOKR-style): hex buttons Attack / Special / Defend / Wait
 /// and a small Undo for a tentative move. Unity only reports presses; React decides
 /// what they mean and submits the turn. Its state (which action is armed, what is
-/// legal) arrives through SetSelection. No prompt line: the armed plate, the lit hexes
-/// and the target rings already say what to do, and React still shows "Sending…" in the
-/// status row under the canvas.
+/// legal) arrives through SetSelection. The armed plate, the lit hexes and the target
+/// rings say what to do; one line above the plates says why a press went nowhere ("Out
+/// of range — move closer first", a server rejection) and shows "Sending…" — inside the
+/// canvas, because in fullscreen React's status row is off screen and a press that
+/// silently does nothing reads as a frozen game.
 /// </summary>
 public class ActionBar : MonoBehaviour
 {
@@ -20,6 +22,8 @@ public class ActionBar : MonoBehaviour
     private Button attack, special, defend, wait, undo;
     private Image attackGlow, specialGlow, defendGlow, waitGlow;
     private Text specialLabel;
+    private Text hint;
+    private string lastNote = "";
     private SelectionData last;
 
     public static ActionBar Create(Transform parent, HudSkin skin)
@@ -44,6 +48,13 @@ public class ActionBar : MonoBehaviour
         urt.anchorMin = urt.anchorMax = new Vector2(0.5f, 0f);
         urt.pivot = new Vector2(0.5f, 0f);
         urt.anchoredPosition = new Vector2(x0 + pitch * 4f + 6f, 8f);
+
+        bar.hint = HudFactory.Text(rt, "Hint", font, 12, skin.textPrimary, TextAnchor.LowerCenter, new Vector2(pitch * 4f + 200f, 20f));
+        var hrt = bar.hint.rectTransform;
+        hrt.anchorMin = hrt.anchorMax = new Vector2(0.5f, 1f);
+        hrt.pivot = new Vector2(0.5f, 0f);
+        hrt.anchoredPosition = new Vector2(0f, 2f);
+        bar.hint.gameObject.SetActive(false);
 
         rt.gameObject.SetActive(false);
         return bar;
@@ -104,6 +115,11 @@ public class ActionBar : MonoBehaviour
         wait.interactable = live;
         undo.gameObject.SetActive(d.canUndo);
         undo.interactable = live;
+
+        string note = d.pendingAck ? "Sending…" : (d.hint ?? "");
+        hint.text = note;
+        hint.gameObject.SetActive(note.Length > 0);
+        if (note != lastNote) { lastNote = note; if (note.Length > 0) Debug.Log($"[BattleHud] hint {note}"); }
 
         specialLabel.text = string.IsNullOrEmpty(d.specialName) ? "Special" : d.specialName;
         SetArmed(attackGlow, d.action == "attack");

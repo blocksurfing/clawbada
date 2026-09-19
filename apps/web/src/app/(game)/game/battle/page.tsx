@@ -479,6 +479,10 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
   const [preset, setPreset] = useState('');
   const [bot, setBot] = useState<(typeof BOTS)[number]>('balanced');
   const [opponent, setOpponent] = useState<'mirror' | 'random'>('mirror');
+  // Board choice. 'match' = the team's own tier (the default and the only option for real
+  // battles); any tier is allowed in practice — Apex lobsters on the Evolved board is a
+  // legitimate way to check a team against every arena.
+  const [arena, setArena] = useState<'match' | 'evolved' | 'elite' | 'apex'>('match');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const presetsAllowed = process.env.NEXT_PUBLIC_PRACTICE_PRESETS === 'true' || process.env.NODE_ENV !== 'production';
@@ -488,18 +492,25 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
     const p = new URLSearchParams(window.location.search).get('preset');
     if (p && PRESETS.some((x) => x.id === p)) { setPreset(p); setTeamId(''); if (p.startsWith('random_')) setOpponent('random'); }
   }, [presetsAllowed]);
+  // Deep link: ?arena=apex picks the board (works with teams and presets alike).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const a = new URLSearchParams(window.location.search).get('arena');
+    if (a === 'evolved' || a === 'elite' || a === 'apex') setArena(a);
+  }, []);
 
   const start = useCallback(async () => {
     setBusy(true);
     setErr(null);
     try {
       const auth = await getAuthHeaders();
-      const body = teamId ? { teamId, bot, opponent } : { preset, bot, opponent };
+      const base = teamId ? { teamId, bot, opponent } : { preset, bot, opponent };
+      const body = arena === 'match' ? base : { ...base, arena };
       const res = await api.combat.createPractice(body, auth);
-      // Carry the review-tool params (?auto=1&speed=2) through to the battle page.
+      // Carry the review-tool params (?auto=1&speed=2&stay=1) through to the battle page.
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
-      for (const k of ['auto', 'speed']) { const v = q.get(k); if (v) carry.set(k, v); }
+      for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
       router.push(`/battle/${res.battleId}${carry.size ? `?${carry}` : ''}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not start the practice battle');
@@ -544,6 +555,14 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
               {BOTS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
             </SelectContent>
           </Select>
+          <label className="text-sm text-text-secondary block pt-1">Arena</label>
+          <div className="flex flex-wrap gap-2" data-testid="arena-choice">
+            {([['match', 'Match team'], ['evolved', 'Evolved'], ['elite', 'Elite'], ['apex', 'Apex']] as const).map(([a, label]) => (
+              <button key={a} onClick={() => setArena(a)} className={`px-3 py-1.5 rounded text-xs font-pixel border ${arena === a ? 'border-claw-gold text-claw-gold bg-claw-gold/10' : 'border-border text-text-secondary hover:text-foreground'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
           <label className="text-sm text-text-secondary block pt-1">Opponent roster</label>
           <div className="flex gap-2">
             {(['mirror', 'random'] as const).map((o) => (

@@ -46,6 +46,24 @@ public class BattleVfxLibrary : ScriptableObject
         public string hideChildrenPrefix = "";
         [Tooltip("Sort above full-screen effects and front decor — for per-target Special impacts that must read over a storm layer.")]
         public bool onTop = false;
+        [Tooltip("Plain (non-cinematic, non-projectile) Specials only: spawn this effect on the swing's contact " +
+                 "frame — the same frame the damage lands — instead of when the turn starts. For a melee strike " +
+                 "like Ambush the slash then sits on the hit, whatever length the class's Attack clip is.")]
+        public bool spawnAtContact = false;
+        [Tooltip("Plain Specials only: playback speed of the caster's swing (1 = the class's normal attack). 0.5 halves it, " +
+                 "so the contact frame lands twice as late — room for a cast sound to build before the hit.")]
+        public float castSpeed = 1f;
+        [Tooltip("Screen shake on this effect's beat, in world units (0 = none). Maelstrom's lightning, Inferno's burst.")]
+        public float shakeAmplitude = 0f;
+        [Tooltip("How long the shake takes to die out.")]
+        public float shakeSeconds = 0.3f;
+        [Tooltip("Darken the arena under the lobsters while this effect plays (0 = none): a full-screen black layer at this alpha, " +
+                 "sorted below the lobsters so the cast and its effects stay lit (Devour's abyss).")]
+        public float dimAlpha = 0f;
+        [Tooltip("Dim fade-in seconds from the effect's start.")]
+        public float dimFadeIn = 0.3f;
+        [Tooltip("Dim fade-out seconds, ending with the effect.")]
+        public float dimFadeOut = 0.5f;
 
         [Header("Projectile Specials (Inferno)")]
         [Tooltip("Looping projectile prefab. When set, the Special is a projectile: this prefab flies from the caster's AttackFX " +
@@ -140,7 +158,9 @@ public class BattleVfxLibrary : ScriptableObject
         if (specialByClass != null && classId >= 0 && classId < specialByClass.Length)
         {
             var slot = specialByClass[classId];
-            if (slot != null && slot.prefab != null) return slot;
+            // The class's own slot wins even without a prefab: its settings (castSpeed, spawnAtContact)
+            // still describe the cast; Spawn() ignores a slot with no prefab.
+            if (slot != null && (slot.prefab != null || slot.castSpeed != 1f)) return slot;
         }
         return attackWindup;
     }
@@ -221,13 +241,14 @@ public class BattleVfxLibrary : ScriptableObject
     /// <summary>Fly a projectile slot's travel prefab from <paramref name="from"/> to <paramref name="to"/> at
     /// <c>slot.travelSpeed</c>. The prefab's looping clip plays for exactly the flight time (the loop's
     /// duration equals the caster→target distance), the sprite is mirrored for leftward flight and pitched
-    /// along the path, and the projectile is destroyed on arrival. Yields until arrival.</summary>
-    public static IEnumerator Fly(VfxSlot slot, Vector3 from, Vector3 to)
+    /// along the path, and the projectile is destroyed on arrival. Yields until arrival. A positive
+    /// <paramref name="seconds"/> overrides the speed-derived flight time (the audio fit, see BattleManager).</summary>
+    public static IEnumerator Fly(VfxSlot slot, Vector3 from, Vector3 to, float seconds = -1f)
     {
         if (slot == null || slot.travelPrefab == null) yield break;
         Vector3 dir = to - from;
         float dist = dir.magnitude;
-        float duration = Mathf.Max(0.12f, dist / Mathf.Max(0.5f, slot.travelSpeed));
+        float duration = seconds > 0f ? seconds : Mathf.Max(0.12f, dist / Mathf.Max(0.5f, slot.travelSpeed));
 
         var fx = Instantiate(slot.travelPrefab, from, Quaternion.identity);
         // The sheet is authored flying right: mirror for leftward flight, then pitch along the path.
