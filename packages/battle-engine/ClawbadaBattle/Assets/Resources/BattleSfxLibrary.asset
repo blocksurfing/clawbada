@@ -236,28 +236,28 @@ MonoBehaviour:
       variantBeats: []
     impactLead: 0
   - cast:
-      shared: {fileID: 0}
+      shared: {fileID: 8300000, guid: 6994ab8b4dbc548c784d086e6c8624cf, type: 3}
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
       variants: []
-      sharedBeat: 0
+      sharedBeat: 0.7
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
     impact:
-      shared: {fileID: 0}
+      shared: {fileID: 8300000, guid: a3a154773a4774482ba276955962f37b, type: 3}
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
       variants: []
-      sharedBeat: 0
+      sharedBeat: 0.25
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
-    impactLead: 0
+    impactLead: 0.25
   move:
   - {fileID: 8300000, guid: 9ceda9dc534a546d3b8245419b963958, type: 3}
   - {fileID: 8300000, guid: deafd23ecffc543c589427bfac0dc019, type: 3}
