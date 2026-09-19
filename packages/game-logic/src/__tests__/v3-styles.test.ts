@@ -21,7 +21,7 @@ describe('strategy styles', () => {
         expect(s.winner).not.toBeNull();
       }
     }
-  });
+  }, 30_000); // ~5 s of simulation: it sat exactly on bun's 5 s default and timed out under load
 
   test('deep search does not mutate the real battle and stays deterministic', () => {
     const make = () => v3.createBattle({ battleId: 'deep', vrfSeed: 77n, tier: 'apex', teamA: team('A', comp(2, 0), 2), teamB: team('B', comp(2, 1), 2) });

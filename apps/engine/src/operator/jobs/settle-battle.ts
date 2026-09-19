@@ -3,7 +3,10 @@
  *  The API's battle-session manager runs the off-chain ATB battle. When it ends
  *  (wipeout, turn cap, or forfeit) the API enqueues this job in `operator_jobs`
  *  with everything the contract needs; the worker submits
- *  `BattleArena.settle(battleId, winner, finalStateHash, turnLogHash, damageA, damageB)`
+ *  `BattleArena.settle(battleId, winner, finalStateHash, turnLogHash, damageA, damageB, seedSecret)`
+ *  D-01: `seedSecret` opens the commitment made in revealTeams. It is re-derived here from
+ *  BATTLE_SEED_SECRET and the battle id — never carried in the job payload, so it is not
+ *  sitting in the database while the battle is being played.
  *  with the RESOLVER key. `winner === 'draw'` maps to address(0).
  *
  *  Idempotent: a battle already past Active (AwaitingFinalize / Settled) is a
@@ -12,7 +15,8 @@
  *  classified dead by wrapHandler (InvalidSettlementHash, PhaseTimedOut, ...). */
 
 import { zeroAddress } from 'viem';
-import { getBattleArena, getPublicClient, getResolverClient } from '@clawbada/chain';
+import { getBattleArena, getPublicClient, getResolverClient, deriveSeedSecret, seedCommitment } from '@clawbada/chain';
+import { seedMasterSecretFromEnv } from '../../combat/reveal-watcher';
 import { log as baseLog } from '../../logger';
 import { classifyError } from '../errors';
 import { TxHashPersistError, type JobContext, type JobResult } from '../types';
@@ -94,8 +98,16 @@ export async function settleBattleHandler(rawPayload: unknown, ctx: JobContext):
     }
 
     const walletClient = getResolverClient(isTestnet) as any;
+    // D-01: disclose the seed secret. If ours does not open the on-chain commitment, the engine
+    // and the process that revealed are running different BATTLE_SEED_SECRETs: retrying cannot
+    // help, and the battle will refund at ACTIVE_WINDOW.
+    const seedSecret = deriveSeedSecret(seedMasterSecretFromEnv(), battleId);
+    if (seedCommitment(battleId, seedSecret) !== (b as { seedCommit?: string }).seedCommit) {
+      log.error({ battleId: payload.battleId }, 'seed secret does not open the on-chain commitment (BATTLE_SEED_SECRET mismatch)');
+      return { ok: false, retry: 'dead', error: 'seed_commit_mismatch' };
+    }
     const sim = await arena.simulate.settle(
-      [battleId, winner, payload.finalStateHash, payload.turnLogHash, payload.damageA, payload.damageB],
+      [battleId, winner, payload.finalStateHash, payload.turnLogHash, payload.damageA, payload.damageB, seedSecret],
       { account: walletClient.account },
     );
     const hash = (await walletClient.writeContract(sim.request)) as `0x${string}`;

@@ -22,6 +22,13 @@ import {DNALib} from "../contracts/libraries/DNALib.sol";
 import {BattleResolver} from "../contracts/libraries/BattleResolver.sol";
 
 /// @dev Expose DNALib internals for boundary testing.
+// D-01: every test battle uses one known secret; the commitment binds it to the battle id.
+bytes32 constant SEED_SECRET = keccak256("clawbada-test-seed-secret");
+
+function _seedCommit(uint256 battleId) pure returns (bytes32) {
+    return keccak256(abi.encodePacked(battleId, SEED_SECRET));
+}
+
 contract DNABoundaryHarness {
     function encode(uint8 class_, uint8 legend, uint8 breedType, uint8[18] memory alleles)
         external
@@ -503,7 +510,7 @@ contract BoundaryTests is Test {
         // Reveal should succeed with damage=79
         // F5-01: atomic resolver-submitted reveal.
         vm.prank(resolver);
-        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, _seedCommit(battleId));
 
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertTrue(b.phase == BattleArena.BattlePhase.Active);
@@ -544,7 +551,7 @@ contract BoundaryTests is Test {
         // reveal validates both teams; alice's over-damaged team reverts first.
         vm.expectRevert(abi.encodeWithSelector(BattleArena.LobsterDamageTooHigh.selector, lob1, 80));
         vm.prank(resolver);
-        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, _seedCommit(battleId));
     }
 
     function test_boundary_allThreeStakeBracketsCreateBattle() public {
@@ -571,7 +578,7 @@ contract BoundaryTests is Test {
 
         // Bob wins (not alice) — H-01: settle proposes, finalize pays
         vm.prank(resolver);
-        arena.settle(battleId, bob, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, bob, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
         vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         arena.finalizeBattle(battleId);
 
@@ -589,7 +596,7 @@ contract BoundaryTests is Test {
         // Settle with 15 more damage → 90 + 15 = 105, but should cap at 100
         // H-01: damage application now happens in finalizeBattle, not settle
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(15), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(15), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
         vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         arena.finalizeBattle(battleId);
 
@@ -603,7 +610,7 @@ contract BoundaryTests is Test {
         address nobody = makeAddr("nobody");
         vm.prank(resolver);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidWinner.selector, battleId));
-        arena.settle(battleId, nobody, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, nobody, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -1264,7 +1271,7 @@ contract BoundaryTests is Test {
         // Reveal succeeds — lobster at damage=79 is accepted
         // F5-01: atomic resolver-submitted reveal.
         vm.prank(resolver);
-        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, _seedCommit(battleId));
 
         assertTrue(arena.getBattle(battleId).phase == BattleArena.BattlePhase.Active);
     }
@@ -1376,7 +1383,7 @@ contract BoundaryTests is Test {
 
         // F5-01: atomic resolver-submitted reveal.
         vm.prank(resolver);
-        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, _seedCommit(battleId));
     }
 
 }

@@ -354,6 +354,10 @@ export interface ChainBattle {
   proposedWinner: string;
   finalStateHash: string;
   turnLogHash: string;
+  /** D-01: commitment to the battle's seed secret and the reveal timestamp that fixes its drand
+   *  round — both set by revealTeams. The secret itself is disclosed on-chain by settle(). */
+  seedCommit: string;
+  revealedAt: number;
   /** X13: deadline clocks for the X-13 handleTimeout button. The contract
    *  uses `phaseDeadline` for Deposit/TeamCommit/TeamReveal/Active and
    *  `payoutDeadline` for AwaitingFinalize (BattleArena.sol:734). Both are
@@ -391,6 +395,8 @@ export async function readBattle(battleId: bigint): Promise<ChainBattle> {
       proposedWinner: data.proposedWinner as string,
       finalStateHash: data.finalStateHash as string,
       turnLogHash: data.turnLogHash as string,
+      seedCommit: data.seedCommit as string,
+      revealedAt: Number(data.revealedAt),
       // X13: expose deadlines for the handleTimeout button.
       phaseDeadline: data.phaseDeadline,
       payoutDeadline: data.payoutDeadline,

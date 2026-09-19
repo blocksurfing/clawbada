@@ -5,9 +5,14 @@
  * on-chain themselves). The API stores each committed teamId + salt on the battle row. This
  * watcher is the RESOLVER-side half: it polls for battles whose reveal is ready (both salts
  * present, still in the TeamReveal phase) and submits a single atomic
- * `revealTeams(battleId, teamIdA, saltA, teamIdB, saltB)` with the RESOLVER key
+ * `revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, seedCommit)` with the RESOLVER key
  * (`onlyRole(RESOLVER_ROLE)` on-chain) — so neither team's identity reaches the chain until
  * both are bound in one transaction.
+ *
+ * D-01: the same transaction commits to this battle's seed secret (`seedCommit`). The secret is
+ * derived from BATTLE_SEED_SECRET and the battle id, never stored; the settle job re-derives it
+ * to disclose it. See packages/chain/src/battle-seed.ts for why the commitment has to ride in
+ * THIS transaction: its block timestamp fixes the drand round the secret is mixed with.
  *
  * On success the salts are cleared (transient — a revealed team's salt is not retained).
  *
@@ -19,6 +24,7 @@
  */
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { BattlePhase } from '@clawbada/game-logic';
+import { deriveSeedSecret, seedCommitment, loadSeedMasterSecret } from '@clawbada/chain';
 import { log as baseLog } from '../logger';
 
 const POLL_MS = 2000; // fast — the on-chain team-reveal window is short
@@ -33,8 +39,23 @@ export interface RevealWatcherDeps {
   walletClient: { writeContract(request: any): Promise<`0x${string}`> };
   battleArenaAddress: `0x${string}`;
   abi: readonly unknown[];
+  /** D-01: master secret the per-battle seed secret is derived from (BATTLE_SEED_SECRET).
+   *  A function is resolved per reveal, so a missing variable fails that reveal loudly instead
+   *  of taking the whole engine (seasons, boost epochs, finalize) down at boot. */
+  seedMasterSecret: string | (() => string);
   log?: typeof baseLog;
   pollMs?: number;
+}
+
+let warnedEphemeralSeed = false;
+/** BATTLE_SEED_SECRET, or a per-process random one outside production (warned once). */
+export function seedMasterSecretFromEnv(): string {
+  const { secret, ephemeral } = loadSeedMasterSecret();
+  if (ephemeral && !warnedEphemeralSeed) {
+    warnedEphemeralSeed = true;
+    baseLog.warn('BATTLE_SEED_SECRET is not set: using a per-process random secret. The API must share it or real battles will not start.');
+  }
+  return secret;
 }
 
 export class RevealWatcher {
@@ -62,6 +83,7 @@ export class RevealWatcher {
       walletClient: chain.getResolverClient(isTestnet),
       battleArenaAddress: chain.addresses.battleArena,
       abi: chain.BattleArenaAbi,
+      seedMasterSecret: seedMasterSecretFromEnv,
     });
   }
 
@@ -121,7 +143,10 @@ export class RevealWatcher {
       address: battleArenaAddress,
       abi,
       functionName: 'revealTeams',
-      args: [battleId, row.teamA, row.revealSaltA as `0x${string}`, row.teamB, row.revealSaltB as `0x${string}`],
+      args: [
+        battleId, row.teamA, row.revealSaltA as `0x${string}`, row.teamB, row.revealSaltB as `0x${string}`,
+        seedCommitment(battleId, deriveSeedSecret(typeof this.deps.seedMasterSecret === 'function' ? this.deps.seedMasterSecret() : this.deps.seedMasterSecret, battleId)),
+      ],
     });
     await publicClient.waitForTransactionReceipt({ hash });
 
