@@ -25,12 +25,12 @@ MonoBehaviour:
   - {fileID: 8300000, guid: 56994ff311c274e778485eed2db82481, type: 3}
   specialByClass:
   - cast:
-      shared: {fileID: 0}
+      shared: {fileID: 8300000, guid: b8731586f0fe44db6a32589a1f33bdb8, type: 3}
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
       variants: []
-      sharedBeat: 0
+      sharedBeat: 3.55
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
