@@ -44,6 +44,11 @@ public class BattleHud : MonoBehaviour
     private readonly Dictionary<string, UnitOverlay> overlays = new();
     private Camera cam;
     private string activeId = "";
+    /// <summary>Field bars (LOKR): the enemy the player's team hit last, and the unit being targeted.</summary>
+    private string lastHitEnemyId = "";
+    private string targetedId = "";
+    private string sideOfPlayer = "";
+    private string lastFieldBarDesc = "";
     private bool built;
 
     /// <summary>Attach a HUD to the manager if a skin asset exists; otherwise stay silent
@@ -165,13 +170,38 @@ public class BattleHud : MonoBehaviour
         m.HealApplied += OnHealApplied;
         m.StatusChanged += OnStatusChanged;
         m.Died += OnDied;
+        m.TurnSkipped += OnTurnSkipped;
         m.BattleEnded += OnBattleEnded;
         m.SelectionChanged += OnSelectionChanged;
+    }
+
+    private void OnTurnSkipped(LobsterController lob, string reason)
+    {
+        SpawnFloatFor(lob, reason == "stun" ? "STUNNED" : reason.ToUpperInvariant(), Skin.textSecondary, 14);
+        Debug.Log($"[BattleHud] float {lob.lobsterId} {reason} skip");
     }
 
     private void OnSelectionChanged(SelectionData data)
     {
         Bar.Apply(data);
+        // The unit under consideration as a target carries a field bar while the player chooses.
+        targetedId = data != null && data.isPlayerTurn ? (data.targetId ?? "") : "";
+        RefreshFieldBars();
+    }
+
+    /// <summary>Field bars, LOKR-style: only the enemy hit last and the unit being targeted carry
+    /// one; everyone else stays bare (health is in the strip and the active panel).</summary>
+    private void RefreshFieldBars()
+    {
+        var shown = new StringBuilder();
+        foreach (var kv in overlays)
+        {
+            bool on = kv.Key == lastHitEnemyId || kv.Key == targetedId;
+            kv.Value.SetShown(on);
+            if (kv.Value.gameObject.activeSelf) { if (shown.Length > 0) shown.Append(','); shown.Append(kv.Key); }
+        }
+        string desc = $"last={lastHitEnemyId} target={targetedId} shown=[{shown}]";
+        if (desc != lastFieldBarDesc) { lastFieldBarDesc = desc; Debug.Log($"[BattleHud] fieldbar {desc}"); }
     }
 
     void OnDestroy()
@@ -186,6 +216,7 @@ public class BattleHud : MonoBehaviour
         manager.HealApplied -= OnHealApplied;
         manager.StatusChanged -= OnStatusChanged;
         manager.Died -= OnDied;
+        manager.TurnSkipped -= OnTurnSkipped;
         manager.BattleEnded -= OnBattleEnded;
         manager.SelectionChanged -= OnSelectionChanged;
     }
@@ -196,12 +227,13 @@ public class BattleHud : MonoBehaviour
     {
         foreach (var o in overlays.Values) if (o != null) Destroy(o.gameObject);
         overlays.Clear();
+        sideOfPlayer = init?.playerSide ?? "";
         var ids = new StringBuilder();
         foreach (var lob in manager.Lobsters)
         {
             if (lob == null) continue;
             var overlay = UnitOverlay.Create(overlayLayer, Skin);
-            overlay.Bind(lob);
+            overlay.Bind(lob, friendly: !string.IsNullOrEmpty(sideOfPlayer) && lob.side == sideOfPlayer);
             overlays[lob.lobsterId] = overlay;
             if (ids.Length > 0) ids.Append(',');
             ids.Append(lob.lobsterId);
@@ -214,6 +246,10 @@ public class BattleHud : MonoBehaviour
         // which is also where the gear now lives.
         string playerSide = init?.playerSide ?? "";
         Options.SetAvailable(playerSide == "A" || playerSide == "B");
+        lastHitEnemyId = "";
+        targetedId = "";
+        lastFieldBarDesc = "";
+        RefreshFieldBars();
 
         activeId = "";
         Panel.Hide();
@@ -229,7 +265,7 @@ public class BattleHud : MonoBehaviour
     private void OnTurnStarted(TurnStartData data, int fallbackRemainingMs)
     {
         activeId = data.lobsterId ?? "";
-        foreach (var kv in overlays) kv.Value.SetActive(kv.Key == activeId);
+        RefreshFieldBars();
         // The bar belongs to the player's own turn; React re-sends the real state right after.
         if (!data.isPlayer) Bar.Apply(null);
         var lob = manager.GetLobster(activeId);
@@ -308,8 +344,17 @@ public class BattleHud : MonoBehaviour
     {
         Color c = kind == "self" ? Skin.floatSelf : isCrit ? Skin.floatCrit : Skin.floatNormal;
         string text = "-" + amount + (isCrit ? "!" : "");
-        SpawnFloatFor(target, text, c, isCrit ? 22 : 16);
+        SpawnFloatFor(target, text, c, isCrit ? 24 : 16);   // Silkscreen sits on an 8 px grid: 16 / 24, never 22
         Debug.Log($"[BattleHud] float {target.lobsterId} {text} {kind}");
+        // LOKR: the enemy the player's team hit last keeps a tight bar until another is hit.
+        bool primary = kind == "attack" || kind == "special";
+        var actor = manager.GetLobster(activeId);
+        bool byPlayer = actor != null && (string.IsNullOrEmpty(sideOfPlayer) || actor.side == sideOfPlayer);
+        if (primary && byPlayer && target.side != actor.side)
+        {
+            lastHitEnemyId = target.lobsterId;
+            RefreshFieldBars();
+        }
     }
 
     private void OnHealApplied(LobsterController target, int amount)
@@ -326,6 +371,8 @@ public class BattleHud : MonoBehaviour
     private void OnDied(LobsterController lob)
     {
         if (overlays.TryGetValue(lob.lobsterId, out var o)) o.Refresh();
+        if (lob.lobsterId == lastHitEnemyId) lastHitEnemyId = "";
+        RefreshFieldBars();
         Strip.Refresh();
         if (lob.lobsterId == activeId) Marker.Hide();
     }
@@ -382,6 +429,7 @@ public class BattleHud : MonoBehaviour
             var o = kv.Value;
             var lob = o.Lobster;
             if (lob == null) { if (o.gameObject.activeSelf) o.gameObject.SetActive(false); continue; } // its rig was despawned
+            if (!o.Shown) continue;
             o.Rect.anchoredPosition = CanvasPointFor(lob.transform.position + Vector3.up * Skin.overlayWorldYOffset);
             o.Refresh();
         }

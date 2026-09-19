@@ -45,10 +45,14 @@ and reads as a bug.
 | `audio-prefs-probe.ts` → `audio-prefs-probe-2.ts` | Music/SFX toggles live, then persisted into a **fresh Chrome** via `out/audio-prefs.json` | run 1, restart Chrome, run 2 |
 | `overlap-probe.ts` | Fortify cast cadence vs the 6.8 s dome; watchdog firings; overlapping domes | `SPEED` `TAG` |
 | `turncap-probe.ts` | all-Bulwark battle to the 100-turn cap, banner frames | — |
-| `snap-probe.ts` | pixel-perfect: canvas css/backing size, Unity camera mode, ortho, px/unit | `DPR` `W` `H` |
+| `snap-probe.ts` | pixel-perfect: canvas css/backing size, Unity camera mode, ortho, px/unit (2026-09-16: its picker step stopped reaching the battle page — fs-probe covers the snap check meanwhile) | `DPR` `W` `H` |
+| `fs-probe.ts` | fullscreen enter → exit: the stage returns to the column size (a stale fullscreen canvas is the "third of the arena" report) | `DPR` `VW` `VH` |
 | `autoplay.ts` | `?auto=1&speed=N` review tools advance the battle with no clicks | `TRIO` `SPEED` |
 | `gridvis.ts` | hex grid hidden at rest, shown only when the player can act | — |
 | `forfeit.ts` | options menu → forfeit → `battle_ended` | — |
+| `stunprobe.ts` | Kraken Bind as a stun hold: tentacles Spawn on the hit → Idle loop while the victim is stunned (through its skipped turn) → Out when the stun ends; victim's rig frozen meanwhile; follows one victim by id; frames in `out/stun-*.png` | `PRESET` `SPEED` |
+| `movedefend.ts` | the reported freeze: click a move hex, let the preview walk, press Defend in the Unity bar — the turn goes out and resolves; `OFFLINE_TURN=n` closes the socket for real before the press on own turn *n* and checks the press is queued, "Sending…" shows in the canvas, and it is sent on reconnect | `PRESET` `TURNS` `OFFLINE_TURN` |
+| `autoclose.ts` | after the result banner the view closes itself: countdown under the result, Unity quit, music faded, back on `/game/battle`; `STAY=1` checks the `?stay=1` opt-out | `PRESET` `SPEED` `STAY` |
 | `movecheck.ts` | measured seconds per hex hop | — |
 | `timing.ts` / `reconnect-probe.ts` | full battle to the banner; reconnect keeps the active-turn ring honest | — |
 | `arena-shot.ts` / `dpr-probe.ts` / `resize-probe.ts` / `fs-probe.ts` / `layout-probe.ts` | screenshots and geometry dumps for layout work | — |
@@ -81,6 +85,12 @@ and reads as a bug.
   1.0. For zoom, read `[BattleHud] camera mode … ortho= px/unit=` from the camera itself.
 - **Probe output only shows what the probe prints.** Unity logs are in `b.logs`; grep them
   explicitly, or a real signal (`[BattleSfx]`, `[ArenaMusic]`) is invisible.
+- **The battle page leaves on its own ~6 s after the result banner** (back to `/game/battle`,
+  Unity quit). A probe that reads the page after the result must do so inside that window, or
+  open the battle with `&stay=1` — the picker carries it through like `auto` and `speed`.
+- **DevTools "offline" does not close an open WebSocket.** To test a drop, keep handles on the
+  page's sockets (`Page.addScriptToEvaluateOnNewDocument` wrapping `window.WebSocket`, see
+  `movedefend.ts`) and `close()` them.
 - **`timeout` does not exist on macOS** (`gtimeout`); `bun cdp.ts` scripts run to completion.
 - **Local practice-create can fail** with `TEAM_MANAGER_ADDRESS is not set` on the dev API — an
   env gap, not the probe; the next attempt usually lands.

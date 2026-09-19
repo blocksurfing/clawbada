@@ -52,6 +52,7 @@ public static class InfernoVfxBinder
         lib.specialImpactByClass[Ember] = new BattleVfxLibrary.VfxSlot
         {
             prefab = impact, anchor = BattleVfxLibrary.AnchorPoint.TargetImpactFx, delay = 0f, mirrorWithFacing = false, onTop = true,
+            shakeAmplitude = 0.08f, shakeSeconds = 0.35f,   // the fireball bursts (designer's ask)
         };
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();

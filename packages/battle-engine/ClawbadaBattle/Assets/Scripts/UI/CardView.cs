@@ -1,11 +1,15 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
 /// LOKR-style character card: bevelled frame, team-coloured header band, the lobster's
 /// portrait (composited from its own Carapace/Antennae/Eyes sprites, clipped to the card
-/// body) and a segmented HP bar along the bottom. Used by the turn strip and the active
-/// panel; the active card is scaled up, rimmed gold and gets a pennant.
+/// body), three charge pips and a segmented HP bar along the bottom, a shield in the
+/// portrait's corner while defending and up to three status icons opposite. The field
+/// carries none of that any more (see UnitOverlay) — the card is where a unit's state is
+/// read. Used by the turn strip and the active panel; the active card is scaled up, rimmed
+/// gold and gets a pennant.
 /// </summary>
 public class CardView : MonoBehaviour
 {
@@ -20,6 +24,11 @@ public class CardView : MonoBehaviour
     private HpBar hp;
     private Image pennant;
     private Vector2 size;
+    private readonly Image[] pips = new Image[3];
+    private Image shield;
+    private RectTransform statusRow;
+    private readonly List<Image> statusIcons = new();
+    private float iconSize;
 
     public static CardView Create(Transform parent, string name, HudSkin skin, Vector2 size, int segments)
     {
@@ -34,13 +43,14 @@ public class CardView : MonoBehaviour
         float inset = Mathf.Max(4f, size.x * 0.08f);
         float headerH = Mathf.Max(6f, size.y * 0.12f);
         float barH = Mathf.Max(5f, size.y * 0.1f);
+        float pipRowH = Mathf.Max(6f, size.y * 0.1f);   // charge pips sit between the portrait and the HP bar
 
         var headerRt = HudFactory.Rect(rt, "Header", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -inset), new Vector2(-inset * 2f, headerH));
         v.header = HudFactory.AddImage(headerRt, skin.cardHeader, skin.teamA);
 
         // Portrait window: clipped to the card body between header and bar.
         var windowRt = HudFactory.Rect(rt, "Window", new Vector2(0f, 0f), new Vector2(1f, 1f), HudFactory.Center, Vector2.zero, Vector2.zero);
-        windowRt.offsetMin = new Vector2(inset, inset + barH + 2f);
+        windowRt.offsetMin = new Vector2(inset, inset + barH + 2f + pipRowH);
         windowRt.offsetMax = new Vector2(-inset, -(inset + headerH + 1f));
         windowRt.gameObject.AddComponent<RectMask2D>();
         HudFactory.AddImage(windowRt, skin.segFill != null ? skin.segFill : skin.barFill, skin.cardInner); // solid backdrop behind the parts
@@ -54,6 +64,25 @@ public class CardView : MonoBehaviour
         v.hp.Rect.anchorMin = v.hp.Rect.anchorMax = new Vector2(0.5f, 0f);
         v.hp.Rect.pivot = new Vector2(0.5f, 0f);
         v.hp.Rect.anchoredPosition = new Vector2(0f, inset);
+
+        float pipSize = Mathf.Max(4f, size.x * 0.09f);
+        for (int i = 0; i < 3; i++)
+        {
+            var pip = HudFactory.Image(rt, $"Pip{i}", skin.pip, skin.gold, new Vector2(pipSize, pipSize));
+            pip.rectTransform.anchorMin = pip.rectTransform.anchorMax = new Vector2(0.5f, 0f);
+            pip.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            pip.rectTransform.anchoredPosition = new Vector2((i - 1) * (pipSize + 3f), inset + barH + 2f + pipRowH * 0.5f);
+            v.pips[i] = pip;
+        }
+
+        // Defending shield in the portrait's top-right corner; status icons from the top-left.
+        v.iconSize = Mathf.Max(8f, size.x * 0.22f);
+        v.shield = HudFactory.Image(windowRt, "Shield", skin.iconShield, Color.white, new Vector2(v.iconSize, v.iconSize));
+        v.shield.rectTransform.anchorMin = v.shield.rectTransform.anchorMax = new Vector2(1f, 1f);
+        v.shield.rectTransform.pivot = new Vector2(1f, 1f);
+        v.shield.rectTransform.anchoredPosition = new Vector2(-1f, -1f);
+        v.shield.enabled = false;
+        v.statusRow = HudFactory.Rect(windowRt, "Statuses", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(1f, -1f), new Vector2(v.iconSize * 3f + 2f, v.iconSize));
 
         v.pennant = HudFactory.Image(rt, "Pennant", skin.pennant, skin.gold, new Vector2(size.x * 0.28f, size.y * 0.22f));
         v.pennant.rectTransform.anchorMin = v.pennant.rectTransform.anchorMax = new Vector2(0.5f, 0f);
@@ -106,5 +135,34 @@ public class CardView : MonoBehaviour
         hp.Set(lob.currentHp, lob.maxHp);
         var c = lob.alive ? Color.white : new Color(0.45f, 0.45f, 0.45f, 0.9f);
         carapace.color = c; antennae.color = c; eyes.color = c;
+
+        for (int i = 0; i < pips.Length; i++)
+        {
+            if (pips[i] == null) continue;
+            pips[i].enabled = lob.alive;
+            pips[i].color = i < lob.charge ? skin.gold : new Color(1f, 1f, 1f, 0.25f);
+        }
+        if (shield != null) shield.enabled = lob.alive && lob.defending;
+
+        // Status icons (up to three): rebuild only when the set changes.
+        var statuses = lob.statuses;
+        int wanted = lob.alive && statuses != null ? Mathf.Min(3, statuses.Count) : 0;
+        while (statusIcons.Count < wanted)
+        {
+            var img = HudFactory.Image(statusRow, "Status", null, Color.white, new Vector2(iconSize, iconSize));
+            img.rectTransform.anchorMin = img.rectTransform.anchorMax = new Vector2(0f, 1f);
+            img.rectTransform.pivot = new Vector2(0f, 1f);
+            statusIcons.Add(img);
+        }
+        for (int i = 0; i < statusIcons.Count; i++)
+        {
+            bool on = i < wanted;
+            statusIcons[i].enabled = on;
+            if (!on) continue;
+            var sprite = skin.StatusSprite(statuses[i].type);
+            statusIcons[i].sprite = sprite;
+            statusIcons[i].enabled = sprite != null;
+            statusIcons[i].rectTransform.anchoredPosition = new Vector2(i * (iconSize + 1f), 0f);
+        }
     }
 }

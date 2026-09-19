@@ -93,6 +93,9 @@ public class LobsterController : MonoBehaviour
         grid = hexGrid;
 
         animator = GetComponent<Animator>();
+        frozen = false;
+        inHitRead = false;
+        if (animator != null) animator.speed = 1f;
         sortingGroup = GetComponent<SortingGroup>();
         if (sortingGroup == null) sortingGroup = gameObject.AddComponent<SortingGroup>();
 
@@ -229,10 +232,10 @@ public class LobsterController : MonoBehaviour
     /// <summary>Walk to a hex cell-by-cell along a BFS path from HexGrid, playing the
     /// Move state during transit. Hopping through cell centers (instead of one straight
     /// world lerp) keeps the movement visibly locked to the board; each hop fires the
-    /// step VFX and one movement sound (a random pick, so a walk doesn't loop one sample).
-    /// Previews walk too — for the local player's own turn the preview IS the visible
-    /// move (PlayTurn skips it when it already ended at the destination), so they must
-    /// not be silent.</summary>
+    /// step VFX, and one movement sound runs for the whole walk (a random take, looped,
+    /// stopped the moment the lobster stops — the takes outlast a hop). Previews walk too —
+    /// for the local player's own turn the preview IS the visible move (PlayTurn skips it
+    /// when it already ended at the destination), so they must not be silent.</summary>
     public IEnumerator MoveTo(int toCol, int toRow, float secondsPerHex)
     {
         var path = grid.FindPath(col, row, toCol, toRow);
@@ -244,6 +247,7 @@ public class LobsterController : MonoBehaviour
 
         PlayState("Move");
         Debug.Log($"[LobsterController] move {className} {path.Count} hex @ {secondsPerHex:F2}s each");
+        if (path.Count > 0) BattleSfx.StartMove();
 
         foreach (var step in path)
         {
@@ -251,7 +255,6 @@ public class LobsterController : MonoBehaviour
             Vector3 end = grid.GetWorldPosition(step.x, step.y);
             FaceToward(end);
             BattleVfxLibrary.Spawn(vfx?.moveStep, this, null, this);
-            BattleSfx.PlayMove();
 
             float t = 0f;
             while (t < secondsPerHex)
@@ -267,6 +270,7 @@ public class LobsterController : MonoBehaviour
             UpdateSortingOrder();
         }
 
+        BattleSfx.StopMove();
         FaceEnemySide();
         PlayState("Idle");
     }
@@ -293,14 +297,17 @@ public class LobsterController : MonoBehaviour
     /// <summary>Fraction of the Attack clip at which the hit lands (impact frame).</summary>
     public static float AttackImpactFraction = 0.5f;
 
-    public IEnumerator PlayAttack(Vector3 targetWorldPos, float duration, bool melee, System.Action onImpact)
+    public IEnumerator PlayAttack(Vector3 targetWorldPos, float duration, bool melee, System.Action onImpact, float animSpeed = 1f)
     {
         FaceToward(targetWorldPos);
         PlayState("Attack");
+        // A slowed swing (Bind casts at 0.5×): the Animator runs slower for the swing only, and the
+        // lunge stretches to match, so the contact frame lands later — room for a cast sound to build.
+        if (animator != null && animSpeed > 0f && animSpeed != 1f) animator.speed = animSpeed;
 
         // Never cut the designer's swing short: the lunge stretches to the clip's length
         // (Bulwark 1.0 s, Mantis up to 1.6 s, Reaver 1.4 s…) instead of the 0.55 s floor.
-        float clip = ClipLength("Attack");
+        float clip = ClipLength("Attack") / Mathf.Max(0.05f, animSpeed);
         float total = Mathf.Max(duration, clip);
         if (clip > duration + 0.01f) Debug.Log($"[LobsterController] attack {className} clip={clip:F2}s (floor {duration:F2}s)");
 
@@ -328,6 +335,7 @@ public class LobsterController : MonoBehaviour
         }
 
         transform.position = start;
+        if (animator != null && !frozen) animator.speed = 1f;   // the swing's own speed ends with it (a stun freeze keeps 0)
         FaceEnemySide();
         PlayState("Idle");
     }
@@ -338,6 +346,7 @@ public class LobsterController : MonoBehaviour
     {
         PlayState("Defense");
         BattleVfxLibrary.Spawn(vfx?.defend, this, null, this);
+        BattleSfx.PlayDefend(classId);   // both the turn and the round routines come through here
     }
 
     /// <summary>Hit reaction: turn to face the attacker, flinch, then back to Idle
@@ -362,15 +371,21 @@ public class LobsterController : MonoBehaviour
 
     public IEnumerator PlayHit(float duration, Vector3 attackerWorldPos)
     {
+        // A stunned (frozen) rig still flinches when hit; the freeze re-applies once the read ends.
+        inHitRead = true;
+        if (animator != null && frozen) { animator.speed = 1f; frozen = false; }
         FaceToward(attackerWorldPos);
         PlayState("Hit");
         // Evolved's Hit clip is 1.0 s (Elite/Apex 0.33 s): let it finish before returning to Idle.
         yield return new WaitForSeconds(Mathf.Max(duration, ClipLength("Hit")));
-        if (alive)
+        inHitRead = false;
+        bool stunned = alive && statuses.Exists(s => s.type == "stun");
+        if (alive && !stunned)
         {
             FaceEnemySide();
             PlayState("Idle");
         }
+        RefreshFreeze();   // stunned: hold the flinch's last frame instead of settling back to Idle
     }
 
     public void ApplyDamage(int amount)
@@ -399,6 +414,7 @@ public class LobsterController : MonoBehaviour
             foreach (var s in u.statuses) if (s != null && !string.IsNullOrEmpty(s.type)) statuses.Add(s);
         }
         SyncStatusVfx();
+        RefreshFreeze();
         if (snapPosition && grid != null && (col != u.col || row != u.row))
         {
             col = u.col;
@@ -430,8 +446,29 @@ public class LobsterController : MonoBehaviour
     {
         statuses.RemoveAll(s => s.type == type);
         if (applied) statuses.Add(new StatusData { type = type, turns = turns });
+        Debug.Log($"[LobsterController] status {type} {(applied ? "on" : "off")} {lobsterId} ({className}) turns={turns}");
         if (applied) ShowStatusVfx(type, animateIn: true);
         else HideStatusVfx(type, animateOut: true);
+        RefreshFreeze();
+    }
+
+    // ─── Stun freeze ───
+
+    private bool frozen;
+    private bool inHitRead;
+
+    /// <summary>Designer's read for a stun: the rig pauses in place — Animator speed 0 — for as
+    /// long as the "stun" status holds, and resumes when it ends. Hit and death reads still play
+    /// (they manage the speed themselves and re-check on exit).</summary>
+    private void RefreshFreeze()
+    {
+        if (animator == null || inHitRead) return;
+        bool stunned = alive && !deathPlayed && statuses.Exists(s => s.type == "stun");
+        if (stunned == frozen) return;
+        frozen = stunned;
+        animator.speed = frozen ? 0f : 1f;
+        Debug.Log($"[LobsterController] {lobsterId} ({className}) {(frozen ? "frozen (stun)" : "unfrozen")}");
+        if (!frozen && alive) { FaceEnemySide(); PlayState("Idle"); }
     }
 
     // ─── Status visuals (persistent marks such as Haunt's sigil) ───
@@ -470,6 +507,7 @@ public class LobsterController : MonoBehaviour
     private GameObject AttachStatusChild(GameObject prefab, BattleVfxLibrary.StatusVfx def)
     {
         var go = Instantiate(prefab, transform);
+        Debug.Log($"[LobsterController] status fx {prefab.name} on {lobsterId} ({className})");
         go.transform.localPosition = new Vector3(0f, def.yOffset, 0f);
         go.transform.localRotation = Quaternion.identity;
         go.transform.localScale = Vector3.one;
@@ -527,6 +565,9 @@ public class LobsterController : MonoBehaviour
         ClearStatusVfx();
         if (deathPlayed) yield break;
         deathPlayed = true;
+        if (animator != null) { animator.speed = 1f; frozen = false; }   // a frozen rig still dies on screen
+        Debug.Log($"[LobsterController] death {lobsterId} ({className})");
+        BattleSfx.PlayDeath(classId);
         alive = false;
         defending = false;
         bool hasDie = PlayState("Die", 0.05f);

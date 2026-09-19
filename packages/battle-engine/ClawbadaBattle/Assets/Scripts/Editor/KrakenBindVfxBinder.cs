@@ -9,7 +9,12 @@ using UnityEngine;
 /// <summary>
 /// Lands the designer-exported Kraken Bind special VFX.
 /// Source sheets: Spawn(9), Idle(6), Out(9), each 128x128 horizontal.
-/// Runtime binding: per-target impact VFX anchored on TargetBody, so the tentacles bind around the victim.
+/// Runtime binding: the tentacles ARE the stun. They bind as the status visual for "stun" —
+/// Spawn on the hit, Idle looping for as long as the target stays stunned (its skipped turn),
+/// Out when the stun ends — parented under the victim like Haunt's sigil, so they follow it.
+/// The earlier single composite (Spawn→Idle→Out as one 2 s one-shot) played Out while the
+/// target was still stunned; the designer asked for the hold. No impact slot: a stun-immune
+/// target takes the damage with the plain hit read and no tentacles.
 /// Menu: Clawbada ▸ VFX ▸ Bind Kraken Bind. Headless: -executeMethod KrakenBindVfxBinder.Bind
 /// </summary>
 public static class KrakenBindVfxBinder
@@ -48,29 +53,32 @@ public static class KrakenBindVfxBinder
         SliceHorizontalSheet(SpawnPath, SpawnFrames, "Spawn");
         SliceHorizontalSheet(IdlePath, IdleFrames, "Idle");
         SliceHorizontalSheet(OutPath, OutFrames, "Out");
-        var prefab = BuildCompositePrefab();
+        EnsureFolder("Assets/Prefabs/VFX");
+        EnsureFolder("Assets/Prefabs/VFX/Clips");
+        // The old single composite is superseded by the three phase prefabs below.
+        foreach (var stale in new[] { PrefabPath, ClipPath, ControllerPath }) AssetDatabase.DeleteAsset(stale);
+        var spawn = BuildPhasePrefab("Spawn", LoadSprites(SpawnPath, SpawnFrames), loop: false);
+        var idle = BuildPhasePrefab("Idle", LoadSprites(IdlePath, IdleFrames), loop: true);
+        var outFx = BuildPhasePrefab("Out", LoadSprites(OutPath, OutFrames), loop: false);
 
         var lib = AssetDatabase.LoadAssetAtPath<BattleVfxLibrary>(LibraryPath);
         if (lib == null) throw new System.Exception($"[KrakenBindVfxBinder] missing {LibraryPath}");
         if (lib.specialByClass == null || lib.specialByClass.Length < 10) lib.specialByClass = new BattleVfxLibrary.VfxSlot[10];
         if (lib.specialImpactByClass == null || lib.specialImpactByClass.Length < 10) lib.specialImpactByClass = new BattleVfxLibrary.VfxSlot[10];
 
-        // Kraken Bind is a target bind/hold read, not a caster windup. Leave the class windup empty
-        // and attach the full tentacle sequence to the Special impact so it plays on every hit target.
-        lib.specialByClass[Kraken] = new BattleVfxLibrary.VfxSlot { prefab = null };
-        lib.specialImpactByClass[Kraken] = new BattleVfxLibrary.VfxSlot
-        {
-            prefab = prefab,
-            anchor = BattleVfxLibrary.AnchorPoint.TargetBody,
-            delay = 0f,
-            mirrorWithFacing = false,
-            onTop = true,
-        };
+        // No caster windup and no impact slot: the status visual below is the whole read. The cast
+        // swing runs at half speed (contact ~0.6 s instead of 0.29) so a Bind sound can build first.
+        lib.specialByClass[Kraken] = new BattleVfxLibrary.VfxSlot { prefab = null, castSpeed = 0.5f };
+        lib.specialImpactByClass[Kraken] = new BattleVfxLibrary.VfxSlot { prefab = null };
+        var visuals = new List<BattleVfxLibrary.StatusVfx>(lib.statusVisuals ?? new BattleVfxLibrary.StatusVfx[0]);
+        visuals.RemoveAll(v => v != null && string.Equals(v.status, "stun", System.StringComparison.OrdinalIgnoreCase));
+        visuals.Add(new BattleVfxLibrary.StatusVfx { status = "stun", spawn = spawn, loop = idle, end = outFx, yOffset = 0f });
+        lib.statusVisuals = visuals.ToArray();
 
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        string msg = $"[KrakenBindVfxBinder] OK — Spawn {SpawnFrames}, Idle {IdleFrames}, Out {OutFrames} @ {Fps} fps ({BattleVfxLibrary.ClipLength(prefab):F2}s) bound to specialImpactByClass[8]/Kraken Bind";
+        string msg = $"[KrakenBindVfxBinder] OK — stun status visual: Spawn {SpawnFrames} ({BattleVfxLibrary.ClipLength(spawn):F2}s), Idle {IdleFrames} loop ({BattleVfxLibrary.ClipLength(idle):F2}s), Out {OutFrames} ({BattleVfxLibrary.ClipLength(outFx):F2}s) @ {Fps} fps — statusVisuals[\"stun\"] (no caster/impact slot)";
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
     }
@@ -111,47 +119,41 @@ public static class KrakenBindVfxBinder
         importer.SaveAndReimport();
     }
 
-    private static GameObject BuildCompositePrefab()
+    /// <summary>One phase as its own prefab: a single SpriteRenderer animated by a sprite-keyframe
+    /// clip. One-shots carry OneShotVfx (destroyed after the clip); the loop lives until the status ends.</summary>
+    private static GameObject BuildPhasePrefab(string phase, Sprite[] sprites, bool loop)
     {
-        var spawnSprites = LoadSprites(SpawnPath, SpawnFrames);
-        var idleSprites = LoadSprites(IdlePath, IdleFrames);
-        var outSprites = LoadSprites(OutPath, OutFrames);
+        string stem = $"FX_Kraken_Bind_{phase}";
+        string clipPath = $"Assets/Prefabs/VFX/Clips/{stem}.anim";
+        string controllerPath = $"Assets/Prefabs/VFX/Clips/AC_{stem}.controller";
+        string prefabPath = $"Assets/Prefabs/VFX/{stem}.prefab";
 
         var clip = new AnimationClip { frameRate = Fps };
-        float spawnStart = 0f;
-        float idleStart = SpawnFrames / Fps;
-        float outStart = idleStart + IdleFrames / Fps;
-        SetEnabledCurve(clip, "Spawn", true, spawnStart, idleStart, outStart + OutFrames / Fps);
-        SetEnabledCurve(clip, "Idle", false, idleStart, outStart, outStart + OutFrames / Fps);
-        SetEnabledCurve(clip, "Out", false, outStart, outStart + OutFrames / Fps, outStart + OutFrames / Fps);
-        SetSpriteCurve(clip, "Spawn", spawnSprites, spawnStart);
-        SetSpriteCurve(clip, "Idle", idleSprites, idleStart);
-        SetSpriteCurve(clip, "Out", outSprites, outStart);
-
+        SetSpriteCurve(clip, "", sprites, 0f);            // path "" — the root's own SpriteRenderer
         var settings = AnimationUtility.GetAnimationClipSettings(clip);
-        settings.loopTime = false;
+        settings.loopTime = loop;
         settings.startTime = 0f;
-        settings.stopTime = (SpawnFrames + IdleFrames + OutFrames) / Fps;
+        settings.stopTime = sprites.Length / Fps;
         AnimationUtility.SetAnimationClipSettings(clip, settings);
+        AssetDatabase.DeleteAsset(clipPath);
+        AssetDatabase.CreateAsset(clip, clipPath);
+        AssetDatabase.DeleteAsset(controllerPath);
+        var controller = AnimatorController.CreateAnimatorControllerAtPathWithClip(controllerPath, clip);
 
-        EnsureFolder("Assets/Prefabs/VFX");
-        EnsureFolder("Assets/Prefabs/VFX/Clips");
-        AssetDatabase.DeleteAsset(ClipPath);
-        AssetDatabase.CreateAsset(clip, ClipPath);
-        AssetDatabase.DeleteAsset(ControllerPath);
-        var controller = AnimatorController.CreateAnimatorControllerAtPathWithClip(ControllerPath, clip);
-
-        var root = new GameObject("FX_Kraken_Bind");
+        var root = new GameObject(stem);
         try
         {
-            AddLayer(root.transform, "Spawn", spawnSprites[0], startEnabled: true);
-            AddLayer(root.transform, "Idle", idleSprites[0], startEnabled: false);
-            AddLayer(root.transform, "Out", outSprites[0], startEnabled: false);
+            var sr = root.AddComponent<SpriteRenderer>();
+            sr.sprite = sprites[0];
+            // Inside the victim's SortingGroup the layer outranks the order: Foreground draws over
+            // the rig's Default-layer parts — the tentacles wrap the body, not hide behind it.
+            sr.sortingLayerName = "Foreground";
+            sr.sortingOrder = 0;
             var animator = root.AddComponent<Animator>();
             animator.runtimeAnimatorController = controller;
-            root.AddComponent<OneShotVfx>();
-            AssetDatabase.DeleteAsset(PrefabPath);
-            return PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
+            if (!loop) root.AddComponent<OneShotVfx>();
+            AssetDatabase.DeleteAsset(prefabPath);
+            return PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
         }
         finally
         {
@@ -167,41 +169,12 @@ public static class KrakenBindVfxBinder
         return sprites;
     }
 
-    private static void AddLayer(Transform parent, string name, Sprite sprite, bool startEnabled)
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = sprite;
-        sr.enabled = startEnabled;
-        sr.sortingLayerName = "Foreground";
-        sr.sortingOrder = 0;
-    }
-
     private static void SetSpriteCurve(AnimationClip clip, string path, Sprite[] sprites, float startTime)
     {
         var binding = new EditorCurveBinding { type = typeof(SpriteRenderer), path = path, propertyName = "m_Sprite" };
         var keys = new ObjectReferenceKeyframe[sprites.Length];
         for (int i = 0; i < sprites.Length; i++) keys[i] = new ObjectReferenceKeyframe { time = startTime + i / Fps, value = sprites[i] };
         AnimationUtility.SetObjectReferenceCurve(clip, binding, keys);
-    }
-
-    private static void SetEnabledCurve(AnimationClip clip, string path, bool startsOn, float start, float end, float clipEnd)
-    {
-        var keys = new List<Keyframe>
-        {
-            Stepped(0f, startsOn ? 1f : 0f),
-        };
-        if (!startsOn) keys.Add(Stepped(Mathf.Max(0f, start - 0.001f), 0f));
-        keys.Add(Stepped(start, 1f));
-        keys.Add(Stepped(end, 0f));
-        keys.Add(Stepped(clipEnd, 0f));
-        clip.SetCurve(path, typeof(SpriteRenderer), "m_Enabled", new AnimationCurve(keys.ToArray()));
-    }
-
-    private static Keyframe Stepped(float time, float value)
-    {
-        return new Keyframe(time, value, float.PositiveInfinity, float.PositiveInfinity);
     }
 
     private static void EnsureFolder(string path)

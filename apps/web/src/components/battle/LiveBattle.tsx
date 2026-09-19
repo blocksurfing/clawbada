@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
@@ -34,9 +35,16 @@ export interface LiveBattleProps {
   autoPlay?: boolean;
   /** Review tool: Unity playback speed multiplier (URL ?speed=2). */
   speed?: number;
+  /** Called once the view has closed itself after the result (stage torn down) — the page navigates. Absent → the view stays. */
+  onClose?: () => void;
+  /** Review / harness: never leave on its own (URL ?stay=1). The Stay button does the same at runtime. */
+  stay?: boolean;
 }
 
-export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed }: LiveBattleProps) {
+/** Seconds the result stays on screen before the view returns to the arena page. Wall clock — ?speed does not touch it. */
+const RETURN_SECONDS = 6;
+
+export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed, onClose, stay }: LiveBattleProps) {
   const { getAuthParams, getAuthHeaders, getSessionToken } = useAuth();
   const [unityAvailable, setUnityAvailable] = useState<boolean | null>(null);
   const [unityReady, setUnityReady] = useState(false);
@@ -51,7 +59,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     getSessionToken: isSpectator ? undefined : getSessionToken,
     gateOnAnimation: gate,
   });
-  const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq } = session;
+  const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq, refreshSnapshot } = session;
   // The bed waits for the arena to be visible: Unity bound, or the plain board shown because Unity is unavailable.
   useArenaMusic(snapshot?.session.tier, gate || unityAvailable === false, !!ended);
   const handleAudioPref = useCallback((p: AudioPrefChange) => (p.kind === 'music' ? setMusicPref(p.on) : setSfxPref(p.on)), []);
@@ -84,9 +92,10 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   // The bar belongs to a turn the player can act on: not while earlier turns are still
   // animating (React's `current` runs ahead of the picture), except to show "Sending…".
   const barTurn = myTurn && (!animating || pendingAck);
+  const currentError = error && (error.turn === undefined || error.turn === current?.turn) ? error.message : null;
   const selectionData = useMemo(
-    () => (snapshot ? selectionToData(canAct ? selection : null, snapshot.roster, { isPlayerTurn: barTurn, canAct: canAct && !pendingAck, pendingAck }) : null),
-    [snapshot, selection, canAct, barTurn, pendingAck],
+    () => (snapshot ? selectionToData(canAct ? selection : null, snapshot.roster, { isPlayerTurn: barTurn, canAct: canAct && !pendingAck, pendingAck, error: currentError }) : null),
+    [snapshot, selection, canAct, barTurn, pendingAck, currentError],
   );
   const handleActionSelected = useCallback((a: string) => {
     console.log(`[LiveBattle] unity action ${a}`);
@@ -110,6 +119,13 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   useEffect(() => {
     if (error && error.turn === sentTurn) setSentTurn(null);
   }, [error, sentTurn]);
+  useEffect(() => {
+    if (!error) return;
+    console.warn(`[LiveBattle] server rejected: ${error.code} — ${error.message}${error.turn !== undefined ? ` (turn ${error.turn})` : ''}`);
+    // The client's idea of the current turn is behind or ahead of the server's: pull the
+    // authoritative snapshot rather than leave the player pressing at a turn that isn't there.
+    if (error.code === 'turn_mismatch') void refreshSnapshot();
+  }, [error, refreshSnapshot]);
   useEffect(() => {
     if (ended) onEnded?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -165,6 +181,52 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   }, [battleId, ended, isSpectator, getAuthHeaders]);
   const handleReady = useCallback(() => { setUnityAvailable(true); setUnityReady(true); }, []);
 
+  // Auto-return. The result counts as shown once the ended payload is in AND nothing is still
+  // animating — the same moment BattleStage raises Unity's banner — so the countdown never
+  // runs over the last death. Then the stage tears Unity down and the page navigates.
+  const resultShown = !!ended && pending.length === 0;
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [stayHere, setStayHere] = useState(false);
+  const [closing, setClosing] = useState(false);
+  useEffect(() => {
+    if (!resultShown || !onClose || stay || stayHere || closing) return;
+    console.log(`[LiveBattle] result shown — back to the arena in ${RETURN_SECONDS} s`);
+    setCountdown(RETURN_SECONDS);
+    const started = Date.now();
+    const t = setInterval(() => {
+      const left = RETURN_SECONDS - Math.floor((Date.now() - started) / 1000);
+      if (left <= 0) { clearInterval(t); setCountdown(0); setClosing(true); }
+      else setCountdown(left);
+    }, 250);
+    return () => clearInterval(t);
+  }, [resultShown, onClose, stay, stayHere, closing]);
+  useEffect(() => {
+    if (closing) console.log(`[LiveBattle] closing the battle view${unityAvailable === false ? ' (plain board)' : ''}`);
+  }, [closing, unityAvailable]);
+  // Without a Unity stage there is nothing to tear down; with one, BattleStage reports back.
+  useEffect(() => {
+    if (closing && unityAvailable === false) onClose?.();
+  }, [closing, unityAvailable, onClose]);
+  const handleClosed = useCallback(() => onClose?.(), [onClose]);
+  // The countdown sits over the canvas (where the eyes are — the result panel below can be
+  // under the fold, and in fullscreen it is not on screen at all); on the plain board it goes
+  // in the result panel instead.
+  const returnRow = onClose && resultShown ? (
+    <div className="flex flex-wrap items-center justify-center gap-3 text-xs" data-testid="battle-return">
+      {closing ? (
+        <span className="font-pixel text-[10px]">Leaving the arena…</span>
+      ) : countdown !== null && !stayHere && !stay ? (
+        <>
+          <span className="font-pixel text-[10px]">Back to the arena in {countdown}s</span>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setClosing(true)}>Back now</Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => { setStayHere(true); setCountdown(null); }}>Stay</Button>
+        </>
+      ) : (
+        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setClosing(true)}>Back to the arena</Button>
+      )}
+    </div>
+  ) : null;
+
   if (!snapshot) {
     return (
       <FrostedPanel className="py-10 text-center">
@@ -215,6 +277,9 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
           onUndoMove={handleUndo}
           onUnavailable={handleUnavailable}
           onReady={handleReady}
+          closing={closing}
+          onClosed={handleClosed}
+          overlay={gate ? returnRow : undefined}
         />
       )}
       {/* Fallback board: only when the Unity build is missing or not yet ready — the arena
@@ -291,6 +356,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
             {ended.settle === 'queued' && ' · settlement submitted on-chain'}
           </p>
           <p className="text-[10px] text-text-secondary mt-2 font-mono break-all">log {ended.turnLogHash}</p>
+          {!gate && returnRow && <div className="mt-4">{returnRow}</div>}
         </FrostedPanel>
       )}
 

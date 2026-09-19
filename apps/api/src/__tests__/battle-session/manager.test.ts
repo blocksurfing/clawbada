@@ -98,6 +98,16 @@ describe('practice', () => {
     expect(mgr.liveCount()).toBe(1);
   });
 
+  test('startPractice with an arena puts the team on that board; the lobsters keep their own tier', async () => {
+    const store = new FakeStore();
+    const { mgr } = make(store);
+    const s = await mgr.startPractice({ owner: ALICE, lobsters: practiceLobsters, bot: 'balanced', opponent: 'mirror', arena: 'apex' });
+    expect(s.record.tier).toBe('apex');
+    expect(s.state.layout.tier).toBe('apex');
+    expect(s.state.lobsters.every((l) => l.tier === EvolutionTier.Elite)).toBe(true);
+    expect(store.rows.get(s.record.id)).toMatchObject({ tier: 'apex' });
+  });
+
   test("'random' opponents are seeded from the practice seed", async () => {
     const store = new FakeStore();
     const { mgr } = make(store);

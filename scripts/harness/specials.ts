@@ -136,7 +136,7 @@ export default async function (b: Browser) {
           // vortex under the target with its impact at 0.5 s.
           await b.sleep(250);
           for (let f = 0; f < 10; f++) { await b.screenshot(`${S}/specials-${CLASS}-f${f}.png`); await b.sleep(300); }
-          for (const l of grab(b, /BattleManager\] special|Devour|Bind|Ambush|SortingGroup|Exception/i)) console.log(`[${CLASS}-log]`, l.slice(0, 220));
+          for (const l of grab(b, /BattleManager\] special|BattleManager\] heal events|ScreenDim|Devour|Bind|Ambush|SortingGroup|Exception/i)) console.log(`[${CLASS}-log]`, l.slice(0, 220));
         }
         if (CLASS === 'Specials') {
           // Mixed roster: capture each finished Special as it fires.
@@ -169,6 +169,9 @@ export default async function (b: Browser) {
     if (errText) errors.push(`turn ${before}: page error '${errText}'`);
     if (casters.size >= 3 && casts >= 3) break;
   }
+  // The loop breaks right after the last cast is clicked, and a cinematic (Maelstrom, Fortify, Devour)
+  // holds its beat for seconds — wait for its hold line so the beat's logs (shake, damage) are in the buffer.
+  for (let w = 0; w < 32 && grab(b, /effect clip=/).length > 0 && grab(b, /effect held to/).length === 0; w++) await b.sleep(250);
   await b.sleep(1500);
   await b.screenshot(`${S}/specials-${CLASS}.png`);
   const logSpecials = await b.eval(`Array.from(document.querySelectorAll('span.text-claw-gold')).map(s => s.textContent).filter(Boolean).slice(0, 6)`);
@@ -177,6 +180,42 @@ export default async function (b: Browser) {
   expect(errors.length === 0, `${CLASS}: no turn errors: ${errors.slice(0, 3).join(' | ')}`);
   const exc = b.logs.filter((l) => /\[exception\]|NullReference|GLctx/.test(l) && !/Family Accounts/.test(l));
   expect(exc.length === 0, `${CLASS}: no Unity/page exceptions: ${exc.slice(0, 2).join(' | ')}`);
+  // Plain Specials that asked for their effect on the contact frame (Ambush): the effect must
+  // fire at the swing's midpoint, not at t=0.
+  for (const l of grab(b, /\[BattleManager\] special .* (contact at .*cast speed|cast beat)/).slice(0, 6)) console.log('  swing:', l.slice(0, 130));
+  const onContact = grab(b, /\[BattleManager\] special .* effect on contact at/);
+  for (const l of onContact.slice(0, 4)) console.log('  contact:', l.slice(0, 120));
+  if (onContact.length) {
+    const ts = onContact.map((l) => Number((l.match(/at ([\d.]+)s/) || [])[1] ?? '0'));
+    expect(ts.every((t) => t >= 0.3), `${CLASS}: effect spawned on the contact frame, not at the turn start (${ts.map((t) => t.toFixed(2)).join(', ')} s)`);
+  }
+  // Projectile audio fit (Inferno with both a cast and an impact clip bound): the impact clip must start
+  // the instant the cast clip ends, so the two files the sound designer authored play back to back.
+  const fit = grab(b, /\[BattleManager\] special .* audio fit:/);
+  for (const l of fit.slice(0, 3)) console.log('  fit:', l.slice(0, 170));
+  if (fit.length) {
+    const m = fit[fit.length - 1].match(/cast ([\d.]+)s .* cast starts at ([\d.]+)s/);
+    const sched = grab(b, /\(impact\) scheduled: .*starts in ([\d.]+)s/).slice(-1)[0]?.match(/starts in ([\d.]+)s/);
+    if (m && sched) {
+      const castEnd = Number(m[1]) + Number(m[2]); const impactStart = Number(sched[1]);
+      expect(Math.abs(castEnd - impactStart) < 0.03, `${CLASS}: impact clip starts the instant the cast clip ends (cast ends ${castEnd.toFixed(2)} s, impact starts ${impactStart.toFixed(2)} s)`);
+    } else expect(false, `${CLASS}: audio-fit and impact-schedule lines both present`);
+  }
+  for (const l of grab(b, /\[BattleManager\] heal events|\(heal\)|special .* heal at/).slice(0, 4)) console.log('  heal:', l.slice(0, 120));
+  for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
+  if (CLASS === 'Tempest' || CLASS === 'Ember') {
+    expect(grab(b, /\[CameraShake\] amp=/).length >= 1, `${CLASS}: screen shake fired on the beat`);
+    // The camera actually moved: at least a few rendered frames with a visible peak, then back at base.
+    const done = grab(b, /\[CameraShake\] done:/).slice(-1)[0]?.match(/done: (\d+) frames, peak ([\d.]+)u \(([\d.]+)px\)/);
+    expect(!!done && Number(done[1]) >= 3 && Number(done[3]) >= 2, `${CLASS}: shake moved the camera over several frames (${done ? `${done[1]} frames, peak ${done[3]} px` : 'no done line'})`);
+  }
+  const held = grab(b, /\[BattleManager\] special .* effect held to/);
+  for (const l of held.slice(0, 4)) console.log('  hold:', l.slice(0, 120));
+  if (held.length) {
+    // The turn must hold until the effect is (nearly) done — 15 % tail on a short clip, 0.8 s on a long one.
+    const short = held.map((l) => l.match(/held to ([\d.]+)s of ([\d.]+)s/)).filter(Boolean).map((m) => [Number(m![1]), Number(m![2])] as const);
+    expect(short.every(([t, clip]) => t >= clip - Math.min(0.8, clip * 0.15) - 0.05), `${CLASS}: every cinematic held to its clip's end (${short.map(([t, c]) => `${t}/${c}`).join(', ')})`);
+  }
   const cine = grab(b, /\[BattleManager\] special .* effect clip=/);
   if (cine.length) console.log(`[${CLASS}] cinematic special timing: ${cine[0]}`);
   const floats = grab(b, /\[BattleHud\] float .* special/);
