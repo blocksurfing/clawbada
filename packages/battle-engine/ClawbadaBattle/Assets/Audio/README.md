@@ -41,6 +41,25 @@ paths. A misnamed file binds nothing and that sound is simply silent — no erro
 `<Ability>` = Fortify Ambush Crush Maelstrom Haunt Rally Rend Devour Bind Inferno ·
 `<Tier>` = Evolved Elite Apex. Re-run the bind after every drop.
 
+## How a Special's sounds line up with its animation
+
+The binder measures each file's loudest 50 ms (its "hit") and the engine times the picture to
+it, so the files are authored freely and the game adapts:
+
+- **Swing Specials (Bind, Ambush, Crush, Rend):** one cast file. The engine delays the swing so
+  the contact frame lands on the cast file's hit (Bind's takes: hit at 1.00 s / 0.70 s).
+- **Inferno (projectile):** two files that play **back to back** — `SFX_Ember_Inferno.wav`
+  (charge-up + travel) then `SFX_Ember_Inferno_Impact.wav` (the burst). The impact file starts
+  the instant the cast file ends, and the engine fits the fireball's flight so the explosion
+  frame lands on the impact file's hit. The picture cannot explode earlier than **2.37 s** after
+  the cast begins (1.83 s charge-up animation + 0.12 s shortest flight + 0.42 s until the burst
+  sprite pops), so a cast file shorter than that starts late by the difference (a 2.0 s cast
+  starts 0.32 s into the charge-up) rather than leaving silence before the hit. Casts up to
+  ~3.0 s stretch the flight instead. Either file may be a numbered take set.
+- **Cinematic Specials (Maelstrom, Fortify, Devour):** the cast file starts with the effect; the
+  impact file is started early by its own hit offset so the hit lands on the effect's beat
+  (Maelstrom's lightning at 3.9 s).
+
 ## Budget
 
 The WebGL build is ~8 MB today. The landing-page theme is 41 MB as WAV. Audio will

@@ -114,6 +114,35 @@ public static class BattleSfx
         return clip != null ? beat : 0f;
     }
 
+    /// <summary>Choose the cast clip for a Special without playing it — for a branch that must know the clip's
+    /// length before it starts (the projectile fits its flight to the audio). Play it with <see cref="PlayCast"/>.
+    /// Returns null (length 0) when no cast clip is bound.</summary>
+    public static AudioClip PeekSpecialCast(int classId, int tier, out float beat, out float length)
+    {
+        beat = 0f; length = 0f;
+        var slot = Library?.SpecialSlot(classId);
+        var clip = slot?.cast?.Pick(tier, out beat);
+        if (clip == null) { beat = 0f; return null; }
+        length = clip.length;
+        return clip;
+    }
+
+    /// <summary>Play a cast clip from <see cref="PeekSpecialCast"/>, <paramref name="delay"/> seconds from now (scaled time).</summary>
+    public static void PlayCast(AudioClip clip, float delay = 0f)
+    {
+        if (clip == null) return;
+        if (delay <= 0.01f) { Play(clip, "cast"); return; }
+        if (!Enabled || !Application.isPlaying) return;
+        EnsureSource();
+        runner.StartCoroutine(PlayAfter(clip, delay, "cast"));
+    }
+
+    /// <summary>True when a Special impact clip is bound for this class/tier.</summary>
+    public static bool HasSpecialImpact(int classId, int tier) => Library?.SpecialImpactFor(classId, tier) != null;
+
+    /// <summary>Seconds into the class's Special impact clip where its hit sits (the binder's measured loudest moment).</summary>
+    public static float SpecialImpactHit(int classId) => Library?.SpecialImpactLead(classId) ?? 0f;
+
     /// <summary>Impact phase, right now. For the plain branch, where the beat is the swing's own contact frame.</summary>
     public static void PlaySpecialImpact(int classId, int tier) => Play(Library?.SpecialImpactFor(classId, tier), "impact");
 
@@ -159,10 +188,10 @@ public static class BattleSfx
         Debug.Log($"[BattleSfx] {clip.name} ({phase}) @ {Headroom:F2}");
     }
 
-    private static IEnumerator PlayAfter(AudioClip clip, float delay)
+    private static IEnumerator PlayAfter(AudioClip clip, float delay, string phase = "impact")
     {
         if (delay > 0f) yield return new WaitForSeconds(delay);
-        Play(clip, "impact");
+        Play(clip, phase);
     }
 
     private static void EnsureSource()
