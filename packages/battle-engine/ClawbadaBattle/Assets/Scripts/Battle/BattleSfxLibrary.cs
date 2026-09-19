@@ -66,6 +66,9 @@ public class BattleSfxLibrary : ScriptableObject
         [Tooltip("Seconds BEFORE the hit beat to start the impact clip, so its loudest moment lands on the " +
                  "beat instead of after it. Measured from the file by the binder; edit here to override.")]
         public float impactLead;
+        [Tooltip("Restorative — plays when the Special actually restored HP (Devour's heal, Rally). A heal of 0 is silent. " +
+                 "SFX/Special/SFX_<Class>_<Ability>_Heal.wav")]
+        public TierClips heal = new TierClips();
     }
 
     [Tooltip("Basic attack, one per class, indexed by LobsterClass. Empty slots are silent, not an error.")]
@@ -123,4 +126,5 @@ public class BattleSfxLibrary : ScriptableObject
     public AudioClip SpecialCastFor(int classId, int tier) => SpecialSlot(classId)?.cast?.For(tier);
     public AudioClip SpecialImpactFor(int classId, int tier) => SpecialSlot(classId)?.impact?.For(tier);
     public float SpecialImpactLead(int classId) => SpecialSlot(classId)?.impactLead ?? 0f;
+    public AudioClip SpecialHealFor(int classId, int tier) => SpecialSlot(classId)?.heal?.For(tier);
 }

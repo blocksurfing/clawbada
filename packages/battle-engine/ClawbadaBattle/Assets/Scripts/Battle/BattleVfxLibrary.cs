@@ -57,6 +57,13 @@ public class BattleVfxLibrary : ScriptableObject
         public float shakeAmplitude = 0f;
         [Tooltip("How long the shake takes to die out.")]
         public float shakeSeconds = 0.3f;
+        [Tooltip("Darken the arena under the lobsters while this effect plays (0 = none): a full-screen black layer at this alpha, " +
+                 "sorted below the lobsters so the cast and its effects stay lit (Devour's abyss).")]
+        public float dimAlpha = 0f;
+        [Tooltip("Dim fade-in seconds from the effect's start.")]
+        public float dimFadeIn = 0.3f;
+        [Tooltip("Dim fade-out seconds, ending with the effect.")]
+        public float dimFadeOut = 0.5f;
 
         [Header("Projectile Specials (Inferno)")]
         [Tooltip("Looping projectile prefab. When set, the Special is a projectile: this prefab flies from the caster's AttackFX " +

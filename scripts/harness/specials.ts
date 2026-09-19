@@ -136,7 +136,7 @@ export default async function (b: Browser) {
           // vortex under the target with its impact at 0.5 s.
           await b.sleep(250);
           for (let f = 0; f < 10; f++) { await b.screenshot(`${S}/specials-${CLASS}-f${f}.png`); await b.sleep(300); }
-          for (const l of grab(b, /BattleManager\] special|Devour|Bind|Ambush|SortingGroup|Exception/i)) console.log(`[${CLASS}-log]`, l.slice(0, 220));
+          for (const l of grab(b, /BattleManager\] special|BattleManager\] heal events|ScreenDim|Devour|Bind|Ambush|SortingGroup|Exception/i)) console.log(`[${CLASS}-log]`, l.slice(0, 220));
         }
         if (CLASS === 'Specials') {
           // Mixed roster: capture each finished Special as it fires.
