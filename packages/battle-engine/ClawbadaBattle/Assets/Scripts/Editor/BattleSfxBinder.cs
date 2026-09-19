@@ -91,6 +91,7 @@ public static class BattleSfxBinder
 
             int castN = Fill(slot.cast, stem);
             int impactN = Fill(slot.impact, stem + "_Impact");
+            int healN = Fill(slot.heal, stem + "_Heal");
             string leadSource = FirstExisting(stem + "_Impact");
             slot.impactLead = leadSource != null ? MeasureLoudestMoment(leadSource) : 0f;
             lib.specialByClass[i] = slot;
@@ -98,7 +99,7 @@ public static class BattleSfxBinder
             if (castN + impactN > 0)
                 specialBound.Add($"{Classes[i]}/{Abilities[i]} cast×{castN}" +
                                  (slot.cast.variantBeats.Length > 0 ? $" (beats {string.Join("/", System.Array.ConvertAll(slot.cast.variantBeats, b => b.ToString("F2")))}s)" : "") +
-                                 $" impact×{impactN}" + (impactN > 0 ? $" lead {slot.impactLead:F2}s" : ""));
+                                 $" impact×{impactN}" + (impactN > 0 ? $" lead {slot.impactLead:F2}s" : "") + (healN > 0 ? $" heal×{healN}" : ""));
         }
 
         // Movement: every SFX_Move_*.wav, in name order. Playback picks one at random per hex
