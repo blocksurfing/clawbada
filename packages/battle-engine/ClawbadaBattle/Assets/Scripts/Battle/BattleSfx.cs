@@ -143,6 +143,12 @@ public static class BattleSfx
     /// <summary>Seconds into the class's Special impact clip where its hit sits (the binder's measured loudest moment).</summary>
     public static float SpecialImpactHit(int classId) => Library?.SpecialImpactLead(classId) ?? 0f;
 
+    /// <summary>True when a heal clip is bound for this class's Special.</summary>
+    public static bool HasSpecialHeal(int classId, int tier) => Library?.SpecialHealFor(classId, tier) != null;
+
+    /// <summary>The Special's restorative, as HP is actually restored (Devour's heal at the end of the soul-suck).</summary>
+    public static void PlaySpecialHeal(int classId, int tier) => Play(Library?.SpecialHealFor(classId, tier), "heal");
+
     /// <summary>Impact phase, right now. For the plain branch, where the beat is the swing's own contact frame.</summary>
     public static void PlaySpecialImpact(int classId, int tier) => Play(Library?.SpecialImpactFor(classId, tier), "impact");
 

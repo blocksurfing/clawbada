@@ -31,6 +31,7 @@ paths. A misnamed file binds nothing and that sound is simply silent — no erro
 | Basic attack, per class | `SFX/Attack/SFX_<Class>_Attack.wav` |
 | Special cast, per class, optional per tier | `SFX/Special/SFX_<Class>_<Ability>[_<Tier>].wav` |
 | Special impact (lands on the hit beat) | `SFX/Special/SFX_<Class>_<Ability>_Impact[_<Tier>].wav` |
+| Special heal (plays only when HP was actually restored) | `SFX/Special/SFX_<Class>_<Ability>_Heal[_<Tier>].wav` — Devour's restorative, Rally |
 | Special, alternate takes | `SFX/Special/SFX_<Class>_<Ability>_01.wav`, `_02`, … (and `_Impact_01`, …) — one picked at random each cast, for any tier without its own clip |
 | Movement, one walk | `SFX/Move/SFX_Move_01.wav`, `SFX_Move_02.wav`, … — any number; one is picked at random per walk and looped for exactly as long as the lobster moves, so a take can be any length |
 | Defend stance | `SFX/Defend/SFX_Defend_01.wav`, `SFX_Defend_02.wav`, … (or a single `SFX_Defend.wav`) — shared by every class, one picked at random per Defend; drop `SFX/Defend/SFX_<Class>_Defend.wav` to give a class its own |
@@ -46,8 +47,11 @@ paths. A misnamed file binds nothing and that sound is simply silent — no erro
 The binder measures each file's loudest 50 ms (its "hit") and the engine times the picture to
 it, so the files are authored freely and the game adapts:
 
-- **Swing Specials (Bind, Ambush, Crush, Rend):** one cast file. The engine delays the swing so
-  the contact frame lands on the cast file's hit (Bind's takes: hit at 1.00 s / 0.70 s).
+- **Swing Specials (Bind, Ambush, Crush, Rend):** one cast file — the engine delays the swing so
+  the contact frame lands on the cast file's hit (Bind's takes: hit at 1.00 s / 0.70 s). With a
+  separate `_Impact` file (Ambush) the two play **back to back**: the impact starts the instant the
+  cast ends, its hit is the contact frame, and the lunge is held until then (a cast shorter than
+  the swing's own contact starts late instead).
 - **Inferno (projectile):** two files that play **back to back** — `SFX_Ember_Inferno.wav`
   (charge-up + travel) then `SFX_Ember_Inferno_Impact.wav` (the burst). The impact file starts
   the instant the cast file ends, and the engine fits the fireball's flight so the explosion
@@ -59,6 +63,11 @@ it, so the files are authored freely and the game adapts:
 - **Cinematic Specials (Maelstrom, Fortify, Devour):** the cast file starts with the effect; the
   impact file is started early by its own hit offset so the hit lands on the effect's beat
   (Maelstrom's lightning at 3.9 s).
+- **Devour:** `SFX_Abyss_Devour.wav` (cast + soul-suck) starts as the abyss opens; the target's hit is
+  at 0.5 s and the suck loops until the abyss closes over the last 0.5 s of a 3.5 s effect.
+  `SFX_Abyss_Devour_Heal.wav` starts the instant the cast file ends and the caster's heal (HP, blink)
+  lands there — only if HP was actually restored; a heal of 0 is silent. Author the cast to ~3.0 s so
+  the heal lands as the abyss closes.
 
 ## Budget
 
