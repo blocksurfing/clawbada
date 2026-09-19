@@ -17,6 +17,9 @@ public class CameraShake : MonoBehaviour
     private float duration;
     private float elapsed;
     private bool active;
+    private int frames;
+    private float peak;
+    private Camera cam;
 
     /// <summary>Kick a shake of `amplitude` world units that decays to nothing over `seconds`.
     /// A stronger shake replaces a weaker one in progress; a weaker one is ignored.</summary>
@@ -33,9 +36,12 @@ public class CameraShake : MonoBehaviour
     {
         if (active && amp < amplitude * (1f - elapsed / duration)) return;
         if (!active) basePosition = transform.position;
+        if (cam == null) cam = GetComponent<Camera>();
         amplitude = amp;
         duration = seconds;
         elapsed = 0f;
+        frames = 0;
+        peak = 0f;
         active = true;
         Debug.Log($"[CameraShake] amp={amp:F2}u for {seconds:F2}s");
     }
@@ -49,9 +55,15 @@ public class CameraShake : MonoBehaviour
         {
             transform.position = basePosition;
             active = false;
+            // Proof for the harness (screenshots are too slow to catch a 0.4 s shake): how many rendered
+            // frames moved and by how much, in art pixels at the current camera zoom.
+            float ppu = cam != null && cam.orthographic && cam.orthographicSize > 0f ? Screen.height / (2f * cam.orthographicSize) : 0f;
+            Debug.Log($"[CameraShake] done: {frames} frames, peak {peak:F3}u ({peak * ppu:F1}px), back at base");
             return;
         }
         Vector2 o = Random.insideUnitCircle * amplitude * k;
+        frames++;
+        if (o.magnitude > peak) peak = o.magnitude;
         transform.position = basePosition + new Vector3(o.x, o.y, 0f);
     }
 }

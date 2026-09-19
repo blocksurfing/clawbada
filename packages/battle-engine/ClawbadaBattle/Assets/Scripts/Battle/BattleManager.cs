@@ -538,7 +538,10 @@ public class BattleManager : MonoBehaviour
                         // One hook for all three Special branches (projectile / cinematic / plain):
                         // the sound starts with the windup, so it underscores the whole cast rather
                         // than punctuating an impact the way a basic attack does.
-                        float castBeat = special ? BattleSfx.PlaySpecial(actor.classId, actor.tier) : 0f;
+                        // The projectile branch picks its cast clip itself and fits the flight to it (below);
+                        // every other Special starts its cast sound with the windup, right now.
+                        bool projectile = special && windup != null && windup.IsProjectile;
+                        float castBeat = special && !projectile ? BattleSfx.PlaySpecial(actor.classId, actor.tier) : 0f;
                         // A plain Special can ask for its effect on the contact frame instead (Ambush's slash
                         // used to flash at t=0 and be gone 0.3 s before the hit landed at the swing's midpoint).
                         bool windupAtContact = special && windup != null && windup.prefab != null && windup.spawnAtContact
@@ -560,6 +563,26 @@ public class BattleManager : MonoBehaviour
                                 ? BattleVfxLibrary.AnchorPosition(impactSlot, actor, target, target.ImpactFxAnchor.position)
                                 : from + (actor.IsFacingLeft ? Vector3.left : Vector3.right) * 2f;
                             float flight = Vector3.Distance(from, to) / Mathf.Max(0.5f, windup.travelSpeed);
+                            // Sound design authors the cast (charge-up + travel) and the impact as two files that
+                            // play back to back. Fit the flight so the burst frame lands exactly where the impact
+                            // file's hit does: burst = castLength + impactHit. A cast shorter than the charge-up
+                            // allows (launchAt + shortest flight + burst lead-in) starts late instead, so it still
+                            // ends on the impact's first sample. Without both clips bound the flight is the
+                            // slot's speed over the distance, as before.
+                            float castDelay = 0f, castLength, castBeatUnused;
+                            var castClip = BattleSfx.PeekSpecialCast(actor.classId, actor.tier, out castBeatUnused, out castLength);
+                            if (castClip != null && BattleSfx.HasSpecialImpact(actor.classId, actor.tier))
+                            {
+                                float sfxHit = BattleSfx.SpecialImpactHit(actor.classId);
+                                float minBurst = windup.launchAt + MinFlight + windup.impactLead;
+                                float maxBurst = windup.launchAt + MaxFlight + windup.impactLead;
+                                float wantBurst = castLength + sfxHit;
+                                float burst = Mathf.Clamp(wantBurst, minBurst, maxBurst);
+                                flight = burst - windup.launchAt - windup.impactLead;
+                                if (wantBurst < minBurst) castDelay = minBurst - wantBurst;
+                                Debug.Log($"[BattleManager] special {actor.className} audio fit: cast {castLength:F2}s + impact hit at {sfxHit:F2}s → burst at {burst:F2}s, flight {flight:F2}s, cast starts at {castDelay:F2}s");
+                            }
+                            BattleSfx.PlayCast(castClip, castDelay);
                             Debug.Log($"[BattleManager] special {actor.className} projectile launchAt={windup.launchAt:F2}s dist={Vector3.Distance(from, to):F2} flight={flight:F2}s impactLead={windup.impactLead:F2}s");
                             // The hit beat is known up front, so the impact sound is scheduled now and
                             // lands with the burst even if the flight is retimed.
@@ -567,7 +590,7 @@ public class BattleManager : MonoBehaviour
                             StartCoroutine(actor.PlayAttack(targetPos, attackDuration, false, null));
                             float untilLaunch = windup.launchAt - (Time.time - t0);
                             if (untilLaunch > 0f) yield return new WaitForSeconds(untilLaunch);
-                            yield return BattleVfxLibrary.Fly(windup, from, to);
+                            yield return BattleVfxLibrary.Fly(windup, from, to, flight);
                             if (target != null) BattleVfxLibrary.Spawn(impactSlot, actor, target, this);
                             if (windup.impactLead > 0f) yield return new WaitForSeconds(windup.impactLead);
                             ShakeFor(impactSlot); ShakeFor(windup);
@@ -686,6 +709,10 @@ public class BattleManager : MonoBehaviour
             yield return new WaitForSeconds(deathDuration);
         }
     }
+
+    /// <summary>Bounds for a projectile's flight when it is fitted to the cast sound: no faster than an adjacent
+    /// throw at the slot's speed, no slower than a lob that would read as a stall.</summary>
+    private const float MinFlight = 0.12f, MaxFlight = 0.8f;
 
     /// <summary>Screen shake for a slot that asks for one (a Special's big beat).</summary>
     private static void ShakeFor(BattleVfxLibrary.VfxSlot slot)

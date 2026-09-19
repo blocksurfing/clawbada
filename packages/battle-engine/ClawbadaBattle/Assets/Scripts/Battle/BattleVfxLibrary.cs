@@ -234,13 +234,14 @@ public class BattleVfxLibrary : ScriptableObject
     /// <summary>Fly a projectile slot's travel prefab from <paramref name="from"/> to <paramref name="to"/> at
     /// <c>slot.travelSpeed</c>. The prefab's looping clip plays for exactly the flight time (the loop's
     /// duration equals the caster→target distance), the sprite is mirrored for leftward flight and pitched
-    /// along the path, and the projectile is destroyed on arrival. Yields until arrival.</summary>
-    public static IEnumerator Fly(VfxSlot slot, Vector3 from, Vector3 to)
+    /// along the path, and the projectile is destroyed on arrival. Yields until arrival. A positive
+    /// <paramref name="seconds"/> overrides the speed-derived flight time (the audio fit, see BattleManager).</summary>
+    public static IEnumerator Fly(VfxSlot slot, Vector3 from, Vector3 to, float seconds = -1f)
     {
         if (slot == null || slot.travelPrefab == null) yield break;
         Vector3 dir = to - from;
         float dist = dir.magnitude;
-        float duration = Mathf.Max(0.12f, dist / Mathf.Max(0.5f, slot.travelSpeed));
+        float duration = seconds > 0f ? seconds : Mathf.Max(0.12f, dist / Mathf.Max(0.5f, slot.travelSpeed));
 
         var fx = Instantiate(slot.travelPrefab, from, Quaternion.identity);
         // The sheet is authored flying right: mirror for leftward flight, then pitch along the path.
