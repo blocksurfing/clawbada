@@ -48,18 +48,18 @@ MonoBehaviour:
       variantBeats: []
     impactLead: 0
   - cast:
-      shared: {fileID: 0}
+      shared: {fileID: 8300000, guid: 7da3a392503bc4d56b5857c03b1a8ec1, type: 3}
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
       variants: []
-      sharedBeat: 0
+      sharedBeat: 0.25
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
     impact:
-      shared: {fileID: 0}
+      shared: {fileID: 8300000, guid: 52c1dd1ea3e314b3ab558ce842b1a953, type: 3}
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}

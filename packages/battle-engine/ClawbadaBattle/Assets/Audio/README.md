@@ -46,8 +46,11 @@ paths. A misnamed file binds nothing and that sound is simply silent — no erro
 The binder measures each file's loudest 50 ms (its "hit") and the engine times the picture to
 it, so the files are authored freely and the game adapts:
 
-- **Swing Specials (Bind, Ambush, Crush, Rend):** one cast file. The engine delays the swing so
-  the contact frame lands on the cast file's hit (Bind's takes: hit at 1.00 s / 0.70 s).
+- **Swing Specials (Bind, Ambush, Crush, Rend):** one cast file — the engine delays the swing so
+  the contact frame lands on the cast file's hit (Bind's takes: hit at 1.00 s / 0.70 s). With a
+  separate `_Impact` file (Ambush) the two play **back to back**: the impact starts the instant the
+  cast ends, its hit is the contact frame, and the lunge is held until then (a cast shorter than
+  the swing's own contact starts late instead).
 - **Inferno (projectile):** two files that play **back to back** — `SFX_Ember_Inferno.wav`
   (charge-up + travel) then `SFX_Ember_Inferno_Impact.wav` (the burst). The impact file starts
   the instant the cast file ends, and the engine fits the fireball's flight so the explosion

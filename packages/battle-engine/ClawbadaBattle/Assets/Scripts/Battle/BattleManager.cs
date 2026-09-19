@@ -538,10 +538,15 @@ public class BattleManager : MonoBehaviour
                         // One hook for all three Special branches (projectile / cinematic / plain):
                         // the sound starts with the windup, so it underscores the whole cast rather
                         // than punctuating an impact the way a basic attack does.
-                        // The projectile branch picks its cast clip itself and fits the flight to it (below);
+                        // Cast sounds. The projectile branch fits its flight to the cast clip (below), and a swing
+                        // Special with BOTH a cast and an impact file fits its contact to them (the plain branch);
                         // every other Special starts its cast sound with the windup, right now.
                         bool projectile = special && windup != null && windup.IsProjectile;
-                        float castBeat = special && !projectile ? BattleSfx.PlaySpecial(actor.classId, actor.tier) : 0f;
+                        bool cinematic = special && !projectile && windup != null && windup.prefab != null && windup.impactAt > 0f;
+                        float castBeat = 0f, castLength = 0f;
+                        AudioClip castClip = special ? BattleSfx.PeekSpecialCast(actor.classId, actor.tier, out castBeat, out castLength) : null;
+                        bool swingCombo = special && !projectile && !cinematic && castClip != null && BattleSfx.HasSpecialImpact(actor.classId, actor.tier);
+                        if (special && !projectile && !swingCombo) BattleSfx.PlayCast(castClip, 0f);
                         // A plain Special can ask for its effect on the contact frame instead (Ambush's slash
                         // used to flash at t=0 and be gone 0.3 s before the hit landed at the swing's midpoint).
                         bool windupAtContact = special && windup != null && windup.prefab != null && windup.spawnAtContact
@@ -569,8 +574,7 @@ public class BattleManager : MonoBehaviour
                             // allows (launchAt + shortest flight + burst lead-in) starts late instead, so it still
                             // ends on the impact's first sample. Without both clips bound the flight is the
                             // slot's speed over the distance, as before.
-                            float castDelay = 0f, castLength, castBeatUnused;
-                            var castClip = BattleSfx.PeekSpecialCast(actor.classId, actor.tier, out castBeatUnused, out castLength);
+                            float castDelay = 0f;
                             if (castClip != null && BattleSfx.HasSpecialImpact(actor.classId, actor.tier))
                             {
                                 float sfxHit = BattleSfx.SpecialImpactHit(actor.classId);
@@ -634,9 +638,23 @@ public class BattleManager : MonoBehaviour
                             // A cast clip that carries its own landing (two connected Bind takes): hold the swing so
                             // the contact frame lands on the hit inside the file — the binder measured where it is —
                             // instead of asking the sound to fit a 0.3 s window.
-                            if (special && castBeat > 0f)
+                            float contactAt = Mathf.Max(attackDuration, actor.ClipLength("Attack") / castSpeed) * LobsterController.AttackImpactFraction;
+                            if (swingCombo)
                             {
-                                float contactAt = Mathf.Max(attackDuration, actor.ClipLength("Attack") / castSpeed) * LobsterController.AttackImpactFraction;
+                                // Cast (the wind-up) then impact (the hit), back to back, as for Inferno: the impact
+                                // clip starts the instant the cast clip ends and its hit IS the contact frame, so the
+                                // swing is held until then. A cast too short for the swing starts late instead.
+                                float impactHit = BattleSfx.SpecialImpactHit(actor.classId);
+                                float contact = Mathf.Max(castLength + impactHit, contactAt);
+                                float castDelay = contact - impactHit - castLength;
+                                float hold = contact - contactAt;
+                                Debug.Log($"[BattleManager] special {actor.className} audio fit: cast {castLength:F2}s + impact hit at {impactHit:F2}s → contact at {contact:F2}s, swing contact {contactAt:F2}s → hold {hold:F2}s, cast starts at {castDelay:F2}s");
+                                BattleSfx.PlayCast(castClip, castDelay);
+                                BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, contact);
+                                if (hold > 0.02f) yield return new WaitForSeconds(hold);
+                            }
+                            else if (special && castBeat > 0f)
+                            {
                                 float hold = castBeat - contactAt;
                                 Debug.Log($"[BattleManager] special {actor.className} cast beat {castBeat:F2}s, contact at {contactAt:F2}s of the swing → hold {Mathf.Max(0f, hold):F2}s");
                                 if (hold > 0.02f) yield return new WaitForSeconds(hold);
@@ -653,7 +671,7 @@ public class BattleManager : MonoBehaviour
                                 // A basic attack gets its attack sound here; a Special with no VFX yet gets
                                 // its impact phase here instead — the swing's contact frame IS its beat.
                                 if (!special) BattleSfx.PlayAttack(actor.classId);
-                                else BattleSfx.PlaySpecialImpact(actor.classId, actor.tier);
+                                else if (!swingCombo) BattleSfx.PlaySpecialImpact(actor.classId, actor.tier); // a combo's impact is already scheduled on the beat
                                 ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot);
                                 // Statuses land with the blow, not after the swing settles — Bind's
                                 // tentacles (a status visual) appear on the contact frame.
