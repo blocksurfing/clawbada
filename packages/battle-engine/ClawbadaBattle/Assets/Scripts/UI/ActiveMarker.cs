@@ -20,7 +20,7 @@ public class ActiveMarker : MonoBehaviour
         m.sr = go.AddComponent<SpriteRenderer>();
         m.sr.sprite = skin.selectorSprite;
         m.sr.sortingLayerName = DepthSort.Layer;
-        m.sr.sortingOrder = DepthSort.ActorOrder - 1;
+        m.sr.sortingOrder = DepthSort.ActorOrder - 1;   // re-pinned under its own lobster's row in Place()
         if (skin.selectorController != null)
         {
             var anim = go.AddComponent<Animator>();
@@ -54,5 +54,9 @@ public class ActiveMarker : MonoBehaviour
         var p = target.transform.position + skin.selectorOffset;
         p.z = 0f;
         transform.position = p;
+        // Sit directly under the lobster it follows — inside that row's band, not under the
+        // whole board, or a nearer row's obstacle would cover the ring.
+        int order = target.SortingOrder - 1;
+        if (sr.sortingOrder != order) sr.sortingOrder = order;
     }
 }

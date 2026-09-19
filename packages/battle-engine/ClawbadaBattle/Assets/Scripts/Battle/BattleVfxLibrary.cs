@@ -321,7 +321,11 @@ public class BattleVfxLibrary : ScriptableObject
         var group = fx.GetComponent<SortingGroup>();
         if (group == null) group = fx.AddComponent<SortingGroup>();
         group.sortingLayerName = DepthSort.Layer;
+        // Not onTop: the effect rides its owner's ROW (the actor-fx slot of that row's band), so a
+        // rock or pillar standing a row closer to the camera draws over it — Fortify's dome must not
+        // swallow the pillar in front of the caster.
         group.sortingOrder = slot.onTop ? DepthSort.ArenaFrontOrderBase + 61 : owner.SortingOrder + 1;
+        Debug.Log($"[BattleVfxLibrary] {slot.prefab.name} order {group.sortingOrder} ({(slot.onTop ? "on top of the board" : $"row of {owner.className} at {owner.SortingOrder}")})");
 
         if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
     }
@@ -364,6 +368,7 @@ public class BattleVfxLibrary : ScriptableObject
         if (group == null) group = fx.AddComponent<SortingGroup>();
         group.sortingLayerName = DepthSort.Layer;
         group.sortingOrder = order;
+        Debug.Log($"[BattleVfxLibrary] {fx.name} order {order} ({(front ? "in front of" : "behind")} {owner.className} at {owner.SortingOrder})");
         foreach (var sr in fx.GetComponentsInChildren<SpriteRenderer>(true))
         {
             sr.sortingLayerName = DepthSort.Layer;
