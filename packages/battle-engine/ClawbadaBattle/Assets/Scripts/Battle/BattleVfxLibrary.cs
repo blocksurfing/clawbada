@@ -53,6 +53,10 @@ public class BattleVfxLibrary : ScriptableObject
         [Tooltip("Plain Specials only: playback speed of the caster's swing (1 = the class's normal attack). 0.5 halves it, " +
                  "so the contact frame lands twice as late — room for a cast sound to build before the hit.")]
         public float castSpeed = 1f;
+        [Tooltip("Screen shake on this effect's beat, in world units (0 = none). Maelstrom's lightning, Inferno's burst.")]
+        public float shakeAmplitude = 0f;
+        [Tooltip("How long the shake takes to die out.")]
+        public float shakeSeconds = 0.3f;
 
         [Header("Projectile Specials (Inferno)")]
         [Tooltip("Looping projectile prefab. When set, the Special is a projectile: this prefab flies from the caster's AttackFX " +

@@ -570,6 +570,7 @@ public class BattleManager : MonoBehaviour
                             yield return BattleVfxLibrary.Fly(windup, from, to);
                             if (target != null) BattleVfxLibrary.Spawn(impactSlot, actor, target, this);
                             if (windup.impactLead > 0f) yield return new WaitForSeconds(windup.impactLead);
+                            ShakeFor(impactSlot); ShakeFor(windup);
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot, spawnImpactFx: false);
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
                             ApplyStatusEvents(data);
@@ -592,6 +593,7 @@ public class BattleManager : MonoBehaviour
                             StartCoroutine(actor.PlayAttack(actorPos, attackDuration, false, null));
                             float untilImpact = windup.impactAt - (Time.time - t0);
                             if (untilImpact > 0f) yield return new WaitForSeconds(untilImpact);
+                            ShakeFor(windup); ShakeFor(impactSlot);
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot);
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
                             ApplyStatusEvents(data);
@@ -619,6 +621,7 @@ public class BattleManager : MonoBehaviour
                             yield return actor.PlayAttack(targetPos, attackDuration, melee, () =>
                             {
                                 if (special) Debug.Log($"[BattleManager] special {actor.className} contact at {Time.time - castStartedAt:F2}s (cast speed {castSpeed:F2}x)");
+                                if (special) { ShakeFor(windup); ShakeFor(impactSlot); }
                                 if (windupAtContact)
                                 {
                                     BattleVfxLibrary.Spawn(windup, actor, target, this);
@@ -682,6 +685,13 @@ public class BattleManager : MonoBehaviour
             }
             yield return new WaitForSeconds(deathDuration);
         }
+    }
+
+    /// <summary>Screen shake for a slot that asks for one (a Special's big beat).</summary>
+    private static void ShakeFor(BattleVfxLibrary.VfxSlot slot)
+    {
+        if (slot == null || slot.shakeAmplitude <= 0f) return;
+        CameraShake.Shake(slot.shakeAmplitude, slot.shakeSeconds > 0f ? slot.shakeSeconds : 0.3f);
     }
 
     /// <summary>Status effects applied/expired by this turn (optimistic; SyncUnits corrects).</summary>

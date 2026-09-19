@@ -169,6 +169,9 @@ export default async function (b: Browser) {
     if (errText) errors.push(`turn ${before}: page error '${errText}'`);
     if (casters.size >= 3 && casts >= 3) break;
   }
+  // The loop breaks right after the last cast is clicked, and a cinematic (Maelstrom, Fortify, Devour)
+  // holds its beat for seconds — wait for its hold line so the beat's logs (shake, damage) are in the buffer.
+  for (let w = 0; w < 32 && grab(b, /effect clip=/).length > 0 && grab(b, /effect held to/).length === 0; w++) await b.sleep(250);
   await b.sleep(1500);
   await b.screenshot(`${S}/specials-${CLASS}.png`);
   const logSpecials = await b.eval(`Array.from(document.querySelectorAll('span.text-claw-gold')).map(s => s.textContent).filter(Boolean).slice(0, 6)`);
@@ -186,6 +189,8 @@ export default async function (b: Browser) {
     const ts = onContact.map((l) => Number((l.match(/at ([\d.]+)s/) || [])[1] ?? '0'));
     expect(ts.every((t) => t >= 0.3), `${CLASS}: effect spawned on the contact frame, not at the turn start (${ts.map((t) => t.toFixed(2)).join(', ')} s)`);
   }
+  for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
+  if (CLASS === 'Tempest' || CLASS === 'Ember') expect(grab(b, /\[CameraShake\]/).length >= 1, `${CLASS}: screen shake fired on the beat`);
   const held = grab(b, /\[BattleManager\] special .* effect held to/);
   for (const l of held.slice(0, 4)) console.log('  hold:', l.slice(0, 120));
   if (held.length) {
