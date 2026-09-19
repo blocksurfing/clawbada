@@ -201,6 +201,24 @@ export default async function (b: Browser) {
       expect(Math.abs(castEnd - impactStart) < 0.03, `${CLASS}: impact clip starts the instant the cast clip ends (cast ends ${castEnd.toFixed(2)} s, impact starts ${impactStart.toFixed(2)} s)`);
     } else expect(false, `${CLASS}: audio-fit and impact-schedule lines both present`);
   }
+  for (const l of grab(b, /\[HexGrid\] row depth|frame art per row/).slice(0, 2)) console.log('  rows:', l.slice(0, 240));
+  for (const l of grab(b, /\[BattleVfxLibrary\] .* order \d+/).slice(0, 3)) console.log('  vfx:', l.slice(0, 130));
+  // Row layers: every lobster sits in its row's actor slot, and a walk moves it to another row's.
+  // A mirror trio that never walks logs nothing after the drain, so only assert what was observed.
+  const layers = grab(b, /\[LobsterController\] .* row layer/);
+  for (const l of layers.slice(0, 3)) console.log('  layer:', l.slice(0, 110));
+  const orders = layers.map((l) => Number((l.match(/order (\d+)/) || [])[1])).filter(Boolean);
+  if (orders.length) {
+    expect(orders.every((o) => o >= 100 && (o - 100) % 4 === 1), `${CLASS}: every row layer is a row's actor slot (${orders.join(', ')})`);
+    if (orders.length > 1) expect(new Set(orders).size > 1, `${CLASS}: walking changed the row layer (${orders.join(', ')})`);
+  }
+  // A Special's effect rides its caster's row, so a rock one row closer draws over it.
+  for (const l of grab(b, /\[BattleVfxLibrary\] .*(_Above|_Below) order/).slice(0, 2)) console.log('  straddle:', l.slice(0, 130));
+  const vfx = grab(b, /\[BattleVfxLibrary\] .* order \d+ \(row of/).slice(-1)[0];
+  if (vfx) {
+    const m = vfx.match(/order (\d+) \(row of \w+ at (\d+)\)/);
+    expect(!!m && Number(m[1]) === Number(m[2]) + 1, `${CLASS}: effect sits one slot above its caster's row (${vfx.slice(-40)})`);
+  }
   for (const l of grab(b, /\[BattleManager\] heal events|\(heal\)|special .* heal at/).slice(0, 4)) console.log('  heal:', l.slice(0, 120));
   for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
   if (CLASS === 'Tempest' || CLASS === 'Ember') {

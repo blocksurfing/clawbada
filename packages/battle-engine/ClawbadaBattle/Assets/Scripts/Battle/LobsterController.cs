@@ -215,16 +215,27 @@ public class LobsterController : MonoBehaviour
 
     private void UpdateSortingOrder()
     {
-        // Depth is resolved per pixel by the camera's +Y transparency sort axis (see
-        // DepthSort): every board actor — lobsters and obstacles — shares one layer and
-        // order, and whoever's feet are lower on screen draws in front. The rig root
-        // sits at the hex centre, so the SortingGroup sorts by the feet. Arena frame art
-        // on the Foreground layer is lifted above actors by BattleManager.SwapArenaArt.
-        if (sortingGroup != null)
-        {
-            sortingGroup.sortingLayerName = DepthSort.Layer;
-            sortingGroup.sortingOrder = DepthSort.ActorOrder;
-        }
+        // One layer per hex row (see DepthSort): the rig takes its row's actor slot, so every
+        // sprite on this row draws over every sprite on the row behind whatever the art overlaps.
+        // The row comes from where the rig root stands — the feet — so walking across a row line
+        // switches the layer at the line, and LateUpdate keeps it honest through hops and lunges.
+        // Arena frame art on the Foreground layer is lifted above actors by BattleManager.
+        if (sortingGroup == null) return;
+        int order = grid != null
+            ? grid.SortingOrderAtY(transform.position.y, DepthSort.RowActor)
+            : DepthSort.OrderForRow(0) + DepthSort.RowActor;
+        if (sortingGroup.sortingLayerName != DepthSort.Layer) sortingGroup.sortingLayerName = DepthSort.Layer;
+        if (sortingGroup.sortingOrder == order) return;
+        sortingGroup.sortingOrder = order;
+        // Only on a change: one line per row crossing, so a designer can read the layering.
+        Debug.Log($"[LobsterController] {className} {lobsterId} row layer {(order - DepthSort.ActorOrder) / DepthSort.RowStride} → order {order}");
+    }
+
+    void LateUpdate()
+    {
+        // Cheap (one scan of 5 row lines) and the only way the layer stays right through every
+        // way a rig moves: hops, the attack lunge, knockback.
+        UpdateSortingOrder();
     }
 
     // ─── Movement ───

@@ -214,6 +214,25 @@ public class BattleManager : MonoBehaviour
         }
     }
 
+    /// <summary>A decor layer the designer tagged with the hex row it stands on — "…_R3", "…_Row3",
+    /// 1-based from the BACK row, matching the designer's "1st layer … 5th layer". 0 = untagged.</summary>
+    private static int RowTag(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return 0;
+        for (int i = name.Length - 1; i > 0; i--)
+        {
+            if (!char.IsDigit(name[i])) continue;
+            int end = i;
+            while (i > 0 && char.IsDigit(name[i - 1])) i--;
+            string digits = name.Substring(i, end - i + 1);
+            string before = name.Substring(0, i).ToLowerInvariant();
+            bool tagged = before.EndsWith("_r") || before.EndsWith("row") || before.EndsWith("_row");
+            if (tagged && int.TryParse(digits, out int n) && n > 0) return n;
+            return 0;
+        }
+        return 0;
+    }
+
     /// <summary>Decide which Foreground arena layers draw in front of the lobsters.
     ///
     /// Only the bottom lip of the frame belongs in front: the plants and rocks a lobster on the
@@ -231,9 +250,20 @@ public class BattleManager : MonoBehaviour
         var anchors = Resources.Load<ArenaDecorAnchors>(ArenaDecorAnchors.ResourcePath);
         var front = new List<string>();
         var behind = new List<string>();
+        var byRow = new List<string>();
         foreach (var r in renderers)
         {
             if (r.sortingLayerName != DepthSort.Layer || r.sortingOrder >= DepthSort.ArenaFrontOrderBase) continue;
+            // A layer the designer cut per hex row sorts in that row's band instead of all-or-nothing:
+            // the seaweed on row 3 then draws over everything on row 2 and under everything on row 4.
+            int tag = RowTag(r.sprite != null ? r.sprite.name : r.name);
+            if (tag == 0) tag = RowTag(r.name);
+            if (tag > 0)
+            {
+                r.sortingOrder = DepthSort.OrderForRow(tag - 1) + DepthSort.RowDecor;
+                byRow.Add($"{r.name}→row {tag} ({r.sortingOrder})");
+                continue;
+            }
             var box = r.sprite != null && anchors != null ? anchors.For(tier, r.sprite.name) : null;
             bool bottomLip = box == null || box.Value.w <= FrontBandTop;
             if (bottomLip)
@@ -246,7 +276,8 @@ public class BattleManager : MonoBehaviour
                 behind.Add($"{r.name}(top {box.Value.w:F2})");
             }
         }
-        Debug.Log($"[BattleManager] arena '{tier}' frame art in front: [{string.Join(", ", front)}] behind actors: [{string.Join(", ", behind)}]");
+        Debug.Log($"[BattleManager] arena '{tier}' frame art per row: [{string.Join(", ", byRow)}] " +
+                  $"in front of every actor: [{string.Join(", ", front)}] behind every actor: [{string.Join(", ", behind)}]");
     }
 
     /// <summary>Shrink the arena's decorative Foreground art so the board reads less crowded.

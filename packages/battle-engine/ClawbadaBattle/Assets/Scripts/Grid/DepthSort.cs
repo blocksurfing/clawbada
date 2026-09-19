@@ -3,11 +3,15 @@ using UnityEngine;
 /// <summary>
 /// Single source of truth for 2D depth on the board.
 ///
-/// Characters and obstacles share one sorting layer and one sorting order; the
-/// camera's custom transparency sort axis (+Y) then orders them back-to-front by
-/// position, so an actor whose feet are above a rock's base line is drawn behind it
-/// and one whose feet are below is drawn in front — per pixel, and continuously while
-/// a lobster walks between rows. No per-row sortingOrder bookkeeping is needed.
+/// Every hex ROW is its own layer, back row lowest, front row highest (the designer's
+/// model: "each row should have its own layer, 1st row bottom to final row top"). Anything
+/// standing on a row takes that row's band, so every sprite on row 3 draws over every sprite
+/// on row 2 whatever their art overlaps — and an object changes band as it crosses between
+/// rows, which is what a walking lobster does mid-hop.
+///
+/// Inside one row's band the order is obstacle, then the lobster, then the lobster's own
+/// effects, then that row's decor. The camera's custom transparency sort axis (+Y) still
+/// resolves ties inside a band — two lobsters on the same row — per pixel by feet position.
 ///
 /// Requirements this encodes:
 ///   • lobster rig roots sit at the hex centre (feet) and carry a SortingGroup, so the
@@ -24,8 +28,22 @@ public static class DepthSort
     /// <summary>Sorting layer shared by every board actor.</summary>
     public const string Layer = "Foreground";
 
-    /// <summary>Sorting order shared by every board actor (lobsters, obstacles).</summary>
+    /// <summary>Sorting order of the BACK row's band. Each row in front adds <see cref="RowStride"/>.</summary>
     public const int ActorOrder = 100;
+
+    /// <summary>Orders reserved for one hex row, enough for the four slots below.</summary>
+    public const int RowStride = 4;
+
+    /// <summary>Slots inside a row's band, back to front.</summary>
+    public const int RowObstacle = 0, RowActor = 1, RowActorFx = 2, RowDecor = 3;
+
+    /// <summary>Rows a band can be raised before it would reach the arena's front art.</summary>
+    private const int MaxRowsFromBack = (ArenaFrontOrderBase - ActorOrder) / RowStride - 1;
+
+    /// <summary>The band for a row, counted from the BACK row (0 = the row at the top of the
+    /// screen, which draws under everything).</summary>
+    public static int OrderForRow(int rowsFromBack) =>
+        ActorOrder + Mathf.Clamp(rowsFromBack, 0, MaxRowsFromBack) * RowStride;
 
     /// <summary>Added to the sorting order of every arena-art renderer the designer put
     /// on the Foreground sorting layer (FG_1, FG_2, …), so frame art — the plants and
@@ -35,7 +53,8 @@ public static class DepthSort
 
     /// <summary>Obstacles are nudged this far up the sort axis (farther from camera) so a
     /// character on the same row — identical feet Y — wins the tie and stays readable.
-    /// 0.001 units is 1/16 px at PPU 64: invisible.</summary>
+    /// 0.001 units is 1/16 px at PPU 64: invisible. (Belt and braces now that the row band
+    /// puts the lobster a slot above its row's obstacles anyway.)</summary>
     public const float ObstacleDepthBias = 0.001f;
 
     public static void Apply(Camera cam)
