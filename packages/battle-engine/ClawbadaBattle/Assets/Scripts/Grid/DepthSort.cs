@@ -45,6 +45,9 @@ public static class DepthSort
     public static int OrderForRow(int rowsFromBack) =>
         ActorOrder + Mathf.Clamp(rowsFromBack, 0, MaxRowsFromBack) * RowStride;
 
+    /// <summary>The row an actor's order belongs to — the inverse of <see cref="OrderForRow"/>.</summary>
+    public static int RowOf(int order) => Mathf.Max(0, (order - ActorOrder) / RowStride);
+
     /// <summary>Added to the sorting order of every arena-art renderer the designer put
     /// on the Foreground sorting layer (FG_1, FG_2, …), so frame art — the plants and
     /// rocks at the bottom edge — always draws in front of board actors. Relative order

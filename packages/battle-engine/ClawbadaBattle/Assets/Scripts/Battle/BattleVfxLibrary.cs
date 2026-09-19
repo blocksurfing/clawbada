@@ -57,6 +57,10 @@ public class BattleVfxLibrary : ScriptableObject
         public float shakeAmplitude = 0f;
         [Tooltip("How long the shake takes to die out.")]
         public float shakeSeconds = 0.3f;
+        [Tooltip("Rows this effect's art reaches on EACH side of its owner — a dome or a storm is a volume, not a flat " +
+                 "sprite on one row, so anyone standing inside it must be under its front face and over its back. " +
+                 "0 = the effect belongs to its owner's row alone (a slash, a vortex at the feet). Fortify's dome = 1.")]
+        public int rowsCovered = 0;
         [Tooltip("Darken the arena under the lobsters while this effect plays (0 = none): a full-screen black layer at this alpha, " +
                  "sorted below the lobsters so the cast and its effects stay lit (Devour's abyss).")]
         public float dimAlpha = 0f;
@@ -323,8 +327,9 @@ public class BattleVfxLibrary : ScriptableObject
         group.sortingLayerName = DepthSort.Layer;
         // Not onTop: the effect rides its owner's ROW (the actor-fx slot of that row's band), so a
         // rock or pillar standing a row closer to the camera draws over it — Fortify's dome must not
-        // swallow the pillar in front of the caster.
-        group.sortingOrder = slot.onTop ? DepthSort.ArenaFrontOrderBase + 61 : owner.SortingOrder + 1;
+        // swallow the pillar in front of the caster. An effect with reach (rowsCovered) takes the
+        // front-most row it encloses instead, so whoever stands inside it is under its face.
+        group.sortingOrder = slot.onTop ? DepthSort.ArenaFrontOrderBase + 61 : FrontOrder(slot, owner);
         Debug.Log($"[BattleVfxLibrary] {slot.prefab.name} order {group.sortingOrder} ({(slot.onTop ? "on top of the board" : $"row of {owner.className} at {owner.SortingOrder}")})");
 
         if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
@@ -340,9 +345,19 @@ public class BattleVfxLibrary : ScriptableObject
     /// </summary>
     private static void SpawnStraddling(VfxSlot slot, LobsterController owner, Vector3 position)
     {
-        SpawnHalf(slot, owner, position, front: false, owner.SortingOrder - 1, "_Below");
-        SpawnHalf(slot, owner, position, front: true, owner.SortingOrder + 1, "_Above");
+        SpawnHalf(slot, owner, position, front: false, BackOrder(slot, owner), "_Below");
+        SpawnHalf(slot, owner, position, front: true, FrontOrder(slot, owner), "_Above");
     }
+
+    /// <summary>Where the front of an effect sorts: the effects slot of the front-most row its art
+    /// covers. With no reach that is its owner's own row, one slot above the owner (the old rule).</summary>
+    private static int FrontOrder(VfxSlot slot, LobsterController owner) =>
+        DepthSort.OrderForRow(DepthSort.RowOf(owner.SortingOrder) + Mathf.Max(0, slot.rowsCovered)) + DepthSort.RowActorFx;
+
+    /// <summary>Where the back of a straddling effect sorts: under the back-most row it covers, so a
+    /// lobster standing inside the dome is drawn over its back wall.</summary>
+    private static int BackOrder(VfxSlot slot, LobsterController owner) =>
+        DepthSort.OrderForRow(DepthSort.RowOf(owner.SortingOrder) - Mathf.Max(0, slot.rowsCovered)) + DepthSort.RowObstacle;
 
     private static void SpawnHalf(VfxSlot slot, LobsterController owner, Vector3 position, bool front, int order, string suffix)
     {

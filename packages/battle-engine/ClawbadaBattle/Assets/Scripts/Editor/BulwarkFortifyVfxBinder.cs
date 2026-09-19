@@ -90,6 +90,10 @@ public static class BulwarkFortifyVfxBinder
             // lobster standing at the rim is not swallowed by it. Everything a row closer to the
             // camera clears the dome entirely — that is the row band, not this.
             frontChildPrefix = "Upper",
+            // The dome is drawn ~1 world unit past the caster's feet — about one hex row — so an
+            // adjacent enemy one row closer stands INSIDE it and belongs under the front glass, not
+            // in front of the whole shell. Someone two rows closer is outside the rim and covers it.
+            rowsCovered = 1,
         };
 
         EditorUtility.SetDirty(lib);
