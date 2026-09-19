@@ -138,7 +138,7 @@ MonoBehaviour:
     delay: 0
     mirrorWithFacing: 0
     impactAt: 3.3
-    frontChildPrefix: 
+    frontChildPrefix: Upper
     hideChildrenPrefix: 
     onTop: 0
     spawnAtContact: 0

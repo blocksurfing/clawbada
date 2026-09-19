@@ -121,6 +121,7 @@ public class HexGrid : MonoBehaviour
         }
 
         ApplyTierPlacement(layout.tier);
+        CacheRowDepths(layout);
 
         if (boardTilemap != null)
         {
@@ -146,6 +147,54 @@ public class HexGrid : MonoBehaviour
         Debug.Log($"[HexGrid] Loaded layout {layout.layoutId} ({layout.cols}x{layout.rows}, " +
                   $"{layout.blockedHexes?.Length ?? 0} blocked, tier: {layout.tier})");
     }
+
+    // ─── Row depth ───
+
+    /// <summary>World Y of each layout row's centre, filled after the board is placed.</summary>
+    private float[] rowCenterY = new float[0];
+    /// <summary>True when a higher row index sits higher on screen (so it is FARTHER away).</summary>
+    private bool rowsAscendUp = true;
+
+    private void CacheRowDepths(ArenaLayout layout)
+    {
+        int rows = Mathf.Max(1, layout.rows);
+        rowCenterY = new float[rows];
+        for (int r = 0; r < rows; r++) rowCenterY[r] = GetWorldPosition(0, r).y;
+        rowsAscendUp = rows < 2 || rowCenterY[rows - 1] >= rowCenterY[0];
+        Debug.Log($"[HexGrid] row depth: {rows} rows, y {rowCenterY[0]:F2}…{rowCenterY[rows - 1]:F2} " +
+                  $"({(rowsAscendUp ? "row 0 is the front row" : "row 0 is the back row")}); " +
+                  $"bands {DepthSort.OrderForRow(0)}…{DepthSort.OrderForRow(rows - 1)}");
+    }
+
+    /// <summary>Rows in FRONT of the back row (0 = back row = the lowest layer). The designer's
+    /// "1st layer" is 0 here.</summary>
+    public int RowsFromBack(int row)
+    {
+        int rows = rowCenterY.Length;
+        if (rows == 0) return 0;
+        int r = Mathf.Clamp(row, 0, rows - 1);
+        return rowsAscendUp ? rows - 1 - r : r;
+    }
+
+    /// <summary>The same, for anything standing at a world Y: it belongs to the row whose depth
+    /// line it is nearest, so a lobster mid-hop changes layer as it crosses between rows.</summary>
+    public int RowsFromBackAtY(float worldY)
+    {
+        int rows = rowCenterY.Length;
+        if (rows == 0) return 0;
+        int best = 0;
+        float bestD = Mathf.Abs(worldY - rowCenterY[0]);
+        for (int r = 1; r < rows; r++)
+        {
+            float d = Mathf.Abs(worldY - rowCenterY[r]);
+            if (d < bestD) { bestD = d; best = r; }
+        }
+        return RowsFromBack(best);
+    }
+
+    /// <summary>Sorting order for something standing at a world Y; <paramref name="slot"/> is one
+    /// of DepthSort.Row* (obstacle / actor / actor's effects / decor).</summary>
+    public int SortingOrderAtY(float worldY, int slot) => DepthSort.OrderForRow(RowsFromBackAtY(worldY)) + slot;
 
     // ─── Obstacles ───
 
@@ -199,7 +248,7 @@ public class HexGrid : MonoBehaviour
 
             var group = root.AddComponent<UnityEngine.Rendering.SortingGroup>();
             group.sortingLayerName = DepthSort.Layer;
-            group.sortingOrder = DepthSort.ActorOrder;
+            group.sortingOrder = DepthSort.OrderForRow(RowsFromBack(b.row)) + DepthSort.RowObstacle;
 
             var art = new GameObject("Sprite");
             art.transform.SetParent(root.transform, false);

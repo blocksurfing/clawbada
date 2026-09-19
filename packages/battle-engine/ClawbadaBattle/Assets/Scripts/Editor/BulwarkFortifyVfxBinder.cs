@@ -85,6 +85,11 @@ public static class BulwarkFortifyVfxBinder
             delay = 0f,
             mirrorWithFacing = false,
             impactAt = IdleStart,
+            // The designer drew the dome as two halves for exactly this: the glass in FRONT of the
+            // lobsters (Upper*) draws over them, the back of the dome (Under*) draws behind, so a
+            // lobster standing at the rim is not swallowed by it. Everything a row closer to the
+            // camera clears the dome entirely — that is the row band, not this.
+            frontChildPrefix = "Upper",
         };
 
         EditorUtility.SetDirty(lib);
