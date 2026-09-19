@@ -171,15 +171,15 @@ MonoBehaviour:
     travelSpeed: 7
     launchAt: 0
     impactLead: 0
-  - prefab: {fileID: 0}
-    anchor: 2
+  - prefab: {fileID: 37240234991233084, guid: 4906ed885fd40dc1fc663d9acb03c465, type: 3}
+    anchor: 1
     delay: 0
-    mirrorWithFacing: 1
-    impactAt: 0
-    frontChildPrefix: 
+    mirrorWithFacing: 0
+    impactAt: 0.7
+    frontChildPrefix: Front
     hideChildrenPrefix: 
     onTop: 0
-    spawnAtContact: 0
+    spawnAtContact: 1
     castSpeed: 1
     shakeAmplitude: 0
     shakeSeconds: 0.3
