@@ -169,6 +169,9 @@ export default async function (b: Browser) {
     if (errText) errors.push(`turn ${before}: page error '${errText}'`);
     if (casters.size >= 3 && casts >= 3) break;
   }
+  // The loop breaks right after the last cast is clicked, and a cinematic (Maelstrom, Fortify, Devour)
+  // holds its beat for seconds — wait for its hold line so the beat's logs (shake, damage) are in the buffer.
+  for (let w = 0; w < 32 && grab(b, /effect clip=/).length > 0 && grab(b, /effect held to/).length === 0; w++) await b.sleep(250);
   await b.sleep(1500);
   await b.screenshot(`${S}/specials-${CLASS}.png`);
   const logSpecials = await b.eval(`Array.from(document.querySelectorAll('span.text-claw-gold')).map(s => s.textContent).filter(Boolean).slice(0, 6)`);
@@ -185,6 +188,25 @@ export default async function (b: Browser) {
   if (onContact.length) {
     const ts = onContact.map((l) => Number((l.match(/at ([\d.]+)s/) || [])[1] ?? '0'));
     expect(ts.every((t) => t >= 0.3), `${CLASS}: effect spawned on the contact frame, not at the turn start (${ts.map((t) => t.toFixed(2)).join(', ')} s)`);
+  }
+  // Projectile audio fit (Inferno with both a cast and an impact clip bound): the impact clip must start
+  // the instant the cast clip ends, so the two files the sound designer authored play back to back.
+  const fit = grab(b, /\[BattleManager\] special .* audio fit:/);
+  for (const l of fit.slice(0, 3)) console.log('  fit:', l.slice(0, 170));
+  if (fit.length) {
+    const m = fit[fit.length - 1].match(/cast ([\d.]+)s .* cast starts at ([\d.]+)s/);
+    const sched = grab(b, /\(impact\) scheduled: .*starts in ([\d.]+)s/).slice(-1)[0]?.match(/starts in ([\d.]+)s/);
+    if (m && sched) {
+      const castEnd = Number(m[1]) + Number(m[2]); const impactStart = Number(sched[1]);
+      expect(Math.abs(castEnd - impactStart) < 0.03, `${CLASS}: impact clip starts the instant the cast clip ends (cast ends ${castEnd.toFixed(2)} s, impact starts ${impactStart.toFixed(2)} s)`);
+    } else expect(false, `${CLASS}: audio-fit and impact-schedule lines both present`);
+  }
+  for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
+  if (CLASS === 'Tempest' || CLASS === 'Ember') {
+    expect(grab(b, /\[CameraShake\] amp=/).length >= 1, `${CLASS}: screen shake fired on the beat`);
+    // The camera actually moved: at least a few rendered frames with a visible peak, then back at base.
+    const done = grab(b, /\[CameraShake\] done:/).slice(-1)[0]?.match(/done: (\d+) frames, peak ([\d.]+)u \(([\d.]+)px\)/);
+    expect(!!done && Number(done[1]) >= 3 && Number(done[3]) >= 2, `${CLASS}: shake moved the camera over several frames (${done ? `${done[1]} frames, peak ${done[3]} px` : 'no done line'})`);
   }
   const held = grab(b, /\[BattleManager\] special .* effect held to/);
   for (const l of held.slice(0, 4)) console.log('  hold:', l.slice(0, 120));
