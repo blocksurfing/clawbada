@@ -151,10 +151,13 @@ S1 trust assumption: operator submits drand beacons honestly; on-chain BLS verif
 Lifetime: 6 days 23 hours after launch (per `closeTime`), then permanently mute (no on-chain eligibility checks possible after closure). During the active window the holder marks wallets eligible via off-chain verification (wallet age ≥ 7 days, ≥ 3 prior tx history before the 7-day mark, ≥ 0.001 ETH balance).
 
 ### Compromise blast radius
-A compromised key can mark arbitrary wallets eligible. Each eligible wallet can claim 5 soulbound lobsters + 7,000 CLAW. Worst case: 70M CLAW pre-mint drained over the faucet's lifetime if no rate limit is added.
+A compromised key can mark arbitrary wallets eligible. Each eligible wallet can claim 5 soulbound lobsters + 7,000 CLAW. Worst case, both hard-bounded on-chain: the 70M CLAW pre-mint drained, and `MAX_FAUCET_LOBSTERS` = 50,000 lobsters minted (10,000 wallets × 5 — the population the drip is sized for).
+
+The lobster bound matters more than it looks (audit D-02): a faucet lobster mines the 705M pool with no stake, the daily glide splits a fixed budget across demand, and minted lobsters outlive a key rotation — there is no pause and no miner blacklist. Before the cap the key could mint an unlimited sybil mining fleet; with it the worst case is the sybil taking the whole faucet population's share, which is what the faucet was always allowed to hand out.
 
 ### Defenses
-- The faucet's pre-mint is exactly 70M (one-shot). Drain past that is impossible.
+- The faucet's pre-mint is exactly 70M (one-shot) and faucet lobsters are capped at 50,000 for the contract's lifetime (`FaucetLobsterCapReached`). Drain past either is impossible.
+- Alert on the `EligibilitySet` rate: 500 wallets per transaction means a stolen key can use the whole cap in 20 transactions. Rotate on the first unexplained batch.
 - Soulbound lobsters cannot be consolidated to a single wallet for resale, blunting the economic value of a sybil farm.
 - F-01/F-02 (already documented): operational items for off-chain eligibility scoring (wallet age + tx history + behavioral signals). Production deploys should add an oracle hook (Gitcoin Passport or equivalent) for stronger sybil resistance.
 
