@@ -144,7 +144,32 @@ describe('breeding routes', () => {
       const body = await res.json();
       expect(body.steps).toHaveLength(2);
       expect(body.steps[0].description).toContain('Approve');
-      expect(body.steps[1].description).toContain('Breed');
+      expect(body.steps[1].description).toContain('breed');
+      // The second step must encode a function BreedingLab actually has. It used to encode
+      // `breed`, which does not exist; the encoder is stubbed here, so this test never noticed and
+      // the real endpoint answered 500. (routes-match-abi.test.ts checks every route against the
+      // real ABIs.)
+      const encoded = (mockEncodeFunctionData.mock.calls as any[]).map((c) => c[0].functionName);
+      expect(encoded).toContain('requestBreed');
+      expect(encoded).not.toContain('breed');
+      // D-21: tells the client that a keeper finalizes, and how to do it itself.
+      expect(body.finalize.by).toBe('keeper');
+      expect(body.finalize.windowBlocks).toBe(256);
+    });
+
+    test('POST /breeding/finalize/:requestId returns finalizeBreed calldata with a gas hint above the D-22 floor', async () => {
+      mockEncodeFunctionData.mockClear();
+      const res = await app.request('/breeding/finalize/7', { method: 'POST' });   // permissionless: no auth
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.steps).toHaveLength(1);
+      const call = (mockEncodeFunctionData.mock.calls as any[])[0][0];
+      expect(call.functionName).toBe('finalizeBreed');
+      expect(call.args).toEqual([7n]);
+      expect(Number(body.gasHint)).toBeGreaterThanOrEqual(500_000);
+      for (const bad of ['0', '-1', 'abc', '1.5']) {
+        expect((await app.request(`/breeding/finalize/${bad}`, { method: 'POST' })).status).toBe(400);
+      }
     });
 
     test('returns 400 when parentA same as parentB', async () => {

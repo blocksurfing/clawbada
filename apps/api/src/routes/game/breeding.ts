@@ -151,19 +151,50 @@ breedingRoutes.post(
       [addresses.breedingLab, costWei],
     );
 
+    // Breeding is two steps on-chain: requestBreed commits the fee and both parents' breed slots,
+    // and finalizeBreed mints the offspring from a block hash that did not exist at request time.
+    // This used to encode a function named `breed`, which BreedingLab does not have — the real
+    // ABI encoder throws on it, so the endpoint answered 500 and breeding through the app never
+    // worked (the route test stubs the encoder, so it could not notice).
     const breedCalldata = buildCalldata(
       addresses.breedingLab,
       BreedingLabAbi as any,
-      'breed',
+      'requestBreed',
       [parentAId, parentBId],
     );
 
     return c.json({
       ...multiStep(
         { description: `Approve ${cost} $CLAW for breeding`, calldata: approveCalldata },
-        { description: 'Breed two lobsters', calldata: breedCalldata },
+        { description: 'Request the breed (fee and breed slots are committed now)', calldata: breedCalldata },
       ),
       preview: serializeBigInts({ totalCost: cost, totalCostWei: costWei, parentA: parentAId, parentB: parentBId }),
+      // D-21: the engine's keeper finalizes every request a few seconds after its target block.
+      // finalizeBreed is permissionless, so a client may also do it itself — it MUST land within
+      // ~256 blocks (~8.5 min on Base) of the target block or the breed is forfeited.
+      finalize: {
+        by: 'keeper',
+        windowBlocks: 256,
+        selfServe: 'POST /api/game/breeding/finalize/:requestId',
+        note: 'The offspring is minted by finalizeBreed, normally within seconds. The request id is in the BreedRequested event.',
+      },
+    });
+  }),
+);
+
+// POST /api/game/breeding/finalize/:requestId — calldata to finalize a breed yourself.
+// Permissionless on-chain, so no auth: anyone may finalize anyone's request (the offspring always
+// goes to the original requester). The keeper normally gets there first; this is the fallback.
+breedingRoutes.post(
+  '/finalize/:requestId',
+  catchErrors(async (c) => {
+    const raw = c.req.param('requestId');
+    if (!/^[1-9]\d{0,30}$/.test(raw)) throw new ApiError('INVALID_INPUT', 'requestId must be a positive integer');
+    const calldata = buildCalldata(addresses.breedingLab, BreedingLabAbi as any, 'finalizeBreed', [BigInt(raw)]);
+    return c.json({
+      ...multiStep({ description: `Finalize breed request #${raw} (mints the offspring)`, calldata }),
+      // D-22: the contract refuses to finalize with less than FINALIZE_MIN_GAS left.
+      gasHint: '800000',
     });
   }),
 );

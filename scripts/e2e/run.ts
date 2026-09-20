@@ -18,6 +18,7 @@ import { infraPhase, type Stack } from './phases/00-infra';
 import { onboardingPhase } from './phases/10-onboarding';
 import { battlePhase } from './phases/20-battle';
 import { miningPhase } from './phases/30-mining';
+import { breedingPhase } from './phases/35-breeding';
 import { assertPhase } from './phases/40-assert';
 
 export interface Flags { keep: boolean; liveDrand: boolean; verbose: boolean; stake: '2500' | '10000' | '50000'; anvilPort: number; apiPort: number }
@@ -64,8 +65,10 @@ try {
   const battle = await battlePhase(stack, players, flags, checks);
   checks.setPhase('mining');
   const mining = await miningPhase(stack, players, battle, checks);
+  checks.setPhase('breeding');
+  const breeding = await breedingPhase(stack, players, checks);
   checks.setPhase('assert');
-  await assertPhase(stack, players, battle, mining, checks);
+  await assertPhase(stack, players, battle, mining, breeding, checks);
 } catch (err) {
   const e = err as Error;
   console.error(`\n✖ ${e.name}: ${e.message}`);
