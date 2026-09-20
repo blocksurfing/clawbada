@@ -175,6 +175,31 @@ describe('POST /api/auth/session', () => {
     expect(renewed.sessionEndsAt).toBe(first.sessionEndsAt);   // the cap does not move
   });
 
+  // Audit C-01: /session accepted a bearer token and minted a token with a NEW session start, so
+  // a token could buy itself a fresh 24 h forever and SESSION_MAX_AGE_SEC never applied.
+  test('C-01: a token cannot buy a fresh session — only a wallet signature can', async () => {
+    const a = await app();
+    const first = await (await a.request('/api/auth/session', { method: 'POST', headers: signatureHeaders() })).json();
+
+    const res = await a.request('/api/auth/session', { method: 'POST', headers: { Authorization: `Bearer ${first.token}` } });
+    expect(res.status).toBe(401);
+    expect((await res.json()).message).toMatch(/fresh wallet signature/);
+
+    // Even alongside valid signature headers: the bearer must not be laundered into a new start.
+    const both = await a.request('/api/auth/session', { method: 'POST', headers: { ...signatureHeaders(), Authorization: `Bearer ${first.token}` } });
+    expect(both.status).toBe(401);
+  });
+
+  test('C-01: however often it is refreshed, a session never outlives its original cap', async () => {
+    const a = await app();
+    let tok = (await (await a.request('/api/auth/session', { method: 'POST', headers: signatureHeaders() })).json());
+    const cap = tok.sessionEndsAt;
+    for (let i = 0; i < 5; i++) {
+      tok = await (await a.request('/api/auth/session/refresh', { method: 'POST', headers: { Authorization: `Bearer ${tok.token}` } })).json();
+      expect(tok.sessionEndsAt).toBe(cap);
+    }
+  });
+
   test('refresh refuses a missing or bad token', async () => {
     const a = await app();
     expect((await a.request('/api/auth/session/refresh', { method: 'POST' })).status).toBe(401);
