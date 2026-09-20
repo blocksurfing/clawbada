@@ -30,7 +30,7 @@ const LOG_KEEP = 80;
 
 export type Connection = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
 
-export interface AuthParams { address: string; signature: string; timestamp: string | number }
+export interface AuthParams { address: string; signature: string; timestamp: string | number; nonce?: string; domain?: string }
 
 export interface SessionViewState {
   connection: Connection;

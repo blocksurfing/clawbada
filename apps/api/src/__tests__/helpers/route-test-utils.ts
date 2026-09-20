@@ -28,6 +28,7 @@ export function authHeaders(address?: string): Record<string, string> {
     'X-Wallet-Address': address ?? TEST_ADDRESS,
     'X-Signature': '0xdeadbeef',
     'X-Timestamp': String(Math.floor(Date.now() / 1000)),
+    'X-Nonce': 'routetest0001', // C-01: the EIP-4361 login message; verifyMessage is stubbed in route tests
   };
 }
 

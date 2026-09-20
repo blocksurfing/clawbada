@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import { walletAuth } from '../middleware/auth';
+import { walletAuth, allowedAuthDomains, authChainId } from '../middleware/auth';
+import { AUTH_STATEMENT, AUTH_TTL_SEC } from '@clawbada/chain/src/auth-message';
 import { catchErrors } from '../lib/errors';
 import { ApiError } from '../lib/errors';
 import {
@@ -16,6 +17,21 @@ import {
  * original signature.
  */
 export const authRoutes = new Hono();
+
+// ──────────── GET /api/auth/params ────────────
+// Everything a client needs to build the login message without hard-coding it: which domains may
+// ask for a signature, which chain this API serves, and the exact statement. Public.
+authRoutes.get('/params', (c) =>
+  c.json({
+    version: 2,
+    format: 'EIP-4361',
+    domains: allowedAuthDomains(),
+    chainId: authChainId(),
+    statement: AUTH_STATEMENT,
+    ttlSec: AUTH_TTL_SEC,
+    headers: ['X-Wallet-Address', 'X-Signature', 'X-Timestamp', 'X-Nonce', 'X-Auth-Domain (optional; defaults to domains[0])'],
+  }),
+);
 
 // ──────────── POST /api/auth/session ────────────
 // Auth: a fresh wallet signature (walletAuth also accepts a token, which simply re-issues).
