@@ -19,6 +19,7 @@ import {
   type Stats,
   EvolutionTier,
   LegendStatus,
+  STAKE_BRACKETS,
 } from '@clawbada/game-logic';
 import { ApiError } from './errors';
 
@@ -368,6 +369,11 @@ export interface ChainBattle {
    *  `handleTimeout` reverts `DisputedBattleRequiresAdmin` — frontend must hide
    *  the timeout CTA in that state and show an "awaiting admin" message. */
   disputed: boolean;
+  /** D-08: Team Power each side was matched at (3..9), bound on-chain by createBattle. */
+  powerA: number;
+  powerB: number;
+  /** D-06: who filed the dispute, or the zero address. */
+  disputer: string;
 }
 
 export async function readBattle(battleId: bigint): Promise<ChainBattle> {
@@ -401,9 +407,36 @@ export async function readBattle(battleId: bigint): Promise<ChainBattle> {
       phaseDeadline: data.phaseDeadline,
       payoutDeadline: data.payoutDeadline,
       disputed: data.disputed,
+      // D-08: the Powers the matchmaker bound on-chain, for the deposit-consent check.
+      powerA: Number(data.powerA),
+      powerB: Number(data.powerB),
+      // D-06: who filed a dispute, if anyone (the dispute route + settlement alerts).
+      disputer: data.disputer as string,
     };
   } catch {
     throw new ApiError('NOT_FOUND', `Battle #${battleId} not found`);
+  }
+}
+
+/** D-06: the bond `disputeBattle` will pull for a battle at this stake — read from the chain,
+ *  because the Safe can re-tune `disputeBonds[bracket]`. `stakeWei` is the on-chain stake. */
+export async function readDisputeBond(stakeWei: bigint): Promise<bigint> {
+  const bracket = STAKE_BRACKETS.findIndex((s) => s * 10n ** 18n === stakeWei);
+  if (bracket < 0) throw new ApiError('CHAIN_ERROR', `Unknown stake bracket for stake ${stakeWei}`);
+  try {
+    return (await getBattleArena(client()).read.disputeBonds([BigInt(bracket)])) as bigint;
+  } catch {
+    throw new ApiError('CHAIN_ERROR', 'Could not read the dispute bond');
+  }
+}
+
+/** Chain time (latest block timestamp, seconds). The contract judges every deadline by
+ *  block.timestamp, which drifts from the server clock — and jumps on a local chain. */
+export async function readChainTime(): Promise<bigint> {
+  try {
+    return (await client().getBlock({ blockTag: 'latest' })).timestamp as bigint;
+  } catch {
+    throw new ApiError('CHAIN_ERROR', 'Could not read the latest block');
   }
 }
 

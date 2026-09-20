@@ -1,4 +1,4 @@
-import { pgTable, text, bigint, integer, smallint, jsonb, timestamp, check, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, bigint, integer, smallint, jsonb, timestamp, boolean, check, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const battles = pgTable('battles', {
@@ -37,6 +37,22 @@ export const battles = pgTable('battles', {
    *  the BattleArena.Battle.powerA/powerB fields. Range 3..9. */
   powerA: smallint('power_a'),
   powerB: smallint('power_b'),
+  /** D-06 (audit 2026-09): what `BattleArena.settle` PROPOSED on-chain, mirrored from
+   *  BattleProposed into columns of its own. The indexer used to write the on-chain hashes
+   *  over `battle_sessions.final_state_hash / turn_log_hash` — the server's own record of the
+   *  battle it ran — which erased the one cheap signal that a proposal did not come from that
+   *  battle (a stolen RESOLVER key settling the instant teams are revealed). Keeping both lets
+   *  the settle job, the finalize watcher and the API compare them. `proposedWinner` is a
+   *  lowercase wallet, or the zero address for a draw. */
+  proposedWinner: text('proposed_winner'),
+  proposedFinalStateHash: text('proposed_final_state_hash'),
+  proposedTurnLogHash: text('proposed_turn_log_hash'),
+  proposedAt: timestamp('proposed_at'),
+  /** D-08: false for a row the indexer had to invent because a BattleCreated event arrived
+   *  with no matchmaker row behind it. No player queued for such a battle through this
+   *  server, so the API must never present it as "your match" — a stolen MATCHMAKER key can
+   *  create any pairing at any stake, and consent on-chain is a bare deposit(battleId). */
+  fromMatchmaker: boolean('from_matchmaker').notNull().default(true),
   winner: text('winner'),
   protocolFee: text('protocol_fee'),
   winnerPayout: text('winner_payout'),

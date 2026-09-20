@@ -55,6 +55,39 @@ function validatePayload(raw: unknown): SettleBattlePayload {
   return p as SettleBattlePayload;
 }
 
+/** D-06: null when what is on-chain IS this payload; otherwise the first field that differs.
+ *
+ *  AwaitingFinalize: compare the PROPOSAL (winner, both hashes, both damage arrays).
+ *  Settled: compare the FINAL outcome (`winner` + the hashes). After an admin-resolved dispute
+ *  the contract overwrites the hashes and pays the admin's winner but leaves the proposed*
+ *  fields as they were, so a rogue proposal that was disputed and corrected must read as a
+ *  match here — and one that was finalized unchallenged must not. */
+export function proposalMismatch(
+  onChain: {
+    winner?: string;
+    proposedWinner?: string;
+    finalStateHash?: string;
+    turnLogHash?: string;
+    proposedDamageA?: readonly (number | bigint)[];
+    proposedDamageB?: readonly (number | bigint)[];
+  },
+  payload: SettleBattlePayload,
+  winner: string,
+  settled: boolean,
+): string | null {
+  const eq = (a: string | undefined, b: string) => (a ?? '').toLowerCase() === b.toLowerCase();
+  const sameDamage = (a: readonly (number | bigint)[] | undefined, b: readonly number[]) =>
+    !!a && a.length === b.length && a.every((v, i) => Number(v) === b[i]);
+  const chainWinner = settled ? onChain.winner : onChain.proposedWinner;
+  if (!eq(chainWinner, winner)) return `winner on-chain=${chainWinner} ours=${winner}`;
+  if (!eq(onChain.finalStateHash, payload.finalStateHash)) return `finalStateHash on-chain=${onChain.finalStateHash} ours=${payload.finalStateHash}`;
+  if (!eq(onChain.turnLogHash, payload.turnLogHash)) return `turnLogHash on-chain=${onChain.turnLogHash} ours=${payload.turnLogHash}`;
+  if (settled) return null;
+  if (!sameDamage(onChain.proposedDamageA, payload.damageA)) return 'damageA differs';
+  if (!sameDamage(onChain.proposedDamageB, payload.damageB)) return 'damageB differs';
+  return null;
+}
+
 export async function settleBattleHandler(rawPayload: unknown, ctx: JobContext): Promise<JobResult> {
   let payload: SettleBattlePayload;
   try {
@@ -74,7 +107,20 @@ export async function settleBattleHandler(rawPayload: unknown, ctx: JobContext):
     const b = await arena.read.getBattle([battleId]);
     const phase = Number(b.phase);
     if (phase === PHASE_AWAITING_FINALIZE || phase === PHASE_SETTLED) {
-      log.info({ battleId: payload.battleId, phase, jobId: ctx.jobId.toString() }, 'battle already settled/proposed; nothing to do');
+      // D-06: "already past Active" is only fine if what is on-chain is OUR result. This used to
+      // return ok without looking. A stolen RESOLVER key can settle the instant teams are
+      // revealed, while the real battle is still being played; when that battle ended, this
+      // job saw the phase had moved, said "nothing to do", and the honest stack went on to
+      // finalize the thief's payout with no alarm anywhere.
+      const mismatch = proposalMismatch(b, payload, winner, phase === PHASE_SETTLED);
+      if (mismatch) {
+        log.fatal(
+          { battleId: payload.battleId, phase, mismatch, payoutDeadline: b.payoutDeadline?.toString(), jobId: ctx.jobId.toString() },
+          'rogue_settlement_proposal — the on-chain result is not the battle this server ran; dispute before payoutDeadline',
+        );
+        return { ok: false, retry: 'dead', error: `proposal_mismatch: ${mismatch}` };
+      }
+      log.info({ battleId: payload.battleId, phase, jobId: ctx.jobId.toString() }, 'battle already settled/proposed with our result; nothing to do');
       return { ok: true };
     }
     if (phase !== PHASE_ACTIVE) {

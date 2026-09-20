@@ -24,7 +24,7 @@
  * latest phase truth.
  */
 import type { Log } from 'viem';
-import { and, eq, lt, ne } from 'drizzle-orm';
+import { and, eq, lt } from 'drizzle-orm';
 import { BattleArenaAbi, addresses, getBattleArena, getPublicClient } from '@clawbada/chain';
 import {
   db,
@@ -36,11 +36,20 @@ import {
   recordParticipation,
   type BattleOutcomeResult,
 } from '@clawbada/db';
-import { calculateNewElo } from '@clawbada/game-logic';
+import { calculateNewElo, STAKE_BRACKETS } from '@clawbada/game-logic';
+import { judgeProposal, isRogueVerdict } from '@clawbada/db/src/queries/proposal-verdict';
 import { EventWatcher, type WatcherConfig } from '../lib/event-processor';
 // Aliased to `pinoLog` because `handleEvent(log: Log)` parameter shadows the
 // module-scope name. Pino logger calls below use `pinoLog.warn(...)`.
 import { log as pinoLog } from '../logger';
+
+/** D-08: Low / Mid / High by the DISPLAY stake (whole $CLAW). An unknown stake is reported
+ *  as High, never as Low: if a label is wrong it must be wrong in the alarming direction. */
+export function bracketForStake(stakeDisplay: bigint): 0 | 1 | 2 {
+  if (stakeDisplay === STAKE_BRACKETS[0]) return 0;
+  if (stakeDisplay === STAKE_BRACKETS[1]) return 1;
+  return 2;
+}
 
 /** F-3D: zero hash sentinel used by Solidity to indicate "no commit yet"
  *  on the Battle struct's teamCommitA/B fields. Compared by string. */
@@ -171,8 +180,13 @@ export class BattleWatcher extends EventWatcher {
             playerB: (args.playerB as string).toLowerCase(),
             teamA: 0n,
             teamB: 0n,
-            stakeBracket: 0,
+            // D-08: the bracket is read from the stake the chain recorded. It used to be
+            // hard-coded 0, so a rogue 50,000-stake battle reached the victim labelled "Low".
+            stakeBracket: bracketForStake(stakeDisplay),
             stakeAmount: stakeDisplay.toString(),
+            // D-08: nobody queued for this battle through this server. The API refuses to
+            // present such a row as the caller's match, or to build deposit calldata for it.
+            fromMatchmaker: false,
             phase: 1, // BattlePhase.Deposit
             // The battle exists on-chain (BattleCreated fired), so the row is `created`;
             // without this the session poller (phase = 4 AND status = 1) never claims it.
@@ -288,18 +302,17 @@ export class BattleWatcher extends EventWatcher {
           .set({ phase: 5 }) // BattlePhase.AwaitingFinalize
           .where(and(eq(battles.battleId, battleId), lt(battles.phase, 5)));
 
-        // V3: the proposal carries the battle commitments — mirror them onto the
-        // session row (the API set status 'settling' when it enqueued the settle;
-        // this also covers a settle submitted by hand or by another operator).
+        // D-06: record what the chain was TOLD in columns of its own, and never write it over
+        // the session row. `battle_sessions.final_state_hash / turn_log_hash` are the server's
+        // record of the battle it actually ran; overwriting them with the on-chain values
+        // erased the one cheap signal that a proposal did not come from that battle.
+        const proposedWinner = ((args.proposedWinner as string | undefined) ?? ZERO_ADDRESS).toLowerCase();
+        const proposedFinalStateHash = ((args.finalStateHash as string | undefined) ?? '').toLowerCase();
+        const proposedTurnLogHash = ((args.turnLogHash as string | undefined) ?? '').toLowerCase();
         await db
-          .update(battleSessions)
-          .set({
-            finalStateHash: (args.finalStateHash as string | undefined) ?? null,
-            turnLogHash: (args.turnLogHash as string | undefined) ?? null,
-            status: 'settling',
-            updatedAt: new Date(),
-          })
-          .where(and(eq(battleSessions.id, battleId.toString()), ne(battleSessions.status, 'settled')));
+          .update(battles)
+          .set({ proposedWinner, proposedFinalStateHash, proposedTurnLogHash, proposedAt: new Date() })
+          .where(eq(battles.battleId, battleId));
 
         pinoLog.info(
           {
@@ -318,6 +331,10 @@ export class BattleWatcher extends EventWatcher {
         // battle counts as PLAYED for boost qualification (played, never
         // won) - the outcome is not final until BattleSettled.
         await this.recordProposedParticipation(battleId);
+
+        // D-06: compare the proposal with the battle THIS server ran. Done last, so a failure
+        // here can never cost a team its played-battle credit above.
+        await this.judgeProposedSettlement(battleId, { proposedWinner, proposedFinalStateHash, proposedTurnLogHash }, args.payoutDeadline);
         break;
       }
 
@@ -559,6 +576,40 @@ export class BattleWatcher extends EventWatcher {
       case 'DamageApplied':
       case 'AntiGriefSlashed':
         break;
+    }
+  }
+
+  /** D-06: page when an on-chain settlement proposal is not the result this server computed —
+   *  or arrives while this server is still playing the battle. Either means the proposal did
+   *  not come from the honest settle job: a compromised RESOLVER key, or an engine bug. Both
+   *  players can still dispute until `payoutDeadline`; the API pushes them `settlement_alert`.
+   *  Never throws: an alarm must not stall the indexer. */
+  private async judgeProposedSettlement(
+    battleId: bigint,
+    proposal: { proposedWinner: string; proposedFinalStateHash: string; proposedTurnLogHash: string },
+    payoutDeadline: unknown,
+  ): Promise<void> {
+    try {
+      const [session] = await db
+        .select({
+          status: battleSessions.status,
+          winner: battleSessions.winner,
+          playerA: battleSessions.playerA,
+          playerB: battleSessions.playerB,
+          finalStateHash: battleSessions.finalStateHash,
+          turnLogHash: battleSessions.turnLogHash,
+        })
+        .from(battleSessions)
+        .where(eq(battleSessions.id, battleId.toString()))
+        .limit(1);
+      const verdict = judgeProposal(session, proposal);
+      if (!isRogueVerdict(verdict)) return;
+      pinoLog.error(
+        { battleId: battleId.toString(), verdict, ...proposal, payoutDeadline: payoutDeadline?.toString(), module: 'battle-watcher', op: 'BattleProposed' },
+        'rogue_settlement_proposal',
+      );
+    } catch (err) {
+      pinoLog.error({ err, battleId: battleId.toString(), module: 'battle-watcher', op: 'BattleProposed' }, 'could not judge the settlement proposal');
     }
   }
 

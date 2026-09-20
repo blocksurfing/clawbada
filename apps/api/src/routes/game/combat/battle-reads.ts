@@ -8,7 +8,8 @@
 
 import { Hono } from 'hono';
 import { desc, eq, or } from 'drizzle-orm';
-import { db, battles } from '@clawbada/db';
+import { db, battles, battleSessions } from '@clawbada/db';
+import { judgeProposal, isRogueVerdict, type ProposalVerdict } from '@clawbada/db/src/queries/proposal-verdict';
 import { BattlePhase } from '@clawbada/game-logic';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readBattle, serializeBigInts } from '../../../lib/chain';
@@ -57,6 +58,34 @@ export function publicBattleView(row: BattleRow) {
     totalRounds: row.totalRounds,
     createdAt: row.createdAt,
     settledAt: row.settledAt,
+  };
+}
+
+/**
+ * D-06 (audit 2026-09): while a result is awaiting finalization, say plainly whether what the
+ * chain was told is the result THIS server computed. Everything in it is public already (the
+ * proposal is on-chain; the battle itself is full-information), so it needs no auth — and it
+ * is what lets the web app and agents notice a rogue settlement even after the battle ended
+ * and the live `settlement_alert` can no longer reach them.
+ */
+export function settlementCheck(
+  chain: { phase: number; proposedWinner: string; finalStateHash: string; turnLogHash: string; payoutDeadline: bigint; disputed: boolean } | null,
+  session: Parameters<typeof judgeProposal>[0],
+  battleId: string,
+): { proposedWinner: string; payoutDeadline: bigint; disputed: boolean; verdict: ProposalVerdict; rogue: boolean; disputeRoute: string } | null {
+  if (!chain || chain.phase !== BattlePhase.AwaitingFinalize) return null;
+  const verdict = judgeProposal(session, {
+    proposedWinner: chain.proposedWinner,
+    proposedFinalStateHash: chain.finalStateHash,
+    proposedTurnLogHash: chain.turnLogHash,
+  });
+  return {
+    proposedWinner: chain.proposedWinner.toLowerCase(),
+    payoutDeadline: chain.payoutDeadline,
+    disputed: chain.disputed,
+    verdict,
+    rogue: isRogueVerdict(verdict),
+    disputeRoute: `/api/game/combat/${battleId}/dispute`,
   };
 }
 
@@ -111,10 +140,17 @@ battleReadRoutes.get(
     const skipChainRead = dbRow && (dbRow.status === 0 || dbRow.status === 4);
     const chainBattle = skipChainRead ? null : await readBattle(BigInt(battleId));
 
+    // D-06: only worth a session read while a proposal is actually pending.
+    const session =
+      chainBattle && chainBattle.phase === BattlePhase.AwaitingFinalize
+        ? await db.query.battleSessions.findFirst({ where: eq(battleSessions.id, battleId) })
+        : undefined;
+
     return c.json(
       serializeBigInts({
         chain: chainBattle,
         db: dbRow ? publicBattleView(dbRow) : null,
+        settlement: settlementCheck(chainBattle, session, battleId),
       }),
     );
   }),

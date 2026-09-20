@@ -116,3 +116,17 @@ export interface WsEnvelope<T = unknown> {
 
 export const PRACTICE_ID_RE = /^p_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const isPracticeId = (id: string): boolean => PRACTICE_ID_RE.test(id);
+
+/** D-06: pushed when a result for this battle lands on-chain while it is still being played
+ *  on the game server - so it did not come from the game server. Dispute before the deadline. */
+export interface SettlementAlertPayload {
+  battleId: string;
+  reason: 'proposed_while_battle_in_progress';
+  /** Lowercase wallet; the zero address is a draw. */
+  proposedWinner: string;
+  /** Unix seconds, chain time. */
+  payoutDeadline: string;
+  disputed: boolean;
+  disputeRoute: string;
+  message: string;
+}

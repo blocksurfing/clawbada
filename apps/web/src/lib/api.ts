@@ -449,6 +449,24 @@ interface BattleData {
    *  Frontend should render a pending-create UI while chain is null. */
   chain: ChainBattleData | null;
   db: DbBattleData | null;
+  /** D-06: present while a result is awaiting finalization. `rogue` means the result on-chain
+   *  is NOT the one the game server computed (or the server is still playing the battle). */
+  settlement?: SettlementCheck | null;
+}
+
+export interface SettlementCheck {
+  /** Lowercase wallet; the zero address is a draw. */
+  proposedWinner: string;
+  /** Unix seconds, chain time. */
+  payoutDeadline: string;
+  disputed: boolean;
+  verdict: 'matches' | 'no_session' | 'session_still_active' | 'result_mismatch';
+  rogue: boolean;
+  disputeRoute: string;
+}
+
+export interface DisputeResponse extends StepsResponse {
+  preview: { battleId: string; bond: string; proposedWinner: string; payoutDeadline: string; secondsLeft: string; terms: string };
 }
 
 export interface CreatePracticeBody {
@@ -534,6 +552,9 @@ const combat = {
    *  has elapsed and nobody has progressed the battle. */
   handleTimeout: (battleId: string, auth: AuthHeaders) =>
     post<StepsResponse>(`/api/game/combat/${battleId}/handle-timeout`, undefined, auth),
+  /** D-06: contest a proposed result. Approve the bond, then disputeBattle. */
+  dispute: (battleId: string, evidence: string, auth: AuthHeaders) =>
+    post<DisputeResponse>(`/api/game/combat/${battleId}/dispute`, { evidence }, auth),
   // V3 live sessions
   createPractice: (body: CreatePracticeBody, auth: AuthHeaders) => post<{ battleId: string; snapshot: BattleSnapshot }>('/api/game/combat/practice', body, auth),
   submitTurn: (battleId: string, turn: number, command: TurnCommand, auth: AuthHeaders) =>
