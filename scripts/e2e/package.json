@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@clawbada/chain": "workspace:*",
+    "@clawbada/db": "workspace:*",
     "@clawbada/game-logic": "workspace:*",
     "postgres": "^3.4.5",
     "viem": "^2.21.0"

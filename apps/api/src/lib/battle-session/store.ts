@@ -89,6 +89,28 @@ export class SessionStore {
     await this.dbx.delete(battleSessions).where(eq(battleSessions.id, id));
   }
 
+  /**
+   * D-28 (audit 2026-09): finish a REAL battle and enqueue its on-chain settle in ONE
+   * transaction. These used to be two separate statements; a crash, deploy or DB blip
+   * between them left a session 'settling' with no job, nothing ever looked for it, and
+   * three hours later (ACTIVE_WINDOW) the loser could call handleTimeout for a full refund —
+   * the winner lost a battle they had won. The engine's SettleReconciler is the second
+   * line of defence for whatever still goes wrong after this commit (a job that dies).
+   */
+  async finishAndEnqueueSettle(
+    id: string,
+    patch: { status: 'settling'; winner: string; finalStateHash: string; turnLogHash: string; stateJson: string; turn: number },
+    payload: SettleJobPayload,
+  ): Promise<void> {
+    await this.dbx.transaction(async (tx) => {
+      await tx.update(battleSessions).set({ ...patch, deadline: null, updatedAt: new Date() }).where(eq(battleSessions.id, id));
+      await tx
+        .insert(operatorJobs)
+        .values({ jobType: 'settle_battle', payload, idempotencyKey: `settle_battle:${payload.battleId}` })
+        .onConflictDoNothing();
+    });
+  }
+
   /** Enqueue the on-chain settle for the engine's operator worker. Idempotent per battle. */
   async enqueueSettle(payload: SettleJobPayload): Promise<void> {
     await this.dbx
