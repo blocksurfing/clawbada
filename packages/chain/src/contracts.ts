@@ -45,7 +45,10 @@ export function getTreasury(client: PublicClient) {
   return getContract({ address: addresses.treasury, abi: TreasuryAbi, client });
 }
 
-export function getFaucet(client: PublicClient) {
+// The Faucet ABI grew past what the compiler will serialize as an inferred return type
+// (TS7056) when the two-step claim landed (D-10). Same treatment as getBattleArena.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getFaucet(client: PublicClient): any {
   return getContract({ address: addresses.faucet, abi: FaucetAbi, client });
 }
 

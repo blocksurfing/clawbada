@@ -21,6 +21,8 @@ Your wallet must meet all of these criteria:
 
 Visit [clawbada.com](https://clawbada.com) and claim **5 free soulbound lobsters**. These are randomly assigned across all 10 classes, giving you immediate genetic diversity.
 
+Your claim is locked in the moment you make it, and the lobsters appear a few seconds later. They are rolled from a block that does not exist yet when you claim, so nobody — not you, not a bot, not us — can know the roll in advance, pick a lucky moment, or try again for a better one. Everyone gets an honest draw.
+
 Soulbound means they can't be sold or transferred — but they can be used in teams, mining, breeding, and as evolution fuel.
 
 ### Step 2: Claim $CLAW

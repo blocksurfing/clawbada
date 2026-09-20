@@ -70,18 +70,42 @@ export class PlayerAgent {
   }
 
   // ── onboarding ──
-  async claimFaucet(): Promise<{ lobsterIds: bigint[] }> {
+  /** `tick` runs on every poll while waiting for the lobsters — the harness mines a block with it
+   *  (Anvil only mines when a transaction arrives; a real chain needs nothing). */
+  async claimFaucet(opts: { tick?: () => Promise<void> } = {}): Promise<{ lobsterIds: bigint[] }> {
     const status = await this.get(`/api/faucet/status/${this.address}`);
     if (!status.canClaimLobsters) throw new Error(`faucet: cannot claim lobsters: ${JSON.stringify(status)}`);
     const r1 = await this.post('/api/faucet/claim-lobsters');
-    const [rcpt] = await this.executeSteps(r1.steps);
-    const claimed = this.o.chain.events<{ tokenIds: readonly bigint[] }>(rcpt, FaucetAbi, 'LobstersClaimed')[0];
-    const lobsterIds = [...claimed.tokenIds].map(BigInt);
+    await this.executeSteps(r1.steps);
+    // D-10: that transaction commits the claim; the lobsters are rolled from a block that did not
+    // exist yet and minted by the engine's keeper a few seconds later. Wait for them — and if the
+    // keeper is down, finish the claim ourselves (finalizeClaim is permissionless).
+    const lobsterIds = await this.awaitFaucetLobsters(20_000, opts.tick);
     await sleep(1200); // faucet route rate limit is per wallet now (XFF), but be gentle
     const r2 = await this.post('/api/faucet/claim-claw');
     await this.executeSteps(r2.steps);
     this.say(`faucet: 5 lobsters ${lobsterIds.join(',')} + 7,000 CLAW`);
     return { lobsterIds };
+  }
+
+  /** Poll until the claim is finalized; after `selfServeAfterMs` stop waiting for the keeper. */
+  async awaitFaucetLobsters(selfServeAfterMs = 20_000, tick?: () => Promise<void>): Promise<bigint[]> {
+    const started = Date.now();
+    const fromBlock = await this.o.chain.pub.getBlockNumber();
+    await waitFor(async () => {
+      if (tick) await tick();
+      const st = await this.get(`/api/faucet/status/${this.address}`);
+      if (!st.lobsterClaimPending) return true;
+      if (Date.now() - started > selfServeAfterMs) {
+        const r = await this.post('/api/faucet/finalize-lobsters').catch(() => null); // 409 = too early
+        if (r?.steps) { this.say(`faucet: keeper is slow — ${r.action} ourselves`); await this.executeSteps(r.steps); }
+      }
+      return null;
+    }, { timeoutMs: 90_000, everyMs: 1_500, label: `${this.o.label}: faucet lobsters minted` });
+    const logs = await this.o.chain.pub.getContractEvents({ address: this.o.chain.d.contracts.Faucet, abi: FaucetAbi as any, eventName: 'LobstersClaimed', args: { claimer: this.address }, fromBlock: fromBlock > 300n ? fromBlock - 300n : 0n });
+    const claimed = (logs.at(-1) as any)?.args as { tokenIds: readonly bigint[] } | undefined;
+    if (!claimed) throw new Error('faucet: LobstersClaimed event not found after finalize');
+    return [...claimed.tokenIds].map(BigInt);
   }
 
   async evolve(lobsterId: bigint, fuel1: bigint, fuel2: bigint) {

@@ -148,8 +148,9 @@ The reference agent in `scripts/e2e/lib/agent.ts` does all of this: it disputes 
 
 **Faucet:**
 - `GET /api/faucet/status?address=0x...` — eligibility check
-- `POST /api/faucet/claim-lobsters` — claim 5 soulbound lobsters
-- `POST /api/faucet/claim-claw` — claim 7,000 $CLAW
+- `POST /api/faucet/claim-lobsters` — commit your claim for 5 soulbound lobsters. This transaction mints nothing: the lobsters are rolled from the hash of a block two blocks later and minted by `finalizeClaim`, which the game's keeper sends within a few seconds. Poll `GET /api/faucet/status/:address` until `lobsterClaimPending` is `false`. The roll cannot be predicted, chosen or retried — reverting on a roll you dislike leaves the claim on the same block hash.
+- `POST /api/faucet/finalize-lobsters` — fallback if the keeper is slow: returns `finalizeClaim` for your claim, or `rearmClaim` when its block hash has expired (a new future block; nothing is lost). Both are permissionless on-chain and always mint to the original claimer.
+- `POST /api/faucet/claim-claw` — claim 7,000 $CLAW (after your lobsters are minted)
 
 ## Transaction Flow
 
