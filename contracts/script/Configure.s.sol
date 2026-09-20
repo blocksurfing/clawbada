@@ -28,7 +28,21 @@ contract Configure is DeployHelpers {
         Deployment memory d = _readDeployment(network);
 
         vm.startBroadcast(deployerKey);
+        _configureAll(d);
+        vm.stopBroadcast();
 
+        console2.log("=== Configuration sent ===");
+        console2.log("Total: 6 Treasury authorizations, 15 role grants, 1 season start, 1 faucet pre-mint");
+        // D-23: a forge broadcast is not atomic, and the LAST transaction of this script
+        // is the one that takes ClawToken MINTER_ROLE back off the deploy key. Nothing
+        // above proves it landed — only a read of the chain does.
+        console2.log("NEXT: confirm it landed, against the chain (no --broadcast):");
+        console2.log("  forge script contracts/script/VerifyDeployment.s.sol --rpc-url <net> --sig 'configured()'");
+    }
+
+    /// @dev Every configuration call, with no file or env access, so the deploy-script
+    ///      test runs exactly what mainnet runs.
+    function _configureAll(Deployment memory d) internal {
         _configureTreasury(d);
         _configureClawToken(d);
         _configureLobsterNFT(d);
@@ -37,11 +51,6 @@ contract Configure is DeployHelpers {
         _configureBattleArena(d);
         _configureBattleVRF(d);
         _configureFaucet(d);
-
-        vm.stopBroadcast();
-
-        console2.log("=== Configuration complete ===");
-        console2.log("Total: 6 Treasury authorizations, 15 role grants, 1 season start, 1 faucet pre-mint");
     }
 
     function _configureTreasury(Deployment memory d) internal {

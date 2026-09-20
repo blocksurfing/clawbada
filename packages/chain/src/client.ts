@@ -43,14 +43,13 @@ export function getOperatorClient(testnet = false): any {
  *  Mainnet `Configure.s.sol` grants `MATCHMAKER_ROLE` to a distinct
  *  `MATCHMAKER_ADDRESS` (DeployHelpers.s.sol requires it != RESOLVER).
  *  Without a dedicated key the engine handler would sign with the wrong
- *  role and the contract reverts (AccessControl). Falls back to
- *  OPERATOR_PRIVATE_KEY when MATCHMAKER_PRIVATE_KEY is unset so testnet/
- *  dev environments where the deployer holds both roles still work. */
+ *  role and the contract reverts (AccessControl). Off mainnet it falls
+ *  back to OPERATOR_PRIVATE_KEY when MATCHMAKER_PRIVATE_KEY is unset so
+ *  testnet/dev environments where the deployer holds both roles still
+ *  work; on mainnet there is no fallback (see roleKey). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getMatchmakerClient(testnet = false): any {
-  const key = process.env.MATCHMAKER_PRIVATE_KEY ?? process.env.OPERATOR_PRIVATE_KEY;
-  if (!key) throw new Error('MATCHMAKER_PRIVATE_KEY (or OPERATOR_PRIVATE_KEY fallback) not set');
-  return walletFromKey(key, testnet);
+  return walletFromKey(roleKey('MATCHMAKER_PRIVATE_KEY', testnet), testnet);
 }
 
 /** Codex cross-cutting HIGH-1: separate signer for `settle` and
@@ -58,23 +57,49 @@ export function getMatchmakerClient(testnet = false): any {
  *  getMatchmakerClient. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getResolverClient(testnet = false): any {
-  const key = process.env.RESOLVER_PRIVATE_KEY ?? process.env.OPERATOR_PRIVATE_KEY;
-  if (!key) throw new Error('RESOLVER_PRIVATE_KEY (or OPERATOR_PRIVATE_KEY fallback) not set');
-  return walletFromKey(key, testnet);
+  return walletFromKey(roleKey('RESOLVER_PRIVATE_KEY', testnet), testnet);
 }
 
 /** Signer for the weekly battle-rank boost table (`MiningPool.setTeamBoosts` /
  *  `activateBoostEpoch`, BOOST_ADMIN_ROLE), used by the engine's operator
  *  worker. Same fallback semantics as getMatchmakerClient: BOOST_ADMIN_PRIVATE_KEY,
- *  else OPERATOR_PRIVATE_KEY so a single-key testnet keeps working. `.env.example`
- *  ships the placeholder `0x`, which is treated as unset rather than handed to
- *  viem. Give the role its own key in prod: the outbox serialises engine-side
- *  writes, but a shared key still shares a nonce with the other roles. */
+ *  else (off mainnet only) OPERATOR_PRIVATE_KEY so a single-key testnet keeps
+ *  working. `.env.example` ships the placeholder `0x`, which is treated as unset
+ *  rather than handed to viem. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getBoostAdminClient(testnet = false): any {
-  const key = presentKey(process.env.BOOST_ADMIN_PRIVATE_KEY) ?? presentKey(process.env.OPERATOR_PRIVATE_KEY);
-  if (!key) throw new Error('BOOST_ADMIN_PRIVATE_KEY (or OPERATOR_PRIVATE_KEY fallback) not set');
-  return walletFromKey(key, testnet);
+  return walletFromKey(roleKey('BOOST_ADMIN_PRIVATE_KEY', testnet), testnet);
+}
+
+/**
+ * The private key for one hot role.
+ *
+ * Off mainnet an unset role key falls back to OPERATOR_PRIVATE_KEY, so a single-key
+ * testnet or local chain keeps working.
+ *
+ * On mainnet (`testnet === false`) there is NO fallback (audit 2026-09 D-26). The role
+ * policy sizes each hot key's blast radius on its own: a stolen resolver key can propose
+ * battle results, a stolen boost key can post mining boosts. One shared key collapses
+ * that — a single compromise could settle self-play battles AND boost the same teams'
+ * mining, with no second service to notice. The deploy scripts already refuse to grant
+ * two hot roles to one address on mainnet; this makes the server refuse to run as if
+ * they had, rather than sign with a key that holds the wrong role and fail on-chain.
+ */
+export function roleKey(
+  name: 'MATCHMAKER_PRIVATE_KEY' | 'RESOLVER_PRIVATE_KEY' | 'BOOST_ADMIN_PRIVATE_KEY',
+  testnet: boolean,
+): string {
+  const own = presentKey(process.env[name]);
+  if (own) return own;
+  if (!testnet) {
+    throw new Error(
+      `${name} not set. On mainnet every hot role needs its own key: ` +
+        'the OPERATOR_PRIVATE_KEY fallback is for testnet and local chains only.',
+    );
+  }
+  const shared = presentKey(process.env.OPERATOR_PRIVATE_KEY);
+  if (!shared) throw new Error(`${name} (or OPERATOR_PRIVATE_KEY fallback) not set`);
+  return shared;
 }
 
 /** Treat empty and the `.env.example` placeholder `0x` as unset. */

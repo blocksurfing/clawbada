@@ -1,12 +1,11 @@
 // ── Env validation (fail fast) ──
+// Runs before any service below is constructed. The rules live in ./env-check (pure,
+// unit-tested).
+import { engineEnvProblems } from './env-check';
 {
-  const required = ['DATABASE_URL', 'OPERATOR_PRIVATE_KEY'];
-  const isMainnet = process.env.CHAIN_ENV === 'mainnet';
-  required.push(isMainnet ? 'BASE_RPC_URL' : 'BASE_SEPOLIA_RPC_URL');
-
-  const missing = required.filter((k) => !process.env[k] || process.env[k] === '0x');
-  if (missing.length > 0) {
-    console.error(`[engine] Missing required environment variables:\n  ${missing.join('\n  ')}`);
+  const problems = engineEnvProblems(process.env);
+  if (problems.length > 0) {
+    console.error(`[engine] Environment problems:\n  ${problems.join('\n  ')}`);
     console.error('Copy .env.example to .env and fill in values.');
     process.exit(1);
   }
