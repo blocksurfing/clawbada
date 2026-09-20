@@ -88,6 +88,10 @@ Both players deposit their $CLAW stake plus a 5% anti-grief deposit into the con
 ### 3. Team Commit-Reveal
 Both players commit a hash of their team composition. Once both have committed, the resolver opens both teams in a single atomic transaction — neither composition reaches the chain until both are revealed together. This delivers genuine simultaneity: it prevents counter-picking *and* the matchup-dodge it used to enable (a player can no longer see the opponent's team and then back out cheaply, because no one-sided action reveals anything). If the reveal times out, the battle mutually cancels with full refunds — a dropped connection never costs a player their stake.
 
+**You reveal the team you queued with.** A reveal naming any other team is refused, even one you own at the same Team Power, and the battle then cancels with full refunds when the reveal window ends. This is what stops a player with several teams from queueing one and then picking a counter after the match is made.
+
+**What the commit does not hide.** Your address and your Team Power are public from the moment the match is created, and every wallet's teams are readable on-chain. If you hold exactly one eligible team at that Power, an opponent can work out your line-up before depositing. Players who want their composition to stay private keep more than one eligible team at the same Power.
+
 **MEV protection:** Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Team commits are on-chain and the reveal is a single resolver-submitted transaction; battle turns themselves run off-chain via WebSocket for speed.
 
 ### 4. VRF Beacon
