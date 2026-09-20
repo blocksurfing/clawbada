@@ -53,10 +53,19 @@ contract FaucetTest is Test {
         faucet.setEligible(account, true);
     }
 
+    /// @dev D-10: a lobster claim is two steps. Request, let the target block pass, finalize
+    ///      (as a stranger — finalize is permissionless and mints to the claimer).
     function _claimLobsters(address account) internal returns (uint256[5] memory) {
         _makeEligible(account);
         vm.prank(account);
-        return faucet.claimLobsters();
+        uint256 claimId = faucet.claimLobsters();
+        return _finalize(claimId);
+    }
+
+    function _finalize(uint256 claimId) internal returns (uint256[5] memory) {
+        vm.roll(faucet.getClaim(claimId).targetBlock + 1);
+        vm.prank(makeAddr("keeper"));
+        return faucet.finalizeClaim(claimId);
     }
 
     // ──────────── Constructor ────────────
@@ -262,11 +271,17 @@ contract FaucetTest is Test {
     function test_claimLobstersEmitsEvent() public {
         _makeEligible(alice);
 
+        // D-10: the request announces the claim and its target block...
         vm.prank(alice);
-        // Can't check exact tokenIds easily, so just check that the event is emitted
+        vm.expectEmit(true, true, false, true);
+        emit Faucet.LobsterClaimRequested(1, alice, block.number + 2);
+        uint256 claimId = faucet.claimLobsters();
+
+        // ...and the lobsters are announced when they exist.
+        vm.roll(block.number + 3);
         vm.expectEmit(true, false, false, false);
-        emit Faucet.LobstersClaimed(alice, [uint256(0), 0, 0, 0, 0]); // data doesn't need to match exactly
-        faucet.claimLobsters();
+        emit Faucet.LobstersClaimed(alice, [uint256(0), 0, 0, 0, 0]); // ids need not match
+        faucet.finalizeClaim(claimId);
     }
 
     // ──────────── claimClaw ────────────
@@ -405,7 +420,9 @@ contract FaucetTest is Test {
         emptyFaucet.setEligible(alice, true);
 
         vm.prank(alice);
-        emptyFaucet.claimLobsters();
+        uint256 claimId = emptyFaucet.claimLobsters();
+        vm.roll(block.number + 3);
+        emptyFaucet.finalizeClaim(claimId); // D-10: the drip waits for the lobsters
 
         vm.prank(alice);
         vm.expectRevert(Faucet.InsufficientFaucetBalance.selector);
@@ -435,7 +452,7 @@ contract FaucetTest is Test {
         _makeEligible(claimer);
 
         vm.prank(claimer);
-        uint256[5] memory tokenIds = faucet.claimLobsters();
+        uint256[5] memory tokenIds = _finalize(faucet.claimLobsters());
 
         for (uint256 i = 0; i < 5; i++) {
             uint256 dna = nft.getDNA(tokenIds[i]);
@@ -467,9 +484,230 @@ contract FaucetTest is Test {
         // first mint. Pre-fix (no guard): re-entry into claimClaw would
         // succeed, granting CLAW before claimLobsters even finished.
         // Post-fix: ReentrancyGuard in claimLobsters reverts the re-enter.
+        // D-10: the mints (and with them the callback) moved to finalizeClaim, which carries the
+        // same guard. The request itself makes no external call.
         vm.prank(address(attacker));
-        vm.expectRevert(); // ReentrancyGuardReentrantCall
-        attacker.attack();
+        uint256 claimId = attacker.attack();
+        vm.roll(block.number + 3);
+        vm.expectRevert(); // ReentrancyGuardReentrantCall, from claimClaw inside the mint callback
+        faucet.finalizeClaim(claimId);
+        assertFalse(faucet.hasClaimedClaw(address(attacker)));
+    }
+
+    // ──────────── D-10: the roll cannot be known, chosen or retried ────────────
+
+    function _request(address account) internal returns (uint256 claimId) {
+        _makeEligible(account);
+        vm.prank(account);
+        claimId = faucet.claimLobsters();
+    }
+
+    function _classes(uint256[5] memory ids) internal view returns (uint8[5] memory c) {
+        for (uint256 i = 0; i < 5; i++) c[i] = DNALib.decodeClass(nft.getDNA(ids[i]));
+    }
+
+    function test_D10_claimCommitsButMintsNothing() public {
+        uint256 claimId = _request(alice);
+        assertEq(claimId, 1);
+        assertEq(faucet.claimIdOf(alice), 1);
+        assertTrue(faucet.hasClaimedLobsters(alice), "committed: no second claim, no way back");
+        assertEq(faucet.totalLobstersClaimed(), 5, "counted against the cap at once");
+        assertEq(nft.nextTokenId(), 1, "nothing minted yet");
+
+        Faucet.LobsterClaim memory c = faucet.getClaim(claimId);
+        assertEq(c.claimer, alice);
+        assertEq(c.targetBlock, block.number + 2);
+        assertFalse(c.finalized);
+    }
+
+    function test_D10_anyoneFinalizes_lobstersGoToTheClaimer() public {
+        uint256 claimId = _request(alice);
+        uint256[5] memory ids = _finalize(claimId); // sent by "keeper"
+        for (uint256 i = 0; i < 5; i++) {
+            assertEq(nft.ownerOf(ids[i]), alice);
+            assertTrue(nft.isSoulbound(ids[i]));
+        }
+        assertTrue(faucet.getClaim(claimId).finalized);
+    }
+
+    function test_D10_cannotFinalizeBeforeTheTargetBlockHasAHash() public {
+        uint256 claimId = _request(alice);
+        uint256 target = faucet.getClaim(claimId).targetBlock;
+
+        vm.expectRevert(abi.encodeWithSelector(Faucet.TooEarlyToFinalize.selector, claimId, target));
+        faucet.finalizeClaim(claimId); // same block as the request
+        vm.roll(target);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.TooEarlyToFinalize.selector, claimId, target));
+        faucet.finalizeClaim(claimId); // blockhash(target) does not exist while target is being built
+        vm.roll(target + 1);
+        faucet.finalizeClaim(claimId);
+    }
+
+    /// @dev THE DEFECT. The old seed was keccak(prevrandao, msg.sender, index, timestamp): every
+    ///      input known before signing, so the claimer could compute all five lobsters for any
+    ///      upcoming block and claim only in a good one. Here two claims are identical in every
+    ///      respect the claimer can see or choose — same wallet, same block, same timestamp, same
+    ///      prevrandao — and the lobsters still differ, because they come from a block hash that
+    ///      did not exist when the claim was signed.
+    function test_D10_theRollIsNotAFunctionOfAnythingKnownAtClaimTime() public {
+        vm.prevrandao(bytes32(uint256(0xC1A8)));
+        uint256 snap = vm.snapshotState();
+
+        uint256 claimId = _request(alice);
+        uint256 target = faucet.getClaim(claimId).targetBlock;
+        vm.roll(target + 1);
+        vm.setBlockhash(target, keccak256("one future"));
+        uint8[5] memory first = _classes(faucet.finalizeClaim(claimId));
+        uint256 dnaFirst = nft.getDNA(1);
+
+        vm.revertToState(snap);
+        claimId = _request(alice); // byte-for-byte the same claim transaction
+        vm.roll(target + 1);
+        vm.setBlockhash(target, keccak256("another future"));
+        uint8[5] memory second = _classes(faucet.finalizeClaim(claimId));
+
+        assertTrue(dnaFirst != nft.getDNA(1), "same claim, different future block => different lobsters");
+        first; second;
+    }
+
+    /// @dev ...and whoever finalizes cannot steer it either: the block they finalize in, its
+    ///      timestamp and its prevrandao are not inputs.
+    function test_D10_theFinalizerCannotGrind() public {
+        uint256 claimId = _request(alice);
+        uint256 target = faucet.getClaim(claimId).targetBlock;
+        uint256 snap = vm.snapshotState();
+
+        vm.roll(target + 1);
+        vm.setBlockhash(target, keccak256("fixed"));
+        faucet.finalizeClaim(claimId);
+        uint256 dnaEarly = nft.getDNA(1);
+
+        vm.revertToState(snap);
+        vm.roll(target + 200);
+        vm.warp(block.timestamp + 3 hours);
+        vm.prevrandao(bytes32(uint256(777)));
+        vm.setBlockhash(target, keccak256("fixed")); // the same past block, seen from later
+        vm.prank(bob);
+        faucet.finalizeClaim(claimId);
+        assertEq(nft.getDNA(1), dnaEarly, "when, and by whom, it is finalized changes nothing");
+    }
+
+    /// @dev The risk-free grinder: an account with code (a smart wallet, or an EOA delegated
+    ///      under EIP-7702) that inspects the roll inside onERC1155Received and reverts unless it
+    ///      likes it. Before D-10 the claim flag and the mints were one transaction, so a revert
+    ///      bought a fresh roll in the next block for the price of gas. Now a revert buys
+    ///      NOTHING: the claim stays committed to the same block hash.
+    function test_D10_revertingOnABadRollDoesNotBuyANewOne() public {
+        PickyClaimer picky = new PickyClaimer(faucet, nft);
+        vm.deal(address(picky), 1 ether);
+        _makeEligible(address(picky));
+        uint256 claimId = picky.claim();
+        uint256 target = faucet.getClaim(claimId).targetBlock;
+
+        for (uint256 attempt = 1; attempt <= 5; attempt++) {
+            vm.roll(target + attempt);
+            vm.setBlockhash(target, keccak256("a roll the grinder dislikes"));
+            vm.expectRevert(PickyClaimer.BadRoll.selector);
+            faucet.finalizeClaim(claimId);
+        }
+        assertTrue(faucet.hasClaimedLobsters(address(picky)), "still committed");
+        assertEq(faucet.getClaim(claimId).targetBlock, target, "still the same block: no re-roll");
+
+        // It cannot swap the known roll for a fresh one while that block hash is still reachable.
+        vm.expectRevert(abi.encodeWithSelector(Faucet.ClaimNotExpired.selector, claimId));
+        faucet.rearmClaim(claimId);
+        // And it cannot start over.
+        vm.expectRevert(Faucet.LobstersAlreadyClaimed.selector);
+        picky.claim();
+    }
+
+    function test_D10_anExpiredClaimIsRearmedNotLost() public {
+        uint256 claimId = _request(alice);
+        uint256 target = faucet.getClaim(claimId).targetBlock;
+
+        vm.roll(target + 257); // the keeper was down for 9 minutes: blockhash(target) is gone
+        vm.expectRevert(abi.encodeWithSelector(Faucet.ClaimExpired.selector, claimId));
+        faucet.finalizeClaim(claimId);
+
+        vm.expectEmit(true, false, false, true);
+        emit Faucet.LobsterClaimRearmed(claimId, block.number + 2);
+        vm.prank(bob); // permissionless
+        faucet.rearmClaim(claimId);
+        assertEq(faucet.getClaim(claimId).targetBlock, block.number + 2, "a NEW future block");
+
+        uint256[5] memory ids = _finalize(claimId);
+        assertEq(nft.ownerOf(ids[4]), alice, "nothing was lost");
+        assertEq(faucet.totalLobstersClaimed(), 5, "and nothing was double-counted");
+    }
+
+    function test_D10_rearmIsOnlyForClaimsThatReallyExpired() public {
+        uint256 claimId = _request(alice);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.ClaimNotExpired.selector, claimId));
+        faucet.rearmClaim(claimId); // target not even reached
+        vm.roll(block.number + 100);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.ClaimNotExpired.selector, claimId));
+        faucet.rearmClaim(claimId); // hash still available
+        _finalize(claimId);
+        vm.roll(block.number + 400);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.ClaimAlreadyFinalized.selector, claimId));
+        faucet.rearmClaim(claimId);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.ClaimDoesNotExist.selector, 99));
+        faucet.rearmClaim(99);
+    }
+
+    /// @dev Where the chain has the EIP-2935 history contract, a claim survives ~4.5 h instead of
+    ///      ~8.5 min before it needs re-arming.
+    function test_D10_historyContractExtendsTheWindow() public {
+        uint256 claimId = _request(alice);
+        uint256 target = faucet.getClaim(claimId).targetBlock;
+        vm.roll(target + 5_000);
+        assertEq(blockhash(target), bytes32(0), "out of the native window");
+
+        MockBlockHistory history = new MockBlockHistory();
+        vm.etch(0x0000F90827F1C53a10cb7A02335B175320002935, address(history).code);
+        MockBlockHistory(0x0000F90827F1C53a10cb7A02335B175320002935).set(target, keccak256("from history"));
+
+        vm.expectRevert(abi.encodeWithSelector(Faucet.ClaimNotExpired.selector, claimId));
+        faucet.rearmClaim(claimId); // not expired: the hash is retrievable
+        faucet.finalizeClaim(claimId);
+        assertEq(nft.ownerOf(1), alice);
+    }
+
+    function test_D10_clawDripWaitsForTheLobsters() public {
+        uint256 claimId = _request(alice);
+        vm.prank(alice);
+        vm.expectRevert(Faucet.LobsterClaimPending.selector);
+        faucet.claimClaw(); // requested, but she does not hold her lobsters yet
+        _finalize(claimId);
+        vm.prank(alice);
+        faucet.claimClaw();
+        assertEq(claw.balanceOf(alice), 7_000e18);
+    }
+
+    function test_D10_aClaimMadeInTheLastMinuteFinalizesAfterClose() public {
+        vm.warp(closeTime - 1);
+        uint256 claimId = _request(alice);
+        vm.warp(closeTime + 1 hours);
+        uint256[5] memory ids = _finalize(claimId);
+        assertEq(nft.ownerOf(ids[0]), alice);
+    }
+
+    function test_D10_twoClaimsOnTheSameBlockRollDifferentLobsters() public {
+        uint256 a = _request(alice);
+        uint256 b = _request(bob);
+        assertEq(faucet.getClaim(a).targetBlock, faucet.getClaim(b).targetBlock);
+        uint256[5] memory idsA = _finalize(a);
+        uint256[5] memory idsB = faucet.finalizeClaim(b);
+        assertTrue(nft.getDNA(idsA[0]) != nft.getDNA(idsB[0]), "the claimer and claim id are in the seed");
+    }
+
+    function test_D10_finalizeGuards() public {
+        vm.expectRevert(abi.encodeWithSelector(Faucet.ClaimDoesNotExist.selector, 1));
+        faucet.finalizeClaim(1);
+        uint256 claimId = _request(alice);
+        _finalize(claimId);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.ClaimAlreadyFinalized.selector, claimId));
+        faucet.finalizeClaim(claimId);
     }
 
     // ──────────── FAU-M1: burnUnclaimed (burn-only by governance decision 2026-09-02) ────────────
@@ -521,8 +759,8 @@ contract ReentrantClaimer {
         faucet = faucet_;
     }
 
-    function attack() external {
-        faucet.claimLobsters();
+    function attack() external returns (uint256) {
+        return faucet.claimLobsters();
     }
 
     function onERC1155Received(address, address, uint256, uint256, bytes calldata)
@@ -547,5 +785,49 @@ contract ReentrantClaimer {
 
     function supportsInterface(bytes4) external pure returns (bool) {
         return true;
+    }
+}
+
+
+/// @dev D-10: the grinder. Claims, then vetoes any roll whose first lobster is not the class it
+///      wants by reverting inside the ERC-1155 acceptance callback.
+contract PickyClaimer {
+    error BadRoll();
+
+    Faucet internal immutable faucet;
+    LobsterNFT internal immutable nft;
+    uint8 internal constant WANTED_CLASS = 9;
+
+    constructor(Faucet faucet_, LobsterNFT nft_) {
+        faucet = faucet_;
+        nft = nft_;
+    }
+
+    function claim() external returns (uint256) {
+        return faucet.claimLobsters();
+    }
+
+    function onERC1155Received(address, address, uint256 id, uint256, bytes calldata) external view returns (bytes4) {
+        if (DNALib.decodeClass(nft.getDNA(id)) != WANTED_CLASS) revert BadRoll();
+        return this.onERC1155Received.selector;
+    }
+
+    function supportsInterface(bytes4) external pure returns (bool) {
+        return true;
+    }
+}
+
+/// @dev Stand-in for the EIP-2935 history contract: 32-byte block number in, block hash out.
+contract MockBlockHistory {
+    mapping(uint256 => bytes32) internal hashes;
+
+    function set(uint256 n, bytes32 h) external {
+        hashes[n] = h;
+    }
+
+    fallback(bytes calldata data) external returns (bytes memory) {
+        uint256 n = abi.decode(data, (uint256));
+        if (hashes[n] == bytes32(0)) revert();
+        return abi.encode(hashes[n]);
     }
 }

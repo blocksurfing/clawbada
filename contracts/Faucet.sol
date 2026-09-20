@@ -30,6 +30,12 @@ contract Faucet is AccessControl, ReentrancyGuard {
     ///      705M pool with no stake. Without this, the ELIGIBILITY key (a hot, always-online
     ///      service key) could mint an unlimited sybil mining fleet that outlives its rotation.
     uint256 public constant MAX_FAUCET_LOBSTERS = 50_000;
+    /// @dev D-10: the lobsters of a claim are rolled from the hash of a block that does not
+    ///      exist yet when the claim is made (request block + 2), exactly as BreedingLab does.
+    uint256 public constant FINALIZE_MIN_BLOCKS = 2;
+    /// @dev EIP-2935 history contract (8,191 blocks, ~4.5 h on Base). Consulted when the
+    ///      256-block `blockhash` window has passed; absent on chains without it, which is fine.
+    address internal constant HISTORY_STORAGE = 0x0000F90827F1C53a10cb7A02335B175320002935;
 
     // ──────────── State ────────────
     LobsterNFT public lobsterNFT;
@@ -42,8 +48,25 @@ contract Faucet is AccessControl, ReentrancyGuard {
     uint256 public totalLobstersClaimed;
     uint256 public totalClawClaimed;
 
+    /// @dev D-10: one lobster claim. Sequential ids so a keeper can walk them with a cursor.
+    struct LobsterClaim {
+        address claimer;
+        uint64 targetBlock; // the lobsters are rolled from this block's hash
+        bool finalized;
+    }
+
+    uint256 public nextClaimId = 1;
+    mapping(uint256 => LobsterClaim) internal _claims;
+    /// @notice The claim id of a wallet, or 0 if it never claimed lobsters.
+    mapping(address => uint256) public claimIdOf;
+
     // ──────────── Events ────────────
+    /// @dev D-10: step 1. The claim is committed; the lobsters do not exist yet.
+    event LobsterClaimRequested(uint256 indexed claimId, address indexed claimer, uint256 targetBlock);
+    /// @dev Step 2 (finalizeClaim): the five lobsters were minted.
     event LobstersClaimed(address indexed claimer, uint256[5] tokenIds);
+    /// @dev The target block's hash was no longer available; a new target was set.
+    event LobsterClaimRearmed(uint256 indexed claimId, uint256 newTargetBlock);
     event ClawClaimed(address indexed claimer, uint256 amount);
     event EligibilitySet(address indexed account, bool eligible);
     event UnclaimedBurned(uint256 amount);
@@ -61,6 +84,13 @@ contract Faucet is AccessControl, ReentrancyGuard {
     error FaucetStillOpen();
     /// @dev D-02: the lifetime faucet lobster cap has been reached.
     error FaucetLobsterCapReached();
+    // D-10: two-step claim
+    error ClaimDoesNotExist(uint256 claimId);
+    error ClaimAlreadyFinalized(uint256 claimId);
+    error TooEarlyToFinalize(uint256 claimId, uint256 targetBlock);
+    error ClaimExpired(uint256 claimId);
+    error ClaimNotExpired(uint256 claimId);
+    error LobsterClaimPending();
 
     // ──────────── Constructor ────────────
 
@@ -104,35 +134,85 @@ contract Faucet is AccessControl, ReentrancyGuard {
 
     // ──────────── Claim ────────────
 
-    /// @notice Claim 5 random soulbound lobsters.
-    /// @return tokenIds The 5 minted token IDs
-    /// @dev L-05: `nonReentrant` — the ERC-1155 mints inside this function call
-    ///      `onERC1155Received` on the claimer if it's a contract. Without the
-    ///      guard, a contract claimer could re-enter (e.g. into `claimClaw`)
-    ///      mid-flow. The current code already sets `hasClaimedLobsters = true`
-    ///      before the mint loop so claimLobsters re-entry is blocked by the
-    ///      flag, but adding `nonReentrant` is defence in depth and matches
-    ///      the pattern in every other external state-mutating entrypoint.
-    function claimLobsters() external nonReentrant returns (uint256[5] memory tokenIds) {
+    /// @notice Step 1 of 2: commit to claiming 5 random soulbound lobsters. They are minted by
+    ///         `finalizeClaim` a few seconds later (anyone may call it; a keeper does).
+    /// @return claimId The id to finalize.
+    /// @dev D-10 (audit 2026-09). This used to mint at once from
+    ///      keccak(prevrandao, msg.sender, index, timestamp) — every input known to the claimer
+    ///      before they sign. On Base prevrandao is the L1-origin RANDAO, fixed about a minute
+    ///      ahead and shared by ~6 L2 blocks, so a wallet could compute the class, alleles and
+    ///      purity of all five lobsters for every upcoming block and only claim in a good one;
+    ///      an account with code (a smart wallet, or an EOA delegated under EIP-7702) could do it
+    ///      risk-free by reverting on a bad roll, since the claim flag and the mints were one
+    ///      transaction. "Only whitelist EOAs" never worked: smart wallets are legitimate users.
+    ///
+    ///      Now the claim is COMMITTED here — flag set, cap counted, no way back — and the roll
+    ///      comes from blockhash(targetBlock), a value that does not exist yet. There is
+    ///      nothing to predict and nothing left to revert.
+    /// @dev L-05: `nonReentrant` kept as defence in depth (no external call happens here now).
+    function claimLobsters() external nonReentrant returns (uint256 claimId) {
         if (block.timestamp >= closeTime) revert FaucetIsClosed();
         if (!isEligible[msg.sender]) revert NotEligible();
         if (msg.sender.balance < MIN_ETH_BALANCE) revert InsufficientETHBalance();
         if (hasClaimedLobsters[msg.sender]) revert LobstersAlreadyClaimed();
         if (totalLobstersClaimed + LOBSTERS_PER_CLAIM > MAX_FAUCET_LOBSTERS) revert FaucetLobsterCapReached(); // D-02
 
-        // Effects before interactions. The mints below call onERC1155Received on a contract
-        // claimer, and since D-02 the counter gates the cap, so it must already be final when
-        // control leaves this contract (nonReentrant covers this function; the ordering covers
-        // every other reader).
         hasClaimedLobsters[msg.sender] = true;
         totalLobstersClaimed += LOBSTERS_PER_CLAIM;
 
+        claimId = nextClaimId++;
+        uint256 targetBlock = block.number + FINALIZE_MIN_BLOCKS;
+        _claims[claimId] = LobsterClaim({claimer: msg.sender, targetBlock: uint64(targetBlock), finalized: false});
+        claimIdOf[msg.sender] = claimId;
+
+        emit LobsterClaimRequested(claimId, msg.sender, targetBlock);
+    }
+
+    /// @notice Step 2 of 2: mint the five lobsters of a committed claim to its claimer.
+    ///         Permissionless — the lobsters always go to the original claimer — and allowed
+    ///         after the faucet closes, so a claim made in the last minute is never stranded.
+    /// @dev The mints call `onERC1155Received` on a contract claimer, which can see the roll and
+    ///      revert. That does not give it a second roll: the claim simply stays pending on the
+    ///      same block hash until that hash ages out of reach (256 blocks, or ~4.5 h where
+    ///      EIP-2935 is live), and `rearmClaim` then points it at a NEW future block. A veto
+    ///      costs hours per attempt instead of nothing per block; an honest wallet is finalized
+    ///      by the keeper within seconds.
+    function finalizeClaim(uint256 claimId) external nonReentrant returns (uint256[5] memory tokenIds) {
+        LobsterClaim storage c = _claims[claimId];
+        if (c.claimer == address(0)) revert ClaimDoesNotExist(claimId);
+        if (c.finalized) revert ClaimAlreadyFinalized(claimId);
+        // blockhash(targetBlock) only exists once a LATER block is being built.
+        if (block.number <= c.targetBlock) revert TooEarlyToFinalize(claimId, c.targetBlock);
+        bytes32 entropy = _blockHashOf(c.targetBlock);
+        if (entropy == bytes32(0)) revert ClaimExpired(claimId);
+
+        c.finalized = true;
+        address claimer = c.claimer;
         for (uint256 i = 0; i < LOBSTERS_PER_CLAIM; i++) {
-            uint256 dna = _generateRandomDNA(i);
-            tokenIds[i] = lobsterNFT.mint(msg.sender, dna, true);
+            tokenIds[i] = lobsterNFT.mint(claimer, _generateRandomDNA(entropy, claimer, claimId, i), true);
         }
 
-        emit LobstersClaimed(msg.sender, tokenIds);
+        emit LobstersClaimed(claimer, tokenIds);
+    }
+
+    /// @notice A claim whose target block hash is no longer retrievable gets a new target.
+    ///         Permissionless. Nothing is lost: the claim stays committed and is finalized
+    ///         against the new block. Only callable once the old hash is really gone, so it
+    ///         cannot be used to swap a known roll for a fresh one.
+    function rearmClaim(uint256 claimId) external {
+        LobsterClaim storage c = _claims[claimId];
+        if (c.claimer == address(0)) revert ClaimDoesNotExist(claimId);
+        if (c.finalized) revert ClaimAlreadyFinalized(claimId);
+        if (block.number <= c.targetBlock || _blockHashOf(c.targetBlock) != bytes32(0)) revert ClaimNotExpired(claimId);
+
+        uint256 targetBlock = block.number + FINALIZE_MIN_BLOCKS;
+        c.targetBlock = uint64(targetBlock);
+        emit LobsterClaimRearmed(claimId, targetBlock);
+    }
+
+    /// @notice A claim by id.
+    function getClaim(uint256 claimId) external view returns (LobsterClaim memory) {
+        return _claims[claimId];
     }
 
     /// @notice Claim 7,000 $CLAW. Must have claimed lobsters first.
@@ -145,6 +225,9 @@ contract Faucet is AccessControl, ReentrancyGuard {
         if (!isEligible[msg.sender]) revert NotEligible();
         if (msg.sender.balance < MIN_ETH_BALANCE) revert InsufficientETHBalance();
         if (!hasClaimedLobsters[msg.sender]) revert LobstersNotClaimed();
+        // D-10: the drip is for wallets that HOLD their faucet lobsters, so the claim must be
+        // finalized, not merely requested.
+        if (!_claims[claimIdOf[msg.sender]].finalized) revert LobsterClaimPending();
         if (hasClaimedClaw[msg.sender]) revert ClawAlreadyClaimed();
 
         hasClaimedClaw[msg.sender] = true;
@@ -185,9 +268,25 @@ contract Faucet is AccessControl, ReentrancyGuard {
 
     // ──────────── Internal ────────────
 
-    /// @dev Generate random DNA for a faucet lobster. Not manipulable for soulbound NFTs.
-    function _generateRandomDNA(uint256 index) internal view returns (uint256) {
-        uint256 seed = uint256(keccak256(abi.encodePacked(block.prevrandao, msg.sender, index, block.timestamp)));
+    /// @dev Hash of block `n`: the native 256-block window first, then the EIP-2935 history
+    ///      contract where the chain has one. bytes32(0) means it is out of reach.
+    function _blockHashOf(uint256 n) internal view returns (bytes32 h) {
+        h = blockhash(n);
+        if (h == bytes32(0) && HISTORY_STORAGE.code.length > 0) {
+            (bool ok, bytes memory ret) = HISTORY_STORAGE.staticcall(abi.encode(n));
+            if (ok && ret.length == 32) h = abi.decode(ret, (bytes32));
+        }
+    }
+
+    /// @dev DNA of lobster `index` of a claim. `entropy` is the hash of a block that did not
+    ///      exist when the claim was committed (D-10); the claimer and claim id keep two claims
+    ///      finalized against the same block from rolling the same lobsters.
+    function _generateRandomDNA(bytes32 entropy, address claimer, uint256 claimId, uint256 index)
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 seed = uint256(keccak256(abi.encodePacked(entropy, claimer, claimId, index)));
 
         uint8 class_ = uint8(seed % 10);
         uint8 breedType = uint8((seed >> 8) % 64);

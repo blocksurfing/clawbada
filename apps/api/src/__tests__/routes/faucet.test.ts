@@ -31,8 +31,11 @@ function _serializeBigInts(obj: any): any {
 // ── Mock ../../lib/chain ──
 const mockReadFaucetStatus = mock<any>();
 
+const mockReadBlockNumber = mock<any>();
+
 mock.module('../../lib/chain', () => ({
   readFaucetStatus: mockReadFaucetStatus,
+  readBlockNumber: mockReadBlockNumber,
   serializeBigInts: _serializeBigInts,
 }));
 
@@ -198,6 +201,77 @@ describe('faucet routes', () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.message).toContain('already claimed');
+    });
+  });
+
+  // ──────────── D-10: the lobster claim is two steps ────────────
+
+  describe('two-step lobster claim (D-10)', () => {
+    const pending = (over: Record<string, unknown> = {}) =>
+      mockFaucetStatus({ hasClaimedLobsters: true, lobsterClaimId: 7n, lobsterClaimPending: true, lobsterClaimTargetBlock: 1_000n, ...over });
+
+    beforeEach(() => mockReadBlockNumber.mockReset());
+
+    test('status: requested-but-not-minted is visible, and the CLAW drip waits for the lobsters', async () => {
+      mockReadFaucetStatus.mockResolvedValue(pending());
+      const body = await (await app.request(`/faucet/status/${TEST_ADDRESS}`)).json();
+      expect(body).toMatchObject({ lobsterClaimPending: true, lobsterClaimId: '7', canFinalizeLobsters: true, canClaimClaw: false, canClaimLobsters: false });
+
+      mockReadFaucetStatus.mockResolvedValue(pending({ lobsterClaimPending: false }));
+      const minted = await (await app.request(`/faucet/status/${TEST_ADDRESS}`)).json();
+      expect(minted).toMatchObject({ lobsterClaimPending: false, canFinalizeLobsters: false, canClaimClaw: true });
+    });
+
+    test('claim-lobsters says the lobsters arrive later and what to poll', async () => {
+      mockReadFaucetStatus.mockResolvedValue(mockFaucetStatus());
+      const body = await (await app.request('/faucet/claim-lobsters', { method: 'POST', headers: authHeaders() })).json();
+      expect(body.steps).toHaveLength(1);
+      expect(body.steps[0].description).toContain('arrive a few seconds later');
+      expect(body.next).toMatchObject({ until: 'lobsterClaimPending === false', fallback: '/api/faucet/finalize-lobsters' });
+    });
+
+    test('claim-claw is refused while the lobsters are not minted', async () => {
+      mockReadFaucetStatus.mockResolvedValue(pending());
+      const res = await app.request('/faucet/claim-claw', { method: 'POST', headers: authHeaders() });
+      expect(res.status).toBe(400);
+      expect((await res.json()).message).toContain('not been minted yet');
+    });
+
+    test('finalize-lobsters: nothing to finalize', async () => {
+      mockReadFaucetStatus.mockResolvedValue(mockFaucetStatus());
+      expect((await app.request('/faucet/finalize-lobsters', { method: 'POST', headers: authHeaders() })).status).toBe(400);
+      mockReadFaucetStatus.mockResolvedValue(pending({ lobsterClaimPending: false }));
+      const res = await app.request('/faucet/finalize-lobsters', { method: 'POST', headers: authHeaders() });
+      expect(res.status).toBe(400);
+      expect((await res.json()).message).toContain('already minted');
+    });
+
+    test('finalize-lobsters: too early while the target block has no hash yet', async () => {
+      mockReadFaucetStatus.mockResolvedValue(pending());
+      mockReadBlockNumber.mockResolvedValue(1_000n); // head == target
+      expect((await app.request('/faucet/finalize-lobsters', { method: 'POST', headers: authHeaders() })).status).toBe(409);
+    });
+
+    test('finalize-lobsters: inside the blockhash window -> finalizeClaim', async () => {
+      mockReadFaucetStatus.mockResolvedValue(pending());
+      mockReadBlockNumber.mockResolvedValue(1_001n);
+      const body = await (await app.request('/faucet/finalize-lobsters', { method: 'POST', headers: authHeaders() })).json();
+      expect(body.action).toBe('finalizeClaim');
+      expect(body.steps).toHaveLength(1);
+      mockReadBlockNumber.mockResolvedValue(1_256n); // the last block of the window
+      expect((await (await app.request('/faucet/finalize-lobsters', { method: 'POST', headers: authHeaders() })).json()).action).toBe('finalizeClaim');
+    });
+
+    test('finalize-lobsters: past the window -> rearmClaim, nothing is lost', async () => {
+      mockReadFaucetStatus.mockResolvedValue(pending());
+      mockReadBlockNumber.mockResolvedValue(1_257n);
+      const body = await (await app.request('/faucet/finalize-lobsters', { method: 'POST', headers: authHeaders() })).json();
+      expect(body.action).toBe('rearmClaim');
+      expect(body.steps[0].description).toContain('Re-arm');
+    });
+
+    test('finalize-lobsters needs auth', async () => {
+      expect((await app.request('/faucet/finalize-lobsters', { method: 'POST' })).status).toBe(401);
     });
   });
 });

@@ -55,7 +55,13 @@ app.onError((err, c) => {
 
 // Rate limiting — applied before auth so we limit by IP for unauthenticated routes
 app.use('/api/*', rateLimit(100));
-app.use('/api/faucet/*', rateLimit(5));
+// The 5/min faucet budget guards the WRITE routes (claim calldata). Since D-10 a lobster claim is
+// two steps and clients poll GET /api/faucet/status/:address until the keeper has minted, so the
+// read gets a budget of its own — at 5/min a wallet that polled every 2 s was locked out of its
+// own claim within ten seconds.
+const faucetWrites = rateLimit(5);
+const faucetReads = rateLimit(60);
+app.use('/api/faucet/*', (c, next) => (c.req.method === 'GET' ? faucetReads(c, next) : faucetWrites(c, next)));
 // The 30/min budget guards matchmaking; live-battle turns (V3) can legitimately
 // exceed it (a bot answers in under a second), so they stay on the /api/* default.
 app.use('/api/game/combat/queue', rateLimit(30));

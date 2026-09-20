@@ -20,7 +20,9 @@ export async function onboardingPhase(stack: Stack, checks: Checks): Promise<Pla
   checks.check(true, 'faucet eligibility granted to both players');
 
   const setup = async (p: PlayerAgent): Promise<Player> => {
-    const { lobsterIds } = await p.claimFaucet();
+    // D-10: the claim commits; the engine's keeper mints the lobsters once the target block (two
+    // blocks on) has a hash. Anvil only mines on demand, so mine while we wait.
+    const { lobsterIds } = await p.claimFaucet({ tick: () => stack.anvil.mine() });
     const claw = await chain.balance(p.address);
     checks.eq(claw, 7_000n * WEI, `${p.o.label}: 7,000 CLAW from the faucet`);
     checks.eq(lobsterIds.length, 5, `${p.o.label}: 5 faucet lobsters`);

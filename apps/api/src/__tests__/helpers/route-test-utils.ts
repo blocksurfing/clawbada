@@ -129,6 +129,9 @@ export function mockFaucetStatus(overrides: Record<string, any> = {}) {
     isEligible: true,
     hasClaimedLobsters: false,
     hasClaimedClaw: false,
+    lobsterClaimId: 0n,
+    lobsterClaimPending: false,
+    lobsterClaimTargetBlock: 0n,
     ...overrides,
   };
 }

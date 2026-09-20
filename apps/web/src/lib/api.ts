@@ -119,6 +119,10 @@ interface FaucetStatus {
   hasClaimedClaw: boolean;
   canClaimLobsters: boolean;
   canClaimClaw: boolean;
+  /** D-10: the claim is committed but its five lobsters are not minted yet. They are rolled
+   *  from a block that did not exist when the claim was signed, a few seconds later. */
+  lobsterClaimPending: boolean;
+  canFinalizeLobsters: boolean;
   reason?: string;
 }
 
@@ -126,6 +130,8 @@ const faucet = {
   status: (address: string) => get<FaucetStatus>(`/api/faucet/status/${address}`),
   claimLobsters: (auth: AuthHeaders) => post<StepsResponse>('/api/faucet/claim-lobsters', undefined, auth),
   claimClaw: (auth: AuthHeaders) => post<StepsResponse>('/api/faucet/claim-claw', undefined, auth),
+  /** D-10 fallback: finish your own claim if the keeper is slow (finalize, or re-arm when expired). */
+  finalizeLobsters: (auth: AuthHeaders) => post<StepsResponse & { action: 'finalizeClaim' | 'rearmClaim' }>('/api/faucet/finalize-lobsters', undefined, auth),
 };
 
 // ── Teams ──
