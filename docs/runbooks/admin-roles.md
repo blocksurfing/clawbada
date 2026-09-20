@@ -39,25 +39,55 @@ A 3-of-5 (or stricter) multisig contract on Base. Recommended: Safe (formerly Gn
 ### Grants this role
 Granted at deploy via `Configure.s.sol` to the deployer EOA.
 
-**Before mainnet launch, run `Handoff.s.sol` (step 3, after Deploy + Configure).** It performs the COMPLETE deployer→governance migration in one scripted, asserted sequence — do NOT hand-roll the AccessControl grant/revoke loop, which historically left three authorities behind (ROLE-M1/M2/M3):
+**Before mainnet launch, run the handoff (step 3, after Deploy + Configure).** It performs the COMPLETE deployer→governance migration in a scripted, asserted sequence — do NOT hand-roll the AccessControl grant/revoke loop, which historically left three authorities behind (ROLE-M1/M2/M3).
+
+The handoff is **two phases with a proof of control between them** (audit 2026-09 D-11). The contracts are not upgradeable and `DEFAULT_ADMIN_ROLE` is the admin of every role, so handing it to an address nobody controls — a typo, or a Safe address copied from another chain where it has no code — is permanent: disputed battles could never be resolved, no season after the first could start, no hot key could ever be rotated. The deployer therefore gives nothing up until the Safe has proved, on this chain, that it can sign.
 
 ```
-GOVERNANCE_SAFE=<safe> ELIGIBILITY_OPERATOR=<service wallet> \
-  forge script contracts/script/Handoff.s.sol --rpc-url base --broadcast
+export GOVERNANCE_SAFE=<safe> ELIGIBILITY_OPERATOR=<service wallet>   # plus the deploy-time address vars
+
+# 0. Configure really finished (reads the chain; no --broadcast, no private key)
+forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "configured()"
+
+# 1. Phase 1 — the deployer GRANTS; it keeps its own roles
+forge script contracts/script/Handoff.s.sol --rpc-url base --broadcast
+forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "proposed()"
+
+# 2. Proof of control — a Safe transaction: Treasury.acceptOwnership()
+
+# 3. Phase 2 — refuses to run without step 2; the deployer renounces everything
+forge script contracts/script/Handoff.s.sol --rpc-url base --broadcast --sig "finalize()"
+forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "finalized()"
 ```
 
-`Handoff.s.sol` migrates, in order:
-1. `SEASON_ADMIN_ROLE` (MiningPool) and `ELIGIBILITY_ROLE` (Faucet) off the deployer — **these are NOT `DEFAULT_ADMIN_ROLE` and are not moved by a DEFAULT_ADMIN grant loop.** SEASON_ADMIN → the Safe; ELIGIBILITY → the operational service wallet.
-2. `DEFAULT_ADMIN_ROLE` on all 7 AccessControl contracts → the Safe, then revokes the deployer (grant-before-revoke, so admin control is never lost mid-sequence).
-3. **Treasury ownership** via `Ownable2Step.transferOwnership(safe)`. ⚠️ **Treasury is `Ownable2Step`, NOT AccessControl** — the grant/revoke loop is a no-op on it. The script proposes the transfer; **the Safe MUST then call `Treasury.acceptOwnership()`** to complete it. Until it does, the deployer retains Treasury ownership (so a mistyped Safe can never strand fee routing).
+**The handoff is complete only when the last command passes.** Until then the deployer still governs; do not announce otherwise, and do not open the game to the public between phase 1 and the final check (in that window the deploy key still owns Treasury and could redirect or overwrite the pending transfer — D-24; `finalize()` detects that and refuses). Afterwards, retire `DEPLOYER_PRIVATE_KEY`.
 
-The script asserts the deployer holds **none** of the migrated roles afterward and that `Treasury.pendingOwner() == safe` (ROLE-I1: no silent gaps). Regression-tested in `contracts/test/GovernanceHandoff.t.sol`.
+What each phase does:
+1. **Phase 1 (`run()`)** — refuses to start unless Configure finished (D-23). Grants `SEASON_ADMIN_ROLE` (MiningPool) and `DEFAULT_ADMIN_ROLE` on all 7 AccessControl contracts to the Safe; moves `ELIGIBILITY_ROLE` (Faucet) to the operational service wallet; proposes **Treasury ownership** via `Ownable2Step.transferOwnership(safe)`. `SEASON_ADMIN` and `ELIGIBILITY` are NOT `DEFAULT_ADMIN_ROLE` and are not moved by a DEFAULT_ADMIN grant loop. ⚠️ **Treasury is `Ownable2Step`, NOT AccessControl** — a grant/revoke loop is a no-op on it.
+2. **The Safe calls `Treasury.acceptOwnership()`.** Only the Safe can, so this is the proof. It also completes the Treasury transfer.
+3. **Phase 2 (`finalize()`)** — requires `Treasury.owner() == safe` and that the Safe already holds every governance role, then the deployer renounces `SEASON_ADMIN_ROLE` and `DEFAULT_ADMIN_ROLE` everywhere.
 
-Post-launch verification checklist (run from the Safe / a read call):
-- `hasRole(DEFAULT_ADMIN_ROLE, deployer) == false` on ClawToken, LobsterNFT, TeamManager, MiningPool, BattleArena, BattleVRF, Faucet.
-- `MiningPool.hasRole(SEASON_ADMIN_ROLE, deployer) == false`; `Faucet.hasRole(ELIGIBILITY_ROLE, deployer) == false`.
-- `MiningPool.hasRole(BOOST_ADMIN_ROLE, deployer) == false` and `== true` for `BOOST_ADMIN_ADDRESS` (granted by `Configure.s.sol`; Handoff leaves it in place — it is a service role, not a governance role).
-- `Treasury.owner() == safe` (after `acceptOwnership()`); `Treasury.pendingOwner() == address(0)`.
+On mainnet both phases also require `GOVERNANCE_SAFE` to be a deployed Safe on this chain (`getThreshold()` / `getOwners()` answer) with a signer threshold of at least `MIN_SAFE_THRESHOLD` (default **3**, matching the 3-of-5 policy above; lowering it is an explicit choice, and 1 is never accepted).
+
+**If phase 1 named the wrong address:** nothing is lost. `forge script contracts/script/Handoff.s.sol --rpc-url base --broadcast --sig "retract(address)" <wrong address>` strips it, then fix `GOVERNANCE_SAFE` and run phase 1 again. This is only possible before phase 2.
+
+**Why the separate verify script:** `forge script --broadcast` is not atomic, and the asserts at the end of a broadcasting script run against forge's local *simulation*, not against what landed. The last transaction of `Configure.s.sol` is the one that takes ClawToken `MINTER_ROLE` back off the deploy key; if it is dropped, a raw env-var key can mint the entire unminted supply (~705M), and nothing in the broadcasting scripts would notice. `VerifyDeployment.s.sol` sends nothing, so everything it reads is real chain state. If `configured()` reports the lingering `MINTER_ROLE`, re-send with `forge script contracts/script/Configure.s.sol ... --resume`, or revoke it by hand from the deployer, before phase 1.
+
+Regression-tested in `contracts/test/GovernanceHandoff.t.sol` (the library) and `contracts/test/DeployScripts.t.sol` (the real Deploy → Configure → Handoff scripts, end to end).
+
+Post-launch verification — `VerifyDeployment.s.sol --sig "finalized()"` asserts all of this; anyone can re-run it, since it needs only public addresses:
+- `hasRole(DEFAULT_ADMIN_ROLE, deployer) == false` **and `== true` for the Safe** on ClawToken, LobsterNFT, TeamManager, MiningPool, BattleArena, BattleVRF, Faucet.
+- `MiningPool.hasRole(SEASON_ADMIN_ROLE, deployer) == false` (`true` for the Safe); `Faucet.hasRole(ELIGIBILITY_ROLE, deployer) == false` (`true` for the operator).
+- **`ClawToken.hasRole(MINTER_ROLE, deployer) == false`** and `== true` for MiningPool.
+- Every hot role (`MATCHMAKER`, `RESOLVER`, BattleVRF `OPERATOR`, `BOOST_ADMIN`) is held by its env address and **not** by the deployer; the LobsterNFT / TeamManager contract roles are held by the contracts listed below and not by the deployer. (Handoff leaves hot roles in place — they are service roles, not governance roles.)
+- Treasury: `owner() == safe`, `pendingOwner() == address(0)`, `devWallet() == DEV_WALLET`, all 5 game contracts authorized.
+- `currentSeason >= 1`; while the faucet is open, its balance plus `totalClawClaimed` covers the 70M pre-mint.
+
+### Key separation (mainnet, enforced by `DeployHelpers._loadEnv`)
+
+Every hot key — `MATCHMAKER_ADDRESS`, `RESOLVER_ADDRESS`, `VRF_OPERATOR_ADDRESS`, `BOOST_ADMIN_ADDRESS`, `ELIGIBILITY_OPERATOR` — must differ from the deployer and from every other hot key, and `GOVERNANCE_SAFE`, `TREASURY_RESERVE_ADDRESS` and `LP_RECIPIENT` must not be any of them (D-26). The blast-radius analysis in this runbook treats each key on its own; that only holds while one compromise yields one role. The server enforces the same: with `CHAIN_ENV=mainnet` the engine refuses to start unless `MATCHMAKER_PRIVATE_KEY`, `RESOLVER_PRIVATE_KEY` and `BOOST_ADMIN_PRIVATE_KEY` are each set and all different from one another and from `OPERATOR_PRIVATE_KEY` — the `OPERATOR_PRIVATE_KEY` fallback exists for testnet and local chains only.
+
+`LP_RECIPIENT` (required on mainnet, must differ from the deployer) receives the 125M LP allocation at genesis, so the deploy key never holds 12.5% of supply at rest (D-24). Use the account that will seed the Uniswap V3 pool — a Safe, or a hardware wallet used for nothing else.
 
 ### Critical-action SLAs
 
@@ -181,11 +211,12 @@ The lobster bound matters more than it looks (audit D-02): a faucet lobster mine
 
 `Configure.s.sol` runs as the deployer EOA and grants/revokes roles in sequence. The deployer holds DEFAULT_ADMIN_ROLE only during deploy. Mainnet launch sequence:
 
-1. Run `Configure.s.sol` with deployer as admin → all roles granted to the right contracts.
-2. Verify on Base block explorer.
-3. **Transfer DEFAULT_ADMIN_ROLE on every contract** to the production multisig.
-4. **Revoke deployer** from DEFAULT_ADMIN_ROLE on every contract (called from the multisig, post-grant).
-5. Log the multisig address publicly so anyone can verify governance.
+1. Run `Deploy.s.sol`, then `Configure.s.sol`, with the deployer as admin → all roles granted to the right contracts.
+2. `VerifyDeployment.s.sol --sig "configured()"` against the chain, and check the addresses on the Base block explorer.
+3. **Handoff phase 1** — the deployer grants `DEFAULT_ADMIN_ROLE` on every contract (and `SEASON_ADMIN_ROLE`) to the production multisig and proposes the Treasury transfer. See "Grants this role" above.
+4. **The multisig calls `Treasury.acceptOwnership()`** — the proof that it can sign on this chain.
+5. **Handoff phase 2** — the deployer renounces `DEFAULT_ADMIN_ROLE` on every contract. It cannot run before step 4.
+6. `VerifyDeployment.s.sol --sig "finalized()"`, then log the multisig address publicly so anyone can verify governance (the verify script needs only public addresses).
 
 This sequence closes C-06 (deployer-as-admin without timelock) at deploy time.
 

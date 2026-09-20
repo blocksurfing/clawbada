@@ -29,9 +29,18 @@ contract Deploy is DeployHelpers {
         console2.log("");
 
         vm.startBroadcast(deployerKey);
+        Deployment memory d = _deployAll();
+        vm.stopBroadcast();
 
-        Deployment memory d;
+        console2.log("");
+        console2.log("=== All 12 contracts deployed ===");
 
+        _writeDeployment(network, d);
+    }
+
+    /// @dev The whole deployment, with no file or env access, so the deploy-script test
+    ///      (contracts/test/DeployScripts.t.sol) runs exactly what mainnet runs.
+    function _deployAll() internal returns (Deployment memory d) {
         // ── Tier 0 — No dependencies ──
 
         d.treasury = address(new Treasury(deployer, devWallet));
@@ -43,12 +52,17 @@ contract Deploy is DeployHelpers {
         d.battleVRF = address(new BattleVRF(deployer));
         console2.log("BattleVRF:", d.battleVRF);
 
-        // TOK-H1: deployer receives the 125M LP allocation; the 100M reserve goes to
-        // treasuryReserveAddress (a governance Safe on mainnet), NOT the Treasury
-        // fee-splitter contract — which has no withdrawal path. The asserts below
-        // permanently lock in that invariant: the splitter must hold zero reserve.
+        // TOK-H1: the 100M reserve goes to treasuryReserveAddress (a governance Safe on
+        // mainnet), NOT the Treasury fee-splitter contract — which has no withdrawal
+        // path. The asserts below permanently lock in that invariant: the splitter must
+        // hold zero reserve.
+        // D-24: the 125M LP allocation goes to lpRecipient. On mainnet _loadEnv requires
+        // it to be set and to differ from the deployer, so the deploy key (a raw key in an
+        // env var) never holds 12.5% of supply at rest; elsewhere it falls back to the
+        // deployer. Like the reserve, it must not be the fee-splitter.
         require(treasuryReserveAddress != d.treasury, "TOK-H1: reserve recipient must not be the fee-splitter");
-        d.clawToken = address(new ClawToken(deployer, deployer, treasuryReserveAddress));
+        require(lpRecipient != d.treasury, "D-24: LP recipient must not be the fee-splitter");
+        d.clawToken = address(new ClawToken(deployer, lpRecipient, treasuryReserveAddress));
         console2.log("ClawToken:", d.clawToken);
         require(
             ClawToken(d.clawToken).balanceOf(d.treasury) == 0,
@@ -86,12 +100,5 @@ contract Deploy is DeployHelpers {
             new BattleArena(deployer, d.clawToken, d.lobsterNFT, d.teamManager, d.treasury, d.battleVRF)
         );
         console2.log("BattleArena:", d.battleArena);
-
-        vm.stopBroadcast();
-
-        console2.log("");
-        console2.log("=== All 12 contracts deployed ===");
-
-        _writeDeployment(network, d);
     }
 }
