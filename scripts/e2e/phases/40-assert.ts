@@ -1,4 +1,5 @@
 import { battleSeed, seedCommitment, seedRoundFor } from '@clawbada/chain';
+import { v3 } from '@clawbada/game-logic';
 import { WEI } from '../lib/chain';
 import { STUB_RANDOMNESS } from '../lib/drand-stub';
 import { KEYS } from '../lib/env';
@@ -77,6 +78,23 @@ export async function assertPhase(stack: Stack, players: Players, battle: Battle
     checks.check(playedSeed === battleSeed(STUB_RANDOMNESS, pinned.seedSecret, id), 'seed recomputed from chain + drand equals the seed the server played', `0x${playedSeed.toString(16).slice(0, 16)}`);
     checks.check(playedSeed !== BigInt(`0x${STUB_RANDOMNESS}`), 'the seed is not the public beacon');
   }
+  // D-12 / D-27: a stranger with only the public evidence bundle replays the battle and rebuilds
+  // the commitment that is ON-CHAIN — no database access, no trust in this server.
+  const bundle = (await (await fetch(`${stack.apiUrl}/api/game/combat/${battle.battleId}/log`)).json()) as any;
+  const side = (x: string) => bundle.roster.filter((r: any) => r.side === x).sort((m: any, n: any) => m.slot - n.slot).map((r: any) => ({ id: r.id, class: r.class, tier: r.tier, purity: r.purity, legend: r.legend }));
+  const replayCfg = { battleId: bundle.battleId, vrfSeed: BigInt(bundle.vrfSeed), tier: bundle.tier, layout: bundle.layout, teamA: side('A'), teamB: side('B'), rulesVersion: bundle.rulesVersion };
+  const verdict = v3.verifyLog(replayCfg, bundle.log);
+  checks.check(verdict.ok, 'evidence bundle: every turn of the log re-executes to its recorded hash', `${bundle.log.length} entries, rules ${String(bundle.rulesVersion).slice(0, 14)}`);
+  if (verdict.ok) {
+    checks.eq(v3.turnLogHash(verdict.state, [...replayCfg.teamA, ...replayCfg.teamB]).toLowerCase(), String(onChain.turnLogHash).toLowerCase(), 'evidence bundle: the rebuilt turnLogHash IS the one on-chain');
+    checks.eq(v3.hashState(verdict.state).toLowerCase(), String(onChain.finalStateHash).toLowerCase(), 'evidence bundle: the rebuilt finalStateHash IS the one on-chain');
+  }
+  if (!stack.flags.liveDrand) {
+    checks.check(BigInt(bundle.vrfSeed) === battleSeed(STUB_RANDOMNESS, pinned.seedSecret, id), 'evidence bundle: its seed is the one anyone can derive from chain + drand');
+  }
+  const rv = (await db.sql`select rules_version from battle_sessions where id = ${battle.battleId}`)[0];
+  checks.eq(String(rv?.rules_version), v3.RULES_VERSION, 'battle_sessions.rules_version records the rules the battle was played under');
+
   const agents = await db.sql`select address, wins, losses, total_battles from agents where address in (${aAddr}, ${bAddr})`;
   checks.check(agents.length === 2 && agents.every((r: any) => Number(r.total_battles) >= 1), 'agents rows updated for both players', agents.map((r: any) => `${String(r.address).slice(0, 6)} ${r.wins}W/${r.losses}L`).join(' '));
   const jobs = await db.sql`select job_type, status from operator_jobs`;

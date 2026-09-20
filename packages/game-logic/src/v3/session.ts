@@ -51,8 +51,9 @@ export function forfeit(state: AtbBattleState, loser: Team, reason: 'timeout' | 
   if (state.finished) throw new TurnError('finished', 'Battle is over');
   state.finished = true;
   state.winner = other(loser);
-  state.log.push({ turn: state.turn, tick: state.tick.toString(), lobsterId: '', action: 'forfeit', loser, postStateHash: hashState(state) });
-  void reason;
+  // D-12: the reason is part of the hashed log. ('replay' writes none: kept for callers that
+  // re-apply a legacy entry; replayBattle/verifyLog pass the recorded reason through.)
+  state.log.push({ turn: state.turn, tick: state.tick.toString(), lobsterId: '', action: 'forfeit', loser, ...(reason === 'replay' ? {} : { reason }), postStateHash: hashState(state) });
   return {
     turn: state.turn, tick: state.tick, lobsterId: '', skipped: null, path: [], action: null, targetId: null, isEnhanced: false,
     damage: [], heals: [], statuses: [], chargeAfter: 0, bar: [], finished: true, winner: state.winner,
@@ -83,6 +84,8 @@ export function reduceSession(state: AtbBattleState, clock: SessionClock, ev: Se
 
   // timeout: auto-Defend, count it, forfeit at the threshold
   const defend = applyTurn(state, { lobsterId: actor.id, action: 'defend' });
+  // D-12: say in the HASHED log that the clock chose this Defend, not the player.
+  state.log[state.log.length - 1]!.timeout = true;
   next.timeouts[actor.team] += 1;
   if (!state.finished && next.timeouts[actor.team] >= TIMEOUTS_TO_FORFEIT) {
     const f = forfeit(state, actor.team, 'timeout');

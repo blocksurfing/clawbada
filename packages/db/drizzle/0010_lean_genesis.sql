@@ -1,0 +1,1 @@
+ALTER TABLE "battle_sessions" ADD COLUMN "rules_version" text;
