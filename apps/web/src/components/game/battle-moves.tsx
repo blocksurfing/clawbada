@@ -120,6 +120,10 @@ export function BattleMoves({ battleId, address, battleData }: BattleMovesProps)
         <HandleTimeoutAction battleId={battleId} />
       )}
 
+      {canDispute(chain) && (
+        <DisputeAction battleId={battleId} rogue={battleData.settlement?.rogue ?? false} deadline={chain.payoutDeadline} />
+      )}
+
       {phase === 'deposit' && (
         <DepositAction battleId={battleId} />
       )}
@@ -303,6 +307,60 @@ function isTimeoutable(chain: BattleData['chain']): boolean {
     : BigInt(chain.phaseDeadline ?? '0');
   if (deadline === 0n) return false;
   return now > deadline;
+}
+
+/** D-06: a participant may dispute while the result is awaiting finalization, the window
+ *  is open and nobody has disputed yet. (BattleMoves only renders for participants.) */
+function canDispute(chain: BattleData['chain']): boolean {
+  if (!chain || chain.phase !== 5 || chain.disputed) return false;
+  const deadline = BigInt(chain.payoutDeadline ?? '0');
+  return deadline !== 0n && BigInt(Math.floor(Date.now() / 1000)) <= deadline;
+}
+
+/** D-06: the dispute - the bonded veto the trust model rests on - had no button anywhere.
+ *  `rogue` comes from the server's own check: the result on-chain is not the one this game
+ *  server computed, so it did not come from here. */
+export function DisputeAction({ battleId, rogue, deadline }: { battleId: string; rogue: boolean; deadline: string }) {
+  const { getAuthHeaders } = useAuth();
+  const { execute: executeTx, status } = useCalldataTx();
+  const [evidence, setEvidence] = useState('');
+  const [terms, setTerms] = useState<string | null>(null);
+
+  const handleClick = useCallback(async () => {
+    const auth = await getAuthHeaders();
+    const res = await api.combat.dispute(battleId, evidence, auth);
+    setTerms(res.preview.terms);
+    await executeTx(res.steps);
+  }, [battleId, evidence, getAuthHeaders, executeTx]);
+
+  const busy = status === 'pending' || status === 'confirming';
+  const closes = new Date(Number(deadline) * 1000).toLocaleTimeString();
+
+  return (
+    <div className={`border rounded-md p-5 space-y-3 ${rogue ? 'border-coral bg-coral/10' : 'border-border bg-surface/40'}`}>
+      <p className="text-sm font-medium">
+        {rogue ? 'Warning: this result did not come from the game server' : 'Disagree with this result?'}
+      </p>
+      <p className="text-xs text-text-secondary">
+        {rogue
+          ? 'The result submitted on-chain does not match the battle this server ran. If nobody disputes it before the window closes, it pays out and cannot be undone.'
+          : 'You can dispute the proposed result until the window closes. An admin then reviews the battle log.'}
+        {' '}The dispute window closes at {closes}. Disputing posts a bond of 10% of the stake: it is
+        returned if the result is changed and lost if the result stands. Limit 5 disputes per 24 hours.
+      </p>
+      <textarea
+        value={evidence}
+        onChange={(e) => setEvidence(e.target.value.slice(0, 512))}
+        placeholder="What is wrong with this result? (optional, stored on-chain)"
+        className="w-full text-xs rounded border border-border bg-transparent p-2"
+        rows={2}
+      />
+      {terms && <p className="text-xs text-text-secondary">{terms}</p>}
+      <Button onClick={handleClick} disabled={busy} size="sm" variant={rogue ? 'default' : 'secondary'}>
+        {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Submitting...</> : 'Dispute this result'}
+      </Button>
+    </div>
+  );
 }
 
 /** X13: permissionless handleTimeout button. Visible when the chain

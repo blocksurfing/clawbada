@@ -75,15 +75,19 @@ function resetAll() {
 }
 
 describe('BattleWatcher BattleProposed', () => {
+  // D-06: every honest proposal has a finished session behind it; these events carry no hashes.
+  const okSession = (winner: 'A' | 'B') => ({ status: 'settling', winner, playerA: PLAYER_A, playerB: PLAYER_B, finalStateHash: null, turnLogHash: null });
   beforeEach(resetAll);
 
   test('advances phase to 5 and records participation for both teams', async () => {
-    db.queue('select', [battleRow()]);
+    db.queue('select', [battleRow()], [okSession('A')]);
     await new BattleWatcher().handleEvent(makeEventLog('BattleProposed', { battleId: 1n, proposedWinner: PLAYER_A, payoutDeadline: 0n }));
 
     expect(argOf(chainCalls(db.update, 0), 'set')).toEqual({ phase: 5 });
-    // V3: the session row mirrors the commitments and flips to 'settling'.
-    expect(argOf(chainCalls(db.update, 1), 'set')).toMatchObject({ status: 'settling' });
+    // D-06: the proposal is recorded on the battles row, in columns of its own...
+    expect(argOf(chainCalls(db.update, 1), 'set')).toMatchObject({ proposedWinner: PLAYER_A });
+    // ...and the session row — the server's own record of the battle — is NOT written.
+    expect(db.update).toHaveBeenCalledTimes(2);
     expect(mockCurrentBoostEpochId).toHaveBeenCalledTimes(1);
     expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(mockRecordParticipation).toHaveBeenCalledTimes(2);
@@ -94,7 +98,7 @@ describe('BattleWatcher BattleProposed', () => {
   });
 
   test('falls back to the queued team ids when teamA/teamB are still 0', async () => {
-    db.queue('select', [battleRow({ teamA: 0n, teamB: 0n, queuedTeamA: 31n, queuedTeamB: 32n })]);
+    db.queue('select', [battleRow({ teamA: 0n, teamB: 0n, queuedTeamA: 31n, queuedTeamB: 32n })], [okSession('B')]);
     await new BattleWatcher().handleEvent(makeEventLog('BattleProposed', { battleId: 2n, proposedWinner: PLAYER_B, payoutDeadline: 0n }));
 
     expect(mockRecordParticipation).toHaveBeenCalledTimes(2);
@@ -103,24 +107,76 @@ describe('BattleWatcher BattleProposed', () => {
   });
 
   test('warns and skips when no team ids are known (phase update still lands)', async () => {
-    db.queue('select', [battleRow({ teamA: 0n, teamB: 0n, queuedTeamA: null, queuedTeamB: null })]);
+    db.queue('select', [battleRow({ teamA: 0n, teamB: 0n, queuedTeamA: null, queuedTeamB: null })], [okSession('A')]);
     await new BattleWatcher().handleEvent(makeEventLog('BattleProposed', { battleId: 3n, proposedWinner: PLAYER_A, payoutDeadline: 0n }));
 
-    expect(db.update).toHaveBeenCalledTimes(2); // battles phase + battle_sessions mirror
+    expect(db.update).toHaveBeenCalledTimes(2); // battles phase + the proposal columns
     expect(mockRecordParticipation).not.toHaveBeenCalled();
     expect(logMessages(logger.warn).some((m) => m.includes('unknown team ids'))).toBe(true);
   });
 
   test('a rating-layer failure is logged and does not throw', async () => {
-    db.queue('select', [battleRow()]);
+    db.queue('select', [battleRow()], [okSession('A')]);
     mockCurrentBoostEpochId.mockImplementationOnce(async () => {
       throw new Error('anchor unavailable');
     });
     await new BattleWatcher().handleEvent(makeEventLog('BattleProposed', { battleId: 4n, proposedWinner: PLAYER_A, payoutDeadline: 0n }));
 
-    expect(db.update).toHaveBeenCalledTimes(2); // battles phase + battle_sessions mirror
+    expect(db.update).toHaveBeenCalledTimes(2); // battles phase + the proposal columns
     expect(mockRecordParticipation).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── D-06: the proposal is judged against the battle this server ran ──
+describe('BattleWatcher BattleProposed — rogue settlement (D-06)', () => {
+  beforeEach(resetAll);
+  const H1 = '0x' + '11'.repeat(32);
+  const H2 = '0x' + '22'.repeat(32);
+  const proposed = (winner: string, over: Record<string, unknown> = {}) =>
+    makeEventLog('BattleProposed', { battleId: 9n, proposedWinner: winner, payoutDeadline: 1_700n, finalStateHash: H1, turnLogHash: H2, ...over });
+  const session = (over: Record<string, unknown> = {}) => ({ status: 'settling', winner: 'A', playerA: PLAYER_A, playerB: PLAYER_B, finalStateHash: H1, turnLogHash: H2, ...over });
+  const rogue = () => logger.error.mock.calls.filter((c: unknown[]) => c[1] === 'rogue_settlement_proposal');
+
+  test('records the proposal in its own columns and never touches the session hashes', async () => {
+    db.queue('select', [battleRow()], [session()]);
+    await new BattleWatcher().handleEvent(proposed(PLAYER_A));
+    expect(argOf(chainCalls(db.update, 1), 'set')).toMatchObject({ proposedWinner: PLAYER_A, proposedFinalStateHash: H1, proposedTurnLogHash: H2 });
+    expect(db.update).toHaveBeenCalledTimes(2);
+    expect(rogue()).toHaveLength(0);
+  });
+
+  test('a proposal for a battle this server is STILL PLAYING is a rogue settlement', async () => {
+    db.queue('select', [battleRow()], [session({ status: 'active', winner: null, finalStateHash: null, turnLogHash: null })]);
+    await new BattleWatcher().handleEvent(proposed(PLAYER_B));
+    expect(rogue()).toHaveLength(1);
+    expect(rogue()[0][0]).toMatchObject({ battleId: '9', verdict: 'session_still_active', proposedWinner: PLAYER_B, payoutDeadline: '1700' });
+    expect(mockRecordParticipation).toHaveBeenCalledTimes(2); // the alarm costs nobody their played-battle credit
+  });
+
+  test('a different winner than the one this server computed is a rogue settlement', async () => {
+    db.queue('select', [battleRow()], [session({ winner: 'B' })]);
+    await new BattleWatcher().handleEvent(proposed(PLAYER_A));
+    expect(rogue()[0][0]).toMatchObject({ verdict: 'result_mismatch' });
+  });
+
+  test('the right winner with hashes that are not ours is a rogue settlement', async () => {
+    db.queue('select', [battleRow()], [session()]);
+    await new BattleWatcher().handleEvent(proposed(PLAYER_A, { turnLogHash: '0x' + 'ee'.repeat(32) }));
+    expect(rogue()[0][0]).toMatchObject({ verdict: 'result_mismatch' });
+  });
+
+  test('a draw we computed, proposed as a draw: no alarm', async () => {
+    db.queue('select', [battleRow()], [session({ winner: 'draw' })]);
+    await new BattleWatcher().handleEvent(proposed('0x0000000000000000000000000000000000000000'));
+    expect(rogue()).toHaveLength(0);
+  });
+
+  test('NO session row: settled before this server ever claimed the battle — rogue', async () => {
+    db.queue('select', [battleRow()], []);
+    await new BattleWatcher().handleEvent(proposed(PLAYER_B));
+    expect(rogue()).toHaveLength(1);
+    expect(rogue()[0][0]).toMatchObject({ verdict: 'no_session' });
   });
 });
 
@@ -165,6 +221,28 @@ describe('BattleWatcher BattleSettled', () => {
     const values = argOf(chainCalls(db.insert, 0), 'values');
     expect(values).toMatchObject({ battleId: 77n, phase: 1, status: 1, stakeAmount: '2500', powerA: 3, powerB: 4, teamA: 0n, teamB: 0n });
     expect(logger.warn).toHaveBeenCalled();
+  });
+
+  // ── D-08: a battle with no matchmaker row behind it is labelled truthfully ──
+
+  test('D-08: the fallback row is marked as NOT from the matchmaker', async () => {
+    db.queue('select', []);
+    await new BattleWatcher().handleEvent(
+      makeEventLog('BattleCreated', { battleId: 78n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: 2500n * WEI, powerA: 3, powerB: 3 }),
+    );
+    expect(argOf(chainCalls(db.insert, 0), 'values')).toMatchObject({ fromMatchmaker: false, stakeBracket: 0 });
+  });
+
+  test('D-08: the bracket comes from the on-chain stake — a 50,000 battle is never labelled Low', async () => {
+    const cases: Array<[bigint, number]> = [[2_500n, 0], [10_000n, 1], [50_000n, 2], [33_333n, 2]]; // unknown stake -> High
+    for (const [stake, bracket] of cases) {
+      db.reset();
+      db.queue('select', []);
+      await new BattleWatcher().handleEvent(
+        makeEventLog('BattleCreated', { battleId: 79n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: stake * WEI, powerA: 3, powerB: 9 }),
+      );
+      expect(argOf(chainCalls(db.insert, 0), 'values')).toMatchObject({ stakeBracket: bracket, stakeAmount: stake.toString() });
+    }
   });
 
   test('V3 draw (winner == address(0)): row settled with winner null, no ELO, participation for both teams', async () => {

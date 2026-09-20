@@ -98,6 +98,31 @@ export class PlayerAgent {
     return BigInt(ev.teamId);
   }
 
+  /**
+   * D-06: contest a proposed battle result. Any participant may, while the battle is
+   * AwaitingFinalize and the chain clock has not passed payoutDeadline. Posts the bond (10% of
+   * the bracket stake: refunded if the admin changes the result in any respect, slashed if it
+   * stands). Limit: 5 disputes per address per 24 hours.
+   */
+  async dispute(battleId: string, evidence = ''): Promise<void> {
+    const r = await this.post(`/api/game/combat/${battleId}/dispute`, { evidence });
+    await this.executeSteps(r.steps);
+    this.say(`disputed battle #${battleId} (bond ${r.preview?.bond ?? '?'} wei, ${r.preview?.secondsLeft ?? '?'} s were left)`);
+  }
+
+  /**
+   * D-06: after a battle, compare what the chain was told with what you just played. The
+   * server's own verdict is in `settlement` on the battle read; an agent that kept its own
+   * `battle_ended` result can check the winner itself too. Returns true if it disputed.
+   */
+  async disputeIfRogue(battleId: string): Promise<boolean> {
+    const b = await this.get(`/api/game/combat/${battleId}`);
+    const st = b.settlement;
+    if (!st || !st.rogue || st.disputed) return false;
+    await this.dispute(battleId, `settlement check: ${st.verdict}`);
+    return true;
+  }
+
   // ── queue → battle ──
   async joinQueue(teamId: bigint, stake: string): Promise<{ status: 'queued' | 'matched'; battleId?: string }> {
     const r = await this.post('/api/game/combat/queue', { teamId: teamId.toString(), stakeAmount: stake });
@@ -136,7 +161,7 @@ export class PlayerAgent {
   }
 
   // ── live battle over WS (ported from apps/api/scripts/play-practice.ts) ──
-  async playBattle(battleId: string, opts: { policy?: v3.BotName; timeoutMs?: number } = {}): Promise<{ winner: string; reason: string; finalStateHash: string; turnLogHash: string; turns: number }> {
+  async playBattle(battleId: string, opts: { policy?: v3.BotName; timeoutMs?: number } = {}): Promise<{ winner: string; reason: string; finalStateHash: string; turnLogHash: string; turns: number; disputed: boolean }> {
     const policy = v3.botPolicy(opts.policy ?? 'balanced');
     const me = this.address.toLowerCase();
     let local: v3.AtbBattleState | null = null;
@@ -159,8 +184,21 @@ export class PlayerAgent {
       ws?.send(JSON.stringify({ type: 'submit_turn', battleId, turn, command: cmd }));
     };
 
+    let disputing = false;
+    let disputed = false;
     return new Promise(async (resolve, reject) => {
-      const timer = setTimeout(() => { closedByUs = true; ws?.close(); reject(new Error(`battle #${battleId} did not finish within ${opts.timeoutMs ?? 300_000} ms`)); }, opts.timeoutMs ?? 300_000);
+      const timer = setTimeout(() => { clearInterval(guard); closedByUs = true; ws?.close(); reject(new Error(`battle #${battleId} did not finish within ${opts.timeoutMs ?? 300_000} ms`)); }, opts.timeoutMs ?? 300_000);
+      // D-06: the WebSocket alert only exists while a session is live. A result submitted within a
+      // second or two of the reveal lands BEFORE the server ever starts a session, so there is
+      // nothing to push the alert through. Poll the battle read too: `settlement.rogue` is true
+      // whenever the result on-chain is not provably the server's own.
+      const guard = setInterval(() => {
+        if (disputing) return;
+        disputing = true;
+        this.disputeIfRogue(battleId)
+          .then((did) => { if (did) disputed = true; else disputing = false; })
+          .catch((err) => { disputing = false; this.say(`settlement guard: ${String(err).slice(0, 160)}`); });
+      }, 5_000);
       const connect = async () => {
         const a = await this.authParams();
         const url = `${this.o.ws}?address=${a.address}&signature=${a.signature}&timestamp=${a.timestamp}&nonce=${a.nonce}&domain=${encodeURIComponent(a.domain)}&battleId=${battleId}`;
@@ -181,8 +219,21 @@ export class PlayerAgent {
               if (d.state) local = v3.fromWire({ ...d.state, vrfSeed: '0' });
               break;
             case 'battle_ended':
-              clearTimeout(timer); closedByUs = true; ws?.close();
-              resolve({ winner: d.winner, reason: d.reason, finalStateHash: d.finalStateHash, turnLogHash: d.turnLogHash, turns });
+              clearTimeout(timer); clearInterval(guard); closedByUs = true; ws?.close();
+              resolve({ winner: d.winner, reason: d.reason, finalStateHash: d.finalStateHash, turnLogHash: d.turnLogHash, turns, disputed });
+              break;
+            case 'settlement_alert':
+              // D-06: a result for this battle landed on-chain while it is still being played
+              // here, so it did not come from the game server (a stolen RESOLVER key settles
+              // the moment teams are revealed; the dispute window then runs out while you are
+              // busy playing). An agent must not wait for the battle to end: dispute now.
+              this.say(`SETTLEMENT ALERT battle #${battleId}: on-chain winner ${d.proposedWinner}, deadline ${d.payoutDeadline}`);
+              if (!d.disputed && !disputing) {
+                disputing = true;
+                this.dispute(battleId, `settlement_alert: ${d.reason}`)
+                  .then(() => { disputed = true; })
+                  .catch((err) => { disputing = false; this.say(`dispute failed: ${String(err).slice(0, 200)}`); });
+              }
               break;
             case 'error':
               this.say(`ws error: ${JSON.stringify(d)}`);

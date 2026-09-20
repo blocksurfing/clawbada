@@ -37,6 +37,8 @@ export type BattleEvent =
   | 'turn_resolved'
   | 'bar_updated'
   | 'battle_ended'
+  // D-06: a settlement proposed on-chain while the battle is still live on this server.
+  | 'settlement_alert'
   | 'turn_ack'
   | 'error'
   | 'pong';

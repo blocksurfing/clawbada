@@ -17,6 +17,7 @@ import { setMusicPref, setSfxPref, type AudioPrefChange } from '@/lib/audio-pref
 import type { Side, TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
 import { BattleStage } from './BattleStage';
+import { DisputeAction } from '@/components/game/battle-moves';
 import { selectionToData } from './unity-bridge';
 import { HexBoard } from './HexBoard';
 import { Hud } from './Hud';
@@ -253,6 +254,11 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
         </div>
         {unityAvailable === false && <span className="text-[10px] text-text-secondary">Unity build not deployed — showing the plain board</span>}
       </div>
+
+      {/* D-06: a result landed on-chain while this battle is still being played. */}
+      {session.settlementAlert && !isSpectator && !session.settlementAlert.disputed && (
+        <DisputeAction battleId={battleId} rogue deadline={session.settlementAlert.payoutDeadline} />
+      )}
 
       {/* Stage: Unity when deployed, SVG board otherwise */}
       {unityAvailable !== false && (

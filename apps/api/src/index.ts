@@ -367,6 +367,10 @@ export default {
         // V3: a live session sends its full snapshot on join (reconnect-safe).
         const snap = battleSessions.snapshotFor(battleId);
         if (snap) battleWS.sendTo(ws, 'battle_snapshot', battleId, snap);
+        // D-06: if a result was submitted on-chain while this battle is still live here, say
+        // so the moment a client joins — not at the next 20 s re-broadcast.
+        const alert = battleSessions.alertFor(battleId);
+        if (alert) battleWS.sendTo(ws, 'settlement_alert', battleId, alert);
       }
       // Address-room subscription (queue lifecycle): always join if we have
       // an authenticated address. Cheap to maintain alongside the battle room
