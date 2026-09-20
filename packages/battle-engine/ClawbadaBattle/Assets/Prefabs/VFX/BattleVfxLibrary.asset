@@ -183,13 +183,13 @@ MonoBehaviour:
     anchor: 1
     delay: 0
     mirrorWithFacing: 0
-    impactAt: 0.7
+    impactAt: 0
     frontChildPrefix: Front
     hideChildrenPrefix: 
     onTop: 0
     spawnAtContact: 1
     castSpeed: 1
-    shakeAmplitude: 0
+    shakeAmplitude: 0.09
     shakeSeconds: 0.3
     rowsCovered: 0
     dimAlpha: 0
