@@ -186,6 +186,8 @@ export class PlayerAgent {
 
     let disputing = false;
     let disputed = false;
+    /** A dispute takes two transactions; a short battle can end before they confirm. */
+    let inFlight: Promise<void> = Promise.resolve();
     return new Promise(async (resolve, reject) => {
       const timer = setTimeout(() => { clearInterval(guard); closedByUs = true; ws?.close(); reject(new Error(`battle #${battleId} did not finish within ${opts.timeoutMs ?? 300_000} ms`)); }, opts.timeoutMs ?? 300_000);
       // D-06: the WebSocket alert only exists while a session is live. A result submitted within a
@@ -195,7 +197,7 @@ export class PlayerAgent {
       const guard = setInterval(() => {
         if (disputing) return;
         disputing = true;
-        this.disputeIfRogue(battleId)
+        inFlight = this.disputeIfRogue(battleId)
           .then((did) => { if (did) disputed = true; else disputing = false; })
           .catch((err) => { disputing = false; this.say(`settlement guard: ${String(err).slice(0, 160)}`); });
       }, 5_000);
@@ -220,6 +222,7 @@ export class PlayerAgent {
               break;
             case 'battle_ended':
               clearTimeout(timer); clearInterval(guard); closedByUs = true; ws?.close();
+              await inFlight; // report `disputed` truthfully even when the battle ends first
               resolve({ winner: d.winner, reason: d.reason, finalStateHash: d.finalStateHash, turnLogHash: d.turnLogHash, turns, disputed });
               break;
             case 'settlement_alert':
@@ -230,7 +233,7 @@ export class PlayerAgent {
               this.say(`SETTLEMENT ALERT battle #${battleId}: on-chain winner ${d.proposedWinner}, deadline ${d.payoutDeadline}`);
               if (!d.disputed && !disputing) {
                 disputing = true;
-                this.dispute(battleId, `settlement_alert: ${d.reason}`)
+                inFlight = this.dispute(battleId, `settlement_alert: ${d.reason}`)
                   .then(() => { disputed = true; })
                   .catch((err) => { disputing = false; this.say(`dispute failed: ${String(err).slice(0, 200)}`); });
               }
