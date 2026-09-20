@@ -9,22 +9,55 @@
 import { Hono } from 'hono';
 import { desc, eq, or } from 'drizzle-orm';
 import { db, battles } from '@clawbada/db';
+import { BattlePhase } from '@clawbada/game-logic';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readBattle, serializeBigInts } from '../../../lib/chain';
 import { walletAuth } from '../../../middleware/auth';
 
 export const battleReadRoutes = new Hono();
 
-/** A2 (May 2026 audit): the `queuedTeamA/queuedTeamB` columns are
- *  participant-private — exposing either to a non-participant or the
- *  opponent before reveal would break commit-reveal secrecy. Strip both
- *  before any public-facing response. The authenticated /:battleId/my-team
- *  endpoint is the only path that reveals the caller's own queued team. */
-function redactPrivateBattleFields<T extends { queuedTeamA?: unknown; queuedTeamB?: unknown }>(
-  row: T,
-): Omit<T, 'queuedTeamA' | 'queuedTeamB'> {
-  const { queuedTeamA: _a, queuedTeamB: _b, ...rest } = row;
-  return rest;
+type BattleRow = typeof battles.$inferSelect;
+
+/**
+ * What an unauthenticated caller may see of a battle row. An ALLOW-LIST, on purpose.
+ *
+ * Audit D-07: this used to be a deny-list that stripped only `queuedTeamA/B`. When the first
+ * player POSTed their reveal salt, the server wrote their teamId into `teamA/teamB` and the salt
+ * into `revealSaltA/B` — and this public read returned the whole row. Anyone, including the
+ * opponent, could read the first revealer's team (and the salt that proves it) BEFORE the atomic
+ * on-chain reveal, then simply not post their own salt: the reveal window times out into a
+ * full-refund mutual cancel (F5-01's safety net), i.e. a free matchup dodge. F5-01 made the
+ * on-chain reveal atomic precisely to stop that; the API undid it.
+ *
+ *  - `revealSaltA/B` and `queuedTeamA/B` never leave the server.
+ *  - `teamA/teamB` are shown only once the ON-CHAIN reveal has been indexed (phase >= Active),
+ *    at which point both are public on-chain anyway. Before that they read 0, exactly as they do
+ *    before anyone has posted a salt, so their value carries no signal.
+ *  - A column added to the table later is private until someone lists it here.
+ *
+ * The authenticated /:battleId/my-team endpoint is the only path that returns a caller's own team.
+ */
+export function publicBattleView(row: BattleRow) {
+  const teamsArePublic = row.phase >= BattlePhase.Active;
+  return {
+    battleId: row.battleId,
+    playerA: row.playerA,
+    playerB: row.playerB,
+    teamA: teamsArePublic ? row.teamA : 0n,
+    teamB: teamsArePublic ? row.teamB : 0n,
+    stakeBracket: row.stakeBracket,
+    stakeAmount: row.stakeAmount,
+    phase: row.phase,
+    status: row.status,
+    powerA: row.powerA,
+    powerB: row.powerB,
+    winner: row.winner,
+    protocolFee: row.protocolFee,
+    winnerPayout: row.winnerPayout,
+    totalRounds: row.totalRounds,
+    createdAt: row.createdAt,
+    settledAt: row.settledAt,
+  };
 }
 
 battleReadRoutes.get(
@@ -52,7 +85,7 @@ battleReadRoutes.get(
       serializeBigInts({
         address,
         count: result.length,
-        battles: result.map(redactPrivateBattleFields),
+        battles: result.map(publicBattleView),
       }),
     );
   }),
@@ -81,7 +114,7 @@ battleReadRoutes.get(
     return c.json(
       serializeBigInts({
         chain: chainBattle,
-        db: dbRow ? redactPrivateBattleFields(dbRow) : null,
+        db: dbRow ? publicBattleView(dbRow) : null,
       }),
     );
   }),

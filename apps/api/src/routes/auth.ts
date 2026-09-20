@@ -18,9 +18,21 @@ import {
 export const authRoutes = new Hono();
 
 // ──────────── POST /api/auth/session ────────────
-// Auth: a fresh wallet signature (walletAuth also accepts a token, which simply re-issues).
+// Auth: a FRESH wallet signature, and nothing else.
+//
+// Audit C-01: this route used walletAuth, which also accepts a bearer token — and then minted a
+// token with a brand-new session start. So a token could be traded for a fresh 24 h session
+// forever without the wallet ever signing again, which made SESSION_MAX_AGE_SEC meaningless and
+// turned one stolen token (or one phished 5-minute signature) into permanent access to a
+// player's battles. A token renews through /refresh, which carries the original start over.
 authRoutes.post(
   '/session',
+  async (c, next) => {
+    if (bearerFrom(c.req.header('Authorization'))) {
+      throw new ApiError('UNAUTHORIZED', 'A new session needs a fresh wallet signature. Renew an existing token with POST /api/auth/session/refresh.');
+    }
+    await next();
+  },
   walletAuth,
   catchErrors(async (c) => {
     const address = c.get('address') as string;
