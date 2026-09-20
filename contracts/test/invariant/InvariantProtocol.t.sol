@@ -20,6 +20,29 @@ contract ProtocolHandler is BaseSetup {
     // Ghost variable: total $CLAW ever minted to players
     uint256 public ghostMinted;
 
+    // D-29: mining + repair are exercised for real. Ghosts prove it (a handler that
+    // swallows every revert looks identical to one that works, unless something counts).
+    uint256[] public expeditionIds;
+    uint256 public ghostExpeditionsStarted;
+    uint256 public ghostExpeditionsClaimed;
+    uint256 public ghostRewardsLocked;   // sum of rewards minted into MiningPool escrow
+    uint256 public ghostRewardsClaimed;  // sum of rewards paid out of it
+    uint256 public ghostRepairs;         // successful RepairShop.repair calls
+    uint256 public ghostRepairPaid;      // $CLAW those repairs cost
+    /// @dev First cross-contract accounting mismatch seen inside a handler. fail_on_revert
+    ///      is false, so an assert here would be swallowed; invariant_no_handler_violation
+    ///      reads this instead.
+    string public violation;
+
+    /// @dev Deliberately tiny next to the real 352.5M. The glide targets
+    ///      remaining / (remainingDays x trailing demand); with five actors' worth of demand
+    ///      against the real budget that target is astronomically above the launch reward, so
+    ///      the reward would sit on its cap forever and the repair price would never move.
+    ///      At 50K, one Base expedition a day already pulls the target under 1,250 — the
+    ///      glide steps down and back up during runs, and the budget can run out too.
+    uint256 internal constant S1_EMISSION = 50_000e18;
+    uint256 internal constant S1_BASE_REWARD = 1_250e18;
+
     // ── Public accessors for invariant contract ───────────────────
     function getClaw()       external view returns (ClawToken)    { return claw; }
     function getNft()        external view returns (LobsterNFT)   { return nft; }
@@ -30,9 +53,18 @@ contract ProtocolHandler is BaseSetup {
     function getMintedIds()  external view returns (uint256[] memory) { return mintedIds; }
     function mintedIdsLength() external view returns (uint256)    { return mintedIds.length; }
     function getActors() external view returns (address[] memory) { return actors; }
+    function getRepairShop() external view returns (RepairShop)   { return repairShop; }
+    function expeditionIdsLength() external view returns (uint256) { return expeditionIds.length; }
+    function getAdmin() external view returns (address) { return admin; }
 
     constructor() {
         setUp(); // deploy all contracts via BaseSetup
+
+        // D-29: TOK-G1 prices repairs off MiningPool.currentBaseReward(), which is 0 until
+        // a season exists. Without this every repair reverted RewardPegUnset inside a
+        // try/catch and the suite's green result said nothing about RepairShop.
+        vm.prank(admin);
+        miningPool.startSeason(S1_EMISSION, S1_BASE_REWARD);
 
         // Populate actors
         for (uint256 i = 0; i < 5; i++) {
@@ -195,12 +227,103 @@ contract ProtocolHandler is BaseSetup {
 
             uint8 repairPts = damage < points ? damage : points;
 
+            // Snapshot everything a repair is supposed to move, across four contracts.
+            uint256 cost = uint256(repairPts) * repairShop.repairRate(tier);
+            uint256 actorBefore = claw.balanceOf(actor);
+            uint256 devBefore = claw.balanceOf(devWallet);
+            uint256 supplyBefore = claw.totalSupply();
+
             vm.startPrank(actor);
             claw.approve(address(repairShop), type(uint256).max);
-            try repairShop.repair(id, repairPts) {} catch {}
-            vm.stopPrank();
+            try repairShop.repair(id, repairPts) {
+                vm.stopPrank();
+                ghostRepairs++;
+                ghostRepairPaid += cost;
+                uint256 burned = supplyBefore - claw.totalSupply();
+                uint256 toDev = claw.balanceOf(devWallet) - devBefore;
+                if (nft.getDamage(id) != damage - repairPts) _flag("repair: damage not reduced by exactly the points paid for");
+                if (actorBefore - claw.balanceOf(actor) != cost) _flag("repair: payer not charged points x repairRate");
+                if (burned + toDev != cost) _flag("repair: burn + dev share != cost");
+                if (burned != (cost * 8_500) / 10_000) _flag("repair: burn leg is not 85%");
+                if (claw.balanceOf(address(repairShop)) != 0) _flag("repair: CLAW stranded in RepairShop");
+                if (claw.balanceOf(address(treasury)) != 0) _flag("repair: CLAW stranded in Treasury");
+            } catch {
+                vm.stopPrank();
+            }
             return;
         }
+    }
+
+    function _flag(string memory what) internal {
+        if (bytes(violation).length == 0) violation = what;
+    }
+
+    // ── Handler: start a mining expedition ────────────────────────
+    //    Moves trailing demand, so the glide (and with it the repair price) moves too.
+
+    function handler_startExpedition(uint8 actorIdx, uint256 teamSeed, uint8 tierSeed) external {
+        actorIdx = uint8(actorIdx % actors.length);
+        address actor = actors[actorIdx];
+
+        uint256[] memory teams = teamMgr.getTeamsByOwner(actor);
+        if (teams.length == 0) return;
+        uint256 teamId = teams[teamSeed % teams.length];
+        if (teamMgr.isTeamActive(teamId)) return;
+
+        // The mine tier may not exceed the team's weakest lobster.
+        TeamManager.Team memory team = teamMgr.getTeam(teamId);
+        uint8 minTier = 3;
+        for (uint256 i = 0; i < 3; i++) {
+            uint8 t = nft.getEvolutionTier(team.lobsterIds[i]);
+            if (t < minTier) minTier = t;
+        }
+        uint8 mineTier = uint8(tierSeed % (uint256(minTier) + 1));
+
+        uint256 escrowBefore = claw.balanceOf(address(miningPool));
+        vm.prank(actor);
+        try miningPool.startExpedition(teamId, mineTier) returns (uint256 expeditionId) {
+            expeditionIds.push(expeditionId);
+            totalExpeditionsStarted++;
+            ghostExpeditionsStarted++;
+            uint256 reward = miningPool.getExpedition(expeditionId).reward;
+            ghostRewardsLocked += reward;
+            if (claw.balanceOf(address(miningPool)) - escrowBefore != reward) {
+                _flag("startExpedition: escrow did not grow by the locked reward");
+            }
+            if (!teamMgr.isTeamActive(teamId)) _flag("startExpedition: team not marked active");
+        } catch {}
+    }
+
+    // ── Handler: claim a matured expedition ───────────────────────
+
+    function handler_claim(uint256 expeditionSeed) external {
+        if (expeditionIds.length == 0) return;
+        uint256 expeditionId = expeditionIds[expeditionSeed % expeditionIds.length];
+        MiningPool.Expedition memory e = miningPool.getExpedition(expeditionId);
+        if (e.claimed) return;
+        if (block.timestamp < e.startTime + miningPool.EXPEDITION_DURATION()) return;
+
+        uint256 ownerBefore = claw.balanceOf(e.owner);
+        vm.prank(e.owner);
+        try miningPool.claimExpedition(expeditionId) {
+            ghostExpeditionsClaimed++;
+            ghostRewardsClaimed += e.reward;
+            if (claw.balanceOf(e.owner) - ownerBefore != e.reward) _flag("claim: owner not paid the locked reward");
+            if (teamMgr.isTeamActive(e.teamId)) _flag("claim: team still active after claim");
+        } catch {}
+    }
+
+    // ── Handler: time ─────────────────────────────────────────────
+    //    Up to a day per call: expeditions mature (4h) and the daily glide epoch rolls.
+
+    function handler_warp(uint32 secs) external {
+        vm.warp(block.timestamp + bound(uint256(secs), 1 minutes, 1 days));
+    }
+
+    // ── Handler: the permissionless re-peg ────────────────────────
+
+    function handler_repeg() external {
+        try miningPool.repeg() {} catch {}
     }
 
     // ── Handler: list on marketplace ─────────────────────────────
@@ -251,6 +374,25 @@ contract InvariantProtocol is Test {
     function setUp() public {
         handler = new ProtocolHandler();
         targetContract(address(handler));
+
+        // D-29: restrict the fuzzer to handler_* entrypoints. Without this it can call the
+        // handler's inherited public BaseSetup.setUp() mid-run, which redeploys every
+        // contract and orphans mintedIds[] / expeditionIds[] (same hazard the BattleArena
+        // and MiningPool harnesses document and filter).
+        bytes4[] memory selectors = new bytes4[](12);
+        selectors[0] = ProtocolHandler.handler_mint.selector;
+        selectors[1] = ProtocolHandler.handler_createTeam.selector;
+        selectors[2] = ProtocolHandler.handler_disbandTeam.selector;
+        selectors[3] = ProtocolHandler.handler_breed.selector;
+        selectors[4] = ProtocolHandler.handler_evolve.selector;
+        selectors[5] = ProtocolHandler.handler_repair.selector;
+        selectors[6] = ProtocolHandler.handler_list.selector;
+        selectors[7] = ProtocolHandler.handler_applyDamage.selector;
+        selectors[8] = ProtocolHandler.handler_startExpedition.selector;
+        selectors[9] = ProtocolHandler.handler_claim.selector;
+        selectors[10] = ProtocolHandler.handler_warp.selector;
+        selectors[11] = ProtocolHandler.handler_repeg.selector;
+        targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
     }
 
     // ── Invariant: token supply never exceeds MAX_SUPPLY ─────────
@@ -330,7 +472,10 @@ contract InvariantProtocol is Test {
     function invariant_season_budget_not_exceeded() public view {
         MiningPool pool = handler.getMiningPool();
         uint256 season = pool.currentSeason();
-        if (season == 0) return;
+        // D-29: this used to `return` when season == 0 — which was always, so the invariant
+        // could never fail. The handler now starts season 1; if that ever stops being true
+        // this fails loudly instead of going quiet again.
+        assertGe(season, 1, "harness must run inside a live season");
 
         MiningPool.SeasonConfig memory cfg = pool.getSeasonConfig(season);
         assertLe(
@@ -338,6 +483,95 @@ contract InvariantProtocol is Test {
             cfg.totalEmission,
             "season totalMinted must not exceed totalEmission"
         );
+        assertEq(cfg.totalMinted, handler.ghostRewardsLocked(), "season totalMinted == rewards the handler saw locked");
+        assertLe(pool.lifetimeMinted(), pool.MINING_ALLOCATION(), "lifetime mining cap (TOK-M1)");
+    }
+
+    // ── Invariant: mining escrow is exactly the unclaimed rewards ─
+
+    function invariant_mining_escrow_matches_unclaimed_rewards() public view {
+        assertEq(
+            handler.getClaw().balanceOf(address(handler.getMiningPool())),
+            handler.ghostRewardsLocked() - handler.ghostRewardsClaimed(),
+            "MiningPool escrow must equal locked minus claimed rewards"
+        );
+    }
+
+    // ── Invariant: the repair price is live and tracks the glide ──
+
+    function invariant_repair_price_is_live() public view {
+        MiningPool pool = handler.getMiningPool();
+        RepairShop shop = handler.getRepairShop();
+        uint256 base = pool.currentBaseReward();
+        assertGt(base, 0, "glide base reward must never reach 0 (dust floor)");
+        assertLe(base, 1_250e18, "glide never exceeds the launch reward");
+        // Evolved / Elite / Apex = 40 / 120 / 320 bps of the base reward; Base tier unrepairable.
+        assertEq(shop.repairRate(0), 0, "Base tier has no repair rate");
+        assertEq(shop.repairRate(1), (base * 40) / 10_000, "Evolved repair rate tracks the peg");
+        assertEq(shop.repairRate(2), (base * 120) / 10_000, "Elite repair rate tracks the peg");
+        assertEq(shop.repairRate(3), (base * 320) / 10_000, "Apex repair rate tracks the peg");
+        assertGt(shop.repairRate(1), 0, "a repair can always be priced");
+    }
+
+    // ── Invariant: no cross-contract accounting mismatch inside a handler ──
+
+    function invariant_no_handler_violation() public view {
+        assertEq(handler.violation(), "", "handler saw a cross-contract accounting mismatch");
+    }
+
+    // ── Invariant: fee-routing contracts never strand $CLAW ───────
+
+    function invariant_no_claw_stranded_in_fee_path() public view {
+        ClawToken claw = handler.getClaw();
+        assertEq(claw.balanceOf(address(handler.getRepairShop())), 0, "RepairShop holds no CLAW at rest");
+        assertEq(claw.balanceOf(address(handler.getTreasury())), 0, "Treasury fee-splitter holds no CLAW at rest");
+    }
+
+    // ── Reachability (D-29) ───────────────────────────────────────
+    // An invariant run cannot say "this action succeeded at least once", and every
+    // handler swallows reverts, so a handler whose action can never succeed is invisible.
+    // These drive the SAME handler entrypoints deterministically and require success.
+
+    function test_reachability_repair_succeeds_through_the_handler() public {
+        // actor 0 owns 5 Base lobsters: evolve one (target + 2 fuel), damage it, repair it.
+        handler.handler_evolve(0);
+        LobsterNFT nft = handler.getNft();
+        uint256[] memory ids = handler.getMintedIds();
+        uint256 evolved = type(uint256).max;
+        for (uint256 i = 0; i < ids.length; i++) {
+            if (nft.exists(ids[i]) && nft.getEvolutionTier(ids[i]) == 1) evolved = i;
+        }
+        assertTrue(evolved != type(uint256).max, "handler_evolve produced an Evolved lobster");
+
+        handler.handler_applyDamage(evolved, 30);
+        assertEq(nft.getDamage(ids[evolved]), 30, "damage applied");
+
+        handler.handler_repair(0, 10);
+        assertEq(handler.ghostRepairs(), 1, "handler_repair must actually repair (it reverted RewardPegUnset before D-29)");
+        assertEq(nft.getDamage(ids[evolved]), 20, "10 points repaired");
+        assertEq(handler.ghostRepairPaid(), 10 * ((1_250e18 * 40) / 10_000), "10 points at the Evolved launch rate (5 CLAW)");
+        assertEq(handler.violation(), "", "no accounting mismatch");
+    }
+
+    function test_reachability_mining_and_glide_through_the_handler() public {
+        handler.handler_createTeam(1);
+        handler.handler_startExpedition(1, 0, 0);
+        assertEq(handler.ghostExpeditionsStarted(), 1, "handler_startExpedition must actually start one");
+
+        handler.handler_claim(0);
+        assertEq(handler.ghostExpeditionsClaimed(), 0, "not claimable before 4h");
+
+        handler.handler_warp(uint32(1 days));
+        handler.handler_claim(0);
+        assertEq(handler.ghostExpeditionsClaimed(), 1, "handler_claim must actually claim");
+        assertEq(handler.ghostRewardsClaimed(), 1_250e18, "Base mine pays the launch reward");
+
+        // Next epoch: trailing demand 1, 48,750 left over 59 days -> target ~826, clamped to
+        // -30% = 875. The repair price moves with it: 40 bps of 875 = 3.5 CLAW per point.
+        handler.handler_repeg();
+        assertEq(handler.getMiningPool().currentBaseReward(), 875e18, "the glide stepped down by the 30% clamp");
+        assertEq(handler.getRepairShop().repairRate(1), 3.5e18, "the Evolved repair price followed the glide");
+        assertEq(handler.violation(), "", "no accounting mismatch");
     }
 
     // ── Invariant: soulbound lobsters never transferred ───────────
