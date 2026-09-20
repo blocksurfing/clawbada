@@ -24,6 +24,12 @@ contract Faucet is AccessControl, ReentrancyGuard {
     uint256 public constant CLAW_DRIP_AMOUNT = 7_000e18;
     uint256 public constant MIN_ETH_BALANCE = 0.001 ether;
     uint256 public constant MAX_BATCH_SIZE = 500;
+    /// @dev D-02: lifetime cap on faucet lobsters — 10,000 wallets x 5, the same population the
+    ///      70M CLAW pre-mint is sized for (10,000 x 7,000). The CLAW drip is bounded by the
+    ///      faucet's balance; lobsters were bounded by nothing, and a faucet lobster mines the
+    ///      705M pool with no stake. Without this, the ELIGIBILITY key (a hot, always-online
+    ///      service key) could mint an unlimited sybil mining fleet that outlives its rotation.
+    uint256 public constant MAX_FAUCET_LOBSTERS = 50_000;
 
     // ──────────── State ────────────
     LobsterNFT public lobsterNFT;
@@ -53,6 +59,8 @@ contract Faucet is AccessControl, ReentrancyGuard {
     error InsufficientFaucetBalance();
     error BatchTooLarge(uint256 length, uint256 max);
     error FaucetStillOpen();
+    /// @dev D-02: the lifetime faucet lobster cap has been reached.
+    error FaucetLobsterCapReached();
 
     // ──────────── Constructor ────────────
 
@@ -110,15 +118,20 @@ contract Faucet is AccessControl, ReentrancyGuard {
         if (!isEligible[msg.sender]) revert NotEligible();
         if (msg.sender.balance < MIN_ETH_BALANCE) revert InsufficientETHBalance();
         if (hasClaimedLobsters[msg.sender]) revert LobstersAlreadyClaimed();
+        if (totalLobstersClaimed + LOBSTERS_PER_CLAIM > MAX_FAUCET_LOBSTERS) revert FaucetLobsterCapReached(); // D-02
 
+        // Effects before interactions. The mints below call onERC1155Received on a contract
+        // claimer, and since D-02 the counter gates the cap, so it must already be final when
+        // control leaves this contract (nonReentrant covers this function; the ordering covers
+        // every other reader).
         hasClaimedLobsters[msg.sender] = true;
+        totalLobstersClaimed += LOBSTERS_PER_CLAIM;
 
         for (uint256 i = 0; i < LOBSTERS_PER_CLAIM; i++) {
             uint256 dna = _generateRandomDNA(i);
             tokenIds[i] = lobsterNFT.mint(msg.sender, dna, true);
         }
 
-        totalLobstersClaimed += LOBSTERS_PER_CLAIM;
         emit LobstersClaimed(msg.sender, tokenIds);
     }
 

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, stdStorage, StdStorage} from "forge-std/Test.sol";
 import {Faucet} from "../contracts/Faucet.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {ClawToken} from "../contracts/ClawToken.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 contract FaucetTest is Test {
+    using stdStorage for StdStorage;
+
     Faucet faucet;
     LobsterNFT nft;
     ClawToken claw;
@@ -221,6 +223,39 @@ contract FaucetTest is Test {
 
         vm.prank(poor);
         vm.expectRevert(Faucet.InsufficientETHBalance.selector);
+        faucet.claimLobsters();
+    }
+
+    // ── D-02: lifetime lobster cap ──
+
+    /// @dev The cap is the population the 70M CLAW pre-mint is sized for: 10,000 wallets x 5.
+    function test_D02_capMatchesTheDripPopulation() public view {
+        assertEq(faucet.MAX_FAUCET_LOBSTERS(), 50_000);
+        assertEq(faucet.MAX_FAUCET_LOBSTERS() / faucet.LOBSTERS_PER_CLAIM(), 70_000_000e18 / faucet.CLAW_DRIP_AMOUNT());
+    }
+
+    function test_D02_lastClaimUnderTheCapSucceedsAndTheNextReverts() public {
+        // Jump the counter to one claim below the cap instead of minting 49,995 lobsters.
+        stdstore.target(address(faucet)).sig("totalLobstersClaimed()").checked_write(faucet.MAX_FAUCET_LOBSTERS() - 5);
+
+        _makeEligible(alice);
+        vm.prank(alice);
+        faucet.claimLobsters();
+        assertEq(faucet.totalLobstersClaimed(), faucet.MAX_FAUCET_LOBSTERS());
+
+        // A stolen eligibility key can still whitelist — it just cannot mint past the cap.
+        _makeEligible(bob);
+        vm.prank(bob);
+        vm.expectRevert(Faucet.FaucetLobsterCapReached.selector);
+        faucet.claimLobsters();
+        assertFalse(faucet.hasClaimedLobsters(bob));
+    }
+
+    function test_D02_aPartialClaimCannotStraddleTheCap() public {
+        stdstore.target(address(faucet)).sig("totalLobstersClaimed()").checked_write(faucet.MAX_FAUCET_LOBSTERS() - 4);
+        _makeEligible(alice);
+        vm.prank(alice);
+        vm.expectRevert(Faucet.FaucetLobsterCapReached.selector);
         faucet.claimLobsters();
     }
 
