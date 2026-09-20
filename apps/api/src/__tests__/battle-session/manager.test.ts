@@ -51,6 +51,7 @@ class FakeStore {
   async markStatus(id: string, status: SessionRow['status']): Promise<void> { this.rows.get(id)!.status = status; }
   async deleteSession(id: string): Promise<void> { this.rows.delete(id); }
   async enqueueSettle(payload: SettleJobPayload): Promise<void> { this.jobs.push(payload); }
+  async finishAndEnqueueSettle(id: string, patch: Partial<SessionRow>, payload: SettleJobPayload): Promise<void> { await this.markFinished(id, patch); await this.enqueueSettle(payload); }
   async loadActive(): Promise<SessionRow[]> { return [...this.rows.values()].filter((r) => r.status === 'active'); }
   async get(id: string): Promise<SessionRow | null> { return this.rows.get(id) ?? null; }
   async listTurns(): Promise<never[]> { return []; }

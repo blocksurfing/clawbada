@@ -28,6 +28,7 @@ import { DrandClient } from './vrf/drand';
 import { OperatorWorker } from './operator/worker';
 import { createBattleHandler } from './operator/jobs/create-battle';
 import { settleBattleHandler } from './operator/jobs/settle-battle';
+import { SettleReconciler } from './operator/settle-reconciler';
 import { setTeamBoostsHandler } from './operator/jobs/set-team-boosts';
 import { activateBoostEpochHandler } from './operator/jobs/activate-boost-epoch';
 import { wrapHandler } from './operator/errors';
@@ -100,6 +101,13 @@ async function main() {
   operatorWorker.registerHandler('activate_boost_epoch', wrapHandler(activateBoostEpochHandler));
   await operatorWorker.start();
 
+  // D-28: a finished real battle must reach BattleArena.settle inside the 3 h Active
+  // window, or the loser can time it out for a full refund. Recreates a settle job that
+  // was never written, revives one whose retries ran out while the window is still open,
+  // and raises `settle_overdue` long before the deadline.
+  const settleReconciler = SettleReconciler.fromEnv();
+  settleReconciler.start();
+
   // 4. Start season monitor
   seasons.startMonitor();
 
@@ -159,6 +167,7 @@ async function main() {
   // ──── Graceful shutdown ────
   const shutdown = async () => {
     log.info('Shutting down');
+    settleReconciler.stop();
     seasons.stop();
     boostEpochs.stop();
     revealWatcher.stop();
