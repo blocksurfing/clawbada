@@ -61,6 +61,19 @@ export const BreedingLabAbi = [
   },
   {
     "type": "function",
+    "name": "FINALIZE_MIN_GAS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "FINALIZE_WINDOW",
     "inputs": [],
     "outputs": [
@@ -477,6 +490,22 @@ export const BreedingLabAbi = [
       },
       {
         "name": "availableAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientGasToFinalize",
+    "inputs": [
+      {
+        "name": "gasLeft",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "required",
         "type": "uint256",
         "internalType": "uint256"
       }

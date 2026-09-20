@@ -25,6 +25,15 @@ contract BreedingLab is ReentrancyGuard {
     uint256 public constant MAX_BREEDS = 5;
     uint256 public constant LEGEND_THRESHOLD = 3; // 0.3% = 3/1000
     uint256 public constant FINALIZE_MIN_BLOCKS = 2;
+    /// @dev D-22: gas that must remain when finalizeBreed reaches the mint. finalizeBreed is
+    ///      permissionless and the mint sits in a try/catch that (by design, B-02) swallows a
+    ///      failed mint and still consumes the request. A bare catch also swallows OUT-OF-GAS, so
+    ///      a third party could pick a gas limit that starves the inner mint — for a requester
+    ///      whose onERC1155Received hook is expensive — and burn someone else's breed for the
+    ///      price of a transaction. With this floor the 63/64 forwarded to the mint always covers
+    ///      it plus a generous receiver hook, so the only mints that fail are ones the receiver
+    ///      rejected.
+    uint256 public constant FINALIZE_MIN_GAS = 500_000;
     uint256 public constant FINALIZE_WINDOW = 256; // EVM blockhash lookback limit
 
     // ──────────── Types ────────────
@@ -89,6 +98,8 @@ contract BreedingLab is ReentrancyGuard {
     ///         before finalize can proceed. B-03: surfaces role misconfiguration
     ///         loudly rather than silently burning the request via try/catch.
     error NotAuthorizedToMint();
+    /// @dev D-22: finalizeBreed was called with too little gas to guarantee the mint.
+    error InsufficientGasToFinalize(uint256 gasLeft, uint256 required);
 
     // ──────────── Constructor ────────────
 
@@ -180,6 +191,8 @@ contract BreedingLab is ReentrancyGuard {
         if (!lobsterNFT.hasRole(lobsterNFT.MINTER_ROLE(), address(this))) {
             revert NotAuthorizedToMint();
         }
+        // D-22: refuse to run gas-starved — reverting here leaves the request finalizable.
+        if (gasleft() < FINALIZE_MIN_GAS) revert InsufficientGasToFinalize(gasleft(), FINALIZE_MIN_GAS);
 
         req.finalized = true;
 

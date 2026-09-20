@@ -246,6 +246,30 @@ contract BreedingLabTest is Test {
         assertFalse(req.finalized);
     }
 
+    // ── D-22: a third party cannot starve the mint of gas to burn someone else's breed ──
+
+    function test_D22_gasStarvedFinalizeRevertsAndLeavesTheRequestFinalizable() public {
+        (uint256 a, uint256 b) = _mintPair(alice);
+        _fundAndApprove(alice, 1_000e18);
+        vm.prank(alice);
+        uint256 requestId = lab.requestBreed(a, b);
+        vm.roll(block.number + lab.FINALIZE_MIN_BLOCKS() + 1);
+
+        // The griefer picks a gas limit well under the floor. Before the fix the inner mint could
+        // run out of gas, the bare catch swallowed it, and the request was consumed for nothing.
+        address griefer = makeAddr("griefer");
+        vm.prank(griefer);
+        (bool ok, bytes memory ret) = address(lab).call{gas: 200_000}(abi.encodeCall(lab.finalizeBreed, (requestId)));
+        assertFalse(ok, "gas-starved finalize must revert, not be swallowed");
+        assertEq(bytes4(ret), BreedingLab.InsufficientGasToFinalize.selector);
+        assertFalse(lab.getBreedRequest(requestId).finalized, "the request is untouched");
+
+        // ...and the honest finalize still works afterwards.
+        uint256 offspringId = lab.finalizeBreed(requestId);
+        assertGt(offspringId, 0);
+        assertEq(nft.ownerOf(offspringId), alice);
+    }
+
     function test_finalizeBreedByAnyone() public {
         (uint256 a, uint256 b) = _mintPair(alice);
         _fundAndApprove(alice, 1_000e18);
