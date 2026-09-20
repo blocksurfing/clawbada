@@ -439,7 +439,7 @@ describe('combat routes', () => {
 
     test('stores the salt and reports waiting when the opponent has not revealed', async () => {
       mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitA: '0xcommit' }));
-      mockFindFirst.mockResolvedValue({ revealSaltA: '0x' + 'ab'.repeat(32), revealSaltB: null });
+      mockFindFirst.mockResolvedValue({ queuedTeamA: 1n, queuedTeamB: 2n, revealSaltA: '0x' + 'ab'.repeat(32), revealSaltB: null });
 
       const res = await app.request('/combat/1/reveal-team', {
         method: 'POST',
@@ -462,7 +462,7 @@ describe('combat routes', () => {
 
     test('reports both_revealed once the opponent salt is present', async () => {
       mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitA: '0xcommit' }));
-      mockFindFirst.mockResolvedValue({ revealSaltA: '0xaa', revealSaltB: '0xbb' });
+      mockFindFirst.mockResolvedValue({ queuedTeamA: 1n, queuedTeamB: 2n, revealSaltA: '0xaa', revealSaltB: '0xbb' });
 
       const res = await app.request('/combat/1/reveal-team', {
         method: 'POST',
@@ -475,7 +475,7 @@ describe('combat routes', () => {
 
     test('player B writes the B-side columns', async () => {
       mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitB: '0xcommit' }));
-      mockFindFirst.mockResolvedValue({ revealSaltA: null, revealSaltB: '0xbb' });
+      mockFindFirst.mockResolvedValue({ queuedTeamA: 1n, queuedTeamB: 2n, revealSaltA: null, revealSaltB: '0xbb' });
 
       const res = await app.request('/combat/1/reveal-team', {
         method: 'POST',
@@ -518,6 +518,63 @@ describe('combat routes', () => {
         body: revealBody(),
       });
       expect(res.status).toBe(400);
+      expect(mockUpdateSet).not.toHaveBeenCalled();
+    });
+
+    // ── D-17: the revealed team must be the queued team ──
+
+    test('D-17: rejects a reveal of a different team than the one queued, even with a valid commit (400)', async () => {
+      // The counter-pick: the player committed team 7 on-chain (the hash matches), but
+      // queued with team 1. Same owner, same Power — the contract would accept it.
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitA: '0xcommit' }));
+      mockFindFirst.mockResolvedValue({ queuedTeamA: 1n, queuedTeamB: 2n, revealSaltA: null, revealSaltB: null });
+
+      const res = await app.request('/combat/1/reveal-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: revealBody({ teamId: '7' }),
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).message).toContain('not the team you queued with');
+      expect(mockUpdateSet).not.toHaveBeenCalled(); // nothing reaches the reveal watcher
+    });
+
+    test('D-17: player B is held to queuedTeamB, not queuedTeamA', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitB: '0xcommit' }));
+      mockFindFirst.mockResolvedValue({ queuedTeamA: 1n, queuedTeamB: 2n, revealSaltA: null, revealSaltB: null });
+
+      const res = await app.request('/combat/1/reveal-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders(OTHER_ADDRESS) },
+        body: revealBody({ teamId: '1' }), // A's queued team, not B's
+      });
+      expect(res.status).toBe(400);
+      expect(mockUpdateSet).not.toHaveBeenCalled();
+    });
+
+    test('D-17: fails closed when no queued team is on record (409)', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitA: '0xcommit' }));
+      mockFindFirst.mockResolvedValue({ queuedTeamA: null, queuedTeamB: null, revealSaltA: null, revealSaltB: null });
+
+      const res = await app.request('/combat/1/reveal-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: revealBody(),
+      });
+      expect(res.status).toBe(409);
+      expect(mockUpdateSet).not.toHaveBeenCalled();
+    });
+
+    test('D-17: fails closed when the battle row is missing entirely (409)', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 2, teamCommitA: '0xcommit' }));
+      mockFindFirst.mockResolvedValue(undefined);
+
+      const res = await app.request('/combat/1/reveal-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: revealBody(),
+      });
+      expect(res.status).toBe(409);
       expect(mockUpdateSet).not.toHaveBeenCalled();
     });
 

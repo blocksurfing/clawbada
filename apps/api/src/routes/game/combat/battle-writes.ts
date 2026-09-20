@@ -138,6 +138,31 @@ battleWriteRoutes.post(
       throw new ApiError('INVALID_INPUT', 'Salt/teamId do not match the committed team hash');
     }
 
+    // D-17 (audit 2026-09): the revealed team must be the team this player QUEUED with.
+    // On-chain, createBattle binds only each side's Power (3-9) and commitTeam takes an
+    // opaque hash, so nothing there ties the commit to the queued team. BattleCreated
+    // publishes both addresses and Powers before anyone deposits, and a team's Power can
+    // never change while it is assembled — so a single-team opponent's exact line-up is
+    // usually readable from public chain data. A player holding several equal-Power teams
+    // could therefore queue with one, work out the opponent's composition, and commit the
+    // best counter instead. Reveals only ever reach the chain through this route (F5-01:
+    // resolver-submitted), so refusing here closes it: the counter-picker's commit can
+    // never be opened, the reveal window lapses, and the battle mutually cancels with full
+    // refunds — they learn nothing and gain nothing.
+    // Fail closed when no queued team is on record (the indexer's fallback row for a battle
+    // whose matchmaker write never landed): an unverifiable team is not revealed.
+    const queuedRow = await db.query.battles.findFirst({ where: eq(battles.battleId, id) });
+    const queuedTeam = isPlayerA ? queuedRow?.queuedTeamA : queuedRow?.queuedTeamB;
+    if (queuedTeam === null || queuedTeam === undefined) {
+      throw new ApiError(
+        'BATTLE_PHASE_ERROR',
+        'No queued team is on record for this battle, so a reveal cannot be verified. The battle will cancel with full refunds when the reveal window ends.',
+      );
+    }
+    if (BigInt(queuedTeam) !== teamId) {
+      throw new ApiError('INVALID_INPUT', 'teamId is not the team you queued with for this battle');
+    }
+
     // Persist the revealed teamId (teamA/teamB are 0 until reveal) plus the salt (transient —
     // cleared once revealTeams confirms). The engine's RevealWatcher reads both to submit.
     await db
