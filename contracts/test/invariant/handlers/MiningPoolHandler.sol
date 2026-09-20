@@ -29,6 +29,13 @@ contract MiningPoolHandler is BaseSetup {
     uint256 public ghostBurnedSum;         // CLAW burned by admin release
     uint256 public ghostMaxBaseRewardAtStart; // highest baseReward in force at any successful start
 
+    // D-30: the glide's step bound, observed across every call that can re-peg. fail_on_revert
+    // is false, so an assert inside a handler would be swallowed; the first breach is recorded
+    // here and invariant_glideStepBound reads it.
+    string public glideViolation;
+    uint256 public ghostGlideSteps;  // re-pegs that actually moved the rate
+    uint256 public ghostRepegCalls;  // successful permissionless repeg() calls
+
     // ─────────── Public accessors ───────────
     function getMiningPool()  external view returns (MiningPool)  { return miningPool; }
     function getClaw()        external view returns (ClawToken)   { return claw; }
@@ -98,8 +105,12 @@ contract MiningPoolHandler is BaseSetup {
         address owner = _ownerOf(teamId);
         uint256 balBefore = claw.balanceOf(address(miningPool));
 
+        uint256 seasonBefore = miningPool.currentSeason();
+        uint256 baseBefore = miningPool.currentBaseReward();
+
         vm.prank(owner);
         try miningPool.startExpedition(teamId, mineTier) returns (uint256 expId) {
+            _checkGlideStep(seasonBefore, baseBefore);
             expeditionIds.push(expId);
             ghostExpeditionsStarted++;
             ghostMintedSum += claw.balanceOf(address(miningPool)) - balBefore;
@@ -162,6 +173,43 @@ contract MiningPoolHandler is BaseSetup {
             ghostExpeditionsAdminReleased++;
             ghostBurnedSum += balBefore - claw.balanceOf(address(miningPool));
         } catch {}
+    }
+
+    /// @dev D-30: the permissionless daily re-peg. The handler only ever reached the glide
+    ///      lazily through startExpedition; repeg() itself was never called.
+    function handler_repeg() external {
+        uint256 seasonBefore = miningPool.currentSeason();
+        uint256 baseBefore = miningPool.currentBaseReward();
+        try miningPool.repeg() {
+            ghostRepegCalls++;
+            _checkGlideStep(seasonBefore, baseBefore);
+        } catch {}
+    }
+
+    /// @dev One glide step may move the rate by at most 30%, never above the season's launch
+    ///      reward and never to zero. The one exception is by design: after an admin override
+    ///      ABOVE launch, the next re-peg pulls the rate back down to launch in one step.
+    function _checkGlideStep(uint256 seasonBefore, uint256 baseBefore) internal {
+        if (miningPool.currentSeason() != seasonBefore) return;
+        uint256 base = miningPool.currentBaseReward();
+        if (base == baseBefore) return;
+        ghostGlideSteps++;
+
+        uint256 launch = miningPool.getSeasonConfig(seasonBefore).launchBaseReward;
+        if (base == 0) return _flagGlide("glide reached zero");
+        if (baseBefore > launch) {
+            if (base > baseBefore) _flagGlide("an override above launch grew");
+            return;
+        }
+        uint256 hi = (baseBefore * 13_000) / 10_000;
+        if (hi == 0) hi = 1;
+        if (base > launch) _flagGlide("glide above the launch reward");
+        if (base < (baseBefore * 7_000) / 10_000) _flagGlide("one step fell by more than 30%");
+        if (base > hi) _flagGlide("one step rose by more than 30%");
+    }
+
+    function _flagGlide(string memory what) internal {
+        if (bytes(glideViolation).length == 0) glideViolation = what;
     }
 
     function handler_setBaseReward(uint256 newReward) external {

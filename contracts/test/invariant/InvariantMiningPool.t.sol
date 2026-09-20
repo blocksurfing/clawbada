@@ -20,7 +20,7 @@ contract InvariantMiningPool is Test {
 
         // Restrict the fuzzer to handler_* entrypoints so it can't re-invoke
         // the inherited BaseSetup.setUp() mid-run and orphan ghost state.
-        bytes4[] memory selectors = new bytes4[](8);
+        bytes4[] memory selectors = new bytes4[](9);
         selectors[0] = MiningPoolHandler.handler_startExpedition.selector;
         selectors[1] = MiningPoolHandler.handler_claimExpedition.selector;
         selectors[2] = MiningPoolHandler.handler_adminReleaseExpedition.selector;
@@ -29,7 +29,25 @@ contract InvariantMiningPool is Test {
         selectors[5] = MiningPoolHandler.handler_warp.selector;
         selectors[6] = MiningPoolHandler.handler_setTeamBoosts.selector;
         selectors[7] = MiningPoolHandler.handler_activateBoostEpoch.selector;
+        selectors[8] = MiningPoolHandler.handler_repeg.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
+    }
+
+    // ─── I-0 (D-30): every glide step stays inside its bound ───────
+    //
+    // Observed in the handler around every call that can re-peg (startExpedition and the
+    // permissionless repeg()): at most 30% per step, never above the season's launch reward,
+    // never zero.
+    function invariant_glideStepBound() public view {
+        assertEq(handler.glideViolation(), "", "a glide step broke its bound");
+    }
+
+    /// @dev The rate is never zero while a season exists — RepairShop prices are basis points
+    ///      of it, and a zero rate makes every repair revert RewardPegUnset.
+    function invariant_baseRewardNeverZero() public view {
+        MiningPool pool = handler.getMiningPool();
+        if (pool.currentSeason() == 0) return;
+        assertGt(pool.currentBaseReward(), 0, "baseReward is zero inside a season");
     }
 
     // ─── I-1: season budget cap holds ──────────────────────────────
