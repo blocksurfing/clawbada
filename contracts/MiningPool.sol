@@ -123,9 +123,14 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     mapping(uint256 => Expedition) private _expeditions;
     mapping(uint256 => uint256) private _teamToExpedition; // active expedition (0 = none)
 
-    // Battle-rank boost table. `currentBoostEpoch == 0` means no epoch has ever been activated;
-    // entries are staged for `currentBoostEpoch + 1` and become live on activateBoostEpoch.
-    mapping(uint256 => TeamBoost) private _teamBoost;
+    // Battle-rank boost table, keyed by epoch then team. `currentBoostEpoch == 0` means no epoch
+    // has ever been activated; entries are staged for `currentBoostEpoch + 1` and become live on
+    // activateBoostEpoch.
+    // D-09: one slot per team was shared by the live and the staged epoch, so staging next
+    // week's ladder overwrote every re-posted team's LIVE entry and they mined with no boost
+    // until activation. Per-epoch rows make staging invisible to the live epoch and an amend
+    // invisible to the staged one. Old epochs are never read again and need no clearing.
+    mapping(uint32 => mapping(uint256 => TeamBoost)) private _teamBoost;
     uint32 public currentBoostEpoch;
     uint64 public boostEpochActivatedAt;
 
@@ -198,6 +203,13 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     function startSeason(uint256 totalEmission, uint256 baseReward) external onlyRole(SEASON_ADMIN_ROLE) {
         if (totalEmission == 0) revert ZeroEmission();
         if (baseReward == 0) revert ZeroBaseReward();
+        // D-20: a season's budget is bounded by what is left of the 705M lifetime allocation. The
+        // schedule's nominal figure overshoots it in the final season; clamping (the effective
+        // number is in SeasonStarted) keeps the glide pacing against real budget instead of
+        // stopping mid-season at the lifetime cap — the cliff TOK-G1 exists to remove.
+        uint256 allocationLeft = MINING_ALLOCATION > lifetimeMinted ? MINING_ALLOCATION - lifetimeMinted : 0;
+        if (allocationLeft == 0) revert MiningAllocationExhausted();
+        if (totalEmission > allocationLeft) totalEmission = allocationLeft;
 
         // If a season is active, it must have ended
         if (currentSeason > 0) {
@@ -375,8 +387,10 @@ contract MiningPool is AccessControl, ReentrancyGuard {
 
     /// @notice Post (or amend) boost entries for a boost epoch. `epoch` must be the live epoch
     ///         (amend — e.g. after a dispute correction) or the next one (stage). Entries are
-    ///         pure storage writes; a team that is not re-posted for the next epoch drops to 0
-    ///         the moment that epoch activates (the "lapse" rule needs no clearing writes).
+    ///         pure storage writes into that epoch's own rows: staging never touches what the
+    ///         live epoch pays, and amending never touches what has been staged. A team that is
+    ///         not re-posted for the next epoch drops to 0 the moment that epoch activates (the
+    ///         "lapse" rule needs no clearing writes).
     /// @param epoch Boost epoch the entries belong to (>= 1)
     /// @param entries Up to MAX_BOOST_BATCH rows of (teamId, bps <= MAX_BOOST_BPS, power)
     function setTeamBoosts(uint32 epoch, BoostEntry[] calldata entries) external onlyRole(BOOST_ADMIN_ROLE) {
@@ -386,7 +400,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         for (uint256 i = 0; i < entries.length; i++) {
             BoostEntry calldata e = entries[i];
             if (e.bps > MAX_BOOST_BPS) revert BoostTooHigh(e.teamId, e.bps);
-            _teamBoost[e.teamId] = TeamBoost({epoch: epoch, bps: e.bps, power: e.power});
+            _teamBoost[epoch][e.teamId] = TeamBoost({epoch: epoch, bps: e.bps, power: e.power});
             emit TeamBoostSet(epoch, e.teamId, e.bps, e.power);
         }
     }
@@ -409,9 +423,16 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         return _effectiveBoost(teamId, power);
     }
 
-    /// @notice Raw stored boost entry for a team (epoch, bps, power) — for indexers and ops.
+    /// @notice Raw stored boost entry for a team in the LIVE epoch (epoch, bps, power) — for
+    ///         indexers and ops. All-zero when the team has no entry in the live epoch.
     function getTeamBoost(uint256 teamId) external view returns (TeamBoost memory) {
-        return _teamBoost[teamId];
+        return _teamBoost[currentBoostEpoch][teamId];
+    }
+
+    /// @notice Raw stored boost entry for a team in a specific epoch — e.g. `currentBoostEpoch + 1`
+    ///         to check what has been staged before activating it.
+    function getTeamBoostAt(uint32 epoch, uint256 teamId) external view returns (TeamBoost memory) {
+        return _teamBoost[epoch][teamId];
     }
 
     // ──────────── View Functions ────────────
@@ -475,11 +496,25 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         uint256 trailing = season.trailingWeightServed;
         if (trailing == 0) return;
 
-        uint256 elapsed = block.timestamp - season.startTime;
-        uint256 remainingDays = (SEASON_DURATION - elapsed) / 1 days;
-        if (remainingDays == 0) remainingDays = 1;
+        // D-18: count today. This runs on the first touch of epoch k, with 60 - k epochs still to
+        // pay for INCLUDING this one. The old `(SEASON_DURATION - elapsed) / 1 days` floored to
+        // 59 - k, so a crowded season was paced over 59 days, ran dry a day early and nobody could
+        // mine on day 60 — and it was 60 - k only in the single boundary second, so one block
+        // could pick a rate up to 30% away from the next. This is constant across the epoch and
+        // matches the model the glide was validated against (season.ts: days - day + 1).
+        uint256 totalEpochs = SEASON_DURATION / REPEG_EPOCH;
+        uint256 remainingDays = epoch >= totalEpochs ? 1 : totalEpochs - epoch;
         uint256 remaining =
             season.totalEmission > season.totalMinted ? season.totalEmission - season.totalMinted : 0;
+        // D-20: never pace against budget that cannot be minted. Near the end of the 705M
+        // allocation the lifetime cap, not the season's nominal budget, is what is left.
+        uint256 allocationLeft = MINING_ALLOCATION > lifetimeMinted ? MINING_ALLOCATION - lifetimeMinted : 0;
+        if (allocationLeft < remaining) remaining = allocationLeft;
+        // D-19(c): an exhausted budget is not a demand signal. Re-pegging toward a target of zero
+        // would walk baseReward down 30% a day to 1 wei, and RepairShop prices — basis points of
+        // baseReward — with it, so anyone could call repeg() daily to make repairs free for the
+        // rest of the season. Hold the last real rate instead; nothing can be started anyway.
+        if (remaining == 0) return;
         uint256 target = remaining / (remainingDays * trailing);
 
         uint256 old = season.baseReward;
@@ -499,8 +534,8 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         uint32 epoch = currentBoostEpoch;
         if (epoch == 0) return 0;
         if (block.timestamp >= uint256(boostEpochActivatedAt) + BOOST_EPOCH_TTL) return 0;
-        TeamBoost storage b = _teamBoost[teamId];
-        if (b.epoch != epoch || b.power != power) return 0;
+        TeamBoost storage b = _teamBoost[epoch][teamId];
+        if (b.epoch != epoch || b.power != power) return 0; // b.epoch == 0 → no entry this epoch
         return b.bps;
     }
 

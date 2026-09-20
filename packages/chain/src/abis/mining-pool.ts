@@ -561,6 +561,47 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "getTeamBoostAt",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct MiningPool.TeamBoost",
+        "components": [
+          {
+            "name": "epoch",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "bps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "power",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "grantRole",
     "inputs": [
       {

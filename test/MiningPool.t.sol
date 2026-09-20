@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, stdStorage, StdStorage} from "forge-std/Test.sol";
 import {MiningPool} from "../contracts/MiningPool.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
@@ -9,6 +9,8 @@ import {ClawToken} from "../contracts/ClawToken.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 contract MiningPoolTest is Test {
+    using stdStorage for StdStorage;
+
     MiningPool pool;
     TeamManager tm;
     LobsterNFT nft;
@@ -1051,10 +1053,12 @@ contract MiningPoolTest is Test {
         pool.startExpedition(teamA, 0);
         assertEq(pool.lifetimeMinted(), 400_000_000e18, "first expedition counted toward lifetime");
 
-        // 400M + 400M = 800M > 705M → reverts on the lifetime cap (the season budget
-        // check passes first since 800M < the 2B totalEmission).
+        // 400M + 400M = 800M > 705M → blocked. Since D-20 the 2B season budget is clamped to the
+        // 705M allocation at startSeason, so the season check is the one that fires; the lifetime
+        // check behind it is exercised directly in test_D20_lifetimeCheckStillGuardsStartExpedition.
+        assertEq(pool.getSeasonConfig(1).totalEmission, pool.MINING_ALLOCATION(), "season budget clamped to the allocation");
         vm.prank(alice);
-        vm.expectRevert(MiningPool.MiningAllocationExhausted.selector);
+        vm.expectRevert(MiningPool.SeasonBudgetExhausted.selector);
         pool.startExpedition(teamB, 0);
 
         assertLe(pool.lifetimeMinted(), pool.MINING_ALLOCATION(), "lifetimeMinted never exceeds 705M");
@@ -1073,6 +1077,39 @@ contract MiningPoolTest is Test {
         vm.warp(block.timestamp + pool.SEASON_DURATION());
         _startSeasonWith(2_000_000_000e18, 100_000_000e18);
         assertEq(pool.lifetimeMinted(), 100_000_000e18, "lifetimeMinted persists across season reset");
+    }
+
+    // ──────────── D-20: a season cannot promise more than the lifetime allocation has left ────────────
+
+    function test_D20_seasonBudgetIsClampedToTheAllocationLeft() public {
+        _startSeasonWith(2_000_000_000e18, BASE_REWARD);
+        assertEq(pool.getSeasonConfig(1).totalEmission, pool.MINING_ALLOCATION());
+    }
+
+    /// @dev The final season: the schedule's nominal 7.05M overshoots the ~3.97M actually left.
+    function test_D20_finalSeasonPacesAgainstWhatIsLeft() public {
+        stdstore.target(address(pool)).sig("lifetimeMinted()").checked_write(701_030_000e18);
+        _startSeasonWith(7_050_000e18, BASE_REWARD);
+        assertEq(pool.getSeasonConfig(1).totalEmission, 3_970_000e18, "budget = what the 705M cap still allows");
+        assertEq(pool.getSeasonUnspent(1), 3_970_000e18);
+    }
+
+    function test_D20_startSeasonRevertsWhenNothingIsLeft() public {
+        stdstore.target(address(pool)).sig("lifetimeMinted()").checked_write(pool.MINING_ALLOCATION());
+        vm.prank(seasonAdmin);
+        vm.expectRevert(MiningPool.MiningAllocationExhausted.selector);
+        pool.startSeason(7_050_000e18, BASE_REWARD);
+    }
+
+    /// @dev Defence in depth: with the season clamp the lifetime check in startExpedition can no
+    ///      longer be reached through normal play, so force the state it guards against.
+    function test_D20_lifetimeCheckStillGuardsStartExpedition() public {
+        _startSeasonWith(705_000_000e18, 100_000_000e18);
+        uint256 teamId = _createTeam(alice, 0);
+        stdstore.target(address(pool)).sig("lifetimeMinted()").checked_write(650_000_000e18);
+        vm.prank(alice);
+        vm.expectRevert(MiningPool.MiningAllocationExhausted.selector);
+        pool.startExpedition(teamId, 0);
     }
 
     // ──────────── TOK-G1 glide ────────────
@@ -1098,6 +1135,75 @@ contract MiningPoolTest is Test {
         pool.startExpedition(teamId, 0);
         assertEq(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000);
         assertEq(pool.getSeasonMinted(1), 6 * BASE_REWARD + (BASE_REWARD * 7_000) / 10_000);
+    }
+
+    // ── D-18: the day count includes today ──
+
+    /// @dev One day in, 59 epochs remain INCLUDING this one. Budget chosen so the target lands
+    ///      inside the ±30% band (otherwise the clamp hides the day count). The old formula
+    ///      floored (60d - elapsed) / 1d to 58 everywhere except the exact boundary second, so
+    ///      this warps an hour past it.
+    function test_D18_dayCountIncludesToday() public {
+        _startSeasonWith(BASE_REWARD * 325, BASE_REWARD);
+        uint256 teamId = _createTeam(alice, 0);
+        for (uint256 i = 0; i < 6; i++) {
+            vm.prank(alice);
+            uint256 eid = pool.startExpedition(teamId, 0);
+            vm.warp(block.timestamp + 4 hours);
+            vm.prank(alice);
+            pool.claimExpedition(eid);
+        }
+        vm.warp(block.timestamp + 1 hours); // epoch 1, not on the boundary second
+        pool.repeg();
+        uint256 remaining = BASE_REWARD * 319; // 325 - 6 served at the launch rate
+        assertEq(pool.currentBaseReward(), remaining / (59 * 6), "paced over the 59 days left including today");
+        assertTrue(pool.currentBaseReward() != remaining / (58 * 6), "not the old off-by-one pace");
+    }
+
+    /// @dev The consequence the audit named: a crowded season paced over 59 days ran dry a day
+    ///      early and nobody could mine on day 60. Steady demand, a budget tight enough that the
+    ///      glide binds all season — mining must still work in the last epoch.
+    function test_D18_crowdedSeasonStillPaysOnTheLastDay() public {
+        _startSeasonWith(BASE_REWARD * 200, BASE_REWARD);
+        uint256 teamId = _createTeam(alice, 0);
+        uint256 start = block.timestamp;
+        for (uint256 day = 0; day < 60; day++) {
+            // An hour past the day boundary: on the exact boundary second the old formula happened
+            // to be right, which is how an earlier version of this test passed against the bug.
+            vm.warp(start + day * 1 days + 1 hours);
+            // The last day's sixth expedition would finish after the season ends; five is enough.
+            for (uint256 i = 0; i < (day == 59 ? 5 : 6); i++) {
+                vm.prank(alice);
+                uint256 eid = pool.startExpedition(teamId, 0); // reverted SeasonBudgetExhausted on day 60 before the fix
+                vm.warp(block.timestamp + 4 hours); // six 4 h expeditions fill the day exactly
+                vm.prank(alice);
+                pool.claimExpedition(eid);
+            }
+        }
+        assertLe(pool.getSeasonMinted(1), BASE_REWARD * 200, "never over budget");
+        assertGe(pool.getSeasonMinted(1), (BASE_REWARD * 200 * 95) / 100, "and the budget is actually distributed, not stranded");
+    }
+
+    // ── D-19(c): an exhausted budget is not a demand signal ──
+
+    /// @dev Before the fix a target of zero walked baseReward down 30% per daily repeg() toward
+    ///      1 wei — and RepairShop prices, which are basis points of it, toward free.
+    function test_D19_exhaustedBudgetHoldsTheRate() public {
+        _startSeasonWith(BASE_REWARD * 6, BASE_REWARD);
+        uint256 teamId = _createTeam(alice, 0);
+        for (uint256 i = 0; i < 6; i++) {
+            vm.prank(alice);
+            uint256 eid = pool.startExpedition(teamId, 0);
+            vm.warp(block.timestamp + 4 hours);
+            vm.prank(alice);
+            pool.claimExpedition(eid);
+        }
+        assertEq(pool.getSeasonUnspent(1), 0, "budget spent on day one");
+        for (uint256 d = 0; d < 10; d++) {
+            vm.warp(block.timestamp + 1 days);
+            pool.repeg(); // anyone, every day
+        }
+        assertEq(pool.currentBaseReward(), BASE_REWARD, "rate held: repair prices cannot be ground to zero");
     }
 
     function test_repegIsPermissionless() public {
@@ -1274,16 +1380,58 @@ contract MiningPoolTest is Test {
         assertEq(raw.power, 3);
     }
 
+    /// @dev D-09. This test used to assert the defect: it expected the live boost to read 0 the
+    ///      moment next week's table was staged ("staging overwrote the team's live entry").
     function test_stagedNextEpochDoesNotAffectLiveUntilActivated() public {
         _startSeason();
         uint256 teamId = _createTeam(alice, 1);
         _postAndActivate(teamId, 1_000); // epoch 1 live
         vm.prank(boostAdmin);
         pool.setTeamBoosts(2, _entry(teamId, 5_000, 3)); // staged for epoch 2
-        assertEq(pool.teamBoostBps(teamId, 3), 0, "staging overwrote the team's live entry: it now belongs to epoch 2");
+        assertEq(pool.teamBoostBps(teamId, 3), 1_000, "D-09: the live epoch keeps paying while the next one is staged");
+        assertEq(pool.getTeamBoost(teamId).bps, 1_000, "getTeamBoost reads the live epoch");
+        assertEq(pool.getTeamBoostAt(2, teamId).bps, 5_000, "the staged row is readable before activation");
         vm.prank(boostAdmin);
         pool.activateBoostEpoch(2);
         assertEq(pool.teamBoostBps(teamId, 3), 5_000);
+    }
+
+    /// @dev D-09: the money version. An expedition started between staging and activation is
+    ///      paid the live boost — before the fix it silently lost its whole boost for 4 hours.
+    function test_D09_expeditionStartedWhileNextEpochIsStagedKeepsItsBoost() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1);
+        _postAndActivate(teamId, 5_000); // +50% live
+        vm.prank(boostAdmin);
+        pool.setTeamBoosts(2, _entry(teamId, 1_000, 3)); // next week's ladder staged, not active
+
+        vm.prank(alice);
+        uint256 expId = pool.startExpedition(teamId, 0);
+        assertEq(pool.getExpedition(expId).reward, (BASE_REWARD * 15_000) / 10_000, "paid at the live +50%, not 0% and not the staged +10%");
+    }
+
+    /// @dev D-09: amending the live epoch (a dispute correction) must not disturb the staged one.
+    function test_D09_amendingTheLiveEpochLeavesTheStagedRowAlone() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1);
+        _postAndActivate(teamId, 1_000);
+        vm.startPrank(boostAdmin);
+        pool.setTeamBoosts(2, _entry(teamId, 5_000, 3));
+        pool.setTeamBoosts(1, _entry(teamId, 2_000, 3)); // amend live
+        vm.stopPrank();
+        assertEq(pool.teamBoostBps(teamId, 3), 2_000);
+        assertEq(pool.getTeamBoostAt(2, teamId).bps, 5_000);
+    }
+
+    /// @dev The lapse rule still needs no clearing writes: not re-posted → 0 on activation.
+    function test_D09_lapseStillWorksWithPerEpochRows() public {
+        _startSeason();
+        uint256 teamId = _createTeam(alice, 1);
+        _postAndActivate(teamId, 3_000);
+        vm.prank(boostAdmin);
+        pool.activateBoostEpoch(2); // epoch 2 activated with no row for this team
+        assertEq(pool.teamBoostBps(teamId, 3), 0);
+        assertEq(pool.getTeamBoost(teamId).epoch, 0, "no entry in the live epoch");
     }
 
     function test_activateMustBeExactlyNextEpoch() public {
@@ -1393,9 +1541,11 @@ contract MiningPoolTest is Test {
         _startSeasonWith(2_000_000_000e18, 600_000_000e18);
         uint256 teamId = _createTeam(alice, 0);
         _postAndActivate(teamId, 5_000);
+        // D-20: the season budget is clamped to the 705M allocation, so that check fires first.
         vm.prank(alice);
-        vm.expectRevert(MiningPool.MiningAllocationExhausted.selector);
+        vm.expectRevert(MiningPool.SeasonBudgetExhausted.selector);
         pool.startExpedition(teamId, 0);
+        assertEq(pool.lifetimeMinted(), 0);
     }
 
     function test_boostedRewardRemainsTierWeightMultiple() public {
