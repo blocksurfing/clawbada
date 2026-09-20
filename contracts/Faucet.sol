@@ -120,14 +120,18 @@ contract Faucet is AccessControl, ReentrancyGuard {
         if (hasClaimedLobsters[msg.sender]) revert LobstersAlreadyClaimed();
         if (totalLobstersClaimed + LOBSTERS_PER_CLAIM > MAX_FAUCET_LOBSTERS) revert FaucetLobsterCapReached(); // D-02
 
+        // Effects before interactions. The mints below call onERC1155Received on a contract
+        // claimer, and since D-02 the counter gates the cap, so it must already be final when
+        // control leaves this contract (nonReentrant covers this function; the ordering covers
+        // every other reader).
         hasClaimedLobsters[msg.sender] = true;
+        totalLobstersClaimed += LOBSTERS_PER_CLAIM;
 
         for (uint256 i = 0; i < LOBSTERS_PER_CLAIM; i++) {
             uint256 dna = _generateRandomDNA(i);
             tokenIds[i] = lobsterNFT.mint(msg.sender, dna, true);
         }
 
-        totalLobstersClaimed += LOBSTERS_PER_CLAIM;
         emit LobstersClaimed(msg.sender, tokenIds);
     }
 
