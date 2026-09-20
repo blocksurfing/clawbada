@@ -25,6 +25,19 @@ contract BattleArenaHandler is BaseSetup {
     mapping(uint256 => uint256) public teamIdsA;
     mapping(uint256 => uint256) public teamIdsB;
 
+    // D-31: a SMALL pool of reusable teams per player. The handler used to mint a fresh
+    // three-Evolved team for every battle and create every battle at power 3/3, so two live
+    // battles could never want the same team and a revealed team's Power could never differ
+    // from the matchmaker's snapshot — TeamAlreadyInBattle and TeamPowerChanged were
+    // unreachable in the whole invariant campaign.
+    uint256 internal constant POOL_SIZE = 3;
+    uint256[] public poolA;
+    uint256[] public poolB;
+    uint256 public ghostRevealRejectedPower;       // revealTeams reverted TeamPowerChanged
+    uint256 public ghostRevealRejectedContention;  // revealTeams reverted TeamAlreadyInBattle
+    uint256 public ghostReveals;                   // revealTeams succeeded
+    uint256 public ghostPoolEvolutions;
+
     // Ghost counters — never read by the contract, only by invariants.
     uint256 public ghostDeposits;         // total CLAW ever escrowed via deposit()
     uint256 public ghostExits;            // total CLAW ever paid out of the arena (payouts + refunds + fees)
@@ -82,6 +95,27 @@ contract BattleArenaHandler is BaseSetup {
         teamId = teamMgr.createTeam(ids);
     }
 
+    /// @dev A team from the player's pool: the pool fills with fresh teams first, then reuses.
+    function _poolTeam(address owner, bool isA, uint256 seed) internal returns (uint256 teamId) {
+        uint256[] storage pool = isA ? poolA : poolB;
+        if (pool.length < POOL_SIZE) {
+            teamId = _getOrCreateEvolvedTeam(owner, pool.length + 1, isA);
+            pool.push(teamId);
+            return teamId;
+        }
+        return pool[seed % POOL_SIZE];
+    }
+
+    /// @dev Team Power exactly as BattleArena computes it: the sum of the three tiers.
+    function teamPower(uint256 teamId) public view returns (uint8 power) {
+        TeamManager.Team memory t = teamMgr.getTeam(teamId);
+        for (uint256 i = 0; i < 3; i++) power += nft.getEvolutionTier(t.lobsterIds[i]);
+    }
+
+    function poolLength(bool isA) external view returns (uint256) {
+        return isA ? poolA.length : poolB.length;
+    }
+
     function _activeBattle(uint256 battleId) internal view returns (bool) {
         if (battleId == 0) return false;
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
@@ -97,14 +131,21 @@ contract BattleArenaHandler is BaseSetup {
     // ─────────── Handlers ───────────
 
     /// @dev Create a new battle, deposit both sides, and move straight into TeamCommit.
-    function handler_createAndDeposit(uint8 stakeIdx) external {
+    function handler_createAndDeposit(uint8 stakeIdx, uint256 teamSeed) external {
         stakeIdx = uint8(stakeIdx % 3);
         uint256 stake = battleArena.STAKE_BRACKETS(stakeIdx);
 
-        // F-04: handler fixtures use Evolved-tier teams (power=3). Tests that
-        // exercise non-Evolved compositions need to pass the matching power.
-        try battleArena.createBattle(aliceH, bobH, stake, 3, 3) returns (uint256 battleId) {
+        // D-31: like the real matchmaker, pick each side's team FIRST and record its Power
+        // truthfully at match time. Teams come from a small pool, so concurrent battles
+        // contend for them, and handler_evolvePoolLobster can move a team's Power between
+        // this snapshot and the reveal.
+        uint256 teamA = _poolTeam(aliceH, true, teamSeed);
+        uint256 teamB = _poolTeam(bobH, false, teamSeed >> 8);
+
+        try battleArena.createBattle(aliceH, bobH, stake, teamPower(teamA), teamPower(teamB)) returns (uint256 battleId) {
             battleIds.push(battleId);
+            teamIdsA[battleId] = teamA;
+            teamIdsB[battleId] = teamB;
 
             uint256 antiGrief = stake * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
             uint256 total = stake + antiGrief;
@@ -165,7 +206,63 @@ contract BattleArenaHandler is BaseSetup {
             teamIdsB[battleId],
             _teamSalt(battleId, false),
             _seedCommit(battleId)
-        ) {} catch {}
+        ) {
+            ghostReveals++;
+        } catch (bytes memory err) {
+            bytes4 sel;
+            if (err.length >= 4) {
+                assembly {
+                    sel := mload(add(err, 32))
+                }
+            }
+            if (sel == BattleArena.TeamPowerChanged.selector) ghostRevealRejectedPower++;
+            else if (sel == BattleArena.TeamAlreadyInBattle.selector) ghostRevealRejectedContention++;
+        }
+    }
+
+    /// @dev D-31: match -> deposit -> commit -> reveal in ONE call. The reveal window is 20 s
+    ///      and the commit window 30 s, so with the steps as separate fuzz calls a single
+    ///      handler_warp in between kills the battle and a run rarely holds more than one
+    ///      live battle. This keeps several alive at once, which is what makes pool teams
+    ///      contend — and gives the settle / dispute / finalize handlers more to work on.
+    function handler_openBattle(uint8 stakeIdx, uint256 teamSeed) external {
+        uint256 before = battleIds.length;
+        this.handler_createAndDeposit(stakeIdx, teamSeed);
+        if (battleIds.length == before) return;
+        uint256 index = battleIds.length - 1; // _pickBattleId(seed) = battleIds[seed % n]
+        this.handler_commitTeams(index);
+        this.handler_revealTeams(index);
+    }
+
+    /// @dev D-31: evolve one lobster of a pool team that is NOT in a battle — the same rule
+    ///      EvolutionLab enforces (a locked lobster cannot evolve). Moves that team's Power, so
+    ///      any battle already created with the old snapshot must refuse its reveal.
+    function handler_evolvePoolLobster(uint256 seed) external {
+        uint256[] storage pool = (seed & 1) == 0 ? poolA : poolB;
+        if (pool.length == 0) return;
+        uint256 teamId = pool[(seed >> 1) % pool.length];
+        if (battleArena.teamInBattle(teamId)) return;
+
+        uint256 lobsterId = teamMgr.getTeam(teamId).lobsterIds[(seed >> 16) % 3];
+        uint8 tier = nft.getEvolutionTier(lobsterId);
+        if (tier >= 3) return;
+        vm.prank(admin);
+        nft.setEvolutionTier(lobsterId, tier + 1);
+        ghostPoolEvolutions++;
+    }
+
+    /// @dev Pool teams take repair damage every battle and would hit the 80-damage gate after
+    ///      a few; this stands in for RepairShop so the pool stays usable.
+    function handler_healPoolTeam(uint256 seed) external {
+        uint256[] storage pool = (seed & 1) == 0 ? poolA : poolB;
+        if (pool.length == 0) return;
+        uint256 teamId = pool[(seed >> 1) % pool.length];
+        if (battleArena.teamInBattle(teamId)) return;
+        uint256[3] memory ids = teamMgr.getTeam(teamId).lobsterIds;
+        for (uint256 i = 0; i < 3; i++) {
+            vm.prank(admin);
+            nft.setDamage(ids[i], 0);
+        }
     }
 
     /// @dev V3: outcome % 3 -> alice wins / bob wins / draw (address(0)).
