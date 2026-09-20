@@ -36,6 +36,7 @@ import { BoostEpochService } from './boost/service';
 import { RevealWatcher } from './combat/reveal-watcher';
 import { FinalizeWatcher } from './combat/finalize-watcher';
 import { BreedFinalizeWatcher } from './breeding/finalize-watcher';
+import { FaucetFinalizeWatcher } from './faucet/finalize-watcher';
 import { EpochClock } from './boost/epoch-clock';
 import { db } from '@clawbada/db';
 import { getMiningPool, getPublicClient } from '@clawbada/chain';
@@ -138,6 +139,12 @@ async function main() {
   const breedFinalizeWatcher = BreedFinalizeWatcher.fromEnv();
   breedFinalizeWatcher.start();
 
+  // D-10: mints the five lobsters of every faucet claim a couple of blocks after it is made
+  // (the roll comes from a block that does not exist at claim time). A keeper outage only
+  // delays lobsters: expired claims are re-armed, and a wallet can finish its own claim.
+  const faucetFinalizeWatcher = FaucetFinalizeWatcher.fromEnv();
+  faucetFinalizeWatcher.start();
+
   // 5. Verify drand connectivity
   try {
     const beacon = await drand.fetchLatest();
@@ -173,6 +180,7 @@ async function main() {
     revealWatcher.stop();
     finalizeWatcher.stop();
     breedFinalizeWatcher.stop();
+    faucetFinalizeWatcher.stop();
     mining.stopAll();
     await operatorWorker.stop();
     process.exit(0);

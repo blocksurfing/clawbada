@@ -22,6 +22,8 @@ export default function FaucetPage() {
     queryKey: ['faucetStatus', address],
     queryFn: () => api.faucet.status(address!),
     enabled: !!address,
+    // D-10: a claim is two steps. While the lobsters are being minted, poll until they arrive.
+    refetchInterval: (q) => (q.state.data?.lobsterClaimPending ? 2_000 : false),
   });
 
   const invalidate = () => {
@@ -105,7 +107,9 @@ export default function FaucetPage() {
                     <p className="text-sm font-medium text-foreground">Step 1: Claim 5 Lobsters</p>
                     <p className="text-xs text-text-secondary mt-0.5">5 random soulbound lobsters (Base tier)</p>
                   </div>
-                  {faucetStatus.hasClaimedLobsters ? (
+                  {faucetStatus.lobsterClaimPending ? (
+                    <Badge className="bg-claw-gold/15 text-claw-gold border-0">Minting your lobsters…</Badge>
+                  ) : faucetStatus.hasClaimedLobsters ? (
                     <Badge className="bg-teal/15 text-teal border-0">
                       <Check className="size-3 mr-1" /> Claimed
                     </Badge>
@@ -118,6 +122,20 @@ export default function FaucetPage() {
                     />
                   )}
                 </div>
+                {faucetStatus.lobsterClaimPending && (
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-text-secondary">
+                      Your claim is locked in. The five lobsters are rolled from a block that did not exist when you
+                      claimed, so nobody — including you — could know or pick them. This takes a few seconds.
+                    </p>
+                    <TransactionButton
+                      label="Mint them now"
+                      size="sm"
+                      fetchSteps={(auth) => api.faucet.finalizeLobsters(auth)}
+                      onSuccess={invalidate}
+                    />
+                  </div>
+                )}
               </FrostedPanel>
 
               {/* Step 2: $CLAW */}
@@ -140,7 +158,7 @@ export default function FaucetPage() {
                     />
                   ) : (
                     <span className="text-xs text-text-secondary">
-                      <X className="size-3 inline mr-0.5" /> Claim lobsters first
+                      <X className="size-3 inline mr-0.5" /> {faucetStatus.lobsterClaimPending ? 'Waiting for your lobsters' : 'Claim lobsters first'}
                     </span>
                   )}
                 </div>

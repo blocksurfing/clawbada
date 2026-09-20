@@ -263,6 +263,15 @@ export async function readCurrentSeason(): Promise<bigint> {
   return pool.read.currentSeason() as Promise<bigint>;
 }
 
+/** Current head block number. */
+export async function readBlockNumber(): Promise<bigint> {
+  try {
+    return (await client().getBlockNumber()) as bigint;
+  } catch {
+    throw new ApiError('CHAIN_ERROR', 'Could not read the block number');
+  }
+}
+
 // ──────────── Faucet ────────────
 
 export interface FaucetStatus {
@@ -271,6 +280,12 @@ export interface FaucetStatus {
   isEligible: boolean;
   hasClaimedLobsters: boolean;
   hasClaimedClaw: boolean;
+  /** D-10: a lobster claim is two steps. 0 = never requested. */
+  lobsterClaimId: bigint;
+  /** Requested but not minted yet (the keeper finalizes a couple of blocks later). */
+  lobsterClaimPending: boolean;
+  /** Block whose hash the lobsters are rolled from; 0 when there is no claim. */
+  lobsterClaimTargetBlock: bigint;
 }
 
 export async function readFaucetStatus(address: string): Promise<FaucetStatus> {
@@ -278,13 +293,16 @@ export async function readFaucetStatus(address: string): Promise<FaucetStatus> {
   const faucet = getFaucet(c);
   const addr = address as `0x${string}`;
 
-  const [isOpen, closeTime, isEligible, hasClaimedLobsters, hasClaimedClaw] = await Promise.all([
+  const [isOpen, closeTime, isEligible, hasClaimedLobsters, hasClaimedClaw, claimId] = await Promise.all([
     faucet.read.isFaucetOpen(),
     faucet.read.closeTime(),
     faucet.read.isEligible([addr]),
     faucet.read.hasClaimedLobsters([addr]),
     faucet.read.hasClaimedClaw([addr]),
+    faucet.read.claimIdOf([addr]),
   ]);
+  const lobsterClaimId = claimId as bigint;
+  const claim = lobsterClaimId > 0n ? ((await faucet.read.getClaim([lobsterClaimId])) as { finalized: boolean; targetBlock: bigint }) : null;
 
   return {
     isOpen: isOpen as boolean,
@@ -292,6 +310,9 @@ export async function readFaucetStatus(address: string): Promise<FaucetStatus> {
     isEligible: isEligible as boolean,
     hasClaimedLobsters: hasClaimedLobsters as boolean,
     hasClaimedClaw: hasClaimedClaw as boolean,
+    lobsterClaimId,
+    lobsterClaimPending: !!claim && !claim.finalized,
+    lobsterClaimTargetBlock: claim ? BigInt(claim.targetBlock) : 0n,
   };
 }
 

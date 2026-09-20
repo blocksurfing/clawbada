@@ -1179,9 +1179,13 @@ contract BoundaryTests is Test {
         vm.warp(closeTime - 1);
 
         vm.prank(alice);
-        faucet.claimLobsters();
+        uint256 claimId = faucet.claimLobsters();
 
-        // Verify 5 lobsters minted
+        // D-10: the claim is committed one second before close; its lobsters are minted by
+        // finalizeClaim, which stays open after the faucet closes so this claim is not stranded.
+        vm.warp(closeTime + 10);
+        vm.roll(block.number + 3);
+        faucet.finalizeClaim(claimId);
         assertEq(nft.totalMinted(), 5);
     }
 
@@ -1327,7 +1331,9 @@ contract BoundaryTests is Test {
         faucet.setEligible(alice, true);
 
         vm.prank(alice);
-        uint256[5] memory faucetIds = faucet.claimLobsters();
+        uint256 claimId = faucet.claimLobsters();
+        vm.roll(block.number + 3); // D-10: the lobsters are minted by finalizeClaim
+        uint256[5] memory faucetIds = faucet.finalizeClaim(claimId);
 
         // All should be soulbound
         for (uint256 i = 0; i < 5; i++) {
