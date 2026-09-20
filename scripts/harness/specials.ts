@@ -39,7 +39,10 @@ export default async function (b: Browser) {
 
   if (process.env.DPR) await b.send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1000, deviceScaleFactor: Number(process.env.DPR), mobile: false });
   await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${process.env.PRESET_ID ?? `trio_${CLASS.toLowerCase()}`}`);
+  // SPEED scales Unity's playback (0.25-4) through to the battle page — a short Special such as
+  // Crush (0.7 s) only yields one screenshot at 1x, so slow it down when the frames are the point.
+  const speed = process.env.SPEED ? `&speed=${process.env.SPEED}` : '';
+  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${process.env.PRESET_ID ?? `trio_${CLASS.toLowerCase()}`}${speed}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);
@@ -142,6 +145,14 @@ export default async function (b: Browser) {
           // Mixed roster: capture each finished Special as it fires.
           await b.sleep(500);
           for (let f = 0; f < 4; f++) { await b.screenshot(`${S}/live-specials-c${casts}-f${f}.png`); await b.sleep(320); }
+        }
+        if (CLASS === 'Leviathan' && casts === 0) {
+          // Frame burst across the Crush slam. The burst has no wind-up of its own — it spawns ON
+          // the swing's contact frame and dissipates over 0.7 s — so its four layers straddle the
+          // target only briefly. Run with SPEED=0.25 to actually catch the flash and the shockwave.
+          await b.sleep(400);
+          for (let f = 0; f < 10; f++) { await b.screenshot(`${S}/specials-Leviathan-f${f}.png`); await b.sleep(200); }
+          for (const l of grab(b, /BattleManager\] special|BattleVfxLibrary\] FX_Leviathan|CameraShake|row layer/i)) console.log('[Leviathan-log]', l.slice(0, 220));
         }
         if (CLASS === 'Specter' && casts === 0) {
           // Frame burst through the Haunt turn: spirit detaches → drifts to the target → possession → sigil spawns under it.
