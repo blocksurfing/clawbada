@@ -35,6 +35,7 @@ import { wrapHandler } from './operator/errors';
 import { BoostEpochService } from './boost/service';
 import { RevealWatcher } from './combat/reveal-watcher';
 import { FinalizeWatcher } from './combat/finalize-watcher';
+import { BreedFinalizeWatcher } from './breeding/finalize-watcher';
 import { EpochClock } from './boost/epoch-clock';
 import { db } from '@clawbada/db';
 import { getMiningPool, getPublicClient } from '@clawbada/chain';
@@ -125,6 +126,11 @@ async function main() {
   const finalizeWatcher = FinalizeWatcher.fromEnv();
   finalizeWatcher.start();
 
+  // D-21: mints the offspring of every breed request a few seconds after its target block.
+  // Without it a request lapses after 256 blocks and the breeder loses the fee and both slots.
+  const breedFinalizeWatcher = BreedFinalizeWatcher.fromEnv();
+  breedFinalizeWatcher.start();
+
   // 5. Verify drand connectivity
   try {
     const beacon = await drand.fetchLatest();
@@ -158,6 +164,7 @@ async function main() {
     boostEpochs.stop();
     revealWatcher.stop();
     finalizeWatcher.stop();
+    breedFinalizeWatcher.stop();
     mining.stopAll();
     await operatorWorker.stop();
     process.exit(0);

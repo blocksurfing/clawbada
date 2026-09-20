@@ -7,9 +7,10 @@ import type { Stack } from './00-infra';
 import type { Players } from './10-onboarding';
 import type { BattleOutcome } from './20-battle';
 import type { MiningOutcome } from './30-mining';
+import type { BreedingOutcome } from './35-breeding';
 
-/** Final parity: chain vs DB vs what the clients saw. Mining deltas are excluded from the battle money math. */
-export async function assertPhase(stack: Stack, players: Players, battle: BattleOutcome, mining: MiningOutcome, checks: Checks): Promise<void> {
+/** Final parity: chain vs DB vs what the clients saw. Mining and breeding deltas are excluded from the battle money math. */
+export async function assertPhase(stack: Stack, players: Players, battle: BattleOutcome, mining: MiningOutcome, breeding: BreedingOutcome, checks: Checks): Promise<void> {
   const { chain, db } = stack;
   const id = BigInt(battle.battleId);
   const onChain = await chain.getBattle(id);
@@ -22,8 +23,9 @@ export async function assertPhase(stack: Stack, players: Players, battle: Battle
   const stake = battle.stake;
   const pot = stake * 2n;
   const fee = draw ? 0n : pot / 10n;
-  const balA = (await chain.balance(players.a.agent.address)) - (mining.player === players.a ? mining.reward : 0n);
-  const balB = (await chain.balance(players.b.agent.address)) - (mining.player === players.b ? mining.reward : 0n);
+  const aside = (p: typeof players.a) => (mining.player === p ? mining.reward : 0n) - (breeding.player === p ? breeding.cost : 0n);
+  const balA = (await chain.balance(players.a.agent.address)) - aside(players.a);
+  const balB = (await chain.balance(players.b.agent.address)) - aside(players.b);
   const dA = balA - battle.balancesBefore.a;
   const dB = balB - battle.balancesBefore.b;
   if (draw) {
@@ -34,8 +36,9 @@ export async function assertPhase(stack: Stack, players: Players, battle: Battle
     checks.eq(dw, pot - fee - stake, `winner net +${(pot - fee - stake) / WEI} CLAW`);
     checks.eq(dl, -stake, `loser net −${stake / WEI} CLAW`);
   }
-  const supplyDelta = (await chain.totalSupply()) - battle.balancesBefore.supply - mining.reward;
-  const devDelta = (await chain.balance(KEYS.devWallet.address)) - battle.balancesBefore.dev;
+  // The breeding fee takes the same Treasury route as the battle fee: 85 % burned, 15 % to dev.
+  const supplyDelta = (await chain.totalSupply()) - battle.balancesBefore.supply - mining.reward + (breeding.cost * 85n) / 100n;
+  const devDelta = (await chain.balance(KEYS.devWallet.address)) - battle.balancesBefore.dev - (breeding.cost * 15n) / 100n;
   checks.check(draw || supplyDelta === -(fee * 85n) / 100n, 'protocol fee: 85 % burned', `supply Δ ${supplyDelta / WEI} CLAW (fee ${fee / WEI})`);
   checks.check(draw || devDelta === (fee * 15n) / 100n, 'protocol fee: 15 % to the dev wallet', `dev Δ ${devDelta / WEI} CLAW`);
 
