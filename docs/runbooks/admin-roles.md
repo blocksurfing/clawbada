@@ -116,7 +116,7 @@ Surface alerts on:
 Posts the weekly battle-rank mining boost table (S1, locked 2026-09-02): the server ranks every team that played the qualification floor of battles on one ladder by rating, converts percentile to `boostBps` (+10% → +50%, cap `MAX_BOOST_BPS = 5,000`), and the holder writes it on-chain.
 
 ### What the holder does each week
-1. `setTeamBoosts(nextEpoch, entries[])` in batches of at most `MAX_BOOST_BATCH = 200` rows `(teamId, bps, power)` — staged for `currentBoostEpoch + 1`, invisible to `startExpedition` until activated.
+1. `setTeamBoosts(nextEpoch, entries[])` in batches of at most `MAX_BOOST_BATCH = 200` rows `(teamId, bps, power)` — staged for `currentBoostEpoch + 1`, invisible to `startExpedition` until activated. (True since audit D-09: the table is keyed by epoch. Before that fix one slot per team was shared, so staging silently zeroed every re-posted team's live boost until activation.) Check a staged table with `getTeamBoostAt(nextEpoch, teamId)` before activating; `getTeamBoost(teamId)` reads the live epoch.
 2. `activateBoostEpoch(nextEpoch)` — one tx flips the whole table. Any team not re-posted drops to 0 automatically (the lapse rule needs no clearing writes).
 3. Corrections during the live epoch (e.g. after a dispute resolution changes a result) use `setTeamBoosts(currentEpoch, …)` — amending the live table is allowed, activating it twice is not.
 
