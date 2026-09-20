@@ -350,6 +350,10 @@ queueRoutes.get(
           eq(battles.phase, BattlePhase.Deposit),
           sql`${battles.winner} IS NULL`,
           sql`${battles.settledAt} IS NULL`,
+          // D-08: only a battle THIS matchmaker made is "your match". A row the indexer had to
+          // invent for an on-chain BattleCreated with no matchmaker row behind it (a stolen
+          // MATCHMAKER key, or an out-of-band call) is never surfaced to the player here.
+          eq(battles.fromMatchmaker, true),
         ),
       )
       .orderBy(desc(battles.createdAt))

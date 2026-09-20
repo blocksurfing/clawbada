@@ -3,7 +3,7 @@
  * `battle_turns`, `battles`, `operator_jobs`). Injected into the manager so tests
  * can replace it wholesale.
  */
-import { and, asc, eq, sql, notExists } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, sql, notExists } from 'drizzle-orm';
 import { db, battleSessions, battleTurns, battles, operatorJobs, type Database } from '@clawbada/db';
 import type { PersistedTurn, SnapshotWrite } from './session';
 import type { RosterEntry, SessionKind, Side } from './protocol';
@@ -142,6 +142,18 @@ export class SessionStore {
   }
 
   /** Real battles the indexer has mirrored to Active (phase 4, created) that have no session yet. */
+  /** D-06: of these battle ids, the ones the indexer has seen a settlement proposal for
+   *  (phase >= AwaitingFinalize). One query for all live sessions. */
+  async proposedAmong(battleIds: string[]): Promise<string[]> {
+    const numeric = battleIds.filter((id) => /^\d+$/.test(id)).map((id) => BigInt(id));
+    if (numeric.length === 0) return [];
+    const rows = await this.dbx
+      .select({ battleId: battles.battleId })
+      .from(battles)
+      .where(and(inArray(battles.battleId, numeric), gte(battles.phase, 5)));
+    return rows.map((r) => r.battleId.toString());
+  }
+
   async pendingRealBattles(limit = 10): Promise<PendingRealBattle[]> {
     const rows = await this.dbx
       .select({ battleId: battles.battleId, playerA: battles.playerA, playerB: battles.playerB, teamA: battles.teamA, teamB: battles.teamB })

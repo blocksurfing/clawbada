@@ -18,7 +18,7 @@ import { randomUUID, getRandomValues } from 'node:crypto';
 import { v3, deriveRandom, randomDNA, calculatePurity, type EvolutionTier, type LobsterClass } from '@clawbada/game-logic';
 import { battleSeed, deriveSeedSecret, seedCommitment, seedRoundFor } from '@clawbada/chain';
 import { ShotClock } from './clock';
-import type { BattleSnapshot, RosterEntry, SessionEventName, Side } from './protocol';
+import type { BattleSnapshot, RosterEntry, SessionEventName, SettlementAlertPayload, Side } from './protocol';
 import { BattleSession, endReason, type SessionRecord } from './session';
 import type { SessionRow, SessionStore, SettleJobPayload } from './store';
 
@@ -27,6 +27,9 @@ export interface ManagerChain {
   readLobster(tokenId: bigint): Promise<{ tokenId: bigint; owner: string; dna: bigint; evolutionTier: number; purity: number }>;
   /** Optional: used on resume to drop sessions whose battle is no longer Active on chain. */
   readBattlePhase?(battleId: bigint): Promise<number>;
+  /** D-06: what `settle` proposed on-chain, for the alert pushed to players. Optional so a
+   *  manager without chain access (practice-only, tests) simply never alerts. */
+  readProposal?(battleId: bigint): Promise<{ proposedWinner: string; payoutDeadline: bigint; disputed: boolean }>;
   /** D-01: what revealTeams pinned on-chain — the seed-secret commitment and the block
    *  timestamp that fixes which drand round this battle must use. */
   readBattleSeed(battleId: bigint): Promise<{ seedCommit: string; revealedAt: number }>;
@@ -106,6 +109,9 @@ function randomSeed(): bigint {
   return BigInt('0x' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(''));
 }
 
+/** D-06: how often a live battle's settlement_alert is re-pushed. */
+const ALERT_REPEAT_MS = 20_000;
+
 export class BattleSessionManager {
   private readonly sessions = new Map<string, BattleSession>();
   private readonly clock: ShotClock;
@@ -115,6 +121,11 @@ export class BattleSessionManager {
   private readonly botThinkMs: number;
   private readonly firstTurnGraceMs: number;
   private readonly pollMs: number;
+  /** D-06: battleId -> when its settlement_alert was last pushed (ms). Re-sent while the battle
+   *  is still live, so a player who reconnects inside the dispute window still sees it. */
+  private readonly alertedAt = new Map<string, number>();
+  /** D-06: the alert currently standing for a live battle, replayed to any client that joins. */
+  private readonly standingAlert = new Map<string, SettlementAlertPayload>();
 
   constructor(private readonly deps: ManagerDeps) {
     this.clock = deps.clock ?? new ShotClock();
@@ -247,12 +258,69 @@ export class BattleSessionManager {
           this.deps.log.error({ err, battleId: row.battleId.toString() }, 'battle_session_start_failed');
         }
       }
+      await this.watchForRogueProposals();
     } catch (err) {
       this.deps.log.error({ err }, 'battle_session_poll_failed');
     } finally {
       this.inFlight = false;
     }
     return started;
+  }
+
+  /**
+   * D-06 (audit 2026-09). The honest settle job runs only AFTER a battle ends here, so a
+   * settlement proposal on-chain for a battle this manager is still running did not come from
+   * this server: a stolen RESOLVER key can call settle() the instant teams are revealed, and
+   * the dispute window (5 minutes at Low) then runs out while both players are busy playing a
+   * battle they believe is live. Nothing used to tell them. This pushes `settlement_alert`
+   * to the battle's room - and keeps pushing it every ALERT_REPEAT_MS while the battle is live,
+   * for reconnecting clients - so a player or agent can dispute in time. The session keeps
+   * running to its real end: that log is the evidence the admin resolves the dispute from.
+   */
+  /** D-06: the settlement alert standing for a live battle, if any — sent with the snapshot when
+   *  a client joins, so a player who opens the page (or reconnects) late is told at once. */
+  alertFor(battleId: string): SettlementAlertPayload | null {
+    return this.standingAlert.get(battleId) ?? null;
+  }
+
+  async watchForRogueProposals(): Promise<void> {
+    const readProposal = this.deps.chain.readProposal;
+    if (!readProposal) return;
+    const live = [...this.sessions.values()].filter((s) => s.record.kind === 'real').map((s) => s.record.id);
+    for (const id of [...this.alertedAt.keys()]) if (!live.includes(id)) { this.alertedAt.delete(id); this.standingAlert.delete(id); }
+    if (live.length === 0) return;
+
+    const proposed = await this.deps.store.proposedAmong(live);
+    const now = Date.now();
+    for (const id of proposed) {
+      const last = this.alertedAt.get(id);
+      if (last !== undefined && now - last < ALERT_REPEAT_MS) continue;
+      try {
+        const p = await readProposal(BigInt(id));
+        if (last === undefined) {
+          this.deps.log.error(
+            { battleId: id, proposedWinner: p.proposedWinner, payoutDeadline: p.payoutDeadline.toString(), disputed: p.disputed },
+            'rogue_settlement_proposal - settle() landed on-chain while this battle is still being played',
+          );
+        }
+        const payload: SettlementAlertPayload = {
+          battleId: id,
+          reason: 'proposed_while_battle_in_progress',
+          proposedWinner: p.proposedWinner.toLowerCase(),
+          payoutDeadline: p.payoutDeadline.toString(),
+          disputed: p.disputed,
+          disputeRoute: `/api/game/combat/${id}/dispute`,
+          message:
+            'A result for this battle was submitted on-chain while it is still being played. It did not come from this game server. ' +
+            'If you do not dispute before the deadline, that result pays out and cannot be undone.',
+        };
+        this.deps.emit(id, 'settlement_alert', payload);
+        this.alertedAt.set(id, now);
+        this.standingAlert.set(id, payload);
+      } catch (err) {
+        this.deps.log.error({ err, battleId: id }, 'settlement_alert_failed');
+      }
+    }
   }
 
   /** Claim + start one Active on-chain battle. Returns null when another replica claimed it. */

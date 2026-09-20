@@ -51,6 +51,9 @@ class FakeStore {
   async markStatus(id: string, status: SessionRow['status']): Promise<void> { this.rows.get(id)!.status = status; }
   async deleteSession(id: string): Promise<void> { this.rows.delete(id); }
   async enqueueSettle(payload: SettleJobPayload): Promise<void> { this.jobs.push(payload); }
+  /** D-06: battle ids the (fake) indexer has seen a settlement proposal for. */
+  proposed: string[] = [];
+  async proposedAmong(ids: string[]): Promise<string[]> { return ids.filter((id) => this.proposed.includes(id)); }
   async finishAndEnqueueSettle(id: string, patch: Partial<SessionRow>, payload: SettleJobPayload): Promise<void> { await this.markFinished(id, patch); await this.enqueueSettle(payload); }
   async loadActive(): Promise<SessionRow[]> { return [...this.rows.values()].filter((r) => r.status === 'active'); }
   async get(id: string): Promise<SessionRow | null> { return this.rows.get(id) ?? null; }
@@ -379,5 +382,92 @@ describe('arenaTierFor', () => {
     expect(arenaTierFor(mk([3, 2, 3, 3, 3, 3]))).toBe('elite');
     expect(arenaTierFor(mk([1, 2, 3, 3, 3, 3]))).toBe('evolved');
     expect(arenaTierFor(mk([0, 0, 0]))).toBe('evolved');
+  });
+});
+
+// ── D-06: a settlement proposed on-chain while the battle is still being played here ──
+describe('settlement_alert (D-06)', () => {
+  const teams = { '11': { owner: ALICE, lobsterIds: [1n, 2n, 3n] }, '22': { owner: BOB, lobsterIds: [4n, 5n, 6n] } };
+  const lobsters = {
+    '1': { owner: ALICE, cls: LobsterClass.Kraken, tier: 2 }, '2': { owner: ALICE, cls: LobsterClass.Reaver, tier: 2 }, '3': { owner: ALICE, cls: LobsterClass.Ember, tier: 3 },
+    '4': { owner: BOB, cls: LobsterClass.Bulwark, tier: 2 }, '5': { owner: BOB, cls: LobsterClass.Abyss, tier: 2 }, '6': { owner: BOB, cls: LobsterClass.Tempest, tier: 2 },
+  };
+  const MALLORY = '0xCCCCcccccccccccccccccccccccccccccccccccc';
+
+  async function liveBattle(id: bigint, readProposal?: (battleId: bigint) => Promise<{ proposedWinner: string; payoutDeadline: bigint; disputed: boolean }>) {
+    const store = new FakeStore();
+    store.pending.push({ battleId: id, playerA: ALICE, playerB: BOB, teamA: 11n, teamB: 22n });
+    const chain = { ...chainWith(teams, lobsters), ...(readProposal ? { readProposal } : {}) };
+    const made = make(store, { chain });
+    expect(await made.mgr.pollOnce()).toBe(1);
+    return { store, ...made };
+  }
+  const alerts = (events: { id: string; event: string; data: unknown }[]) => events.filter((e) => e.event === 'settlement_alert');
+
+  test('no proposal on-chain: a live battle never alerts', async () => {
+    const { mgr, events } = await liveBattle(601n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false }));
+    await mgr.pollOnce();
+    expect(alerts(events)).toHaveLength(0);
+  });
+
+  test('settle() lands while the battle is still being played: both players are told, with the deadline and how to dispute', async () => {
+    const { mgr, store, events } = await liveBattle(602n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false }));
+    store.proposed.push('602');
+    await mgr.pollOnce();
+
+    const sent = alerts(events);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.id).toBe('602'); // the battle's room: both players are subscribed to it
+    expect(sent[0]!.data).toMatchObject({
+      battleId: '602',
+      reason: 'proposed_while_battle_in_progress',
+      proposedWinner: MALLORY.toLowerCase(),
+      payoutDeadline: '1300',
+      disputed: false,
+      disputeRoute: '/api/game/combat/602/dispute',
+    });
+    // A client that joins (or reconnects) later is told at once, not at the next re-broadcast.
+    expect(mgr.alertFor('602')).toMatchObject({ battleId: '602', proposedWinner: MALLORY.toLowerCase() });
+    expect(mgr.alertFor('777')).toBeNull();
+    // The session is NOT torn down: its real log is the evidence the admin will need.
+    expect(mgr.get('602')).toBeDefined();
+    expect(store.rows.get('602')!.status).toBe('active');
+  });
+
+  test('it is not re-sent on every 2 s poll', async () => {
+    const { mgr, store, events } = await liveBattle(603n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false }));
+    store.proposed.push('603');
+    await mgr.pollOnce();
+    await mgr.pollOnce();
+    await mgr.pollOnce();
+    expect(alerts(events)).toHaveLength(1);
+  });
+
+  test('a proposal for some OTHER battle does not alert this one', async () => {
+    const { mgr, store, events } = await liveBattle(604n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false }));
+    store.proposed.push('999');
+    await mgr.pollOnce();
+    expect(alerts(events)).toHaveLength(0);
+  });
+
+  test('a failing chain read does not break the poll loop, and the alert is retried', async () => {
+    let fail = true;
+    const { mgr, store, events } = await liveBattle(605n, async () => {
+      if (fail) throw new Error('rpc down');
+      return { proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false };
+    });
+    store.proposed.push('605');
+    await mgr.pollOnce();
+    expect(alerts(events)).toHaveLength(0);
+    fail = false;
+    await mgr.pollOnce();
+    expect(alerts(events)).toHaveLength(1);
+  });
+
+  test('a manager with no chain proposal reader simply never alerts', async () => {
+    const { mgr, store, events } = await liveBattle(606n);
+    store.proposed.push('606');
+    await mgr.pollOnce();
+    expect(alerts(events)).toHaveLength(0);
   });
 });

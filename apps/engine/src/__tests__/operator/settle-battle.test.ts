@@ -88,14 +88,62 @@ describe('settleBattleHandler', () => {
     expect((mockSimulateSettle.mock.calls as any)[0][0][1]).toBe('0x0000000000000000000000000000000000000000');
   });
 
-  test('already AwaitingFinalize or Settled on chain: idempotent success without a tx', async () => {
-    for (const phase of [5, 6]) {
-      mockGetBattle.mockImplementation(async () => ({ phase }));
-      const res = await settleBattleHandler(payload(), makeCtx());
-      expect(res).toEqual({ ok: true });
-    }
+  // What the chain holds when OUR settle landed: the proposal is this payload.
+  const ourProposal = { proposedWinner: ALICE, finalStateHash: HASH_A, turnLogHash: HASH_B, proposedDamageA: [5, 6, 7], proposedDamageB: [20, 25, 30] };
+
+  test('already AwaitingFinalize or Settled on chain WITH OUR RESULT: idempotent success without a tx', async () => {
+    mockGetBattle.mockImplementation(async () => ({ phase: 5, ...ourProposal }));
+    expect(await settleBattleHandler(payload(), makeCtx())).toEqual({ ok: true });
+    mockGetBattle.mockImplementation(async () => ({ phase: 6, winner: ALICE, ...ourProposal }));
+    expect(await settleBattleHandler(payload(), makeCtx())).toEqual({ ok: true });
     expect(mockSimulateSettle).not.toHaveBeenCalled();
     expect(mockWriteContract).not.toHaveBeenCalled();
+  });
+
+  // ── D-06: "already past Active" is only fine if what is on-chain is OUR result ──
+
+  test('D-06: a proposal naming a different winner is a rogue settlement — dead, never "nothing to do"', async () => {
+    const MALLORY = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    mockGetBattle.mockImplementation(async () => ({ phase: 5, payoutDeadline: 999n, ...ourProposal, proposedWinner: MALLORY }));
+    const res = await settleBattleHandler(payload(), makeCtx());
+    expect(res.ok).toBe(false);
+    expect(res).toMatchObject({ retry: 'dead' });
+    expect((res as any).error).toStartWith('proposal_mismatch: winner');
+    expect(mockWriteContract).not.toHaveBeenCalled();
+  });
+
+  test('D-06: right winner but hashes that are not ours (a fabricated log) is caught too', async () => {
+    mockGetBattle.mockImplementation(async () => ({ phase: 5, ...ourProposal, turnLogHash: '0x' + 'ee'.repeat(32) }));
+    expect((await settleBattleHandler(payload(), makeCtx()) as any).error).toStartWith('proposal_mismatch: turnLogHash');
+    mockGetBattle.mockImplementation(async () => ({ phase: 5, ...ourProposal, finalStateHash: '0x' + 'ee'.repeat(32) }));
+    expect((await settleBattleHandler(payload(), makeCtx()) as any).error).toStartWith('proposal_mismatch: finalStateHash');
+  });
+
+  test('D-06: right winner and hashes but inflated damage is caught (damage costs the victim repair fees)', async () => {
+    mockGetBattle.mockImplementation(async () => ({ phase: 5, ...ourProposal, proposedDamageA: [40, 40, 40] }));
+    expect((await settleBattleHandler(payload(), makeCtx()) as any).error).toBe('proposal_mismatch: damageA differs');
+  });
+
+  test('D-06: a draw we computed vs a winner on-chain, and the reverse', async () => {
+    const ZERO = '0x0000000000000000000000000000000000000000';
+    mockGetBattle.mockImplementation(async () => ({ phase: 5, ...ourProposal }));
+    expect((await settleBattleHandler(payload({ winner: 'draw' }), makeCtx()) as any).error).toStartWith('proposal_mismatch: winner');
+    mockGetBattle.mockImplementation(async () => ({ phase: 5, ...ourProposal, proposedWinner: ZERO }));
+    expect(await settleBattleHandler(payload({ winner: 'draw' }), makeCtx())).toEqual({ ok: true });
+  });
+
+  test('D-06: a rogue proposal that was disputed and CORRECTED by the admin reads as a match once Settled', async () => {
+    // adminResolveDispute pays the admin's winner and overwrites the hashes, but leaves the
+    // proposed* fields as the thief wrote them.
+    const MALLORY = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    mockGetBattle.mockImplementation(async () => ({ phase: 6, winner: ALICE, finalStateHash: HASH_A, turnLogHash: HASH_B, proposedWinner: MALLORY, proposedDamageA: [0, 0, 0], proposedDamageB: [40, 40, 40] }));
+    expect(await settleBattleHandler(payload(), makeCtx())).toEqual({ ok: true });
+  });
+
+  test('D-06: a rogue proposal that was finalized UNCHALLENGED still alarms once Settled', async () => {
+    const MALLORY = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    mockGetBattle.mockImplementation(async () => ({ phase: 6, winner: MALLORY, ...ourProposal, proposedWinner: MALLORY }));
+    expect((await settleBattleHandler(payload(), makeCtx()) as any).error).toStartWith('proposal_mismatch: winner');
   });
 
   test('a battle that is not Active (cancelled, still in reveal) is dead — nothing to settle', async () => {

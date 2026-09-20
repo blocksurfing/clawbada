@@ -16,6 +16,7 @@ import type {
   BattleSnapshot,
   CurrentTurn,
   SessionErrorPayload,
+  SettlementAlertPayload,
   Side,
   TurnCommand,
   TurnResolvedPayload,
@@ -44,6 +45,8 @@ export interface SessionViewState {
   /** Resolved turns waiting for the renderer (oldest first). */
   pending: TurnResolvedPayload[];
   ended: BattleEndedPayload | null;
+  /** D-06: a result was submitted on-chain while this battle is still live. */
+  settlementAlert: SettlementAlertPayload | null;
   error: SessionErrorPayload | null;
   lastAck: { turn: number; duplicate: boolean } | null;
   /** Incremented each time a full server snapshot is applied (initial + reconnects). */
@@ -58,11 +61,12 @@ type Action =
   | { type: 'animated'; turn: number }
   | { type: 'bar_updated'; data: BarUpdatedPayload }
   | { type: 'battle_ended'; data: BattleEndedPayload }
+  | { type: 'settlement_alert'; data: SettlementAlertPayload }
   | { type: 'error'; data: SessionErrorPayload }
   | { type: 'ack'; data: { turn: number; duplicate: boolean } };
 
 const INITIAL: SessionViewState = {
-  connection: 'idle', snapshot: null, current: null, timeouts: { A: 0, B: 0 }, bar: [], log: [], pending: [], ended: null, error: null, lastAck: null, snapshotSeq: 0,
+  connection: 'idle', snapshot: null, current: null, timeouts: { A: 0, B: 0 }, bar: [], log: [], pending: [], ended: null, settlementAlert: null, error: null, lastAck: null, snapshotSeq: 0,
 };
 
 /** Apply one resolved turn to the client-side wire state (HP, alive, position, turn). */
@@ -110,6 +114,8 @@ function reducer(s: SessionViewState, a: Action): SessionViewState {
       return { ...s, bar: a.data.bar };
     case 'battle_ended':
       return { ...s, ended: a.data, current: null };
+    case 'settlement_alert':
+      return { ...s, settlementAlert: a.data };
     case 'error':
       return { ...s, error: a.data };
     case 'ack':
@@ -217,6 +223,9 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
             break;
           case 'battle_ended':
             dispatch({ type: 'battle_ended', data: msg.data as BattleEndedPayload });
+            break;
+          case 'settlement_alert':
+            dispatch({ type: 'settlement_alert', data: msg.data as SettlementAlertPayload });
             break;
           case 'turn_ack':
             dispatch({ type: 'ack', data: msg.data as { turn: number; duplicate: boolean } });

@@ -88,3 +88,75 @@ describe('FinalizeWatcher', () => {
     expect(writeContract).toHaveBeenCalledTimes(1);
   });
 });
+
+// ── D-06: never complete a payout this server did not compute ──
+describe('FinalizeWatcher — rogue proposals (D-06)', () => {
+  const ALICE = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const BOB = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const H1 = '0x' + '11'.repeat(32);
+  const H2 = '0x' + '22'.repeat(32);
+  const proposal = { phase: 5, payoutDeadline: 1_000n, proposedWinner: ALICE, finalStateHash: H1, turnLogHash: H2 };
+  const session = (over: Record<string, unknown> = {}) => ({ status: 'settling', winner: 'A', playerA: ALICE, playerB: BOB, finalStateHash: H1, turnLogHash: H2, ...over });
+
+  function withSession(row: unknown, chain: any = proposal, now = 5_000n) {
+    const made = makeDeps([{ battleId: 7n }], chain, now);
+    const errors: Array<{ msg: string; fields: any }> = [];
+    made.deps.log = { child: () => ({ info: () => {}, warn: () => {}, debug: () => {}, error: (fields: any, msg: string) => errors.push({ msg, fields }) }) } as any;
+    made.deps.readSession = async () => row as any;
+    return { ...made, errors };
+  }
+
+  test('our own result, window closed: finalizes as before', async () => {
+    const { deps, writeContract, errors } = withSession(session());
+    await new FinalizeWatcher(deps).tick();
+    expect(writeContract).toHaveBeenCalledTimes(1);
+    expect(errors).toHaveLength(0);
+  });
+
+  test('the proposal arrived while this server is STILL PLAYING the battle: refuses, alarms once', async () => {
+    const { deps, writeContract, finalizeBattle, errors } = withSession(session({ status: 'active', winner: null, finalStateHash: null, turnLogHash: null }));
+    const w = new FinalizeWatcher(deps);
+    await w.tick();
+    await w.tick();
+    expect(finalizeBattle).not.toHaveBeenCalled();
+    expect(writeContract).not.toHaveBeenCalled();
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.msg).toStartWith('rogue_settlement_proposal');
+    expect(errors[0]!.fields).toMatchObject({ battleId: '7', verdict: 'session_still_active' });
+  });
+
+  test('a different winner than the battle we ran: refuses', async () => {
+    const { deps, writeContract, errors } = withSession(session({ winner: 'B' }));
+    await new FinalizeWatcher(deps).tick();
+    expect(writeContract).not.toHaveBeenCalled();
+    expect(errors[0]!.fields.verdict).toBe('result_mismatch');
+  });
+
+  test('hashes that are not ours: refuses', async () => {
+    const { deps, writeContract } = withSession(session({ turnLogHash: '0x' + 'ee'.repeat(32) }));
+    await new FinalizeWatcher(deps).tick();
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
+  test('the alarm fires while the dispute window is STILL OPEN (that is when it is useful)', async () => {
+    const { deps, errors } = withSession(session({ winner: 'B' }), proposal, 900n);
+    await new FinalizeWatcher(deps).tick();
+    expect(errors).toHaveLength(1);
+  });
+
+  test('a draw we computed and a draw proposed: finalizes', async () => {
+    const ZERO = '0x0000000000000000000000000000000000000000';
+    const { deps, writeContract } = withSession(session({ winner: 'draw' }), { ...proposal, proposedWinner: ZERO });
+    await new FinalizeWatcher(deps).tick();
+    expect(writeContract).toHaveBeenCalledTimes(1);
+  });
+
+  test('NO session row: a thief who settles before this server even claimed the battle — refuses', async () => {
+    // The API only claims a battle while its mirrored phase is Active. Settle within a second
+    // of the reveal and no session ever exists: no battle was played, yet a result is on-chain.
+    const { deps, writeContract, errors } = withSession(null);
+    await new FinalizeWatcher(deps).tick();
+    expect(writeContract).not.toHaveBeenCalled();
+    expect(errors[0]!.fields.verdict).toBe('no_session');
+  });
+});

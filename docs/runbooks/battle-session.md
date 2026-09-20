@@ -55,6 +55,20 @@ To re-verify both defences against a real Postgres (throwaway database, chain fa
 
 By hand: check `operator_jobs` for `settle_battle:<battleId>`. `status 3` (dead) with `revert:PhaseTimedOut` means the window was missed: both players are refunded in full via `handleTimeout(battleId)`. `revert:InvalidSettlementHash` is a bug (zero hash) — file it. Anything else: read `last_error`.
 
+**`rogue_settlement_proposal` fired.**
+A result is on-chain that this server did not compute: the RESOLVER key (and with it `BATTLE_SEED_SECRET`, which `settle` must disclose) is compromised, or the engine has a bug. The verdict in the log says which case: `session_still_active` (proposed while the battle was being played), `result_mismatch` (different winner, hashes or damage than ours), `no_session` (proposed before this server ever started the battle).
+
+1. **The clock is `payoutDeadline`** (in the log line). Until then either player can dispute; after it anyone can finalize and the payout cannot be undone. The players have been told (`settlement_alert`, the web warning). If neither has disputed and you can reach them, tell them to.
+2. **Stop the bleeding.** From the Safe: `revokeRole(RESOLVER_ROLE, <compromised address>)` on BattleArena, then rotate (`admin-roles.md`). Rotate `BATTLE_SEED_SECRET` with it. Every battle that reaches Active while the key is live is exposed.
+3. **Once disputed, resolve it with the true result.** The real battle ran to its end on the API; the honest settle job is dead with `proposal_mismatch`, and its payload IS the true result:
+   ```sql
+   select payload, last_error from operator_jobs where idempotency_key = 'settle_battle:<battleId>';
+   ```
+   From the Safe: `adminResolveDispute(battleId, winner, finalStateHash, turnLogHash, damageA, damageB)` with those values (`winner` = the wallet, or the zero address for a draw). The disputer's bond is refunded because the outcome changed. For a `no_session` battle nothing was played: resolve as a draw (both stakes returned) with any non-zero hashes and zero damage.
+4. The finalize watcher will not finalize a rogue proposal, and a disputed battle cannot be finalized by anyone.
+
+This whole sequence is rehearsed by the e2e harness (`scripts/e2e/phases/50-rogue-settlement.ts`).
+
 **A battle is stuck `active` with no one acting.**
 The shot clock is server-side, so a human turn always resolves within `BATTLE_SHOT_CLOCK_MS`. If nothing moves, the API process is down or the loop is disabled; restart it (sessions resume). Check logs for `battle_session_error`.
 

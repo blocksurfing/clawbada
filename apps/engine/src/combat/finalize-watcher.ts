@@ -16,6 +16,7 @@
  */
 import { and, eq, isNull } from 'drizzle-orm';
 import { BattlePhase } from '@clawbada/game-logic';
+import { judgeProposal, isRogueVerdict, type SessionResult } from '@clawbada/db/src/queries/proposal-verdict';
 import { log as baseLog } from '../logger';
 
 const DEFAULT_POLL_MS = 10_000;
@@ -29,8 +30,20 @@ export interface FinalizeWatcherDeps {
     getBlock(args: { blockTag: 'latest' }): Promise<{ timestamp: bigint }>;
     waitForTransactionReceipt(args: { hash: `0x${string}` }): Promise<{ status: string }>;
   };
+  /** D-06: this server's own record of the battle (the `battle_sessions` row), or null. Optional
+   *  so the class stays usable where there is no session store; `fromEnv` always wires it. */
+  readSession?(battleId: bigint): Promise<SessionResult | null>;
   arena: {
-    read: { getBattle(args: [bigint]): Promise<{ phase: number | bigint; payoutDeadline: bigint; disputed: boolean }> };
+    read: {
+      getBattle(args: [bigint]): Promise<{
+        phase: number | bigint;
+        payoutDeadline: bigint;
+        disputed: boolean;
+        proposedWinner?: string;
+        finalStateHash?: string;
+        turnLogHash?: string;
+      }>;
+    };
     simulate: { finalizeBattle(args: [bigint], opts: { account: unknown }): Promise<{ request: unknown }> };
   };
   walletClient: { account: { address: `0x${string}` }; writeContract(request: any): Promise<`0x${string}`> };
@@ -41,6 +54,8 @@ export interface FinalizeWatcherDeps {
 export class FinalizeWatcher {
   private interval: ReturnType<typeof setInterval> | null = null;
   private inFlight = new Set<string>();
+  /** Battles already alarmed as rogue — the tick repeats every few seconds. */
+  private refused = new Set<string>();
   private readonly log;
   private readonly pollMs: number;
 
@@ -60,6 +75,8 @@ export class FinalizeWatcher {
     return new FinalizeWatcher({
       db: dbMod.db,
       battles: dbMod.battles,
+      readSession: async (battleId: bigint) =>
+        (await dbMod.db.query.battleSessions.findFirst({ where: eq(dbMod.battleSessions.id, battleId.toString()) })) ?? null,
       publicClient,
       arena: chain.getBattleArena(publicClient),
       walletClient: chain.getOperatorClient(isTestnet),
@@ -116,6 +133,29 @@ export class FinalizeWatcher {
       this.log.warn({ battleId: battleId.toString() }, 'battle is disputed — waiting for adminResolveDispute');
       return;
     }
+    // D-06: never complete a payout this server did not compute. finalizeBattle is
+    // permissionless, so this cannot stop a thief finalizing their own rogue proposal — but
+    // it used to be THIS watcher, with the operator key, that finished the job for them, and
+    // nothing said a word. Checked before the deadline test so the alarm fires while the
+    // dispute window is still open.
+    if (this.deps.readSession) {
+      const verdict = judgeProposal(await this.deps.readSession(battleId), {
+        proposedWinner: onChain.proposedWinner ?? '',
+        proposedFinalStateHash: onChain.finalStateHash ?? '',
+        proposedTurnLogHash: onChain.turnLogHash ?? '',
+      });
+      if (isRogueVerdict(verdict)) {
+        if (!this.refused.has(battleId.toString())) {
+          this.refused.add(battleId.toString());
+          this.log.error(
+            { battleId: battleId.toString(), verdict, proposedWinner: onChain.proposedWinner, payoutDeadline: onChain.payoutDeadline.toString() },
+            'rogue_settlement_proposal — refusing to finalize: the on-chain result is not the battle this server ran',
+          );
+        }
+        return;
+      }
+    }
+
     const now = (await publicClient.getBlock({ blockTag: 'latest' })).timestamp;
     if (now <= onChain.payoutDeadline) {
       this.log.debug({ battleId: battleId.toString(), secondsRemaining: Number(onChain.payoutDeadline - now) }, 'dispute window still open');

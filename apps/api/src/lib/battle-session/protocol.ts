@@ -21,6 +21,9 @@ export const SESSION_EVENTS = [
   'turn_resolved',
   'bar_updated',
   'battle_ended',
+  /** D-06: a settlement was proposed on-chain for a battle this server is STILL RUNNING — it
+   *  did not come from this server. Payload: SettlementAlertPayload. Dispute before the deadline. */
+  'settlement_alert',
   'turn_ack',
   'error',
   'pong',
@@ -188,4 +191,20 @@ export const CHAIN_ID_RE = /^[1-9]\d{0,18}$/;
 
 export function isPracticeId(id: string): boolean {
   return PRACTICE_ID_RE.test(id);
+}
+
+/** D-06: pushed to both players when the chain holds a settlement proposal for a battle that is
+ *  still being played here. The honest settle job only runs after a battle ends, so such a
+ *  proposal came from somewhere else — a compromised RESOLVER key, or an engine bug. */
+export interface SettlementAlertPayload {
+  battleId: string;
+  reason: 'proposed_while_battle_in_progress';
+  /** Wallet the chain was told won; the zero address means a draw. */
+  proposedWinner: string;
+  /** Unix seconds (chain time). After this anyone can finalize the payout and nothing can undo it. */
+  payoutDeadline: string;
+  disputed: boolean;
+  /** POST here (wallet-authenticated) for the approve-bond + disputeBattle calldata. */
+  disputeRoute: string;
+  message: string;
 }

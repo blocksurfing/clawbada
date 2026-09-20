@@ -20,6 +20,7 @@ import { battlePhase } from './phases/20-battle';
 import { miningPhase } from './phases/30-mining';
 import { breedingPhase } from './phases/35-breeding';
 import { assertPhase } from './phases/40-assert';
+import { rogueSettlementDrill } from './phases/50-rogue-settlement';
 
 export interface Flags { keep: boolean; liveDrand: boolean; verbose: boolean; stake: '2500' | '10000' | '50000'; anvilPort: number; apiPort: number }
 
@@ -69,6 +70,10 @@ try {
   const breeding = await breedingPhase(stack, players, checks);
   checks.setPhase('assert');
   await assertPhase(stack, players, battle, mining, breeding, checks);
+  // D-06 incident drill: a stolen resolver key settles mid-battle. Runs last, so the dead settle
+  // job it is SUPPOSED to leave behind does not disturb the assertions above.
+  checks.setPhase('drill');
+  await rogueSettlementDrill(stack, players, flags, checks);
 } catch (err) {
   const e = err as Error;
   console.error(`\n✖ ${e.name}: ${e.message}`);
