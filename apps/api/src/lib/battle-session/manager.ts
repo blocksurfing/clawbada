@@ -379,8 +379,12 @@ export class BattleSessionManager {
         damageA: damage.damageA,
         damageB: damage.damageB,
       };
-      await this.deps.store.markFinished(record.id, { status: 'settling', winner, finalStateHash, turnLogHash, stateJson: v3.serializeState(state), turn: state.turn });
-      await this.deps.store.enqueueSettle(payload);
+      // D-28: one transaction — a finished real battle is never left without its settle job.
+      await this.deps.store.finishAndEnqueueSettle(
+        record.id,
+        { status: 'settling', winner, finalStateHash, turnLogHash, stateJson: v3.serializeState(state), turn: state.turn },
+        payload,
+      );
     } else {
       await this.deps.store.markFinished(record.id, { status: 'finished', winner, finalStateHash, turnLogHash, stateJson: v3.serializeState(state), turn: state.turn });
     }

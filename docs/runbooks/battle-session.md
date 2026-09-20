@@ -36,7 +36,23 @@ Every turn writes a full state snapshot (`state_json`) plus the turn row. On boo
 ## Things that go wrong
 
 **A real battle finished but never settled.**
-Check `operator_jobs` for `settle_battle:<battleId>`. `status 3` (dead) with `revert:PhaseTimedOut` means the resolver missed `ACTIVE_WINDOW` (3 h after reveal): anyone can call `handleTimeout(battleId)` and both players are refunded in full. `revert:InvalidSettlementHash` is a bug (zero hash) — file it. Anything else: read `last_error`.
+Why it matters: `settle` must land within `ACTIVE_WINDOW` (3 h after reveal). After that anyone — including the loser — can call `handleTimeout(battleId)` for a full mutual refund, and the winner loses a battle they won.
+
+Two automatic defences (D-28). The API writes the `settling` status and the `settle_battle` job in one transaction, so a finished battle is never left without its job. And the engine's `SettleReconciler` (every `SETTLE_RECONCILE_POLL_MS`, default 30 s) looks at every real session that has been `settling` for more than a minute while its battle is still Active on-chain:
+
+| It finds | It does | Log |
+|---|---|---|
+| no `settle_battle:<battleId>` job | rebuilds the payload from the session row and enqueues it | `settle_job_recreated` (warn) |
+| job dead after exhausted retries (`max_attempts_exceeded:` — the 5 s / 30 s / 5 min / 1 h ladder is only ~65 min of a 3 h window) or a lost tx hash (`tx_hash_persist_failed:`) | back to pending with a fresh ladder | `settle_job_revived` (warn) |
+| job dead for a permanent reason (a contract revert) | **nothing — needs a human** | `settle_job_dead_permanent` (error) |
+| still unsettled after `SETTLE_RECONCILE_ALARM_MS` (default 20 min) | keeps trying | `settle_overdue` (error, with `secondsLeft`) |
+| less than a minute of the window left | stops | `settle_window_missed` (error) |
+
+**Alert on the three error-level messages.** `settle_overdue` fires with more than two and a half hours still on the clock; that is the time to look at the RPC, the resolver key's gas balance and `last_error`.
+
+To re-verify both defences against a real Postgres (throwaway database, chain faked): `bun run scripts/e2e/verify-settle-reconcile.ts`.
+
+By hand: check `operator_jobs` for `settle_battle:<battleId>`. `status 3` (dead) with `revert:PhaseTimedOut` means the window was missed: both players are refunded in full via `handleTimeout(battleId)`. `revert:InvalidSettlementHash` is a bug (zero hash) — file it. Anything else: read `last_error`.
 
 **A battle is stuck `active` with no one acting.**
 The shot clock is server-side, so a human turn always resolves within `BATTLE_SHOT_CLOCK_MS`. If nothing moves, the API process is down or the loop is disabled; restart it (sessions resume). Check logs for `battle_session_error`.
