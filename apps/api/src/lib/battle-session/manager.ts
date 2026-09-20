@@ -16,6 +16,7 @@
  */
 import { randomUUID, getRandomValues } from 'node:crypto';
 import { v3, deriveRandom, randomDNA, calculatePurity, type EvolutionTier, type LobsterClass } from '@clawbada/game-logic';
+import { battleSeed, deriveSeedSecret, seedCommitment, seedRoundFor } from '@clawbada/chain';
 import { ShotClock } from './clock';
 import type { BattleSnapshot, RosterEntry, SessionEventName, Side } from './protocol';
 import { BattleSession, endReason, type SessionRecord } from './session';
@@ -26,6 +27,9 @@ export interface ManagerChain {
   readLobster(tokenId: bigint): Promise<{ tokenId: bigint; owner: string; dna: bigint; evolutionTier: number; purity: number }>;
   /** Optional: used on resume to drop sessions whose battle is no longer Active on chain. */
   readBattlePhase?(battleId: bigint): Promise<number>;
+  /** D-01: what revealTeams pinned on-chain — the seed-secret commitment and the block
+   *  timestamp that fixes which drand round this battle must use. */
+  readBattleSeed(battleId: bigint): Promise<{ seedCommit: string; revealedAt: number }>;
 }
 
 export interface ManagerLog {
@@ -38,7 +42,17 @@ export interface ManagerDeps {
   store: SessionStore;
   emit: (sessionId: string, event: SessionEventName, data: unknown) => void;
   chain: ManagerChain;
-  drand: { fetchLatest(): Promise<{ round: number; randomness: string }>; toBigInt(randomness: string): bigint };
+  drand: {
+    /** Genesis time and period of the configured drand chain. */
+    info(): Promise<{ genesisTime: number; period: number }>;
+    /** A specific round, waiting for it to be published (it is in the future when a battle starts). */
+    fetchRoundWhenReady(round: number, opts?: { timeoutMs?: number; pollMs?: number }): Promise<{ round: number; randomness: string }>;
+  };
+  /** D-01: master secret the per-battle seed secret is derived from. MUST equal the engine's
+   *  BATTLE_SEED_SECRET: the engine commits the secret on-chain, this process plays with it.
+   *  A function is resolved only when a staked battle starts, so a deployment that runs only
+   *  practice battles boots without the variable. */
+  seedMasterSecret: string | (() => string);
   log: ManagerLog;
   clock?: ShotClock;
   shotClockMs?: number;
@@ -271,8 +285,24 @@ export class BattleSessionManager {
       const inputsA = a.map((x) => x.input);
       const inputsB = b.map((x) => x.input);
       const tier = arenaTierFor([...inputsA, ...inputsB]);
-      const beacon = await this.deps.drand.fetchLatest();
-      const vrfSeed = this.deps.drand.toBigInt(beacon.randomness);
+      // D-01: the seed is NOT the public beacon. It is keccak(beacon(R), secret, battleId), where
+      // R is fixed by rule from the reveal transaction's timestamp (a round that did not exist
+      // when that transaction was sent) and the secret's hash was committed in that same
+      // transaction. A player cannot compute it, the operator could not choose it, and a retry
+      // of this function always lands on the same round and the same seed.
+      const pinned = await this.deps.chain.readBattleSeed(row.battleId);
+      const master = typeof this.deps.seedMasterSecret === 'function' ? this.deps.seedMasterSecret() : this.deps.seedMasterSecret;
+      const secret = deriveSeedSecret(master, row.battleId);
+      if (seedCommitment(row.battleId, secret) !== pinned.seedCommit.toLowerCase()) {
+        // The engine that revealed runs a different BATTLE_SEED_SECRET. Playing on would produce
+        // a log nobody could verify against the chain, so refuse: the battle refunds both
+        // players at ACTIVE_WINDOW.
+        this.deps.log.error({ battleId: id }, 'battle_seed_commit_mismatch');
+        throw new Error('battle seed: on-chain commitment does not match this process\'s BATTLE_SEED_SECRET');
+      }
+      const round = seedRoundFor(await this.deps.drand.info(), pinned.revealedAt);
+      const beacon = await this.deps.drand.fetchRoundWhenReady(round, { timeoutMs: 45_000 });
+      const vrfSeed = battleSeed(beacon.randomness, secret, row.battleId);
       const state = v3.createBattle({ battleId: id, vrfSeed, tier, teamA: inputsA, teamB: inputsB });
       const roster = [...a.map((x) => x.entry), ...b.map((x) => x.entry)];
       await this.deps.store.initSession(id, { tier, roster, stateJson: v3.serializeState(state), vrfRound: beacon.round });

@@ -6,7 +6,16 @@
 // and other files (routes/agent.test.ts) mock parts of it, so apps/api runs this
 // directory in its own `bun test` process (see package.json "test:session").
 import { describe, test, expect } from 'bun:test';
-import { v3, EvolutionTier, LobsterClass, encodeDNA, LegendStatus } from '@clawbada/game-logic';
+import { v3, deriveRandom, EvolutionTier, LobsterClass, encodeDNA, LegendStatus } from '@clawbada/game-logic';
+import { battleSeed, deriveSeedSecret, seedCommitment, seedRoundFor, SEED_ROUND_DELAY_S } from '@clawbada/chain';
+
+// D-01 fixtures: a fake drand chain (3 s rounds) and the master secret both services share.
+const MASTER = 'manager-test-master-secret-0123456789abcdef';
+const DRAND_INFO = { genesisTime: 1_000_000, period: 3 };
+const REVEALED_AT = 1_000_300;
+const SEED_ROUND = seedRoundFor(DRAND_INFO, REVEALED_AT);
+const randomnessOf = (round: number) => round.toString(16).padStart(64, '0');
+const seedPin = (battleId: bigint, master = MASTER) => ({ seedCommit: seedCommitment(battleId, deriveSeedSecret(master, battleId)), revealedAt: REVEALED_AT });
 import { FakeClock, ShotClock } from '../../lib/battle-session/clock';
 import { BattleSessionManager, PracticeConflictError, arenaTierFor } from '../../lib/battle-session/manager';
 import type { NewSessionRow, PendingRealBattle, SessionRow, SessionStore, SettleJobPayload } from '../../lib/battle-session/store';
@@ -59,6 +68,7 @@ function chainWith(teams: Record<string, { owner: string; lobsterIds: bigint[] }
       return { tokenId, owner: l.owner, dna: dnaFor(l.cls), evolutionTier: l.tier, purity: 2 };
     },
     readBattlePhase: async () => phase,
+    readBattleSeed: async (battleId: bigint) => seedPin(battleId),
   };
 }
 
@@ -70,7 +80,8 @@ function make(store: FakeStore, extra: Partial<ConstructorParameters<typeof Batt
     store: store as unknown as SessionStore,
     emit: (id, event, data) => events.push({ id, event, data }),
     chain: chainWith({}, {}),
-    drand: { fetchLatest: async () => ({ round: 4242, randomness: 'ab'.repeat(32) }), toBigInt: (r) => BigInt('0x' + r) },
+    drand: { info: async () => DRAND_INFO, fetchRoundWhenReady: async (round: number) => ({ round, randomness: randomnessOf(round) }) },
+    seedMasterSecret: MASTER,
     log: { info: (_o, m) => logs.push(m), warn: (_o, m) => logs.push(m), error: (o, m) => logs.push(`${m}:${String((o as any).err)}`) },
     clock: new ShotClock(fake),
     shotClockMs: 60_000,
@@ -186,11 +197,13 @@ describe('real battles', () => {
     const s = mgr.get('501')!;
     expect(s.record.kind).toBe('real');
     expect(s.record.tier).toBe('elite'); // min tier across both teams
-    expect(s.record.vrfRound).toBe(4242);
-    expect(s.state.vrfSeed).toBe(BigInt('0x' + 'ab'.repeat(32)));
+    // D-01: the round is fixed by rule from the reveal timestamp, never "latest".
+    expect(s.record.vrfRound).toBe(SEED_ROUND);
+    // This line used to assert the seed WAS the raw public beacon — the D-01 defect, pinned by a test.
+    expect(s.state.vrfSeed).toBe(battleSeed(randomnessOf(SEED_ROUND), deriveSeedSecret(MASTER, 501n), 501n));
     expect(s.record.roster.map((r) => r.tokenId)).toEqual(['1', '2', '3', '4', '5', '6']);
     expect(s.record.roster[0].partClassIds).toHaveLength(6);
-    expect(store.rows.get('501')).toMatchObject({ kind: 'real', tier: 'elite', vrfRound: 4242, status: 'active' });
+    expect(store.rows.get('501')).toMatchObject({ kind: 'real', tier: 'elite', vrfRound: SEED_ROUND, status: 'active' });
     expect(events.filter((e) => e.id === '501' && e.event === 'turn_started')).toHaveLength(1);
   });
 
@@ -206,6 +219,79 @@ describe('real battles', () => {
     expect(logs.some((m) => m.startsWith('battle_session_start_failed'))).toBe(true);
     fail = false;
     expect(await mgr.pollOnce()).toBe(1);
+  });
+
+  // ── D-01: the staked-battle seed ──
+  test('D-01: the seed is keccak(beacon of the pinned round, committed secret, battleId) — not the public beacon', async () => {
+    const store = new FakeStore();
+    store.pending.push({ battleId: 601n, playerA: ALICE, playerB: BOB, teamA: 11n, teamB: 22n });
+    const { mgr } = make(store, { chain: chainWith(teams, lobsters) });
+    await mgr.pollOnce();
+    const state = v3.deserializeState(store.rows.get('601')!.stateJson);
+    const expected = battleSeed(randomnessOf(SEED_ROUND), deriveSeedSecret(MASTER, 601n), 601n);
+    expect(state.vrfSeed).toBe(expected);
+    // What a player could compute from public data is NOT the seed.
+    expect(state.vrfSeed).not.toBe(BigInt('0x' + randomnessOf(SEED_ROUND)));
+    // The rule: first round emitted at or after revealedAt + SEED_ROUND_DELAY_S.
+    expect(DRAND_INFO.genesisTime + (SEED_ROUND - 1) * DRAND_INFO.period).toBeGreaterThanOrEqual(REVEALED_AT + SEED_ROUND_DELAY_S);
+    expect(DRAND_INFO.genesisTime + (SEED_ROUND - 2) * DRAND_INFO.period).toBeLessThan(REVEALED_AT + SEED_ROUND_DELAY_S);
+  });
+
+  test('D-01: the attacker from the audit proof finds nothing to match — no public beacon reproduces the client snapshot', async () => {
+    const store = new FakeStore();
+    store.pending.push({ battleId: 604n, playerA: ALICE, playerB: BOB, teamA: 11n, teamB: 22n });
+    const { mgr } = make(store, { chain: chainWith(teams, lobsters) });
+    await mgr.pollOnce();
+    const state = v3.deserializeState(store.rows.get('604')!.stateJson);
+    const view = v3.clientView(state) as unknown as { vrfSeed?: string; layout: { layoutId: string }; lobsters: { id: string; tiebreak: string }[] };
+    expect(view.vrfSeed).toBeUndefined();
+
+    // The audit's attack: try every public round near the battle as the seed and look for one
+    // that reproduces a value the client was sent. It even gets the exact round for free here.
+    const hits: string[] = [];
+    for (let round = SEED_ROUND - 50; round <= SEED_ROUND + 50; round++) {
+      const candidate = BigInt('0x' + randomnessOf(round));
+      for (const guess of [candidate, deriveRandom(candidate, '604'), deriveRandom(candidate, 'battle_604')]) {
+        if (view.layout.layoutId.endsWith('_' + (guess & 0xffffffffn).toString(16))) hits.push(`layoutId raw @${round}`);
+        if (view.layout.layoutId.endsWith('_' + (deriveRandom(guess, 'layout_id') & 0xffffffffn).toString(16))) hits.push(`layoutId derived @${round}`);
+        for (const l of view.lobsters) if (deriveRandom(guess, `tie_${l.id}`).toString() === l.tiebreak) hits.push(`tiebreak ${l.id} @${round}`);
+      }
+    }
+    expect(hits).toEqual([]);
+
+    // With the secret the same check DOES match: the snapshot is consistent with the real seed,
+    // so a dispute can still verify it once settle() has disclosed the secret on-chain.
+    const real = battleSeed(randomnessOf(SEED_ROUND), deriveSeedSecret(MASTER, 604n), 604n);
+    expect(view.layout.layoutId.endsWith('_' + (deriveRandom(real, 'layout_id') & 0xffffffffn).toString(16))).toBe(true);
+    expect(view.lobsters.every((l) => deriveRandom(real, `tie_${l.id}`).toString() === l.tiebreak)).toBe(true);
+    // And the layout id no longer carries bits of the seed itself.
+    expect(view.layout.layoutId.endsWith('_' + (real & 0xffffffffn).toString(16))).toBe(false);
+  });
+
+  test('D-01: a retry after a failed start lands on the same round and the same seed (no re-roll)', async () => {
+    const store = new FakeStore();
+    store.pending.push({ battleId: 602n, playerA: ALICE, playerB: BOB, teamA: 11n, teamB: 22n });
+    const asked: number[] = [];
+    let fail = true;
+    const drand = {
+      info: async () => DRAND_INFO,
+      fetchRoundWhenReady: async (round: number) => { asked.push(round); if (fail) throw new Error('drand down'); return { round, randomness: randomnessOf(round) }; },
+    };
+    const { mgr } = make(store, { chain: chainWith(teams, lobsters), drand });
+    expect(await mgr.pollOnce()).toBe(0);
+    fail = false;
+    expect(await mgr.pollOnce()).toBe(1);
+    expect(asked).toEqual([SEED_ROUND, SEED_ROUND]);
+  });
+
+  test('D-01: refuses to start when the on-chain commitment was made with a different master secret', async () => {
+    const store = new FakeStore();
+    store.pending.push({ battleId: 603n, playerA: ALICE, playerB: BOB, teamA: 11n, teamB: 22n });
+    const chain = { ...chainWith(teams, lobsters), readBattleSeed: async (id: bigint) => seedPin(id, 'a-different-master-secret-0123456789abcdef') };
+    const { mgr, logs } = make(store, { chain });
+    expect(await mgr.pollOnce()).toBe(0);
+    expect(store.rows.has('603')).toBe(false);
+    expect(logs.some((m) => m.startsWith('battle_seed_commit_mismatch'))).toBe(true);
   });
 
   test('a finished real battle enqueues settle_battle with hashes, per-slot damage and the winner wallet (or draw)', async () => {

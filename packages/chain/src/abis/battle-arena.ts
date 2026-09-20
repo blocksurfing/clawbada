@@ -258,6 +258,19 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
+    "name": "SEED_ROUND_DELAY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "STAKE_BRACKETS",
     "inputs": [
       {
@@ -699,6 +712,21 @@ export const BattleArenaAbi = [
             "internalType": "bytes32"
           },
           {
+            "name": "seedCommit",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "seedSecret",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "revealedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
             "name": "disputer",
             "type": "address",
             "internalType": "address"
@@ -971,6 +999,11 @@ export const BattleArenaAbi = [
         "name": "saltB",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "seedCommit",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -1027,6 +1060,11 @@ export const BattleArenaAbi = [
         "name": "damageB",
         "type": "uint8[3]",
         "internalType": "uint8[3]"
+      },
+      {
+        "name": "seedSecret",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -1257,6 +1295,50 @@ export const BattleArenaAbi = [
       },
       {
         "name": "turnLogHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BattleSeedCommitted",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "seedCommit",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "revealedAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BattleSeedRevealed",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "seedSecret",
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
@@ -1846,6 +1928,28 @@ export const BattleArenaAbi = [
         "name": "powerScore",
         "type": "uint8",
         "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidSeedCommit",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidSeedReveal",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

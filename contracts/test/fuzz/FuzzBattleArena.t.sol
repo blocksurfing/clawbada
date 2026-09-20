@@ -6,6 +6,13 @@ import "../helpers/BaseSetup.t.sol";
 
 /// @dev Fuzz tests for BattleArena: phase state machine, stake accounting, access control.
 contract FuzzBattleArena is BaseSetup {
+    // D-01: every test battle uses one known secret; the commitment binds it to the battle id.
+    bytes32 internal constant SEED_SECRET = keccak256("clawbada-test-seed-secret");
+
+    function _seedCommit(uint256 battleId) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(battleId, SEED_SECRET));
+    }
+
     address internal alice = makeAddr("alice");
     address internal bob   = makeAddr("bob");
 
@@ -62,7 +69,7 @@ contract FuzzBattleArena is BaseSetup {
         bytes32 saltB
     ) internal {
         vm.prank(admin);
-        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB);
+        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB, _seedCommit(battleId));
     }
 
     function _createEvolvedTeam(address owner) internal returns (uint256 teamId) {
@@ -176,7 +183,7 @@ contract FuzzBattleArena is BaseSetup {
         uint8[3] memory loserDmg  = [uint8(20), 20, 20];
 
         vm.prank(admin);
-        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, winnerDmg, loserDmg);
+        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, winnerDmg, loserDmg, SEED_SECRET);
         vm.warp(block.timestamp + battleArena.disputeWindows(0) + 1);
         battleArena.finalizeBattle(battleId);
 
@@ -291,7 +298,7 @@ contract FuzzBattleArena is BaseSetup {
         // F5-01: atomic reveal validates both teams; alice's over-damaged team reverts.
         vm.prank(admin);
         vm.expectRevert(); // LobsterDamageTooHigh
-        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB);
+        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB, _seedCommit(battleId));
     }
 
     // ── Invalid commit hash reverts ───────────────────────────────
@@ -312,7 +319,7 @@ contract FuzzBattleArena is BaseSetup {
         bytes32 wrongSalt = bytes32(uint256(999));
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
-        battleArena.revealTeams(battleId, teamA, wrongSalt, teamB, saltB);
+        battleArena.revealTeams(battleId, teamA, wrongSalt, teamB, saltB, _seedCommit(battleId));
     }
 
     // ── MED-01: uint8 overflow in _applyDamage caps at 100 ───────────
@@ -347,7 +354,7 @@ contract FuzzBattleArena is BaseSetup {
         uint8[3] memory loserDmg  = [uint8(200), 200, 200];
 
         vm.prank(admin);
-        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, winnerDmg, loserDmg);
+        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, winnerDmg, loserDmg, SEED_SECRET);
         vm.warp(block.timestamp + battleArena.disputeWindows(0) + 1);
         battleArena.finalizeBattle(battleId);
 
@@ -366,7 +373,7 @@ contract FuzzBattleArena is BaseSetup {
         uint8[3] memory dmg = [uint8(5), 5, 5];
         vm.prank(alice);
         vm.expectRevert();
-        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, dmg, dmg);
+        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, dmg, dmg, SEED_SECRET);
     }
 
     // ── F5-01: team reveal is atomic + resolver-submitted ─────────
@@ -389,12 +396,12 @@ contract FuzzBattleArena is BaseSetup {
         // A participant cannot self-submit the reveal — this was the leak vector.
         vm.prank(alice);
         vm.expectRevert(); // AccessControlUnauthorizedAccount(alice, RESOLVER_ROLE)
-        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB);
+        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB, _seedCommit(battleId));
 
         // Neither can a non-participant stranger.
         vm.prank(makeAddr("stranger"));
         vm.expectRevert();
-        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB);
+        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB, _seedCommit(battleId));
 
         // Only the resolver can, and it transitions straight to Active.
         _revealTeams(battleId, teamA, saltA, teamB, saltB);
@@ -495,7 +502,7 @@ contract FuzzBattleArena is BaseSetup {
     // Helper: settle() with the default H-01 proposal (alice wins, small damages)
     function _settleProposing(uint256 battleId, address winner) internal {
         vm.prank(admin);
-        battleArena.settle(battleId, winner, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        battleArena.settle(battleId, winner, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
     }
 
     // 1. Happy path: settle → wait out window → permissionless finalize transfers.
@@ -1210,7 +1217,7 @@ contract FuzzBattleArena is BaseSetup {
         vm.warp(bb.phaseDeadline + 1);
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId2));
-        battleArena.settle(battleId2, alice, HASH_STATE, HASH_LOG, [uint8(0), 0, 0], [uint8(0), 0, 0]);
+        battleArena.settle(battleId2, alice, HASH_STATE, HASH_LOG, [uint8(0), 0, 0], [uint8(0), 0, 0], SEED_SECRET);
     }
 
     // BA-M2: a dispute that changes ONLY the damage arrays (winner unchanged) now
@@ -1273,7 +1280,7 @@ contract FuzzBattleArena is BaseSetup {
         }
 
         vm.prank(admin);
-        battleArena.settle(battleId, draw ? address(0) : alice, HASH_STATE, HASH_LOG, dmgA, dmgB);
+        battleArena.settle(battleId, draw ? address(0) : alice, HASH_STATE, HASH_LOG, dmgA, dmgB, SEED_SECRET);
         vm.warp(block.timestamp + battleArena.disputeWindows(0) + 1);
         battleArena.finalizeBattle(battleId);
 
@@ -1299,7 +1306,7 @@ contract FuzzBattleArena is BaseSetup {
         uint256 supplyBefore = claw.totalSupply();
 
         vm.prank(admin);
-        battleArena.settle(battleId, address(0), HASH_STATE, HASH_LOG, [uint8(7), 7, 7], [uint8(9), 9, 9]);
+        battleArena.settle(battleId, address(0), HASH_STATE, HASH_LOG, [uint8(7), 7, 7], [uint8(9), 9, 9], SEED_SECRET);
         vm.warp(block.timestamp + battleArena.disputeWindows(bracketIdx) + 1);
         battleArena.finalizeBattle(battleId);
 
@@ -1328,7 +1335,7 @@ contract FuzzBattleArena is BaseSetup {
         vm.warp(b.phaseDeadline + late);
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId));
-        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
 
         vm.prank(makeAddr("anyone"));
         battleArena.handleTimeout(battleId);
@@ -1345,10 +1352,10 @@ contract FuzzBattleArena is BaseSetup {
         (uint256 battleId,,) = _setupSettleableBattle();
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSettlementHash.selector, battleId));
-        battleArena.settle(battleId, alice, bytes32(0), HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        battleArena.settle(battleId, alice, bytes32(0), HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSettlementHash.selector, battleId));
-        battleArena.settle(battleId, alice, HASH_STATE, bytes32(0), [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        battleArena.settle(battleId, alice, HASH_STATE, bytes32(0), [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
 
         _settleProposing(battleId, alice);
         _setupBondAndDispute(bob, battleId);

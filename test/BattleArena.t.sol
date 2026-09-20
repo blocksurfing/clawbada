@@ -12,6 +12,13 @@ import {DNALib} from "../contracts/libraries/DNALib.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 contract BattleArenaTest is Test {
+    // D-01: every test battle uses one known secret; the commitment binds it to the battle id.
+    bytes32 internal constant SEED_SECRET = keccak256("clawbada-test-seed-secret");
+
+    function _seedCommit(uint256 battleId) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(battleId, SEED_SECRET));
+    }
+
     BattleArena arena;
     BattleVRF vrf;
     TeamManager tm;
@@ -141,7 +148,7 @@ contract BattleArenaTest is Test {
     {
         // F5-01: team reveal is atomic and resolver-submitted.
         vm.prank(resolver);
-        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, _seedCommit(battleId));
     }
 
     /// @dev Full setup to Active phase round 1
@@ -166,7 +173,7 @@ contract BattleArenaTest is Test {
         uint8[3] memory damageB
     ) internal {
         vm.prank(resolver);
-        arena.settle(battleId, winner, HASH_STATE, HASH_LOG, damageA, damageB);
+        arena.settle(battleId, winner, HASH_STATE, HASH_LOG, damageA, damageB, SEED_SECRET);
         vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         arena.finalizeBattle(battleId);
     }
@@ -355,11 +362,11 @@ contract BattleArenaTest is Test {
         // F5-01: atomic resolver-submitted reveal. A wrong salt for either side reverts.
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
         vm.prank(resolver);
-        arena.revealTeams(battleId, teamIdA, bytes32("wrong"), teamIdB, saltB);
+        arena.revealTeams(battleId, teamIdA, bytes32("wrong"), teamIdB, saltB, _seedCommit(battleId));
 
         // Correct reveal of both teams works.
         vm.prank(resolver);
-        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, _seedCommit(battleId));
     }
 
     function test_revealTeamValidatesEligibility() public {
@@ -377,20 +384,16 @@ contract BattleArenaTest is Test {
 
         uint256 teamIdB = _createEvolvedTeam(bob);
 
-        bytes32 saltA = bytes32("saltA");
-        bytes32 saltB = bytes32("saltB");
-        bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, baseTeam, saltA));
-        bytes32 commitB = keccak256(abi.encodePacked(battleId, bob, teamIdB, saltB));
-
+        // Salts are inlined (not locals): the extra D-01 argument put this test over the stack limit.
         vm.prank(alice);
-        arena.commitTeam(battleId, commitA);
+        arena.commitTeam(battleId, keccak256(abi.encodePacked(battleId, alice, baseTeam, bytes32("saltA"))));
         vm.prank(bob);
-        arena.commitTeam(battleId, commitB);
+        arena.commitTeam(battleId, keccak256(abi.encodePacked(battleId, bob, teamIdB, bytes32("saltB"))));
 
         // F5-01: atomic reveal validates both teams; alice's Base-tier team reverts.
         vm.expectRevert(abi.encodeWithSelector(BattleArena.LobsterTierTooLow.selector, lob1, 1, 0));
         vm.prank(resolver);
-        arena.revealTeams(battleId, baseTeam, saltA, teamIdB, saltB);
+        arena.revealTeams(battleId, baseTeam, bytes32("saltA"), teamIdB, bytes32("saltB"), _seedCommit(battleId));
     }
 
     function test_revealTeamLocksTeam() public {
@@ -403,7 +406,7 @@ contract BattleArenaTest is Test {
 
         // F5-01: atomic reveal locks BOTH teams at once.
         vm.prank(resolver);
-        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, _seedCommit(battleId));
 
         assertTrue(arena.teamInBattle(teamIdA));
         assertTrue(tm.isTeamActive(teamIdA));
@@ -496,7 +499,7 @@ contract BattleArenaTest is Test {
         emit BattleArena.BattleProposed(battleId, alice, expectedDeadline, HASH_STATE, HASH_LOG);
 
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
 
         vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         vm.expectEmit(true, true, false, true);
@@ -673,7 +676,7 @@ contract BattleArenaTest is Test {
             )
         );
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
     }
 
     function test_settleRevertsInTeamCommitPhase() public {
@@ -687,7 +690,7 @@ contract BattleArenaTest is Test {
             )
         );
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
     }
 
     function test_settleRevertsInTeamRevealPhase() public {
@@ -705,7 +708,7 @@ contract BattleArenaTest is Test {
             )
         );
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
     }
 
     function test_settleByNonResolverReverts() public {
@@ -715,7 +718,7 @@ contract BattleArenaTest is Test {
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, nobody, arena.RESOLVER_ROLE())
         );
         vm.prank(nobody);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
     }
 
     function test_settleWithInvalidWinnerReverts() public {
@@ -724,7 +727,7 @@ contract BattleArenaTest is Test {
         // Winner is neither playerA nor playerB
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidWinner.selector, battleId));
         vm.prank(resolver);
-        arena.settle(battleId, nobody, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, nobody, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
     }
 
     function test_settleWhenAlreadySettledReverts() public {
@@ -732,7 +735,7 @@ contract BattleArenaTest is Test {
 
         // First settle succeeds — H-01: phase goes to AwaitingFinalize, not Settled
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
 
         // Second settle should revert — phase is now AwaitingFinalize
         vm.expectRevert(
@@ -744,7 +747,7 @@ contract BattleArenaTest is Test {
             )
         );
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
 
         // And after finalization, it reverts with phase=Settled
         vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
@@ -759,7 +762,7 @@ contract BattleArenaTest is Test {
             )
         );
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
     }
 
     // ──────────── P-05 Regression: uint8 overflow in _applyDamage ────────────
@@ -852,7 +855,7 @@ contract BattleArenaTest is Test {
     function test_emergencyWithdrawOnSettledBattleReverts() public {
         (uint256 battleId,,) = _setupActiveBattle();
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 10, 10], [uint8(30), 30, 30]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 10, 10], [uint8(30), 30, 30], SEED_SECRET);
 
         vm.warp(block.timestamp + 24 hours + 1);
         vm.prank(alice);
@@ -921,7 +924,7 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
 
         vm.prank(resolver);
-        arena.settle(battleId, bob, HASH_STATE, HASH_LOG, [uint8(20), 21, 22], [uint8(1), 2, 3]);
+        arena.settle(battleId, bob, HASH_STATE, HASH_LOG, [uint8(20), 21, 22], [uint8(1), 2, 3], SEED_SECRET);
 
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertTrue(b.phase == BattleArena.BattlePhase.AwaitingFinalize);
@@ -955,14 +958,14 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSettlementHash.selector, battleId));
         vm.prank(resolver);
-        arena.settle(battleId, alice, bytes32(0), HASH_LOG, [uint8(1), 1, 1], [uint8(1), 1, 1]);
+        arena.settle(battleId, alice, bytes32(0), HASH_LOG, [uint8(1), 1, 1], [uint8(1), 1, 1], SEED_SECRET);
     }
 
     function test_settleZeroTurnLogHashReverts() public {
         (uint256 battleId,,) = _setupActiveBattle();
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSettlementHash.selector, battleId));
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, bytes32(0), [uint8(1), 1, 1], [uint8(1), 1, 1]);
+        arena.settle(battleId, alice, HASH_STATE, bytes32(0), [uint8(1), 1, 1], [uint8(1), 1, 1], SEED_SECRET);
     }
 
     function test_settleAfterActiveWindowReverts() public {
@@ -971,7 +974,7 @@ contract BattleArenaTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId));
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(1), 1, 1], [uint8(1), 1, 1]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(1), 1, 1], [uint8(1), 1, 1], SEED_SECRET);
     }
 
     function test_settleAtActiveWindowBoundarySucceeds() public {
@@ -979,7 +982,7 @@ contract BattleArenaTest is Test {
         vm.warp(block.timestamp + arena.ACTIVE_WINDOW()); // == deadline is still in time
 
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(1), 1, 1], [uint8(1), 1, 1]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(1), 1, 1], [uint8(1), 1, 1], SEED_SECRET);
         assertTrue(arena.getBattle(battleId).phase == BattleArena.BattlePhase.AwaitingFinalize);
     }
 
@@ -1065,7 +1068,7 @@ contract BattleArenaTest is Test {
         vm.expectEmit(true, true, false, true);
         emit BattleArena.BattleProposed(battleId, address(0), expectedDeadline, HASH_STATE, HASH_LOG);
         vm.prank(resolver);
-        arena.settle(battleId, address(0), HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(5), 5, 5]);
+        arena.settle(battleId, address(0), HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(5), 5, 5], SEED_SECRET);
 
         vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
         vm.expectEmit(true, true, false, true);
@@ -1077,7 +1080,7 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
 
         vm.prank(resolver);
-        arena.settle(battleId, address(0), HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(5), 5, 5]);
+        arena.settle(battleId, address(0), HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(5), 5, 5], SEED_SECRET);
 
         uint256 bond = arena.disputeBonds(0);
         uint256 aliceBalBeforeDispute = claw.balanceOf(alice);
@@ -1102,7 +1105,7 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
 
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
 
         uint256 bobBalBeforeDispute = claw.balanceOf(bob);
         _dispute(battleId, bob);
@@ -1122,7 +1125,7 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
 
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
 
         uint256 bond = arena.disputeBonds(0);
         uint256 bobBalBeforeDispute = claw.balanceOf(bob);
@@ -1147,7 +1150,7 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
 
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
 
         uint256 bond = arena.disputeBonds(0);
         uint256 bobBalBeforeDispute = claw.balanceOf(bob);
@@ -1166,11 +1169,105 @@ contract BattleArenaTest is Test {
     function test_adminResolveZeroHashReverts() public {
         (uint256 battleId,,) = _setupActiveBattle();
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
         _dispute(battleId, bob);
 
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSettlementHash.selector, battleId));
         vm.prank(admin);
         arena.adminResolveDispute(battleId, alice, bytes32(0), HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+    }
+
+    // ═══════════════════════ D-01: battle seed commit-reveal ═══════════════════════
+    //
+    // The off-chain seed is keccak(drand(R), seedSecret, battleId). The contract's job is to pin
+    // the two things a dishonest party could otherwise choose late: the secret (committed in the
+    // reveal transaction, before R exists) and the moment that fixes R (revealedAt).
+
+    function test_D01_revealRequiresSeedCommit() public {
+        uint256 teamIdA = _createEvolvedTeam(alice);
+        uint256 teamIdB = _createEvolvedTeam(bob);
+        uint256 battleId = _createBattle();
+        _depositBoth(battleId);
+        (bytes32 saltA, bytes32 saltB) = _commitTeams(battleId, teamIdA, teamIdB);
+
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSeedCommit.selector, battleId));
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, bytes32(0));
+    }
+
+    function test_D01_revealRecordsCommitAndTimestamp() public {
+        uint256 teamIdA = _createEvolvedTeam(alice);
+        uint256 teamIdB = _createEvolvedTeam(bob);
+        uint256 battleId = _createBattle();
+        _depositBoth(battleId);
+        (bytes32 saltA, bytes32 saltB) = _commitTeams(battleId, teamIdA, teamIdB);
+
+        vm.warp(block.timestamp + 7);
+        vm.expectEmit(true, false, false, true);
+        emit BattleArena.BattleSeedCommitted(battleId, _seedCommit(battleId), uint64(block.timestamp));
+        _revealTeams(battleId, teamIdA, teamIdB, saltA, saltB);
+
+        BattleArena.Battle memory b = arena.getBattle(battleId);
+        assertEq(b.seedCommit, _seedCommit(battleId), "commit stored");
+        assertEq(uint256(b.revealedAt), block.timestamp, "revealedAt is the reveal block time");
+        assertEq(b.seedSecret, bytes32(0), "secret stays hidden until settle");
+    }
+
+    function test_D01_settleRejectsWrongSecret() public {
+        (uint256 battleId,,) = _setupActiveBattle();
+
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSeedReveal.selector, battleId));
+        vm.prank(resolver);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(1), 1, 1], [uint8(1), 1, 1], keccak256("not the secret"));
+    }
+
+    /// @dev The commitment includes the battle id, so the resolver cannot commit once and then
+    ///      open whichever battle it likes with a secret whose seed it has already seen.
+    function test_D01_commitIsBoundToTheBattleId() public {
+        uint256 teamIdA = _createEvolvedTeam(alice);
+        uint256 teamIdB = _createEvolvedTeam(bob);
+        uint256 battleId = _createBattle();
+        _depositBoth(battleId);
+        (bytes32 saltA, bytes32 saltB) = _commitTeams(battleId, teamIdA, teamIdB);
+
+        // Commit to SEED_SECRET as if it belonged to a different battle.
+        vm.prank(resolver);
+        arena.revealTeams(battleId, teamIdA, saltA, teamIdB, saltB, _seedCommit(battleId + 1));
+
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSeedReveal.selector, battleId));
+        vm.prank(resolver);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(1), 1, 1], [uint8(1), 1, 1], SEED_SECRET);
+    }
+
+    /// @dev Known answer shared with packages/chain/src/__tests__/battle-seed.test.ts: the engine
+    ///      computes the commitment in TypeScript, so both sides pin the same vector.
+    function test_D01_commitmentKnownAnswer() public pure {
+        bytes32 secret = 0x1111111111111111111111111111111111111111111111111111111111111111;
+        assertEq(keccak256(abi.encodePacked(uint256(7), secret)), bytes32(0x1cb972df85b64850dbe8c661744bd0bef0baa3ef8ecb4f0dcc959ea1e0990bab));
+    }
+
+    function test_D01_settleDisclosesTheSecret() public {
+        (uint256 battleId,,) = _setupActiveBattle();
+
+        vm.expectEmit(true, false, false, true);
+        emit BattleArena.BattleSeedRevealed(battleId, SEED_SECRET);
+        vm.prank(resolver);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(1), 1, 1], [uint8(1), 1, 1], SEED_SECRET);
+
+        BattleArena.Battle memory b = arena.getBattle(battleId);
+        assertEq(b.seedSecret, SEED_SECRET, "secret is on-chain after settle, so anyone can recompute the seed");
+        assertEq(keccak256(abi.encodePacked(battleId, b.seedSecret)), b.seedCommit, "and it opens the commitment");
+    }
+
+    /// @dev A battle that is never settled (ACTIVE_WINDOW expiry) refunds both players and never
+    ///      discloses the secret. No payout depended on the seed, so nothing needs verifying.
+    function test_D01_expiredBattleNeverDisclosesTheSecret() public {
+        (uint256 battleId,,) = _setupActiveBattle();
+        vm.warp(block.timestamp + arena.ACTIVE_WINDOW() + 1);
+        arena.handleTimeout(battleId);
+
+        BattleArena.Battle memory b = arena.getBattle(battleId);
+        assertEq(b.seedSecret, bytes32(0));
+        assertEq(uint256(b.phase), uint256(BattleArena.BattlePhase.Cancelled));
     }
 }

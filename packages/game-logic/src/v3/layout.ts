@@ -25,7 +25,10 @@ export function generateLayout(vrfSeed: bigint, tier: ArenaLayout['tier'], opts:
   const rows = opts.rows ?? BOARD_ROWS;
   const minBlocked = opts.minBlocked ?? DEFAULT_BLOCKED_MIN;
   const maxBlocked = Math.max(minBlocked, opts.maxBlocked ?? DEFAULT_BLOCKED_MAX);
-  const layoutId = opts.layoutId ?? `gen_${tier}_${(vrfSeed & 0xffffffffn).toString(16)}`;
+  // D-01: the id is sent to clients, so it must not contain bits of the seed itself. It is
+  // taken from a labelled one-way derivation instead — still unique per battle and still
+  // reproducible by anyone who learns the seed after settlement.
+  const layoutId = opts.layoutId ?? `gen_${tier}_${(deriveRandom(vrfSeed, 'layout_id') & 0xffffffffn).toString(16)}`;
   const spawns = defaultSpawns(cols, rows);
   const layout: ArenaLayout = { layoutId, cols, rows, blockedHexes: [], tier, ...spawns };
 

@@ -226,10 +226,13 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
    timeout mutually cancels with full refunds (a dropped connection never costs a
    player their stake).
 
-4. VRF BEACON (on-chain)
-   One drand beacon rolled at TEAM_REVEAL seeds all battle randomness
+4. BATTLE SEED (commit on-chain, derive off-chain)
+   seed = keccak(drand round R, per-battle server secret, battleId)
+   The secret's hash is committed inside the revealTeams transaction and the secret is
+   disclosed and checked in settle(); R is the first drand round emitted after that
+   transaction's timestamp, so it does not exist yet when the secret is locked in
+   Players cannot foresee rolls, the operator cannot choose them, anyone can verify afterwards
    Deterministic RNG stream powers damage variance, crits, enhanced procs
-   Critical for replay/dispute reproducibility
 
 5. BATTLE (off-chain via WebSocket, server-authoritative)
    Run by the API's BattleSessionManager (apps/api/src/lib/battle-session); starts when the
@@ -391,7 +394,7 @@ Note: status effect durations are in **turns of the affected lobster** (since AT
 
 **Battle pacing:** Turns 1-6 typically establish positioning; Specials become available from each lobster's 3rd turn (or 2nd if Defending). Fast classes get more turns on the bar — a Mantis (130 Spd) takes ~1.86× as many turns as a Leviathan (70 Spd) over the same battle window. Most battles resolve in 24-36 total turns (~3-5 minutes).
 
-**Randomness:** drand-based VRF (Proof of Play model). Single beacon rolled at TEAM_REVEAL seeds a deterministic RNG stream for the entire battle: damage variance (±15%), critical hits, enhanced Special procs. Beacon verified on-chain via BattleVRF.sol; same beacon reproduces the battle for replay/dispute.
+**Randomness:** drand-based VRF (Proof of Play model). One seed per battle drives a deterministic RNG stream: damage variance (±15%), critical hits, enhanced Special procs. The seed is `keccak(drand round, per-battle server secret, battleId)`: the secret is committed on-chain at team reveal and disclosed at settlement, and the drand round is fixed by rule from the reveal timestamp, so neither a player nor the operator can know or choose the rolls in advance, and anyone can recompute the seed afterwards for replay/dispute. (The raw public beacon alone is NOT a usable seed — a player could look it up and foresee every roll.)
 
 #### Purity & Special Potency
 Purity does NOT affect base stats — it exclusively enhances Special moves in battle. This keeps mining tier-neutral (purity doesn't help mine faster) and makes purity a battle-specific advantage that rewards breeders.

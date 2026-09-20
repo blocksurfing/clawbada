@@ -1,5 +1,8 @@
 import { describe, test, expect, mock } from 'bun:test';
 import { RevealWatcher, type RevealWatcherDeps } from '../../combat/reveal-watcher';
+import { deriveSeedSecret, seedCommitment } from '@clawbada/chain';
+
+const MASTER = 'reveal-watcher-test-master-secret-0123456789';
 
 function makeChain(result: unknown) {
   const calls: Array<{ method: string; args: unknown[] }> = [];
@@ -34,6 +37,7 @@ function makeDeps(selectResults: unknown[], chainPhase: number) {
     walletClient: { writeContract },
     battleArenaAddress: '0x00000000000000000000000000000000000000a1',
     abi: [],
+    seedMasterSecret: MASTER,
     log: quiet,
     pollMs: 1,
   };
@@ -47,7 +51,8 @@ describe('RevealWatcher', () => {
     expect(d.writeContract).toHaveBeenCalledTimes(1);
     const req = (d.writeContract.mock.calls as any)[0][0];
     expect(req.functionName).toBe('revealTeams');
-    expect(req.args).toEqual([42n, 11n, SALT_A, 22n, SALT_B]);
+    // D-01: the reveal also commits to this battle's seed secret — keccak(battleId, secret).
+    expect(req.args).toEqual([42n, 11n, SALT_A, 22n, SALT_B, seedCommitment(42n, deriveSeedSecret(MASTER, 42n))]);
     expect(d.waitForTransactionReceipt).toHaveBeenCalledWith({ hash: '0xrevealHash' });
     expect(d.updateChains).toHaveLength(1);
     expect(d.updateChains[0].calls.find((c: any) => c.method === 'set')?.args[0]).toEqual({ revealSaltA: null, revealSaltB: null });

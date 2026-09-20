@@ -23,7 +23,8 @@ Status column on `battle_sessions`: `active` → `finished` (practice) or `settl
 | `BATTLE_SESSION_POLL_MS` | `2000` | Poll period for newly Active real battles. |
 | `PRACTICE_ENABLED` | `true` | Practice endpoint on/off. |
 | `PRACTICE_PRESETS` | on outside production | Lets dev environments start a practice battle without owning lobsters. |
-| `DRAND_CHAIN_URL` | `https://api.drand.sh` | One beacon per real battle = the VRF seed. |
+| `DRAND_CHAIN_URL` | League of Entropy quicknet (3 s rounds) | The public half of a real battle's seed — see "How a staked battle's randomness is fixed". |
+| `BATTLE_SEED_SECRET` | none — **required in production**, identical on API and engine | The secret half. ≥ 32 chars. Guard it like a key: whoever holds it can foresee every roll of every live battle. |
 
 ## Single-instance assumption
 
@@ -46,6 +47,24 @@ Their client is behind: the turn number they submitted is not `state.turn + 1`. 
 
 **Someone disputes a settled battle.**
 Evidence lives in `battle_turns` (command, result, `post_state_hash` per turn) and `battle_sessions` (`final_state_hash`, `turn_log_hash`, `roster`, `vrf_round`). `v3.verifyLog(config, log)` re-executes the log and pinpoints the first inconsistent turn; `v3.turnLogHash` must equal the on-chain value.
+
+First check the seed the log was played with, from public data only (nothing from our database):
+1. `getBattle(id)` → `revealedAt`, `seedCommit`, `seedSecret` (disclosed by `settle`). Confirm `keccak256(abi.encodePacked(battleId, seedSecret)) == seedCommit` — the contract enforced this, so a mismatch means you are reading the wrong battle.
+2. Round `R` = the first drand round emitted at or after `revealedAt + 6 s` (`seedRoundFor` in `packages/chain/src/battle-seed.ts`; genesis and period from `<DRAND_CHAIN_URL>/info`). It must equal `battle_sessions.vrf_round`.
+3. `seed = keccak256(abi.encodePacked(randomness(R), seedSecret, battleId))` (`battleSeed`). Replay the log with that seed. If our stored seed differs, the server played with randomness it was not entitled to: uphold the dispute.
+
+## How a staked battle's randomness is fixed (D-01)
+
+`seed = keccak(drand round R, per-battle secret, battleId)`.
+
+- The **secret** is derived from `BATTLE_SEED_SECRET` and the battle id. The engine commits its hash on-chain inside `revealTeams` and must disclose the secret to `settle`, which checks it.
+- The **round** is fixed by rule from the `revealTeams` block timestamp, and has not been emitted yet when that transaction is sent.
+
+So a player cannot compute the seed while the battle is live (the original finding: the seed was the raw public beacon, and a proof won 67.5 % of mirror games by reading the rolls in advance), the operator cannot choose it (its secret is locked in before the round exists), and afterwards anyone can recompute it. Practice battles are not staked and use a server-side random seed.
+
+Residual risk, accepted: an operator who dislikes a seed can decline to settle, which refunds both players at `ACTIVE_WINDOW`. It cannot be turned into a win, and expired battles are visible on-chain — alert on them.
+
+Operational notes: a session start now waits for round `R` (a few seconds on quicknet). A failed start retries onto the same round and the same seed. If the API logs `battle_seed_commit_mismatch`, the API and the engine are running different `BATTLE_SEED_SECRET`s: fix the environment; affected battles refund at `ACTIVE_WINDOW`.
 
 ## A battle sits in AwaitingFinalize (phase 5)
 

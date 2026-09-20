@@ -3,7 +3,7 @@
  * drand, and the WebSocket room manager. Import `battleSessions` from here;
  * construct `BattleSessionManager` directly in tests.
  */
-import { DrandBeaconClient } from '@clawbada/chain';
+import { DrandBeaconClient, loadSeedMasterSecret } from '@clawbada/chain';
 import type { v3 } from '@clawbada/game-logic';
 import { log as baseLog } from '../../logger';
 import { readBattle, readLobster, readTeam } from '../chain';
@@ -20,6 +20,22 @@ export * from './manager';
 
 const log = baseLog.child({ module: 'battle-session' });
 
+/** D-01: BATTLE_SEED_SECRET, shared with the engine. Resolved when a staked battle starts, not
+ *  at boot: production only REQUIRES it once on-chain battles exist, and must not crash a
+ *  practice-only deployment. A missing value is reported loudly at boot instead. */
+let warnedSeed = false;
+function seedMasterSecret(): string {
+  const { secret, ephemeral } = loadSeedMasterSecret();
+  if (ephemeral && !warnedSeed) {
+    warnedSeed = true;
+    log.warn({}, 'BATTLE_SEED_SECRET is not set: using a per-process random secret. The engine must share it or real battles will not start.');
+  }
+  return secret;
+}
+if (!process.env.BATTLE_SEED_SECRET && process.env.NODE_ENV === 'production') {
+  log.error({}, 'BATTLE_SEED_SECRET is not set: staked battles cannot start until it is (practice battles are unaffected)');
+}
+
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -34,8 +50,10 @@ export const battleSessions = new BattleSessionManager({
     readTeam: (teamId) => readTeam(teamId),
     readLobster: (tokenId) => readLobster(tokenId),
     readBattlePhase: async (battleId) => (await readBattle(battleId)).phase,
+    readBattleSeed: async (battleId) => { const b = await readBattle(battleId); return { seedCommit: b.seedCommit, revealedAt: b.revealedAt }; },
   },
   drand: new DrandBeaconClient(),
+  seedMasterSecret,
   log,
   shotClockMs: envInt('BATTLE_SHOT_CLOCK_MS', DEFAULT_SHOT_CLOCK_MS),
   botThinkMs: envInt('BOT_THINK_MS', DEFAULT_BOT_THINK_MS),

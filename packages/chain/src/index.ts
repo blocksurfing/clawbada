@@ -4,6 +4,7 @@ export * from './client';
 export * from './contracts';
 export * from './commit';
 export * from './drand';
+export * from './battle-seed';
 
 // Re-export viem utilities so consumers don't need a separate viem dependency
 export { encodeFunctionData, verifyMessage, getAddress } from 'viem';

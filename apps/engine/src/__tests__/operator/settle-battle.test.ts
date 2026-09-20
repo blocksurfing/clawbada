@@ -1,4 +1,18 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { keccak256, encodePacked, stringToBytes } from 'viem';
+
+// The package import below is mocked wholesale, so the D-01 seed functions are restated here
+// with viem. That doubles as a known-answer check: if packages/chain/src/battle-seed.ts drifts
+// from these formulas, the engine would disclose a secret the contract rejects.
+const deriveSeedSecret = (master: string, battleId: bigint) =>
+  keccak256(encodePacked(['bytes32', 'string', 'uint256'], [keccak256(stringToBytes(master)), 'clawbada:battle-seed:v1', battleId]));
+const seedCommitment = (battleId: bigint, secret: `0x${string}`) => keccak256(encodePacked(['uint256', 'bytes32'], [battleId, secret]));
+const loadSeedMasterSecret = () => ({ secret: process.env.BATTLE_SEED_SECRET as string, ephemeral: false });
+
+const MASTER = 'engine-test-master-secret-0123456789abcdef';
+process.env.BATTLE_SEED_SECRET = MASTER;
+const SECRET_42 = deriveSeedSecret(MASTER, 42n);
+const COMMIT_42 = seedCommitment(42n, SECRET_42);
 
 // ── Mock @clawbada/chain ──
 const mockWriteContract = mock(() => Promise.resolve('0xsettleHash'));
@@ -12,6 +26,7 @@ mock.module('@clawbada/chain', () => ({
   getBattleArena: () => ({ read: { getBattle: mockGetBattle }, simulate: { settle: mockSimulateSettle } }),
   addresses: { battleArena: '0xBattleArenaAddress' },
   BattleArenaAbi: [],
+  deriveSeedSecret, seedCommitment, loadSeedMasterSecret,
 }));
 
 // ── Import after mocks ──
@@ -40,7 +55,7 @@ beforeEach(() => {
 
 describe('settleBattleHandler', () => {
   test('Active battle: simulates, submits with the resolver key, records the hash before the receipt, succeeds', async () => {
-    mockGetBattle.mockImplementation(async () => ({ phase: 4 }));
+    mockGetBattle.mockImplementation(async () => ({ phase: 4, seedCommit: COMMIT_42 }));
     const ctx = makeCtx();
     const order: string[] = [];
     (ctx.recordTxHash as any).mockImplementation(async () => { order.push('record'); });
@@ -51,14 +66,23 @@ describe('settleBattleHandler', () => {
     expect(res).toEqual({ ok: true, txHash: '0xsettleHash' });
     expect(mockSimulateSettle).toHaveBeenCalledTimes(1);
     const args = (mockSimulateSettle.mock.calls as any)[0][0];
-    expect(args).toEqual([42n, ALICE, HASH_A, HASH_B, [5, 6, 7], [20, 25, 30]]);
+    // D-01: the last argument discloses the seed secret, re-derived from the master secret.
+    expect(args).toEqual([42n, ALICE, HASH_A, HASH_B, [5, 6, 7], [20, 25, 30], SECRET_42]);
     expect(mockWriteContract).toHaveBeenCalledWith({ fn: 'settle' });
     expect(ctx.recordTxHash).toHaveBeenCalledWith('0xsettleHash');
     expect(order).toEqual(['record', 'receipt']);
   });
 
+  test('D-01: a secret that does not open the on-chain commitment is a dead job, not a revert loop', async () => {
+    mockGetBattle.mockImplementation(async () => ({ phase: 4, seedCommit: seedCommitment(42n, deriveSeedSecret('some-other-master-secret-0123456789abcdef', 42n)) }));
+    const res = await settleBattleHandler(payload(), makeCtx());
+    expect(res).toEqual({ ok: false, retry: 'dead', error: 'seed_commit_mismatch' });
+    expect(mockSimulateSettle).not.toHaveBeenCalled();
+    expect(mockWriteContract).not.toHaveBeenCalled();
+  });
+
   test("a draw settles with winner = address(0)", async () => {
-    mockGetBattle.mockImplementation(async () => ({ phase: 4 }));
+    mockGetBattle.mockImplementation(async () => ({ phase: 4, seedCommit: COMMIT_42 }));
     const res = await settleBattleHandler(payload({ winner: 'draw', damageA: [5, 5, 5], damageB: [6, 6, 6] }), makeCtx());
     expect(res.ok).toBe(true);
     expect((mockSimulateSettle.mock.calls as any)[0][0][1]).toBe('0x0000000000000000000000000000000000000000');
@@ -85,7 +109,7 @@ describe('settleBattleHandler', () => {
   });
 
   test('priorTxHash that succeeded: reconciled from the receipt, never resubmitted', async () => {
-    mockGetBattle.mockImplementation(async () => ({ phase: 4 }));
+    mockGetBattle.mockImplementation(async () => ({ phase: 4, seedCommit: COMMIT_42 }));
     mockWaitForReceipt.mockImplementation(async () => ({ status: 'success' }));
     const res = await settleBattleHandler(payload(), makeCtx({ priorTxHash: '0xprior' }));
     expect(res).toEqual({ ok: true, txHash: '0xprior' });
@@ -93,7 +117,7 @@ describe('settleBattleHandler', () => {
   });
 
   test('priorTxHash receipt timeout: transient, retry later', async () => {
-    mockGetBattle.mockImplementation(async () => ({ phase: 4 }));
+    mockGetBattle.mockImplementation(async () => ({ phase: 4, seedCommit: COMMIT_42 }));
     mockWaitForReceipt.mockImplementation(async () => { throw new Error('timed out'); });
     const res = await settleBattleHandler(payload(), makeCtx({ priorTxHash: '0xprior' }));
     expect(res.ok).toBe(false);
@@ -102,7 +126,7 @@ describe('settleBattleHandler', () => {
   });
 
   test('a reverted receipt after our own submit is dead', async () => {
-    mockGetBattle.mockImplementation(async () => ({ phase: 4 }));
+    mockGetBattle.mockImplementation(async () => ({ phase: 4, seedCommit: COMMIT_42 }));
     mockWaitForReceipt.mockImplementation(async () => ({ status: 'reverted' }));
     const res = await settleBattleHandler(payload(), makeCtx());
     expect(res).toEqual({ ok: false, retry: 'dead', error: 'settle_reverted' });
