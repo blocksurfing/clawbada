@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { api } from '@/lib/api';
+import { buildAuthMessage, newAuthNonce } from '@clawbada/chain';
 
 const CACHE_TTL_MS = 4.5 * 60 * 1000; // 4.5 minutes (server TTL = 5 min)
 /** Renew a session token once its remaining life drops below this. */
@@ -13,7 +14,24 @@ interface CachedAuth {
   address: string;
   signature: string;
   timestamp: number;
+  /** C-01: the EIP-4361 nonce and domain the signature was made over — the API needs both to
+   *  rebuild the exact message. */
+  nonce: string;
+  domain: string;
   expiresAt: number;
+}
+
+/** The chain the API serves, fetched once. It is part of the signed message (C-01), and the web
+ *  app supports two chains, so it has to come from the API rather than be guessed. */
+let authChainIdPromise: Promise<number> | null = null;
+function getAuthChainId(): Promise<number> {
+  if (!authChainIdPromise) {
+    authChainIdPromise = api.auth.params().then((p) => p.chainId).catch((err) => {
+      authChainIdPromise = null; // let the next attempt retry
+      throw err;
+    });
+  }
+  return authChainIdPromise;
 }
 
 /**
@@ -91,6 +109,8 @@ export interface AuthParams {
   address: string;
   signature: string;
   timestamp: number;
+  nonce: string;
+  domain: string;
 }
 
 export function useAuth() {
@@ -113,6 +133,8 @@ export function useAuth() {
         address: existing.address,
         signature: existing.signature,
         timestamp: existing.timestamp,
+        nonce: existing.nonce,
+        domain: existing.domain,
       };
     }
     // F-2J: piggy-back on any concurrent signing for THIS address.
@@ -132,14 +154,21 @@ export function useAuth() {
           address: result.address,
           signature: result.signature,
           timestamp: result.timestamp,
+          nonce: result.nonce,
+          domain: result.domain,
         };
       }
       // Fall through to sign a fresh challenge for this address.
     }
 
     const promise = (async (): Promise<CachedAuth> => {
+      // C-01: an EIP-4361 message bound to THIS site and the API's chain. The old bare string
+      // ("Clawbada Auth: <time>") could be requested by any site and replayed against the API.
+      const chainId = await getAuthChainId();
       const ts = Math.floor(Date.now() / 1000);
-      const message = `Clawbada Auth: ${ts}`;
+      const nonce = newAuthNonce();
+      const domain = window.location.host;
+      const message = buildAuthMessage({ domain, address, chainId, nonce, issuedAt: ts });
       const signature = await signMessageAsync({ message });
       // F-2K: anchor cache expiry to the SIGNED timestamp, not approval time.
       // If the user's wallet popup sat open for 2 minutes, the server-side
@@ -150,6 +179,8 @@ export function useAuth() {
         address,
         signature,
         timestamp: ts,
+        nonce,
+        domain,
         expiresAt: ts * 1000 + CACHE_TTL_MS,
       };
       // F-2P: only write the cache slot for THIS address (the per-address
@@ -183,6 +214,8 @@ export function useAuth() {
       address: result.address,
       signature: result.signature,
       timestamp: result.timestamp,
+      nonce: result.nonce,
+      domain: result.domain,
     };
   }, [address, signMessageAsync]);
 
@@ -256,8 +289,8 @@ export function useAuth() {
     }
 
     async function getAuthHeadersFromSignature(): Promise<Record<string, string>> {
-      const { address: a, signature, timestamp } = await getAuthParams();
-      return { 'X-Wallet-Address': a, 'X-Signature': signature, 'X-Timestamp': String(timestamp) };
+      const { address: a, signature, timestamp, nonce, domain } = await getAuthParams();
+      return { 'X-Wallet-Address': a, 'X-Signature': signature, 'X-Timestamp': String(timestamp), 'X-Nonce': nonce, 'X-Auth-Domain': domain };
     }
   }, [address, getAuthParams]);
 

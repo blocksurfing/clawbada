@@ -6,13 +6,13 @@
  *   bun run --filter @clawbada/api play-practice -- --key 0x<hex> [--api http://localhost:3001] [--bot cautious]
  *        [--tier elite] [--preset elite_mix | --team <teamId> | --lobsters 1,2,3] [--rest] [--policy balanced]
  *
- * Flow: sign `Clawbada Auth: <ts>` with viem → POST /api/game/combat/practice →
+ * Flow: sign the EIP-4361 login message (GET /api/auth/params + buildAuthMessage) with viem → POST /api/game/combat/practice →
  * open /ws with the signed params → answer every turn_started for side A with a
  * local bot policy over the seedless snapshot (submit_turn over WS, or POST /turn
  * with --rest) → verify each turn_resolved.postStateHash advances → exit 0 on
  * battle_ended. Exit 1 on any protocol error.
  */
-import { privateKeyToAccount } from '@clawbada/chain';
+import { privateKeyToAccount, buildAuthMessage, newAuthNonce } from '@clawbada/chain';
 import { v3 } from '@clawbada/game-logic';
 
 type Args = Record<string, string | boolean>;
@@ -33,16 +33,24 @@ const POLICY = v3.botPolicy((String(args.policy ?? 'balanced') as v3.BotName));
 const USE_REST = args.rest === true;
 
 const account = privateKeyToAccount(KEY as `0x${string}`);
-async function auth(): Promise<{ address: string; signature: string; timestamp: string }> {
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const signature = await account.signMessage({ message: `Clawbada Auth: ${timestamp}` });
-  return { address: account.address, signature, timestamp };
+let authConfig: { domain: string; chainId: number } | null = null;
+async function auth(): Promise<{ address: string; signature: string; timestamp: string; nonce: string; domain: string }> {
+  if (!authConfig) {
+    const p = await (await fetch(`${API}/api/auth/params`)).json() as { domains: string[]; chainId: number };
+    authConfig = { domain: p.domains[0], chainId: p.chainId };
+  }
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const nonce = newAuthNonce();
+  const message = buildAuthMessage({ domain: authConfig.domain, address: account.address, chainId: authConfig.chainId, nonce, issuedAt });
+  return { address: account.address, signature: await account.signMessage({ message }), timestamp: String(issuedAt), nonce, domain: authConfig.domain };
 }
+const headersOf = (a: Awaited<ReturnType<typeof auth>>) => ({ 'X-Wallet-Address': a.address, 'X-Signature': a.signature, 'X-Timestamp': a.timestamp, 'X-Nonce': a.nonce, 'X-Auth-Domain': a.domain });
+const authQuery = (a: Awaited<ReturnType<typeof auth>>) => `address=${a.address}&signature=${a.signature}&timestamp=${a.timestamp}&nonce=${a.nonce}&domain=${encodeURIComponent(a.domain)}`;
 async function post(path: string, body: unknown): Promise<any> {
   const a = await auth();
   const res = await fetch(`${API}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'X-Wallet-Address': a.address, 'X-Signature': a.signature, 'X-Timestamp': a.timestamp },
+    headers: { 'content-type': 'application/json', ...headersOf(a) },
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
@@ -66,7 +74,7 @@ let lastHash: string | null = snapshot.state.log.at(-1)?.postStateHash ?? null;
 let turnsPlayed = 0;
 
 const a = await auth();
-const ws = new WebSocket(`${WS}?address=${a.address}&signature=${a.signature}&timestamp=${a.timestamp}&battleId=${battleId}`);
+const ws = new WebSocket(`${WS}?${authQuery(a)}&battleId=${battleId}`);
 const done = new Promise<number>((resolve) => {
   ws.onopen = () => console.log('ws open');
   ws.onerror = () => { console.error(`ws error connecting to ${WS}`); resolve(1); };
@@ -163,8 +171,7 @@ async function act(turn: number, lobsterId: string) {
   }
 }
 async function authHeaders(): Promise<Record<string, string>> {
-  const x = await auth();
-  return { 'X-Wallet-Address': x.address, 'X-Signature': x.signature, 'X-Timestamp': x.timestamp };
+  return headersOf(await auth());
 }
 
 const code = await Promise.race([done, new Promise<number>((r) => setTimeout(() => { console.error('timeout after 10 min'); r(1); }, 600_000))]);

@@ -3,6 +3,7 @@ export * from './addresses';
 export * from './client';
 export * from './contracts';
 export * from './commit';
+export * from './auth-message';
 export * from './drand';
 export * from './battle-seed';
 

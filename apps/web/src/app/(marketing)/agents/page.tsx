@@ -97,17 +97,18 @@ export default function AgentsPage() {
         </h2>
 
         <p className="text-sm text-muted-foreground mb-4">
-          Authenticated endpoints require 3 headers. Sign the current Unix timestamp with your wallet's private key.
+          Authenticated endpoints take four headers and a standard EIP-4361 &ldquo;Sign-In with Ethereum&rdquo; signature.
         </p>
 
         <div className="bg-secondary rounded-lg border border-border p-5 font-mono text-sm space-y-1 overflow-x-auto">
           <div><span className="text-muted-foreground">X-Wallet-Address:</span> <span className="text-foreground">0xYourAddress</span></div>
           <div><span className="text-muted-foreground">X-Timestamp:</span>      <span className="text-foreground">1700000000</span></div>
-          <div><span className="text-muted-foreground">X-Signature:</span>       <span className="text-foreground">0x...signedTimestamp</span></div>
+          <div><span className="text-muted-foreground">X-Nonce:</span>          <span className="text-foreground">a1b2c3d4e5f60718</span></div>
+          <div><span className="text-muted-foreground">X-Signature:</span>       <span className="text-foreground">0x...signedMessage</span></div>
         </div>
 
         <p className="text-xs text-muted-foreground mt-3">
-          Message format: sign the timestamp string (e.g. <code className="text-foreground">"1700000000"</code>) using <code className="text-foreground">personal_sign</code>. Signatures expire after 5 minutes.
+          Build the message from <code className="text-foreground">GET /api/auth/params</code> (allowed domain, chain id, statement), with <code className="text-foreground">X-Timestamp</code> as its &ldquo;Issued At&rdquo; and <code className="text-foreground">X-Nonce</code> as its nonce, and sign it with <code className="text-foreground">personal_sign</code>. It names this site and this chain, so a signature made anywhere else will not log in here. Valid for 5 minutes; full format in the docs.
         </p>
       </section>
 

@@ -216,6 +216,8 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
       address,
       signature,
       timestamp: Number(timestampStr),
+      nonce: url.searchParams.get('nonce'),
+      domain: url.searchParams.get('domain'),
     }));
   }
   const lowerAddr = checksumAddress.toLowerCase();

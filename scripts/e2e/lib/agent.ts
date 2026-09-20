@@ -7,7 +7,7 @@
  */
 import { privateKeyToAccount } from 'viem/accounts';
 import { keccak256, toHex, type Hex } from 'viem';
-import { teamCommitHash } from '@clawbada/chain';
+import { teamCommitHash, buildAuthMessage, newAuthNonce } from '@clawbada/chain';
 import { v3 } from '@clawbada/game-logic';
 import { FaucetAbi, TeamManagerAbi, MiningPoolAbi, type Chain } from './chain';
 import { waitFor, sleep } from './wait';
@@ -19,7 +19,7 @@ export interface AgentOpts { key: string; api: string; ws: string; chain: Chain;
 export class PlayerAgent {
   readonly account;
   readonly address: string;
-  private authCache: { ts: number; sig: string } | null = null;
+  private authCache: { ts: number; sig: string; nonce: string } | null = null;
   constructor(readonly o: AgentOpts) {
     this.account = privateKeyToAccount(o.key as Hex);
     this.address = this.account.address;
@@ -27,17 +27,25 @@ export class PlayerAgent {
   private say(s: string) { (this.o.log ?? console.log)(`[${this.o.label}] ${s}`); }
 
   // ── auth ──
-  async authParams(): Promise<{ address: string; signature: string; timestamp: string }> {
+  /** C-01: the EIP-4361 login message, bound to a domain and the API's chain. An agent has no
+   *  page origin, so it signs for the API's default domain (the first one /api/auth/params lists). */
+  private authConfig: { domain: string; chainId: number } | null = null;
+  async authParams(): Promise<{ address: string; signature: string; timestamp: string; nonce: string; domain: string }> {
+    if (!this.authConfig) {
+      const p = await (await fetch(`${this.o.api}/api/auth/params`)).json() as { domains: string[]; chainId: number };
+      this.authConfig = { domain: p.domains[0], chainId: p.chainId };
+    }
     const now = Math.floor(Date.now() / 1000);
     if (!this.authCache || now - this.authCache.ts > 240) {
-      const sig = await this.account.signMessage({ message: `Clawbada Auth: ${now}` });
-      this.authCache = { ts: now, sig };
+      const nonce = newAuthNonce();
+      const message = buildAuthMessage({ domain: this.authConfig.domain, address: this.address, chainId: this.authConfig.chainId, nonce, issuedAt: now });
+      this.authCache = { ts: now, sig: await this.account.signMessage({ message }), nonce };
     }
-    return { address: this.address, signature: this.authCache.sig, timestamp: String(this.authCache.ts) };
+    return { address: this.address, signature: this.authCache.sig, timestamp: String(this.authCache.ts), nonce: this.authCache.nonce, domain: this.authConfig.domain };
   }
   async headers(): Promise<Record<string, string>> {
     const a = await this.authParams();
-    return { 'content-type': 'application/json', 'X-Wallet-Address': a.address, 'X-Signature': a.signature, 'X-Timestamp': a.timestamp, 'X-Forwarded-For': this.o.forwardedFor };
+    return { 'content-type': 'application/json', 'X-Wallet-Address': a.address, 'X-Signature': a.signature, 'X-Timestamp': a.timestamp, 'X-Nonce': a.nonce, 'X-Auth-Domain': a.domain, 'X-Forwarded-For': this.o.forwardedFor };
   }
   async get(path: string): Promise<any> {
     const res = await fetch(`${this.o.api}${path}`, { headers: await this.headers() });
@@ -155,7 +163,7 @@ export class PlayerAgent {
       const timer = setTimeout(() => { closedByUs = true; ws?.close(); reject(new Error(`battle #${battleId} did not finish within ${opts.timeoutMs ?? 300_000} ms`)); }, opts.timeoutMs ?? 300_000);
       const connect = async () => {
         const a = await this.authParams();
-        const url = `${this.o.ws}?address=${a.address}&signature=${a.signature}&timestamp=${a.timestamp}&battleId=${battleId}`;
+        const url = `${this.o.ws}?address=${a.address}&signature=${a.signature}&timestamp=${a.timestamp}&nonce=${a.nonce}&domain=${encodeURIComponent(a.domain)}&battleId=${battleId}`;
         ws = new WebSocket(url, { headers: { 'X-Forwarded-For': this.o.forwardedFor } } as any);
         ws.onmessage = async (m) => {
           const msg = JSON.parse(String(m.data));
