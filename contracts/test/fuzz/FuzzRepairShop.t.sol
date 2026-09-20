@@ -55,6 +55,66 @@ contract FuzzRepairShop is BaseSetup {
         assertEq(burned + devGot, expectedCost, "total fee should equal expected cost");
     }
 
+    // ── D-30: the cost formula at ANY peg value, not only the launch reward ──
+    //
+    // Repair prices are basis points of MiningPool.currentBaseReward(), and the glide moves
+    // that every day. Every existing test pinned it at the 1,250 launch value. Across the
+    // whole range a repair has exactly three outcomes, decided by the numbers alone:
+    //   rate == 0                 -> RewardPegUnset        (peg below 10_000/bps wei)
+    //   0 < cost < 10_000 wei     -> Treasury AmountBelowMinimum (dust, T-03 floor)
+    //   otherwise                 -> succeeds, charged points x rate, split 85/15
+    // The two failure bands exist only when the base reward is under ~250 wei — a rate the
+    // glide cannot reach inside a season (-30% a day from 1,250e18 needs ~120 days) — so this
+    // documents the edge rather than guarding a live one. What it guards: a repair can never
+    // succeed at the wrong price, and can never be free.
+    function testFuzz_repair_at_any_peg(uint256 pegSeed, uint8 tier, uint8 damage, uint8 points) public {
+        tier = uint8(bound(tier, 1, 3));
+        damage = uint8(bound(damage, 1, 100));
+        points = uint8(bound(points, 1, damage));
+        // Half the runs at dust scale, where the failure bands live; half across the real range.
+        uint256 peg = pegSeed % 2 == 0 ? bound(pegSeed >> 1, 1, 100_000) : bound(pegSeed >> 1, 1e15, 5_000e18);
+        vm.prank(admin);
+        miningPool.setBaseReward(peg);
+
+        uint256 tokenId = _mintLobster(alice, 0);
+        _setTierAndDamage(tokenId, tier, damage);
+
+        uint256 bps = tier == 1 ? 40 : tier == 2 ? 120 : 320;
+        uint256 rate = (peg * bps) / 10_000;
+        uint256 cost = uint256(points) * rate;
+        assertEq(repairShop.repairRate(tier), rate, "rate = peg x bps / 10_000");
+
+        _giveClaw(alice, cost + 1e18);
+        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 devBefore = claw.balanceOf(devWallet);
+        uint256 supplyBefore = claw.totalSupply();
+
+        vm.startPrank(alice);
+        claw.approve(address(repairShop), type(uint256).max);
+        if (rate == 0) {
+            vm.expectRevert(RepairShop.RewardPegUnset.selector);
+            repairShop.repair(tokenId, points);
+        } else if (cost < 10_000) {
+            vm.expectRevert(abi.encodeWithSelector(Treasury.AmountBelowMinimum.selector, cost, 10_000));
+            repairShop.repair(tokenId, points);
+        } else {
+            repairShop.repair(tokenId, points);
+        }
+        vm.stopPrank();
+
+        if (rate == 0 || cost < 10_000) {
+            assertEq(nft.getDamage(tokenId), damage, "a refused repair repairs nothing");
+            assertEq(claw.balanceOf(alice), aliceBefore, "and charges nothing");
+            return;
+        }
+        assertEq(nft.getDamage(tokenId), damage - points, "damage reduced by the points paid for");
+        assertEq(aliceBefore - claw.balanceOf(alice), cost, "charged exactly points x rate");
+        uint256 burned = supplyBefore - claw.totalSupply();
+        assertEq(burned, (cost * 8_500) / 10_000, "85% burned");
+        assertEq(burned + (claw.balanceOf(devWallet) - devBefore), cost, "burn + dev == cost");
+        assertEq(claw.balanceOf(address(repairShop)), 0, "nothing left in RepairShop");
+    }
+
     // ── Base tier cannot be repaired ──────────────────────────────
 
     function test_base_tier_repair_reverts() public {
