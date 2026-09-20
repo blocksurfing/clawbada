@@ -93,6 +93,7 @@ Both are **hot service wallets** (server-side keys for the off-chain combat engi
 
 - **MATCHMAKER**: spam-create battles. Bounded by gas; cannot deposit on user's behalf.
 - **RESOLVER post-H-01**: propose any winner / damage. Players have 5-min veto via `disputeBattle`. Admin tiebreaks disputed battles.
+- **RESOLVER and battle randomness (D-01)**: the resolver commits each battle's seed secret in `revealTeams` and discloses it in `settle`. It cannot choose the seed (the drand round it is mixed with does not exist yet at commit time), but it can decline to settle a battle whose seed it dislikes, which refunds both players at `ACTIVE_WINDOW`. `BATTLE_SEED_SECRET` is a second secret of the same class as this key: a leak lets the holder foresee every roll of live battles. Rotate it with the key.
 
 ### Rotation
 Rotate quarterly or on any suspicion of compromise. Rotation procedure:

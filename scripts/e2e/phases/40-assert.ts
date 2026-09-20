@@ -1,4 +1,6 @@
+import { battleSeed, seedCommitment, seedRoundFor } from '@clawbada/chain';
 import { WEI } from '../lib/chain';
+import { STUB_RANDOMNESS } from '../lib/drand-stub';
 import { KEYS } from '../lib/env';
 import type { Checks } from '../lib/checks';
 import type { Stack } from './00-infra';
@@ -60,7 +62,18 @@ export async function assertPhase(stack: Stack, players: Players, battle: Battle
   const sess = (await db.sql`select status, final_state_hash, turn_log_hash, vrf_round from battle_sessions where id = ${battle.battleId}`)[0];
   checks.eq(String(sess?.status), 'settled', 'battle_sessions.status = settled');
   checks.eq(String(sess?.final_state_hash).toLowerCase(), battle.finalStateHash.toLowerCase(), 'session finalStateHash mirrors the client');
-  if (!stack.flags.liveDrand) checks.eq(Number(sess?.vrf_round), 1000, 'drand stub round recorded on the session');
+  // D-01: the seed is recomputed here from PUBLIC data only — what the contract holds after settle
+  // plus the (stubbed) drand chain — and must be the seed the server actually played with.
+  const pinned = { seedCommit: String(onChain.seedCommit), seedSecret: String(onChain.seedSecret) as `0x${string}`, revealedAt: Number(onChain.revealedAt) };
+  checks.check(seedCommitment(id, pinned.seedSecret) === pinned.seedCommit.toLowerCase(), 'settle disclosed the secret committed at reveal', pinned.seedCommit.slice(0, 18));
+  if (!stack.flags.liveDrand) {
+    const round = seedRoundFor({ genesisTime: 0, period: 3 }, pinned.revealedAt); // the stub's /info
+    checks.eq(Number(sess?.vrf_round), round, 'session used the drand round fixed by the reveal timestamp');
+    const played = (await db.sql`select state_json from battle_sessions where id = ${battle.battleId}`)[0];
+    const playedSeed = BigInt(JSON.parse(String(played?.state_json)).vrfSeed);
+    checks.check(playedSeed === battleSeed(STUB_RANDOMNESS, pinned.seedSecret, id), 'seed recomputed from chain + drand equals the seed the server played', `0x${playedSeed.toString(16).slice(0, 16)}`);
+    checks.check(playedSeed !== BigInt(`0x${STUB_RANDOMNESS}`), 'the seed is not the public beacon');
+  }
   const agents = await db.sql`select address, wins, losses, total_battles from agents where address in (${aAddr}, ${bAddr})`;
   checks.check(agents.length === 2 && agents.every((r: any) => Number(r.total_battles) >= 1), 'agents rows updated for both players', agents.map((r: any) => `${String(r.address).slice(0, 6)} ${r.wins}W/${r.losses}L`).join(' '));
   const jobs = await db.sql`select job_type, status from operator_jobs`;

@@ -84,6 +84,11 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     ///      clock (≈100 min) plus settle latency slack. Past it, handleTimeout() cancels
     ///      with full refunds so a dead server can never trap stakes.
     uint256 public constant ACTIVE_WINDOW = 3 hours;
+    /// @dev D-01: the battle's drand round is the FIRST round whose emission time is at or after
+    ///      `revealedAt + SEED_ROUND_DELAY`. The delay covers clock skew between the sequencer
+    ///      and the drand network, so the chosen round cannot already be published when the
+    ///      revealTeams transaction is sent. Read off-chain; never used for on-chain logic.
+    uint256 public constant SEED_ROUND_DELAY = 6 seconds;
     uint8 public constant MIN_EVOLUTION_TIER = 1; // Evolved+
     uint8 public constant MAX_DAMAGE_FOR_BATTLE = 79; // <80 to enter
     // F-04: power score = sum of evolution tier values across the 3 lobsters
@@ -145,6 +150,16 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         // V3: commitments to the off-chain battle, for disputes and S2 on-chain replay
         bytes32 finalStateHash;
         bytes32 turnLogHash;
+        // D-01: battle randomness. The off-chain seed is
+        //     keccak256(abi.encodePacked(drandRandomness(R), seedSecret, battleId))
+        // with R fixed by rule from `revealedAt` (see SEED_ROUND_DELAY). The resolver commits to
+        // the secret in the SAME transaction that reveals the teams and must disclose it to
+        // settle, so at the moment it is fixed nobody can know the rolls: R is not published
+        // yet (the resolver cannot grind it) and the secret is unknown to players (they cannot
+        // foresee crits from the public beacon). After settle anyone can recompute the seed.
+        bytes32 seedCommit;  // keccak256(abi.encodePacked(battleId, seedSecret)); set by revealTeams
+        bytes32 seedSecret;  // zero until settle() discloses it
+        uint64 revealedAt;   // block.timestamp of revealTeams
         // V3 S1: bonded disputes — set by disputeBattle(), consumed by adminResolveDispute()
         address disputer;            // who filed the dispute (for refund/slash routing)
         uint256 disputeBondPaid;     // bond escrowed at dispute time (snapshot of disputeBonds[bracket])
@@ -195,6 +210,9 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         bytes32 finalStateHash,
         bytes32 turnLogHash
     );
+    // D-01: seed commit-reveal
+    event BattleSeedCommitted(uint256 indexed battleId, bytes32 seedCommit, uint64 revealedAt);
+    event BattleSeedRevealed(uint256 indexed battleId, bytes32 seedSecret);
     event BattleDisputed(uint256 indexed battleId, address indexed disputer, bytes evidence);
     event BattleAdminResolved(uint256 indexed battleId, address indexed winner);
     // V3 S1: bonded dispute + admin tuning lifecycle
@@ -232,6 +250,10 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     error InvalidWinner(uint256 battleId);
     /// @dev V3: settle()/adminResolveDispute() require non-zero finalStateHash and turnLogHash.
     error InvalidSettlementHash(uint256 battleId);
+    /// @dev D-01: revealTeams requires a non-zero seed commitment.
+    error InvalidSeedCommit(uint256 battleId);
+    /// @dev D-01: settle()'s disclosed secret does not match the commitment made at reveal.
+    error InvalidSeedReveal(uint256 battleId);
     error EmergencyWithdrawTooEarly(uint256 battleId, uint256 availableAt);
     // H-01 challenge window
     error DisputeWindowOpen(uint256 battleId, uint256 deadline);
@@ -413,11 +435,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         uint256 teamIdA,
         bytes32 saltA,
         uint256 teamIdB,
-        bytes32 saltB
+        bytes32 saltB,
+        bytes32 seedCommit
     ) external onlyRole(RESOLVER_ROLE) {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.TeamReveal);
         if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId); // BA-M1
+        if (seedCommit == bytes32(0)) revert InvalidSeedCommit(battleId); // D-01
 
         // Verify both commit hashes — binds each player to the team they committed.
         bytes32 expectedA = keccak256(abi.encodePacked(battleId, b.playerA, teamIdA, saltA));
@@ -450,6 +474,12 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         emit TeamRevealed(battleId, b.playerA, teamIdA);
         emit TeamRevealed(battleId, b.playerB, teamIdB);
 
+        // D-01: fix the battle's randomness here, in the transaction that starts it. The secret
+        // is committed before the drand round it will be mixed with exists.
+        b.seedCommit = seedCommit;
+        b.revealedAt = uint64(block.timestamp);
+        emit BattleSeedCommitted(battleId, seedCommit, uint64(block.timestamp));
+
         // V3: the battle now runs off-chain. The resolver must settle() within
         // ACTIVE_WINDOW or handleTimeout() cancels with full refunds.
         b.phase = BattlePhase.Active;
@@ -471,19 +501,28 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     ///      the RESOLVER_ROLE tx signature is the authentication (deliberate deviation from
     ///      the `(…, signature)` wording in the design docs). Reverts `PhaseTimedOut` past
     ///      `ACTIVE_WINDOW`: a late settle cannot race the permissionless cancel path.
+    ///      D-01: `seedSecret` opens the commitment made in revealTeams; from it, the public
+    ///      drand round fixed by `revealedAt`, and the battleId, anyone can recompute the seed
+    ///      the log was played with and replay it.
     function settle(
         uint256 battleId,
         address winner,
         bytes32 finalStateHash,
         bytes32 turnLogHash,
         uint8[3] calldata damageA,
-        uint8[3] calldata damageB
+        uint8[3] calldata damageB,
+        bytes32 seedSecret
     ) external onlyRole(RESOLVER_ROLE) {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Active);
         if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId);
         if (winner != address(0) && winner != b.playerA && winner != b.playerB) revert InvalidWinner(battleId);
         if (finalStateHash == bytes32(0) || turnLogHash == bytes32(0)) revert InvalidSettlementHash(battleId);
+        // D-01: the secret disclosed here must be the one committed when the teams were revealed.
+        // battleId is inside the commitment, so a secret cannot be replayed across battles.
+        if (keccak256(abi.encodePacked(battleId, seedSecret)) != b.seedCommit) revert InvalidSeedReveal(battleId);
+        b.seedSecret = seedSecret;
+        emit BattleSeedRevealed(battleId, seedSecret);
 
         b.phase = BattlePhase.AwaitingFinalize;
         b.proposedWinner = winner;

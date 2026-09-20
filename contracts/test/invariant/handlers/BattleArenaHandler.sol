@@ -8,6 +8,13 @@ import "../../helpers/BaseSetup.t.sol";
 ///      Keeps the action surface small (2 players, 2 fixed teams) so the fuzzer explores
 ///      phase transitions densely instead of sparse state.
 contract BattleArenaHandler is BaseSetup {
+    // D-01: every test battle uses one known secret; the commitment binds it to the battle id.
+    bytes32 internal constant SEED_SECRET = keccak256("clawbada-test-seed-secret");
+
+    function _seedCommit(uint256 battleId) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(battleId, SEED_SECRET));
+    }
+
     address internal aliceH = makeAddr("arena-h-alice");
     address internal bobH   = makeAddr("arena-h-bob");
 
@@ -156,7 +163,8 @@ contract BattleArenaHandler is BaseSetup {
             teamIdsA[battleId],
             _teamSalt(battleId, true),
             teamIdsB[battleId],
-            _teamSalt(battleId, false)
+            _teamSalt(battleId, false),
+            _seedCommit(battleId)
         ) {} catch {}
     }
 
@@ -173,7 +181,7 @@ contract BattleArenaHandler is BaseSetup {
         if (battleId == 0) return;
 
         try battleArena.settle(
-            battleId, _outcomeWinner(outcome), HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]
+            battleId, _outcomeWinner(outcome), HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET
         ) {} catch {}
     }
 

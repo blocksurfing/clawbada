@@ -39,6 +39,9 @@ function common(cfg: StackConfig): Record<string, string> {
     CHAIN_ENV: 'testnet',
     BASE_SEPOLIA_RPC_URL: cfg.rpcUrl,
     DRAND_CHAIN_URL: cfg.drandUrl,
+    // D-01: the engine commits the battle seed secret on-chain and the API plays with it, so
+    // both processes must derive it from the same master secret.
+    BATTLE_SEED_SECRET: 'e2e-harness-battle-seed-secret-0123456789abcdef',
     BOOST_EPOCH_ANCHOR_TS: cfg.boostAnchorTs.toString(),
     NODE_ENV: 'test', // JSON logs (pino-pretty is dev-only) — parseable by the harness
     LOG_LEVEL: process.env.E2E_LOG_LEVEL ?? 'info',
