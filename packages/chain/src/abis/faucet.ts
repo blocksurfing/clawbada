@@ -92,6 +92,19 @@ export const FaucetAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_FAUCET_LOBSTERS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_ETH_BALANCE",
     "inputs": [],
     "outputs": [
@@ -620,6 +633,11 @@ export const FaucetAbi = [
   {
     "type": "error",
     "name": "FaucetIsClosed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "FaucetLobsterCapReached",
     "inputs": []
   },
   {
