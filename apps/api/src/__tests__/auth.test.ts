@@ -40,6 +40,7 @@ function validHeaders(overrides: Record<string, string> = {}): Record<string, st
     'X-Wallet-Address': VALID_ADDRESS,
     'X-Signature': VALID_SIGNATURE,
     'X-Timestamp': validTimestamp(),
+    'X-Nonce': 'unittest00000001',
     ...overrides,
   };
 }
@@ -192,13 +193,61 @@ describe('walletAuth middleware', () => {
         'X-Wallet-Address': VALID_ADDRESS,
         'X-Signature': VALID_SIGNATURE,
         'X-Timestamp': ts,
+        'X-Nonce': 'abcdef0123456789',
+        'X-Auth-Domain': 'localhost:3000',
       },
     });
 
+    // C-01: the verified message is the EIP-4361 text rebuilt from the API's own domain
+    // allow-list and chain id — not the old bare "Clawbada Auth: <ts>".
+    const iso = (s: number) => new Date(s * 1000).toISOString();
     expect(mockVerifyMessage).toHaveBeenCalledWith({
       address: VALID_ADDRESS,
-      message: `Clawbada Auth: ${ts}`,
+      message: [
+        'localhost:3000 wants you to sign in with your Ethereum account:',
+        VALID_ADDRESS,
+        '',
+        'Sign in to Clawbada. This signature only authorises game API requests for the next 5 minutes. It cannot move funds.',
+        '',
+        'URI: http://localhost:3000',
+        'Version: 1',
+        'Chain ID: 84532',
+        'Nonce: abcdef0123456789',
+        `Issued At: ${iso(Number(ts))}`,
+        `Expiration Time: ${iso(Number(ts) + 300)}`,
+      ].join('\n'),
       signature: VALID_SIGNATURE,
     });
+  });
+
+  // ── C-01: what the login message is bound to ──
+  test('C-01: a domain that is not on the allow-list is refused before any signature check', async () => {
+    mockVerifyMessage.mockClear();
+    const res = await createApp().request('/test', { headers: validHeaders({ 'X-Auth-Domain': 'clawbada-web.evil.example' }) });
+    expect(res.status).toBe(401);
+    expect((await res.json()).message).toMatch(/not allowed to sign in/);
+    expect(mockVerifyMessage).not.toHaveBeenCalled();
+  });
+
+  test('C-01: a malformed nonce is refused', async () => {
+    for (const nonce of ['short', 'has spaces in it', 'semi;colon;12345']) {
+      const res = await createApp().request('/test', { headers: validHeaders({ 'X-Nonce': nonce }) });
+      expect(res.status).toBe(401);
+    }
+  });
+
+  test('C-01: the legacy bare-string message is refused unless the rollout switch is on', async () => {
+    const { 'X-Nonce': _n, ...legacy } = validHeaders();
+    expect((await createApp().request('/test', { headers: legacy })).status).toBe(401);
+
+    process.env.AUTH_ALLOW_LEGACY = '1';
+    try {
+      mockVerifyMessage.mockClear();
+      const ok = await createApp().request('/test', { headers: legacy });
+      expect(ok.status).toBe(200);
+      expect((mockVerifyMessage.mock.calls as any)[0][0].message).toBe(`Clawbada Auth: ${legacy['X-Timestamp']}`);
+    } finally {
+      delete process.env.AUTH_ALLOW_LEGACY;
+    }
   });
 });

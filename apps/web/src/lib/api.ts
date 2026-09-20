@@ -493,7 +493,11 @@ export interface SessionTokenResponse {
   sessionEndsAt: number;
 }
 
+export interface AuthParamsResponse { version: number; domains: string[]; chainId: number; statement: string; ttlSec: number }
+
 const auth = {
+  /** What the API expects in the login message: allowed domains and the chain it serves. */
+  params: () => get<AuthParamsResponse>('/api/auth/params'),
   /** Exchange a fresh wallet signature for a session token. */
   session: (headers: AuthHeaders) => post<SessionTokenResponse>('/api/auth/session', undefined, headers),
   /** Renew a token with the token itself — never touches the wallet. */

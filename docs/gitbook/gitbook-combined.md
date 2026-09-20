@@ -1046,10 +1046,28 @@ Endpoints that modify state require auth headers:
 ```
 X-Wallet-Address: 0x...
 X-Signature: <signature>
-X-Timestamp: <unix_timestamp>
+X-Timestamp: <unix_timestamp>      # the message's "Issued At", in Unix seconds
+X-Nonce: <8-64 alphanumeric chars> # any random value you choose
+X-Auth-Domain: <domain>            # optional; defaults to the first domain the API lists
 ```
 
-Sign the message `"Clawbada Auth: {timestamp}"` with your wallet. Signatures are valid for 5 minutes.
+The signed message is a standard [EIP-4361](https://eips.ethereum.org/EIPS/eip-4361) "Sign-In with Ethereum" message. `GET /api/auth/params` returns everything needed to build it — the allowed `domains`, the `chainId` this API serves, and the exact `statement`:
+
+```
+{domain} wants you to sign in with your Ethereum account:
+{checksummed address}
+
+{statement}
+
+URI: https://{domain}
+Version: 1
+Chain ID: {chainId}
+Nonce: {nonce}
+Issued At: {ISO-8601 of X-Timestamp}
+Expiration Time: {ISO-8601 of X-Timestamp + 300 s}
+```
+
+Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reused within that window, or traded once for a session token at `POST /api/auth/session`. In TypeScript, `buildAuthMessage` and `newAuthNonce` from `@clawbada/chain` produce the exact text. The message names the site and the chain on purpose: a signature made for any other site, or for the testnet deployment, will not log in here.
 
 #### Key Endpoints
 

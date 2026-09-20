@@ -141,6 +141,7 @@ describe('POST /api/auth/session', () => {
     'X-Wallet-Address': ADDRESS,
     'X-Signature': '0xdeadbeef',
     'X-Timestamp': String(Math.floor(Date.now() / 1000)),
+    'X-Nonce': 'sessiontest00001',
   });
 
   test('one signature buys a token that then authenticates on its own', async () => {
