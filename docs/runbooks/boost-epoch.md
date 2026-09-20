@@ -12,7 +12,7 @@ can go wrong, and how to put it right.
 | Cadence | Engine tick every **60 s** (`apps/engine/src/boost/service.ts`); windows are **weekly** on a fixed grid |
 | Window E | `[anchor + 7d*E, anchor + 7d*(E+1))`; E = 0 is launch week |
 | Chain epoch | **window + 1**. Boosts earned in window E are posted as chain epoch E+1 and are live during window E+1. Contract starts at `currentBoostEpoch() == 0` (nothing live); the first activation is chain epoch 1 at the end of window 0 |
-| Signer | `BOOST_ADMIN_PRIVATE_KEY` (hot service wallet, `BOOST_ADMIN_ROLE`); falls back to `OPERATOR_PRIVATE_KEY` |
+| Signer | `BOOST_ADMIN_PRIVATE_KEY` (hot service wallet, `BOOST_ADMIN_ROLE`); falls back to `OPERATOR_PRIVATE_KEY` off mainnet only — on mainnet it must be its own key (D-26) |
 | On-chain fail-safe | Every boost reads as 0 once `boostEpochActivatedAt` is older than **10 days** (`BOOST_EPOCH_TTL`) |
 | Alarm | `boost_epoch_overdue` (error level, every tick) once the newest activation is older than **8 days** |
 | Floor override | Edit `boost_epochs.floor_played` for a **future** window; the job never rewrites it |
@@ -70,7 +70,7 @@ Timeline for one window (E) in normal operation:
 
 | Variable | Purpose |
 |----------|---------|
-| `BOOST_ADMIN_PRIVATE_KEY` | Signs `setTeamBoosts` / `activateBoostEpoch`. Must hold `MiningPool.BOOST_ADMIN_ROLE` (granted to `BOOST_ADMIN_ADDRESS` by `Configure.s.sol`). Falls back to `OPERATOR_PRIVATE_KEY`; the `.env.example` placeholder `0x` counts as unset. Give it its own funded key in prod so it does not share a nonce with the matchmaker/resolver. |
+| `BOOST_ADMIN_PRIVATE_KEY` | Signs `setTeamBoosts` / `activateBoostEpoch`. Must hold `MiningPool.BOOST_ADMIN_ROLE` (granted to `BOOST_ADMIN_ADDRESS` by `Configure.s.sol`). Off mainnet it falls back to `OPERATOR_PRIVATE_KEY`; the `.env.example` placeholder `0x` counts as unset. With `CHAIN_ENV=mainnet` there is no fallback — the engine will not start unless this is its own funded key, different from the operator, matchmaker and resolver keys (D-26: one stolen key must never both settle battles and post boosts). |
 | `BOOST_EPOCH_ANCHOR_TS` | Unix **seconds** of the season-1 start. Defines the weekly grid for api, indexer and engine alike. When unset, the indexed season-1 `start_time` is used; until either exists the engine logs `boost_epoch_anchor_unavailable` every tick and does nothing (it does not crash). Set it explicitly in prod and never change it after launch: the window index is baked into `battle_participation.epoch_id` and the chain epoch numbering. |
 | `CHAIN_ENV` | `mainnet` selects Base; anything else Base Sepolia (same as the rest of the engine). |
 

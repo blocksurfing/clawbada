@@ -69,7 +69,7 @@ export class RevealWatcher {
     this.pollMs = deps.pollMs ?? POLL_MS;
   }
 
-  /** Production wiring. RESOLVER_PRIVATE_KEY falls back to the operator key when unset. */
+  /** Production wiring. Off mainnet RESOLVER_PRIVATE_KEY falls back to the operator key when unset. */
   static fromEnv(): RevealWatcher {
     const chain = require('@clawbada/chain');
     const dbMod = require('@clawbada/db');
