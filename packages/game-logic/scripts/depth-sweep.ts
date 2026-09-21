@@ -35,8 +35,12 @@ const EXEMPT = { [LobsterClass.Tempest]: true, [LobsterClass.Kraken]: true } as 
 /** Adds Specter: Haunt is a spirit, and exempting it gives cover a counter. */
 const EXEMPT_HAUNT = { ...EXEMPT, [LobsterClass.Specter]: true };
 
+/** Every lever pinned off — explicit so this row stays the control even after DEFAULT_RULES changes. */
+const ALL_OFF: Partial<v3.BattleRules> = { fortifyTaunt: false, focusFalloffBps: 0n, guardPenaltyBps: 0n, coverPenaltyBps: 0n, coverExemptSpecial: EXEMPT };
+
 const CONFIGS: Array<[string, Partial<v3.BattleRules>]> = [
-  ['baseline (shipped today)', {}],
+  ['baseline (all levers off)', ALL_OFF],
+  ['>> SHIPPING: taunt + falloff 1000 + guard 2000', { ...ALL_OFF, fortifyTaunt: true, focusFalloffBps: 1000n, guardPenaltyBps: 2000n }],
   ['fortifyTaunt', { fortifyTaunt: true }],
   ['focusFalloff 1000', { focusFalloffBps: 1000n }],
   ['focusFalloff 2000', { focusFalloffBps: 2000n }],
@@ -47,6 +51,11 @@ const CONFIGS: Array<[string, Partial<v3.BattleRules>]> = [
   ['cover 2500 + Haunt exempt', { coverPenaltyBps: 2500n, coverExemptSpecial: EXEMPT_HAUNT }],
   ['ALL FOUR (Haunt exempt)', { fortifyTaunt: true, focusFalloffBps: 1500n, guardPenaltyBps: 2000n, coverPenaltyBps: 2500n, coverExemptSpecial: EXEMPT_HAUNT }],
 ];
+
+/** ONLY=baseline,shipping runs just those rows — validating one combination need not cost a full sweep. */
+const only = process.env.ONLY?.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+const ACTIVE = only?.length ? CONFIGS.filter(([l]) => only.some((o) => l.toLowerCase().includes(o))) : CONFIGS;
+if (ACTIVE.length === 0) throw new Error(`ONLY=${process.env.ONLY} matched no config`);
 
 const lines: string[] = [];
 const say = (s = '') => { lines.push(s); console.log(s); };
@@ -85,7 +94,7 @@ const focus = v3.STYLE_BOTS.focus!;
 
 say(`# Clawbada V3 strategy-depth sweep — tier=${tierName} n=${N}/cell`);
 say();
-say('Every lever is a `BattleRules` field defaulting to off. `deep` = 2-ply search, `balanced` = 1-ply greedy,');
+say('Each lever is a `BattleRules` field. `deep` = 2-ply search, `balanced` = 1-ply greedy,');
 say('`focus` = naive focus-fire script. Head-to-heads are mirrored, so 50.0% means no edge.');
 say();
 
@@ -95,7 +104,7 @@ say();
 say('| Config | class spread | strongest | weakest | Bulwark | Specter | median turns | 100-turn cap | draws |');
 say('|---|---|---|---|---|---|---|---|---|');
 const classWinByConfig: Record<string, number[]> = {};
-for (const [label, rules] of CONFIGS) {
+for (const [label, rules] of ACTIVE) {
   const wins = Array(10).fill(0), games = Array(10).fill(0), turns: number[] = [];
   let capped = 0, draws = 0;
   for (let i = 0; i < N; i++) {
@@ -123,7 +132,7 @@ say();
 say('| Config | deep vs balanced | Δ vs baseline | focus vs balanced | Δ vs baseline |');
 say('|---|---|---|---|---|');
 let deepBase = 0, focusBase = 0;
-for (const [label, rules] of CONFIGS) {
+for (const [label, rules] of ACTIVE) {
   const d = headToHead(rules, deep, balanced).winPct;
   const f = headToHead(rules, focus, balanced).winPct;
   if (label.startsWith('baseline')) { deepBase = d; focusBase = f; }
