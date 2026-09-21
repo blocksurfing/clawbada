@@ -45,7 +45,7 @@ describe('evidence bundle (D-12 / D-27)', () => {
   test('a battle fought to the end: the stranger rebuilds both on-chain commitments', () => {
     const row = finishedRow('wipeout');
     const wire = overTheWire(evidenceBundle(row));
-    expect(wire).toMatchObject({ battleId: '42', vrfRound: 5_555, vrfSeed: '987654321', rulesVersion: v3.RULES_VERSION, serverRulesVersion: v3.RULES_VERSION });
+    expect(wire).toMatchObject({ battleId: '42', vrfRound: 5_555, vrfSeed: '987654321', rulesVersion: v3.rulesVersion(), serverRulesVersion: v3.rulesVersion() });
     const r = strangerVerifies(wire);
     expect(r.verdict.ok).toBe(true);
     expect(r.turnLogHash).toBe(row.turnLogHash);

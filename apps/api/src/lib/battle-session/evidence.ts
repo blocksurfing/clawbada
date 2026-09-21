@@ -20,7 +20,7 @@ export function evidenceBundle(row: {
     /** The rules this battle was played under, and the rules this server runs NOW. If they
      *  differ, replay with the engine tagged `engine-rules-<first 12 hex of rulesVersion>`. */
     rulesVersion: state.rulesVersion,
-    serverRulesVersion: v3.RULES_VERSION,
+    serverRulesVersion: v3.rulesVersion(),
     vrfRound: row.vrfRound,
     vrfSeed: state.vrfSeed.toString(),
     layout: state.layout,

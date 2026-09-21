@@ -199,14 +199,14 @@ describe('turnLogHash', () => {
 
 
 // ── D-27: the commitment names the rules it was played under ──
-const PINNED_RULES_VERSION = '0xd4ae668fcb9eb3e64c4f57c506aaaf83a2b6f21b80cdcd38388ab043252e58ba';
+const PINNED_RULES_VERSION = '0xa37803c9b6dec84c26d4881883c40d9d543b0b0b4a98423f1cb8f20ad50d7638';
 
 describe('rules version (D-27)', () => {
   const roster = [...cfg(3n).teamA, ...cfg(3n).teamB];
 
   test('is a 32-byte hex, stable, and stamped on every new battle', () => {
-    expect(v3.RULES_VERSION).toMatch(/^0x[0-9a-f]{64}$/);
-    expect(createBattle(cfg(3n)).rulesVersion).toBe(v3.RULES_VERSION);
+    expect(v3.rulesVersion()).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(createBattle(cfg(3n)).rulesVersion).toBe(v3.rulesVersion());
     expect(JSON.parse(v3.rulesManifest()).engine).toBe(v3.ENGINE_VERSION);
   });
 
@@ -219,9 +219,27 @@ describe('rules version (D-27)', () => {
     expect(m.formulas.length).toBe(5 * 3 * 3);
   });
 
+  /**
+   * The cover system (PR #111) changed what damage a battle deals without touching a single
+   * entry in `constants`: it arrived as fields on the DEFAULT RULES object and as a new
+   * geometry function. The first version of this manifest covered neither, so a real balance
+   * change moved no hash. Both are in it now, and these are the assertions that say so.
+   */
+  test('the manifest covers the DEFAULT RULES and the board geometry, not just constants', () => {
+    const m = JSON.parse(v3.rulesManifest());
+    // Every rule a new battle starts with, cover included.
+    expect(m.defaultRules).toBeDefined();
+    expect(m.defaultRules.coverPenaltyBps).toBe('0n');
+    expect(m.defaultRules.coverExemptSpecial).toEqual({ [LobsterClass.Tempest]: true, [LobsterClass.Kraken]: true });
+    expect(m.defaultRules.rallyHealPct).toBe(`${v3.RALLY_HEAL_PCT}n`);
+    // Distance, line of sight and cover over every ordered pair of hexes on a fixed board.
+    expect(m.geometry).toHaveLength(6 * 5 * 6 * 5);
+    expect(m.geometry.some((g: number[]) => g[1] === 1)).toBe(true); // some pairs really are covered
+  });
+
   test('it survives serialization, and unversioned legacy state is labelled as such', () => {
     const live = createBattle(cfg(3n));
-    expect(v3.deserializeState(v3.serializeState(live)).rulesVersion).toBe(v3.RULES_VERSION);
+    expect(v3.deserializeState(v3.serializeState(live)).rulesVersion).toBe(v3.rulesVersion());
     const legacy = JSON.parse(v3.serializeState(live));
     delete legacy.rulesVersion;
     expect(v3.deserializeState(JSON.stringify(legacy)).rulesVersion).toBe(v3.UNVERSIONED_RULES);
@@ -257,7 +275,13 @@ describe('rules version (D-27)', () => {
       expect(v.got).toContain('matching engine-rules tag');
     }
     // The matching version replays.
-    expect(verifyLog({ ...cfg(3n), rulesVersion: v3.RULES_VERSION }, live.log).ok).toBe(true);
+    expect(verifyLog({ ...cfg(3n), rulesVersion: v3.rulesVersion() }, live.log).ok).toBe(true);
+  });
+
+  test('a change to a default rule moves the manifest, and so the version', () => {
+    const m = JSON.parse(v3.rulesManifest());
+    const withCoverOn = JSON.stringify({ ...m, defaultRules: { ...m.defaultRules, coverPenaltyBps: '2000n' } });
+    expect(withCoverOn).not.toBe(v3.rulesManifest());
   });
 
   test('PINNED — update this value ONLY together with a balance or engine change', () => {
@@ -266,6 +290,6 @@ describe('rules version (D-27)', () => {
     // commits to the OLD value, so: (1) tag the last commit of the old rules as
     // `engine-rules-<first 12 hex of the old value>` so disputed battles can still be replayed,
     // (2) paste the new value below, (3) say so in the release notes.
-    expect(v3.RULES_VERSION).toBe(PINNED_RULES_VERSION);
+    expect(v3.rulesVersion()).toBe(PINNED_RULES_VERSION);
   });
 });

@@ -93,7 +93,7 @@ export async function assertPhase(stack: Stack, players: Players, battle: Battle
     checks.check(BigInt(bundle.vrfSeed) === battleSeed(STUB_RANDOMNESS, pinned.seedSecret, id), 'evidence bundle: its seed is the one anyone can derive from chain + drand');
   }
   const rv = (await db.sql`select rules_version from battle_sessions where id = ${battle.battleId}`)[0];
-  checks.eq(String(rv?.rules_version), v3.RULES_VERSION, 'battle_sessions.rules_version records the rules the battle was played under');
+  checks.eq(String(rv?.rules_version), v3.rulesVersion(), 'battle_sessions.rules_version records the rules the battle was played under');
 
   const agents = await db.sql`select address, wins, losses, total_battles from agents where address in (${aAddr}, ${bAddr})`;
   checks.check(agents.length === 2 && agents.every((r: any) => Number(r.total_battles) >= 1), 'agents rows updated for both players', agents.map((r: any) => `${String(r.address).slice(0, 6)} ${r.wins}W/${r.losses}L`).join(' '));

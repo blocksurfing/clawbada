@@ -9,7 +9,7 @@ import { keccak256Packed } from '../hash';
 import { nextActor } from './atb';
 import { hasStatus } from './effects';
 import { forfeit, TIMEOUTS_TO_FORFEIT } from './session';
-import { RULES_VERSION } from './rules-version';
+import { rulesVersion } from './rules-version';
 import { createBattle, type BattleConfig } from './sim';
 import type { AtbBattleState, LobsterInput, Team, TurnCommand, TurnLogEntry } from './state';
 import { applyTurn } from './turn';
@@ -54,8 +54,9 @@ export function replayBattle(cfg: BattleConfig, log: TurnLogEntry[]): AtbBattleS
  * rules version is not "wrong" — it needs the engine it was played on (see rules-version.ts).
  */
 function assertReplayableRules(cfg: BattleConfig): void {
-  if (cfg.rulesVersion !== undefined && cfg.rulesVersion !== RULES_VERSION) {
-    throw new Error(`rules version mismatch: the battle was played under ${cfg.rulesVersion}, this engine is ${RULES_VERSION} — replay it with the matching engine-rules tag`);
+  const mine = rulesVersion();
+  if (cfg.rulesVersion !== undefined && cfg.rulesVersion !== mine) {
+    throw new Error(`rules version mismatch: the battle was played under ${cfg.rulesVersion}, this engine is ${mine} — replay it with the matching engine-rules tag`);
   }
 }
 
