@@ -68,6 +68,7 @@ public static class InfernoVfxBinder
     {
         BulwarkFortifyVfxBinder.Bind();
         MantisAmbushVfxBinder.Bind();
+        LeviathanCrushVfxBinder.Bind();
         MaelstromVfxBinder.Bind();
         Bind();
         HauntVfxBinder.Bind();
