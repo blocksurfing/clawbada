@@ -23,7 +23,7 @@ describe('look-ahead bots', () => {
         expect(s.winner).not.toBeNull();
       }
     }
-  });
+  }, 30_000); // several seconds of simulation: sat on bun's 5 s default and timed out under load
 
   test('deterministic: same state → same command, same battle → same hash', () => {
     const s1 = createBattle({ battleId: 'd', vrfSeed: 99n, tier: 'apex', teamA: team('A', comp(4, 0), 4), teamB: team('B', comp(4, 1), 4) });
@@ -44,7 +44,7 @@ describe('look-ahead bots', () => {
       runBattle(b, { A: greedyPolicy, B: balancedPolicy }); games++; if (b.winner === 'B') wins++;
     }
     expect(wins / games).toBeGreaterThan(0.6);
-  });
+  }, 30_000); // several seconds of simulation: sat on bun's 5 s default and timed out under load
 
   test('personalities behave differently: cautious keeps more distance than aggressive', () => {
     const measure = (policy: v3.Policy) => {

@@ -1097,6 +1097,7 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 - `GET /api/game/combat/status/:battleId` — battle state
 - `POST /api/game/combat/moves` — submit commit/reveal
 - `GET /api/game/combat/history?address=0x...` — past battles
+- `GET /api/game/combat/:battleId/log` — once a battle has ended: the seed, the drand round, the arena, the roster, the rules version and the ordered turn log. With it you can replay the battle yourself (`v3.verifyLog`) and rebuild the `turnLogHash` that is on-chain (`v3.turnLogHash`) — the commitment is canonical JSON (sorted keys, no whitespace) hashed with keccak256, so it can be reproduced in any language. A Defend the shot clock chose for you is marked `timeout: true` in that log, and a forfeit states its `reason` (`timeout` or `resign`); a `timeout` forfeit is only valid after three consecutive timed-out turns.
 - **WebSocket**: `ws://api.clawbada.com?battleId={id}&address={addr}` — live battle events
 
 **Protect your stake — check every result, and dispute a wrong one:**
