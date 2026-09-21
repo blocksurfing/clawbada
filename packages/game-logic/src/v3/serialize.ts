@@ -6,6 +6,7 @@
  * roll and enhanced proc derives from it, so it must never leave the server.
  */
 import type { LobsterClass } from '../types';
+import { UNVERSIONED_RULES } from './rules-version';
 import type { ArenaLayout } from './board';
 import { nextActor, projectBar } from './atb';
 import type { AtbBattleState, AtbLobster, BattleRules, Status, Team, TurnLogEntry } from './state';
@@ -31,6 +32,8 @@ export interface WireRules {
 }
 export interface WireState {
   v: typeof WIRE_VERSION;
+  /** D-27. Absent on state persisted before rules versions existed. */
+  rulesVersion?: string;
   battleId: string;
   vrfSeed: string;
   layout: ArenaLayout;
@@ -118,6 +121,7 @@ export function rulesFromWire(w: WireRules): BattleRules {
 export function toWire(state: AtbBattleState): WireState {
   return {
     v: WIRE_VERSION,
+    rulesVersion: state.rulesVersion,
     battleId: state.battleId,
     vrfSeed: s(state.vrfSeed),
     layout: state.layout,
@@ -135,6 +139,7 @@ export function toWire(state: AtbBattleState): WireState {
 export function fromWire(w: WireState): AtbBattleState {
   if (w.v !== WIRE_VERSION) throw new Error(`Unsupported battle wire version ${String(w.v)} (expected ${WIRE_VERSION})`);
   return {
+    rulesVersion: w.rulesVersion ?? UNVERSIONED_RULES,
     battleId: w.battleId,
     vrfSeed: BigInt(w.vrfSeed),
     layout: w.layout,

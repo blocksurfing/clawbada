@@ -4,6 +4,7 @@
  * TurnCommand.
  */
 import { HP_BATTLE_SCALE } from '../constants';
+import { rulesVersion } from './rules-version';
 import { deriveRandom } from '../hash';
 import { getBaseStats, scaleStats } from '../battle-resolver';
 import { LobsterClass } from '../types';
@@ -33,6 +34,9 @@ export interface BattleConfig {
   hpScale?: bigint;
   /** Partial rule overrides for balance experiments (see BattleRules). */
   rules?: Partial<BattleRules>;
+  /** D-27: the rules version the battle was ORIGINALLY played under (from the session row), for
+   *  replay. Omit for a new battle: it is stamped with this code's rules version. */
+  rulesVersion?: string;
 }
 
 export const DEFAULT_RULES: BattleRules = {
@@ -74,7 +78,7 @@ export function createBattle(cfg: BattleConfig): AtbBattleState {
   const lobsters = [...cfg.teamA.map((l, i) => make(l, 'A', i)), ...cfg.teamB.map((l, i) => make(l, 'B', i))];
   const ids = new Set(lobsters.map(l => l.id));
   if (ids.size !== 6) throw new Error('Lobster ids must be unique');
-  return { battleId: cfg.battleId, vrfSeed: cfg.vrfSeed, layout, rules: { ...DEFAULT_RULES, ...cfg.rules }, lobsters, damageDealt: { A: 0n, B: 0n }, turn: 0, tick: 0n, finished: false, winner: null, log: [] };
+  return { rulesVersion: cfg.rulesVersion ?? rulesVersion(), battleId: cfg.battleId, vrfSeed: cfg.vrfSeed, layout, rules: { ...DEFAULT_RULES, ...cfg.rules }, lobsters, damageDealt: { A: 0n, B: 0n }, turn: 0, tick: 0n, finished: false, winner: null, log: [] };
 }
 
 export type Policy = (state: AtbBattleState, actor: AtbLobster) => TurnCommand;

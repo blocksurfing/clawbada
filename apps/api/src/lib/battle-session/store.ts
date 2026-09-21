@@ -25,6 +25,8 @@ export interface NewSessionRow {
   deadline: Date | null;
   timeouts: Record<Side, number>;
   status: 'active';
+  /** D-27 */
+  rulesVersion?: string | null;
 }
 
 export interface SettleJobPayload {
@@ -58,7 +60,7 @@ export class SessionStore {
   }
 
   /** Fill in the fields a real battle only knows after the chain + beacon reads. */
-  async initSession(id: string, patch: { tier: string; roster: RosterEntry[]; stateJson: string; vrfRound: number | null }): Promise<void> {
+  async initSession(id: string, patch: { tier: string; roster: RosterEntry[]; stateJson: string; vrfRound: number | null; rulesVersion?: string | null }): Promise<void> {
     await this.dbx.update(battleSessions).set({ ...patch, updatedAt: new Date() }).where(eq(battleSessions.id, id));
   }
 

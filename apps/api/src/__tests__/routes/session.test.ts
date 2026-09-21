@@ -293,6 +293,43 @@ describe('GET /:battleId/state and /turns', () => {
   });
 });
 
+// ── D-12: the evidence route. (Replaying a bundle against the real engine lives in
+//    src/__tests__/real/evidence-bundle.test.ts — this file shares a process with partial
+//    game-logic mocks, so no battle is run here.)
+describe('GET /:battleId/log — the evidence bundle (D-12)', () => {
+  async function row(status: string) {
+    const { v3, EvolutionTier, LobsterClass } = await import('@clawbada/game-logic');
+    const mk = (p: string) => [LobsterClass.Bulwark, LobsterClass.Mantis, LobsterClass.Sentinel].map((c, i) => ({ id: `${p}${i}`, class: c, tier: EvolutionTier.Evolved, purity: 0 }));
+    const state = v3.createBattle({ battleId: '42', vrfSeed: 987654321n, tier: 'evolved', teamA: mk('A'), teamB: mk('B') });
+    return { id: '42', kind: 'real', status, tier: 'evolved', vrfRound: 5_555, roster: [], stateJson: v3.serializeState(state), winner: 'A', finalStateHash: '0x01', turnLogHash: '0x02' };
+  }
+
+  test('while the battle is live the seed and log are NOT published (the seed decides every future roll)', async () => {
+    const r = await row('active');
+    mockStoreGet.mockImplementation(async () => r);
+    const res = await app.request('/api/game/combat/42/log');
+    expect(res.status).toBe(409);
+    expect(JSON.stringify(await res.json())).not.toContain('987654321');
+  });
+
+  test('once it has ended it is public: seed, drand round, rules version, hashes', async () => {
+    for (const status of ['settling', 'settled', 'finished', 'abandoned']) {
+      const r = await row(status);
+      mockStoreGet.mockImplementation(async () => r);
+      const res = await app.request('/api/game/combat/42/log');
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ battleId: '42', vrfRound: 5_555, vrfSeed: '987654321', turnLogHash: '0x02', finalStateHash: '0x01' });
+    }
+  });
+
+  test('a practice battle stays private to its owner; unknown id is 404', async () => {
+    mockIsParticipant.mockImplementation(async () => false);
+    expect((await app.request(`/api/game/combat/${P_ID}/log`)).status).toBe(401);
+    mockStoreGet.mockImplementation(async () => null);
+    expect((await app.request('/api/game/combat/77/log')).status).toBe(404);
+  });
+});
+
 describe('GET /:battleId/legal', () => {
   /** Hand-built 6-lobster state: routes/agent.test.ts mocks game-logic's getBaseStats
    *  process-wide (plain numbers), so createBattle cannot be used from this file. */

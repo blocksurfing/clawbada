@@ -34,6 +34,26 @@ Sessions live in memory in **one** API process. The `battle_sessions` primary ke
 
 Every turn writes a full state snapshot (`state_json`) plus the turn row. On boot the manager reloads all `active` rows, rebuilds the state, re-verifies real battles are still Active on chain (else `abandoned`), and re-arms the pending human turn with `max(remaining, 5 s)`. Clients reconnect and receive `battle_snapshot`.
 
+## Verifying a battle (disputes, audits)
+
+`GET /api/game/combat/<battleId>/log` returns, once the battle has ended, everything the on-chain `turnLogHash` commits to: rules version, battle id, seed, arena, roster and the ordered log. Nothing in it needs this server's database to check:
+
+1. **The seed.** `keccak256(drand randomness of vrfRound, seedSecret, battleId)` — `seedSecret` is what `settle` disclosed on-chain, and `vrfRound` is fixed by the reveal timestamp. (`battleSeed` in `@clawbada/chain`.)
+2. **The log.** `v3.verifyLog(cfg, log)` re-executes every turn and compares every per-turn hash.
+3. **The commitment.** `v3.turnLogHash(state, roster)` must equal `BattleArena.getBattle(id).turnLogHash`, and `v3.hashState(state)` the `finalStateHash`. The preimage is canonical JSON (sorted keys), so it does not depend on how any one implementation orders fields.
+
+The e2e harness does exactly this against the live stack (`phases/40-assert.ts`, "evidence bundle").
+
+**What the log can and cannot prove (D-12).** A Defend chosen by the shot clock is marked `timeout: true` inside the hashed log, and a forfeit carries its `reason`. Replay rejects a `timeout` forfeit that does not directly follow three consecutive timed-out turns by the loser, and rejects a forfeit with no reason — so a server can no longer award a battle with a bare forfeit entry. It still cannot prove that a player *sent* a move the server says timed out, or that a `resign` was really the player's: turn commands are not signed. Closing that needs a per-battle session key (one wallet signature at battle start); it is an open design item.
+
+**Rules versions (D-27).** `battle_sessions.rules_version` (also inside `turnLogHash`) is a hash of everything that decides an outcome: the v3 constants, the stat tables for every class, tier and legend flag, the class-advantage graph, and every damage/crit/proc formula sampled on a fixed grid. A balance patch changes it automatically. Replaying a battle under other rules is refused with `rules version mismatch` — that log is not wrong, it needs the engine it was played on.
+
+Release process when `RULES_VERSION` changes (the pinned test in `v3-replay.test.ts` fails until you do this):
+1. Tag the last commit of the OLD rules: `git tag engine-rules-<first 12 hex of the old value>`.
+2. Paste the new value into the pinned test and mention the rules change in the release notes.
+3. To judge a battle played under old rules, check out the tag that matches its `rules_version` and run the verification above there.
+Bump `ENGINE_VERSION` by hand for a logic change no sampled number would notice (turn order, targeting, status handling).
+
 ## Things that go wrong
 
 **A real battle finished but never settled.**

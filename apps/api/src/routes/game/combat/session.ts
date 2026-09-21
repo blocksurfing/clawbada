@@ -16,6 +16,7 @@ import { v3, EvolutionTier, LobsterClass } from '@clawbada/game-logic';
 import { rollRandomRoster, rollTrioRoster, rollSpecialsRoster, rollTeamRoster, RANDOM_PRESET_RE, TRIO_PRESET_RE, SPECIALS_PRESET_RE, TEAM_PRESET_RE } from '../../../lib/battle-session/random-roster';
 import { walletAuth, resolveCaller } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
+import { evidenceBundle } from '../../../lib/battle-session/evidence';
 import { readLobster, readTeam, serializeBigInts } from '../../../lib/chain';
 import {
   battleSessions,
@@ -216,6 +217,33 @@ sessionRoutes.get(
     await requireParticipantIfPractice(c, battleId);
     const turns = await battleSessions['deps'].store.listTurns(battleId);
     return c.json(serializeBigInts({ battleId, count: turns.length, turns }));
+  }),
+);
+
+// ──────────── GET /:battleId/log ────────────
+//
+// D-12 (audit 2026-09): everything needed to check a finished battle WITHOUT trusting this
+// server. The on-chain `turnLogHash` commits to {rules version, battle id, seed, arena, roster,
+// ordered log}; until now a player could not rebuild it — the API never returned the seed or
+// the drand round, and the only copy of the evidence sat in the database of the party a
+// dispute would accuse. With this bundle anyone can:
+//   1. check the seed themselves: keccak(drand randomness of `vrfRound`, the seed secret
+//      `settle` disclosed on-chain, battleId);
+//   2. `v3.verifyLog(cfg, log)` — re-execute every turn and compare every per-turn hash;
+//   3. `v3.turnLogHash(state, roster)` and compare it with BattleArena.getBattle().turnLogHash.
+// Only once the battle has ENDED: during play the seed decides every future roll.
+sessionRoutes.get(
+  '/:battleId/log',
+  catchErrors(async (c) => {
+    const { battleId } = c.req.param();
+    assertBattleId(battleId);
+    await requireParticipantIfPractice(c, battleId);
+    const row = await battleSessions['deps'].store.get(battleId);
+    if (!row || !row.stateJson) throw new ApiError('NOT_FOUND', 'No battle session with that id');
+    if (row.status === 'active') {
+      throw new ApiError('BATTLE_PHASE_ERROR', 'The battle log and seed are published when the battle ends');
+    }
+    return c.json(serializeBigInts(evidenceBundle(row)));
   }),
 );
 

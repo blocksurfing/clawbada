@@ -104,6 +104,9 @@ export interface BattleRules {
 }
 
 export interface AtbBattleState {
+  /** D-27: hash of the rules this battle is played under (see rules-version.ts). Folded into
+   *  turnLogHash, so the on-chain commitment names the rules. */
+  rulesVersion: string;
   battleId: string;
   vrfSeed: bigint;
   layout: ArenaLayout;
@@ -187,6 +190,14 @@ export interface TurnLogEntry {
   targetId?: string;
   /** 'forfeit' entries only: the team that forfeited. */
   loser?: Team;
+  /** D-12: 'forfeit' entries only — WHY. 'timeout' is checkable: replay accepts it only after
+   *  TIMEOUTS_TO_FORFEIT consecutive timed-out turns by that team. 'resign' is a player's own
+   *  act and replay has to take the server's word for it (until turn commands are signed). */
+  reason?: 'timeout' | 'resign';
+  /** D-12: true when this Defend was NOT chosen by the player — the shot clock ran out and the
+   *  server applied it. It used to be indistinguishable from a chosen Defend inside the hashed
+   *  log (the 'timeout' label lived only in a database column the accused party controls). */
+  timeout?: true;
   postStateHash: string;
 }
 

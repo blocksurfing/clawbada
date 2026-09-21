@@ -21,6 +21,7 @@ export * from './boost';
 // Live-engine primitives (2026-09): wire format, replay/commitments, session clock, input guard, chain adapter.
 export * from './serialize';
 export * from './replay';
+export * from './rules-version';
 export * from './session';
 export * from './guard';
 export * from './adapter';

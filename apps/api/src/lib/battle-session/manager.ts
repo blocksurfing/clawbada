@@ -238,6 +238,7 @@ export class BattleSessionManager {
     const inserted = await this.deps.store.insertSession({
       id, kind: 'practice', playerA: owner, playerB: record.playerB, bot: opts.bot, tier, vrfRound: null, roster,
       stateJson: v3.serializeState(state), turn: 0, deadline: null, timeouts: { A: 0, B: 0 }, status: 'active',
+      rulesVersion: state.rulesVersion,
     });
     if (!inserted) throw new Error('practice id collision');
     return this.launch(record, state, { botSide: 'B', botPolicy: v3.botPolicy(opts.bot) });
@@ -373,7 +374,7 @@ export class BattleSessionManager {
       const vrfSeed = battleSeed(beacon.randomness, secret, row.battleId);
       const state = v3.createBattle({ battleId: id, vrfSeed, tier, teamA: inputsA, teamB: inputsB });
       const roster = [...a.map((x) => x.entry), ...b.map((x) => x.entry)];
-      await this.deps.store.initSession(id, { tier, roster, stateJson: v3.serializeState(state), vrfRound: beacon.round });
+      await this.deps.store.initSession(id, { tier, roster, stateJson: v3.serializeState(state), vrfRound: beacon.round, rulesVersion: state.rulesVersion });
       const record: SessionRecord = { id, kind: 'real', tier, playerA, playerB, bot: null, vrfRound: beacon.round, roster, createdAt: new Date() };
       this.deps.log.info({ battleId: id, tier, vrfRound: beacon.round }, 'battle_session_started');
       return this.launch(record, state, { botSide: null, botPolicy: null });
