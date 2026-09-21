@@ -46,6 +46,49 @@ export function hexDistance(a: HexPos, b: HexPos): number {
   return (Math.abs(ax - bx) + Math.abs(ay - by) + Math.abs(az - bz)) / 2;
 }
 
+/** Round fractional cube coords to the nearest hex (largest-drift component is recomputed). */
+function cubeRound(x: number, y: number, z: number): [number, number, number] {
+  let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+  const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+  if (dx > dy && dx > dz) rx = -ry - rz;
+  else if (dy > dz) ry = -rx - rz;
+  else rz = -rx - ry;
+  return [rx, ry, rz];
+}
+
+/**
+ * The hexes a shot passes over, strictly between `from` and `to`.
+ *
+ * Supercover: the line is walked twice with opposite epsilon nudges and the results
+ * unioned, so a shot cannot thread a corner it visually should not. Endpoints are
+ * excluded, so distance <= 1 always returns [] — adjacent lobsters are never in cover.
+ */
+export function hexLineBetween(from: HexPos, to: HexPos): HexPos[] {
+  const n = hexDistance(from, to);
+  if (n <= 1) return [];
+  const [ax, ay, az] = offsetToCube(from);
+  const [bx, by, bz] = offsetToCube(to);
+  const seen = new Set<string>();
+  const out: HexPos[] = [];
+  for (const e of [1e-6, -1e-6]) {
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      const [rx, , rz] = cubeRound(ax + (bx - ax) * t + e, ay + (by - ay) * t - e, az + (bz - az) * t);
+      const p: HexPos = { col: rx + (rz - (rz & 1)) / 2, row: rz };
+      const k = hexKey(p);
+      if (!seen.has(k)) { seen.add(k); out.push(p); }
+    }
+  }
+  return out;
+}
+
+/** True when a blocked hex lies on the line between the two positions (terrain cover). */
+export function hasCover(layout: ArenaLayout, from: HexPos, to: HexPos): boolean {
+  if (hexDistance(from, to) <= 1) return false;
+  const blocked = blockedSet(layout);
+  return hexLineBetween(from, to).some(p => blocked.has(hexKey(p)));
+}
+
 /** Six neighbours (may be out of bounds — callers filter). */
 export function neighbors(p: HexPos): HexPos[] {
   const odd = (p.row & 1) === 1;
