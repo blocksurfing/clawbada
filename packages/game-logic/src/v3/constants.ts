@@ -95,3 +95,23 @@ export const INFERNO_SELF_DAMAGE = 250n; // 25% of damage dealt (×1000)
 export const INFERNO_SELF_DAMAGE_ENHANCED = 150n;
 export const MANTIS_ARMOR_PIERCE = 500n; // ignores 50% armor (×1000)
 export const CRUSH_ENHANCED_BONUS = 1500n; // ×1.5 when target < 50% HP
+
+// ──────────── Tactical depth (built 2026-08-31, measured and switched ON 2026-09-21) ────────────
+// Evidence: `bun scripts/depth-sweep.ts`, n=1500/cell, elite —
+// docs/_generated/balance/2026-09-21-depth-levers-shipped.md.
+// Shipped together they cut the class spread 25.1 → 17.6pp and drop the naive focus-fire
+// script from 58.2% to 56.9% against the balanced bot, at no pacing cost (48 → 49 turns).
+/**
+ * Ranged damage lost (bps) while an enemy stands adjacent to the SHOOTER — a zone of control.
+ * The strongest single lever (spread 25.1 → 21.8pp, `deep` 54.9 → 57.3%) and the one that
+ * gives melee a job that is not chasing: engaging a fast ranged class now matters even when
+ * you cannot catch it.
+ */
+export const GUARD_PENALTY_BPS = 2000n;
+/**
+ * Each hit a target has taken since its OWN last turn weakens the next, floored at 40%.
+ * The only lever that punishes scripted play — at baseline, piling the whole team onto the
+ * squishiest target beat positional play 58.2% to 41.8%.
+ * Held at 1000: at 2000 it over-corrects and widens the class spread to 27.0pp.
+ */
+export const FOCUS_FALLOFF_BPS = 1000n;
