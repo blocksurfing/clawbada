@@ -5,6 +5,7 @@
  * a client-safe projection that strips the VRF seed — every future crit, VRF
  * roll and enhanced proc derives from it, so it must never leave the server.
  */
+import type { LobsterClass } from '../types';
 import type { ArenaLayout } from './board';
 import { nextActor, projectBar } from './atb';
 import type { AtbBattleState, AtbLobster, BattleRules, Status, Team, TurnLogEntry } from './state';
@@ -25,6 +26,8 @@ export interface WireRules {
   rendBleedPerTurn: string; hauntReduction: string;
   fortifyTaunt: boolean; focusFalloffBps: string; guardPenaltyBps: string; rallyHealPct: string;
   attackRange: Record<string, number>; firstHitReduction: Record<string, string>;
+  /** Optional: battles persisted before cover existed replay with it off. */
+  coverPenaltyBps?: string; coverExemptSpecial?: Record<string, boolean>;
 }
 export interface WireState {
   v: typeof WIRE_VERSION;
@@ -48,6 +51,16 @@ export interface ClientBattleState extends Omit<WireState, 'vrfSeed'> {
 }
 
 const s = (b: bigint) => b.toString();
+const boolMap = (m: Partial<Record<number, boolean>>): Record<string, boolean> => {
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(m)) if (v) out[k] = true;
+  return out;
+};
+const boolMapBack = (m: Record<string, boolean> | undefined): Partial<Record<LobsterClass, boolean>> => {
+  const out: Partial<Record<LobsterClass, boolean>> = {};
+  for (const [k, v] of Object.entries(m ?? {})) if (v) out[Number(k) as LobsterClass] = true;
+  return out;
+};
 const strMap = (m: Partial<Record<number, bigint>>): Record<string, string> =>
   Object.fromEntries(Object.entries(m).map(([k, v]) => [k, String(v)]));
 const numMap = (m: Partial<Record<number, number>>): Record<string, number> =>
@@ -85,6 +98,7 @@ export function rulesToWire(r: BattleRules): WireRules {
     rendBleedPerTurn: s(r.rendBleedPerTurn), hauntReduction: s(r.hauntReduction),
     fortifyTaunt: r.fortifyTaunt, focusFalloffBps: s(r.focusFalloffBps), guardPenaltyBps: s(r.guardPenaltyBps), rallyHealPct: s(r.rallyHealPct),
     attackRange: numMap(r.attackRange), firstHitReduction: strMap(r.firstHitReduction),
+    coverPenaltyBps: s(r.coverPenaltyBps), coverExemptSpecial: boolMap(r.coverExemptSpecial),
   };
 }
 
@@ -96,6 +110,8 @@ export function rulesFromWire(w: WireRules): BattleRules {
     rendBleedPerTurn: BigInt(w.rendBleedPerTurn), hauntReduction: BigInt(w.hauntReduction),
     fortifyTaunt: w.fortifyTaunt, focusFalloffBps: BigInt(w.focusFalloffBps), guardPenaltyBps: BigInt(w.guardPenaltyBps), rallyHealPct: BigInt(w.rallyHealPct),
     attackRange: numMapBack(w.attackRange), firstHitReduction: bigMapBack(w.firstHitReduction),
+    coverPenaltyBps: w.coverPenaltyBps === undefined ? 0n : BigInt(w.coverPenaltyBps),
+    coverExemptSpecial: boolMapBack(w.coverExemptSpecial),
   };
 }
 

@@ -20,7 +20,7 @@ import { MULT_DENOM, SPECIAL_BASE_POWERS } from '../constants';
 import { calculateAttackDamage, calculateSpecialDamage, critChance, getClassAdvantage } from '../battle-resolver';
 import { LobsterClass } from '../types';
 import { nextTick, tickDelta } from './atb';
-import { hexDistance, sameHex, type HexPos } from './board';
+import { hasCover, hexDistance, sameHex, type HexPos } from './board';
 import { ATTACK_MAX_RANGE, DISTANCE_MULT, FORTIFY_REDUCTION, REND_TURNS, SPECIAL_RANGE } from './constants';
 import { effectiveStats, purityMult } from './effects';
 import { specialPowerOf, specialTargetKind } from './specials';
@@ -227,6 +227,9 @@ export function rankTurns(state: AtbBattleState, actor: AtbLobster, w: BotWeight
       let dmg = expectedAttack(actor, t, hexDistance(pos, t.pos), state);
       if (state.rules.guardPenaltyBps > 0n && hexDistance(pos, t.pos) >= 2 && state.lobsters.some(l => l.alive && l.team !== actor.team && hexDistance(pos, l.pos) === 1))
         dmg *= 1 - n(state.rules.guardPenaltyBps) / 10_000;
+      // Cover is scored per candidate hex, so a bot will reposition for a clear shot.
+      if (state.rules.coverPenaltyBps > 0n && hexDistance(pos, t.pos) >= 2 && hasCover(state.layout, pos, t.pos))
+        dmg *= 1 - n(state.rules.coverPenaltyBps) / 10_000;
       const kill = dmg >= n(t.hp) ? killBonus(t) : 0;
       // A defending, adjacent target counters — small deterrent.
       const counter = t.defending && hexDistance(pos, t.pos) === 1 ? outputPerTurn(t, actor) * 0.3 : 0;

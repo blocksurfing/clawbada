@@ -47,6 +47,10 @@ export const DEFAULT_RULES: BattleRules = {
   fortifyTaunt: false,
   focusFalloffBps: 0n,
   guardPenaltyBps: 0n,
+  coverPenaltyBps: 0n,
+  // Structurally exempt: Maelstrom is a radius sweep with no line to trace, and Bind
+  // erupts on the target rather than crossing the board.
+  coverExemptSpecial: { [LobsterClass.Tempest]: true, [LobsterClass.Kraken]: true },
   rallyHealPct: RALLY_HEAL_PCT,
   attackRange: { [LobsterClass.Specter]: SPECTER_ATTACK_RANGE },
   firstHitReduction: { [LobsterClass.Specter]: SPECTER_FIRST_HIT_REDUCTION },

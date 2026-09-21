@@ -82,6 +82,19 @@ export interface BattleRules {
   focusFalloffBps: bigint;
   /** Ranged attacks (distance ≥2) made while an enemy is adjacent to the attacker lose this much (bps). */
   guardPenaltyBps: bigint;
+  /**
+   * Ranged damage lost (bps) when a blocked hex lies on the line to the target.
+   * Flat, NOT per obstacle — two rocks in one lane must not halve a shot on a 6x5 board.
+   * Adjacent attacks are structurally exempt (no hex lies strictly between).
+   */
+  coverPenaltyBps: bigint;
+  /**
+   * Classes whose targeted Special ignores cover. Spec: Tempest (Maelstrom is a radius
+   * sweep — there is no origin->target line to trace) and Kraken (Bind erupts on the
+   * target rather than crossing the board). Specter is the live experiment: Haunt is a
+   * spirit, and exempting it gives cover a counter so it cannot become dominant.
+   */
+  coverExemptSpecial: Partial<Record<LobsterClass, boolean>>;
   /** Rally heal as ‰ of the ally's max HP (before purity). Spec: 250. */
   rallyHealPct: bigint;
   /** Per-class max attack range overrides (spec: 3 for all; distance 4+ uses DISTANCE_MULT_LONG). */
