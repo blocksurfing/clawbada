@@ -6,7 +6,7 @@ import { MULT_DENOM, SPECIAL_BASE_POWERS } from '../constants';
 import { deriveRandom, deriveVrfRoll } from '../hash';
 import { calculateSpecialDamage, getClassAdvantage } from '../battle-resolver';
 import { LobsterClass } from '../types';
-import { hexDistance } from './board';
+import { hasCover, hexDistance } from './board';
 import {
   BIND_STUN_TURNS,
   CRUSH_ENHANCED_BONUS,
@@ -44,10 +44,15 @@ export function specialInRange(actor: AtbLobster, target: AtbLobster): boolean {
   return hexDistance(actor.pos, target.pos) <= range;
 }
 
-function specialDamage(actor: AtbLobster, target: AtbLobster, basePower: bigint, seed: bigint): bigint {
+function specialDamage(state: AtbBattleState, actor: AtbLobster, target: AtbLobster, basePower: bigint, seed: bigint): bigint {
   const a = effectiveStats(actor);
   const t = effectiveStats(target);
-  return calculateSpecialDamage(basePower, a.attack, t.armor, getClassAdvantage(actor.class, target.class), actor.purity, deriveVrfRoll(seed, 'special_vrf'));
+  let dmg = calculateSpecialDamage(basePower, a.attack, t.armor, getClassAdvantage(actor.class, target.class), actor.purity, deriveVrfRoll(seed, 'special_vrf'));
+  // Cover applies to Specials that cross the board to one target (Inferno; Haunt unless
+  // exempt). The four adjacent Specials are a structural no-op — nothing lies between.
+  if (state.rules.coverPenaltyBps > 0n && !state.rules.coverExemptSpecial[actor.class] && hasCover(state.layout, actor.pos, target.pos))
+    dmg = (dmg * (10_000n - state.rules.coverPenaltyBps)) / 10_000n;
+  return dmg;
 }
 
 export function resolveSpecial(
@@ -85,7 +90,7 @@ export function resolveSpecial(
       const t = target!;
       let power = base;
       if (isEnhanced && t.hp * 2n < t.maxHp) power = (power * CRUSH_ENHANCED_BONUS) / MULT_DENOM;
-      applyIncomingDamage(state, actor, t, specialDamage(actor, t, power, seed), 'special', out);
+      applyIncomingDamage(state, actor, t, specialDamage(state, actor, t, power, seed), 'special', out);
       return;
     }
     case LobsterClass.Tempest: {
@@ -93,7 +98,7 @@ export function resolveSpecial(
       for (const enemy of state.lobsters) {
         if (enemy.team === actor.team || !enemy.alive) continue;
         if (hexDistance(actor.pos, enemy.pos) > SPECIAL_RANGE[actor.class]) continue;
-        const dmg = specialDamage(actor, enemy, base, deriveRandom(seed, `maelstrom_${i++}`));
+        const dmg = specialDamage(state, actor, enemy, base, deriveRandom(seed, `maelstrom_${i++}`));
         applyIncomingDamage(state, actor, enemy, dmg, 'special', out);
         if (isEnhanced && enemy.alive) addStatus(enemy, { type: 'slow', turns: MAELSTROM_SLOW_TURNS, value: MAELSTROM_SLOW }, out);
       }
@@ -101,7 +106,7 @@ export function resolveSpecial(
     }
     case LobsterClass.Specter: {
       const t = target!;
-      applyIncomingDamage(state, actor, t, specialDamage(actor, t, base, seed), 'special', out);
+      applyIncomingDamage(state, actor, t, specialDamage(state, actor, t, base, seed), 'special', out);
       if (t.alive)
         addStatus(t, { type: 'haunt', turns: isEnhanced ? HAUNT_ENHANCED_TURNS : HAUNT_TURNS, value: state.rules.hauntReduction + (isEnhanced ? 100n : 0n) }, out);
       return;
@@ -118,7 +123,7 @@ export function resolveSpecial(
     }
     case LobsterClass.Reaver: {
       const t = target!;
-      applyIncomingDamage(state, actor, t, specialDamage(actor, t, base, seed), 'special', out);
+      applyIncomingDamage(state, actor, t, specialDamage(state, actor, t, base, seed), 'special', out);
       if (t.alive) {
         const bleed = (state.rules.rendBleedPerTurn * purityMult(actor)) / MULT_DENOM;
         addStatus(t, { type: 'bleed', turns: REND_TURNS, value: bleed, uncleansable: isEnhanced }, out);
@@ -127,7 +132,7 @@ export function resolveSpecial(
     }
     case LobsterClass.Abyss: {
       const t = target!;
-      const dealt = applyIncomingDamage(state, actor, t, specialDamage(actor, t, base, seed), 'special', out);
+      const dealt = applyIncomingDamage(state, actor, t, specialDamage(state, actor, t, base, seed), 'special', out);
       const before = actor.hp;
       actor.hp += dealt;
       if (!isEnhanced && actor.hp > actor.maxHp) actor.hp = actor.maxHp; // enhanced: overheal stays as temp HP
@@ -136,13 +141,13 @@ export function resolveSpecial(
     }
     case LobsterClass.Kraken: {
       const t = target!;
-      applyIncomingDamage(state, actor, t, specialDamage(actor, t, base, seed), 'special', out, { pierceDefend: isEnhanced });
+      applyIncomingDamage(state, actor, t, specialDamage(state, actor, t, base, seed), 'special', out, { pierceDefend: isEnhanced });
       if (t.alive && t.stunImmunity === 0) addStatus(t, { type: 'stun', turns: BIND_STUN_TURNS, value: 0n }, out);
       return;
     }
     case LobsterClass.Ember: {
       const t = target!;
-      const dealt = applyIncomingDamage(state, actor, t, specialDamage(actor, t, base, seed), 'special', out);
+      const dealt = applyIncomingDamage(state, actor, t, specialDamage(state, actor, t, base, seed), 'special', out);
       const self = (dealt * (isEnhanced ? INFERNO_SELF_DAMAGE_ENHANCED : INFERNO_SELF_DAMAGE)) / MULT_DENOM;
       applyIncomingDamage(state, actor, actor, self, 'self', out, { raw: true });
       return;

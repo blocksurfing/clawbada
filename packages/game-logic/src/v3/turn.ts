@@ -12,7 +12,7 @@ import { DEFEND_COUNTER_BASE, MULT_DENOM } from '../constants';
 import { deriveRandom, deriveVrfRoll, randomBool } from '../hash';
 import { calculateAttackDamage, calculateDefendCounter, critChance, enhancedProcChance, getClassAdvantage } from '../battle-resolver';
 import { nextActor, nextTick, projectBar } from './atb';
-import { hexDistance, reachableCells, sameHex, shortestPath, type HexPos } from './board';
+import { hasCover, hexDistance, reachableCells, sameHex, shortestPath, type HexPos } from './board';
 import { ATTACK_MAX_RANGE, CHARGE_CAP, CHARGE_PER_TURN, DEFEND_BONUS_CHARGE, DISTANCE_MULT, DISTANCE_MULT_LONG, MAX_TURNS, MOVE_RANGE, SPECIAL_COST, STUN_IMMUNITY_TURNS } from './constants';
 import { applyIncomingDamage, dealDamage, effectiveStats, findLobster, hasStatus } from './effects';
 import { hashState } from './log';
@@ -259,6 +259,11 @@ function resolveAttack(state: AtbBattleState, actor: AtbLobster, target: AtbLobs
   // Guard penalty: shooting past an adjacent enemy frontliner is punished.
   if (state.rules.guardPenaltyBps > 0n && dist >= 2 && state.lobsters.some(l => l.alive && l.team !== actor.team && hexDistance(actor.pos, l.pos) === 1))
     dmg = (dmg * (10_000n - state.rules.guardPenaltyBps)) / 10_000n;
+  // Cover: terrain on the line soaks part of a ranged hit. Applies to every basic attack,
+  // Specter's range-4 poke included — only its Special is exempt, so Specter gets an
+  // identity without being the unconditional best ranged class in an obstacle-heavy arena.
+  if (state.rules.coverPenaltyBps > 0n && dist >= 2 && hasCover(state.layout, actor.pos, target.pos))
+    dmg = (dmg * (10_000n - state.rules.coverPenaltyBps)) / 10_000n;
   out.targetId = target.id;
   applyIncomingDamage(state, actor, target, dmg, 'attack', out, { isCrit });
 
