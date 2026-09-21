@@ -12,7 +12,7 @@ import { nextActor } from './atb';
 import { hexDistance, type ArenaLayout, type HexPos } from './board';
 import { generateLayout } from './layout';
 import type { AtbBattleState, AtbLobster, BattleRules, LobsterInput, Team, TurnCommand, TurnResult } from './state';
-import { FORTIFY_ENHANCED_REFLECT, FORTIFY_REFLECT_BASE, HAUNT_REDUCTION, RALLY_HEAL_PCT, REND_BLEED_PER_TURN, SPECIAL_COST, SPECTER_ATTACK_RANGE, SPECTER_FIRST_HIT_REDUCTION } from './constants';
+import { FOCUS_FALLOFF_BPS, FORTIFY_ENHANCED_REFLECT, FORTIFY_REFLECT_BASE, GUARD_PENALTY_BPS, HAUNT_REDUCTION, RALLY_HEAL_PCT, REND_BLEED_PER_TURN, SPECIAL_COST, SPECTER_ATTACK_RANGE, SPECTER_FIRST_HIT_REDUCTION } from './constants';
 import { applyTurn, attackTargets, canCastSpecial, legalMoves, specialTargets } from './turn';
 import { hasStatus } from './effects';
 import { specialTargetKind } from './specials';
@@ -48,9 +48,14 @@ export const DEFAULT_RULES: BattleRules = {
   specialPower: {},
   rendBleedPerTurn: REND_BLEED_PER_TURN,
   hauntReduction: HAUNT_REDUCTION,
-  fortifyTaunt: false,
-  focusFalloffBps: 0n,
-  guardPenaltyBps: 0n,
+  // Fortify also taunts, so the tank can actually peel: adjacent enemies must target the
+  // Bulwark while it holds the dome (Bulwark 46.3 → 50.6% win rate, free everywhere else).
+  fortifyTaunt: true,
+  focusFalloffBps: FOCUS_FALLOFF_BPS,
+  guardPenaltyBps: GUARD_PENALTY_BPS,
+  // Terrain cover is BUILT BUT DELIBERATELY OFF: it was measured and it failed its own test —
+  // +0.9pp depth, it made the naive focus-fire script BETTER (+1.8pp), and it doubled the
+  // 100-turn cap rate. See docs/_generated/balance/2026-09-20-depth-sweep.md before reviving it.
   coverPenaltyBps: 0n,
   // Structurally exempt: Maelstrom is a radius sweep with no line to trace, and Bind
   // erupts on the target rather than crossing the board.

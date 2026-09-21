@@ -199,7 +199,10 @@ describe('turnLogHash', () => {
 
 
 // ── D-27: the commitment names the rules it was played under ──
-const PINNED_RULES_VERSION = '0xa37803c9b6dec84c26d4881883c40d9d543b0b0b4a98423f1cb8f20ad50d7638';
+// Moved 2026-09-21 by the depth levers (#114): fortifyTaunt on, focusFalloffBps 1000,
+// guardPenaltyBps 2000. That is a genuine balance change, so the version SHOULD move —
+// this pin failing is the mechanism working, not a bug. Previous: 0xa37803c9...
+const PINNED_RULES_VERSION = '0x681a5f6208f7f1a672ab7c27af109f7173fb4f6814b3d3c3871a71f6218d9cde';
 
 describe('rules version (D-27)', () => {
   const roster = [...cfg(3n).teamA, ...cfg(3n).teamB];
@@ -220,10 +223,12 @@ describe('rules version (D-27)', () => {
   });
 
   /**
-   * The cover system (PR #111) changed what damage a battle deals without touching a single
-   * entry in `constants`: it arrived as fields on the DEFAULT RULES object and as a new
-   * geometry function. The first version of this manifest covered neither, so a real balance
-   * change moved no hash. Both are in it now, and these are the assertions that say so.
+   * The cover system (PR #113 — not #111, which was Unity art only) arrived as fields on the
+   * DEFAULT RULES object and as a new geometry function, touching no entry in `constants`.
+   * Cover itself shipped switched OFF, so it changed no damage — but it proved the manifest
+   * could not see either surface, and the very next PR (#114) turned three levers on in
+   * DEFAULT RULES, which IS a balance change. Without the two assertions below that change
+   * would have moved no hash. They are the reason the pin above moved.
    */
   test('the manifest covers the DEFAULT RULES and the board geometry, not just constants', () => {
     const m = JSON.parse(v3.rulesManifest());
@@ -232,6 +237,11 @@ describe('rules version (D-27)', () => {
     expect(m.defaultRules.coverPenaltyBps).toBe('0n');
     expect(m.defaultRules.coverExemptSpecial).toEqual({ [LobsterClass.Tempest]: true, [LobsterClass.Kraken]: true });
     expect(m.defaultRules.rallyHealPct).toBe(`${v3.RALLY_HEAL_PCT}n`);
+    // The depth levers (#114) live only here — no constant changed when they were switched on,
+    // so these are the entries that carry that balance change into the version hash.
+    expect(m.defaultRules.fortifyTaunt).toBe(true);
+    expect(m.defaultRules.focusFalloffBps).toBe(`${v3.FOCUS_FALLOFF_BPS}n`);
+    expect(m.defaultRules.guardPenaltyBps).toBe(`${v3.GUARD_PENALTY_BPS}n`);
     // Distance, line of sight and cover over every ordered pair of hexes on a fixed board.
     expect(m.geometry).toHaveLength(6 * 5 * 6 * 5);
     expect(m.geometry.some((g: number[]) => g[1] === 1)).toBe(true); // some pairs really are covered

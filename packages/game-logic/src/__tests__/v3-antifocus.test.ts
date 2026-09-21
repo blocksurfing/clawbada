@@ -12,7 +12,9 @@ function setup(rules: Partial<v3.BattleRules>) {
   return s;
 }
 
-describe('anti-focus mechanics (default-off rule knobs)', () => {
+// Shipped ON 2026-09-21 after the depth sweep; every case below pins its rules explicitly
+// rather than leaning on the defaults, so a future tuning pass cannot silently void a test.
+describe('anti-focus mechanics (shipped on 2026-09-21)', () => {
   test('taunt: adjacent enemies must hit the Fortified Bulwark; distant enemies are unaffected', () => {
     const s = setup({ fortifyTaunt: true });
     const bul = s.lobsters.find(l => l.class === B)!;
@@ -48,7 +50,7 @@ describe('anti-focus mechanics (default-off rule knobs)', () => {
       const r2 = v3.applyTurn(s, { lobsterId: a1.id, action: 'attack', targetId: spec.id });
       return { first: r1.damage[0].amount, second: r2.damage[0].amount, state: s, spec };
     };
-    const off = dmgOf({});
+    const off = dmgOf({ focusFalloffBps: 0n });
     const on = dmgOf({ focusFalloffBps: 2000n });
     expect(on.first).toBe(off.first); // first hit unaffected
     expect(on.second).toBe((off.second * 8000n) / 10_000n); // −20% on the second
@@ -68,20 +70,30 @@ describe('anti-focus mechanics (default-off rule knobs)', () => {
       a0.lastTick = -1n;
       return v3.applyTurn(s, { lobsterId: a0.id, action: 'attack', targetId: spec.id }).damage[0].amount;
     };
-    const base = dmgAt({}, true);
+    const base = dmgAt({ guardPenaltyBps: 0n }, true);
     const guarded = dmgAt({ guardPenaltyBps: 3000n }, true);
     const unguarded = dmgAt({ guardPenaltyBps: 3000n }, false);
     expect(guarded).toBe((base * 7000n) / 10_000n);
     expect(unguarded).toBe(base);
   });
 
-  test('all knobs off → behaviour identical to a battle without them', () => {
+  test('the defaults ARE the measured lever set, and they change the battle', () => {
     const run = (rules?: Partial<v3.BattleRules>) => {
       const s = v3.createBattle({ battleId: 'z', vrfSeed: 123n, tier: 'elite', teamA: team('A', [M, B, S]), teamB: team('B', [S, M, B]), rules });
       v3.runBattle(s, { A: v3.balancedPolicy, B: v3.balancedPolicy });
       return v3.hashState(s);
     };
-    expect(run()).toBe(run({ fortifyTaunt: false, focusFalloffBps: 0n, guardPenaltyBps: 0n }));
+    // Pins the exact combination validated by the depth sweep — spread 25.1 → 17.6pp,
+    // naive focus-fire script 58.2 → 56.9%. Changing a default must break this test.
+    expect(run()).toBe(run({ fortifyTaunt: true, focusFalloffBps: 1000n, guardPenaltyBps: 2000n, coverPenaltyBps: 0n }));
+    // ...and they are load-bearing: an all-off battle diverges from the shipped one.
+    expect(run()).not.toBe(run({ fortifyTaunt: false, focusFalloffBps: 0n, guardPenaltyBps: 0n, coverPenaltyBps: 0n }));
+  });
+
+  test('terrain cover stays OFF by default — built, measured, and rejected', () => {
+    // It made the naive focus-fire script BETTER (+1.8pp) and doubled the 100-turn cap rate.
+    // Read docs/_generated/balance/2026-09-20-depth-sweep.md before turning this on.
+    expect(v3.DEFAULT_RULES.coverPenaltyBps).toBe(0n);
   });
 });
 
