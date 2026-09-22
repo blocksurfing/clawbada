@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useAccount, useChainId, useSignMessage, useSwitchChain } from 'wagmi';
+import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
 import { api } from '@/lib/api';
 import { buildAuthMessage, newAuthNonce } from '@clawbada/chain';
 
@@ -114,9 +114,13 @@ export interface AuthParams {
 }
 
 export function useAuth() {
-  const { address } = useAccount();
+  // `chainId` here is the CONNECTION's chain — what the wallet is actually on.
+  // NOT `useChainId()`, which returns `config.state.chainId`: the config's own chain,
+  // seeded from `chains[0]` and only updated when the connector reports a change. That
+  // reads as the API's chain while the wallet sits on another one, so a guard against it
+  // passes and the wallet then rejects the message. See the switch below.
+  const { address, chainId: connectedChainId } = useAccount();
   const { signMessageAsync } = useSignMessage();
-  const walletChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
 
   /** Acquire the cached signed challenge or sign a fresh one. Shared between
@@ -173,12 +177,16 @@ export function useAuth() {
       // bare string with no chain in it, so any chain worked and nothing had to switch. Now the
       // wallet has to be on the API's chain first. This blocks login outright, including for
       // practice battles, which are otherwise entirely off-chain.
-      if (walletChainId !== chainId) {
+      // Switch unless the CONNECTION positively reports it is already there. `undefined`
+      // means we do not know, so switch — a switch to the chain the wallet is already on is
+      // a no-op per EIP-3326, whereas skipping a needed one breaks login outright.
+      if (connectedChainId !== chainId) {
+        console.info(`[auth] wallet on chain ${connectedChainId ?? 'unknown'}, API wants ${chainId} — switching`);
         try {
           await switchChainAsync({ chainId });
         } catch (err) {
           throw new Error(
-            `Clawbada runs on chain ${chainId}; your wallet is on ${walletChainId}. ` +
+            `Clawbada runs on chain ${chainId}; your wallet is on ${connectedChainId ?? 'another network'}. ` +
               'Approve the network switch, or switch manually in your wallet and try again.',
             { cause: err },
           );
@@ -236,7 +244,7 @@ export function useAuth() {
       nonce: result.nonce,
       domain: result.domain,
     };
-  }, [address, signMessageAsync, walletChainId, switchChainAsync]);
+  }, [address, signMessageAsync, connectedChainId, switchChainAsync]);
 
   /**
    * F-2H: invalidate the cached signature so the next `getAuthParams()` call
