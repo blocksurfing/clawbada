@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount, useChainId, useSignMessage, useSwitchChain } from 'wagmi';
 import { api } from '@/lib/api';
 import { buildAuthMessage, newAuthNonce } from '@clawbada/chain';
 
@@ -116,6 +116,8 @@ export interface AuthParams {
 export function useAuth() {
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const walletChainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
 
   /** Acquire the cached signed challenge or sign a fresh one. Shared between
    *  the REST and WebSocket auth paths so a single signMessage call covers
@@ -165,6 +167,23 @@ export function useAuth() {
       // C-01: an EIP-4361 message bound to THIS site and the API's chain. The old bare string
       // ("Clawbada Auth: <time>") could be requested by any site and replayed against the API.
       const chainId = await getAuthChainId();
+      // A wallet will not DISPLAY an EIP-4361 message whose `Chain ID:` differs from the chain
+      // it is connected to — it errors out before the user ever sees a prompt ("the chain ID
+      // does not match the provided chain ID for verification"). Before C-01 the message was a
+      // bare string with no chain in it, so any chain worked and nothing had to switch. Now the
+      // wallet has to be on the API's chain first. This blocks login outright, including for
+      // practice battles, which are otherwise entirely off-chain.
+      if (walletChainId !== chainId) {
+        try {
+          await switchChainAsync({ chainId });
+        } catch (err) {
+          throw new Error(
+            `Clawbada runs on chain ${chainId}; your wallet is on ${walletChainId}. ` +
+              'Approve the network switch, or switch manually in your wallet and try again.',
+            { cause: err },
+          );
+        }
+      }
       const ts = Math.floor(Date.now() / 1000);
       const nonce = newAuthNonce();
       const domain = window.location.host;
@@ -217,7 +236,7 @@ export function useAuth() {
       nonce: result.nonce,
       domain: result.domain,
     };
-  }, [address, signMessageAsync]);
+  }, [address, signMessageAsync, walletChainId, switchChainAsync]);
 
   /**
    * F-2H: invalidate the cached signature so the next `getAuthParams()` call
