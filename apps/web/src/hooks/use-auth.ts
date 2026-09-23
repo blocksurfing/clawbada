@@ -21,17 +21,20 @@ interface CachedAuth {
   expiresAt: number;
 }
 
-/** The chain the API serves, fetched once. It is part of the signed message (C-01), and the web
- *  app supports two chains, so it has to come from the API rather than be guessed. */
-let authChainIdPromise: Promise<number> | null = null;
-function getAuthChainId(): Promise<number> {
-  if (!authChainIdPromise) {
-    authChainIdPromise = api.auth.params().then((p) => p.chainId).catch((err) => {
-      authChainIdPromise = null; // let the next attempt retry
-      throw err;
-    });
+/** The chains the API will accept in a login message, fetched once. `chainIds[0]` is the one it
+ *  serves; the rest are accepted so a wallet need not switch networks merely to sign in. */
+let authChainsPromise: Promise<number[]> | null = null;
+function getAuthChains(): Promise<number[]> {
+  if (!authChainsPromise) {
+    authChainsPromise = api.auth
+      .params()
+      .then((p) => (p.chainIds?.length ? p.chainIds : [p.chainId]))
+      .catch((err) => {
+        authChainsPromise = null; // let the next attempt retry
+        throw err;
+      });
   }
-  return authChainIdPromise;
+  return authChainsPromise;
 }
 
 /**
@@ -170,7 +173,25 @@ export function useAuth() {
     const promise = (async (): Promise<CachedAuth> => {
       // C-01: an EIP-4361 message bound to THIS site and the API's chain. The old bare string
       // ("Clawbada Auth: <time>") could be requested by any site and replayed against the API.
-      const chainId = await getAuthChainId();
+      // Sign with the chain the wallet is ALREADY on when the API accepts it. Practice
+      // battles are entirely off-chain, so making someone switch networks — and on wallets
+      // that hide test networks, enable a developer setting — just to log in was a barrier
+      // in front of the part of the game that has no chain in it. On-chain actions still
+      // prompt for the right network at transaction time, which is when it matters.
+      const accepted = await getAuthChains();
+      // If the wallet is already on a chain the API accepts, sign there and switch nothing.
+      // Otherwise pick the accepted chain that is EASIEST to reach: Base mainnet over Base
+      // Sepolia, because wallets that hide test networks (Phantom's "Testnet mode") refuse a
+      // testnet switch outright until a developer setting is on. Logging in on mainnet while
+      // the game runs on Sepolia is fine — the signature only authorises API calls, and
+      // anything on-chain prompts for the right network when the transaction is sent.
+      const BASE_MAINNET = 8453;
+      const chainId =
+        connectedChainId && accepted.includes(connectedChainId)
+          ? connectedChainId
+          : accepted.includes(BASE_MAINNET)
+            ? BASE_MAINNET
+            : accepted[0]!;
       // A wallet will not DISPLAY an EIP-4361 message whose `Chain ID:` differs from the chain
       // it is connected to — it errors out before the user ever sees a prompt ("the chain ID
       // does not match the provided chain ID for verification"). Before C-01 the message was a
@@ -181,7 +202,7 @@ export function useAuth() {
       // means we do not know, so switch — a switch to the chain the wallet is already on is
       // a no-op per EIP-3326, whereas skipping a needed one breaks login outright.
       if (connectedChainId !== chainId) {
-        console.info(`[auth] wallet on chain ${connectedChainId ?? 'unknown'}, API wants ${chainId} — switching`);
+        console.info(`[auth] wallet on chain ${connectedChainId ?? 'unknown'}; API accepts ${accepted.join('/')} — switching to ${chainId}`);
         try {
           await switchChainAsync({ chainId });
         } catch (err) {
