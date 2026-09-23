@@ -185,9 +185,18 @@ export function useAuth() {
         try {
           await switchChainAsync({ chainId });
         } catch (err) {
+          // Wallets that hide test networks behind a setting (Phantom's "Testnet mode",
+          // and others like it) refuse the switch outright rather than prompting, so the
+          // switch failing is NOT necessarily a rejected prompt. Say so while the game is
+          // on Sepolia — otherwise this is a dead end for anyone using such a wallet.
+          const testnet = chainId !== 8453 && chainId !== 1;
           throw new Error(
             `Clawbada runs on chain ${chainId}; your wallet is on ${connectedChainId ?? 'another network'}. ` +
-              'Approve the network switch, or switch manually in your wallet and try again.',
+              'Approve the network switch, or switch manually in your wallet and try again.' +
+              (testnet
+                ? ' If your wallet refused, it may hide test networks — turn on testnet mode'
+                  + " (Phantom: Settings → Developer Settings → Testnet Mode) and retry."
+                : ''),
             { cause: err },
           );
         }
