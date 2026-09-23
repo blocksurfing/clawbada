@@ -516,7 +516,7 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
       setErr(e instanceof Error ? e.message : 'Could not start the practice battle');
       setBusy(false);
     }
-  }, [teamId, preset, bot, opponent, getAuthHeaders, router]);
+  }, [teamId, preset, bot, opponent, arena, getAuthHeaders, router]);
 
   return (
     <FrostedPanel className="space-y-5">
@@ -524,7 +524,7 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
         <Bot className="size-4 text-teal" />
         <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Practice vs a bot</h2>
       </div>
-      <p className="text-xs text-text-secondary">Off-chain, no stakes, no rating. Same rules, same 60-second shot clock. Pick a team and an opponent style.</p>
+      <p className="text-xs text-text-secondary">Off-chain, no stakes, no rating. Same rules, same 60-second shot clock. Pick a team and an opponent style, or build any team at any tier and purity in the <Link href="/dojo" className="text-ocean hover:underline">Dojo</Link>.</p>
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="space-y-2">
