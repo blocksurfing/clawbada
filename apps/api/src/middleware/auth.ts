@@ -32,9 +32,32 @@ export function allowedAuthDomains(env: Record<string, string | undefined> = pro
   return defaults;
 }
 
-/** The chain this API serves — part of the signed message, so a testnet signature is useless on mainnet. */
+/** The chain this API serves — the one a client should prefer, and the one on-chain actions use. */
 export function authChainId(env: Record<string, string | undefined> = process.env): number {
   return env.CHAIN_ENV === 'mainnet' ? 8453 : 84532;
+}
+
+/**
+ * Chain ids a login message may carry.
+ *
+ * C-01 bound the signature to ONE chain, which meant the wallet had to be on that exact
+ * network before it would even display the message — so logging in to play an OFF-CHAIN
+ * practice battle required switching networks, and on wallets that hide test networks
+ * (Phantom's "Testnet mode") it required a developer setting first. That is a real barrier
+ * in front of the part of the game with no chain in it at all.
+ *
+ * Accepting either Base chain removes it. What C-01 actually protects is unchanged: the
+ * message is still rebuilt from the API's OWN domain allow-list, still carries a single-use
+ * nonce, and still expires in 5 minutes — those are what stop a signature being replayed
+ * from another site or a second time. The chain field narrows from "exactly this one" to
+ * "one of the two this app uses", and the signature still cannot move funds.
+ *
+ * On-chain actions are unaffected: they run through the wallet, which prompts for the right
+ * network at transaction time — the moment it genuinely matters.
+ */
+export function acceptedAuthChainIds(env: Record<string, string | undefined> = process.env): number[] {
+  const served = authChainId(env);
+  return served === 8453 ? [8453, 84532] : [84532, 8453];
 }
 
 export interface VerifiedWallet {
@@ -90,7 +113,7 @@ export async function verifyWalletSignature(input: {
     throw new ApiError('UNAUTHORIZED', 'Invalid wallet address');
   }
 
-  let message: string;
+  let candidates: string[];
   if (input.nonce) {
     // C-01: EIP-4361. The message is rebuilt here from the API's OWN domain allow-list and
     // chain id, so a signature made for another site or another chain cannot verify.
@@ -100,26 +123,31 @@ export async function verifyWalletSignature(input: {
     if (!AUTH_DOMAIN_RE.test(domain) || !allowed.includes(domain)) {
       throw new ApiError('UNAUTHORIZED', 'This site is not allowed to sign in to the Clawbada API');
     }
-    message = buildAuthMessage({ domain, address: checksumAddress, chainId: authChainId(), nonce: input.nonce, issuedAt: timestamp });
+    // One candidate message per accepted chain; the signature has to match one of them.
+    // (Captured first: the narrowing on input.nonce does not survive into the closure.)
+    const nonce = input.nonce;
+    candidates = acceptedAuthChainIds().map((chainId) =>
+      buildAuthMessage({ domain, address: checksumAddress, chainId, nonce, issuedAt: timestamp }),
+    );
   } else if (process.env.AUTH_ALLOW_LEGACY === '1') {
     // Rollout only: the web app and the API deploy separately. Unset once both are live.
-    message = `Clawbada Auth: ${timestamp}`;
+    candidates = [`Clawbada Auth: ${timestamp}`];
   } else {
     throw new ApiError('UNAUTHORIZED', 'Unsupported login message: sign the EIP-4361 message (see GET /api/auth/params) and send X-Nonce');
   }
+  let valid = false;
   try {
-    const valid = await verifyMessage({
-      address: checksumAddress as `0x${string}`,
-      message,
-      signature: signature as `0x${string}`,
-    });
-    if (!valid) {
-      throw new ApiError('UNAUTHORIZED', 'Invalid signature');
+    for (const message of candidates) {
+      if (await verifyMessage({ address: checksumAddress as `0x${string}`, message, signature: signature as `0x${string}` })) {
+        valid = true;
+        break;
+      }
     }
   } catch (err) {
     if (err instanceof ApiError) throw err;
     throw new ApiError('UNAUTHORIZED', 'Signature verification failed');
   }
+  if (!valid) throw new ApiError('UNAUTHORIZED', 'Invalid signature');
 
   return {
     checksumAddress,
