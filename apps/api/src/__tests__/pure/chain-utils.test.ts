@@ -1,5 +1,17 @@
+/**
+ * Lives in `pure/` — its own bun process — because `bun test`'s `mock.module` is
+ * PROCESS-GLOBAL and not undone between files. `public-battle-view.test.ts` replaces
+ * `../lib/chain` with `{ readBattle, serializeBigInts: (x) => x }`, so once that file has
+ * run, every later file in the same process importing `serializeBigInts` gets the identity
+ * stub and every assertion here fails with `123n` instead of `"123"`.
+ *
+ * It only passed by luck of alphabetical ordering (chain-utils < public-battle-view); CI
+ * ordered them the other way twice and went red on PRs that touched none of this.
+ *
+ * Keep mock-free unit tests of real modules in here, NOT in `__tests__/` root.
+ */
 import { describe, test, expect } from 'bun:test';
-import { serializeBigInts } from '../lib/chain';
+import { serializeBigInts } from '../../lib/chain';
 
 // serializeBigInts is typed T -> T for ergonomic use in routes, but it really turns every
 // bigint into a string. Widen through `unknown` so the assertions can say what it does.
