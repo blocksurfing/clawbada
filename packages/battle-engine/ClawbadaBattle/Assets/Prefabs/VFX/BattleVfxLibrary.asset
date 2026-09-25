@@ -350,6 +350,11 @@ MonoBehaviour:
     loop: {fileID: 6703215666623848177, guid: 19820ae8b6b18470ba5602f7970482df, type: 3}
     end: {fileID: 1846228943044370874, guid: 2c105f5c7b69e4ea78362bc8ad5fda01, type: 3}
     yOffset: 0
+  - status: bleed
+    spawn: {fileID: 0}
+    loop: {fileID: 7823277933465964674, guid: c1a0d6dd8053146148c167450583b82f, type: 3}
+    end: {fileID: 0}
+    yOffset: 0
   specialImpactByClass:
   - prefab: {fileID: 0}
     anchor: 2
