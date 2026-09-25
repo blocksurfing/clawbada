@@ -515,10 +515,21 @@ public class BattleManager : MonoBehaviour
         hexGrid?.ClearHighlights();
         lobsters.TryGetValue(data.lobsterId ?? "", out var actor);
 
+        // A Special that leaps to its casting hex (Mantis Ambush) replaces the walk. Only on a turn
+        // that actually moves: an already-adjacent cast plays its swing as usual.
+        bool moves = data.path != null && data.path.Length > 0;
+        var dash = actor != null && moves && data.action == "special" && vfxLibrary != null ? vfxLibrary.DashFor(actor.classId) : null;
+        if (dash != null && !actor.HasState(dash.state)) dash = null;
+
         // Reconcile a tentative move with the server's resolved one: already standing on
         // the resolved destination → skip the walk; anything else → snap home first.
+        // A dash always starts from home: a previewed walk is undone so the leap replays the move.
         bool skipMove = false;
-        if (actor != null && previewActorId == actor.lobsterId)
+        if (dash != null)
+        {
+            if (previewActorId != null) UndoPreview();
+        }
+        else if (actor != null && previewActorId == actor.lobsterId)
         {
             bool endsHere = data.path != null && data.path.Length > 0
                 && data.path[data.path.Length - 1].col == actor.col && data.path[data.path.Length - 1].row == actor.row;
@@ -530,8 +541,14 @@ public class BattleManager : MonoBehaviour
             UndoPreview();
         }
 
-        // 1. Movement along the server's path (cell-by-cell hops).
-        if (!skipMove && actor != null && data.path != null && data.path.Length > 0)
+        // 1. Movement along the server's path (cell-by-cell hops), or the Special's leap.
+        if (dash != null)
+        {
+            var last = data.path[data.path.Length - 1];
+            Vector3 face = lobsters.TryGetValue(data.targetId ?? "", out var dashTarget) ? dashTarget.transform.position : hexGrid != null ? hexGrid.GetWorldPosition(last.col, last.row) : actor.transform.position;
+            yield return actor.DashTo(last.col, last.row, face, dash, this);
+        }
+        else if (!skipMove && actor != null && moves)
         {
             var last = data.path[data.path.Length - 1];
             yield return actor.MoveTo(last.col, last.row, secondsPerHexMove);

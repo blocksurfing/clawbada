@@ -286,6 +286,48 @@ public class LobsterController : MonoBehaviour
         PlayState("Idle");
     }
 
+    /// <summary>True when this rig's controller has the named state (a missing one would hold Idle).</summary>
+    public bool HasState(string stateName)
+        => animator != null && !string.IsNullOrEmpty(stateName) && animator.HasState(0, Animator.StringToHash(stateName));
+
+    /// <summary>A Special's leap to its casting hex, in place of the walk (Mantis Ambush). The rig plays the
+    /// dash state in place until take-off, leaves an afterimage and the speed trail where it stood, flies
+    /// straight to the hex (over anything — it is a leap, not a path) between take-off and landing, then
+    /// holds until the hand-off to the Special's swing. The flight time is the designer's, not per hex, so
+    /// a three-hex Ambush reads as fast as a one-hex one.</summary>
+    public IEnumerator DashTo(int toCol, int toRow, Vector3 facePoint, BattleVfxLibrary.DashSpec dash, MonoBehaviour host)
+    {
+        Vector3 start = transform.position;
+        Vector3 end = grid != null ? grid.GetWorldPosition(toCol, toRow) : start;
+        FaceToward(facePoint);
+        PlayState(dash.state, 0.05f);
+        Debug.Log($"[LobsterController] dash {className} ({col},{row}) → ({toCol},{toRow}) {Vector3.Distance(start, end):F2}u, flight {dash.landAt - dash.takeoffAt:F2}s");
+
+        float t0 = Time.time;
+        while (Time.time - t0 < dash.takeoffAt) yield return null;
+
+        if (dash.afterimageAlpha > 0f) Afterimage.Leave(this, dash.afterimageAlpha, dash.afterimageFade);
+        BattleVfxLibrary.Spawn(dash.trail, this, null, host);
+
+        float flight = dash.landAt - dash.takeoffAt;
+        float f = 0f;
+        while (f < flight)
+        {
+            f += Time.deltaTime;
+            float k = Mathf.Clamp01(f / flight);
+            k = 1f - (1f - k) * (1f - k); // ease-out: bursts off the mark, settles onto the hex
+            transform.position = Vector3.LerpUnclamped(start, end, k);
+            UpdateSortingOrder();
+            yield return null;
+        }
+        transform.position = end;
+        col = toCol;
+        row = toRow;
+        UpdateSortingOrder();
+
+        while (Time.time - t0 < dash.releaseAt) yield return null;
+    }
+
     // ─── Combat visuals ───
 
     /// <summary>Attack read: face the target, play Attack (or Special-as-Attack),
