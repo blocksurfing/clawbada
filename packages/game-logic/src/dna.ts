@@ -19,6 +19,7 @@ import {
   CLASS_SHIFT,
   LEGEND_MASK,
   LEGEND_SHIFT,
+  ALLELES_PER_PART,
   NUM_BODY_PARTS,
   NUM_CLASSES,
   TOTAL_ALLELES,
@@ -156,6 +157,47 @@ export function randomDNA(class_: LobsterClass, rng: () => number = Math.random)
   const u = (n: number) => Math.min(n - 1, Math.floor(rng() * n));
   const alleles: number[] = [];
   for (let i = 0; i < TOTAL_ALLELES; i++) alleles.push(encodeAllele({ classAffinity: u(NUM_CLASSES), variant: u(16) }));
+  return encodeDNA(class_, LegendStatus.Normal, u(64), alleles);
+}
+
+/**
+ * Random genetics with a CHOSEN purity — the dojo's "pick your lobster" knob.
+ *
+ * `randomDNA` draws every allele at random, which lands near the faucet average (~0.6
+ * matching dominants) and cannot be asked for a particular value. Purity is not a separate
+ * field: it is COUNTED from the dominant alleles (see calculatePurity), so the only way to
+ * have a lobster of purity N is to build DNA whose dominants match in exactly N slots.
+ *
+ * Doing it in the genes rather than overriding a number keeps the lobster honest — the body
+ * parts a pure lobster is drawn with are its own class's, which is the point of showing one.
+ *
+ * `targetPurity` is 0-6; recessives stay random, as does everything else.
+ */
+export function randomDNAWithPurity(class_: LobsterClass, targetPurity: number, rng: () => number = Math.random): bigint {
+  if (!Number.isInteger(targetPurity) || targetPurity < 0 || targetPurity > NUM_BODY_PARTS) {
+    throw new Error(`targetPurity must be an integer 0-${NUM_BODY_PARTS}, got ${targetPurity}`);
+  }
+  const u = (n: number) => Math.min(n - 1, Math.floor(rng() * n));
+  // Which slots match is itself random, so two pure-3 lobsters of a class differ.
+  const slots = [...Array(NUM_BODY_PARTS).keys()];
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = u(i + 1);
+    [slots[i], slots[j]] = [slots[j]!, slots[i]!];
+  }
+  const matching = new Set(slots.slice(0, targetPurity));
+
+  const alleles: number[] = [];
+  for (let i = 0; i < TOTAL_ALLELES; i++) {
+    const slot = Math.floor(i / ALLELES_PER_PART);
+    const isDominant = i % ALLELES_PER_PART === 0;
+    let affinity = u(NUM_CLASSES);
+    if (isDominant) {
+      if (matching.has(slot)) affinity = class_;
+      // A non-matching dominant must be a DIFFERENT class, or the purity overshoots.
+      else if (affinity === class_) affinity = (class_ + 1 + u(NUM_CLASSES - 1)) % NUM_CLASSES;
+    }
+    alleles.push(encodeAllele({ classAffinity: affinity, variant: u(16) }));
+  }
   return encodeDNA(class_, LegendStatus.Normal, u(64), alleles);
 }
 

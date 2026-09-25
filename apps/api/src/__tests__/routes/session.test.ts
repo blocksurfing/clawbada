@@ -148,6 +148,48 @@ describe('POST /practice', () => {
     expect(bad.status).toBe(400);
   });
 
+  test('purity reaches the genes of every preset lobster and the random opponent; out of range → 400', async () => {
+    mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+    const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_abyss_apex', purity: 6, opponent: 'random' }) });
+    expect(res.status).toBe(201);
+    const args = mockStartPractice.mock.calls[0][0] as { lobsters: Array<{ input: { class: number; purity: number }; partClassIds: number[] }>; purity?: number };
+    for (const l of args.lobsters) {
+      expect(l.input.purity).toBe(6);
+      // Pure in the body parts too, not only in the number.
+      expect(l.partClassIds.every((c) => c === l.input.class)).toBe(true);
+    }
+    expect(args.purity).toBe(6);
+
+    mockStartPractice.mockClear();
+    mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+    const zero = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'trio_kraken', purity: 0 }) });
+    expect(zero.status).toBe(201);
+    for (const l of (mockStartPractice.mock.calls[0][0] as { lobsters: Array<{ input: { purity: number } }> }).lobsters) expect(l.input.purity).toBe(0);
+
+    for (const purity of [7, -1, 2.5, '6']) {
+      const bad = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'trio_kraken', purity }) });
+      expect(bad.status).toBe(400);
+    }
+    // A real lobster's purity is its on-chain DNA; it cannot be dialled.
+    const onChain = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ lobsterIds: ['1', '2', '3'], purity: 6 }) });
+    expect(onChain.status).toBe(400);
+  });
+
+  test('with dev presets switched off, only the dojo\'s team_* rosters are still accepted', async () => {
+    process.env.PRACTICE_PRESETS = 'false';
+    try {
+      mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+      const team = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_abyss_apex', purity: 6 }) });
+      expect(team.status).toBe(201);
+      for (const preset of ['trio_kraken', 'random_apex', 'specials', 'elite_mix']) {
+        const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset }) });
+        expect(res.status).toBe(400);
+      }
+    } finally {
+      process.env.PRACTICE_PRESETS = 'true';
+    }
+  });
+
   test('preset roster → 201 with battleId + snapshot; bot + opponent validated', async () => {
     mockStartPractice.mockImplementation(async (opts: any) => fakeSession(P_ID) && { record: { id: P_ID }, snapshot: () => ({ ok: true, bot: opts.bot, n: opts.lobsters.length }) });
     const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', bot: 'cautious' }) });

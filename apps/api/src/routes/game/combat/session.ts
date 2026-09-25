@@ -89,7 +89,7 @@ sessionRoutes.post(
   catchErrors(async (c) => {
     if (process.env.PRACTICE_ENABLED === 'false') throw new ApiError('NOT_FOUND', 'Practice mode is disabled');
     const address = (c.get('address') as string).toLowerCase();
-    const body = await c.req.json<{ teamId?: string; lobsterIds?: string[]; bot?: string; opponent?: string; layoutId?: string; preset?: string; arena?: string }>().catch(() => ({} as Record<string, never>));
+    const body = await c.req.json<{ teamId?: string; lobsterIds?: string[]; bot?: string; opponent?: string; layoutId?: string; preset?: string; arena?: string; purity?: number }>().catch(() => ({} as Record<string, never>));
 
     const bot = body.bot ?? 'balanced';
     if (!v3.isBotName(bot)) throw new ApiError('INVALID_INPUT', `bot must be one of ${v3.BOT_NAMES.join(', ')}`);
@@ -104,19 +104,26 @@ sessionRoutes.post(
     const arena = body.arena === undefined ? undefined : body.arena;
     if (arena !== undefined && arena !== 'evolved' && arena !== 'elite' && arena !== 'apex') throw new ApiError('INVALID_INPUT', "arena must be 'evolved', 'elite' or 'apex'");
 
+    // Purity only shapes preset rosters: a real lobster's purity is in its on-chain DNA.
+    const purity = body.purity;
+    if (purity !== undefined && (!Number.isInteger(purity) || purity < 0 || purity > 6)) throw new ApiError('INVALID_INPUT', 'purity must be an integer 0-6');
+    if (purity !== undefined && !body.preset) throw new ApiError('INVALID_INPUT', 'purity applies to preset rosters only');
+
     let lobsters: PracticeLobster[];
     if (body.preset) {
-      if (!presetsEnabled()) throw new ApiError('INVALID_INPUT', 'preset rosters are disabled');
+      // The dojo's team builder speaks `team_*`, so that one family stays open when dev presets
+      // are switched off: an off-chain battle with no stakes cannot touch the economy.
+      if (!presetsEnabled() && !teamPreset) throw new ApiError('INVALID_INPUT', 'preset rosters are disabled');
       if (randomPreset || trioPreset || specialsPreset || teamPreset) {
-        const r = randomPreset ? rollRandomRoster(randomPreset[1])
-          : specialsPreset ? rollSpecialsRoster(specialsPreset[1] ?? 'elite')
-          : teamPreset ? rollTeamRoster([teamPreset[1], teamPreset[2], teamPreset[3]], teamPreset[4] ?? 'elite')
-          : rollTrioRoster(trioPreset![1], trioPreset![2] ?? 'elite');
+        const r = randomPreset ? rollRandomRoster(randomPreset[1], Math.random, purity)
+          : specialsPreset ? rollSpecialsRoster(specialsPreset[1] ?? 'elite', Math.random, purity)
+          : teamPreset ? rollTeamRoster([teamPreset[1], teamPreset[2], teamPreset[3]], teamPreset[4] ?? 'elite', Math.random, purity)
+          : rollTrioRoster(trioPreset![1], trioPreset![2] ?? 'elite', Math.random, purity);
         lobsters = r.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: r.tier, purity: r.purity[i], legend: false }, partClassIds: r.partClassIds[i] }));
       } else {
         const p = PRESETS[body.preset];
         if (!p) throw new ApiError('INVALID_INPUT', `preset must be one of random_<tier>, trio_<class>[_<tier>], team_<class>_<class>_<class>[_<tier>], specials[_<tier>], ${Object.keys(PRESETS).join(', ')}`);
-        lobsters = p.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: p.tier, purity: 3, legend: false } }));
+        lobsters = p.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: p.tier, purity: purity ?? 3, legend: false } }));
       }
     } else {
       let tokenIds: bigint[];
@@ -142,7 +149,7 @@ sessionRoutes.post(
     }
 
     try {
-      const session = await battleSessions.startPractice({ owner: address, lobsters, bot, opponent, layoutId: body.layoutId, arena });
+      const session = await battleSessions.startPractice({ owner: address, lobsters, bot, opponent, layoutId: body.layoutId, arena, purity });
       return c.json({ battleId: session.record.id, snapshot: session.snapshot() }, 201);
     } catch (err) {
       if (err instanceof PracticeConflictError) throw new ApiError('BATTLE_PHASE_ERROR', `You already have an active practice battle: ${err.existingId}`);

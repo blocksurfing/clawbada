@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
 import { api } from '@/lib/api';
 import { buildAuthMessage, newAuthNonce } from '@clawbada/chain';
 
@@ -21,17 +21,20 @@ interface CachedAuth {
   expiresAt: number;
 }
 
-/** The chain the API serves, fetched once. It is part of the signed message (C-01), and the web
- *  app supports two chains, so it has to come from the API rather than be guessed. */
-let authChainIdPromise: Promise<number> | null = null;
-function getAuthChainId(): Promise<number> {
-  if (!authChainIdPromise) {
-    authChainIdPromise = api.auth.params().then((p) => p.chainId).catch((err) => {
-      authChainIdPromise = null; // let the next attempt retry
-      throw err;
-    });
+/** The chains the API will accept in a login message, fetched once. `chainIds[0]` is the one it
+ *  serves; the rest are accepted so a wallet need not switch networks merely to sign in. */
+let authChainsPromise: Promise<number[]> | null = null;
+function getAuthChains(): Promise<number[]> {
+  if (!authChainsPromise) {
+    authChainsPromise = api.auth
+      .params()
+      .then((p) => (p.chainIds?.length ? p.chainIds : [p.chainId]))
+      .catch((err) => {
+        authChainsPromise = null; // let the next attempt retry
+        throw err;
+      });
   }
-  return authChainIdPromise;
+  return authChainsPromise;
 }
 
 /**
@@ -114,8 +117,14 @@ export interface AuthParams {
 }
 
 export function useAuth() {
-  const { address } = useAccount();
+  // `chainId` here is the CONNECTION's chain — what the wallet is actually on.
+  // NOT `useChainId()`, which returns `config.state.chainId`: the config's own chain,
+  // seeded from `chains[0]` and only updated when the connector reports a change. That
+  // reads as the API's chain while the wallet sits on another one, so a guard against it
+  // passes and the wallet then rejects the message. See the switch below.
+  const { address, chainId: connectedChainId } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { switchChainAsync } = useSwitchChain();
 
   /** Acquire the cached signed challenge or sign a fresh one. Shared between
    *  the REST and WebSocket auth paths so a single signMessage call covers
@@ -164,7 +173,55 @@ export function useAuth() {
     const promise = (async (): Promise<CachedAuth> => {
       // C-01: an EIP-4361 message bound to THIS site and the API's chain. The old bare string
       // ("Clawbada Auth: <time>") could be requested by any site and replayed against the API.
-      const chainId = await getAuthChainId();
+      // Sign with the chain the wallet is ALREADY on when the API accepts it. Practice
+      // battles are entirely off-chain, so making someone switch networks — and on wallets
+      // that hide test networks, enable a developer setting — just to log in was a barrier
+      // in front of the part of the game that has no chain in it. On-chain actions still
+      // prompt for the right network at transaction time, which is when it matters.
+      const accepted = await getAuthChains();
+      // If the wallet is already on a chain the API accepts, sign there and switch nothing.
+      // Otherwise pick the accepted chain that is EASIEST to reach: Base mainnet over Base
+      // Sepolia, because wallets that hide test networks (Phantom's "Testnet mode") refuse a
+      // testnet switch outright until a developer setting is on. Logging in on mainnet while
+      // the game runs on Sepolia is fine — the signature only authorises API calls, and
+      // anything on-chain prompts for the right network when the transaction is sent.
+      const BASE_MAINNET = 8453;
+      const chainId =
+        connectedChainId && accepted.includes(connectedChainId)
+          ? connectedChainId
+          : accepted.includes(BASE_MAINNET)
+            ? BASE_MAINNET
+            : accepted[0]!;
+      // A wallet will not DISPLAY an EIP-4361 message whose `Chain ID:` differs from the chain
+      // it is connected to — it errors out before the user ever sees a prompt ("the chain ID
+      // does not match the provided chain ID for verification"). Before C-01 the message was a
+      // bare string with no chain in it, so any chain worked and nothing had to switch. Now the
+      // wallet has to be on the API's chain first. This blocks login outright, including for
+      // practice battles, which are otherwise entirely off-chain.
+      // Switch unless the CONNECTION positively reports it is already there. `undefined`
+      // means we do not know, so switch — a switch to the chain the wallet is already on is
+      // a no-op per EIP-3326, whereas skipping a needed one breaks login outright.
+      if (connectedChainId !== chainId) {
+        console.info(`[auth] wallet on chain ${connectedChainId ?? 'unknown'}; API accepts ${accepted.join('/')} — switching to ${chainId}`);
+        try {
+          await switchChainAsync({ chainId });
+        } catch (err) {
+          // Wallets that hide test networks behind a setting (Phantom's "Testnet mode",
+          // and others like it) refuse the switch outright rather than prompting, so the
+          // switch failing is NOT necessarily a rejected prompt. Say so while the game is
+          // on Sepolia — otherwise this is a dead end for anyone using such a wallet.
+          const testnet = chainId !== 8453 && chainId !== 1;
+          throw new Error(
+            `Clawbada runs on chain ${chainId}; your wallet is on ${connectedChainId ?? 'another network'}. ` +
+              'Approve the network switch, or switch manually in your wallet and try again.' +
+              (testnet
+                ? ' If your wallet refused, it may hide test networks — turn on testnet mode'
+                  + " (Phantom: Settings → Developer Settings → Testnet Mode) and retry."
+                : ''),
+            { cause: err },
+          );
+        }
+      }
       const ts = Math.floor(Date.now() / 1000);
       const nonce = newAuthNonce();
       const domain = window.location.host;
@@ -217,7 +274,7 @@ export function useAuth() {
       nonce: result.nonce,
       domain: result.domain,
     };
-  }, [address, signMessageAsync]);
+  }, [address, signMessageAsync, connectedChainId, switchChainAsync]);
 
   /**
    * F-2H: invalidate the cached signature so the next `getAuthParams()` call
