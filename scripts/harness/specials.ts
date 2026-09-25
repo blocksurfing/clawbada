@@ -158,6 +158,11 @@ export default async function (b: Browser) {
           dashLines = grab(b, /LobsterController\] dash Mantis/);
           for (const l of grab(b, /LobsterController\] dash|BattleManager\] special|Afterimage|Exception/i)) console.log('[Mantis-dash]', l.slice(0, 220));
         }
+        if (CLASS === 'Reaver' && casts === 0) {
+          // Rend drop (2026-09-25): cinematic on the target, 1.67 s (Spawn 0.5 → Attack → Out), hit at 0.67 s.
+          for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/specials-Reaver-f${String(f).padStart(2, '0')}.png`); await b.sleep(120); }
+          for (const l of grab(b, /BattleManager\] special|FX_Reaver|CameraShake|bleed|BattleSfx|Exception/i)) console.log('[Reaver-log]', l.slice(0, 220));
+        }
         if ((CLASS === 'Mantis' || CLASS === 'Kraken' || CLASS === 'Abyss') && casts === 0) {
           // New drop (2026-09-15): burst through the cast so the frames can be eyeballed —
           // Ambush is a 0.5 s slash at the claws, Bind a per-target tentacle impact, Devour a

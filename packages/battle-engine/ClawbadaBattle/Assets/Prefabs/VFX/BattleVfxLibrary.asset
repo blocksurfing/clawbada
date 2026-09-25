@@ -261,7 +261,7 @@ MonoBehaviour:
     impactLead: 0
   - prefab: {fileID: 5472579402388250804, guid: bbb84a86e2600e24f8ac9fdc0499ae52, type: 3}
     anchor: 1
-    delay: 0
+    delay: 0.5
     mirrorWithFacing: 1
     impactAt: 0.6666667
     frontChildPrefix: 
