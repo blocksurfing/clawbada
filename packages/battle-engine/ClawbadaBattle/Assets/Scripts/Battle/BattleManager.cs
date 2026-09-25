@@ -657,7 +657,9 @@ public class BattleManager : MonoBehaviour
                             // Cinematic Special (e.g. Maelstrom): the effect owns the timing. The caster
                             // plays its cast swing now; damage, hit reads and per-target impacts land at
                             // the effect's impact beat; the turn holds until the effect is nearly done.
-                            float clip = BattleVfxLibrary.ClipLength(windup.prefab);
+                            // The effect's timeline runs from the turn start: a slot that appears late
+                            // (Rend pops in mid-swing) holds the turn for its delay plus its clip.
+                            float clip = windup.delay + BattleVfxLibrary.ClipLength(windup.prefab);
                             float t0 = Time.time;
                             Debug.Log($"[BattleManager] special {actor.className} effect clip={clip:F2}s impactAt={windup.impactAt:F2}s");
                             if (windup.dimAlpha > 0f) ScreenDim.Run(windup.dimAlpha, windup.dimFadeIn, clip - windup.dimFadeOut, windup.dimFadeOut);
