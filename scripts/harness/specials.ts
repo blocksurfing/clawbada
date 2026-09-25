@@ -124,7 +124,7 @@ export default async function (b: Browser) {
         dashShot = true; movedThisTurn = true; casts++;
         for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/dash-Mantis-f${String(f).padStart(2, '0')}.png`); await b.sleep(90); }
         dashLines = grab(b, /LobsterController\] dash Mantis/);
-        const played = grab(b, /BattleBridge\] PlayTurn/).slice(-1)[0] ?? '';
+        const played = grab(b, /BattleBridge\] PlayTurn/).find((l) => l.includes(`"lobsterId":"${sel.actor}"`)) ?? '';
         reachTurn = played;
         console.log(`[Mantis] pressing Special alone sent ${armedCast.length} turn(s); played: ${played.slice(0, 160)}`);
         for (const l of grab(b, /LobsterController\] dash|Afterimage|Exception/i)) console.log('[Mantis-dash]', l.slice(0, 220));

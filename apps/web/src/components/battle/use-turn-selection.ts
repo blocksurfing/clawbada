@@ -7,8 +7,9 @@
  *
  * Two input models share this hook:
  *  - autoSubmit (the in-canvas Unity HUD, LOKR-style): tapping a legal target,
- *    Defend or Wait submits the turn immediately; Special arms first (or submits
- *    at once when targetless); a tentative move is previewed and can be undone.
+ *    Defend or Wait submits the turn immediately; Attack and Special only ARM (a targetless
+ *    Special submits at once). A targeted action is never sent without the player tapping
+ *    that target. A tentative move is previewed and can be undone.
  *  - explicit (the React fallback panel): pick action + target, then Confirm.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -80,13 +81,9 @@ export function useTurnSelection(
   const canSpecial = summary?.canSpecial ?? false;
   const specialKind = summary?.specialKind ?? 'none';
 
-  // Exactly one legal target for the chosen action → pick it, so Attack/Special is one
-  // click away (LOKR-style). The player can still switch by clicking another target.
-  useEffect(() => {
-    if (!summary || targetId) return;
-    const ids = action === 'attack' ? summary.attackTargets : action === 'special' && specialKind !== 'none' ? summary.specialTargets : [];
-    if (ids.length === 1) setTargetId(ids[0]);
-  }, [summary, action, specialKind, targetId]);
+  // No target is ever chosen for the player (user, 2026-09-25: targeting decides matches, so it
+  // must never fire without the player picking it). There used to be a "one legal target → pick
+  // it" effect here; with the tap-to-act HUD it turned the next button press into a submit.
 
   const command = useMemo<TurnCommand | null>(() => {
     if (!actor) return null;
@@ -171,10 +168,10 @@ export function useTurnSelection(
     switch (a) {
       case 'attack': {
         setActionState('attack');
+        // Arms only: the attack is sent when the player taps the enemy (never auto-picked).
         const ids = summary.attackTargets;
-        const t = targetId && ids.includes(targetId) ? targetId : ids.length === 1 ? ids[0] : null;
-        if (t) { setTargetId(t); trySubmit(withMove({ lobsterId: actor.id, action: 'attack', targetId: t })); }
-        else setHint(ids.length ? 'Tap an enemy to attack' : 'No enemy in range — move closer, Defend or Wait');
+        setTargetId(null);
+        setHint(ids.length ? 'Tap an enemy to attack' : 'No enemy in range — move closer, Defend or Wait');
         return;
       }
       case 'special': {
