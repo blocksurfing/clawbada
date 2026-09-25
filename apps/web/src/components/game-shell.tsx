@@ -36,6 +36,8 @@ const NAV_GAME = [
   { href: '/game', label: 'Dashboard', icon: makeIcon('Dashboard') },
   { href: '/game/mining', label: 'Mining', icon: makeIcon('Mining') },
   { href: '/game/battle', label: 'Battle', icon: makeIcon('Battle') },
+  // No Dojo.svg yet — borrows the Battle icon until the designer draws one.
+  { href: '/dojo', label: 'Dojo', icon: makeIcon('Battle') },
   { href: '/game/breeding', label: 'Breeding', icon: makeIcon('Breeding') },
   { href: '/game/evolution', label: 'Evolve', icon: makeIcon('Evolve') },
   { href: '/game/repair', label: 'Repair', icon: makeIcon('Repair') },
@@ -58,6 +60,7 @@ const BOTTOM_NAV = [
 ];
 
 const MORE_NAV = [
+  { href: '/dojo', label: 'Dojo', icon: makeIcon('Battle') },
   { href: '/game/breeding', label: 'Breeding', icon: makeIcon('Breeding') },
   { href: '/game/evolution', label: 'Evolve', icon: makeIcon('Evolve') },
   { href: '/game/repair', label: 'Repair', icon: makeIcon('Repair') },
