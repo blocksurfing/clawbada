@@ -15,7 +15,7 @@
  * that never throws out of a tick; every external dependency is injected.
  */
 import { randomUUID, getRandomValues } from 'node:crypto';
-import { v3, deriveRandom, randomDNA, calculatePurity, type EvolutionTier, type LobsterClass } from '@clawbada/game-logic';
+import { v3, deriveRandom, randomDNA, randomDNAWithPurity, calculatePurity, type EvolutionTier, type LobsterClass } from '@clawbada/game-logic';
 import { battleSeed, deriveSeedSecret, seedCommitment, seedRoundFor } from '@clawbada/chain';
 import { ShotClock } from './clock';
 import type { BattleSnapshot, RosterEntry, SessionEventName, SettlementAlertPayload, Side } from './protocol';
@@ -83,6 +83,9 @@ export interface StartPracticeOptions {
    *  the Evolved board) because the tier only picks the layout, the arena art and the music —
    *  every lobster's stats come from its own tier. */
   arena?: v3.ArenaLayout['tier'];
+  /** A random opponent's purity. Omitted, it is whatever its seeded DNA draws; the dojo passes
+   *  the player's chosen purity so a Pure team does not stomp a faucet-grade bot. */
+  purity?: number;
 }
 
 export const DEFAULT_SHOT_CLOCK_MS = 60_000;
@@ -221,7 +224,7 @@ export class BattleSessionManager {
         teamB[i].class = Number(deriveClass(vrfSeed, i)) as LobsterClass;
         let k = 0;
         const rng = () => Number(deriveRandom(vrfSeed, `practice_bot_dna_${i}_${k++}`) % 1_000_000n) / 1_000_000;
-        const dna = randomDNA(teamB[i].class, rng);
+        const dna = opts.purity === undefined ? randomDNA(teamB[i].class, rng) : randomDNAWithPurity(teamB[i].class, opts.purity, rng);
         teamB[i].purity = calculatePurity(dna);
         botParts[i] = v3.partClassIds(dna);
       }
