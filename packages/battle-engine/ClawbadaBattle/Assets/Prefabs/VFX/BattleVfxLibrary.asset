@@ -159,7 +159,7 @@ MonoBehaviour:
     travelSpeed: 7
     launchAt: 0
     impactLead: 0
-  - prefab: {fileID: 300243558014422531, guid: f2b13de95c994cc4798ea70769301e44, type: 3}
+  - prefab: {fileID: 1755875966090196981, guid: acf75675c31ede34c8e6e9a0976af7fe, type: 3}
     anchor: 0
     delay: 0
     mirrorWithFacing: 1
@@ -259,18 +259,18 @@ MonoBehaviour:
     travelSpeed: 7
     launchAt: 0
     impactLead: 0
-  - prefab: {fileID: 0}
-    anchor: 2
+  - prefab: {fileID: 5472579402388250804, guid: bbb84a86e2600e24f8ac9fdc0499ae52, type: 3}
+    anchor: 1
     delay: 0
     mirrorWithFacing: 1
-    impactAt: 0
+    impactAt: 0.6666667
     frontChildPrefix: 
     hideChildrenPrefix: 
     onTop: 0
     spawnAtContact: 0
     castSpeed: 1
-    shakeAmplitude: 0
-    shakeSeconds: 0.3
+    shakeAmplitude: 0.035
+    shakeSeconds: 0.25
     rowsCovered: 0
     dimAlpha: 0
     dimFadeIn: 0.3
@@ -551,3 +551,274 @@ MonoBehaviour:
     travelSpeed: 7
     launchAt: 0
     impactLead: 0
+  specialDashByClass:
+  - state: 
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 0}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4
+  - state: Jump
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 4061874445550872273, guid: 7916f8fb7282f604da60bb4da5f24b60, type: 3}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4
+  - state: 
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 0}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4
+  - state: 
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 0}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4
+  - state: 
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 0}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4
+  - state: 
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 0}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4
+  - state: 
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 0}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4
+  - state: 
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 0}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4
+  - state: 
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 0}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4
+  - state: 
+    takeoffAt: 0.58
+    landAt: 0.83
+    releaseAt: 1
+    trail:
+      prefab: {fileID: 0}
+      anchor: 2
+      delay: 0
+      mirrorWithFacing: 1
+      impactAt: 0
+      frontChildPrefix: 
+      hideChildrenPrefix: 
+      onTop: 0
+      spawnAtContact: 0
+      castSpeed: 1
+      shakeAmplitude: 0
+      shakeSeconds: 0.3
+      rowsCovered: 0
+      dimAlpha: 0
+      dimFadeIn: 0.3
+      dimFadeOut: 0.5
+      travelPrefab: {fileID: 0}
+      travelSpeed: 7
+      launchAt: 0
+      impactLead: 0
+    afterimageAlpha: 0.6
+    afterimageFade: 0.4

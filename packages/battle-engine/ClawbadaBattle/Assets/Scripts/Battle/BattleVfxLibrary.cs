@@ -145,6 +145,39 @@ public class BattleVfxLibrary : ScriptableObject
         return attackImpact;
     }
 
+    /// <summary>A Special whose caster LEAPS to its casting hex instead of walking there (Mantis Ambush).
+    /// Only used on a turn that both moves and casts the Special; an already-adjacent cast plays as usual.
+    /// Times are seconds into the caster's own <see cref="state"/> clip.</summary>
+    [System.Serializable]
+    public class DashSpec
+    {
+        [Tooltip("Animator state the rig plays for the leap (Mantis: \"Jump\"). Empty = this class walks. The dash is also skipped when the rig lacks the state.")]
+        public string state = "";
+        [Tooltip("Leaves the ground: the lobster crouches in place until here.")]
+        public float takeoffAt = 0.58f;
+        [Tooltip("Touches down on the casting hex. takeoffAt→landAt is the flight, whatever the distance.")]
+        public float landAt = 0.83f;
+        [Tooltip("Hands over to the Special's swing (the slash). The rest of the leap clip is not waited for.")]
+        public float releaseAt = 1.0f;
+        [Tooltip("Speed cue spawned at the take-off point (world space, stays behind).")]
+        public VfxSlot trail = new() { anchor = AnchorPoint.ActorFeet };
+        [Tooltip("Opacity of the afterimage left where the lobster took off (0 = none).")]
+        [Range(0f, 1f)] public float afterimageAlpha = 0.6f;
+        [Tooltip("Seconds the afterimage takes to fade out.")]
+        public float afterimageFade = 0.4f;
+    }
+
+    [Header("Special dashes (index = classId; empty = walk to the casting hex)")]
+    public DashSpec[] specialDashByClass = new DashSpec[10];
+
+    /// <summary>The leap a class's Special uses in place of the walk, or null.</summary>
+    public DashSpec DashFor(int classId)
+    {
+        if (specialDashByClass == null || classId < 0 || classId >= specialDashByClass.Length) return null;
+        var d = specialDashByClass[classId];
+        return d != null && !string.IsNullOrEmpty(d.state) && d.landAt > d.takeoffAt ? d : null;
+    }
+
     /// <summary>Length of the longest clip on a prefab's Animator (0 when none) — how long a one-shot effect plays.</summary>
     public static float ClipLength(GameObject prefab)
     {

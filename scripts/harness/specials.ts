@@ -74,6 +74,8 @@ export default async function (b: Browser) {
 
   const casters = new Set<string>(); let casts = 0; let ownTurns = 0; let errors: string[] = []; let moves = 0;
   let cellsCache = new Map<string, { x: number; y: number }>();
+  let dashShot = false;
+  let dashLines: string[] = [];
   const started = Date.now();
   while (Date.now() - started < 7 * 60_000 && ownTurns < 16) {
     if (grab(b, /\[BattleHud\] banner/).length > 0) break;
@@ -89,6 +91,7 @@ export default async function (b: Browser) {
     if (!sel || !btns.defend) { await b.sleep(800); continue; }
     const before = await b.eval(turnNo);
     ownTurns++;
+    let movedThisTurn = false;
     // Melee Specials need adjacency: when charged but nothing is in range, step toward the
     // nearest enemy first (tentative move), then re-read the targets from the new cell.
     if (sel.specialKind === 'enemy' && (sel.specialTargets ?? []).length === 0 && (sel.moves ?? []).length > 0) {
@@ -98,8 +101,22 @@ export default async function (b: Browser) {
       const best = [...sel.moves].sort((a: any, c: any) => near(a) - near(c))[0];
       const cell = cells.get(`${best.col},${best.row}`);
       if (cell && me && near(best) < near(me)) {
-        const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); moves++;
+        const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); moves++; movedThisTurn = true;
         await b.sleep(900);
+        sel = await b.eval(`window.__clawbada_selection ? JSON.parse(JSON.stringify(window.__clawbada_selection)) : null`) as any ?? sel;
+      }
+    }
+    // Mantis: force a MOVING Ambush so the dash plays — leap to the farthest reachable hex that sits next
+    // to an enemy, then cast from there (an adjacent cast with no move never dashes).
+    if (CLASS === 'Mantis' && !dashShot && sel.canSpecial && !movedThisTurn && (sel.moves ?? []).length > 0) {
+      const me = (sel.lobsters || []).find((l: any) => l.id === sel.actor);
+      const enemies = (sel.lobsters || []).filter((l: any) => l.alive && me && l.team !== me.team);
+      const landing = (sel.moves as any[]).filter((m) => enemies.some((e: any) => hexDist(m, e) === 1)).sort((a, c) => hexDist(c, me) - hexDist(a, me))[0];
+      const cell = landing ? cells.get(`${landing.col},${landing.row}`) : null;
+      if (cell && me && hexDist(landing, me) >= 2) {
+        const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); moves++; movedThisTurn = true;
+        console.log(`[Mantis] forcing a moving Ambush: (${me.col},${me.row}) → (${landing.col},${landing.row}), ${hexDist(landing, me)} hexes`);
+        await b.sleep(1400);
         sel = await b.eval(`window.__clawbada_selection ? JSON.parse(JSON.stringify(window.__clawbada_selection)) : null`) as any ?? sel;
       }
     }
@@ -132,6 +149,14 @@ export default async function (b: Browser) {
           for (const t of [8, 10, 12, 15]) { await b.sleep(t === 8 ? 1300 : 2000); await b.screenshot(`${S}/specials-Bulwark-late${t}s.png`); }
           for (const l of grab(b, /OneShotVfx|Destroy|Fortify/i)) console.log('[Bulwark-vfx]', l.slice(0, 200));
           for (const l of grab(b, /BattleManager\] special|StatusChanged|SetStatus|fortify/i)) console.log('[Bulwark-log]', l.slice(0, 220));
+        }
+        if (CLASS === 'Mantis' && movedThisTurn && !dashShot) {
+          // Ambush dash (2026-09-25): crouch 0–0.58 s, flight to 0.83 s, swing from 1.0 s. Dense burst so
+          // the afterimage at the take-off hex and the trail are caught mid-air.
+          dashShot = true;
+          for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/dash-Mantis-f${String(f).padStart(2, '0')}.png`); await b.sleep(90); }
+          dashLines = grab(b, /LobsterController\] dash Mantis/);
+          for (const l of grab(b, /LobsterController\] dash|BattleManager\] special|Afterimage|Exception/i)) console.log('[Mantis-dash]', l.slice(0, 220));
         }
         if ((CLASS === 'Mantis' || CLASS === 'Kraken' || CLASS === 'Abyss') && casts === 0) {
           // New drop (2026-09-15): burst through the cast so the frames can be eyeballed —
@@ -232,6 +257,9 @@ export default async function (b: Browser) {
   }
   for (const l of grab(b, /\[BattleManager\] heal events|\(heal\)|special .* heal at/).slice(0, 4)) console.log('  heal:', l.slice(0, 120));
   for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
+  if (CLASS === 'Mantis' && dashShot) {
+    expect(dashLines.length >= 1, `Mantis: a moving Ambush leapt instead of walking (${dashLines.slice(-1)[0] ?? 'no dash line'})`);
+  }
   if (CLASS === 'Tempest' || CLASS === 'Ember') {
     expect(grab(b, /\[CameraShake\] amp=/).length >= 1, `${CLASS}: screen shake fired on the beat`);
     // The camera actually moved: at least a few rendered frames with a visible peak, then back at base.
