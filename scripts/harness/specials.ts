@@ -76,6 +76,7 @@ export default async function (b: Browser) {
   let cellsCache = new Map<string, { x: number; y: number }>();
   let dashShot = false;
   let dashLines: string[] = [];
+  let reachTurn = '';
   const started = Date.now();
   while (Date.now() - started < 7 * 60_000 && ownTurns < 16) {
     if (grab(b, /\[BattleHud\] banner/).length > 0) break;
@@ -106,18 +107,29 @@ export default async function (b: Browser) {
         sel = await b.eval(`window.__clawbada_selection ? JSON.parse(JSON.stringify(window.__clawbada_selection)) : null`) as any ?? sel;
       }
     }
-    // Mantis: force a MOVING Ambush so the dash plays — leap to the farthest reachable hex that sits next
-    // to an enemy, then cast from there (an adjacent cast with no move never dashes).
-    if (CLASS === 'Mantis' && !dashShot && sel.canSpecial && !movedThisTurn && (sel.moves ?? []).length > 0) {
+    // Mantis: the player flow that was broken (2026-09-25) — arm Ambush, then tap an enemy that is NOT
+    // adjacent, with no manual move. It must step in and cast (the leap), never a plain attack.
+    if (CLASS === 'Mantis' && !dashShot && sel.canSpecial && btns.special && (sel.moves ?? []).length > 0) {
       const me = (sel.lobsters || []).find((l: any) => l.id === sel.actor);
       const enemies = (sel.lobsters || []).filter((l: any) => l.alive && me && l.team !== me.team);
-      const landing = (sel.moves as any[]).filter((m) => enemies.some((e: any) => hexDist(m, e) === 1)).sort((a, c) => hexDist(c, me) - hexDist(a, me))[0];
-      const cell = landing ? cells.get(`${landing.col},${landing.row}`) : null;
-      if (cell && me && hexDist(landing, me) >= 2) {
-        const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); moves++; movedThisTurn = true;
-        console.log(`[Mantis] forcing a moving Ambush: (${me.col},${me.row}) → (${landing.col},${landing.row}), ${hexDist(landing, me)} hexes`);
-        await b.sleep(1400);
-        sel = await b.eval(`window.__clawbada_selection ? JSON.parse(JSON.stringify(window.__clawbada_selection)) : null`) as any ?? sel;
+      const far = enemies.find((e: any) => hexDist(e, me) >= 2 && (sel.moves as any[]).some((m) => hexDist(m, e) === 1));
+      const cell = far ? cells.get(`${far.col},${far.row}`) : null;
+      if (far && cell && me) {
+        console.log(`[Mantis] arm Ambush, tap ${far.id} at (${far.col},${far.row}) — ${hexDist(far, me)} hexes away, no manual move`);
+        b.drainLogs();
+        const p = toCss(g, btns.special.x + btns.special.w / 2, btns.special.y + btns.special.h / 2); await b.clickAt(p.x, p.y);
+        await b.sleep(500);
+        const armedCast = grab(b, /TurnSelection|submit/i).filter((l) => /special/i.test(l));
+        const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y);
+        dashShot = true; movedThisTurn = true; casts++;
+        for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/dash-Mantis-f${String(f).padStart(2, '0')}.png`); await b.sleep(90); }
+        dashLines = grab(b, /LobsterController\] dash Mantis/);
+        const played = grab(b, /BattleBridge\] PlayTurn/).slice(-1)[0] ?? '';
+        reachTurn = played;
+        console.log(`[Mantis] pressing Special alone sent ${armedCast.length} turn(s); played: ${played.slice(0, 160)}`);
+        for (const l of grab(b, /LobsterController\] dash|Afterimage|Exception/i)) console.log('[Mantis-dash]', l.slice(0, 220));
+        await b.waitFor(`${turnNo} !== ${JSON.stringify(before)}`, 25000, 200);
+        continue;
       }
     }
     if (sel.canSpecial && btns.special) {
@@ -264,6 +276,7 @@ export default async function (b: Browser) {
   for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
   if (CLASS === 'Mantis' && dashShot) {
     expect(dashLines.length >= 1, `Mantis: a moving Ambush leapt instead of walking (${dashLines.slice(-1)[0] ?? 'no dash line'})`);
+    expect(/"action":"special"/.test(reachTurn) && !/"path":\[\]/.test(reachTurn), `Mantis: tapping a non-adjacent enemy with Ambush armed stepped in and cast Ambush, not an attack (${reachTurn.slice(0, 140)})`);
   }
   if (CLASS === 'Tempest' || CLASS === 'Ember') {
     expect(grab(b, /\[CameraShake\] amp=/).length >= 1, `${CLASS}: screen shake fired on the beat`);
