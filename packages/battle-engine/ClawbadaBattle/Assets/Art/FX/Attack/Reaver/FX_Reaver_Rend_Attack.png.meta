@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: de4214e4478dde24ab39bf0fafa9a510
+guid: d9291373bb624537b65204119876987a
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -69,7 +69,7 @@ TextureImporter:
   platformSettings:
   - serializedVersion: 4
     buildTarget: DefaultTexturePlatform
-    maxTextureSize: 1024
+    maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
     textureCompression: 0
@@ -85,7 +85,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 1
+    textureCompression: 0
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -98,8 +98,8 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 1
-    compressionQuality: 50
+    textureCompression: 0
+    compressionQuality: 0
     crunchedCompression: 0
     allowsAlphaSplitting: 0
     overridden: 0
@@ -111,7 +111,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 1
+    textureCompression: 0
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -123,7 +123,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: FX_Mantis_Ambush_Spawn_00
+      name: FX_Reaver_Rend_Attack_00
       rect:
         serializedVersion: 2
         x: 0
@@ -133,19 +133,19 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 4792ee4d4fe8eb34d819b05f7d27b5f1
-      internalID: 1242482292251242216
+      spriteID: b391ecbb2b5a35d49b06339c3e478c56
+      internalID: 407087680286337214
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Mantis_Ambush_Spawn_01
+      name: FX_Reaver_Rend_Attack_01
       rect:
         serializedVersion: 2
         x: 128
@@ -155,19 +155,19 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 91ae1adea6cb46445a6118affa9a4ee5
-      internalID: 8605408579530364199
+      spriteID: 7883d0b475f09ca469fc8dc7ee4f8f47
+      internalID: 770901615444590299
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Mantis_Ambush_Spawn_02
+      name: FX_Reaver_Rend_Attack_02
       rect:
         serializedVersion: 2
         x: 256
@@ -177,19 +177,19 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 7ab2cae69e017384a9c54fed802d7e12
-      internalID: -3021372535442570996
+      spriteID: 73e9878413ab2374bbc745cf144113d6
+      internalID: 163558907166835806
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Mantis_Ambush_Spawn_03
+      name: FX_Reaver_Rend_Attack_03
       rect:
         serializedVersion: 2
         x: 384
@@ -199,19 +199,19 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: d15c0d821868cd34bb435e98c0375a0b
-      internalID: 6564811500167510529
+      spriteID: 22057480c8cdde34793cae7c0fddaefe
+      internalID: 416296860818835811
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Mantis_Ambush_Spawn_04
+      name: FX_Reaver_Rend_Attack_04
       rect:
         serializedVersion: 2
         x: 512
@@ -221,19 +221,19 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 60fc5093cea44674fabeffaca013a9f6
-      internalID: -8845306986789540677
+      spriteID: 53e47bf721652044a86c0d23524a19c4
+      internalID: 422220514633883048
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Mantis_Ambush_Spawn_05
+      name: FX_Reaver_Rend_Attack_05
       rect:
         serializedVersion: 2
         x: 640
@@ -243,39 +243,62 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: cf0015cee198d3a4b8006312ec73dbdb
-      internalID: 3035845949446980227
+      spriteID: 9083821068f170448b25cc5fd27cea47
+      internalID: 828299042365914309
       vertices: []
-      indices:
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: FX_Reaver_Rend_Attack_06
+      rect:
+        serializedVersion: 2
+        x: 768
+        y: 0
+        width: 128
+        height: 128
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f9d8a82fb249edb46a74083bd90f987d
+      internalID: 1317374075
+      vertices: []
+      indices: 
       edges: []
       weights: []
     outline: []
-    customData:
+    customData: null
     physicsShape: []
     bones: []
-    spriteID: 8b3669e534d4dc948bb9dcf51896f698
+    spriteID: 6d542336207743309fa12aaa831985cc
     internalID: 0
     vertices: []
-    indices:
+    indices: 
     edges: []
     weights: []
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      FX_Mantis_Ambush_Spawn_00: 1242482292251242216
-      FX_Mantis_Ambush_Spawn_01: 8605408579530364199
-      FX_Mantis_Ambush_Spawn_02: -3021372535442570996
-      FX_Mantis_Ambush_Spawn_03: 6564811500167510529
-      FX_Mantis_Ambush_Spawn_04: -8845306986789540677
-      FX_Mantis_Ambush_Spawn_05: 3035845949446980227
-  mipmapLimitGroupName:
+      FX_Reaver_Rend_Attack_00: 407087680286337214
+      FX_Reaver_Rend_Attack_01: 770901615444590299
+      FX_Reaver_Rend_Attack_02: 163558907166835806
+      FX_Reaver_Rend_Attack_03: 416296860818835811
+      FX_Reaver_Rend_Attack_04: 422220514633883048
+      FX_Reaver_Rend_Attack_05: 828299042365914309
+      FX_Reaver_Rend_Attack_06: 1317374075
+  mipmapLimitGroupName: null
   pSDRemoveMatte: 0
-  userData:
-  assetBundleName:
-  assetBundleVariant:
+  userData: null
+  assetBundleName: null
+  assetBundleVariant: null

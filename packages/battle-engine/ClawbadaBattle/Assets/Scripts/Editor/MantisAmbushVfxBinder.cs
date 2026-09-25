@@ -8,17 +8,17 @@ using UnityEngine;
 
 /// <summary>
 /// Lands the designer-exported Mantis Ambush special VFX.
-/// Source sheet: Assets/Art/FX/Attack/Mantis/FX_Mantis_Ambush_Spawn.png
+/// Source sheet: Assets/Art/FX/Attack/Mantis/FX_Mantis_Ambush_Slash.png
 /// Runtime: one 6-frame one-shot slash spawned from the actor AttackFX anchor.
 /// Menu: Clawbada ▸ VFX ▸ Bind Mantis Ambush. Headless: -executeMethod MantisAmbushVfxBinder.Bind
 /// </summary>
 public static class MantisAmbushVfxBinder
 {
     private const int Mantis = 1;
-    private const string SheetPath = "Assets/Art/FX/Attack/Mantis/FX_Mantis_Ambush_Spawn.png";
-    private const string PrefabPath = "Assets/Prefabs/VFX/FX_Mantis_Ambush_Spawn.prefab";
-    private const string ClipPath = "Assets/Prefabs/VFX/Clips/FX_Mantis_Ambush_Spawn.anim";
-    private const string ControllerPath = "Assets/Prefabs/VFX/Clips/AC_FX_Mantis_Ambush_Spawn.controller";
+    private const string SheetPath = "Assets/Art/FX/Attack/Mantis/FX_Mantis_Ambush_Slash.png";
+    private const string PrefabPath = "Assets/Prefabs/VFX/FX_Mantis_Ambush_Slash.prefab";
+    private const string ClipPath = "Assets/Prefabs/VFX/Clips/FX_Mantis_Ambush_Slash.anim";
+    private const string ControllerPath = "Assets/Prefabs/VFX/Clips/AC_FX_Mantis_Ambush_Slash.controller";
     private const string LibraryPath = "Assets/Prefabs/VFX/BattleVfxLibrary.asset";
     private const float Fps = 12f;
     private const int FrameWidth = 128;
@@ -88,7 +88,7 @@ public static class MantisAmbushVfxBinder
         {
             rects.Add(new SpriteRect
             {
-                name = $"FX_Mantis_Ambush_Spawn_{i:00}",
+                name = $"FX_Mantis_Ambush_Slash_{i:00}",
                 spriteID = GUID.Generate(),
                 rect = new Rect(i * FrameWidth, 0, FrameWidth, FrameHeight),
                 alignment = SpriteAlignment.Center,
@@ -126,7 +126,7 @@ public static class MantisAmbushVfxBinder
         AssetDatabase.DeleteAsset(ControllerPath);
         var controller = AnimatorController.CreateAnimatorControllerAtPathWithClip(ControllerPath, clip);
 
-        var go = new GameObject("FX_Mantis_Ambush_Spawn");
+        var go = new GameObject("FX_Mantis_Ambush_Slash");
         try
         {
             var sr = go.AddComponent<SpriteRenderer>();
