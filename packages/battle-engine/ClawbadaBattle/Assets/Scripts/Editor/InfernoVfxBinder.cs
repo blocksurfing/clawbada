@@ -72,6 +72,7 @@ public static class InfernoVfxBinder
         MaelstromVfxBinder.Bind();
         Bind();
         HauntVfxBinder.Bind();
+        ReaverRendVfxBinder.Bind();
         KrakenBindVfxBinder.Bind();
         AbyssDevourVfxBinder.Bind();
     }
