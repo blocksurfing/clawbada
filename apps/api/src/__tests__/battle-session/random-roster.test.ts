@@ -89,3 +89,25 @@ describe('rollTeamRoster', () => {
     expect(() => rollTeamRoster(['kraken', 'ember', 'dragon'])).toThrow(/unknown team preset/);
   });
 });
+
+describe('requested purity', () => {
+  test('every builder puts the purity in the genes, not just the number', async () => {
+    const { rollTrioRoster, rollTeamRoster, rollSpecialsRoster } = await import('../../lib/battle-session/random-roster');
+    const { calculatePurity } = await import('@clawbada/game-logic');
+    for (let purity = 0; purity <= 6; purity++) {
+      for (const r of [rollTrioRoster('kraken', 'apex', Math.random, purity), rollTeamRoster(['kraken', 'ember', 'abyss'], 'apex', Math.random, purity), rollSpecialsRoster('apex', Math.random, purity), rollRandomRoster('apex', Math.random, purity)]) {
+        for (let i = 0; i < 3; i++) {
+          expect(r.purity[i]).toBe(purity);
+          expect(calculatePurity(r.dna[i])).toBe(purity);
+          expect(r.partClassIds[i].filter((c) => c === r.classes[i]).length).toBe(purity);
+        }
+      }
+    }
+  });
+
+  test('omitted, presets stay at 3 and a random roster keeps its drawn purity', async () => {
+    const { rollTrioRoster } = await import('../../lib/battle-session/random-roster');
+    expect(rollTrioRoster('kraken').purity).toEqual([3, 3, 3]);
+    expect(() => rollTrioRoster('kraken', 'elite', Math.random, 7)).toThrow(/targetPurity/);
+  });
+});

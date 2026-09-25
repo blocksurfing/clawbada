@@ -46,11 +46,32 @@ describe('EIP-4361 login (C-01)', () => {
     await expect(verify(phished, { domain: 'clawbada-web.vercel.app' })).rejects.toThrow(/Invalid signature|Signature verification failed/);
   });
 
-  test('WRONG CHAIN: a signature made on the testnet deployment does not log in to mainnet', async () => {
-    const testnetSig = await sign({ chainId: 84532 });
+  /**
+   * DELIBERATE RELAXATION (2026-09-23, user decision). C-01 bound the login message to ONE
+   * chain, so a wallet had to be on that exact network before it would even display the
+   * message — which meant switching networks, and on wallets that hide test networks a
+   * developer setting, to log in and play a practice battle that never touches a chain.
+   *
+   * Either Base chain is now accepted. The protections that actually stop a replay are
+   * untouched and still asserted in this file: the domain allow-list, the single-use nonce,
+   * and the five-minute expiry. Anything OUTSIDE Base is still refused.
+   */
+  test('either Base chain logs in — testnet or mainnet, whichever the wallet was on', async () => {
+    for (const chainId of [84532, 8453]) {
+      expect((await verify(await sign({ chainId }))).checksumAddress).toBe(player.address);
+    }
     process.env.CHAIN_ENV = 'mainnet';
     expect(authChainId()).toBe(8453);
-    await expect(verify(testnetSig)).rejects.toThrow(/Invalid signature|Signature verification failed/);
+    for (const chainId of [84532, 8453]) {
+      expect((await verify(await sign({ chainId }))).checksumAddress).toBe(player.address);
+    }
+  });
+
+  test('a chain OUTSIDE Base is still refused — the field is narrowed, not ignored', async () => {
+    // 1 = Ethereum mainnet, 137 = Polygon. Neither is a chain this game runs on.
+    for (const chainId of [1, 137, 42161]) {
+      await expect(verify(await sign({ chainId }))).rejects.toThrow(/Invalid signature|Signature verification failed/);
+    }
   });
 
   test('the nonce and the timestamp are part of what was signed', async () => {

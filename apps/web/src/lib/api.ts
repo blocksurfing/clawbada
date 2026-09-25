@@ -484,6 +484,8 @@ export interface CreatePracticeBody {
   preset?: string;
   /** Board to fight on; omitted = the team's own tier. */
   arena?: 'evolved' | 'elite' | 'apex';
+  /** 0-6, preset rosters only (a real lobster's purity is in its DNA). Omitted = 3. */
+  purity?: number;
 }
 
 interface BattleHistoryItem {
@@ -517,7 +519,13 @@ export interface SessionTokenResponse {
   sessionEndsAt: number;
 }
 
-export interface AuthParamsResponse { version: number; domains: string[]; chainId: number; statement: string; ttlSec: number }
+export interface AuthParamsResponse {
+  version: number; domains: string[]; statement: string; ttlSec: number;
+  /** The chain the API serves — what on-chain actions use. */
+  chainId: number;
+  /** Chain ids the login message may carry. Absent on an API older than this field. */
+  chainIds?: number[];
+}
 
 const auth = {
   /** What the API expects in the login message: allowed domains and the chain it serves. */

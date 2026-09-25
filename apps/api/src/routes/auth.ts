@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { walletAuth, allowedAuthDomains, authChainId } from '../middleware/auth';
+import { walletAuth, acceptedAuthChainIds, allowedAuthDomains, authChainId } from '../middleware/auth';
 import { AUTH_STATEMENT, AUTH_TTL_SEC } from '@clawbada/chain/src/auth-message';
 import { catchErrors } from '../lib/errors';
 import { ApiError } from '../lib/errors';
@@ -27,6 +27,9 @@ authRoutes.get('/params', (c) =>
     format: 'EIP-4361',
     domains: allowedAuthDomains(),
     chainId: authChainId(),
+    // Any of these may appear as `Chain ID:` in the signed message, so a client can sign with
+    // the chain its wallet is already on instead of switching networks just to log in.
+    chainIds: acceptedAuthChainIds(),
     statement: AUTH_STATEMENT,
     ttlSec: AUTH_TTL_SEC,
     headers: ['X-Wallet-Address', 'X-Signature', 'X-Timestamp', 'X-Nonce', 'X-Auth-Domain (optional; defaults to domains[0])'],
