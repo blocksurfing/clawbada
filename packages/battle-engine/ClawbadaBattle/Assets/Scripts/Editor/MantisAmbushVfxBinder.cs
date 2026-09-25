@@ -9,7 +9,11 @@ using UnityEngine;
 /// <summary>
 /// Lands the designer-exported Mantis Ambush special VFX.
 /// Source sheet: Assets/Art/FX/Attack/Mantis/FX_Mantis_Ambush_Slash.png
-/// Runtime: one 6-frame one-shot slash spawned from the actor AttackFX anchor.
+/// Runtime: one 6-frame one-shot slash spawned from the actor AttackFX anchor, and — on a turn that
+/// moves and casts — the leap to the casting hex (rig state "Jump", trail FX_Mantis_Ambush_JumpEffect,
+/// afterimage at the take-off hex). The trail prefab is built by MantisEffectsPrefabBuilder.
+/// FX_Mantis_Ambush_PoisonEffect is deliberately NOT bound: Ambush has no poison (it ignores half the
+/// target's armour), and the designer is reworking it into an armour-dissolving effect (2026-09-25).
 /// Menu: Clawbada ▸ VFX ▸ Bind Mantis Ambush. Headless: -executeMethod MantisAmbushVfxBinder.Bind
 /// </summary>
 public static class MantisAmbushVfxBinder
@@ -20,6 +24,7 @@ public static class MantisAmbushVfxBinder
     private const string ClipPath = "Assets/Prefabs/VFX/Clips/FX_Mantis_Ambush_Slash.anim";
     private const string ControllerPath = "Assets/Prefabs/VFX/Clips/AC_FX_Mantis_Ambush_Slash.controller";
     private const string LibraryPath = "Assets/Prefabs/VFX/BattleVfxLibrary.asset";
+    private const string TrailPrefabPath = "Assets/Prefabs/VFX/FX_Mantis_Ambush_JumpEffect.prefab";
     private const float Fps = 12f;
     private const int FrameWidth = 128;
     private const int FrameHeight = 128;
@@ -57,12 +62,51 @@ public static class MantisAmbushVfxBinder
             impactAt = 0f,
         };
 
+        string dash = BindDashInto(lib);
+
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        string msg = $"[MantisAmbushVfxBinder] OK — {Frames} frames @ {Fps} fps ({BattleVfxLibrary.ClipLength(prefab):F2}s) bound to specialByClass[1]/Mantis Ambush";
+        string msg = $"[MantisAmbushVfxBinder] OK — {Frames} frames @ {Fps} fps ({BattleVfxLibrary.ClipLength(prefab):F2}s) bound to specialByClass[1]/Mantis Ambush; {dash}";
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
+    }
+
+    /// <summary>Binds ONLY the leap (specialDashByClass[Mantis]) — no re-slicing or prefab rebuild, so the
+    /// designer's committed slash assets keep their GUIDs. Headless: -executeMethod MantisAmbushVfxBinder.BindDash</summary>
+    [MenuItem("Clawbada/VFX/Bind Mantis Ambush Dash")]
+    public static void BindDash()
+    {
+        var lib = AssetDatabase.LoadAssetAtPath<BattleVfxLibrary>(LibraryPath);
+        if (lib == null) throw new System.Exception($"[MantisAmbushVfxBinder] missing {LibraryPath}");
+        string msg = $"[MantisAmbushVfxBinder] OK — {BindDashInto(lib)}";
+        EditorUtility.SetDirty(lib);
+        AssetDatabase.SaveAssets();
+        Debug.Log(msg);
+        if (Application.isBatchMode) System.Console.WriteLine(msg);
+    }
+
+    private static string BindDashInto(BattleVfxLibrary lib)
+    {
+        // The leap. Times are into the Jump clip (1.58 s @ 12 fps): crouch to 0.58, spring, airborne pose
+        // at 0.75, settle from 0.83; the swing takes over at 1.0 rather than waiting out the recovery.
+        var trail = AssetDatabase.LoadAssetAtPath<GameObject>(TrailPrefabPath);
+        if (trail == null) Debug.LogWarning($"[MantisAmbushVfxBinder] no {TrailPrefabPath} — run Clawbada ▸ VFX ▸ Build Mantis Ambush Effect Prefabs; dash bound without a trail");
+        if (lib.specialDashByClass == null || lib.specialDashByClass.Length < 10) lib.specialDashByClass = new BattleVfxLibrary.DashSpec[10];
+        // Unity fills every slot with a default spec; make sure no other class is left with a state that would make it leap.
+        for (int i = 0; i < lib.specialDashByClass.Length; i++) if (i != Mantis) lib.specialDashByClass[i] = new BattleVfxLibrary.DashSpec();
+        lib.specialDashByClass[Mantis] = new BattleVfxLibrary.DashSpec
+        {
+            state = "Jump",
+            takeoffAt = 0.58f,
+            landAt = 0.83f,
+            releaseAt = 1.0f,
+            trail = new BattleVfxLibrary.VfxSlot { prefab = trail, anchor = BattleVfxLibrary.AnchorPoint.ActorFeet, mirrorWithFacing = true },
+            afterimageAlpha = 0.6f,
+            afterimageFade = 0.4f,
+        };
+
+        return $"dash bound to specialDashByClass[{Mantis}] {(trail != null ? "with" : "WITHOUT")} trail";
     }
 
     private static void SliceHorizontalSheet()

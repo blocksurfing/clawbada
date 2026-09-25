@@ -146,6 +146,27 @@ umbrella prefab. Spirit = projectile slot: `specialByClass[4]` = `FX_Specter_Hau
 `FX_Specter_Haunt_PossessImpact` (TargetImpactFx). Sigil = status visual `haunt`: SigilSpawn →
 SigilIdle (loop, sortingOrder −5 = under the body) → SigilOut on expiry/cleanse.
 
+**Dashes — `specialDashByClass` (Mantis Ambush, 2026-09-25).** A Special can make its caster
+LEAP to the casting hex instead of walking there. It only plays on a turn that moves AND casts;
+an Ambush from a hex already next to the target is the normal swing. The leap is one straight
+flight (over anything), always the same length in time, so a 3-hex Ambush is as snappy as a 1-hex one.
+Fields, all times in seconds into the rig's `state` clip:
+
+| Field | Mantis | What it does |
+|---|---|---|
+| `state` | `Jump` | Rig state to play. Empty = this class walks. Skipped if the rig has no such state. |
+| `takeoffAt` | 0.58 | Crouches in place until here. |
+| `landAt` | 0.83 | Touches down on the casting hex; `takeoffAt`→`landAt` is the flight. |
+| `releaseAt` | 1.0 | Hands over to the Special's swing (the slash) — the rest of the clip isn't waited for. |
+| `trail` | `FX_Mantis_Ambush_JumpEffect` | Spawned at the take-off point on take-off; stays there. |
+| `afterimageAlpha` / `afterimageFade` | 0.6 / 0.4 | Translucent copy of the lobster left at the take-off hex, drawn over the trail, fading out. |
+
+Retime by editing the asset (or `MantisAmbushVfxBinder.BindDash`, headless
+`-executeMethod MantisAmbushVfxBinder.BindDash` — dash only, it does NOT rebuild the slash).
+If you change the Jump clip's timing, move `takeoffAt`/`landAt` to its new spring and landing frames.
+`FX_Mantis_Ambush_PoisonEffect` is deliberately unbound: Ambush has no poison (it ignores half the
+target's armour); the reworked armour-dissolving venom gets bound when it lands.
+
 Effects spawn in world
 space, sorted just above their owner, so rig mirroring and corpse tints never distort
 them. The Elite/Apex "enhanced" versions of a Special can be a second prefab later;
