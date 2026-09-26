@@ -32,9 +32,12 @@ cd scripts/harness
 bash chrome-restart.sh && TRIO=Tempest bun cdp.ts specials.ts
 ```
 
-Add `BOT_THINK_MS=300 BATTLE_SHOT_CLOCK_MS=20000` to the API for faster automated runs — but
-**never hand that stack to a human tester**: a 20 s clock is 3× the pressure of production's 60 s
-and reads as a bug.
+Add `BOT_THINK_MS=300` to the API for faster automated runs, and keep the shot clock at the
+production **60 s** (`BATTLE_SHOT_CLOCK_MS=60000`, or leave it unset). A 20 s clock used to be
+suggested here, but `specials.ts` at `SPEED=0.5` with frame bursts can outrun it: the server
+auto-plays the turn (`battle_turns.submitted_by = 'timeout'`) and the harness's next taps are
+rightly ignored — which looked exactly like a lost tap (2026-09-26). If a "tap did nothing"
+failure shows up, check that column for the turn first.
 
 ## Probes
 
