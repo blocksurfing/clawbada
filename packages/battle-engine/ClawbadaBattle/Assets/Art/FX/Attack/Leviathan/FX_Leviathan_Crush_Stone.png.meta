@@ -133,7 +133,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -141,7 +141,7 @@ TextureImporter:
       spriteID: e439dd0cc6184a048449bc4094fd67c4
       internalID: 362274824217393626
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -155,7 +155,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -163,7 +163,7 @@ TextureImporter:
       spriteID: df2b709e1ecada78ff72007d81e7bbfd
       internalID: 588058512520950485
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -177,7 +177,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -185,7 +185,7 @@ TextureImporter:
       spriteID: 6b7aee1d81eae154bf2808232558b961
       internalID: 461277183169252825
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -199,7 +199,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -207,7 +207,7 @@ TextureImporter:
       spriteID: 82f3d1e3d2c7a6ed1de6fd6527860003
       internalID: 481596626255353271
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -221,7 +221,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -229,7 +229,7 @@ TextureImporter:
       spriteID: 45d2e5a32da3cabb789b38d285e15569
       internalID: 798884559220955898
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -243,7 +243,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -251,7 +251,7 @@ TextureImporter:
       spriteID: d4fc1714fed12cebb051fb1c445ec994
       internalID: 788551019299727398
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -265,7 +265,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -273,17 +273,17 @@ TextureImporter:
       spriteID: 9ac1f3818fec86f298b4d27c61247aa2
       internalID: 715654341672737514
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     outline: []
-    customData:
+    customData: 
     physicsShape: []
     bones: []
     spriteID: bf7365d667b5f53d97a5398ecb532367
     internalID: 0
     vertices: []
-    indices:
+    indices: 
     edges: []
     weights: []
     secondaryTextures: []
@@ -297,8 +297,8 @@ TextureImporter:
       FX_Leviathan_Crush_Stone_04: 798884559220955898
       FX_Leviathan_Crush_Stone_05: 788551019299727398
       FX_Leviathan_Crush_Stone_06: 715654341672737514
-  mipmapLimitGroupName:
+  mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData:
-  assetBundleName:
-  assetBundleVariant:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

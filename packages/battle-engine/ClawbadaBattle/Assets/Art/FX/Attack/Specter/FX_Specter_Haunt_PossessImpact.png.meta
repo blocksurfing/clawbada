@@ -128,140 +128,140 @@ TextureImporter:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 47805397b1da410b9dcb4486de2cb43d
+      spriteID: 891591802b6cdd8449005e167f8e08bc
       internalID: 2074075804585130872
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_PossessImpact_01
       rect:
         serializedVersion: 2
-        x: 64
+        x: 80
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 58d311c91f714f868944fcf825f23a6d
+      spriteID: 46af6983580d362478d7e85f6a9d3830
       internalID: 7838809653104527081
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_PossessImpact_02
       rect:
         serializedVersion: 2
-        x: 128
+        x: 160
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 5e6c5cd5dbf741c4a5d6fbb64bb61677
+      spriteID: 40e0abf4236bc274ab55bae3fdec652b
       internalID: 2780243501690853084
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_PossessImpact_03
       rect:
         serializedVersion: 2
-        x: 192
+        x: 240
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: c31611e60c84498fba88dffd61d48021
+      spriteID: 24b9a48eb6ada7a4cafb0ab4355d7493
       internalID: 6825008109752536740
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_PossessImpact_04
       rect:
         serializedVersion: 2
-        x: 256
+        x: 320
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: b87c58619c0845ef93703fb56bf9b17a
+      spriteID: 807c73563340854438cd3709213906dd
       internalID: 6824851664677633795
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_PossessImpact_05
       rect:
         serializedVersion: 2
-        x: 320
+        x: 400
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: f2ce1519d704494bb9ce6c28d227d893
+      spriteID: 95afb35995128a94e80f795f2adfd46c
       internalID: 2197882548590877244
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     outline: []
-    customData:
+    customData: 
     physicsShape: []
     bones: []
-    spriteID:
+    spriteID: 6fde6bb7cf34d7649a57d1d9e3fdf4d5
     internalID: 0
     vertices: []
-    indices:
+    indices: 
     edges: []
     weights: []
     secondaryTextures: []
@@ -274,8 +274,8 @@ TextureImporter:
       FX_Specter_Haunt_PossessImpact_03: 6825008109752536740
       FX_Specter_Haunt_PossessImpact_04: 6824851664677633795
       FX_Specter_Haunt_PossessImpact_05: 2197882548590877244
-  mipmapLimitGroupName:
+  mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData:
-  assetBundleName:
-  assetBundleVariant:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

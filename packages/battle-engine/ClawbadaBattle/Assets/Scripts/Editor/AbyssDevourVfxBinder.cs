@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.Animations;
+using UnityEditor.U2D.Sprites;
 using UnityEngine;
 
 /// <summary>
@@ -40,6 +41,7 @@ public static class AbyssDevourVfxBinder
         if (ctrl == null) throw new System.Exception($"[AbyssDevourVfxBinder] missing {ControllerPath}");
         if (lib.specialByClass == null || lib.specialByClass.Length < 10) lib.specialByClass = new BattleVfxLibrary.VfxSlot[10];
 
+        SliceHorizontalSheet("FX_Abyss_Devour_Suck");
         var spawn = Sheet("FX_Abyss_Devour_Spawn");
         var idle = Sheet("FX_Abyss_Devour_Idle");
         var suck = Sheet("FX_Abyss_Devour_Suck");
@@ -53,7 +55,7 @@ public static class AbyssDevourVfxBinder
         var clip = new AnimationClip { frameRate = Fps };
         Sprites(clip, "AbyssSpawn", spawn, 0f, 1);
         Sprites(clip, "AbyssIdle", idle, spawnEnd, loops);
-        Sprites(clip, "SuckIdle", suck, spawnEnd, loops);
+        LoopUntil(clip, "SuckIdle", suck, spawnEnd, idleEnd);
         Sprites(clip, "AbyssOut", outS, idleEnd, 1);
         Enabled(clip, "AbyssSpawn", 0f, spawnEnd, total);
         Enabled(clip, "AbyssIdle", spawnEnd, idleEnd, total);
@@ -91,6 +93,45 @@ public static class AbyssDevourVfxBinder
         return sprites;
     }
 
+    private static void SliceHorizontalSheet(string stem)
+    {
+        string path = ArtDir + stem + ".png";
+        var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (importer == null) throw new System.Exception($"[AbyssDevourVfxBinder] missing texture importer: {path}");
+        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        if (texture == null) throw new System.Exception($"[AbyssDevourVfxBinder] missing texture: {path}");
+        if (texture.height != 128 || texture.width % 128 != 0) throw new System.Exception($"[AbyssDevourVfxBinder] {path}: expected 128px-high horizontal 128x128 frames, got {texture.width}x{texture.height}");
+        int frameCount = texture.width / 128;
+
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Multiple;
+        importer.spritePixelsPerUnit = 64f;
+        importer.filterMode = FilterMode.Point;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.mipmapEnabled = false;
+        importer.maxTextureSize = 2048;
+
+        var factory = new SpriteDataProviderFactories();
+        factory.Init();
+        var provider = factory.GetSpriteEditorDataProviderFromObject(importer);
+        provider.InitSpriteEditorDataProvider();
+        var rects = new List<SpriteRect>();
+        for (int i = 0; i < frameCount; i++)
+        {
+            rects.Add(new SpriteRect
+            {
+                name = $"{stem}_{i:00}",
+                spriteID = GUID.Generate(),
+                rect = new Rect(i * 128, 0, 128, 128),
+                alignment = SpriteAlignment.Center,
+                pivot = new Vector2(0.5f, 0.5f),
+            });
+        }
+        provider.SetSpriteRects(rects.ToArray());
+        provider.Apply();
+        importer.SaveAndReimport();
+    }
+
     /// <summary>Step the child's sprite through the sheet from <paramref name="start"/>, <paramref name="loops"/> times over.</summary>
     private static void Sprites(AnimationClip clip, string path, Sprite[] sprites, float start, int loops)
     {
@@ -99,6 +140,21 @@ public static class AbyssDevourVfxBinder
             for (int i = 0; i < sprites.Length; i++)
                 keys[l * sprites.Length + i] = new ObjectReferenceKeyframe { time = start + (l * sprites.Length + i) / Fps, value = sprites[i] };
         AnimationUtility.SetObjectReferenceCurve(clip, EditorCurveBinding.PPtrCurve(path, typeof(SpriteRenderer), "m_Sprite"), keys);
+    }
+
+    /// <summary>Loop a sheet for a fixed time window, allowing Suck to have a different frame count than the ground idle.</summary>
+    private static void LoopUntil(AnimationClip clip, string path, Sprite[] sprites, float start, float end)
+    {
+        var keys = new List<ObjectReferenceKeyframe>();
+        float t = start;
+        int i = 0;
+        while (t < end - 0.0001f)
+        {
+            keys.Add(new ObjectReferenceKeyframe { time = t, value = sprites[i % sprites.Length] });
+            i++;
+            t = start + i / Fps;
+        }
+        AnimationUtility.SetObjectReferenceCurve(clip, EditorCurveBinding.PPtrCurve(path, typeof(SpriteRenderer), "m_Sprite"), keys.ToArray());
     }
 
     /// <summary>The child renders only for on ≤ t &lt; off (stepped). A key at <paramref name="total"/> pins the clip's length.</summary>

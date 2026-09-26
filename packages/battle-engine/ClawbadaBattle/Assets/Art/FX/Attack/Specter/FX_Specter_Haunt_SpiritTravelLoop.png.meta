@@ -1,7 +1,10 @@
 fileFormatVersion: 2
 guid: ef7ddcbfd7cf42959a1f360ffe6078d1
 TextureImporter:
-  internalIDToNameTable: []
+  internalIDToNameTable:
+  - first:
+      213: 9211473146838155308
+    second: FX_Specter_Haunt_SpiritTravelLoop_04
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -128,96 +131,96 @@ TextureImporter:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 801709a956ed4de5898330e3a4881e93
+      spriteID: b4b87d60372f6c140800000000000000
       internalID: 4739742233703975755
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_SpiritTravelLoop_01
       rect:
         serializedVersion: 2
-        x: 64
+        x: 80
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 27294bc5d1f94de184f1c6ea47f5ac2f
+      spriteID: 8cfccda9351f1a760800000000000000
       internalID: 7467514998539734984
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_SpiritTravelLoop_02
       rect:
         serializedVersion: 2
-        x: 128
+        x: 160
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 6fdba8b6bc0243d195e4f403d95a91a2
+      spriteID: cecb268f896abd660800000000000000
       internalID: 7411700787700743404
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_SpiritTravelLoop_03
       rect:
         serializedVersion: 2
-        x: 192
+        x: 240
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 105d3c3307094c62ad2e71243c2d7e9f
+      spriteID: 7f2194c5dfbb9d370800000000000000
       internalID: 8347910081157337847
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     outline: []
-    customData:
+    customData: 
     physicsShape: []
     bones: []
-    spriteID:
+    spriteID: 
     internalID: 0
     vertices: []
-    indices:
+    indices: 
     edges: []
     weights: []
     secondaryTextures: []
@@ -228,8 +231,8 @@ TextureImporter:
       FX_Specter_Haunt_SpiritTravelLoop_01: 7467514998539734984
       FX_Specter_Haunt_SpiritTravelLoop_02: 7411700787700743404
       FX_Specter_Haunt_SpiritTravelLoop_03: 8347910081157337847
-  mipmapLimitGroupName:
+  mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData:
-  assetBundleName:
-  assetBundleVariant:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
