@@ -688,7 +688,15 @@ public class BattleManager : MonoBehaviour
                             BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, windup.impactAt);
                             // The caster's cast swing runs alongside the effect, not before it: waiting for
                             // the swing pushed Devour's hit to ~1.0 s into a 1.5 s clip whose beat is at 0.5.
-                            StartCoroutine(actor.PlayAttack(actorPos, attackDuration, false, null, 1f, actor.SpecialSwingState));
+                            if (windup.swingOnImpact)
+                            {
+                                string sw = actor.SpecialSwingState;
+                                float contact = Mathf.Max(attackDuration, actor.ClipLength(sw)) * LobsterController.AttackImpactFraction;
+                                float swingDelay = Mathf.Max(0f, windup.impactAt - contact);
+                                Debug.Log($"[BattleManager] special {actor.className} swing held {swingDelay:F2}s so its contact ({contact:F2}s in) lands on the impact at {windup.impactAt:F2}s");
+                                StartCoroutine(SwingAfter(actor, actorPos, swingDelay, sw));
+                            }
+                            else StartCoroutine(actor.PlayAttack(actorPos, attackDuration, false, null, 1f, actor.SpecialSwingState));
                             float untilImpact = windup.impactAt - (Time.time - t0);
                             if (untilImpact > 0f) yield return new WaitForSeconds(untilImpact);
                             ShakeFor(windup); ShakeFor(impactSlot);
@@ -863,6 +871,12 @@ public class BattleManager : MonoBehaviour
             if (lob.diedOnTurn < 0) { lob.diedOnTurn = turn - 1; continue; }   // died on the turn just played (or already dead on reconnect)
             if (turn > lob.diedOnTurn + corpseTurns) StartCoroutine(lob.FadeAwayCorpse(corpseFadeSeconds));
         }
+    }
+
+    private IEnumerator SwingAfter(LobsterController actor, Vector3 at, float delay, string state)
+    {
+        if (delay > 0f) yield return new WaitForSeconds(delay);
+        if (actor != null && actor.alive) yield return actor.PlayAttack(at, attackDuration, false, null, 1f, state);
     }
 
     /// <summary>A team Special's effect on every ally it protects (Fortify's armor rays), not just the caster:

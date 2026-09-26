@@ -6,17 +6,21 @@ using UnityEditor.U2D.Sprites;
 using UnityEngine;
 
 /// <summary>
-/// Lands Reaver Rend as a target-anchored cinematic rupture: Attack -> Out from the
-/// designer-exported 128x128 sheets. Per the designer (2026-09-25) there is NO startup: the
-/// reaper appears already striking, so the Spawn sheet is kept in the project but not played.
-/// The effect appears <see cref="Appear"/> s into the turn — while the Reaver's own swing is
-/// under way — so the rupture frame (Attack frame 2) lands on the claw's contact (~0.7 s).
+/// Lands Reaver Rend as a target-anchored cinematic, timed to its sound (user, 2026-09-27):
+///   Rise   — the reaper climbs out of the ground (Spawn sheet, 6 f) SLOWED to fill the laugh;
+///   Attack — the scythe strip (7 f) stretched to the 0.8 s scythe sound; Attack frame 2 is the hit;
+///   Out    — fade (7 f @ 12 fps).
+/// Sound: a random laugh (SFX_Reaver_Rend_01..03, 1.0 s) plays from the cast; the scythe
+/// (SFX_Reaver_Rend_Impact, its hit 0.05 s in) is scheduled so its hit lands on impactAt — i.e. it starts
+/// right as the laugh ends. The Reaver's own swing connects on the same beat (swingOnImpact).
+/// (The 2026-09-25 "no startup" version dropped the rise; the rise is back because the laugh needs it.)
 /// Menu: Clawbada ▸ VFX ▸ Bind Reaver Rend. Headless: -executeMethod ReaverRendVfxBinder.Bind
 /// </summary>
 public static class ReaverRendVfxBinder
 {
     private const int Reaver = 6;
     private const string SheetDir = "Assets/Art/FX/Attack/Reaver/";
+    private const string SpawnPath = SheetDir + "FX_Reaver_Rend_Spawn.png";
     private const string AttackPath = SheetDir + "FX_Reaver_Rend_Attack.png";
     private const string OutPath = SheetDir + "FX_Reaver_Rend_Out.png";
     private const string PrefabPath = "Assets/Prefabs/VFX/FX_Reaver_Rend.prefab";
@@ -26,16 +30,20 @@ public static class ReaverRendVfxBinder
     private const float Fps = 12f;
     private const int FrameWidth = 128;
     private const int FrameHeight = 128;
+    private const int SpawnFrames = 6;
     private const int AttackFrames = 7;
     private const int OutFrames = 7;
-    // The reaper pops in at 0.50 s (it used to spend 0.50 s building up); Attack frame 2 is the
-    // rupture/hit read => 0.50 + 2/12 = 0.67 s, on the Reaver's swing contact.
-    private const float Appear = 0.5f;
-    private const float ImpactAt = Appear + 2f / Fps;
+    // Rise fills the laugh; the attack strip spans the 0.8 s scythe; the scythe's hit (0.05 s into its
+    // file) must start right after the 1.0 s laugh ⇒ hit at 1.05 s = RiseSeconds + 2 attack frames.
+    private const float AttackSeconds = 0.8f;
+    private const int HitFrame = 2;
+    private const float ImpactAt = 1.05f;
+    private const float RiseSeconds = ImpactAt - HitFrame * AttackSeconds / AttackFrames;   // ≈ 0.82 s
 
     [MenuItem("Clawbada/VFX/Bind Reaver Rend")]
     public static void Bind()
     {
+        SliceHorizontalSheet(SpawnPath, SpawnFrames, "Spawn");
         SliceHorizontalSheet(AttackPath, AttackFrames, "Attack");
         SliceHorizontalSheet(OutPath, OutFrames, "Out");
         EnsureFolder("Assets/Prefabs/VFX");
@@ -51,9 +59,10 @@ public static class ReaverRendVfxBinder
         {
             prefab = prefab,
             anchor = BattleVfxLibrary.AnchorPoint.TargetImpactFx,
-            delay = Appear,
+            delay = 0f,
             mirrorWithFacing = true,
             impactAt = ImpactAt,
+            swingOnImpact = true,
             shakeAmplitude = 0.035f,
             shakeSeconds = 0.25f,
         };
@@ -63,7 +72,7 @@ public static class ReaverRendVfxBinder
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        string msg = $"[ReaverRendVfxBinder] OK — Attack {AttackFrames}, Out {OutFrames} @ {Fps} fps, appears at {Appear:F2}s " +
+        string msg = $"[ReaverRendVfxBinder] OK — Rise {SpawnFrames}f/{RiseSeconds:F2}s, Attack {AttackFrames}f/{AttackSeconds:F2}s, Out {OutFrames}f @ {Fps} fps " +
                      $"({BattleVfxLibrary.ClipLength(prefab):F2}s), impactAt {ImpactAt:F2}s, target anchored → specialByClass[6]/Reaver Rend";
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
@@ -109,15 +118,19 @@ public static class ReaverRendVfxBinder
 
     private static GameObject BuildPrefab()
     {
+        var spawn = LoadSprites(SpawnPath, SpawnFrames);
         var attack = LoadSprites(AttackPath, AttackFrames);
         var outFx = LoadSprites(OutPath, OutFrames);
-        float attackEnd = AttackFrames / Fps;
+        float riseEnd = RiseSeconds;
+        float attackEnd = riseEnd + AttackSeconds;
         float total = attackEnd + OutFrames / Fps;
 
         var clip = new AnimationClip { frameRate = Fps };
-        SetSpriteCurve(clip, "Attack", attack, 0f);
-        SetSpriteCurve(clip, "Out", outFx, attackEnd);
-        SetEnabledCurve(clip, "Attack", 0f, attackEnd, total);
+        SetSpriteCurve(clip, "Spawn", spawn, 0f, RiseSeconds / SpawnFrames);
+        SetSpriteCurve(clip, "Attack", attack, riseEnd, AttackSeconds / AttackFrames);
+        SetSpriteCurve(clip, "Out", outFx, attackEnd, 1f / Fps);
+        SetEnabledCurve(clip, "Spawn", 0f, riseEnd, total);
+        SetEnabledCurve(clip, "Attack", riseEnd, attackEnd, total);
         SetEnabledCurve(clip, "Out", attackEnd, total, total);
         var settings = AnimationUtility.GetAnimationClipSettings(clip);
         settings.loopTime = false;
@@ -133,8 +146,9 @@ public static class ReaverRendVfxBinder
         var root = new GameObject("FX_Reaver_Rend");
         try
         {
-            AddLayer(root.transform, "Attack", attack[0], 0);
-            AddLayer(root.transform, "Out", outFx[0], 1);
+            AddLayer(root.transform, "Spawn", spawn[0], 0);
+            AddLayer(root.transform, "Attack", attack[0], 1);
+            AddLayer(root.transform, "Out", outFx[0], 2);
             var animator = root.AddComponent<Animator>();
             animator.runtimeAnimatorController = controller;
             root.AddComponent<OneShotVfx>();
@@ -168,11 +182,11 @@ public static class ReaverRendVfxBinder
         return sprites;
     }
 
-    private static void SetSpriteCurve(AnimationClip clip, string path, Sprite[] sprites, float start)
+    private static void SetSpriteCurve(AnimationClip clip, string path, Sprite[] sprites, float start, float frameSeconds)
     {
         var binding = EditorCurveBinding.PPtrCurve(path, typeof(SpriteRenderer), "m_Sprite");
         var keys = new ObjectReferenceKeyframe[sprites.Length];
-        for (int i = 0; i < sprites.Length; i++) keys[i] = new ObjectReferenceKeyframe { time = start + i / Fps, value = sprites[i] };
+        for (int i = 0; i < sprites.Length; i++) keys[i] = new ObjectReferenceKeyframe { time = start + i * frameSeconds, value = sprites[i] };
         AnimationUtility.SetObjectReferenceCurve(clip, binding, keys);
     }
 
