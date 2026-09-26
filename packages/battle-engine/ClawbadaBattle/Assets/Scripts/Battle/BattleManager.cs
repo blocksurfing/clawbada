@@ -413,6 +413,16 @@ public class BattleManager : MonoBehaviour
     {
         if (data == null || !lobsters.TryGetValue(data.lobsterId ?? "", out var lob) || !lob.alive) return;
         if (currentPhase == BattlePhase.AnimatingTurn) return;
+        // A Special that LEAPS (Mantis Ambush) is not walked in preview: walking there made the confirmed
+        // leap snap back home and replay the move. The lobster stays put (the board's origin highlight
+        // already marks the landing hex); a walk made before the Special was armed is undone now.
+        var dash = data.special && vfxLibrary != null ? vfxLibrary.DashFor(lob.classId) : null;
+        if (dash != null && lob.HasState(dash.state))
+        {
+            if (previewActorId != null) UndoPreview();
+            Debug.Log($"[BattleManager] PreviewMove {data.lobsterId} → ({data.col},{data.row}) held in place (leap)");
+            return;
+        }
         if (previewActorId != data.lobsterId)
         {
             if (previewActorId != null) UndoPreview();
