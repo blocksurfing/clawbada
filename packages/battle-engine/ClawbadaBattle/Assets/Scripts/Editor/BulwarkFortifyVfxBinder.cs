@@ -53,6 +53,21 @@ public static class BulwarkFortifyVfxBinder
         new("UpperLayer",  SheetDir + "FX_Bulwark_Fortify_UpperLayer.png",  true),
     };
 
+    /// <summary>Set ONLY the spread-to-allies field on the bound Fortify slot (no prefab rebuild, GUIDs kept).
+    /// Headless: -executeMethod BulwarkFortifyVfxBinder.BindSpread</summary>
+    public static void BindSpread()
+    {
+        var lib = AssetDatabase.LoadAssetAtPath<BattleVfxLibrary>(LibraryPath);
+        if (lib == null || lib.specialByClass == null || lib.specialByClass.Length <= Bulwark || lib.specialByClass[Bulwark] == null)
+            throw new System.Exception("[BulwarkFortifyVfxBinder] no Fortify slot to update");
+        lib.specialByClass[Bulwark].alsoOnStatus = "fortify";
+        EditorUtility.SetDirty(lib);
+        AssetDatabase.SaveAssets();
+        string msg = "[BulwarkFortifyVfxBinder] OK — Fortify also plays on every ally receiving \"fortify\"";
+        Debug.Log(msg);
+        if (Application.isBatchMode) System.Console.WriteLine(msg);
+    }
+
     [MenuItem("Clawbada/VFX/Bind Bulwark Fortify")]
     public static void Bind()
     {
@@ -75,6 +90,7 @@ public static class BulwarkFortifyVfxBinder
             impactAt = ImpactAt,
             // UpperLayer draws in front of the caster; BottomLayer stays behind/under it.
             frontChildPrefix = "Upper",
+            alsoOnStatus = "fortify",   // the rays drop on every protected ally too (user, 2026-09-27)
             rowsCovered = 1,
         };
 
