@@ -34,6 +34,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   attackImpact:
     prefab: {fileID: 8702148402230174246, guid: 6fc84e57c80d248c0bbdb0013df7aaed, type: 3}
     anchor: 1
@@ -56,6 +57,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   defend:
     prefab: {fileID: 0}
     anchor: 2
@@ -78,6 +80,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   death:
     prefab: {fileID: 0}
     anchor: 2
@@ -100,6 +103,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   moveStep:
     prefab: {fileID: 2198418038747152603, guid: e4c3850d6ee9442168b4c3922d6ec7f7, type: 3}
     anchor: 2
@@ -122,6 +126,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   status:
     prefab: {fileID: 0}
     anchor: 3
@@ -144,6 +149,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   specialByClass:
   - prefab: {fileID: 7387653704767747260, guid: 70c7a829feea7e847931fe76269421df, type: 3}
     anchor: 2
@@ -166,6 +172,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: fortify
   - prefab: {fileID: 1755875966090196981, guid: acf75675c31ede34c8e6e9a0976af7fe, type: 3}
     anchor: 0
     delay: 0
@@ -187,6 +194,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 37240234991233084, guid: 4906ed885fd40dc1fc663d9acb03c465, type: 3}
     anchor: 1
     delay: 0
@@ -208,6 +216,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 2139694229694905937, guid: cc2be06c01024d94dab44044409f2f80, type: 3}
     anchor: 6
     delay: 0
@@ -229,6 +238,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 2829630902376267146, guid: d9996599837449f2bb4874d0e75063a9, type: 3}
     anchor: 0
     delay: 0
@@ -250,6 +260,7 @@ MonoBehaviour:
     launchAt: 0.5
     impactLead: 0.083333336
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
@@ -271,6 +282,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 5472579402388250804, guid: bbb84a86e2600e24f8ac9fdc0499ae52, type: 3}
     anchor: 1
     delay: 0.5
@@ -292,6 +304,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 8493234022627442931, guid: e615de9d60354fc4193434ccd675905c, type: 3}
     anchor: 3
     delay: 0
@@ -313,6 +326,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
@@ -334,6 +348,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 90676729667897657, guid: be73e6b841bd24adc9757d63b68230d4, type: 3}
     anchor: 0
     delay: 0
@@ -355,6 +370,7 @@ MonoBehaviour:
     launchAt: 1.8333334
     impactLead: 0.41666666
     lingerSeconds: 0
+    alsoOnStatus: 
   statusVisuals:
   - status: haunt
     spawn: {fileID: 5622220106418988105, guid: 602feb341cc548bcb941926bb2197816, type: 3}
@@ -398,6 +414,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
@@ -419,6 +436,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
@@ -440,6 +458,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 7873616403485943416, guid: cc0f58b488bc540e79bf2602b7ddc387, type: 3}
     anchor: 1
     delay: 0
@@ -461,6 +480,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 6797530525760967097, guid: fecd1b04c8374c0895b2c17da43edfbf, type: 3}
     anchor: 5
     delay: 0
@@ -482,6 +502,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
@@ -503,6 +524,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
@@ -524,6 +546,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
@@ -545,6 +568,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 0}
     anchor: 2
     delay: 0
@@ -566,6 +590,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   - prefab: {fileID: 4175517491069299043, guid: d56c4852ace3b45e6a868c7621ed7b37, type: 3}
     anchor: 1
     delay: 0
@@ -587,6 +612,7 @@ MonoBehaviour:
     launchAt: 0
     impactLead: 0
     lingerSeconds: 0
+    alsoOnStatus: 
   specialAftermathByClass:
   - slots: []
   - slots: []
@@ -619,6 +645,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     - prefab: {fileID: 6729764125650803604, guid: e76fe2efaca6e4c438036249e0e177db, type: 3}
       anchor: 3
       delay: 0
@@ -640,6 +667,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0.8
+      alsoOnStatus: 
   specialDashByClass:
   - state: 
     takeoffAt: 0.58
@@ -668,6 +696,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
   - state: Jump
@@ -697,6 +726,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
   - state: 
@@ -726,6 +756,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
   - state: 
@@ -755,6 +786,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
   - state: 
@@ -784,6 +816,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
   - state: 
@@ -813,6 +846,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
   - state: 
@@ -842,6 +876,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
   - state: 
@@ -871,6 +906,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
   - state: 
@@ -900,6 +936,7 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
   - state: 
@@ -929,5 +966,6 @@ MonoBehaviour:
       launchAt: 0
       impactLead: 0
       lingerSeconds: 0
+      alsoOnStatus: 
     afterimageAlpha: 0.6
     afterimageFade: 0.4
