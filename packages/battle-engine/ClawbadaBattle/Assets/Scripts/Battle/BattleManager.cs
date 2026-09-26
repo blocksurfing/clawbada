@@ -881,7 +881,7 @@ public class BattleManager : MonoBehaviour
                 prefab = slot.prefab, anchor = BattleVfxLibrary.AnchorPoint.TargetFeet, delay = slot.delay,
                 mirrorWithFacing = slot.mirrorWithFacing, frontChildPrefix = slot.frontChildPrefix,
                 hideChildrenPrefix = slot.hideChildrenPrefix, onTop = slot.onTop, rowsCovered = slot.rowsCovered,
-                lingerSeconds = slot.lingerSeconds,
+                lingerSeconds = slot.lingerSeconds, yOffset = slot.yOffset,
             };
             BattleVfxLibrary.Spawn(onAlly, actor, ally, this);
         }
@@ -900,7 +900,7 @@ public class BattleManager : MonoBehaviour
             var delayed = new BattleVfxLibrary.VfxSlot
             {
                 prefab = slot.prefab, anchor = slot.anchor, delay = slot.delay + atBurst, mirrorWithFacing = slot.mirrorWithFacing,
-                lingerSeconds = slot.lingerSeconds, onTop = slot.onTop,
+                lingerSeconds = slot.lingerSeconds, onTop = slot.onTop, yOffset = slot.yOffset,
             };
             BattleVfxLibrary.Spawn(delayed, actor, target, this);
         }
