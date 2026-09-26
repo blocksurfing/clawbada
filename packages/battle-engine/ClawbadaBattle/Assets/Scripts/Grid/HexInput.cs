@@ -45,9 +45,22 @@ public class HexInput : MonoBehaviour
         float t = -ray.origin.z / ray.direction.z;
         Vector3 world = ray.origin + ray.direction * t;
         world.z = 0f;
-        if (!hexGrid.WorldToHex(world, out int col, out int row)) return;
 
-        var lobster = battleManager != null ? battleManager.GetLobsterAt(col, row) : null;
+        // A lobster's drawn body wins over the hex under the pointer: bodies stand up from the hex centre,
+        // so the hex a tap falls in is often the row BEHIND the lobster that was tapped.
+        var body = battleManager != null ? battleManager.LobsterAtPoint(world) : null;
+        bool onHex = hexGrid.WorldToHex(world, out int col, out int row);
+        var lobster = onHex && battleManager != null ? battleManager.GetLobsterAt(col, row) : null;
+        // An EMPTY hex tapped near its centre stays a move, even where a neighbour's body box reaches.
+        bool emptyHexCentre = onHex && (lobster == null || !lobster.alive) && NearCentre(world, col, row);
+        if (body != null && !emptyHexCentre)
+        {
+            Debug.Log($"[HexInput] click → lobster {body.lobsterId} (body) at ({body.col},{body.row})");
+            bridge.NotifyLobsterSelected(body.lobsterId);
+            return;
+        }
+
+        if (!onHex) return;
         if (lobster != null && lobster.alive)
         {
             Debug.Log($"[HexInput] click → lobster {lobster.lobsterId} at ({col},{row})");
@@ -58,5 +71,15 @@ public class HexInput : MonoBehaviour
             Debug.Log($"[HexInput] click → hex ({col},{row})");
             bridge.NotifyHexClicked(col, row);
         }
+    }
+
+    /// <summary>Within ~35% of a cell of the hex centre (spacing read from the grid, so board scale is honoured).</summary>
+    private bool NearCentre(Vector3 world, int col, int row)
+    {
+        Vector3 c = hexGrid.GetWorldPosition(col, row);
+        Vector3 right = hexGrid.GetWorldPosition(col + 1, row);
+        Vector3 down = hexGrid.GetWorldPosition(col, row + 1);
+        float cell = Mathf.Min(Mathf.Abs(right.x - c.x), Mathf.Max(0.05f, Mathf.Abs(down.y - c.y)));
+        return Vector2.Distance(world, c) < cell * 0.35f;
     }
 }

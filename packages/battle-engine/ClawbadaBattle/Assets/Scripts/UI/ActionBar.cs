@@ -150,9 +150,11 @@ public class ActionBar : MonoBehaviour
 
     private static readonly Vector3[] corners = new Vector3[4];
 
-    private static void Append(StringBuilder sb, string name, Button b)
+    private static void Append(StringBuilder sb, string name, Button b) => AppendRect(sb, name, b.GetComponent<RectTransform>());
+
+    /// <summary>`name=(x,y,w,h)` in the canvas's world corners — the format the harness and agents parse.</summary>
+    public static void AppendRect(StringBuilder sb, string name, RectTransform rt)
     {
-        var rt = b.GetComponent<RectTransform>();
         rt.GetWorldCorners(corners);
         sb.Append($" {name}=({corners[0].x:F0},{corners[0].y:F0},{corners[2].x - corners[0].x:F0},{corners[2].y - corners[0].y:F0})");
     }
