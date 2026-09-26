@@ -20,11 +20,11 @@ import { QueueRadiusBar } from '@/components/game/queue-radius-bar';
 import { MatchFoundHud } from '@/components/game/match-found-hud';
 import { formatClaw, formatClawWei, formatAddress } from '@/lib/format';
 import { getArenaBackground } from '@/lib/assets';
+import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { Swords, Loader2, Bot } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect } from 'react';
 
-const BOTS = ['balanced', 'aggressive', 'cautious', 'greedy', 'charger', 'focus', 'roles', 'deep'] as const;
 const PRESETS = [
   // Every Special whose VFX is finished, one lobster each (Ember Inferno, Tempest Maelstrom,
   // Specter Haunt) — the roster to reach for when reviewing battle art.
@@ -477,7 +477,7 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
   const { getAuthHeaders } = useAuth();
   const [teamId, setTeamId] = useState('');
   const [preset, setPreset] = useState('');
-  const [bot, setBot] = useState<(typeof BOTS)[number]>('balanced');
+  const [bot, setBot] = useState<BotName>(DEFAULT_BOT);
   const [opponent, setOpponent] = useState<'mirror' | 'random'>('mirror');
   // Board choice. 'match' = the team's own tier (the default and the only option for real
   // battles); any tier is allowed in practice — Apex lobsters on the Evolved board is a
@@ -549,12 +549,13 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
         </div>
         <div className="space-y-2">
           <label className="text-sm text-text-secondary">Bot</label>
-          <Select value={bot} onValueChange={(v) => setBot(v as (typeof BOTS)[number])}>
+          <Select value={bot} onValueChange={(v) => setBot(v as BotName)}>
             <SelectTrigger className="bg-ocean-mid/50 border-border"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {BOTS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+              {BOT_CATALOG.map((b) => <SelectItem key={b.name} value={b.name}>{b.label} · {b.difficulty}</SelectItem>)}
             </SelectContent>
           </Select>
+          {botInfo(bot) && <p className="text-xs text-text-secondary">{botInfo(bot)!.plays}</p>}
           <label className="text-sm text-text-secondary block pt-1">Arena</label>
           <div className="flex flex-wrap gap-2" data-testid="arena-choice">
             {([['match', 'Match team'], ['evolved', 'Evolved'], ['elite', 'Elite'], ['apex', 'Apex']] as const).map(([a, label]) => (

@@ -14,7 +14,7 @@ const out = opt('out', '');
 const lines: string[] = []; const say = (s = '') => { lines.push(s); console.log(s); };
 const mk = (p: string, cs: number[], i: number) => cs.map((c, j) => ({ id: `${p}${j}`, class: c as LobsterClass, tier, purity: (i + j) % 7 }));
 const pick = (i: number, k: number) => ((i * 2654435761 + k * 40503) >>> 0) % 10;
-const pol: Record<string, v3.Policy> = { aggressive: v3.aggressivePolicy, balanced: v3.balancedPolicy, ...v3.STYLE_BOTS, greedy: v3.greedyPolicy };
+const pol: Record<string, v3.Policy> = { aggressive: v3.aggressivePolicy, balanced: v3.balancedPolicy, cautious: v3.cautiousPolicy, ...v3.STYLE_BOTS, greedy: v3.greedyPolicy };
 const names = Object.keys(pol);
 
 /** Win % of style `a` vs style `b` on mirrored random teams, sides swapped. */

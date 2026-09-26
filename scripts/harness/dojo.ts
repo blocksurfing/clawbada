@@ -18,6 +18,8 @@ export default async function (b: Browser) {
   }
   expect(!!(await b.waitFor(`document.body.innerText.includes('Mantis · Sentinel · Leviathan, Elite, purity 5')`, 30000, 250)), 'deep link fills team, tier and purity');
   expect(!!(await b.waitFor(`document.body.innerText.includes('150% as hard') && document.body.innerText.includes('30% of the time')`, 2000, 250)), 'purity explainer shows 1+0.1p and 5+5p');
+  expect(!!(await b.waitFor(`(document.querySelector('[data-testid=dojo-bot-info]')?.textContent || '').includes('Defends to bank charge')`, 3000, 250)), 'deep-linked bot shows how it plays and its lesson');
+  expect(!!(await b.waitFor(`(document.querySelector('[data-testid=dojo-bot]')?.textContent || '').includes('Charger · Easy')`, 3000, 250)), 'bot picker shows name and difficulty');
   await b.screenshot(`${S}/dojo-builder.png`);
   // Change purity by clicking the 6 chip, then train.
   await rectClick(b, '[data-testid=dojo-purity] button', '6');
