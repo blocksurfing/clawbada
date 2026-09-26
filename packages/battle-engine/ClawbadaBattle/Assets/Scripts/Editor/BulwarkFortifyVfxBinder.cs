@@ -17,6 +17,10 @@ using UnityEngine;
 public static class BulwarkFortifyVfxBinder
 {
     private const int Bulwark = 0;
+    // The sheets are pivoted at the frame centre but the floor ring (and the beam's landing point) sits at
+    // rows 67–110 of 128 — its centre ~24.5 px below. At 64 PPU that is 0.38 u: lift the effect so the ring
+    // centres on the lobster's feet (user 2026-09-27: "lands too far underneath the target characters").
+    private const float FloorRingLift = 0.38f;
     private const string SheetDir = "Assets/Art/FX/Attack/Bulwark/";
     private const string PrefabDir = "Assets/Prefabs/VFX/";
     private const string ClipDir = "Assets/Prefabs/VFX/Clips/";
@@ -61,9 +65,10 @@ public static class BulwarkFortifyVfxBinder
         if (lib == null || lib.specialByClass == null || lib.specialByClass.Length <= Bulwark || lib.specialByClass[Bulwark] == null)
             throw new System.Exception("[BulwarkFortifyVfxBinder] no Fortify slot to update");
         lib.specialByClass[Bulwark].alsoOnStatus = "fortify";
+        lib.specialByClass[Bulwark].yOffset = FloorRingLift;
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
-        string msg = "[BulwarkFortifyVfxBinder] OK — Fortify also plays on every ally receiving \"fortify\"";
+        string msg = $"[BulwarkFortifyVfxBinder] OK — Fortify also plays on every ally receiving \"fortify\", lifted {FloorRingLift:F2} u";
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
     }
@@ -91,6 +96,7 @@ public static class BulwarkFortifyVfxBinder
             // UpperLayer draws in front of the caster; BottomLayer stays behind/under it.
             frontChildPrefix = "Upper",
             alsoOnStatus = "fortify",   // the rays drop on every protected ally too (user, 2026-09-27)
+            yOffset = FloorRingLift,    // the floor ring's centre is ~24.5 px below the frame centre
             rowsCovered = 1,
         };
 
