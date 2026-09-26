@@ -79,6 +79,7 @@ export default async function (b: Browser) {
   let reachTurn = '';
   let selectSentNothing = false;
   let attackChecked = false;
+  let badgeClicked = false;
   let attackResult: { panelA: boolean; panelB: boolean; sentBefore: number; sent: string[]; b: string } | null = null;
   let targetPanelShown = false;
   let heldInPlace = false;
@@ -132,7 +133,13 @@ export default async function (b: Browser) {
         const panelB = grab(b, /\[BattleHud\] target panel/).some((l) => l.includes(bId));
         const sentBefore = grab(b, /\[LiveBattle\] submit/).length;
         await b.screenshot(`${S}/target-panel.png`);
-        await b.clickAt(qb.x, qb.y); await b.sleep(800);
+        // Confirm by clicking the floating action badge over B (user 2026-09-27); the Ambush flow below
+        // covers the other confirm, tapping the enemy again.
+        const badge = parseButtons(grab(b, /\[BattleHud\] badge/).slice(-1)[0] ?? '').badge;
+        if (badge) { const pb = toCss(g, badge.x + badge.w / 2, badge.y + badge.h / 2); await b.clickAt(pb.x, pb.y); }
+        else await b.clickAt(qb.x, qb.y);
+        badgeClicked = !!badge;
+        await b.sleep(800);
         const sent = grab(b, /\[LiveBattle\] submit/);
         attackResult = { panelA, panelB, sentBefore, sent: sent.map((l) => l.replace(/^\[log\] /, '')) , b: bId };
         console.log(`[targeting] ${JSON.stringify(attackResult)} A=${a}@(${JSON.stringify(ca)}) B=${bId}@(${JSON.stringify(cb)})`);
@@ -337,7 +344,8 @@ export default async function (b: Browser) {
   if (attackResult) {
     expect(attackResult.sentBefore === 0, 'Attack: pressing Attack and tapping two enemies sent nothing');
     expect(attackResult.panelA && attackResult.panelB, 'Attack: the target panel followed the selection (A, then B)');
-    expect(attackResult.sent.length === 1 && attackResult.sent[0].includes(`attack ${attackResult.b}`), `Attack: tapping B again sent exactly one attack on B (${attackResult.sent.join(' | ')})`);
+    expect(badgeClicked, 'Attack: the floating action badge was on screen to click');
+    expect(attackResult.sent.length === 1 && attackResult.sent[0].includes(`attack ${attackResult.b}`), `Attack: clicking the badge over B sent exactly one attack on B (${attackResult.sent.join(' | ')})`);
   } else console.log('[targeting] no turn with 2+ attack targets and no Special — attack two-step not exercised');
   if (CLASS === 'Mantis' && dashShot) {
     expect(dashLines.length >= 1, `Mantis: a moving Ambush leapt instead of walking (${dashLines.slice(-1)[0] ?? 'no dash line'})`);

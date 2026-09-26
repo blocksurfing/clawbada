@@ -148,11 +148,25 @@ public class BattleHud : MonoBehaviour
         // Above the clock box (34 + 40 + 6), mirroring the acting lobster's panel bottom-left.
         TargetPanel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, rightSide: true, bottom: 80f);
         // LOKR-style: the selected target carries a small copy of the armed action's button above it.
-        targetBadge = HudFactory.Image(canvasRect, "TargetBadge", skin.btnAttack, Color.white, new Vector2(BadgeSize, BadgeSize * 1.143f));
+        // Clickable (user 2026-09-27): tapping the badge confirms the selected target, exactly like pressing
+        // the armed action again — so it is raycast-on and forwards the armed action to React.
+        targetBadge = HudFactory.Image(canvasRect, "TargetBadge", skin.btnAttack, Color.white, new Vector2(BadgeSize, BadgeSize * 1.143f), raycast: true);
         targetBadgeIcon = HudFactory.Image(targetBadge.transform, "Icon", skin.iconAttack, Color.white, new Vector2(BadgeSize * 0.55f, BadgeSize * 0.55f));
+        var badgeButton = targetBadge.gameObject.AddComponent<Button>();
+        badgeButton.targetGraphic = targetBadge;
+        var bc = badgeButton.colors;
+        bc.highlightedColor = new Color(1f, 1f, 0.85f, 1f);
+        bc.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
+        badgeButton.colors = bc;
+        badgeButton.onClick.AddListener(() =>
+        {
+            if (string.IsNullOrEmpty(targetAction)) return;
+            Debug.Log($"[BattleHud] badge press {targetAction} → confirm {targetedId}");
+            bridge?.NotifyActionSelected(targetAction);
+        });
         targetBadge.gameObject.SetActive(false);
         Bar = ActionBar.Create(canvasRect, skin);
-        var bridge = FindFirstObjectByType<BattleBridge>();
+        bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
         Bar.UndoPressed += () => bridge?.NotifyUndoMove();
         Options = OptionsMenu.Create(canvasRect, skin);
@@ -207,10 +221,21 @@ public class BattleHud : MonoBehaviour
     public ActiveMarker TargetMarker { get; private set; }
     private LobsterController targetLob;
     private Image targetBadge;
+    private BattleBridge bridge;
     private Image targetBadgeIcon;
     private const float BadgeSize = 40f;      // reference px (canvas 960x540)
     private const float BadgeLift = 0.40f;    // world units above the field bar's anchor: just clear of the bar, low enough not to sit over the row behind
     private const float BadgeBobPx = 3f;
+
+    private bool badgeLogPending;
+
+    /// <summary>Badge rect in the action-bar log's convention, for the harness / agents to click.</summary>
+    private void LogBadgeRect()
+    {
+        var sb = new System.Text.StringBuilder("[BattleHud] badge");
+        ActionBar.AppendRect(sb, "badge", targetBadge.rectTransform);
+        Debug.Log(sb.ToString());
+    }
 
     private void ShowTargetBadge()
     {
@@ -226,6 +251,7 @@ public class BattleHud : MonoBehaviour
         targetBadgeIcon.enabled = targetBadgeIcon.sprite != null;
         targetBadge.gameObject.SetActive(true);
         Debug.Log($"[BattleHud] target badge {targetAction} over {targetLob.lobsterId}");
+        badgeLogPending = true;
     }
 
     private void ShowTargetPanel()
@@ -508,6 +534,7 @@ public class BattleHud : MonoBehaviour
             {
                 float bob = Mathf.Sin(Time.time * 3f) * BadgeBobPx;
                 targetBadge.rectTransform.anchoredPosition = CanvasPointFor(targetLob.transform.position + Vector3.up * (Skin.overlayWorldYOffset + BadgeLift)) + new Vector2(0f, bob);
+                if (badgeLogPending) { badgeLogPending = false; LogBadgeRect(); }
             }
         }
     }
