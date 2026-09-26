@@ -77,6 +77,10 @@ export default async function (b: Browser) {
   let dashShot = false;
   let dashLines: string[] = [];
   let reachTurn = '';
+  let selectSentNothing = false;
+  let attackChecked = false;
+  let attackResult: { panelA: boolean; panelB: boolean; sentBefore: number; sent: string[]; b: string } | null = null;
+  let targetPanelShown = false;
   const started = Date.now();
   while (Date.now() - started < 7 * 60_000 && ownTurns < 16) {
     if (grab(b, /\[BattleHud\] banner/).length > 0) break;
@@ -95,7 +99,8 @@ export default async function (b: Browser) {
     let movedThisTurn = false;
     // Melee Specials need adjacency: when charged but nothing is in range, step toward the
     // nearest enemy first (tentative move), then re-read the targets from the new cell.
-    if (sel.specialKind === 'enemy' && (sel.specialTargets ?? []).length === 0 && (sel.moves ?? []).length > 0) {
+    // (Skipped for the Mantis's first charged turn: that turn tests tap-to-reach with NO manual move.)
+    if (sel.specialKind === 'enemy' && (sel.specialTargets ?? []).length === 0 && (sel.moves ?? []).length > 0 && !(CLASS === 'Mantis' && !dashShot && sel.canSpecial)) {
       const me = (sel.lobsters || []).find((l: any) => l.id === sel.actor);
       const enemies = (sel.lobsters || []).filter((l: any) => l.alive && me && l.team !== me.team);
       const near = (p: any) => Math.min(...enemies.map((e: any) => hexDist(p, e)));
@@ -105,6 +110,30 @@ export default async function (b: Browser) {
         const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); moves++; movedThisTurn = true;
         await b.sleep(900);
         sel = await b.eval(`window.__clawbada_selection ? JSON.parse(JSON.stringify(window.__clawbada_selection)) : null`) as any ?? sel;
+      }
+    }
+    // Two-step Attack (2026-09-25): press Attack → nothing sent; tap enemy A → selected only, target
+    // panel for A; tap enemy B → selection moves to B, still nothing; tap B again → one attack on B.
+    if (!attackChecked && !sel.canSpecial && btns.attack && (sel.attackTargets ?? []).length >= 2) {
+      attackChecked = true;
+      const [a, bId] = sel.attackTargets as string[];
+      const cellOf = (id: string) => { const l = (sel.lobsters || []).find((x: any) => x.id === id); return l ? cells.get(`${l.col},${l.row}`) : null; };
+      const ca = cellOf(a), cb = cellOf(bId);
+      if (ca && cb) {
+        b.drainLogs();
+        const pa = toCss(g, btns.attack.x + btns.attack.w / 2, btns.attack.y + btns.attack.h / 2); await b.clickAt(pa.x, pa.y); await b.sleep(400);
+        const qa = toCss(g, ca.x, ca.y); await b.clickAt(qa.x, qa.y); await b.sleep(600);
+        const panelA = grab(b, /\[BattleHud\] target panel/).some((l) => l.includes(a));
+        const qb = toCss(g, cb.x, cb.y); await b.clickAt(qb.x, qb.y); await b.sleep(600);
+        const panelB = grab(b, /\[BattleHud\] target panel/).some((l) => l.includes(bId));
+        const sentBefore = grab(b, /\[LiveBattle\] submit/).length;
+        await b.screenshot(`${S}/target-panel.png`);
+        await b.clickAt(qb.x, qb.y); await b.sleep(800);
+        const sent = grab(b, /\[LiveBattle\] submit/);
+        attackResult = { panelA, panelB, sentBefore, sent: sent.map((l) => l.replace(/^\[log\] /, '')) , b: bId };
+        console.log(`[targeting] ${JSON.stringify(attackResult)}`);
+        await b.waitFor(`${turnNo} !== ${JSON.stringify(before)}`, 25000, 200);
+        continue;
       }
     }
     // Mantis: the player flow that was broken (2026-09-25) — arm Ambush, then tap an enemy that is NOT
@@ -121,6 +150,11 @@ export default async function (b: Browser) {
         await b.sleep(500);
         const armedCast = grab(b, /TurnSelection|submit/i).filter((l) => /special/i.test(l));
         const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y);
+        await b.sleep(900);
+        const selectedOnly = grab(b, /\[LiveBattle\] submit/).length;
+        selectSentNothing = selectedOnly === 0;
+        targetPanelShown = grab(b, /\[BattleHud\] target panel/).some((l) => l.includes(far.id));
+        await b.clickAt(q.x, q.y); // confirm
         dashShot = true; movedThisTurn = true; casts++;
         for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/dash-Mantis-f${String(f).padStart(2, '0')}.png`); await b.sleep(90); }
         dashLines = grab(b, /LobsterController\] dash Mantis/);
@@ -146,7 +180,8 @@ export default async function (b: Browser) {
           const pick = targets.find((t: string) => t !== sel.actor) ?? targets[0]; // prefer a teammate over self for ally Specials
           const lob = (sel.lobsters || []).find((l: any) => l.id === pick);
           const cell = lob ? cells.get(`${lob.col},${lob.row}`) : null;
-          if (cell) { const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); }
+          // Two-step targeting: the first tap selects, the second confirms.
+          if (cell) { const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); await b.sleep(450); await b.clickAt(q.x, q.y); }
           else errors.push(`no cell for target ${pick}`);
         }
         if (CLASS === 'Tempest' && casts === 0) {
@@ -274,8 +309,15 @@ export default async function (b: Browser) {
   }
   for (const l of grab(b, /\[BattleManager\] heal events|\(heal\)|special .* heal at/).slice(0, 4)) console.log('  heal:', l.slice(0, 120));
   for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
+  if (attackResult) {
+    expect(attackResult.sentBefore === 0, 'Attack: pressing Attack and tapping two enemies sent nothing');
+    expect(attackResult.panelA && attackResult.panelB, 'Attack: the target panel followed the selection (A, then B)');
+    expect(attackResult.sent.length === 1 && attackResult.sent[0].includes(`attack ${attackResult.b}`), `Attack: tapping B again sent exactly one attack on B (${attackResult.sent.join(' | ')})`);
+  } else console.log('[targeting] no turn with 2+ attack targets and no Special — attack two-step not exercised');
   if (CLASS === 'Mantis' && dashShot) {
     expect(dashLines.length >= 1, `Mantis: a moving Ambush leapt instead of walking (${dashLines.slice(-1)[0] ?? 'no dash line'})`);
+    expect(selectSentNothing, 'Mantis: the first tap on the enemy only SELECTED it (no turn sent)');
+    expect(targetPanelShown, 'Mantis: selecting the enemy opened the target panel for it');
     expect(/"action":"special"/.test(reachTurn) && !/"path":\[\]/.test(reachTurn), `Mantis: tapping a non-adjacent enemy with Ambush armed stepped in and cast Ambush, not an attack (${reachTurn.slice(0, 140)})`);
   }
   if (CLASS === 'Tempest' || CLASS === 'Ember') {

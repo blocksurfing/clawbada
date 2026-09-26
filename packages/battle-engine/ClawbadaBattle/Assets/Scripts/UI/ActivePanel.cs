@@ -5,6 +5,8 @@ using UnityEngine.UI;
 /// Bottom-left box for the acting lobster: card on top, class name, tier/team, HP
 /// numbers and charge pips stacked below (124x136). Narrow so it never covers the
 /// board's bottom-left hex. The shot clock is BattleHud.Clock (bottom-right).
+/// A second instance on the right (<c>rightSide</c>, above the clock) is the TARGET panel: the
+/// lobster the player has selected but not yet confirmed — its class, HP, charge and statuses.
 /// </summary>
 public class ActivePanel : MonoBehaviour
 {
@@ -19,12 +21,13 @@ public class ActivePanel : MonoBehaviour
     private Text hpText;
     private Image[] pips;
 
-    public static ActivePanel Create(Transform parent, HudSkin skin, LobsterPartLibrary partLibrary)
+    public static ActivePanel Create(Transform parent, HudSkin skin, LobsterPartLibrary partLibrary, bool rightSide = false, float bottom = 8f)
     {
         // Narrow vertical box: the board's bottom-left hex begins ~170 px from the left edge
         // at 1020x574, so anything wider than ~150 reference px overlaps it. Card on top,
         // name / tier / HP / pips stacked underneath.
-        var rt = HudFactory.Rect(parent, "ActivePanel", Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(8f, 8f), new Vector2(124f, 136f));
+        var corner = rightSide ? new Vector2(1f, 0f) : Vector2.zero;
+        var rt = HudFactory.Rect(parent, rightSide ? "TargetPanel" : "ActivePanel", corner, corner, corner, new Vector2(rightSide ? -8f : 8f, bottom), new Vector2(124f, 136f));
         var p = rt.gameObject.AddComponent<ActivePanel>();
         p.Rect = rt;
         p.skin = skin;
