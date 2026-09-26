@@ -128,162 +128,162 @@ TextureImporter:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: f28d8b939393423eabdd43d39f8f162a
+      spriteID: bf7298a1f48f23e60800000000000000
       internalID: 7940682111638906875
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_SpiritSpawn_01
       rect:
         serializedVersion: 2
-        x: 64
+        x: 80
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 7ba404ebca45469dae202f51df693c60
+      spriteID: c4779642282eccc60800000000000000
       internalID: 7839890099929708364
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_SpiritSpawn_02
       rect:
         serializedVersion: 2
-        x: 128
+        x: 160
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: df2db1a5ad104086839fd2b2682744e1
+      spriteID: 89a51ad02f55b1d50800000000000000
       internalID: 6709050567997610648
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_SpiritSpawn_03
       rect:
         serializedVersion: 2
-        x: 192
+        x: 240
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 8c50c0d246974f50a4a158b2bb6adede
+      spriteID: e34d58dae09ebf010800000000000000
       internalID: 1223827973011264574
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_SpiritSpawn_04
       rect:
         serializedVersion: 2
-        x: 256
+        x: 320
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 0522719de6104c1ea92ac81aa2acecff
+      spriteID: 6d7fa30ab96dec440800000000000000
       internalID: 4958136203677988822
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_SpiritSpawn_05
       rect:
         serializedVersion: 2
-        x: 320
+        x: 400
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 62774fba2fdc49818165e9fa5cd16538
+      spriteID: b2f4b4a3068c7d450800000000000000
       internalID: 6113575334799167275
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
       name: FX_Specter_Haunt_SpiritSpawn_06
       rect:
         serializedVersion: 2
-        x: 384
+        x: 480
         y: 0
-        width: 64
-        height: 48
+        width: 80
+        height: 64
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: d49272127bb24d29a0638b5bb22f65f2
+      spriteID: 94d08e16347bb0e30800000000000000
       internalID: 4470868555128638793
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     outline: []
-    customData:
+    customData: 
     physicsShape: []
     bones: []
-    spriteID:
+    spriteID: 
     internalID: 0
     vertices: []
-    indices:
+    indices: 
     edges: []
     weights: []
     secondaryTextures: []
@@ -297,8 +297,8 @@ TextureImporter:
       FX_Specter_Haunt_SpiritSpawn_04: 4958136203677988822
       FX_Specter_Haunt_SpiritSpawn_05: 6113575334799167275
       FX_Specter_Haunt_SpiritSpawn_06: 4470868555128638793
-  mipmapLimitGroupName:
+  mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData:
-  assetBundleName:
-  assetBundleVariant:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

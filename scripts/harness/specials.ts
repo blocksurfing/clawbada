@@ -213,6 +213,11 @@ export default async function (b: Browser) {
           dashLines = grab(b, /LobsterController\] dash Mantis/);
           for (const l of grab(b, /LobsterController\] dash|BattleManager\] special|Afterimage|Exception/i)) console.log('[Mantis-dash]', l.slice(0, 220));
         }
+        if (CLASS === 'Sentinel' && casts === 0) {
+          // Rally (2026-09-27): heal + cleanse on an ally, visual Spawn 0.5 → Loop 1.25 → Out 0.67 on the healed lobster.
+          for (let f = 0; f < 14; f++) { await b.screenshot(`${S}/specials-Sentinel-f${String(f).padStart(2, '0')}.png`); await b.sleep(180); }
+          for (const l of grab(b, /BattleManager\] (special|heal)|cast visual|status fx|Exception/i)) console.log('[Sentinel-log]', l.slice(0, 220));
+        }
         if (CLASS === 'Reaver' && casts === 0) {
           // Rend drop (2026-09-25): cinematic on the target, 1.67 s (Spawn 0.5 → Attack → Out), hit at 0.67 s.
           for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/specials-Reaver-f${String(f).padStart(2, '0')}.png`); await b.sleep(120); }
@@ -249,7 +254,7 @@ export default async function (b: Browser) {
           // Frame burst through the projectile turn: formation → launch → flight → burst.
           await b.sleep(700);
           for (let f = 0; f < 8; f++) { await b.screenshot(`${S}/specials-Ember-f${f}.png`); await b.sleep(380); }
-          for (const l of grab(b, /BattleManager\] (special|Play|Unknown)|LiveBattle\] submit|turn_resolved|targetId|LobsterController\] attack/)) console.log('[Ember-log]', l.slice(0, 260));
+          for (const l of grab(b, /BattleManager\] (special|Play|Unknown)|LiveBattle\] submit|turn_resolved|targetId|LobsterController\] (attack|special)|FX_Ember_Inferno_(EmberScatter|FirePatch)/)) console.log('[Ember-log]', l.slice(0, 260));
         }
         await b.sleep(900);
         const sub = grab(b, /\[LiveBattle\] submit special/);
