@@ -35,6 +35,9 @@ export interface HexListData {
   rangeHexes: HexPosition[];
   enemyTargets: HexPosition[];
   allyTargets: HexPosition[];
+  /** The SELECTED (not yet confirmed) target's hex, -1 for none — painted as the pulsing target. */
+  targetCol?: number;
+  targetRow?: number;
 }
 
 export interface BattleLobster {

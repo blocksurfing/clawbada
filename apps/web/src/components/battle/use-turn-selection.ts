@@ -145,8 +145,10 @@ export function useTurnSelection(
       rangeHexes: summary.moves,
       enemyTargets: enemy.map(pos).filter((p): p is HexPosition => !!p),
       allyTargets: ally.map(pos).filter((p): p is HexPosition => !!p),
+      targetCol: targetId ? pos(targetId)?.col ?? -1 : -1,
+      targetRow: targetId ? pos(targetId)?.row ?? -1 : -1,
     };
-  }, [actor, summary, home, manualMove, state, action, specialKind, from, specialReach]);
+  }, [actor, summary, home, manualMove, state, action, specialKind, from, specialReach, targetId]);
 
   /** Validate with the real rules and hand the command to the session. */
   const trySubmit = useCallback((cmd: TurnCommand): boolean => {
