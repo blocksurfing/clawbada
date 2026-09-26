@@ -7,8 +7,9 @@
  *
  * Two input models share this hook:
  *  - autoSubmit (the in-canvas Unity HUD, LOKR-style): tapping a legal target,
- *    Defend or Wait submits the turn immediately; Special arms first (or submits
- *    at once when targetless); a tentative move is previewed and can be undone.
+ *    Defend or Wait submits the turn immediately; Attack and Special only ARM (a targetless
+ *    Special submits at once). A targeted action is never sent without the player tapping
+ *    that target. A tentative move is previewed and can be undone.
  *  - explicit (the React fallback panel): pick action + target, then Confirm.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -80,13 +81,9 @@ export function useTurnSelection(
   const canSpecial = summary?.canSpecial ?? false;
   const specialKind = summary?.specialKind ?? 'none';
 
-  // Exactly one legal target for the chosen action → pick it, so Attack/Special is one
-  // click away (LOKR-style). The player can still switch by clicking another target.
-  useEffect(() => {
-    if (!summary || targetId) return;
-    const ids = action === 'attack' ? summary.attackTargets : action === 'special' && specialKind !== 'none' ? summary.specialTargets : [];
-    if (ids.length === 1) setTargetId(ids[0]);
-  }, [summary, action, specialKind, targetId]);
+  // No target is ever chosen for the player (user, 2026-09-25: targeting decides matches, so it
+  // must never fire without the player picking it). There used to be a "one legal target → pick
+  // it" effect here; with the tap-to-act HUD it turned the next button press into a submit.
 
   const command = useMemo<TurnCommand | null>(() => {
     if (!actor) return null;
@@ -106,13 +103,30 @@ export function useTurnSelection(
     }
   }, [state, command]);
 
+  // A melee Special (Ambush, Crush, Rend, Devour) only reaches adjacent enemies, but a turn is
+  // move-then-act: an enemy the lobster can step next to this turn is a legal target too. For each
+  // such enemy, the reachable hex nearest the lobster's own — tapping it moves there and casts (for
+  // the Mantis that is the Ambush leap). Enemies already in reach from `from` need no entry.
+  const specialReach = useMemo(() => {
+    const reach = new Map<string, HexPosition>();
+    if (!state || !actor || !summary || !canSpecial || specialKind !== 'enemy') return reach;
+    const direct = new Set(summary.specialTargets);
+    const byDistance = [...summary.moves].sort((a, b) => v3.hexDistance(actor.pos, a) - v3.hexDistance(actor.pos, b));
+    for (const cell of byDistance) {
+      for (const id of v3.legalSummary(state, actor, cell).specialTargets) {
+        if (!direct.has(id) && !reach.has(id)) reach.set(id, { col: cell.col, row: cell.row });
+      }
+    }
+    return reach;
+  }, [state, actor, summary, canSpecial, specialKind]);
+
   const highlights = useMemo<HexListData | null>(() => {
     if (!actor || !summary || !state) return null;
     const pos = (id: string) => {
       const l = state.lobsters.find((x) => x.id === id);
       return l ? { col: l.pos.col, row: l.pos.row } : null;
     };
-    const enemy = action === 'attack' ? summary.attackTargets : action === 'special' && specialKind === 'enemy' ? summary.specialTargets : [];
+    const enemy = action === 'attack' ? summary.attackTargets : action === 'special' && specialKind === 'enemy' ? [...summary.specialTargets, ...specialReach.keys()] : [];
     const ally = action === 'special' && specialKind === 'ally' ? summary.specialTargets : [];
     return {
       originCol: from?.col ?? actor.pos.col,
@@ -121,7 +135,7 @@ export function useTurnSelection(
       enemyTargets: enemy.map(pos).filter((p): p is HexPosition => !!p),
       allyTargets: ally.map(pos).filter((p): p is HexPosition => !!p),
     };
-  }, [actor, summary, state, action, specialKind, from]);
+  }, [actor, summary, state, action, specialKind, from, specialReach]);
 
   /** Validate with the real rules and hand the command to the session. */
   const trySubmit = useCallback((cmd: TurnCommand): boolean => {
@@ -154,20 +168,22 @@ export function useTurnSelection(
     switch (a) {
       case 'attack': {
         setActionState('attack');
+        // Arms only: the attack is sent when the player taps the enemy (never auto-picked).
         const ids = summary.attackTargets;
-        const t = targetId && ids.includes(targetId) ? targetId : ids.length === 1 ? ids[0] : null;
-        if (t) { setTargetId(t); trySubmit(withMove({ lobsterId: actor.id, action: 'attack', targetId: t })); }
-        else setHint(ids.length ? 'Tap an enemy to attack' : 'No enemy in range — move closer, Defend or Wait');
+        setTargetId(null);
+        setHint(ids.length ? 'Tap an enemy to attack' : 'No enemy in range — move closer, Defend or Wait');
         return;
       }
       case 'special': {
         if (!canSpecial) { setHint('Special needs 3 charge'); return; }
         setActionState('special');
         if (specialKind === 'none') { trySubmit(withMove({ lobsterId: actor.id, action: 'special' })); return; }
-        const ids = summary.specialTargets;
-        const t = targetId && ids.includes(targetId) ? targetId : ids.length === 1 ? ids[0] : null;
-        if (t) { setTargetId(t); trySubmit(withMove({ lobsterId: actor.id, action: 'special', targetId: t })); }
-        else setHint(specialKind === 'ally' ? 'Tap an ally' : 'Tap an enemy in range');
+        // A targeted Special only ARMS here — it never picks its own target. Auto-casting on the only
+        // adjacent enemy spent Specials on the wrong lobster (the one beside you rather than the
+        // nearly-dead one a step away). The player taps the target; highlights show every option.
+        const reachable = summary.specialTargets.length + specialReach.size;
+        if (specialKind === 'ally') setHint('Tap an ally');
+        else setHint(reachable ? 'Tap a highlighted enemy' : 'No enemy within reach this turn — Attack, Defend or Wait');
         return;
       }
       case 'defend':
@@ -181,7 +197,7 @@ export function useTurnSelection(
         trySubmit(withMove({ lobsterId: actor.id, action: 'none' }));
         return;
     }
-  }, [actor, summary, autoSubmit, targetId, canSpecial, specialKind, trySubmit, withMove]);
+  }, [actor, summary, autoSubmit, targetId, canSpecial, specialKind, specialReach, trySubmit, withMove]);
 
   const onHexClick = useCallback((hex: HexPosition) => {
     if (!actor || !summary) return;
@@ -218,9 +234,19 @@ export function useTurnSelection(
 
     // LOKR: tapping a legal target resolves the turn.
     if (enemy) {
-      if (action === 'special' && specialKind === 'enemy' && canSpecial && summary.specialTargets.includes(id)) {
+      const specialArmed = action === 'special' && specialKind === 'enemy' && canSpecial;
+      if (specialArmed && summary.specialTargets.includes(id)) {
         setTargetId(id);
         trySubmit(withMove({ lobsterId: actor.id, action: 'special', targetId: id }));
+      } else if (specialArmed && specialReach.has(id)) {
+        // Step next to it and cast, in one turn.
+        const cell = specialReach.get(id)!;
+        setMoveTo(cell);
+        setTargetId(id);
+        trySubmit({ lobsterId: actor.id, moveTo: cell, action: 'special', targetId: id });
+      } else if (specialArmed) {
+        // Never swap a Special for a plain Attack behind the player's back.
+        setHint('Out of reach for the Special this turn — tap Attack to attack instead');
       } else if (summary.attackTargets.includes(id)) {
         setActionState('attack');
         setTargetId(id);
@@ -235,7 +261,7 @@ export function useTurnSelection(
     } else if (specialKind === 'ally' && !canSpecial) {
       setHint('Special needs 3 charge');
     }
-  }, [actor, state, summary, action, specialKind, canSpecial, autoSubmit, trySubmit, withMove]);
+  }, [actor, state, summary, action, specialKind, canSpecial, autoSubmit, specialReach, trySubmit, withMove]);
 
   const setAction = useCallback((a: ActionChoice) => {
     setActionState(a);
