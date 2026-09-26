@@ -7,10 +7,9 @@ using UnityEngine;
 
 /// <summary>
 /// Runtime binding for the designer's Bulwark Fortify drop (design/vfx-specials).
-/// Builds a layered one-shot prefab from the six Fortify sheets:
-///  • Under/Upper Spawn  — 33 frames @ 10 fps
-///  • Under/Upper Idle   — 6 frames @ 10 fps, played once as a short hold
-///  • Under/Upper Out    — 29 frames @ 10 fps
+/// Current Fortify export is two continuous 39-frame 128x128 layers:
+///  • BottomLayer — under/behind the lobster
+///  • UpperLayer  — over/in-front of the lobster
 /// and fills BattleVfxLibrary.specialByClass[Bulwark].
 ///
 /// Menu: Clawbada ▸ VFX ▸ Bind Bulwark Fortify. Headless: -executeMethod BulwarkFortifyVfxBinder.Bind
@@ -27,49 +26,38 @@ public static class BulwarkFortifyVfxBinder
     private const string ClipPath = ClipDir + "FX_Bulwark_Fortify.anim";
     private const string ControllerPath = ClipDir + "AC_FX_Bulwark_Fortify.controller";
 
-    private const float Fps = 10f;
-    private const int SpawnFrames = 33;
-    private const int IdleFrames = 6;
-    private const int OutFrames = 29;
-    private const int FrameWidth = 192;
+    private const float Fps = 12f;
+    private const int Frames = 39;
+    private const int FrameWidth = 128;
     private const int FrameHeight = 128;
-
-    private const float SpawnStart = 0f;
-    private const float IdleStart = SpawnFrames / Fps;
-    private const float OutStart = (SpawnFrames + IdleFrames) / Fps;
-    private const float EndTime = (SpawnFrames + IdleFrames + OutFrames) / Fps;
+    private const float EndTime = Frames / Fps;
+    private const float ImpactAt = 8f / Fps;
 
     private readonly struct LayerSpec
     {
         public readonly string Child;
         public readonly string Sheet;
-        public readonly int Frames;
-        public readonly float Start;
         public readonly bool Over;
 
-        public LayerSpec(string child, string sheet, int frames, float start, bool over)
+        public LayerSpec(string child, string sheet, bool over)
         {
             Child = child;
             Sheet = sheet;
-            Frames = frames;
-            Start = start;
             Over = over;
         }
     }
 
     private static readonly LayerSpec[] Layers =
     {
-        new("UnderSpawn", SheetDir + "FX_Bulwark_Fortify_UnderSpawn.png", SpawnFrames, SpawnStart, false),
-        new("UpperSpawn", SheetDir + "FX_Bulwark_Fortify_UpperSpawn.png", SpawnFrames, SpawnStart, true),
-        new("UnderIdle",  SheetDir + "FX_Bulwark_Fortify_UnderIdle.png",  IdleFrames,  IdleStart, false),
-        new("UpperIdle",  SheetDir + "FX_Bulwark_Fortify_UpperIdle.png",  IdleFrames,  IdleStart, true),
-        new("UnderOut",   SheetDir + "FX_Bulwark_Fortify_UnderOut.png",   OutFrames,   OutStart, false),
-        new("UpperOut",   SheetDir + "FX_Bulwark_Fortify_UpperOut.png",   OutFrames,   OutStart, true),
+        new("BottomLayer", SheetDir + "FX_Bulwark_Fortify_BottomLayer.png", false),
+        new("UpperLayer",  SheetDir + "FX_Bulwark_Fortify_UpperLayer.png",  true),
     };
 
     [MenuItem("Clawbada/VFX/Bind Bulwark Fortify")]
     public static void Bind()
     {
+        EnsureFolder("Assets/Prefabs/VFX");
+        EnsureFolder("Assets/Prefabs/VFX/Clips");
         EnsureSlicedSheets();
         var prefab = BuildPrefab();
 
@@ -80,19 +68,13 @@ public static class BulwarkFortifyVfxBinder
         lib.specialByClass[Bulwark] = new BattleVfxLibrary.VfxSlot
         {
             prefab = prefab,
-            // Fortify is a self-buff/shield read around the actor, closer to the body/hex centre than a weapon launch.
+            // Fortify is a self-buff/shield read around the actor, centered on feet/body volume.
             anchor = BattleVfxLibrary.AnchorPoint.ActorFeet,
             delay = 0f,
             mirrorWithFacing = false,
-            impactAt = IdleStart,
-            // The designer drew the dome as two halves for exactly this: the glass in FRONT of the
-            // lobsters (Upper*) draws over them, the back of the dome (Under*) draws behind, so a
-            // lobster standing at the rim is not swallowed by it. Everything a row closer to the
-            // camera clears the dome entirely — that is the row band, not this.
+            impactAt = ImpactAt,
+            // UpperLayer draws in front of the caster; BottomLayer stays behind/under it.
             frontChildPrefix = "Upper",
-            // The dome is drawn ~1 world unit past the caster's feet — about one hex row — so an
-            // adjacent enemy one row closer stands INSIDE it and belongs under the front glass, not
-            // in front of the whole shell. Someone two rows closer is outside the rim and covers it.
             rowsCovered = 1,
         };
 
@@ -100,7 +82,7 @@ public static class BulwarkFortifyVfxBinder
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        string msg = $"[BulwarkFortifyVfxBinder] OK — {prefab.name} ({BattleVfxLibrary.ClipLength(prefab):F2}s, impactAt {IdleStart:F2}s) bound for Bulwark";
+        string msg = $"[BulwarkFortifyVfxBinder] OK — {prefab.name}: 2 layers × {Frames} frames ({FrameWidth}x{FrameHeight}) @ {Fps} fps = {BattleVfxLibrary.ClipLength(prefab):F2}s, impactAt {ImpactAt:F2}s, Bottom under / Upper over → specialByClass[0]/Bulwark Fortify";
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
     }
@@ -119,14 +101,12 @@ public static class BulwarkFortifyVfxBinder
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.mipmapEnabled = false;
             importer.alphaIsTransparency = true;
-            // Spawn sheets are 6336px wide, so do not let Unity downscale them to 4096.
             importer.maxTextureSize = 8192;
 
             var (rawWidth, rawHeight) = ReadPngSize(layer.Sheet);
-            int columns = rawWidth / FrameWidth;
-            if (rawHeight != FrameHeight || rawWidth % FrameWidth != 0 || columns != layer.Frames)
+            if (rawHeight != FrameHeight || rawWidth != Frames * FrameWidth)
             {
-                throw new System.Exception($"[BulwarkFortifyVfxBinder] {layer.Sheet}: expected {layer.Frames} frames of {FrameWidth}x{FrameHeight}, got raw PNG {rawWidth}x{rawHeight}");
+                throw new System.Exception($"[BulwarkFortifyVfxBinder] {layer.Sheet}: expected {Frames} frames of {FrameWidth}x{FrameHeight}, got raw PNG {rawWidth}x{rawHeight}");
             }
 
             var factory = new SpriteDataProviderFactories();
@@ -135,7 +115,7 @@ public static class BulwarkFortifyVfxBinder
             provider.InitSpriteEditorDataProvider();
 
             var rects = new List<SpriteRect>();
-            for (int i = 0; i < layer.Frames; i++)
+            for (int i = 0; i < Frames; i++)
             {
                 rects.Add(new SpriteRect
                 {
@@ -172,8 +152,8 @@ public static class BulwarkFortifyVfxBinder
                 .OfType<Sprite>()
                 .OrderBy(s => s.name)
                 .ToArray();
-            if (sprites.Length != layer.Frames)
-                throw new System.Exception($"[BulwarkFortifyVfxBinder] {layer.Sheet}: expected {layer.Frames} sliced sprites, found {sprites.Length}");
+            if (sprites.Length != Frames)
+                throw new System.Exception($"[BulwarkFortifyVfxBinder] {layer.Sheet}: expected {Frames} sliced sprites, found {sprites.Length}");
             loaded[layer.Child] = sprites;
         }
 
@@ -190,6 +170,7 @@ public static class BulwarkFortifyVfxBinder
         AssetDatabase.DeleteAsset(ControllerPath);
         var controller = AnimatorController.CreateAnimatorControllerAtPathWithClip(ControllerPath, clip);
 
+        AssetDatabase.DeleteAsset(PrefabPath);
         var root = new GameObject("FX_Bulwark_Fortify");
         try
         {
@@ -199,10 +180,10 @@ public static class BulwarkFortifyVfxBinder
                 var child = new GameObject(layer.Child);
                 child.transform.SetParent(root.transform, false);
                 var sr = child.AddComponent<SpriteRenderer>();
-                sr.sprite = loaded[layer.Child][0];
+                sr.sprite = loaded[layer.Child].FirstOrDefault(s => s != null) ?? loaded[layer.Child][0];
                 sr.sortingLayerName = DepthSort.Layer;
                 sr.sortingOrder = layer.Over ? 1 : -1;
-                sr.enabled = layer.Start <= 0f;
+                sr.enabled = true;
             }
             var animator = root.AddComponent<Animator>();
             animator.runtimeAnimatorController = controller;
@@ -220,28 +201,17 @@ public static class BulwarkFortifyVfxBinder
         var spriteKeys = new ObjectReferenceKeyframe[sprites.Length];
         for (int i = 0; i < sprites.Length; i++)
         {
-            spriteKeys[i] = new ObjectReferenceKeyframe { time = layer.Start + i / Fps, value = sprites[i] };
+            spriteKeys[i] = new ObjectReferenceKeyframe { time = i / Fps, value = sprites[i] };
         }
         AnimationUtility.SetObjectReferenceCurve(clip, spriteBinding, spriteKeys);
-
-        var enabledBinding = new EditorCurveBinding { type = typeof(SpriteRenderer), path = layer.Child, propertyName = "m_Enabled" };
-        var enabled = new AnimationCurve();
-        AddConstant(enabled, 0f, layer.Start <= 0f ? 1f : 0f);
-        AddConstant(enabled, Mathf.Max(0f, layer.Start - 0.001f), layer.Start <= 0f ? 1f : 0f);
-        AddConstant(enabled, layer.Start, 1f);
-        AddConstant(enabled, layer.Start + layer.Frames / Fps, 0f);
-        AddConstant(enabled, EndTime, 0f);
-        AnimationUtility.SetEditorCurve(clip, enabledBinding, enabled);
     }
 
-    private static void AddConstant(AnimationCurve curve, float time, float value)
+    private static void EnsureFolder(string path)
     {
-        var key = new Keyframe(time, value, 0f, 0f) { weightedMode = WeightedMode.None };
-        int index = curve.AddKey(key);
-        if (index >= 0)
-        {
-            AnimationUtility.SetKeyLeftTangentMode(curve, index, AnimationUtility.TangentMode.Constant);
-            AnimationUtility.SetKeyRightTangentMode(curve, index, AnimationUtility.TangentMode.Constant);
-        }
+        if (AssetDatabase.IsValidFolder(path)) return;
+        string parent = System.IO.Path.GetDirectoryName(path).Replace('\\', '/');
+        string leaf = System.IO.Path.GetFileName(path);
+        EnsureFolder(parent);
+        AssetDatabase.CreateFolder(parent, leaf);
     }
 }
