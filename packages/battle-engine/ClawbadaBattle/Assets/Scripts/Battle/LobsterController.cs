@@ -350,19 +350,23 @@ public class LobsterController : MonoBehaviour
     /// <summary>Fraction of the Attack clip at which the hit lands (impact frame).</summary>
     public static float AttackImpactFraction = 0.5f;
 
-    public IEnumerator PlayAttack(Vector3 targetWorldPos, float duration, bool melee, System.Action onImpact, float animSpeed = 1f)
+    /// <summary>The body animation a Special casts with: the rig's own "Special" state when the designer
+    /// has made one (2026-09-27: every rig has it — most are still copies of Attack), else "Attack".</summary>
+    public string SpecialSwingState => HasState("Special") ? "Special" : "Attack";
+
+    public IEnumerator PlayAttack(Vector3 targetWorldPos, float duration, bool melee, System.Action onImpact, float animSpeed = 1f, string state = "Attack")
     {
         FaceToward(targetWorldPos);
-        PlayState("Attack");
+        PlayState(state);
         // A slowed swing (Bind casts at 0.5×): the Animator runs slower for the swing only, and the
         // lunge stretches to match, so the contact frame lands later — room for a cast sound to build.
         if (animator != null && animSpeed > 0f && animSpeed != 1f) animator.speed = animSpeed;
 
         // Never cut the designer's swing short: the lunge stretches to the clip's length
         // (Bulwark 1.0 s, Mantis up to 1.6 s, Reaver 1.4 s…) instead of the 0.55 s floor.
-        float clip = ClipLength("Attack") / Mathf.Max(0.05f, animSpeed);
+        float clip = ClipLength(state) / Mathf.Max(0.05f, animSpeed);
         float total = Mathf.Max(duration, clip);
-        if (clip > duration + 0.01f) Debug.Log($"[LobsterController] attack {className} clip={clip:F2}s (floor {duration:F2}s)");
+        if (clip > duration + 0.01f) Debug.Log($"[LobsterController] {state.ToLowerInvariant()} {className} clip={clip:F2}s (floor {duration:F2}s)");
 
         Vector3 start = transform.position;
         Vector3 apex = Vector3.Lerp(start, targetWorldPos, melee ? 0.7f : 0.12f);
@@ -588,6 +592,43 @@ public class LobsterController : MonoBehaviour
         statusFxPending.Clear();
         foreach (var go in statusFx.Values) if (go != null) Destroy(go);
         statusFx.Clear();
+        foreach (var go in castFx) if (go != null) Destroy(go);
+        castFx.Clear();
+    }
+
+    // ─── Cast visuals (a Special's three-phase effect on its target, no status behind it) ───
+
+    private readonly List<GameObject> castFx = new();
+
+    /// <summary>Play a spawn → loop → out visual on this lobster ONCE, for an instant Special effect that
+    /// has no lasting status (Sentinel Rally: heal + cleanse). The loop runs `hold` seconds (one cycle when
+    /// 0). Parented like a status mark, so it follows the lobster; kept apart from the status table so a
+    /// units sync never cuts it short.</summary>
+    public void PlayCastVisual(BattleVfxLibrary.StatusVfx def, float hold = 0f)
+    {
+        if (def == null || deathPlayed || (def.spawn == null && def.loop == null && def.end == null)) return;
+        StartCoroutine(CastVisualRoutine(def, hold));
+    }
+
+    private IEnumerator CastVisualRoutine(BattleVfxLibrary.StatusVfx def, float hold)
+    {
+        Debug.Log($"[LobsterController] cast visual {def.status} on {lobsterId} ({className})");
+        if (def.spawn != null)
+        {
+            AttachStatusChild(def.spawn, def);                    // one-shot: destroys itself
+            yield return new WaitForSeconds(BattleVfxLibrary.ClipLength(def.spawn));
+        }
+        if (def.loop != null && !deathPlayed)
+        {
+            var loop = AttachStatusChild(def.loop, def);
+            var oneShot = loop.GetComponent<OneShotVfx>();
+            if (oneShot != null) Destroy(oneShot);
+            castFx.Add(loop);
+            yield return new WaitForSeconds(hold > 0f ? hold : Mathf.Max(0.1f, BattleVfxLibrary.ClipLength(def.loop)));
+            castFx.Remove(loop);
+            if (loop != null) Destroy(loop);
+        }
+        if (def.end != null && !deathPlayed) AttachStatusChild(def.end, def);
     }
 
     /// <summary>Reconcile visuals with the status list after a snapshot (reconnect / un-animated turn).</summary>
