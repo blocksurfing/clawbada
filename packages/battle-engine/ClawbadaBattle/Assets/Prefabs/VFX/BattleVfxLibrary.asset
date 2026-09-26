@@ -355,6 +355,11 @@ MonoBehaviour:
     loop: {fileID: 7823277933465964674, guid: c1a0d6dd8053146148c167450583b82f, type: 3}
     end: {fileID: 0}
     yOffset: 0
+  - status: rally
+    spawn: {fileID: 2816663755147756131, guid: 1729fc7db7ee06e4ea1af357f6c8aa21, type: 3}
+    loop: {fileID: 5220025892426712556, guid: e313c02fce1bc804fb70c1b956a22cbc, type: 3}
+    end: {fileID: 7573995924563295590, guid: 3b3859077c07f1540b48506bb9043b57, type: 3}
+    yOffset: 0
   specialImpactByClass:
   - prefab: {fileID: 0}
     anchor: 2

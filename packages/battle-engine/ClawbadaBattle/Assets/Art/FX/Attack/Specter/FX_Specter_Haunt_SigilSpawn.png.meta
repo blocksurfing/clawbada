@@ -85,7 +85,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 1
+    textureCompression: 0
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -98,8 +98,8 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 1
-    compressionQuality: 50
+    textureCompression: 0
+    compressionQuality: 0
     crunchedCompression: 0
     allowsAlphaSplitting: 0
     overridden: 0
@@ -133,15 +133,15 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 3acbd36eda5e4a11bf717014e3a9c0d2
-      internalID: 8629948308315487850
+      spriteID: 3d17b4926d9841d7a1c4feff8b9e0ba0
+      internalID: 3660854015744166676
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -155,15 +155,15 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: d4841b4a1390449a9be92ba37e9572b9
-      internalID: 5289870908550466128
+      spriteID: cd23e14de55f422bac9c9c3a687a4145
+      internalID: 1192560997646884569
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -177,15 +177,15 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: f4bd624e04df4e07991199a35792a4c8
-      internalID: 6656820799950318270
+      spriteID: 1cf47c476ae747d98c855a25db02be8b
+      internalID: 5028703638481589965
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -199,15 +199,15 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 2af596e1ac28427591118a4e07df9ee9
-      internalID: 6974065921040727046
+      spriteID: 3ab569dfd37047abb5f1ac0729a43e89
+      internalID: 105572686231545997
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -221,38 +221,176 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: a1f7bbf6c60b4a1c8eea39b090d5b79f
-      internalID: 1298888817824592845
+      spriteID: a0bde0dfbc7c47b8abaf66ad4ba706ab
+      internalID: 8827207215468214790
       vertices: []
-      indices:
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: FX_Specter_Haunt_SigilSpawn_05
+      rect:
+        serializedVersion: 2
+        x: 480
+        y: 0
+        width: 96
+        height: 64
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9e53429f778a44d492be8064fbfbfbb0
+      internalID: 796631547863871846
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: FX_Specter_Haunt_SigilSpawn_06
+      rect:
+        serializedVersion: 2
+        x: 576
+        y: 0
+        width: 96
+        height: 64
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 95600cedd9c84c9a95b2940fe075199a
+      internalID: 7776114076942511325
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: FX_Specter_Haunt_SigilSpawn_07
+      rect:
+        serializedVersion: 2
+        x: 672
+        y: 0
+        width: 96
+        height: 64
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: bbfd02e7e3c145e9b66a69b7d6a779ae
+      internalID: 7381136846641587003
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: FX_Specter_Haunt_SigilSpawn_08
+      rect:
+        serializedVersion: 2
+        x: 768
+        y: 0
+        width: 96
+        height: 64
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c56e6b76b3cf4e1bb59f1126b1b9d18e
+      internalID: 2022408844364963066
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: FX_Specter_Haunt_SigilSpawn_09
+      rect:
+        serializedVersion: 2
+        x: 864
+        y: 0
+        width: 96
+        height: 64
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c425bc1849ce40b184084d38f55e0dde
+      internalID: 372876053311127668
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: FX_Specter_Haunt_SigilSpawn_10
+      rect:
+        serializedVersion: 2
+        x: 960
+        y: 0
+        width: 96
+        height: 64
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ad2a49b132194ceab1991abdc53caffe
+      internalID: 4604204276986106884
+      vertices: []
+      indices: 
       edges: []
       weights: []
     outline: []
-    customData:
+    customData: null
     physicsShape: []
     bones: []
-    spriteID:
+    spriteID: 8a73641922944b5791ab03a7ae65cad1
     internalID: 0
     vertices: []
-    indices:
+    indices: 
     edges: []
     weights: []
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      FX_Specter_Haunt_SigilSpawn_00: 8629948308315487850
-      FX_Specter_Haunt_SigilSpawn_01: 5289870908550466128
-      FX_Specter_Haunt_SigilSpawn_02: 6656820799950318270
-      FX_Specter_Haunt_SigilSpawn_03: 6974065921040727046
-      FX_Specter_Haunt_SigilSpawn_04: 1298888817824592845
-  mipmapLimitGroupName:
+      FX_Specter_Haunt_SigilSpawn_00: 3660854015744166676
+      FX_Specter_Haunt_SigilSpawn_01: 1192560997646884569
+      FX_Specter_Haunt_SigilSpawn_02: 5028703638481589965
+      FX_Specter_Haunt_SigilSpawn_03: 105572686231545997
+      FX_Specter_Haunt_SigilSpawn_04: 8827207215468214790
+      FX_Specter_Haunt_SigilSpawn_05: 796631547863871846
+      FX_Specter_Haunt_SigilSpawn_06: 7776114076942511325
+      FX_Specter_Haunt_SigilSpawn_07: 7381136846641587003
+      FX_Specter_Haunt_SigilSpawn_08: 2022408844364963066
+      FX_Specter_Haunt_SigilSpawn_09: 372876053311127668
+      FX_Specter_Haunt_SigilSpawn_10: 4604204276986106884
+  mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData:
-  assetBundleName:
-  assetBundleVariant:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

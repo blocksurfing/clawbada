@@ -27,7 +27,7 @@ SpriteRenderer:
   m_Materials:
   - {fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}
   m_SortingOrder: -5
-  m_Sprite: {fileID: 8629948308315487850, guid: 89450dcf1e264cc6ab7483505ade734c, type: 3}
+  m_Sprite: {fileID: 3660854015744166676, guid: 89450dcf1e264cc6ab7483505ade734c, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
 --- !u!95 &8387815802183554571
 Animator:
@@ -41,4 +41,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6086980889c8d4e66895bc6a66aaa95c, type: 3}
   m_EditorClassIdentifier: Assembly-CSharp::OneShotVfx
   extraLifetime: 0.05
-  fallbackLifetime: 0.7
+  fallbackLifetime: 1.02
