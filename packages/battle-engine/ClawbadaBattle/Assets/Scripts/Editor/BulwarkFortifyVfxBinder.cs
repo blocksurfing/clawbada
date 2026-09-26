@@ -80,6 +80,7 @@ public static class BulwarkFortifyVfxBinder
         EnsureFolder("Assets/Prefabs/VFX/Clips");
         EnsureSlicedSheets();
         var prefab = BuildPrefab();
+        FortifySkyBeamBinder.Apply();   // re-extend the beams to the top of the view (the rebuild drops the SkyBeam child)
 
         var lib = AssetDatabase.LoadAssetAtPath<BattleVfxLibrary>(LibraryPath);
         if (lib == null) throw new System.Exception($"[BulwarkFortifyVfxBinder] missing {LibraryPath}");
