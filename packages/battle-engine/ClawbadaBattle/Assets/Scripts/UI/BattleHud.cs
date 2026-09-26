@@ -19,6 +19,8 @@ public class BattleHud : MonoBehaviour
     public Canvas Canvas { get; private set; }
     public TurnStrip Strip { get; private set; }
     public ActivePanel Panel { get; private set; }
+    /// <summary>The selected-but-unconfirmed target (two-step targeting): class, HP, charge, statuses.</summary>
+    public ActivePanel TargetPanel { get; private set; }
     /// <summary>Shot clock, bottom-right in its own box (players only). Sits above the
     /// React fullscreen button that occupies the very corner.</summary>
     public ClockView Clock { get; private set; }
@@ -143,6 +145,8 @@ public class BattleHud : MonoBehaviour
         Clock.Rect.pivot = new Vector2(0.5f, 0.5f);
         Clock.Rect.anchoredPosition = new Vector2(6f, 0f);
         clockBox.gameObject.SetActive(false);
+        // Above the clock box (34 + 40 + 6), mirroring the acting lobster's panel bottom-left.
+        TargetPanel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, rightSide: true, bottom: 80f);
         Bar = ActionBar.Create(canvasRect, skin);
         var bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
@@ -187,6 +191,24 @@ public class BattleHud : MonoBehaviour
         // The unit under consideration as a target carries a field bar while the player chooses.
         targetedId = data != null && data.isPlayerTurn ? (data.targetId ?? "") : "";
         RefreshFieldBars();
+        ShowTargetPanel();
+    }
+
+    private string shownTargetId = "";
+
+    private void ShowTargetPanel()
+    {
+        LobsterController target = null;
+        if (!string.IsNullOrEmpty(targetedId) && manager != null)
+            foreach (var lob in manager.Lobsters) if (lob != null && lob.lobsterId == targetedId) { target = lob; break; }
+        if (target == null) { if (shownTargetId != "") { TargetPanel.Hide(); shownTargetId = ""; } return; }
+        if (target.lobsterId != shownTargetId)
+        {
+            TargetPanel.Show(target, !string.IsNullOrEmpty(sideOfPlayer) && target.side == sideOfPlayer);
+            shownTargetId = target.lobsterId;
+            Debug.Log($"[BattleHud] target panel {target.lobsterId} ({target.className}) HP {target.currentHp}/{target.maxHp} charge {target.charge}");
+        }
+        else TargetPanel.Refresh();
     }
 
     /// <summary>Field bars, LOKR-style: only the enemy hit last and the unit being targeted carry
@@ -253,6 +275,8 @@ public class BattleHud : MonoBehaviour
 
         activeId = "";
         Panel.Hide();
+        TargetPanel.Hide();
+        shownTargetId = "";
         SetClock(0);
         Banner.Hide();
         Marker.Hide();
@@ -381,6 +405,8 @@ public class BattleHud : MonoBehaviour
     {
         Options.SetAvailable(false);
         Panel.Hide();
+        TargetPanel.Hide();
+        shownTargetId = "";
         SetClock(0);
         Marker.Hide();
         Bar.Apply(null);
@@ -395,6 +421,7 @@ public class BattleHud : MonoBehaviour
         foreach (var o in overlays.Values) o.Refresh();
         Strip.Refresh();
         Panel.Refresh();
+        TargetPanel.Refresh();
     }
 
     public void ShowBanner(string winner, bool playerWon, string reason, string playerSide)
@@ -435,5 +462,6 @@ public class BattleHud : MonoBehaviour
         }
         Strip.Refresh();
         Panel.Refresh();
+        TargetPanel.Refresh();
     }
 }
