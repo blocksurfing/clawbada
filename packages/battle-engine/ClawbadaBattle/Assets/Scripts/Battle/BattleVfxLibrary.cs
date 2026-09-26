@@ -85,6 +85,8 @@ public class BattleVfxLibrary : ScriptableObject
         public float lingerSeconds = 0f;
         [Tooltip("Also play this effect on every OTHER lobster that receives this status on the same turn (Fortify → \"fortify\": the armor rays drop on every protected ally, like Maelstrom hits every enemy). Empty = the caster only.")]
         public string alsoOnStatus = "";
+        [Tooltip("World units to raise (+) or lower (−) the effect from its anchor — for art whose ground contact is not at the frame centre (Fortify's floor ring sits ~0.38 u below it).")]
+        public float yOffset = 0f;
     }
 
     [Header("Attack (all classes)")]
@@ -249,6 +251,7 @@ public class BattleVfxLibrary : ScriptableObject
         LobsterController owner = OwnerFor(slot, actor, target);
         if (owner == null) return;
         Vector3 pos = AnchorPosition(slot, actor, target, owner.transform.position);
+        pos.y += slot.yOffset;
 
         if (slot.delay > 0f)
         {
