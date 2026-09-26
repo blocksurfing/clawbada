@@ -552,11 +552,16 @@ public class BattleManager : MonoBehaviour
         }
 
         // 1. Movement along the server's path (cell-by-cell hops), or the Special's leap.
+        bool leapt = false;
         if (dash != null)
         {
             var last = data.path[data.path.Length - 1];
             Vector3 face = lobsters.TryGetValue(data.targetId ?? "", out var dashTarget) ? dashTarget.transform.position : hexGrid != null ? hexGrid.GetWorldPosition(last.col, last.row) : actor.transform.position;
+            // The cast sound's build-up plays UNDER the leap (it used to start on landing, and the swing
+            // then waited ~0.7 s for it — user 2026-09-27: "the delay after the dash is too long").
+            BattleSfx.PlayCast(BattleSfx.PeekSpecialCast(actor.classId, actor.tier, out _, out _), 0f);
             yield return actor.DashTo(last.col, last.row, face, dash, this);
+            leapt = true;
         }
         else if (!skipMove && actor != null && moves)
         {
@@ -603,8 +608,10 @@ public class BattleManager : MonoBehaviour
                         bool cinematic = special && !projectile && windup != null && windup.prefab != null && windup.impactAt > 0f;
                         float castBeat = 0f, castLength = 0f;
                         AudioClip castClip = special ? BattleSfx.PeekSpecialCast(actor.classId, actor.tier, out castBeat, out castLength) : null;
-                        bool swingCombo = special && !projectile && !cinematic && castClip != null && BattleSfx.HasSpecialImpact(actor.classId, actor.tier);
-                        if (special && !projectile && !swingCombo) BattleSfx.PlayCast(castClip, 0f);
+                        // After a leap the cast sound is already playing and the strike is quick: no audio fit,
+                        // the impact sound lands on the contact frame instead.
+                        bool swingCombo = special && !leapt && !projectile && !cinematic && castClip != null && BattleSfx.HasSpecialImpact(actor.classId, actor.tier);
+                        if (special && !leapt && !projectile && !swingCombo) BattleSfx.PlayCast(castClip, 0f);
                         // A plain Special can ask for its effect on the contact frame instead (Ambush's slash
                         // used to flash at t=0 and be gone 0.3 s before the hit landed at the swing's midpoint).
                         bool windupAtContact = special && windup != null && windup.prefab != null && windup.spawnAtContact
@@ -709,6 +716,15 @@ public class BattleManager : MonoBehaviour
                         else
                         {
                             float castSpeed = special && windup != null && windup.castSpeed > 0f ? windup.castSpeed : 1f;
+                            if (leapt && dash.strikeWithin > 0f)
+                            {
+                                // Land, tiny wind-up, strike: speed the swing so its contact frame comes
+                                // `strikeWithin` seconds after touchdown (never slower than authored).
+                                string sw = actor.SpecialSwingState;
+                                float normalContact = Mathf.Max(attackDuration, actor.ClipLength(sw) / castSpeed) * LobsterController.AttackImpactFraction;
+                                castSpeed = Mathf.Max(castSpeed, castSpeed * normalContact / dash.strikeWithin);
+                                Debug.Log($"[BattleManager] special {actor.className} after leap: strike in {dash.strikeWithin:F2}s (swing ×{castSpeed:F2}, was {normalContact:F2}s to contact)");
+                            }
                             // A cast clip that carries its own landing (two connected Bind takes): hold the swing so
                             // the contact frame lands on the hit inside the file — the binder measured where it is —
                             // instead of asking the sound to fit a 0.3 s window.
@@ -728,7 +744,7 @@ public class BattleManager : MonoBehaviour
                                 BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, contact);
                                 if (hold > 0.02f) yield return new WaitForSeconds(hold);
                             }
-                            else if (special && castBeat > 0f)
+                            else if (special && !leapt && castBeat > 0f)
                             {
                                 float hold = castBeat - contactAt;
                                 Debug.Log($"[BattleManager] special {actor.className} cast beat {castBeat:F2}s, contact at {contactAt:F2}s of the swing → hold {Mathf.Max(0f, hold):F2}s");

@@ -644,7 +644,8 @@ MonoBehaviour:
   - state: 
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 0}
       anchor: 2
@@ -672,7 +673,8 @@ MonoBehaviour:
   - state: Jump
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 4061874445550872273, guid: 7916f8fb7282f604da60bb4da5f24b60, type: 3}
       anchor: 2
@@ -700,7 +702,8 @@ MonoBehaviour:
   - state: 
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 0}
       anchor: 2
@@ -728,7 +731,8 @@ MonoBehaviour:
   - state: 
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 0}
       anchor: 2
@@ -756,7 +760,8 @@ MonoBehaviour:
   - state: 
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 0}
       anchor: 2
@@ -784,7 +789,8 @@ MonoBehaviour:
   - state: 
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 0}
       anchor: 2
@@ -812,7 +818,8 @@ MonoBehaviour:
   - state: 
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 0}
       anchor: 2
@@ -840,7 +847,8 @@ MonoBehaviour:
   - state: 
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 0}
       anchor: 2
@@ -868,7 +876,8 @@ MonoBehaviour:
   - state: 
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 0}
       anchor: 2
@@ -896,7 +905,8 @@ MonoBehaviour:
   - state: 
     takeoffAt: 0.58
     landAt: 0.83
-    releaseAt: 1
+    releaseAt: 0.9
+    strikeWithin: 0.25
     trail:
       prefab: {fileID: 0}
       anchor: 2
