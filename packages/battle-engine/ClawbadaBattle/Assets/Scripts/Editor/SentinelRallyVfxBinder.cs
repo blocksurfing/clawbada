@@ -73,8 +73,8 @@ public static class SentinelRallyVfxBinder
         {
             var sr = root.AddComponent<SpriteRenderer>();
             sr.sprite = sprites[0];
-            sr.sortingLayerName = DepthSort.Layer;
-            sr.sortingOrder = sortingOrder;
+            // Spawn/Out ARE the sigil: under the character (designer, 2026-09-27).
+            SentinelRallyLayering.Place(sr, "Sigil");
             var animator = root.AddComponent<Animator>();
             animator.runtimeAnimatorController = controller;
             if (oneShot) root.AddComponent<OneShotVfx>();
@@ -206,6 +206,7 @@ public static class SentinelRallyVfxBinder
         sr.sprite = sprite;
         sr.sortingLayerName = DepthSort.Layer;
         sr.sortingOrder = order;
+        SentinelRallyLayering.Place(sr, name);
     }
 
     private static void SetSpriteCurve(AnimationClip clip, string path, Sprite[] sprites)
