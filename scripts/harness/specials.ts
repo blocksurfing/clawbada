@@ -82,6 +82,7 @@ export default async function (b: Browser) {
   let attackResult: { panelA: boolean; panelB: boolean; sentBefore: number; sent: string[]; b: string } | null = null;
   let targetPanelShown = false;
   let heldInPlace = false;
+  let leapStrike: string[] = [];
   let walkedInPreview = true;
   let leapFrom = '';
   const started = Date.now();
@@ -166,6 +167,7 @@ export default async function (b: Browser) {
         dashShot = true; movedThisTurn = true; casts++;
         for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/dash-Mantis-f${String(f).padStart(2, '0')}.png`); await b.sleep(90); }
         dashLines = grab(b, /LobsterController\] dash Mantis/);
+        leapStrike = grab(b, /special Mantis (after leap|effect on contact at)/);
         const played = grab(b, /BattleBridge\] PlayTurn/).find((l) => l.includes(`"lobsterId":"${sel.actor}"`)) ?? '';
         reachTurn = played;
         console.log(`[Mantis] pressing Special alone sent ${armedCast.length} turn(s); played: ${played.slice(0, 160)}`);
@@ -211,6 +213,7 @@ export default async function (b: Browser) {
           dashShot = true;
           for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/dash-Mantis-f${String(f).padStart(2, '0')}.png`); await b.sleep(90); }
           dashLines = grab(b, /LobsterController\] dash Mantis/);
+        leapStrike = grab(b, /special Mantis (after leap|effect on contact at)/);
           for (const l of grab(b, /LobsterController\] dash|BattleManager\] special|Afterimage|Exception/i)) console.log('[Mantis-dash]', l.slice(0, 220));
         }
         if (CLASS === 'Sentinel' && casts === 0) {
@@ -291,7 +294,9 @@ export default async function (b: Browser) {
   for (const l of onContact.slice(0, 4)) console.log('  contact:', l.slice(0, 120));
   if (onContact.length) {
     const ts = onContact.map((l) => Number((l.match(/at ([\d.]+)s/) || [])[1] ?? '0'));
-    expect(ts.every((t) => t >= 0.3), `${CLASS}: effect spawned on the contact frame, not at the turn start (${ts.map((t) => t.toFixed(2)).join(', ')} s)`);
+    // 0.2 s floor: a Mantis strike right after its leap lands at ~0.25 s by design (2026-09-27); an effect
+    // spawned at the turn start would read ~0.
+    expect(ts.every((t) => t >= 0.2), `${CLASS}: effect spawned on the contact frame, not at the turn start (${ts.map((t) => t.toFixed(2)).join(', ')} s)`);
   }
   // Projectile audio fit (Inferno with both a cast and an impact clip bound): the impact clip must start
   // the instant the cast clip ends, so the two files the sound designer authored play back to back.
@@ -334,6 +339,8 @@ export default async function (b: Browser) {
     expect(dashLines.length >= 1, `Mantis: a moving Ambush leapt instead of walking (${dashLines.slice(-1)[0] ?? 'no dash line'})`);
     expect(selectSentNothing, 'Mantis: the first tap on the enemy only SELECTED it (no turn sent)');
     expect(targetPanelShown, 'Mantis: selecting the enemy opened the target panel for it');
+    const strikeAt = leapStrike.map((l) => Number((l.match(/effect on contact at ([\d.]+)s/) || [])[1] ?? 'NaN')).filter((x) => !Number.isNaN(x));
+    expect(leapStrike.some((l) => /after leap/.test(l)) && strikeAt.length > 0 && strikeAt[0] <= 0.4, `Mantis: after the leap the slash lands with only a tiny wind-up (${strikeAt[0]?.toFixed(2) ?? '?'} s after touchdown hand-off)`);
     expect(heldInPlace && !walkedInPreview, 'Mantis: selecting a leap target does NOT walk the Mantis there first');
     expect(dashLines.some((l) => l.includes(`dash Mantis ${leapFrom}`)), `Mantis: the leap starts from where it stood ${leapFrom}, no snap-back (${dashLines.slice(-1)[0] ?? ''})`);
     expect(/"action":"special"/.test(reachTurn) && !/"path":\[\]/.test(reachTurn), `Mantis: tapping a non-adjacent enemy with Ambush armed stepped in and cast Ambush, not an attack (${reachTurn.slice(0, 140)})`);

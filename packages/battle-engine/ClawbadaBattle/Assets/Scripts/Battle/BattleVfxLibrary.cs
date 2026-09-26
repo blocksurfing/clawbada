@@ -160,7 +160,9 @@ public class BattleVfxLibrary : ScriptableObject
         [Tooltip("Touches down on the casting hex. takeoffAt→landAt is the flight, whatever the distance.")]
         public float landAt = 0.83f;
         [Tooltip("Hands over to the Special's swing (the slash). The rest of the leap clip is not waited for.")]
-        public float releaseAt = 1.0f;
+        public float releaseAt = 0.9f;
+        [Tooltip("Seconds from the hand-off to the strike's contact frame: the swing is sped up to fit (a tiny wind-up after landing). 0 = the swing's authored timing.")]
+        public float strikeWithin = 0.25f;
         [Tooltip("Speed cue spawned at the take-off point (world space, stays behind).")]
         public VfxSlot trail = new() { anchor = AnchorPoint.ActorFeet };
         [Tooltip("Opacity of the afterimage left where the lobster took off (0 = none).")]
