@@ -133,7 +133,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.05}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -141,7 +141,7 @@ TextureImporter:
       spriteID: 50a5aaf32c71470f87b7c4070b434d68
       internalID: 2633914400134116915
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -155,7 +155,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.05}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -163,7 +163,7 @@ TextureImporter:
       spriteID: 109a172712aa4801891670dd2fbea0db
       internalID: 6165924194447592918
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -177,7 +177,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.05}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -185,7 +185,7 @@ TextureImporter:
       spriteID: 61ce6ad486e64292a303c58eae81d5f4
       internalID: 5016758162857065720
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -199,7 +199,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.05}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -207,7 +207,7 @@ TextureImporter:
       spriteID: 981c509f66b740629339d53fae853f1a
       internalID: 5433040851815147897
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -221,7 +221,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.05}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -229,17 +229,17 @@ TextureImporter:
       spriteID: cbd65b532b52460ea97fa8ea0ac618aa
       internalID: 6884779950583245824
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     outline: []
-    customData:
+    customData: 
     physicsShape: []
     bones: []
-    spriteID:
+    spriteID: 
     internalID: 0
     vertices: []
-    indices:
+    indices: 
     edges: []
     weights: []
     secondaryTextures: []
@@ -251,8 +251,8 @@ TextureImporter:
       FX_Tempest_Maelstrom_LightningBolt_02: 5016758162857065720
       FX_Tempest_Maelstrom_LightningBolt_03: 5433040851815147897
       FX_Tempest_Maelstrom_LightningBolt_04: 6884779950583245824
-  mipmapLimitGroupName:
+  mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData:
-  assetBundleName:
-  assetBundleVariant:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -81,6 +81,8 @@ public class BattleVfxLibrary : ScriptableObject
         public float impactLead = 0f;
 
         public bool IsProjectile => travelPrefab != null;
+        [Tooltip("Keep the effect this many seconds past its clip (a looping clip keeps looping), fading out over the last 0.4 s. 0 = plays once and goes.")]
+        public float lingerSeconds = 0f;
     }
 
     [Header("Attack (all classes)")]
@@ -165,6 +167,23 @@ public class BattleVfxLibrary : ScriptableObject
         [Range(0f, 1f)] public float afterimageAlpha = 0.6f;
         [Tooltip("Seconds the afterimage takes to fade out.")]
         public float afterimageFade = 0.4f;
+    }
+
+    [System.Serializable]
+    public class AftermathSet
+    {
+        [Tooltip("Spawned on the Special's target on its burst frame (Inferno: ember scatter + scorch).")]
+        public VfxSlot[] slots = new VfxSlot[0];
+    }
+
+    [Header("Special aftermath (index = classId): cosmetic effects on the target after the hit")]
+    public AftermathSet[] specialAftermathByClass = new AftermathSet[10];
+
+    public VfxSlot[] AftermathFor(int classId)
+    {
+        if (specialAftermathByClass == null || classId < 0 || classId >= specialAftermathByClass.Length) return null;
+        var set = specialAftermathByClass[classId];
+        return set != null && set.slots != null && set.slots.Length > 0 ? set.slots : null;
     }
 
     [Header("Special dashes (index = classId; empty = walk to the casting hex)")]
@@ -365,7 +384,13 @@ public class BattleVfxLibrary : ScriptableObject
         group.sortingOrder = slot.onTop ? DepthSort.ArenaFrontOrderBase + 61 : FrontOrder(slot, owner);
         Debug.Log($"[BattleVfxLibrary] {slot.prefab.name} order {group.sortingOrder} ({(slot.onTop ? "on top of the board" : $"row of {owner.className} at {owner.SortingOrder}")})");
 
-        if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
+        var oneShot = fx.GetComponent<OneShotVfx>();
+        if (oneShot == null) oneShot = fx.AddComponent<OneShotVfx>();
+        if (slot.lingerSeconds > 0f)
+        {
+            oneShot.extraLifetime = slot.lingerSeconds;
+            fx.AddComponent<LingerFade>().Begin(ClipLength(slot.prefab) + slot.lingerSeconds, 0.4f);
+        }
     }
 
     /// <summary>

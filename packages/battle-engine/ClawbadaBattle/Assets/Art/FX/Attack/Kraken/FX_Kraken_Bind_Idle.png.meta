@@ -133,7 +133,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -141,7 +141,7 @@ TextureImporter:
       spriteID: 64f00338ed929df428929f0ac267e106
       internalID: -8922356141293382362
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -155,7 +155,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -163,7 +163,7 @@ TextureImporter:
       spriteID: 3fe91561d1d455b44b37ddb1663ca3a4
       internalID: 1208520583519055357
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -177,7 +177,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -185,7 +185,7 @@ TextureImporter:
       spriteID: 9fc9f6987a80af447a8beaa516216dc4
       internalID: -5235737884993197863
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -199,7 +199,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -207,7 +207,7 @@ TextureImporter:
       spriteID: 179fba10cf876784dbf2c34c61865145
       internalID: -7633100140050018125
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -221,7 +221,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -229,7 +229,7 @@ TextureImporter:
       spriteID: b57443a1ae85e054cb06c0d9166e9031
       internalID: -7090621245867548977
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     - serializedVersion: 2
@@ -243,7 +243,7 @@ TextureImporter:
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
@@ -251,17 +251,17 @@ TextureImporter:
       spriteID: 2c4f0255ff762f942aac87eff2bacbf0
       internalID: 625231710991798661
       vertices: []
-      indices:
+      indices: 
       edges: []
       weights: []
     outline: []
-    customData:
+    customData: 
     physicsShape: []
     bones: []
     spriteID: 5df437b9514f1dc4a8dbee28e5e39a54
     internalID: 0
     vertices: []
-    indices:
+    indices: 
     edges: []
     weights: []
     secondaryTextures: []
@@ -274,8 +274,8 @@ TextureImporter:
       FX_Kraken_Bind_Idle_03: -7633100140050018125
       FX_Kraken_Bind_Idle_04: -7090621245867548977
       FX_Kraken_Bind_Idle_05: 625231710991798661
-  mipmapLimitGroupName:
+  mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData:
-  assetBundleName:
-  assetBundleVariant:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
