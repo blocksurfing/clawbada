@@ -500,6 +500,7 @@ public class BattleManager : MonoBehaviour
         }
         currentPhase = BattlePhase.AnimatingTurn;
         currentTurn = data.turn;
+        FadeOldCorpses(data.turn);
         turnRoutine = StartCoroutine(PlayTurnRoutine(data));
     }
 
@@ -617,6 +618,7 @@ public class BattleManager : MonoBehaviour
                         bool windupAtContact = special && windup != null && windup.prefab != null && windup.spawnAtContact
                                                && !windup.IsProjectile && !(windup.impactAt > 0f);
                         if (!windupAtContact) BattleVfxLibrary.Spawn(windup, actor, target, this);
+                        if (!windupAtContact) SpawnOnStatusTargets(windup, actor, data);
                         float castStartedAt = Time.time;
 
                         if (special && windup != null && windup.IsProjectile)
@@ -845,6 +847,45 @@ public class BattleManager : MonoBehaviour
         }
         if (restored > 0 && actor != null) BattleSfx.PlaySpecialHeal(actor.classId, actor.tier);
         Debug.Log($"[BattleManager] heal events ×{data.heals.Length} → restored {restored} HP" + (restored > 0 ? "" : " (silent)"));
+    }
+
+    /// <summary>Turns a corpse stays on the board after the turn it died on, before fading away.</summary>
+    public int corpseTurns = 2;
+    public float corpseFadeSeconds = 0.6f;
+
+    /// <summary>Stamp new corpses with the turn they were first seen dead on, and fade any that have sat
+    /// through `corpseTurns` full turns since. Called as each turn starts playing.</summary>
+    private void FadeOldCorpses(int turn)
+    {
+        foreach (var lob in lobsters.Values)
+        {
+            if (lob == null || lob.alive || lob.CorpseGone) continue;
+            if (lob.diedOnTurn < 0) { lob.diedOnTurn = turn - 1; continue; }   // died on the turn just played (or already dead on reconnect)
+            if (turn > lob.diedOnTurn + corpseTurns) StartCoroutine(lob.FadeAwayCorpse(corpseFadeSeconds));
+        }
+    }
+
+    /// <summary>A team Special's effect on every ally it protects (Fortify's armor rays), not just the caster:
+    /// the same slot, re-anchored on each lobster receiving `slot.alsoOnStatus` this turn, so each copy
+    /// layers around its own lobster (straddling, row band) exactly as the caster's does.</summary>
+    private void SpawnOnStatusTargets(BattleVfxLibrary.VfxSlot slot, LobsterController actor, TurnPlayData data)
+    {
+        if (slot == null || slot.prefab == null || string.IsNullOrEmpty(slot.alsoOnStatus) || data.statuses == null) return;
+        var done = new HashSet<string>();
+        foreach (var st in data.statuses)
+        {
+            if (st == null || !st.applied || st.status != slot.alsoOnStatus || st.targetId == actor.lobsterId) continue;
+            if (!done.Add(st.targetId) || !lobsters.TryGetValue(st.targetId, out var ally) || !ally.alive) continue;
+            var onAlly = new BattleVfxLibrary.VfxSlot
+            {
+                prefab = slot.prefab, anchor = BattleVfxLibrary.AnchorPoint.TargetFeet, delay = slot.delay,
+                mirrorWithFacing = slot.mirrorWithFacing, frontChildPrefix = slot.frontChildPrefix,
+                hideChildrenPrefix = slot.hideChildrenPrefix, onTop = slot.onTop, rowsCovered = slot.rowsCovered,
+                lingerSeconds = slot.lingerSeconds,
+            };
+            BattleVfxLibrary.Spawn(onAlly, actor, ally, this);
+        }
+        if (done.Count > 0) Debug.Log($"[BattleManager] special {actor.className} effect also on {done.Count} {slot.alsoOnStatus} target(s): {string.Join(",", done)}");
     }
 
     /// <summary>A Special's after-hit flavour on its target (Inferno: ember scatter + a fading scorch),
