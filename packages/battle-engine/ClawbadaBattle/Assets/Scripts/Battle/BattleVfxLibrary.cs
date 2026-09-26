@@ -87,6 +87,8 @@ public class BattleVfxLibrary : ScriptableObject
         public string alsoOnStatus = "";
         [Tooltip("World units to raise (+) or lower (−) the effect from its anchor — for art whose ground contact is not at the frame centre (Fortify's floor ring sits ~0.38 u below it).")]
         public float yOffset = 0f;
+        [Tooltip("Cinematic Specials: start the caster's own swing late so its contact frame lands on impactAt (Rend: the Reaver's claw and the reaper's scythe strike together). Off = the swing starts with the effect.")]
+        public bool swingOnImpact = false;
     }
 
     [Header("Attack (all classes)")]
@@ -122,6 +124,8 @@ public class BattleVfxLibrary : ScriptableObject
         public GameObject end;
         [Tooltip("Local Y offset from the lobster's root (hex centre). Sigils sit at 0; overhead marks go up.")]
         public float yOffset = 0f;
+        [Tooltip("Cinematic Specials: start the caster's own swing late so its contact frame lands on impactAt (Rend: the Reaver's claw and the reaper's scythe strike together). Off = the swing starts with the effect.")]
+        public bool swingOnImpact = false;
     }
 
     [Header("Status visuals (persistent marks driven by status apply/remove events)")]
