@@ -89,7 +89,7 @@ public static class MantisAmbushVfxBinder
     private static string BindDashInto(BattleVfxLibrary lib)
     {
         // The leap. Times are into the Jump clip (1.58 s @ 12 fps): crouch to 0.58, spring, airborne pose
-        // at 0.75, settle from 0.83; the swing takes over at 1.0 rather than waiting out the recovery.
+        // at 0.75, settle from 0.83; the swing takes over at 0.9 and strikes 0.25 s later.
         var trail = AssetDatabase.LoadAssetAtPath<GameObject>(TrailPrefabPath);
         if (trail == null) Debug.LogWarning($"[MantisAmbushVfxBinder] no {TrailPrefabPath} — run Clawbada ▸ VFX ▸ Build Mantis Ambush Effect Prefabs; dash bound without a trail");
         if (lib.specialDashByClass == null || lib.specialDashByClass.Length < 10) lib.specialDashByClass = new BattleVfxLibrary.DashSpec[10];
@@ -100,7 +100,8 @@ public static class MantisAmbushVfxBinder
             state = "Jump",
             takeoffAt = 0.58f,
             landAt = 0.83f,
-            releaseAt = 1.0f,
+            releaseAt = 0.9f,       // just past touchdown (0.83) — the old 1.0 waited out part of the recovery
+            strikeWithin = 0.25f,   // tiny wind-up, then the slash (user 2026-09-27)
             trail = new BattleVfxLibrary.VfxSlot { prefab = trail, anchor = BattleVfxLibrary.AnchorPoint.ActorFeet, mirrorWithFacing = true },
             afterimageAlpha = 0.6f,
             afterimageFade = 0.4f,
