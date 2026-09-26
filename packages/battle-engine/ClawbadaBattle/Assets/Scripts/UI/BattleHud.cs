@@ -147,6 +147,10 @@ public class BattleHud : MonoBehaviour
         clockBox.gameObject.SetActive(false);
         // Above the clock box (34 + 40 + 6), mirroring the acting lobster's panel bottom-left.
         TargetPanel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, rightSide: true, bottom: 80f);
+        // LOKR-style: the selected target carries a small copy of the armed action's button above it.
+        targetBadge = HudFactory.Image(canvasRect, "TargetBadge", skin.btnAttack, Color.white, new Vector2(BadgeSize, BadgeSize * 1.143f));
+        targetBadgeIcon = HudFactory.Image(targetBadge.transform, "Icon", skin.iconAttack, Color.white, new Vector2(BadgeSize * 0.55f, BadgeSize * 0.55f));
+        targetBadge.gameObject.SetActive(false);
         Bar = ActionBar.Create(canvasRect, skin);
         var bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
@@ -158,6 +162,7 @@ public class BattleHud : MonoBehaviour
         floatLayer = HudFactory.Stretch(canvasRect, "Floats");
         Banner = ResultBanner.Create(canvasRect, skin);
         Marker = ActiveMarker.Create(skin);
+        TargetMarker = ActiveMarker.Create(skin, "TargetMarker", new Color(1f, 0.42f, 0.12f, 1f), new Color(1f, 0.9f, 0.45f, 1f), pulse: true);
 
         Debug.Log($"[BattleHud] ready {Screen.width}x{Screen.height} scale={Canvas.scaleFactor:F2}");
     }
@@ -190,11 +195,38 @@ public class BattleHud : MonoBehaviour
         Bar.Apply(data);
         // The unit under consideration as a target carries a field bar while the player chooses.
         targetedId = data != null && data.isPlayerTurn ? (data.targetId ?? "") : "";
+        targetAction = data != null ? (data.action ?? "") : "";
         RefreshFieldBars();
         ShowTargetPanel();
+        ShowTargetBadge();
     }
 
     private string shownTargetId = "";
+    private string targetAction = "";
+    /// <summary>Hot-orange pulsing ring under the selected target (the acting lobster's ring is white).</summary>
+    public ActiveMarker TargetMarker { get; private set; }
+    private LobsterController targetLob;
+    private Image targetBadge;
+    private Image targetBadgeIcon;
+    private const float BadgeSize = 40f;      // reference px (canvas 960x540)
+    private const float BadgeLift = 0.40f;    // world units above the field bar's anchor: just clear of the bar, low enough not to sit over the row behind
+    private const float BadgeBobPx = 3f;
+
+    private void ShowTargetBadge()
+    {
+        targetLob = null;
+        if (!string.IsNullOrEmpty(targetedId) && manager != null && (targetAction == "attack" || targetAction == "special"))
+            foreach (var lob in manager.Lobsters) if (lob != null && lob.lobsterId == targetedId && lob.alive) { targetLob = lob; break; }
+        if (targetLob == null) { targetBadge.gameObject.SetActive(false); TargetMarker.Hide(); return; }
+        TargetMarker.Follow(targetLob);
+        bool special = targetAction == "special";
+        var plate = special ? Skin.btnSpecial : Skin.btnAttack;
+        targetBadge.sprite = plate != null ? plate : Skin.hexButton64;
+        targetBadgeIcon.sprite = special ? Skin.iconSpecial : Skin.iconAttack;
+        targetBadgeIcon.enabled = targetBadgeIcon.sprite != null;
+        targetBadge.gameObject.SetActive(true);
+        Debug.Log($"[BattleHud] target badge {targetAction} over {targetLob.lobsterId}");
+    }
 
     private void ShowTargetPanel()
     {
@@ -277,6 +309,9 @@ public class BattleHud : MonoBehaviour
         Panel.Hide();
         TargetPanel.Hide();
         shownTargetId = "";
+        targetLob = null;
+        if (targetBadge != null) targetBadge.gameObject.SetActive(false);
+        TargetMarker?.Hide();
         SetClock(0);
         Banner.Hide();
         Marker.Hide();
@@ -407,6 +442,9 @@ public class BattleHud : MonoBehaviour
         Panel.Hide();
         TargetPanel.Hide();
         shownTargetId = "";
+        targetLob = null;
+        if (targetBadge != null) targetBadge.gameObject.SetActive(false);
+        TargetMarker?.Hide();
         SetClock(0);
         Marker.Hide();
         Bar.Apply(null);
@@ -463,5 +501,14 @@ public class BattleHud : MonoBehaviour
         Strip.Refresh();
         Panel.Refresh();
         TargetPanel.Refresh();
+        if (targetBadge != null && targetBadge.gameObject.activeSelf)
+        {
+            if (targetLob == null || !targetLob.alive) targetBadge.gameObject.SetActive(false);
+            else
+            {
+                float bob = Mathf.Sin(Time.time * 3f) * BadgeBobPx;
+                targetBadge.rectTransform.anchoredPosition = CanvasPointFor(targetLob.transform.position + Vector3.up * (Skin.overlayWorldYOffset + BadgeLift)) + new Vector2(0f, bob);
+            }
+        }
     }
 }

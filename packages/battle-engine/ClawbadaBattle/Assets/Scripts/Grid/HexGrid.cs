@@ -446,6 +446,12 @@ public class HexGrid : MonoBehaviour
         if (boardTilemap == null) return;
 
         var claimed = new HashSet<(int, int)>();
+        // The selected target outranks everything: LOKR-style, it is THE hex, not one of the options.
+        if (data.targetCol >= 0 && data.targetRow >= 0 && claimed.Add((data.targetCol, data.targetRow)))
+        {
+            PaintHighlight(data.targetCol, data.targetRow, attackTile != null ? attackTile : selectedTile, TargetTint);
+            pulseCell = new Vector3Int(data.targetCol, data.targetRow, 0);
+        }
         if (data.originCol >= 0 && data.originRow >= 0 && claimed.Add((data.originCol, data.originRow)))
             PaintHighlight(data.originCol, data.originRow, selectedTile, SelectedTint);
 
@@ -462,6 +468,7 @@ public class HexGrid : MonoBehaviour
     /// is repainted. Blocked cells are never painted either way — they carry an obstacle.</summary>
     public void ClearHighlights()
     {
+        pulseCell = null;
         if (boardTilemap == null) { highlightedCells.Clear(); return; }
         foreach (var cell in highlightedCells)
         {
@@ -478,6 +485,19 @@ public class HexGrid : MonoBehaviour
     private static readonly Color AttackTint = new Color(1f, 0.55f, 0.5f, 1f);       // coral — enemy in range
     private static readonly Color AllyTint = new Color(0.55f, 0.95f, 0.55f, 1f);     // green — ally target
     private static readonly Color SelectedTint = new Color(1f, 0.85f, 0.45f, 1f);    // gold — the actor's cell
+    // The selected target pulses between a hot orange and a pale yellow, so it can never be read as
+    // just another coral option (or as the actor's gold cell).
+    private static readonly Color TargetTint = new Color(1f, 0.45f, 0.15f, 1f);
+    private static readonly Color TargetPulse = new Color(1f, 0.92f, 0.6f, 1f);
+    private const float TargetPulseHz = 1.6f;
+    private Vector3Int? pulseCell;
+
+    void Update()
+    {
+        if (pulseCell == null || boardTilemap == null) return;
+        float k = 0.5f + 0.5f * Mathf.Sin(Time.time * TargetPulseHz * Mathf.PI * 2f);
+        boardTilemap.SetColor(pulseCell.Value, Color.Lerp(TargetTint, TargetPulse, k));
+    }
 
     private void PaintHighlight(int col, int row, TileBase tile, Color tint)
     {
@@ -583,4 +603,9 @@ public class HexListData
     /// <summary>Friendly hexes targetable by heal / buff specials (Sentinel Rally).
     /// Only populated in phase 2 for moves like Sentinel Rally.</summary>
     public HexPosition[] allyTargets;
+
+    /// <summary>The SELECTED target (two-step targeting: picked, not yet confirmed). Painted above
+    /// everything else and pulsing. -1,-1 = none.</summary>
+    public int targetCol = -1;
+    public int targetRow = -1;
 }
