@@ -446,6 +446,8 @@ public class PreviewMoveData
     public string lobsterId;
     public int col;
     public int row;
+    public bool special;      // the armed action is a Special (a leaping one is not walked in preview)
+    public string targetId;
 }
 
 // ─── Editor demo loop (V2 round shape) ───
