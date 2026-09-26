@@ -1086,6 +1086,35 @@ public class BattleManager : MonoBehaviour
     }
 
     /// <summary>The living lobster standing on a hex, or null (HexInput click routing).</summary>
+    /// <summary>The living lobster whose DRAWN BODY is under a world point, or null. A tap on a lobster's
+    /// body used to resolve by the hex the point fell in — but bodies are drawn upward from the feet (the
+    /// hex centre), so a tap on a body often landed in the hex of the row behind and picked that lobster
+    /// instead (user 2026-09-27: "it wouldn't shift targeting to the Ember"). Rig parts are full 1x1
+    /// canvas sprites, so renderer bounds say nothing about the painted creature: the body is a box around
+    /// the feet — a hex column wide, from just under the feet to the top of the body. Where boxes overlap,
+    /// the lobster drawn in front (the nearer row) wins, matching what the eye sees.</summary>
+    public LobsterController LobsterAtPoint(Vector3 world)
+    {
+        if (hexGrid == null) return null;
+        Vector3 a = hexGrid.GetWorldPosition(0, 0), b = hexGrid.GetWorldPosition(1, 0);
+        float halfWidth = Mathf.Max(0.2f, Mathf.Abs(b.x - a.x) * 0.45f);
+        LobsterController best = null;
+        foreach (var lob in lobsters.Values)
+        {
+            if (lob == null || !lob.alive) continue;
+            Vector3 feet = lob.transform.position;
+            float bottom = feet.y - BodyBelowFeet, top = feet.y + lob.bodyCenterHeight * 2f + BodyAboveTop;
+            if (Mathf.Abs(world.x - feet.x) > halfWidth || world.y < bottom || world.y > top) continue;
+            if (best == null || lob.SortingOrder > best.SortingOrder
+                || (lob.SortingOrder == best.SortingOrder && (world - lob.BodyCenter).sqrMagnitude < (world - best.BodyCenter).sqrMagnitude))
+                best = lob;
+        }
+        return best;
+    }
+
+    private const float BodyBelowFeet = 0.12f;   // legs and shadow reach a little under the hex centre
+    private const float BodyAboveTop = 0.04f;    // antennae / horns above the measured body
+
     public LobsterController GetLobsterAt(int col, int row)
     {
         foreach (var lob in lobsters.Values)
