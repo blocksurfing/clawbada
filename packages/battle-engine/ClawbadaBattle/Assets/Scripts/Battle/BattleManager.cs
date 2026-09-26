@@ -649,11 +649,12 @@ public class BattleManager : MonoBehaviour
                             // The hit beat is known up front, so the impact sound is scheduled now and
                             // lands with the burst even if the flight is retimed.
                             BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, windup.launchAt + flight + windup.impactLead);
-                            StartCoroutine(actor.PlayAttack(targetPos, attackDuration, false, null));
+                            StartCoroutine(actor.PlayAttack(targetPos, attackDuration, false, null, 1f, actor.SpecialSwingState));
                             float untilLaunch = windup.launchAt - (Time.time - t0);
                             if (untilLaunch > 0f) yield return new WaitForSeconds(untilLaunch);
                             yield return BattleVfxLibrary.Fly(windup, from, to, flight);
                             if (target != null) BattleVfxLibrary.Spawn(impactSlot, actor, target, this);
+                            if (target != null) SpawnAftermath(actor, target, windup.impactLead);
                             if (windup.impactLead > 0f) yield return new WaitForSeconds(windup.impactLead);
                             ShakeFor(impactSlot); ShakeFor(windup);
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: true, includePrimary: false, impactSlot: impactSlot, spawnImpactFx: false);
@@ -678,7 +679,7 @@ public class BattleManager : MonoBehaviour
                             BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, windup.impactAt);
                             // The caster's cast swing runs alongside the effect, not before it: waiting for
                             // the swing pushed Devour's hit to ~1.0 s into a 1.5 s clip whose beat is at 0.5.
-                            StartCoroutine(actor.PlayAttack(actorPos, attackDuration, false, null));
+                            StartCoroutine(actor.PlayAttack(actorPos, attackDuration, false, null, 1f, actor.SpecialSwingState));
                             float untilImpact = windup.impactAt - (Time.time - t0);
                             if (untilImpact > 0f) yield return new WaitForSeconds(untilImpact);
                             ShakeFor(windup); ShakeFor(impactSlot);
@@ -711,7 +712,8 @@ public class BattleManager : MonoBehaviour
                             // A cast clip that carries its own landing (two connected Bind takes): hold the swing so
                             // the contact frame lands on the hit inside the file — the binder measured where it is —
                             // instead of asking the sound to fit a 0.3 s window.
-                            float contactAt = Mathf.Max(attackDuration, actor.ClipLength("Attack") / castSpeed) * LobsterController.AttackImpactFraction;
+                            string swing = special ? actor.SpecialSwingState : "Attack";
+                            float contactAt = Mathf.Max(attackDuration, actor.ClipLength(swing) / castSpeed) * LobsterController.AttackImpactFraction;
                             if (swingCombo)
                             {
                                 // Cast (the wind-up) then impact (the hit), back to back, as for Inferno: the impact
@@ -749,7 +751,7 @@ public class BattleManager : MonoBehaviour
                                 // Statuses land with the blow, not after the swing settles — Bind's
                                 // tentacles (a status visual) appear on the contact frame.
                                 ApplyStatusEvents(data);
-                            }, castSpeed);
+                            }, castSpeed, swing);
                             // Secondary events (counter hits on the actor, reflects, bleed ticks).
                             ApplyTurnEvents(data, actor, actorPos, primaryOnly: false);
                             yield return new WaitForSeconds(hitDuration * 0.5f);
@@ -820,9 +822,31 @@ public class BattleManager : MonoBehaviour
             HealApplied?.Invoke(t, h.amount);
             BattleVfxLibrary.Spawn(vfxLibrary?.status, actor, t, this);
             if (t.alive && h.amount > 0) StartCoroutine(t.PlayBlink());
+            // A healing Special with its own three-phase visual under its name (Sentinel Rally →
+            // statusVisuals["rally"], designer 2026-09-27) plays it once on whoever it healed.
+            if (data.action == "special" && actor != null && vfxLibrary != null)
+                t.PlayCastVisual(vfxLibrary.StatusFor(LobsterClasses.SpecialName(actor.classId).ToLowerInvariant()));
         }
         if (restored > 0 && actor != null) BattleSfx.PlaySpecialHeal(actor.classId, actor.tier);
         Debug.Log($"[BattleManager] heal events ×{data.heals.Length} → restored {restored} HP" + (restored > 0 ? "" : " (silent)"));
+    }
+
+    /// <summary>A Special's after-hit flavour on its target (Inferno: ember scatter + a fading scorch),
+    /// spawned on the burst frame. Cosmetic only — nothing here lingers long enough to read as a hazard.</summary>
+    private void SpawnAftermath(LobsterController actor, LobsterController target, float atBurst)
+    {
+        var set = vfxLibrary != null ? vfxLibrary.AftermathFor(actor.classId) : null;
+        if (set == null) return;
+        foreach (var slot in set)
+        {
+            if (slot == null || slot.prefab == null) continue;
+            var delayed = new BattleVfxLibrary.VfxSlot
+            {
+                prefab = slot.prefab, anchor = slot.anchor, delay = slot.delay + atBurst, mirrorWithFacing = slot.mirrorWithFacing,
+                lingerSeconds = slot.lingerSeconds, onTop = slot.onTop,
+            };
+            BattleVfxLibrary.Spawn(delayed, actor, target, this);
+        }
     }
 
     /// <summary>Screen shake for a slot that asks for one (a Special's big beat).</summary>
