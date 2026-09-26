@@ -83,6 +83,8 @@ public class BattleVfxLibrary : ScriptableObject
         public bool IsProjectile => travelPrefab != null;
         [Tooltip("Keep the effect this many seconds past its clip (a looping clip keeps looping), fading out over the last 0.4 s. 0 = plays once and goes.")]
         public float lingerSeconds = 0f;
+        [Tooltip("Also play this effect on every OTHER lobster that receives this status on the same turn (Fortify → \"fortify\": the armor rays drop on every protected ally, like Maelstrom hits every enemy). Empty = the caster only.")]
+        public string alsoOnStatus = "";
     }
 
     [Header("Attack (all classes)")]

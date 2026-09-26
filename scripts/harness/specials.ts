@@ -330,6 +330,10 @@ export default async function (b: Browser) {
   }
   for (const l of grab(b, /\[BattleManager\] heal events|\(heal\)|special .* heal at/).slice(0, 4)) console.log('  heal:', l.slice(0, 120));
   for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
+  const deaths = grab(b, /LobsterController\] death /);
+  const fades = grab(b, /corpse .* fades away/);
+  for (const l of fades) console.log('  corpse:', l.slice(0, 140));
+  if (deaths.length) expect(fades.every((l) => /died turn \d+/.test(l)), `${CLASS}: corpses fade on schedule (${deaths.length} deaths, ${fades.length} faded)`);
   if (attackResult) {
     expect(attackResult.sentBefore === 0, 'Attack: pressing Attack and tapping two enemies sent nothing');
     expect(attackResult.panelA && attackResult.panelB, 'Attack: the target panel followed the selection (A, then B)');

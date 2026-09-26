@@ -680,6 +680,38 @@ public class LobsterController : MonoBehaviour
 
     private bool deathPlayed;
 
+    /// <summary>Turn this lobster died on (-1 = alive / not yet known). BattleManager fades the corpse
+    /// away a couple of turns later (user 2026-09-27: keep the field clean once the message is sent).</summary>
+    public int diedOnTurn = -1;
+    public bool CorpseGone { get; private set; }
+
+    /// <summary>Fade the corpse to nothing, then stop drawing it (the object stays, so anything holding a
+    /// reference — overlays, the strip — keeps working).</summary>
+    public IEnumerator FadeAwayCorpse(float seconds)
+    {
+        if (CorpseGone || alive) yield break;
+        CorpseGone = true;
+        Debug.Log($"[LobsterController] corpse {lobsterId} ({className}) fades away (died turn {diedOnTurn})");
+        var renderers = GetComponentsInChildren<SpriteRenderer>(true);
+        var start = new float[renderers.Length];
+        for (int i = 0; i < renderers.Length; i++) start[i] = renderers[i] != null ? renderers[i].color.a : 1f;
+        float t = 0f;
+        while (t < seconds)
+        {
+            t += Time.deltaTime;
+            float k = 1f - Mathf.Clamp01(t / seconds);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var r = renderers[i];
+                if (r == null) continue;
+                var c = r.color;
+                r.color = new Color(c.r, c.g, c.b, start[i] * k);
+            }
+            yield return null;
+        }
+        foreach (var r in renderers) if (r != null) r.enabled = false;
+    }
+
     /// <summary>Hold the last Die frame and stop the Animator: dead lobsters never move.</summary>
     public void FreezeAsCorpse()
     {
