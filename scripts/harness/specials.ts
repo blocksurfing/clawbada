@@ -254,7 +254,10 @@ export default async function (b: Browser) {
         await b.sleep(900);
         const sub = grab(b, /\[LiveBattle\] submit special/);
         if (sub.length > 0) { casts++; casters.add(sel.actor); }
-        else errors.push(`turn ${before}: special pressed (kind=${kind}, targets=${targets.length}) but no submit`);
+        else {
+          errors.push(`turn ${before}: special pressed (kind=${kind}, targets=${targets.length}) but no submit`);
+          for (const l of grab(b, /TurnSelection|hint|target panel|target badge|HexInput|Clicked|Selected/i).slice(-20)) console.log('[nosubmit-log]', l.slice(0, 220));
+        }
       }
     } else {
       const p = toCss(g, btns.defend.x + btns.defend.w / 2, btns.defend.y + btns.defend.h / 2); await b.clickAt(p.x, p.y);
