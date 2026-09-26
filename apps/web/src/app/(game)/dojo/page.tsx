@@ -11,6 +11,7 @@ import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
 import { useAuth } from '@/hooks/use-auth';
 import { getArenaBackground } from '@/lib/assets';
+import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { Swords, Loader2, Dumbbell } from 'lucide-react';
 
 /**
@@ -21,13 +22,14 @@ import { Swords, Loader2, Dumbbell } from 'lucide-react';
  * presets are switched off. The quick-start Practice tab on /game/battle is separate and
  * unchanged; the harness and the designer's `?preset=` deep links depend on it.
  *
+ * Bots come from lib/bot-catalog.ts: easiest first, each with how it plays and what it teaches.
+ *
  * Deep links: ?class=kraken (three of one class) or ?team=kraken,ember,abyss, plus
  * ?tier= ?purity= ?bot= ?arena= ?opponent=. Review params ?auto= ?speed= ?stay= are carried
  * through to the battle page, as on the Practice tab.
  */
 
 const CLASSES = CLASS_NAMES_LIST.map((n) => n.toLowerCase());
-const BOTS = ['balanced', 'aggressive', 'cautious', 'greedy', 'charger', 'focus', 'roles', 'deep'] as const;
 const TIERS = ['evolved', 'elite', 'apex'] as const;
 type Tier = (typeof TIERS)[number];
 type Arena = 'match' | Tier;
@@ -51,7 +53,7 @@ export default function DojoPage() {
   const [team, setTeam] = useState<string[]>(DEFAULT_TEAM);
   const [tier, setTier] = useState<Tier>(DEFAULT_TIER);
   const [purity, setPurity] = useState(DEFAULT_PURITY);
-  const [bot, setBot] = useState<(typeof BOTS)[number]>('balanced');
+  const [bot, setBot] = useState<BotName>(DEFAULT_BOT);
   const [opponent, setOpponent] = useState<'mirror' | 'random'>('mirror');
   const [arena, setArena] = useState<Arena>('match');
   const [busy, setBusy] = useState(false);
@@ -68,7 +70,7 @@ export default function DojoPage() {
     const p = Number(q.get('purity'));
     if (q.has('purity') && Number.isInteger(p) && p >= 0 && p <= 6) setPurity(p);
     const b = q.get('bot');
-    if (b && (BOTS as readonly string[]).includes(b)) setBot(b as (typeof BOTS)[number]);
+    if (b && botInfo(b)) setBot(b as BotName);
     const a = q.get('arena');
     if (a && (TIERS as readonly string[]).includes(a)) setArena(a as Tier);
     const o = q.get('opponent');
@@ -155,12 +157,18 @@ export default function DojoPage() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm text-text-secondary">Bot</label>
-              <Select value={bot} onValueChange={(v) => setBot(v as (typeof BOTS)[number])}>
-                <SelectTrigger className="bg-ocean-mid/50 border-border"><SelectValue /></SelectTrigger>
+              <Select value={bot} onValueChange={(v) => setBot(v as BotName)}>
+                <SelectTrigger className="bg-ocean-mid/50 border-border" data-testid="dojo-bot"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {BOTS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                  {BOT_CATALOG.map((b) => <SelectItem key={b.name} value={b.name}>{b.label} · {b.difficulty}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {botInfo(bot) && (
+                <div className="text-xs space-y-1" data-testid="dojo-bot-info">
+                  <p className="text-foreground">{botInfo(bot)!.plays}</p>
+                  <p className="text-text-secondary">Lesson: {botInfo(bot)!.teaches}</p>
+                </div>
+              )}
               <label className="text-sm text-text-secondary block pt-1">Opponent roster</label>
               <div className="flex gap-2">
                 {(['mirror', 'random'] as const).map((o) => (
@@ -182,7 +190,7 @@ export default function DojoPage() {
           </div>
 
           <div className="flex items-center justify-between pt-3 border-t border-[rgba(255,210,128,0.1)]">
-            <span className="text-xs text-text-secondary">{err ?? `${team.map(label).join(' · ')}, ${label(tier)}, purity ${purity}`}</span>
+            <span className="text-xs text-text-secondary">{err ?? `${team.map(label).join(' · ')}, ${label(tier)}, purity ${purity} vs ${botInfo(bot)?.label ?? bot}`}</span>
             <button
               onClick={start}
               disabled={busy}
