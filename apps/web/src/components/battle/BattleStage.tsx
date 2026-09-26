@@ -340,9 +340,12 @@ function UnityStage(props: BattleStageProps) {
     const actor = props.snapshot?.state.lobsters.find((l) => l.id === props.current!.lobsterId);
     if (!actor) return;
     const to = props.previewMove ?? actor.pos;
-    send(UNITY_METHODS.PREVIEW_MOVE, { lobsterId: actor.id, col: to.col, row: to.row });
+    // `special` + `targetId` let Unity preview a LEAP (Mantis Ambush) as a ghost on the landing hex
+    // instead of walking there — walking first made the confirmed leap snap back and replay the move.
+    const special = props.selection?.action === 'special';
+    send(UNITY_METHODS.PREVIEW_MOVE, { lobsterId: actor.id, col: to.col, row: to.row, special, targetId: props.selection?.targetId ?? '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, props.previewMove, props.current?.lobsterId, props.selection?.isPlayerTurn, props.nextToAnimate, send]);
+  }, [ready, props.previewMove, props.current?.lobsterId, props.selection?.isPlayerTurn, props.selection?.action, props.selection?.targetId, props.nextToAnimate, send]);
 
   useEffect(() => {
     if (!ready || !props.ended || endedSent.current || props.nextToAnimate) return;

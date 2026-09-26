@@ -81,6 +81,9 @@ export default async function (b: Browser) {
   let attackChecked = false;
   let attackResult: { panelA: boolean; panelB: boolean; sentBefore: number; sent: string[]; b: string } | null = null;
   let targetPanelShown = false;
+  let heldInPlace = false;
+  let walkedInPreview = true;
+  let leapFrom = '';
   const started = Date.now();
   while (Date.now() - started < 7 * 60_000 && ownTurns < 16) {
     if (grab(b, /\[BattleHud\] banner/).length > 0) break;
@@ -131,7 +134,8 @@ export default async function (b: Browser) {
         await b.clickAt(qb.x, qb.y); await b.sleep(800);
         const sent = grab(b, /\[LiveBattle\] submit/);
         attackResult = { panelA, panelB, sentBefore, sent: sent.map((l) => l.replace(/^\[log\] /, '')) , b: bId };
-        console.log(`[targeting] ${JSON.stringify(attackResult)}`);
+        console.log(`[targeting] ${JSON.stringify(attackResult)} A=${a}@(${JSON.stringify(ca)}) B=${bId}@(${JSON.stringify(cb)})`);
+        for (const l of grab(b, /TurnSelection|HexInput|lobster|hint|onHex|Selected|target panel/i).slice(-25)) console.log('[targeting-log]', l.slice(0, 200));
         await b.waitFor(`${turnNo} !== ${JSON.stringify(before)}`, 25000, 200);
         continue;
       }
@@ -154,6 +158,10 @@ export default async function (b: Browser) {
         const selectedOnly = grab(b, /\[LiveBattle\] submit/).length;
         selectSentNothing = selectedOnly === 0;
         targetPanelShown = grab(b, /\[BattleHud\] target panel/).some((l) => l.includes(far.id));
+        await b.screenshot(`${S}/leap-selected.png`);
+        heldInPlace = grab(b, /held in place \(leap\)/).length > 0;
+        walkedInPreview = grab(b, /LobsterController\] move Mantis/).length > 0;
+        leapFrom = `(${me.col},${me.row})`;
         await b.clickAt(q.x, q.y); // confirm
         dashShot = true; movedThisTurn = true; casts++;
         for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/dash-Mantis-f${String(f).padStart(2, '0')}.png`); await b.sleep(90); }
@@ -318,6 +326,8 @@ export default async function (b: Browser) {
     expect(dashLines.length >= 1, `Mantis: a moving Ambush leapt instead of walking (${dashLines.slice(-1)[0] ?? 'no dash line'})`);
     expect(selectSentNothing, 'Mantis: the first tap on the enemy only SELECTED it (no turn sent)');
     expect(targetPanelShown, 'Mantis: selecting the enemy opened the target panel for it');
+    expect(heldInPlace && !walkedInPreview, 'Mantis: selecting a leap target does NOT walk the Mantis there first');
+    expect(dashLines.some((l) => l.includes(`dash Mantis ${leapFrom}`)), `Mantis: the leap starts from where it stood ${leapFrom}, no snap-back (${dashLines.slice(-1)[0] ?? ''})`);
     expect(/"action":"special"/.test(reachTurn) && !/"path":\[\]/.test(reachTurn), `Mantis: tapping a non-adjacent enemy with Ambush armed stepped in and cast Ambush, not an attack (${reachTurn.slice(0, 140)})`);
   }
   if (CLASS === 'Tempest' || CLASS === 'Ember') {

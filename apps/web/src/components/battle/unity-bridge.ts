@@ -115,7 +115,13 @@ export interface SelectionData {
   hint: string;
   pendingAck: boolean;
 }
-export interface PreviewMoveData { lobsterId: string; col: number; row: number }
+export interface PreviewMoveData {
+  lobsterId: string; col: number; row: number;
+  /** The armed action is a Special: a class whose Special leaps previews a ghost, not a walk. */
+  special?: boolean;
+  /** Who the ghost faces (the selected target), '' for none. */
+  targetId?: string;
+}
 export const IDLE_SELECTION: SelectionData = {
   isPlayerTurn: false, canAct: false, action: 'attack', canSpecial: false, specialName: '', specialKind: 'none',
   hasMove: false, targetId: '', targetCount: 0, canUndo: false, hint: '', pendingAck: false,
