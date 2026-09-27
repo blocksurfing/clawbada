@@ -580,7 +580,9 @@ public class LobsterController : MonoBehaviour
         // the child onto Foreground here put Haunt's sigil in front of the body whatever its
         // order said, so the layer is left exactly as the designer authored it (sigil = −5,
         // under the body; an overhead mark would use an order above the parts).
-        return go;
+        // Those under-the-body parts are GROUND marks: they move to the ground band below every row, so
+        // they never paint over another lobster's effects (designer, 2026-09-27).
+        return GroundVfx.Split(go, prefab, this);
     }
 
     private void HideStatusVfx(string type, bool animateOut)

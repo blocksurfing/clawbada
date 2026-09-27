@@ -31,6 +31,12 @@ public static class DepthSort
     /// <summary>Sorting order of the BACK row's band. Each row in front adds <see cref="RowStride"/>.</summary>
     public const int ActorOrder = 100;
 
+    /// <summary>The GROUND band: marks painted on the floor (sigils, floor rings, pools, scorches). Below every
+    /// row's band — so a ground mark never draws over any lobster or any effect, whatever row they are on —
+    /// and above the board tiles and floor art (earlier sorting layers). Designer rule, 2026-09-27: "every VFX
+    /// part that stays on the ground shouldn't override the other VFX".</summary>
+    public const int GroundOrder = ActorOrder - 10;
+
     /// <summary>Orders reserved for one hex row, enough for the four slots below.</summary>
     public const int RowStride = 4;
 
