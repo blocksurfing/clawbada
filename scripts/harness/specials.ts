@@ -343,6 +343,7 @@ export default async function (b: Browser) {
   }
   for (const l of grab(b, /\[BattleManager\] heal events|\(heal\)|special .* heal at/).slice(0, 4)) console.log('  heal:', l.slice(0, 120));
   for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
+  for (const l of [...new Set(grab(b, /GroundVfx\]/).map((x) => x.replace(/ under .*/, '')))]) console.log('  ground:', l.slice(0, 120));
   const deaths = grab(b, /LobsterController\] death /);
   const fades = grab(b, /corpse .* fades away/);
   for (const l of fades) console.log('  corpse:', l.slice(0, 140));
