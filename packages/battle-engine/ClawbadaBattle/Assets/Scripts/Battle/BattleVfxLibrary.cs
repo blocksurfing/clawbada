@@ -207,6 +207,11 @@ public class BattleVfxLibrary : ScriptableObject
         return d != null && !string.IsNullOrEmpty(d.state) && d.landAt > d.takeoffAt ? d : null;
     }
 
+    /// <summary>World-placed effects painted on the floor (Inferno's scorch, the generic ground crack) take the
+    /// ground band, below every row, so they never draw over a lobster or another effect.</summary>
+    public static bool IsGroundMark(GameObject prefab) =>
+        prefab != null && (prefab.name.Contains("FirePatch") || prefab.name.Contains("GroundCrack") || prefab.name.Contains("Scorch"));
+
     /// <summary>Length of the longest clip on a prefab's Animator (0 when none) — how long a one-shot effect plays.</summary>
     public static float ClipLength(GameObject prefab)
     {
@@ -392,7 +397,7 @@ public class BattleVfxLibrary : ScriptableObject
         // rock or pillar standing a row closer to the camera draws over it — Fortify's dome must not
         // swallow the pillar in front of the caster. An effect with reach (rowsCovered) takes the
         // front-most row it encloses instead, so whoever stands inside it is under its face.
-        group.sortingOrder = slot.onTop ? DepthSort.ArenaFrontOrderBase + 61 : FrontOrder(slot, owner);
+        group.sortingOrder = slot.onTop ? DepthSort.ArenaFrontOrderBase + 61 : IsGroundMark(slot.prefab) ? DepthSort.GroundOrder : FrontOrder(slot, owner);
         Debug.Log($"[BattleVfxLibrary] {slot.prefab.name} order {group.sortingOrder} ({(slot.onTop ? "on top of the board" : $"row of {owner.className} at {owner.SortingOrder}")})");
 
         var oneShot = fx.GetComponent<OneShotVfx>();
