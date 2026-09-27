@@ -55,6 +55,30 @@ public class HudSkin : ScriptableObject
     public Sprite btnGear;      // options
     public Sprite hexGlow;      // armed ring, drawn over the plate
 
+    [Header("Nzib's HUD (Art/UI/ActionButton.png + Avatar.png — Clawbada/HUD/Bind Nzib HUD Art)")]
+    [Tooltip("Silver hex outline drawn over every action button; tinted when the action is armed.")]
+    public Sprite actionFrame;
+    public Sprite actionAttack;
+    public Sprite actionDefend;
+    public Sprite actionWait;
+    [Tooltip("One Special button per class, indexed by classId (Bulwark = 0 … Ember = 9).")]
+    public Sprite[] specialButtons = new Sprite[10];
+    [Tooltip("Stepped pixel halo around the hex, generated from actionFrame: hover and armed glow.")]
+    public Sprite actionGlow;
+    [Tooltip("Silver ring over the round avatar.")]
+    public Sprite avatarFrame;
+    [Tooltip("Class-coloured disc behind the portrait (also its circle mask), indexed by classId.")]
+    public Sprite[] avatarBg = new Sprite[10];
+    [Tooltip("Placeholder HP / charge arc on the avatar ring (radial fill) until Nzib's arc art lands.")]
+    public Sprite avatarArc;
+    public Color chargeArc = C("#4aa3ff");
+
+    public Sprite SpecialButton(int classId) =>
+        specialButtons != null && classId >= 0 && classId < specialButtons.Length ? specialButtons[classId] : null;
+
+    public Sprite AvatarBg(int classId) =>
+        avatarBg != null && classId >= 0 && classId < avatarBg.Length ? avatarBg[classId] : null;
+
     [Header("Cards (LOKR-style)")]
     public Sprite cardFrame;    // 9-sliced bevelled frame
     public Sprite cardHeader;   // 9-sliced band, tinted per team

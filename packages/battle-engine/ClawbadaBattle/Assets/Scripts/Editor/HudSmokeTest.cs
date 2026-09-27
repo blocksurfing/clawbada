@@ -69,8 +69,8 @@ public static class HudSmokeTest
             Check(hud.Strip.CurrentIds[1] == "B0", "strip dedupes the actor instead of repeating it");
             Check(!hud.Strip.CurrentIds.Contains("B1"), "dead lobster skipped in the strip");
             Check(hud.Panel.gameObject.activeSelf && hud.Panel.Lobster != null && hud.Panel.Lobster.lobsterId == "A1", "active panel shows A1");
-            var nameText = hud.Panel.transform.Find("Name").GetComponent<Text>();
-            Check(nameText.text == "Mantis", $"active panel name is Mantis (got '{nameText.text}')");
+            Check(hud.Panel.ShownClass == 1, $"active avatar shows the Mantis disc (got class {hud.Panel.ShownClass})");
+            Check(hud.Panel.transform.Find("Name") == null, "no HP / name text on the avatar (numbers are for agents, via the API)");
             Check(hud.Clock.Running && hud.Clock.RemainingSeconds > 8f, "clock running from 15 s");
             Check(hud.Banner.Visible, "banner visible");
             var a1 = manager.GetLobster("A1");

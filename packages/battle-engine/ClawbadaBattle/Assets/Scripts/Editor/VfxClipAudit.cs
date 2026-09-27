@@ -6,7 +6,7 @@ using UnityEngine;
 /// Checks every effect clip after a designer drop for the two ways a drop can leave an effect "frozen":
 ///   • missing sprite keys — a sheet re-sliced (new sprite IDs) without rebuilding its clip;
 ///   • one-frame LOOPS — a looping clip with a single sprite sits still for as long as it lives (Haunt's sigil
-///     idle after drop 5e3e6f9; the runtime makes such loops breathe as a stopgap, see LoopBreath).
+///     idle after drop 5e3e6f9 — intentional, per Nzib 2026-09-27; listed so a still loop is always a choice).
 /// Menu: Clawbada ▸ VFX ▸ Audit Effect Clips. Headless: -executeMethod VfxClipAudit.Run
 /// </summary>
 public static class VfxClipAudit

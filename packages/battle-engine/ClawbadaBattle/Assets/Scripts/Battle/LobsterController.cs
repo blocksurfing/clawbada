@@ -558,13 +558,7 @@ public class LobsterController : MonoBehaviour
         var go = AttachStatusChild(def.loop, def);
         var oneShot = go.GetComponent<OneShotVfx>();
         if (oneShot != null) Destroy(oneShot);                   // loops live until the status ends
-        // A "loop" that is a single frame reads as frozen for the whole status (Haunt's sigil idle after
-        // designer drop 5e3e6f9: 1 frame, was 4). Until the art has real frames, let it breathe.
-        if (BattleVfxLibrary.ClipLength(def.loop) <= 1f / 12f + 0.001f && go.GetComponent<LoopBreath>() == null)
-        {
-            go.AddComponent<LoopBreath>();
-            Debug.Log($"[LobsterController] status loop {def.loop.name} is a single frame — breathing until it has real frames");
-        }
+        // A one-frame loop is allowed: Haunt's still sigil is intentional (Nzib 2026-09-27); VfxClipAudit lists them.
         statusFx[type] = go;
     }
 
