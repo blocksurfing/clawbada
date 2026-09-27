@@ -10,8 +10,9 @@ using UnityEngine.UI;
 /// bar, clock and unit truth; Unity draws them and reports clicks.
 ///
 /// Layout (960x540 reference): turn strip top-centre, badges top corners, unit
-/// overlays following the rigs, active portrait + clock bottom-left, floats and the
-/// result banner over everything. The action bar (bottom-centre) arrives in PR B.
+/// overlays following the rigs, the acting lobster's round avatar bottom-left with the action
+/// buttons right beside it (Nzib, 2026-09-27), clock bottom-right, floats and the result banner
+/// over everything.
 /// </summary>
 public class BattleHud : MonoBehaviour
 {
@@ -150,8 +151,15 @@ public class BattleHud : MonoBehaviour
         // LOKR-style: the selected target carries a small copy of the armed action's button above it.
         // Clickable (user 2026-09-27): tapping the badge confirms the selected target, exactly like pressing
         // the armed action again — so it is raycast-on and forwards the armed action to React.
-        targetBadge = HudFactory.Image(canvasRect, "TargetBadge", skin.btnAttack, Color.white, new Vector2(BadgeSize, BadgeSize * 1.143f), raycast: true);
+        bool nzibButtons = skin.actionFrame != null;
+        targetBadge = HudFactory.Image(canvasRect, "TargetBadge", nzibButtons ? skin.actionAttack : skin.btnAttack, Color.white,
+            nzibButtons ? new Vector2(BadgeSize, BadgeSize) : new Vector2(BadgeSize, BadgeSize * 1.143f), raycast: true);
         targetBadgeIcon = HudFactory.Image(targetBadge.transform, "Icon", skin.iconAttack, Color.white, new Vector2(BadgeSize * 0.55f, BadgeSize * 0.55f));
+        if (nzibButtons)
+        {
+            targetBadgeIcon.enabled = false;   // Nzib's buttons carry their own glyphs
+            HudFactory.AddImage(HudFactory.Stretch(targetBadge.transform, "Frame"), skin.actionFrame, skin.buttonArmed);
+        }
         var badgeButton = targetBadge.gameObject.AddComponent<Button>();
         badgeButton.targetGraphic = targetBadge;
         var bc = badgeButton.colors;
@@ -165,10 +173,11 @@ public class BattleHud : MonoBehaviour
             bridge?.NotifyActionSelected(targetAction);
         });
         targetBadge.gameObject.SetActive(false);
-        Bar = ActionBar.Create(canvasRect, skin);
+        // Buttons right beside the avatar, low: centred on it they covered the lower edge of the board's bottom row.
+        float avatar = ActivePanel.Size(skin);
+        Bar = ActionBar.Create(canvasRect, skin, new Vector2(8f + avatar + 6f, 10f));
         bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
-        Bar.UndoPressed += () => bridge?.NotifyUndoMove();
         Options = OptionsMenu.Create(canvasRect, skin);
         Options.ForfeitConfirmed += () => bridge?.NotifyForfeit();
         Options.MusicToggled += on => bridge?.NotifyAudioPref("music", on);
@@ -223,7 +232,7 @@ public class BattleHud : MonoBehaviour
     private Image targetBadge;
     private BattleBridge bridge;
     private Image targetBadgeIcon;
-    private const float BadgeSize = 40f;      // reference px (canvas 960x540)
+    private const float BadgeSize = 48f;      // reference px (canvas 960x540): Nzib's 48 px button at 2/3 of the bar's size
     private const float BadgeLift = 0.40f;    // world units above the field bar's anchor: just clear of the bar, low enough not to sit over the row behind
     private const float BadgeBobPx = 3f;
 
@@ -245,10 +254,19 @@ public class BattleHud : MonoBehaviour
         if (targetLob == null) { targetBadge.gameObject.SetActive(false); TargetMarker.Hide(); return; }
         TargetMarker.Follow(targetLob);
         bool special = targetAction == "special";
-        var plate = special ? Skin.btnSpecial : Skin.btnAttack;
-        targetBadge.sprite = plate != null ? plate : Skin.hexButton64;
-        targetBadgeIcon.sprite = special ? Skin.iconSpecial : Skin.iconAttack;
-        targetBadgeIcon.enabled = targetBadgeIcon.sprite != null;
+        if (Skin.actionFrame != null)
+        {
+            var actor = manager.GetLobster(activeId);
+            var own = special && actor != null ? Skin.SpecialButton(actor.classId) : null;
+            targetBadge.sprite = special ? (own != null ? own : Skin.btnSpecial) : Skin.actionAttack;
+        }
+        else
+        {
+            var plate = special ? Skin.btnSpecial : Skin.btnAttack;
+            targetBadge.sprite = plate != null ? plate : Skin.hexButton64;
+            targetBadgeIcon.sprite = special ? Skin.iconSpecial : Skin.iconAttack;
+            targetBadgeIcon.enabled = targetBadgeIcon.sprite != null;
+        }
         targetBadge.gameObject.SetActive(true);
         Debug.Log($"[BattleHud] target badge {targetAction} over {targetLob.lobsterId}");
         badgeLogPending = true;
@@ -354,6 +372,7 @@ public class BattleHud : MonoBehaviour
         // The bar belongs to the player's own turn; React re-sends the real state right after.
         if (!data.isPlayer) Bar.Apply(null);
         var lob = manager.GetLobster(activeId);
+        if (lob != null) Bar.SetActorClass(lob.classId);
         Marker.Follow(lob);
         Panel.Show(lob, data.isPlayer);
         SetClock(data.isPlayer ? fallbackRemainingMs : 0);
