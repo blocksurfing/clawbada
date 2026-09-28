@@ -12,6 +12,8 @@ using UnityEngine.UI;
 /// (which action is armed, what is legal) arrives through Apply. One line above the buttons says why a press
 /// went nowhere ("Out of range — move closer first", a server rejection) and shows "Sending…" — inside the
 /// canvas, because in fullscreen React's status row is off screen and a silent press reads as a frozen game.
+/// That line sits bottom-right under the shot clock (user 2026-09-27) and can be switched off in the options
+/// menu (HintsEnabled, remembered in PlayerPrefs); "Sending…" and server errors always show.
 /// </summary>
 public class ActionBar : MonoBehaviour
 {
@@ -23,6 +25,14 @@ public class ActionBar : MonoBehaviour
     private const float PitchArt = 44f;
     private static readonly Color ArmedGlow = new Color(1f, 0.82f, 0.4f, 0.9f);
     private const string CancelMoveHint = "Tap your lobster to cancel the move";
+    private const string HintsPref = "clawbada.hints";
+
+    /// <summary>Game hints on/off (options menu). Off keeps only "Sending…" and errors.</summary>
+    public static bool HintsEnabled
+    {
+        get { return PlayerPrefs.GetInt(HintsPref, 1) == 1; }
+        set { PlayerPrefs.SetInt(HintsPref, value ? 1 : 0); PlayerPrefs.Save(); }
+    }
 
     private HudSkin skin;
     private Button attack, special, defend, wait;
@@ -32,12 +42,14 @@ public class ActionBar : MonoBehaviour
     private Text hint;
     private string lastNote = "";
     private int actorClass = -1;
+    private SelectionData lastSel;
 
     /// <summary>Width of the whole row in canvas units (for the owner's layout).</summary>
     public float Width { get; private set; }
     public float ButtonHeight { get; private set; }
 
-    public static ActionBar Create(Transform parent, HudSkin skin, Vector2 bottomLeft)
+    /// <param name="hintBottomRight">Where the hint line's bottom-right corner sits, from the canvas's bottom-right.</param>
+    public static ActionBar Create(Transform parent, HudSkin skin, Vector2 bottomLeft, Vector2 hintBottomRight)
     {
         bool nzib = skin.actionFrame != null;
         float size = nzib ? skin.actionFrame.rect.width * ArtScale : skin.buttonSize;
@@ -54,11 +66,11 @@ public class ActionBar : MonoBehaviour
         bar.special = bar.Make(rt, "Special", skin.SpecialButton(0), skin.btnSpecial, skin.iconSpecial, 2, size, pitch, () => bar.Press("special"), out bar.specialFrame, out bar.specialFeel, out bar.specialPlate, out bar.specialIcon);
         bar.wait = bar.Make(rt, "Wait", skin.actionWait, skin.btnWait, skin.iconWait, 3, size, pitch, () => bar.Press("none"), out bar.waitFrame, out bar.waitFeel, out _, out _);
 
-        bar.hint = HudFactory.Text(rt, "Hint", skin.FontOrDefault(), 12, skin.textPrimary, TextAnchor.LowerLeft, new Vector2(bar.Width + 200f, 20f));
+        // On the canvas, not the row: bottom-right under the clock, right-aligned so long lines grow leftwards.
+        bar.hint = HudFactory.Text(parent, "Hint", skin.FontOrDefault(), 12, skin.textPrimary, TextAnchor.LowerRight, new Vector2(560f, 18f));
         var hrt = bar.hint.rectTransform;
-        hrt.anchorMin = hrt.anchorMax = new Vector2(0f, 1f);
-        hrt.pivot = new Vector2(0f, 0f);
-        hrt.anchoredPosition = new Vector2(6f, 2f);
+        hrt.anchorMin = hrt.anchorMax = hrt.pivot = new Vector2(1f, 0f);
+        hrt.anchoredPosition = hintBottomRight;
         bar.hint.gameObject.SetActive(false);
 
         rt.gameObject.SetActive(false);
@@ -128,9 +140,10 @@ public class ActionBar : MonoBehaviour
     /// <summary>Reflect React's selection state. Null or a non-player turn hides the bar.</summary>
     public void Apply(SelectionData d)
     {
+        lastSel = d;
         bool show = d != null && d.isPlayerTurn;
         gameObject.SetActive(show);
-        if (!show) return;
+        if (!show) { hint.gameObject.SetActive(false); return; }
 
         bool live = d.canAct && !d.pendingAck;
         attack.interactable = live;
@@ -138,10 +151,7 @@ public class ActionBar : MonoBehaviour
         defend.interactable = live;
         wait.interactable = live;
 
-        string note = d.pendingAck ? "Sending…" : !string.IsNullOrEmpty(d.hint) ? d.hint : d.canUndo ? CancelMoveHint : "";
-        hint.text = note;
-        hint.gameObject.SetActive(note.Length > 0);
-        if (note != lastNote) { lastNote = note; if (note.Length > 0) Debug.Log($"[BattleHud] hint {note}"); }
+        ShowHint(d);
 
         SetArmed(attackFeel, attackFrame, attack, d.action == "attack");
         SetArmed(specialFeel, specialFrame, special, d.action == "special");
@@ -150,6 +160,22 @@ public class ActionBar : MonoBehaviour
 
         Canvas.ForceUpdateCanvases();
         LogButtons();
+    }
+
+    private void ShowHint(SelectionData d)
+    {
+        string note = d.pendingAck ? "Sending…" : !string.IsNullOrEmpty(d.hint) ? d.hint : d.canUndo ? CancelMoveHint : "";
+        bool always = d.pendingAck || d.hintIsError;
+        if (!always && !HintsEnabled) note = "";
+        hint.text = note;
+        hint.gameObject.SetActive(note.Length > 0);
+        if (note != lastNote) { lastNote = note; if (note.Length > 0) Debug.Log($"[BattleHud] hint {note}"); }
+    }
+
+    /// <summary>The options toggle flipped: redraw the current line under the new setting.</summary>
+    public void RefreshHint()
+    {
+        if (lastSel != null && lastSel.isPlayerTurn && gameObject.activeSelf) ShowHint(lastSel);
     }
 
     /// <summary>Armed = gold frame + steady glow; a disabled button's frame dims with its plate.</summary>
