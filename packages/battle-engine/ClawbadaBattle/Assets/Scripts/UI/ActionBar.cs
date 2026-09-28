@@ -4,88 +4,119 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Bottom-centre action bar (LOKR-style): hex buttons Attack / Special / Defend / Wait
-/// and a small Undo for a tentative move. Unity only reports presses; React decides
-/// what they mean and submits the turn. Its state (which action is armed, what is
-/// legal) arrives through SetSelection. The armed plate, the lit hexes and the target
-/// rings say what to do; one line above the plates says why a press went nowhere ("Out
-/// of range — move closer first", a server rejection) and shows "Sending…" — inside the
-/// canvas, because in fullscreen React's status row is off screen and a press that
-/// silently does nothing reads as a frozen game.
+/// Action buttons (Nzib's layout, 2026-09-27): a row of hex buttons right of the round avatar, bottom-left —
+/// Attack, Defend, the acting lobster's own class Special, Wait. No text: his buttons carry their glyphs.
+/// Hover glows and grows a pixel, press shrinks and darkens (ButtonFeel); the armed action keeps its glow and
+/// a gold frame. There is no Undo button: tapping your own lobster (or its start hex) cancels a move, and the
+/// hint line says so. Unity only reports presses; React decides what they mean and submits the turn. Its state
+/// (which action is armed, what is legal) arrives through Apply. One line above the buttons says why a press
+/// went nowhere ("Out of range — move closer first", a server rejection) and shows "Sending…" — inside the
+/// canvas, because in fullscreen React's status row is off screen and a silent press reads as a frozen game.
 /// </summary>
 public class ActionBar : MonoBehaviour
 {
     public event Action<string> ActionPressed;
-    public event Action UndoPressed;
+
+    /// <summary>Canvas units per art pixel: the 960x540 canvas over the 640x360 art frame.</summary>
+    public const float ArtScale = 1.5f;
+    /// <summary>Hex spacing: the frame's hex is 42 art px wide in its 48 px cell, plus a 2 px gap.</summary>
+    private const float PitchArt = 44f;
+    private static readonly Color ArmedGlow = new Color(1f, 0.82f, 0.4f, 0.9f);
+    private const string CancelMoveHint = "Tap your lobster to cancel the move";
 
     private HudSkin skin;
-    private Button attack, special, defend, wait, undo;
-    private Image attackGlow, specialGlow, defendGlow, waitGlow;
-    private Text specialLabel;
+    private Button attack, special, defend, wait;
+    private Image specialPlate, specialIcon;
+    private Image attackFrame, specialFrame, defendFrame, waitFrame;
+    private ButtonFeel attackFeel, specialFeel, defendFeel, waitFeel;
     private Text hint;
     private string lastNote = "";
-    private SelectionData last;
+    private int actorClass = -1;
 
-    public static ActionBar Create(Transform parent, HudSkin skin)
+    /// <summary>Width of the whole row in canvas units (for the owner's layout).</summary>
+    public float Width { get; private set; }
+    public float ButtonHeight { get; private set; }
+
+    public static ActionBar Create(Transform parent, HudSkin skin, Vector2 bottomLeft)
     {
-        float s = skin.buttonSize;
-        float pitch = s + 10f;
-        var rt = HudFactory.Rect(parent, "ActionBar", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-            new Vector2(0f, 8f), new Vector2(pitch * 4f + 70f, s * 1.143f + 10f));
+        bool nzib = skin.actionFrame != null;
+        float size = nzib ? skin.actionFrame.rect.width * ArtScale : skin.buttonSize;
+        float pitch = nzib ? PitchArt * ArtScale : skin.buttonSize + 10f;
+        float h = nzib ? size : size * 1.143f;
+        var rt = HudFactory.Rect(parent, "ActionBar", Vector2.zero, Vector2.zero, Vector2.zero, bottomLeft, new Vector2(pitch * 3f + size, h));
         var bar = rt.gameObject.AddComponent<ActionBar>();
         bar.skin = skin;
-        var font = skin.FontOrDefault();
+        bar.Width = rt.sizeDelta.x;
+        bar.ButtonHeight = h;
 
-        float x0 = -pitch * 1.5f - 20f;
-        bar.attack = Make(bar, rt, "Attack", Plate(skin, skin.btnAttack), skin.iconAttack, "Attack", x0, () => bar.Press("attack"), out bar.attackGlow);
-        bar.special = Make(bar, rt, "Special", Plate(skin, skin.btnSpecial), skin.iconSpecial, "Special", x0 + pitch, () => bar.Press("special"), out bar.specialGlow);
-        bar.specialLabel = bar.special.transform.Find("Label").GetComponent<Text>();
-        bar.defend = Make(bar, rt, "Defend", Plate(skin, skin.btnDefend), skin.iconDefend, "Defend", x0 + pitch * 2f, () => bar.Press("defend"), out bar.defendGlow);
-        bar.wait = Make(bar, rt, "Wait", Plate(skin, skin.btnWait), skin.iconWait, "Wait", x0 + pitch * 3f, () => bar.Press("none"), out bar.waitGlow);
+        bar.attack = bar.Make(rt, "Attack", skin.actionAttack, skin.btnAttack, skin.iconAttack, 0, size, pitch, () => bar.Press("attack"), out bar.attackFrame, out bar.attackFeel, out _, out _);
+        bar.defend = bar.Make(rt, "Defend", skin.actionDefend, skin.btnDefend, skin.iconDefend, 1, size, pitch, () => bar.Press("defend"), out bar.defendFrame, out bar.defendFeel, out _, out _);
+        bar.special = bar.Make(rt, "Special", skin.SpecialButton(0), skin.btnSpecial, skin.iconSpecial, 2, size, pitch, () => bar.Press("special"), out bar.specialFrame, out bar.specialFeel, out bar.specialPlate, out bar.specialIcon);
+        bar.wait = bar.Make(rt, "Wait", skin.actionWait, skin.btnWait, skin.iconWait, 3, size, pitch, () => bar.Press("none"), out bar.waitFrame, out bar.waitFeel, out _, out _);
 
-        bar.undo = HudFactory.Button(rt, "Undo", Plate(skin, skin.btnNeutral), skin.iconUndo, "Undo", font, s * 0.7f, () => bar.PressUndo());
-        var urt = bar.undo.GetComponent<RectTransform>();
-        urt.anchorMin = urt.anchorMax = new Vector2(0.5f, 0f);
-        urt.pivot = new Vector2(0.5f, 0f);
-        urt.anchoredPosition = new Vector2(x0 + pitch * 4f + 6f, 8f);
-
-        bar.hint = HudFactory.Text(rt, "Hint", font, 12, skin.textPrimary, TextAnchor.LowerCenter, new Vector2(pitch * 4f + 200f, 20f));
+        bar.hint = HudFactory.Text(rt, "Hint", skin.FontOrDefault(), 12, skin.textPrimary, TextAnchor.LowerLeft, new Vector2(bar.Width + 200f, 20f));
         var hrt = bar.hint.rectTransform;
-        hrt.anchorMin = hrt.anchorMax = new Vector2(0.5f, 1f);
-        hrt.pivot = new Vector2(0.5f, 0f);
-        hrt.anchoredPosition = new Vector2(0f, 2f);
+        hrt.anchorMin = hrt.anchorMax = new Vector2(0f, 1f);
+        hrt.pivot = new Vector2(0f, 0f);
+        hrt.anchoredPosition = new Vector2(6f, 2f);
         bar.hint.gameObject.SetActive(false);
 
         rt.gameObject.SetActive(false);
         return bar;
     }
 
-    /// <summary>Painted plate for an action, falling back to the placeholder bevel.</summary>
-    private static Sprite Plate(HudSkin skin, Sprite plate) =>
+    /// <summary>Old generated plate for an action, when Nzib's art is not bound.</summary>
+    private Sprite Fallback(Sprite plate) =>
         plate != null ? plate : skin.hexBevel != null ? skin.hexBevel : skin.hexButton64;
 
-    private static Button Make(ActionBar bar, RectTransform rt, string name, Sprite plate, Sprite icon, string label, float x, UnityEngine.Events.UnityAction onClick, out Image glow)
+    /// <summary>One button: glow (behind), plate (clickable), frame (over). With Nzib's art the plate carries its glyph;
+    /// the fallback plate gets the old icon on top.</summary>
+    private Button Make(RectTransform row, string name, Sprite art, Sprite oldPlate, Sprite oldIcon, int index, float size, float pitch,
+        UnityEngine.Events.UnityAction onClick, out Image frame, out ButtonFeel feel, out Image plate, out Image icon)
     {
-        var btn = HudFactory.Button(rt, name, plate, icon, label, bar.skin.FontOrDefault(), bar.skin.buttonSize, onClick);
-        var brt = btn.GetComponent<RectTransform>();
-        brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0f);
-        brt.pivot = new Vector2(0.5f, 0f);
-        brt.anchoredPosition = new Vector2(x, 0f);
+        bool nzib = skin.actionFrame != null;
+        float h = nzib ? size : size * 1.143f;
+        var rt = HudFactory.Rect(row, name, Vector2.zero, Vector2.zero, new Vector2(0.5f, 0.5f), new Vector2(pitch * index + size * 0.5f, h * 0.5f), new Vector2(size, h));
 
-        // Armed state is a warm ring straddling the plate edge instead of tinting the plate
-        // (the painted faces are already coloured, so a tint just muddies them). Sorted first
-        // so the glyph and caption stay on top. Sized from the sprites so it lines up exactly.
-        glow = null;
-        var ring = bar.skin.hexGlow;
-        if (ring != null && plate != null)
+        Image glow = null;
+        if (skin.actionGlow != null && nzib)
         {
-            float w = bar.skin.buttonSize * (ring.rect.width / plate.rect.width);
-            float h = bar.skin.buttonSize * 1.143f * (ring.rect.height / plate.rect.height);
-            glow = HudFactory.Image(btn.transform, "Glow", ring, Color.white, new Vector2(w, h));
-            glow.transform.SetAsFirstSibling();
+            float k = size / skin.actionFrame.rect.width;
+            glow = HudFactory.Image(rt, "Glow", skin.actionGlow, Color.white, skin.actionGlow.rect.size * k);
             glow.enabled = false;
         }
+
+        plate = HudFactory.AddImage(HudFactory.Stretch(rt, "Plate"), nzib && art != null ? art : Fallback(oldPlate), Color.white, raycast: true);
+        icon = null;
+        if (!nzib && oldIcon != null) icon = HudFactory.Image(rt, "Icon", oldIcon, Color.white, new Vector2(size * 0.5f, size * 0.5f));
+        frame = nzib ? HudFactory.AddImage(HudFactory.Stretch(rt, "Frame"), skin.actionFrame, Color.white) : null;
+
+        var btn = rt.gameObject.AddComponent<Button>();
+        btn.targetGraphic = plate;
+        var colors = btn.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = Color.white;          // hover is the glow + grow, not a tint
+        colors.selectedColor = Color.white;
+        colors.pressedColor = new Color(0.78f, 0.78f, 0.78f, 1f);
+        colors.disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.6f);
+        colors.fadeDuration = 0.05f;
+        btn.colors = colors;
+        btn.navigation = new Navigation { mode = Navigation.Mode.None };
+        btn.onClick.AddListener(onClick);
+
+        feel = rt.gameObject.AddComponent<ButtonFeel>();
+        feel.glow = glow;
+        feel.step = 2f * ArtScale / size;   // 2 art px
         return btn;
+    }
+
+    /// <summary>The Special button is the acting lobster's own (Fortify, Ambush, …).</summary>
+    public void SetActorClass(int classId)
+    {
+        if (classId == actorClass) return;
+        actorClass = classId;
+        var art = skin.SpecialButton(classId);
+        if (skin.actionFrame != null && art != null) specialPlate.sprite = art;
     }
 
     private void Press(string action)
@@ -94,16 +125,9 @@ public class ActionBar : MonoBehaviour
         ActionPressed?.Invoke(action);
     }
 
-    private void PressUndo()
-    {
-        Debug.Log("[BattleHud] undo");
-        UndoPressed?.Invoke();
-    }
-
     /// <summary>Reflect React's selection state. Null or a non-player turn hides the bar.</summary>
     public void Apply(SelectionData d)
     {
-        last = d;
         bool show = d != null && d.isPlayerTurn;
         gameObject.SetActive(show);
         if (!show) return;
@@ -113,27 +137,27 @@ public class ActionBar : MonoBehaviour
         special.interactable = live && d.canSpecial;
         defend.interactable = live;
         wait.interactable = live;
-        undo.gameObject.SetActive(d.canUndo);
-        undo.interactable = live;
 
-        string note = d.pendingAck ? "Sending…" : (d.hint ?? "");
+        string note = d.pendingAck ? "Sending…" : !string.IsNullOrEmpty(d.hint) ? d.hint : d.canUndo ? CancelMoveHint : "";
         hint.text = note;
         hint.gameObject.SetActive(note.Length > 0);
         if (note != lastNote) { lastNote = note; if (note.Length > 0) Debug.Log($"[BattleHud] hint {note}"); }
 
-        specialLabel.text = string.IsNullOrEmpty(d.specialName) ? "Special" : d.specialName;
-        SetArmed(attackGlow, d.action == "attack");
-        SetArmed(specialGlow, d.action == "special");
-        SetArmed(defendGlow, d.action == "defend");
-        SetArmed(waitGlow, d.action == "none");
+        SetArmed(attackFeel, attackFrame, attack, d.action == "attack");
+        SetArmed(specialFeel, specialFrame, special, d.action == "special");
+        SetArmed(defendFeel, defendFrame, defend, d.action == "defend");
+        SetArmed(waitFeel, waitFrame, wait, d.action == "none");
 
         Canvas.ForceUpdateCanvases();
         LogButtons();
     }
 
-    private static void SetArmed(Image glow, bool armed)
+    /// <summary>Armed = gold frame + steady glow; a disabled button's frame dims with its plate.</summary>
+    private void SetArmed(ButtonFeel feel, Image frame, Button b, bool armed)
     {
-        if (glow != null) glow.enabled = armed;
+        armed &= b.interactable;
+        feel.SetArmed(armed, ArmedGlow);
+        if (frame != null) frame.color = armed ? skin.buttonArmed : b.interactable ? Color.white : new Color(0.55f, 0.55f, 0.55f, 0.7f);
     }
 
     /// <summary>Harness signal: button rects in screen pixels (x, y-from-bottom, w, h).</summary>
@@ -144,7 +168,6 @@ public class ActionBar : MonoBehaviour
         Append(sb, "special", special);
         Append(sb, "defend", defend);
         Append(sb, "wait", wait);
-        if (undo.gameObject.activeSelf) Append(sb, "undo", undo);
         Debug.Log(sb.ToString());
     }
 
