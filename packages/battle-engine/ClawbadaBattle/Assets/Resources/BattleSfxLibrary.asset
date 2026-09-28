@@ -93,12 +93,12 @@ MonoBehaviour:
       apexBeat: 0
       variantBeats: []
   - cast:
-      shared: {fileID: 0}
+      shared: {fileID: 8300000, guid: 7b9ac9ba90ce048c19a2e40cdf262725, type: 3}
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
       variants: []
-      sharedBeat: 0
+      sharedBeat: 0.45
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
@@ -108,13 +108,17 @@ MonoBehaviour:
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
-      variants: []
+      variants:
+      - {fileID: 8300000, guid: da7ae8486a50b4c01b0c861f2eda0ff9, type: 3}
+      - {fileID: 8300000, guid: 75ab585e5508c460db85b7b5f3407192, type: 3}
       sharedBeat: 0
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
-      variantBeats: []
-    impactLead: 0
+      variantBeats:
+      - 0.09
+      - 0.01
+    impactLead: 0.09
     heal:
       shared: {fileID: 0}
       evolved: {fileID: 0}
@@ -199,12 +203,16 @@ MonoBehaviour:
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
-      variants: []
+      variants:
+      - {fileID: 8300000, guid: 2afb9acad6e6140caa226e28a285db22, type: 3}
+      - {fileID: 8300000, guid: 5d5748a8b56624f798685108af20dce4, type: 3}
       sharedBeat: 0
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
-      variantBeats: []
+      variantBeats:
+      - 1.25
+      - 0.95
     impact:
       shared: {fileID: 0}
       evolved: {fileID: 0}
@@ -222,12 +230,16 @@ MonoBehaviour:
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
-      variants: []
+      variants:
+      - {fileID: 8300000, guid: b109d8fd0dc034ab293b2a3f319b4e6e, type: 3}
+      - {fileID: 8300000, guid: f4cd20d1145da428cab1a1127a4c0c00, type: 3}
       sharedBeat: 0
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
-      variantBeats: []
+      variantBeats:
+      - 0.05
+      - 0.05
   - cast:
       shared: {fileID: 0}
       evolved: {fileID: 0}

@@ -321,6 +321,13 @@ export default async function (b: Browser) {
     if (m && sched) {
       const castEnd = Number(m[1]) + Number(m[2]); const impactStart = Number(sched[1]);
       expect(Math.abs(castEnd - impactStart) < 0.03, `${CLASS}: impact clip starts the instant the cast clip ends (cast ends ${castEnd.toFixed(2)} s, impact starts ${impactStart.toFixed(2)} s)`);
+    } else if (m && !process.env.AUDIO) {
+      // Muted run (harness default): nothing is scheduled, so check the plan instead — the swing's contact must
+      // land where the fit put it (cast + the chosen impact take's hit).
+      const planned = fit[fit.length - 1].match(/contact at ([\d.]+)s, swing/);
+      const actual = grab(b, /\[BattleManager\] special .* contact at ([\d.]+)s \(cast speed/).slice(-1)[0]?.match(/contact at ([\d.]+)s/);
+      if (planned && actual) expect(Math.abs(Number(planned[1]) - Number(actual[1])) < 0.05, `${CLASS}: the swing lands on the planned audio hit (planned ${planned[1]} s, contact ${actual[1]} s; muted run)`);
+      else console.log(`  fit: muted run, no contact line to compare (AUDIO=1 checks the scheduled clip)`);
     } else expect(false, `${CLASS}: audio-fit and impact-schedule lines both present`);
   }
   for (const l of grab(b, /\[HexGrid\] row depth|frame art per row/).slice(0, 2)) console.log('  rows:', l.slice(0, 240));

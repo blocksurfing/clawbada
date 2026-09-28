@@ -609,6 +609,7 @@ public class BattleManager : MonoBehaviour
                         bool cinematic = special && !projectile && windup != null && windup.prefab != null && windup.impactAt > 0f;
                         float castBeat = 0f, castLength = 0f;
                         AudioClip castClip = special ? BattleSfx.PeekSpecialCast(actor.classId, actor.tier, out castBeat, out castLength) : null;
+                        if (special) BattleSfx.ChooseSpecialImpact(actor.classId, actor.tier);   // one take, timed and played alike
                         // After a leap the cast sound is already playing and the strike is quick: no audio fit,
                         // the impact sound lands on the contact frame instead.
                         bool swingCombo = special && !leapt && !projectile && !cinematic && castClip != null && BattleSfx.HasSpecialImpact(actor.classId, actor.tier);
