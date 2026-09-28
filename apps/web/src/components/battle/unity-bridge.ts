@@ -116,6 +116,8 @@ export interface SelectionData {
   targetCount: number;
   canUndo: boolean;
   hint: string;
+  /** The hint is a failure (server rejection, send failed): Unity shows it even with game hints off. */
+  hintIsError: boolean;
   pendingAck: boolean;
 }
 export interface PreviewMoveData {
@@ -127,7 +129,7 @@ export interface PreviewMoveData {
 }
 export const IDLE_SELECTION: SelectionData = {
   isPlayerTurn: false, canAct: false, action: 'attack', canSpecial: false, specialName: '', specialKind: 'none',
-  hasMove: false, targetId: '', targetCount: 0, canUndo: false, hint: '', pendingAck: false,
+  hasMove: false, targetId: '', targetCount: 0, canUndo: false, hint: '', hintIsError: false, pendingAck: false,
 };
 
 export const UNITY_METHODS = {
@@ -309,6 +311,7 @@ export function selectionToData(
     canUndo: !!sel.moveTo,
     // The local hint (legality, "could not send") or the server's rejection — the bar draws it.
     hint: sel.hint ?? flags.error ?? '',
+    hintIsError: sel.hint ? sel.hint.startsWith('Could not send') : !!flags.error,
     pendingAck: flags.pendingAck,
   };
 }
