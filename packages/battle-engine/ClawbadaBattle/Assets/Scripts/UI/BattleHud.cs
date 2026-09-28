@@ -38,6 +38,8 @@ public class BattleHud : MonoBehaviour
     public ResultBanner Banner { get; private set; }
     public ActiveMarker Marker { get; private set; }
     public ActionBar Bar { get; private set; }
+    /// <summary>Every lobster's avatar portrait, taken once when the battle binds.</summary>
+    public PortraitSnapshot Portraits { get; private set; }
     /// <summary>Gear menu, top-right. Participants only; carries the forfeit.</summary>
     public OptionsMenu Options { get; private set; }
     public IReadOnlyDictionary<string, UnitOverlay> Overlays => overlays;
@@ -141,7 +143,8 @@ public class BattleHud : MonoBehaviour
 
         overlayLayer = HudFactory.Stretch(canvasRect, "Overlays");
         Strip = TurnStrip.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
-        Panel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
+        Portraits = new PortraitSnapshot(ActivePanel.PortraitPixels);
+        Panel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, Portraits);
         clockBox = HudFactory.Rect(canvasRect, "ClockBox", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-8f, ClockBottom), new Vector2(96f, 40f));
         HudFactory.AddImage(clockBox, skin.panelBg, new Color(1f, 1f, 1f, 0.92f));
         Clock = ClockView.Create(clockBox, "Clock", skin, 20);
@@ -150,7 +153,7 @@ public class BattleHud : MonoBehaviour
         Clock.Rect.anchoredPosition = new Vector2(6f, 0f);
         clockBox.gameObject.SetActive(false);
         // Above the clock box (+ 40 + 6), mirroring the acting lobster's avatar bottom-left.
-        TargetPanel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, rightSide: true, bottom: ClockBottom + 46f);
+        TargetPanel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, Portraits, rightSide: true, bottom: ClockBottom + 46f);
         // LOKR-style: the selected target carries a small copy of the armed action's button above it.
         // Clickable (user 2026-09-27): tapping the badge confirms the selected target, exactly like pressing
         // the armed action again — so it is raycast-on and forwards the armed action to React.
@@ -341,6 +344,9 @@ public class BattleHud : MonoBehaviour
             if (ids.Length > 0) ids.Append(',');
             ids.Append(lob.lobsterId);
         }
+        // Avatar portraits: once per lobster, now, while every rig stands at rest (user: not every turn).
+        Portraits.Clear();
+        foreach (var lob in manager.Lobsters) if (lob != null) Portraits.Capture(lob, ActivePanel.PortraitDrop);
         Strip.Bind(manager.Lobsters);
         Strip.SetEntries("", null);
 

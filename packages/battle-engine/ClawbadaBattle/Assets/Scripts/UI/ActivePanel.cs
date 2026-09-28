@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Round avatar of the acting lobster, bottom-left (Nzib, 2026-09-27): a STILL portrait rendered from its own rig
-/// (PortraitSnapshot — exactly how it looks on the board, its own DNA-mixed parts, frozen on Idle's first frame)
+/// ONCE at battle load (PortraitSnapshot — how it looks on the board at rest, its own DNA-mixed parts, Idle's first frame)
 /// masked by its class-coloured disc, under his silver ring. Framed like his mock: zoomed on the FRONT half (shell,
 /// claws, eyes — the tail and back legs fall outside the disc), and the claws and antennae BREAK OUT over the ring
 /// and the gauges (a second render of just those, masked to everything outside the disc). Side view, like the rigs;
@@ -34,22 +34,26 @@ public class ActivePanel : MonoBehaviour
     private const float GaugeCell = 96f, GaugeSpanDeg = 130f, GaugeCapDeg = 2.2f;
     private static float FillSpan => (GaugeSpanDeg - GaugeCapDeg) / 360f;
     /// <summary>Portrait zoom over the board's pixel scale (1 = a lobster pixel is a ring pixel, as Nzib draws).
-    /// 1.5: the front half fills the disc and the claws break out (user 2026-09-27: "zoom in a bit more").</summary>
-    private const float PortraitZoom = 1.5f;
+    /// 1.75: the front half fills the disc and the claws break out (user 2026-09-27: "zoom in a bit more", then
+    /// "just a touch more").</summary>
+    public const float PortraitZoom = 1.75f;
     /// <summary>Drop the body this share of the view below centre, so the antennae have room to break out on top.</summary>
-    private const float PortraitDrop = 0.06f;
+    public const float PortraitDrop = 0.06f;
 
     private HudSkin skin;
     private LobsterPartLibrary partLibrary;
     private Image disc;
     private RawImage portrait, portraitPop;
-    private PortraitSnapshot snapshot;
+    private PortraitSnapshot portraits;
     private Image hpFill, chargeFill;
     private RectTransform statusRow;
     private readonly List<Image> statusIcons = new();
     private float iconSize;
 
-    public static ActivePanel Create(Transform parent, HudSkin skin, LobsterPartLibrary partLibrary, bool rightSide = false, float bottom = 8f)
+    /// <summary>The camera frame the portraits are taken in: the whole gauge cell at PortraitZoom × the ring's pixels.</summary>
+    public static int PortraitPixels => Mathf.RoundToInt(GaugeCell / PortraitZoom / 2f) * 2;
+
+    public static ActivePanel Create(Transform parent, HudSkin skin, LobsterPartLibrary partLibrary, PortraitSnapshot portraits, bool rightSide = false, float bottom = 8f)
     {
         float size = Size(skin);
         var corner = rightSide ? new Vector2(1f, 0f) : Vector2.zero;
@@ -67,8 +71,8 @@ public class ActivePanel : MonoBehaviour
 
         // The snapshot covers the whole gauge cell (so the break-out has room), at PortraitZoom × the ring's pixels.
         float cell = GaugeCell * (size / 80f);
-        p.snapshot = new PortraitSnapshot(Mathf.RoundToInt(GaugeCell / PortraitZoom));
-        p.portrait = Raw(discRt, "Portrait", p.snapshot.Full, cell);
+        p.portraits = portraits;
+        p.portrait = Raw(discRt, "Portrait", null, cell);
 
         if (skin.avatarFrame != null) HudFactory.AddImage(HudFactory.Stretch(rt, "Frame"), skin.avatarFrame, Color.white);
         else HudFactory.AddImage(HudFactory.Stretch(rt, "Frame"), skin.ring, skin.fieldBarRim);
@@ -87,7 +91,7 @@ public class ActivePanel : MonoBehaviour
         {
             var pop = HudFactory.Image(rt, "BreakOut", skin.avatarPopMask, Color.white, new Vector2(cell, cell));
             pop.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-            p.portraitPop = Raw(pop.transform, "Portrait", p.snapshot.Pop, cell);
+            p.portraitPop = Raw(pop.transform, "Portrait", null, cell);
         }
 
         p.iconSize = 18f;
@@ -130,7 +134,10 @@ public class ActivePanel : MonoBehaviour
         if (bg != null) disc.sprite = bg;
         ShownClass = lob.classId;
 
-        snapshot.Capture(lob, PortraitDrop);
+        var pic = portraits?.Get(lob, PortraitDrop);   // taken once at battle load; this only looks it up
+        portrait.texture = pic?.Full;
+        portrait.enabled = pic != null;
+        if (portraitPop != null) { portraitPop.texture = pic?.Pop; portraitPop.enabled = pic != null; }
         Refresh();
     }
 
