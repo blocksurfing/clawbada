@@ -58,6 +58,36 @@ MonoBehaviour:
   btnNeutral: {fileID: 21300000, guid: a65b64430dc4e470bbfc3300ed96bdd6, type: 3}
   btnGear: {fileID: 21300000, guid: 52b3630e3d2bf4250a72b9c746762fc9, type: 3}
   hexGlow: {fileID: 21300000, guid: 660c82333a38e4b47b163d13b8fbc928, type: 3}
+  actionFrame: {fileID: 291794058669950040, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  actionAttack: {fileID: 638132931267961869, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  actionDefend: {fileID: 1052731709752394881, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  actionWait: {fileID: 510141584573289722, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  specialButtons:
+  - {fileID: 309208911559238888, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  - {fileID: 82798145244591140, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  - {fileID: 661580910626022569, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  - {fileID: 628168317060265006, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  - {fileID: 303767863544038568, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  - {fileID: 447217917981205675, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  - {fileID: 989566198067381422, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  - {fileID: 65832651474875564, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  - {fileID: 1119645059197154369, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  - {fileID: 831314738952758419, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  actionGlow: {fileID: 21300000, guid: c17871dc64c7f42209d294c04a9587fb, type: 3}
+  avatarFrame: {fileID: 869145987499566185, guid: 940d02493261419794122f45cd37b200, type: 3}
+  avatarBg:
+  - {fileID: 191105955840107727, guid: 940d02493261419794122f45cd37b200, type: 3}
+  - {fileID: 1112212935223534817, guid: 940d02493261419794122f45cd37b200, type: 3}
+  - {fileID: 70519122539316252, guid: 940d02493261419794122f45cd37b200, type: 3}
+  - {fileID: 129060465579521103, guid: 940d02493261419794122f45cd37b200, type: 3}
+  - {fileID: 461026413769094320, guid: 940d02493261419794122f45cd37b200, type: 3}
+  - {fileID: 843878069848425489, guid: 940d02493261419794122f45cd37b200, type: 3}
+  - {fileID: 473971743646573686, guid: 940d02493261419794122f45cd37b200, type: 3}
+  - {fileID: 309514702798820541, guid: 940d02493261419794122f45cd37b200, type: 3}
+  - {fileID: 606416369864361094, guid: 940d02493261419794122f45cd37b200, type: 3}
+  - {fileID: 118499854564123840, guid: 940d02493261419794122f45cd37b200, type: 3}
+  avatarArc: {fileID: 21300000, guid: b070bad46703c4f608e8185be11ddb6f, type: 3}
+  chargeArc: {r: 0.2901961, g: 0.6392157, b: 1, a: 1}
   cardFrame: {fileID: 21300000, guid: 22a19b238309e443eb0e5294fe0ebfcb, type: 3}
   cardHeader: {fileID: 21300000, guid: 9e9164114ed374d988f13e03c4c4a70a, type: 3}
   pennant: {fileID: 21300000, guid: 9d8c0ae792c9649fead6141e3708912b, type: 3}
@@ -71,6 +101,7 @@ MonoBehaviour:
   fillCanvas: 1
   fillOrthographicSize: 2.8125
   font: {fileID: 0}
+  pixelFont: {fileID: 0}
   selectorController: {fileID: 9100000, guid: 7c24562e530663043886cf1e52630450, type: 2}
   selectorSprite: {fileID: -1794730122, guid: f883cc5724df12c44bddcfdc5cbd9d7c, type: 3}
   selectorOffset: {x: 0, y: -0.02, z: 0}
@@ -96,6 +127,10 @@ MonoBehaviour:
   buttonSize: 64
   overlayBar: {x: 52, y: 10}
   overlayWorldYOffset: 0.22
+  fieldBarFrame: {r: 0.14117648, g: 0.16862746, b: 0.21960784, a: 1}
+  fieldBarRim: {r: 0.5137255, g: 0.5686275, b: 0.6666667, a: 1}
+  fieldBarFriend: {r: 0.37254903, g: 0.8392157, b: 0.2901961, a: 1}
+  fieldBarEnemy: {r: 0.8862745, g: 0.2784314, b: 0.24705882, a: 1}
   floatRise: 40
   floatSeconds: 1.2
   clockDangerMs: 10000
