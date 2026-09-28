@@ -24,6 +24,18 @@ export default async function (b: Browser) {
   await b.eval(`document.querySelector('canvas')?.scrollIntoView({ block: 'start' })`);
   await b.waitFor(`/Your turn/i.test(document.body.innerText) && !/animating…/.test(document.body.innerText)`, 60000, 300);
   await b.sleep(900);
+  // PLAY=n: Defend through n own turns first, so the avatar has swapped lobsters several times (the stale-clone bug).
+  const turnNo = `(document.body.innerText.match(/Turn (\\d+)/i) || [])[1]`;
+  for (let k = 0; k < Number(process.env.PLAY ?? 0); k++) {
+    const g0 = await b.eval(`(() => { const c = document.querySelector('canvas'); const r = c.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bw: c.width, bh: c.height }; })()`);
+    const mm = (grab(b, /\[BattleHud\] buttons/).slice(-1)[0] ?? '').match(/defend=\((-?\d+),(-?\d+),(\d+),(\d+)\)/);
+    if (!mm) break;
+    const before = await b.eval(turnNo);
+    await b.clickAt(g0.x + (+mm[1] + +mm[3] / 2) * g0.w / g0.bw, g0.y + (g0.bh - (+mm[2] + +mm[4] / 2)) * g0.h / g0.bh);
+    await b.waitFor(`${turnNo} !== ${JSON.stringify(before)}`, 25000, 200);
+    await b.waitFor(`/Your turn/i.test(document.body.innerText) && !/animating…/.test(document.body.innerText)`, 60000, 300);
+    await b.sleep(900);
+  }
   const line = grab(b, /\[BattleHud\] buttons/).slice(-1)[0] ?? '';
   const m = line.match(/defend=\((-?\d+),(-?\d+),(\d+),(\d+)\)/);
   if (!m) { console.log('FAIL no buttons line'); return; }
