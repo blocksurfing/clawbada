@@ -90,3 +90,6 @@ export default async function (b: Browser) {
   console.log('prefs now:', await b.eval(`JSON.stringify({ music: localStorage.getItem('clawbada_music'), sfx: localStorage.getItem('clawbada_sfx') })`));
   console.log(fails.length ? `FAILED: ${fails.length}` : 'ALL CHECKS PASSED');
 }
+
+/** Tests audio itself: opt out of the harness mute (cdp.ts). */
+export const keepAudio = true;

@@ -99,3 +99,6 @@ export default async function (b: Browser) {
 
   console.log(fails.length ? `FAILED: ${fails.length}` : 'ALL CHECKS PASSED');
 }
+
+/** Tests audio itself: opt out of the harness mute (cdp.ts). */
+export const keepAudio = true;
