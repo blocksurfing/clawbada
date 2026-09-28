@@ -90,10 +90,11 @@ public static class BattleSfxBinder
             string stem = $"{SpecialDir}SFX_{Classes[i]}_{Abilities[i]}";
 
             int castN = Fill(slot.cast, stem);
-            int impactN = Fill(slot.impact, stem + "_Impact");
+            bool attack = AttackTimedImpacts.Contains(Classes[i]);
+            int impactN = Fill(slot.impact, stem + "_Impact", attack);
             int healN = Fill(slot.heal, stem + "_Heal");
             string leadSource = FirstExisting(stem + "_Impact");
-            slot.impactLead = leadSource != null ? MeasureLoudestMoment(leadSource) : 0f;
+            slot.impactLead = leadSource != null ? MeasureLoudestMoment(leadSource, attack) : 0f;
             lib.specialByClass[i] = slot;
 
             if (castN + impactN > 0)
@@ -175,7 +176,15 @@ public static class BattleSfxBinder
 
     /// <summary>Loads `stem.wav` into shared, `stem_&lt;Tier&gt;.wav` into each tier and `stem_NN.wav` into the numbered
     /// takes. Returns how many bound.</summary>
-    private static int Fill(BattleSfxLibrary.TierClips t, string stem)
+    /// <summary>
+    /// Classes whose IMPACT takes are timed by their sharpest attack instead of their loudest 50 ms. Crush's takes
+    /// (2026-09-28) are compressed flat — full scale for a third of a second — so "loudest" lands anywhere in that
+    /// plateau (0.20 s for both) while the smash itself cracks at 0.09 s / 0.01 s. Opt-in per class: switching every
+    /// impact would move the approved Ambush (0.00 → 0.25 s) and Maelstrom (0.30 → 0.01 s) timings.
+    /// </summary>
+    private static readonly HashSet<string> AttackTimedImpacts = new() { "Leviathan" };
+
+    private static int Fill(BattleSfxLibrary.TierClips t, string stem, bool attack = false)
     {
         t.shared = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}.wav");
         t.evolved = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{Tiers[0]}.wav");
@@ -183,10 +192,10 @@ public static class BattleSfxBinder
         t.apex = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{Tiers[2]}.wav");
         // Where the hit sits inside each file: a cast clip that carries its own landing (two
         // connected Bind takes) has the swing timed to it; an impact clip is started early by it.
-        t.sharedBeat = t.shared != null ? MeasureLoudestMoment($"{stem}.wav") : 0f;
-        t.evolvedBeat = t.evolved != null ? MeasureLoudestMoment($"{stem}_{Tiers[0]}.wav") : 0f;
-        t.eliteBeat = t.elite != null ? MeasureLoudestMoment($"{stem}_{Tiers[1]}.wav") : 0f;
-        t.apexBeat = t.apex != null ? MeasureLoudestMoment($"{stem}_{Tiers[2]}.wav") : 0f;
+        t.sharedBeat = t.shared != null ? MeasureLoudestMoment($"{stem}.wav", attack) : 0f;
+        t.evolvedBeat = t.evolved != null ? MeasureLoudestMoment($"{stem}_{Tiers[0]}.wav", attack) : 0f;
+        t.eliteBeat = t.elite != null ? MeasureLoudestMoment($"{stem}_{Tiers[1]}.wav", attack) : 0f;
+        t.apexBeat = t.apex != null ? MeasureLoudestMoment($"{stem}_{Tiers[2]}.wav", attack) : 0f;
         var takes = new List<AudioClip>();
         var beats = new List<float>();
         for (int n = 1; n <= 20; n++)
@@ -195,7 +204,7 @@ public static class BattleSfxBinder
             var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(p);
             if (clip == null) continue;
             takes.Add(clip);
-            beats.Add(MeasureLoudestMoment(p));
+            beats.Add(MeasureLoudestMoment(p, attack));
         }
         t.variants = takes.ToArray();
         t.variantBeats = beats.ToArray();
@@ -216,7 +225,7 @@ public static class BattleSfxBinder
     /// Seconds from the start of a 16-bit PCM WAV to its loudest 50 ms window — where the strike
     /// actually cracks. 0 if the file can't be read as PCM, which just means "no lead".
     /// </summary>
-    private static float MeasureLoudestMoment(string assetPath)
+    private static float MeasureLoudestMoment(string assetPath, bool attack = false)
     {
         try
         {
@@ -242,6 +251,24 @@ public static class BattleSfxBinder
             dataLen = System.Math.Min(dataLen, b.Length - dataOff);
 
             int frames = dataLen / (2 * channels);
+            if (attack)
+            {
+                // Sharpest attack: the 10 ms window whose peak (any channel) rises most over the one before it.
+                int w10 = rate / 100;
+                int prev = -1; float at = 0f; int bestRise = int.MinValue;
+                for (int start = 0; start + w10 <= frames; start += w10)
+                {
+                    int peak = 0;
+                    for (int i = 0; i < w10 * channels; i++)
+                    {
+                        int v = System.Math.Abs((int)System.BitConverter.ToInt16(b, dataOff + (start * channels + i) * 2));
+                        if (v > peak) peak = v;
+                    }
+                    if (prev >= 0 && peak - prev > bestRise) { bestRise = peak - prev; at = start / (float)rate; }
+                    prev = peak;
+                }
+                return at;
+            }
             int win = rate / 20; // 50 ms
             double best = -1; int bestStart = 0;
             for (int start = 0; start + win <= frames; start += win)

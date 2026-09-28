@@ -140,8 +140,35 @@ public static class BattleSfx
     /// <summary>True when a Special impact clip is bound for this class/tier.</summary>
     public static bool HasSpecialImpact(int classId, int tier) => Library?.SpecialImpactFor(classId, tier) != null;
 
-    /// <summary>Seconds into the class's Special impact clip where its hit sits (the binder's measured loudest moment).</summary>
-    public static float SpecialImpactHit(int classId) => Library?.SpecialImpactLead(classId) ?? 0f;
+    // The impact take chosen for the Special being cast. Numbered takes crack at different points
+    // (Crush: 0.19 s vs 0.04 s in), so the take is picked ONCE, up front — the timing (SpecialImpactHit)
+    // and the playback (PlaySpecialImpact / PlaySpecialImpactIn) then agree on the same file.
+    private static int chosenClass = -1;
+    private static AudioClip chosenImpact;
+    private static float chosenHit;
+
+    /// <summary>Pick this cast's impact take (random among numbered takes) and remember it with its own hit time.</summary>
+    public static void ChooseSpecialImpact(int classId, int tier)
+    {
+        chosenClass = -1; chosenImpact = null; chosenHit = 0f;
+        var slot = Library?.SpecialSlot(classId);
+        if (slot?.impact == null) return;
+        var clip = slot.impact.Pick(tier, out float beat);
+        if (clip == null) return;
+        chosenClass = classId; chosenImpact = clip;
+        chosenHit = beat > 0f ? beat : slot.impactLead;
+        Debug.Log($"[BattleSfx] impact take {clip.name} (hit {chosenHit:F2}s in)");
+    }
+
+    private static AudioClip ImpactClip(int classId, int tier, out float hit)
+    {
+        if (chosenClass == classId && chosenImpact != null) { hit = chosenHit; return chosenImpact; }
+        hit = Library?.SpecialImpactLead(classId) ?? 0f;
+        return Library?.SpecialImpactFor(classId, tier);
+    }
+
+    /// <summary>Seconds into this cast's impact take where its hit sits (the binder's measured loudest moment).</summary>
+    public static float SpecialImpactHit(int classId) => chosenClass == classId && chosenImpact != null ? chosenHit : Library?.SpecialImpactLead(classId) ?? 0f;
 
     /// <summary>True when a heal clip is bound for this class's Special.</summary>
     public static bool HasSpecialHeal(int classId, int tier) => Library?.SpecialHealFor(classId, tier) != null;
@@ -150,7 +177,7 @@ public static class BattleSfx
     public static void PlaySpecialHeal(int classId, int tier) => Play(Library?.SpecialHealFor(classId, tier), "heal");
 
     /// <summary>Impact phase, right now. For the plain branch, where the beat is the swing's own contact frame.</summary>
-    public static void PlaySpecialImpact(int classId, int tier) => Play(Library?.SpecialImpactFor(classId, tier), "impact");
+    public static void PlaySpecialImpact(int classId, int tier) => Play(ImpactClip(classId, tier, out _), "impact");
 
     /// <summary>
     /// Impact phase against a beat that is <paramref name="secondsUntilBeat"/> away: starts
@@ -161,9 +188,8 @@ public static class BattleSfx
     {
         var lib = Library;
         if (!Enabled || lib == null || !Application.isPlaying) return;
-        var clip = lib.SpecialImpactFor(classId, tier);
+        var clip = ImpactClip(classId, tier, out float lead);
         if (clip == null) return;
-        float lead = lib.SpecialImpactLead(classId);
         float delay = Mathf.Max(0f, secondsUntilBeat - lead);
         Debug.Log($"[BattleSfx] {clip.name} (impact) scheduled: beat in {secondsUntilBeat:F2}s, lead {lead:F2}s → starts in {delay:F2}s");
         EnsureSource();
