@@ -152,6 +152,9 @@ public class LobsterController : MonoBehaviour
         }
     }
 
+    /// <summary>True for a body-part renderer's object name (not an FX anchor or an attached effect).</summary>
+    public static bool IsBodyPart(string name) => PartSlotForName(name) >= 0;
+
     private static int PartSlotForName(string name)
     {
         switch (name)

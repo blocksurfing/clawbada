@@ -10,8 +10,10 @@ using UnityEngine;
 ///   Art/UI/Avatar.png — Avatar_Frame + Avatar_BG_&lt;Class&gt; → avatarFrame, avatarBg[classId].
 /// Also generates two helpers from his art, so they line up with it pixel for pixel:
 ///   action_glow.png — a stepped 3 px halo around the frame's hex (hover + armed glow);
-///   avatar_arc.png  — a white band on the avatar ring, radially filled for the placeholder HP (left) and
-///                     charge (right) arcs until his arc art lands.
+///   avatar_gauge_track.png — the two gauge frames OUTSIDE the ring (his mock, 2026-09-27): a left arc for HP and
+///                     a right arc for charge, each a dark outline with a bronze rim and end caps;
+///   avatar_arc.png  — the white fill band inside those frames, radially filled and tinted (green HP, blue charge),
+///                     shaded so the tint keeps a highlight. Both stand in until his gauge art lands.
 /// Slices are found by NAME, so a re-slice or a re-ordered sheet still binds. Re-run after any HUD drop.
 /// Menu: Clawbada ▸ HUD ▸ Bind Nzib HUD Art. Headless: -executeMethod NzibHudBinder.Bind
 /// </summary>
@@ -51,8 +53,8 @@ public static class NzibHudBinder
             throw new System.Exception($"[NzibHudBinder] {ButtonSheet} is missing a Frame/Attack/Defend/Wait slice");
 
         skin.actionGlow = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("action_glow", Glow(skin.actionFrame)));
-        if (skin.avatarFrame != null)
-            skin.avatarArc = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("avatar_arc", Arc((int)skin.avatarFrame.rect.width)));
+        skin.avatarGaugeTrack = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("avatar_gauge_track", GaugeTrack()));
+        skin.avatarArc = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("avatar_arc", GaugeFill()));
 
         EditorUtility.SetDirty(skin);
         AssetDatabase.SaveAssets();
@@ -129,16 +131,63 @@ public static class NzibHudBinder
         return tex;
     }
 
-    /// <summary>A white band over the avatar frame's silver ring (radii 31.5–35 of an 80 px frame), for radial fills.</summary>
-    private static Texture2D Arc(int size)
+    // Gauge geometry, in px of a GaugeCell cell centred on the 80 px avatar frame (the ring's outer edge is r 36).
+    public const int GaugeCell = 96;
+    public const float GaugeSpanDeg = 130f;       // each arc, centred on 9 o'clock (HP) and 3 o'clock (charge)
+    public const float GaugeCapDeg = 2.2f;        // the end caps' angular width at the fill radius
+    private const float OutIn = 37f, FillIn = 38.5f, FillOut = 42.5f, OutOut = 44f, RimOut = 45f;
+    private static readonly Color Outline = new Color32(0x0d, 0x12, 0x16, 0xff);
+    private static readonly Color Rim = new Color32(0x6b, 0x54, 0x36, 0xff);
+    private static readonly Color Empty = new Color32(0x1a, 0x1f, 0x26, 0xff);
+
+    /// <summary>Angular distance (deg) of a pixel from the nearest arc centre (180° or 0°), and its radius.</summary>
+    private static void Polar(int x, int y, out float r, out float off)
     {
-        float c = size / 2f, k = size / 80f, r0 = 31.5f * k, r1 = 35f * k;
-        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        for (int x = 0; x < size; x++)
-            for (int y = 0; y < size; y++)
+        float c = GaugeCell / 2f, dx = x + 0.5f - c, dy = y + 0.5f - c;
+        r = Mathf.Sqrt(dx * dx + dy * dy);
+        float a = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg;       // 0 = right, 180 = left
+        off = Mathf.Min(Mathf.Abs(Mathf.DeltaAngle(a, 180f)), Mathf.Abs(Mathf.DeltaAngle(a, 0f)));
+    }
+
+    private static Texture2D GaugeTrack()
+    {
+        var tex = new Texture2D(GaugeCell, GaugeCell, TextureFormat.RGBA32, false);
+        float half = GaugeSpanDeg / 2f;
+        for (int x = 0; x < GaugeCell; x++)
+            for (int y = 0; y < GaugeCell; y++)
             {
-                float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(c, c));
-                tex.SetPixel(x, y, d >= r0 && d <= r1 ? Color.white : Color.clear);
+                Polar(x, y, out float r, out float off);
+                Color c = Color.clear;
+                float capDeg = 1.5f / Mathf.Max(r, 1f) * Mathf.Rad2Deg;   // ~1.5 px of arc
+                if (off <= half + capDeg && r >= OutIn && r <= RimOut)
+                {
+                    bool cap = off > half - GaugeCapDeg / 2f;
+                    if (r > OutOut) c = Rim;
+                    else if (r < FillIn || r > FillOut || cap) c = Outline;
+                    else c = Empty;
+                }
+                tex.SetPixel(x, y, c);
+            }
+        tex.Apply();
+        return tex;
+    }
+
+    /// <summary>Full annulus at the fill radii; the inner row darker and the outer-middle row brightest, so a tint keeps depth.</summary>
+    private static Texture2D GaugeFill()
+    {
+        var tex = new Texture2D(GaugeCell, GaugeCell, TextureFormat.RGBA32, false);
+        for (int x = 0; x < GaugeCell; x++)
+            for (int y = 0; y < GaugeCell; y++)
+            {
+                Polar(x, y, out float r, out _);
+                Color c = Color.clear;
+                if (r >= FillIn && r <= FillOut)
+                {
+                    float t = (r - FillIn) / (FillOut - FillIn);
+                    float v = t < 0.25f ? 0.72f : t < 0.75f ? 1f : 0.86f;
+                    c = new Color(v, v, v, 1f);
+                }
+                tex.SetPixel(x, y, c);
             }
         tex.Apply();
         return tex;

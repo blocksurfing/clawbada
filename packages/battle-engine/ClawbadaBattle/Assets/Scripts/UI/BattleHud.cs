@@ -178,7 +178,7 @@ public class BattleHud : MonoBehaviour
         // Buttons right beside the avatar, low: centred on it they covered the lower edge of the board's bottom row.
         float avatar = ActivePanel.Size(skin);
         // The hint line sits under the clock, flush with its right edge, above React's FULL button in the corner.
-        Bar = ActionBar.Create(canvasRect, skin, new Vector2(8f + avatar + 6f, 10f), new Vector2(-10f, ClockBottom - 20f));
+        Bar = ActionBar.Create(canvasRect, skin, new Vector2(ActivePanel.Margin + avatar + ActivePanel.GaugeOverhang + 6f, 10f), new Vector2(-10f, ClockBottom - 20f));
         bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
         Options = OptionsMenu.Create(canvasRect, skin);

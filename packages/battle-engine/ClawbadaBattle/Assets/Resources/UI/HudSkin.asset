@@ -86,7 +86,9 @@ MonoBehaviour:
   - {fileID: 309514702798820541, guid: 940d02493261419794122f45cd37b200, type: 3}
   - {fileID: 606416369864361094, guid: 940d02493261419794122f45cd37b200, type: 3}
   - {fileID: 118499854564123840, guid: 940d02493261419794122f45cd37b200, type: 3}
+  avatarGaugeTrack: {fileID: 21300000, guid: f1660d76b1af140c98e8b96706c1aa84, type: 3}
   avatarArc: {fileID: 21300000, guid: b070bad46703c4f608e8185be11ddb6f, type: 3}
+  hpGaugeFull: {r: 0.34901962, g: 0.7254902, b: 0.48235294, a: 1}
   chargeArc: {r: 0.2901961, g: 0.6392157, b: 1, a: 1}
   cardFrame: {fileID: 21300000, guid: 22a19b238309e443eb0e5294fe0ebfcb, type: 3}
   cardHeader: {fileID: 21300000, guid: 9e9164114ed374d988f13e03c4c4a70a, type: 3}
