@@ -58,7 +58,7 @@ MonoBehaviour:
   btnNeutral: {fileID: 21300000, guid: a65b64430dc4e470bbfc3300ed96bdd6, type: 3}
   btnGear: {fileID: 21300000, guid: 52b3630e3d2bf4250a72b9c746762fc9, type: 3}
   hexGlow: {fileID: 21300000, guid: 660c82333a38e4b47b163d13b8fbc928, type: 3}
-  actionFrame: {fileID: 291794058669950040, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
+  actionFrame: {fileID: 868980681, guid: bf904e76c7b4eb247a1c7e110d70105d, type: 3}
   actionAttack: {fileID: 638132931267961869, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
   actionDefend: {fileID: 1052731709752394881, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
   actionWait: {fileID: 510141584573289722, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
