@@ -39,5 +39,6 @@ export default async function (b: Browser) {
   await b.screenshot(`${S}/ui-feel-${CLASS}-press.png`);
   await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x + 400, y: y - 300, button: 'left' });
   await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x + 400, y: y - 300, button: 'left', clickCount: 1 });
+  for (const l of grab(b, /\[BattleHud\] portrait |Exception|Can't remove/).slice(-4)) console.log(l.trim());
   console.log(`ui-feel ${CLASS}: shots written; ${line}`);
 }
