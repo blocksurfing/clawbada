@@ -5,8 +5,9 @@ using UnityEngine;
 
 /// <summary>
 /// Binds Nzib's HUD sheets (drop 2026-09-27) into Resources/UI/HudSkin.asset:
-///   Art/UI/ActionButton.png — ActionButton_Frame / _Attack / _Defend / _Wait and one
-///     ActionButton_&lt;Class&gt;_&lt;Special&gt; per class → actionFrame, actionAttack/Defend/Wait, specialButtons[classId];
+///   Art/UI/ActionButton_Frame.png — ActionButton_Frame_Normal → actionFrame;
+///   Art/UI/ActionButton.png — ActionButton_Attack / _Defend / _Wait and one
+///     ActionButton_&lt;Class&gt;_&lt;Special&gt; per class → actionAttack/Defend/Wait, specialButtons[classId];
 ///   Art/UI/Avatar.png — Avatar_Frame + Avatar_BG_&lt;Class&gt; → avatarFrame, avatarBg[classId].
 /// Also generates two helpers from his art, so they line up with it pixel for pixel:
 ///   action_glow.png — a stepped 3 px halo around the frame's hex (hover + armed glow);
@@ -22,6 +23,7 @@ using UnityEngine;
 public static class NzibHudBinder
 {
     private const string ButtonSheet = "Assets/Art/UI/ActionButton.png";
+    private const string ButtonFrameSheet = "Assets/Art/UI/ActionButton_Frame.png";
     private const string AvatarSheet = "Assets/Art/UI/Avatar.png";
     private const int GlowPad = 4;
 
@@ -35,7 +37,8 @@ public static class NzibHudBinder
         var avatars = AssetDatabase.LoadAllAssetsAtPath(AvatarSheet).OfType<Sprite>().ToArray();
         Sprite Find(Sprite[] all, string name) => all.FirstOrDefault(s => s.name == name);
 
-        skin.actionFrame = Find(buttons, "ActionButton_Frame");
+        var frames = AssetDatabase.LoadAllAssetsAtPath(ButtonFrameSheet).OfType<Sprite>().ToArray();
+        skin.actionFrame = Find(frames, "ActionButton_Frame_Normal");
         skin.actionAttack = Find(buttons, "ActionButton_Attack");
         skin.actionDefend = Find(buttons, "ActionButton_Defend");
         skin.actionWait = Find(buttons, "ActionButton_Wait");
@@ -52,7 +55,7 @@ public static class NzibHudBinder
             if (skin.avatarBg[c] != null) bgs++;
         }
         if (skin.actionFrame == null || skin.actionAttack == null || skin.actionDefend == null || skin.actionWait == null)
-            throw new System.Exception($"[NzibHudBinder] {ButtonSheet} is missing a Frame/Attack/Defend/Wait slice");
+            throw new System.Exception($"[NzibHudBinder] {ButtonFrameSheet} / {ButtonSheet} is missing a Normal frame or Attack/Defend/Wait slice");
 
         skin.actionGlow = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("action_glow", Glow(skin.actionFrame)));
         skin.avatarGaugeTrack = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("avatar_gauge_track", GaugeTrack()));
