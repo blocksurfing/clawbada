@@ -69,9 +69,12 @@ public class HudSkin : ScriptableObject
     public Sprite avatarFrame;
     [Tooltip("Class-coloured disc behind the portrait (also its circle mask), indexed by classId.")]
     public Sprite[] avatarBg = new Sprite[10];
-    [Tooltip("Placeholder HP / charge arc on the avatar ring (radial fill) until Nzib's arc art lands.")]
+    [Tooltip("Frames of the HP (left) and charge (right) gauges outside the avatar ring — placeholder until Nzib's gauge art.")]
+    public Sprite avatarGaugeTrack;
+    [Tooltip("Fill band inside the gauge frames (radial fill, tinted) — placeholder until Nzib's gauge art.")]
     public Sprite avatarArc;
-    public Color chargeArc = C("#4aa3ff");
+    public Color hpGaugeFull = C("#59b97b");
+    public Color chargeArc = C("#3171df");
 
     public Sprite SpecialButton(int classId) =>
         specialButtons != null && classId >= 0 && classId < specialButtons.Length ? specialButtons[classId] : null;

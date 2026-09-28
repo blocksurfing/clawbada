@@ -437,6 +437,8 @@ public class SelectionData
     public int targetCount;
     public bool canUndo;
     public string hint;
+    /// <summary>The hint is a failure (server rejection, lost connection): shown even with game hints off.</summary>
+    public bool hintIsError;
     public bool pendingAck;
 }
 

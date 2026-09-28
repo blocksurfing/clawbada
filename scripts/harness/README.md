@@ -45,6 +45,7 @@ failure shows up, check that column for the turn first.
 |---|---|---|
 | `specials.ts` | a class's Special casts, is accepted, animates, raises no exception; frame bursts per class | `TRIO=<Class>` `PRESET_ID` `PRESET_LABEL` `DPR` |
 | `ui-feel.ts` | Nzib's HUD: round avatar + button row, then Defend hovered (glow, +2 px) and pressed (darker, −2 px) → `out/ui-feel-<Class>-{idle,hover,press}.png` | `TRIO` |
+| `hints-probe.ts` | the hint line under the shot clock; options menu Hints row turns it off and back on (setting persists in PlayerPrefs, left ON) → `out/hints-{on,menu,off}.png` | — |
 | `sfx-probe.ts` | attack / cast / impact sound counts reconcile with turn actions; arena bed start, `<audio>` state, log order | `TRIO` `PRESET` `QUICK=1` |
 | `audio-prefs-probe.ts` → `audio-prefs-probe-2.ts` | Music/SFX toggles live, then persisted into a **fresh Chrome** via `out/audio-prefs.json` | run 1, restart Chrome, run 2 |
 | `overlap-probe.ts` | Fortify cast cadence vs the 6.8 s dome; watchdog firings; overlapping domes | `SPEED` `TAG` |

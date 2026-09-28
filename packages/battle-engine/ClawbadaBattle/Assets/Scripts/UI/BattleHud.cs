@@ -26,6 +26,8 @@ public class BattleHud : MonoBehaviour
     /// React fullscreen button that occupies the very corner.</summary>
     public ClockView Clock { get; private set; }
     private RectTransform clockBox;
+    /// <summary>Clock box bottom edge: leaves a line under it for the hint, clear of React's FULL button (≈ 8–26 up).</summary>
+    private const float ClockBottom = 54f;
 
     /// <summary>Start the shot clock (box shown) or stop it (box hidden — no empty frame on bot turns).</summary>
     private void SetClock(int remainingMs)
@@ -139,15 +141,15 @@ public class BattleHud : MonoBehaviour
         overlayLayer = HudFactory.Stretch(canvasRect, "Overlays");
         Strip = TurnStrip.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
         Panel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
-        clockBox = HudFactory.Rect(canvasRect, "ClockBox", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-8f, 34f), new Vector2(96f, 40f));
+        clockBox = HudFactory.Rect(canvasRect, "ClockBox", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-8f, ClockBottom), new Vector2(96f, 40f));
         HudFactory.AddImage(clockBox, skin.panelBg, new Color(1f, 1f, 1f, 0.92f));
         Clock = ClockView.Create(clockBox, "Clock", skin, 20);
         Clock.Rect.anchorMin = Clock.Rect.anchorMax = new Vector2(0.5f, 0.5f);
         Clock.Rect.pivot = new Vector2(0.5f, 0.5f);
         Clock.Rect.anchoredPosition = new Vector2(6f, 0f);
         clockBox.gameObject.SetActive(false);
-        // Above the clock box (34 + 40 + 6), mirroring the acting lobster's panel bottom-left.
-        TargetPanel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, rightSide: true, bottom: 80f);
+        // Above the clock box (+ 40 + 6), mirroring the acting lobster's avatar bottom-left.
+        TargetPanel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, rightSide: true, bottom: ClockBottom + 46f);
         // LOKR-style: the selected target carries a small copy of the armed action's button above it.
         // Clickable (user 2026-09-27): tapping the badge confirms the selected target, exactly like pressing
         // the armed action again — so it is raycast-on and forwards the armed action to React.
@@ -175,13 +177,15 @@ public class BattleHud : MonoBehaviour
         targetBadge.gameObject.SetActive(false);
         // Buttons right beside the avatar, low: centred on it they covered the lower edge of the board's bottom row.
         float avatar = ActivePanel.Size(skin);
-        Bar = ActionBar.Create(canvasRect, skin, new Vector2(8f + avatar + 6f, 10f));
+        // The hint line sits under the clock, flush with its right edge, above React's FULL button in the corner.
+        Bar = ActionBar.Create(canvasRect, skin, new Vector2(ActivePanel.Margin + avatar + ActivePanel.GaugeOverhang + 6f, 10f), new Vector2(-10f, ClockBottom - 20f));
         bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
         Options = OptionsMenu.Create(canvasRect, skin);
         Options.ForfeitConfirmed += () => bridge?.NotifyForfeit();
         Options.MusicToggled += on => bridge?.NotifyAudioPref("music", on);
         Options.SfxToggled += on => bridge?.NotifyAudioPref("sfx", on);
+        Options.HintsToggled += _ => Bar.RefreshHint();
         floatLayer = HudFactory.Stretch(canvasRect, "Floats");
         Banner = ResultBanner.Create(canvasRect, skin);
         Marker = ActiveMarker.Create(skin);
