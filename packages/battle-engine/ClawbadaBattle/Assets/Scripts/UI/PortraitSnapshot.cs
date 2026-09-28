@@ -67,7 +67,9 @@ public class PortraitSnapshot
     public void Capture(LobsterController lob, float drop)
     {
         if (lob == null) return;
-        if (clone != null) Object.Destroy(clone);
+        // Destroy is deferred to the end of the frame: hide the previous portrait NOW, or this frame's render
+        // photographs both (the last actor, often facing the other way, showed up mirrored over the new one).
+        if (clone != null) { clone.SetActive(false); Object.Destroy(clone); }
 
         // Clone under the INACTIVE holder: no Awake/OnEnable on the copy's scripts, which are removed next.
         clone = Object.Instantiate(lob.gameObject, holder.transform);
