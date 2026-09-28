@@ -53,4 +53,5 @@ export default async function (b: Browser) {
   await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x + 400, y: y - 300, button: 'left', clickCount: 1 });
   for (const l of grab(b, /\[BattleHud\] portrait |Exception|Can't remove/).slice(-4)) console.log(l.trim());
   console.log(`ui-feel ${CLASS}: shots written; ${line}`);
+  console.log('audio prefs:', await b.eval(`localStorage.getItem('clawbada_music') + '/' + localStorage.getItem('clawbada_sfx')`), (grab(b, /SetAudioPrefs/).slice(-1)[0] ?? '').trim());
 }

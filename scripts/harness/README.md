@@ -41,6 +41,8 @@ failure shows up, check that column for the turn first.
 
 ## Probes
 
+**House rules (built into `cdp.ts`, user 2026-09-27):** every probe runs **muted** (music + SFX prefs forced off before each page load) and **forfeits** a still-live battle when it finishes. Audio probes opt out with `export const keepAudio = true` (or `AUDIO=1`); keep a battle alive with `export const keepBattle = true` (or `KEEP=1`).
+
 | Probe | What it proves | Knobs |
 |---|---|---|
 | `specials.ts` | a class's Special casts, is accepted, animates, raises no exception; frame bursts per class | `TRIO=<Class>` `PRESET_ID` `PRESET_LABEL` `DPR` |
