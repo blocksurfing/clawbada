@@ -21,6 +21,8 @@ export interface Browser {
   /** Console output seen so far, newest last: "[log] …", "[error] …", "[exception] …". */
   readonly logs: string[];
   drainLogs(): void;
+  /** Every log line including drained ones, oldest first. */
+  readonly allLogs: string[];
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -45,6 +47,8 @@ async function connect(): Promise<Browser> {
   const ws = new WebSocket(await pickTarget());
   const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   const logs: string[] = [];
+  /** Everything a probe drained, for the runner's after-probe steps (forfeit needs the gear rect). */
+  const archive: string[] = [];
   let nextId = 1;
   let loadedAt = 0;
 
@@ -107,7 +111,8 @@ async function connect(): Promise<Browser> {
   const b: Browser = {
     send,
     logs,
-    drainLogs: () => { logs.length = 0; },
+    drainLogs: () => { archive.push(...logs); logs.length = 0; },
+    get allLogs() { return [...archive, ...logs]; },
     sleep,
     eval: evaluate,
     async goto(url) {
@@ -174,12 +179,13 @@ if (!mod.keepAudio && !process.env.AUDIO) {
 async function forfeitIfLive(b: Browser) {
   try {
     if (!(await b.eval(`/^\\/battle\\//.test(location.pathname)`))) return;
-    if (b.logs.some((l) => /\[BattleHud\] banner|forfeit accepted/.test(l))) return;
+    if (b.allLogs.some((l) => /\[BattleHud\] banner|forfeit accepted/.test(l))) return;
     const g = await b.eval(`(() => { const c = document.querySelector('canvas'); if (!c) return null; const r = c.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bw: c.width, bh: c.height }; })()`);
     if (!g) return;
     const rect = (key: string) => {
-      for (let i = b.logs.length - 1; i >= 0; i--) {
-        const m = b.logs[i].match(new RegExp(`\\[BattleHud\\] options .*?${key}=\\((-?\\d+),(-?\\d+),(\\d+),(\\d+)\\)`));
+      const all = b.allLogs;
+      for (let i = all.length - 1; i >= 0; i--) {
+        const m = all[i].match(new RegExp(`\\[BattleHud\\] options .*?${key}=\\((-?\\d+),(-?\\d+),(\\d+),(\\d+)\\)`));
         if (m) return { x: g.x + (+m[1] + +m[3] / 2) * g.w / g.bw, y: g.y + (g.bh - (+m[2] + +m[4] / 2)) * g.h / g.bh };
       }
       return null;
