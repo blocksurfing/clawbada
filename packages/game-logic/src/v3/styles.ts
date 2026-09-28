@@ -7,7 +7,9 @@
  *   focus     — the whole team commits to one kill target
  *   roles     — class-aware: ranged classes kite at distance 2, melee brawl,
  *               tanks stand between enemies and allies, Sentinel shadows the hurt
- *   deep      — considers the opponent's best reply (2-ply beam search)
+ *   deep      — considers the opponent's best reply (2-ply beam search), with the team committing to one
+ *               target (focus fire) and covering its own likeliest victim — upgraded 2026-09-28 after the
+ *               naive `focus` script beat the old deep 60–40 (scripts/focus-probe.ts)
  */
 import { deriveRandom } from '../hash';
 import { LobsterClass } from '../types';
@@ -17,7 +19,7 @@ import { hasStatus } from './effects';
 import { BOT_WEIGHTS, chooseTurn, rankTurns, type Bias, type BotWeights } from './bots';
 import { cloneBattleState, type Policy } from './sim';
 import type { AtbBattleState, AtbLobster, TurnCommand } from './state';
-import { applyTurn } from './turn';
+import { applyTurn, attackRangeOf, moveRangeOf } from './turn';
 
 const n = (b: bigint) => Number(b);
 
@@ -44,16 +46,54 @@ export function focusTarget(state: AtbBattleState, team: AtbLobster['team']): At
   return best;
 }
 
-export const focusPolicy: Policy = (state, actor) => {
+/** Team focus fire: attacks and Specials on the focus target are worth more, on anyone else less; otherwise
+ *  drift toward it. */
+export function focusBias(state: AtbBattleState, actor: AtbLobster): Bias {
   const focus = focusTarget(state, actor.team);
-  const bias: Bias = (cmd, { target, dest }) => {
+  return (cmd, { target, dest }) => {
     if (!focus) return 0;
     if ((cmd.action === 'attack' || cmd.action === 'special') && target) return target.id === focus.id ? 60 : -60;
     // When not attacking, drift toward the focus target.
     return -8 * hexDistance(dest, focus.pos);
   };
-  return chooseTurn(state, actor, BOT_WEIGHTS.balanced, bias);
-};
+}
+
+export const focusPolicy: Policy = (state, actor) => chooseTurn(state, actor, BOT_WEIGHTS.balanced, focusBias(state, actor));
+
+/** Enemies that could reach `victim` with an attack before it acts again (move + attack range). */
+function threatsOn(state: AtbBattleState, victim: AtbLobster): number {
+  let k = 0;
+  for (const e of state.lobsters)
+    if (e.alive && e.team !== victim.team && hexDistance(e.pos, victim.pos) <= moveRangeOf(state, e.class) + attackRangeOf(state, e.class)) k++;
+  return k;
+}
+
+/** Cover the ally the enemy would focus (their focus target is our lowest-HP lobster) once two or more enemies
+ *  can reach it: it Defends and steps back, Sentinel Rallies it, Bulwark Fortifies, allies stand beside it. */
+export function protectBias(state: AtbBattleState, actor: AtbLobster): Bias {
+  const victim = focusTarget(state, actor.team === 'A' ? 'B' : 'A');
+  const enemies = state.lobsters.filter(l => l.alive && l.team !== actor.team);
+  const threat = victim ? threatsOn(state, victim) : 0;
+  return (cmd, { dest, target, exposure }) => {
+    if (!victim || threat < 2) return 0;
+    let b = 0;
+    if (victim.id === actor.id) {
+      if (cmd.action === 'defend') b += 40 + exposure * 0.4;
+      b += 12 * Math.min(...enemies.map(e => hexDistance(dest, e.pos)));
+    } else {
+      if (actor.class === LobsterClass.Sentinel && cmd.action === 'special' && target?.id === victim.id) b += 90;
+      if (actor.class === LobsterClass.Bulwark && cmd.action === 'special') b += 70;
+      if (hexDistance(dest, victim.pos) === 1) b += 15;
+    }
+    return b;
+  };
+}
+
+/** Focus fire + cover: the combination the 2026-09-28 probe measured strongest (57 % vs focus, 70 % vs old deep). */
+export function teamplayBias(state: AtbBattleState, actor: AtbLobster): Bias {
+  const f = focusBias(state, actor), p = protectBias(state, actor);
+  return (cmd, ctx) => f(cmd, ctx) + p(cmd, ctx);
+}
 
 // ──────────── role-aware ────────────
 const RANGED = new Set([LobsterClass.Tempest, LobsterClass.Specter, LobsterClass.Ember]);
@@ -118,9 +158,11 @@ function cloneState(state: AtbBattleState): AtbBattleState {
   return c;
 }
 
-export function deepPolicy(beam = 4): Policy {
+/** 2-ply beam search. `bias` shapes which candidates are searched (default: team focus fire + cover; null = the
+ *  pre-2026-09-28 plain search). The opponent's reply is always modelled by the stock balanced bot. */
+export function deepPolicy(beam = 4, bias: ((s: AtbBattleState, a: AtbLobster) => Bias) | null = teamplayBias): Policy {
   return (state, actor) => {
-    const ranked = rankTurns(state, actor, BOT_WEIGHTS.balanced).slice(0, beam);
+    const ranked = rankTurns(state, actor, BOT_WEIGHTS.balanced, bias ? bias(state, actor) : undefined).slice(0, beam);
     if (ranked.length === 1) return ranked[0].cmd;
     let best: { cmd: TurnCommand; value: number } | null = null;
     for (const cand of ranked) {
