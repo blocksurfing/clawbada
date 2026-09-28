@@ -71,6 +71,8 @@ public class HudSkin : ScriptableObject
     public Sprite[] avatarBg = new Sprite[10];
     [Tooltip("Frames of the HP (left) and charge (right) gauges outside the avatar ring — placeholder until Nzib's gauge art.")]
     public Sprite avatarGaugeTrack;
+    [Tooltip("Opaque outside the portrait disc: masks the copy of the claws/antennae that breaks out over the ring.")]
+    public Sprite avatarPopMask;
     [Tooltip("Fill band inside the gauge frames (radial fill, tinted) — placeholder until Nzib's gauge art.")]
     public Sprite avatarArc;
     public Color hpGaugeFull = C("#59b97b");

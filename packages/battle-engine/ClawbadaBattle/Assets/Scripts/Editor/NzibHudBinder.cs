@@ -12,6 +12,8 @@ using UnityEngine;
 ///   action_glow.png — a stepped 3 px halo around the frame's hex (hover + armed glow);
 ///   avatar_gauge_track.png — the two gauge frames OUTSIDE the ring (his mock, 2026-09-27): a left arc for HP and
 ///                     a right arc for charge, each a dark outline with a bronze rim and end caps;
+///   avatar_popmask.png — opaque everywhere OUTSIDE the portrait disc (a GaugeCell square): the mask for the copy of
+///                     the claws and antennae that breaks out over the ring, as in his mock;
 ///   avatar_arc.png  — the white fill band inside those frames, radially filled and tinted (green HP, blue charge),
 ///                     shaded so the tint keeps a highlight. Both stand in until his gauge art lands.
 /// Slices are found by NAME, so a re-slice or a re-ordered sheet still binds. Re-run after any HUD drop.
@@ -55,6 +57,7 @@ public static class NzibHudBinder
         skin.actionGlow = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("action_glow", Glow(skin.actionFrame)));
         skin.avatarGaugeTrack = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("avatar_gauge_track", GaugeTrack()));
         skin.avatarArc = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("avatar_arc", GaugeFill()));
+        skin.avatarPopMask = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("avatar_popmask", PopMask()));
 
         EditorUtility.SetDirty(skin);
         AssetDatabase.SaveAssets();
@@ -167,6 +170,20 @@ public static class NzibHudBinder
                     else c = Empty;
                 }
                 tex.SetPixel(x, y, c);
+            }
+        tex.Apply();
+        return tex;
+    }
+
+    /// <summary>Alpha 1 outside the portrait disc (r ≥ 30 of the 80 px frame, its silver ring's inner edge), 0 inside.</summary>
+    private static Texture2D PopMask()
+    {
+        var tex = new Texture2D(GaugeCell, GaugeCell, TextureFormat.RGBA32, false);
+        for (int x = 0; x < GaugeCell; x++)
+            for (int y = 0; y < GaugeCell; y++)
+            {
+                Polar(x, y, out float r, out _);
+                tex.SetPixel(x, y, r >= 30f ? Color.white : Color.clear);
             }
         tex.Apply();
         return tex;
