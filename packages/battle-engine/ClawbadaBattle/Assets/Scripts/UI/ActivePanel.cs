@@ -3,11 +3,12 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Round avatar of the acting lobster, bottom-left (Nzib, 2026-09-27): a live mirror of its rig's body parts (its
-/// own DNA-mixed parts, its idle animation) masked by its class-coloured disc, under his silver ring. Framed like his
-/// mock: zoomed on the FRONT half (shell, claws, eyes — the tail and back legs fall outside the disc), and the claws
-/// and antennae BREAK OUT over the ring (a second copy of them masked to everything outside the disc). Side view,
-/// like the rigs; a true front view is post-beta polish (needs a front part set). Outside the
+/// Round avatar of the acting lobster, bottom-left (Nzib, 2026-09-27): a STILL portrait rendered from its own rig
+/// (PortraitSnapshot — exactly how it looks on the board, its own DNA-mixed parts, frozen on Idle's first frame)
+/// masked by its class-coloured disc, under his silver ring. Framed like his mock: zoomed on the FRONT half (shell,
+/// claws, eyes — the tail and back legs fall outside the disc), and the claws and antennae BREAK OUT over the ring
+/// and the gauges (a second render of just those, masked to everything outside the disc). Side view, like the rigs;
+/// a true front view is post-beta polish (needs a front part set). Outside the
 /// ring, as in his mock, two framed gauges: HP on the LEFT (green, yellow when hurt, red when critical) and
 /// Special charge on the RIGHT in blue. No HP numbers: humans read the gauges, agents get exact numbers from the
 /// API. The gauges are generated placeholders (NzibHudBinder) until his gauge art and class-icon badge land. Statuses and the
@@ -32,20 +33,17 @@ public class ActivePanel : MonoBehaviour
     // Must match NzibHudBinder's generated gauge art (96 px cell, 130° arcs, 2.2° end caps).
     private const float GaugeCell = 96f, GaugeSpanDeg = 130f, GaugeCapDeg = 2.2f;
     private static float FillSpan => (GaugeSpanDeg - GaugeCapDeg) / 360f;
-    /// <summary>Share of the disc the front half (shell + claws + eyes) fills across its wider side.</summary>
-    private const float PortraitFill = 1.4f;
-    /// <summary>Drop the body this share of the disc below centre, so the antennae have room to break out on top.</summary>
-    private const float PortraitDrop = 0.14f;
+    /// <summary>Portrait zoom over the board's pixel scale (1 = a lobster pixel is a ring pixel, as Nzib draws).
+    /// 1.5: the front half fills the disc and the claws break out (user 2026-09-27: "zoom in a bit more").</summary>
+    private const float PortraitZoom = 1.5f;
+    /// <summary>Drop the body this share of the view below centre, so the antennae have room to break out on top.</summary>
+    private const float PortraitDrop = 0.06f;
 
     private HudSkin skin;
     private LobsterPartLibrary partLibrary;
     private Image disc;
-    private RectTransform parts, popParts;
-    private float discSize;
-    /// <summary>Each mirrored rig part, its image in the disc, and (claws/antennae) its break-out copy over the ring.</summary>
-    private readonly List<(SpriteRenderer sr, Image img, Image pop)> mirror = new();
-    private Vector3 fitCenter;
-    private float fitScale;
+    private RawImage portrait, portraitPop;
+    private PortraitSnapshot snapshot;
     private Image hpFill, chargeFill;
     private RectTransform statusRow;
     private readonly List<Image> statusIcons = new();
@@ -67,8 +65,10 @@ public class ActivePanel : MonoBehaviour
         if (skin.AvatarBg(0) == null) { discRt.offsetMin = Vector2.one * size * 0.125f; discRt.offsetMax = -Vector2.one * size * 0.125f; }
         discRt.gameObject.AddComponent<Mask>().showMaskGraphic = true;
 
-        p.discSize = size * 0.75f;
-        p.parts = HudFactory.Rect(discRt, "Parts", HudFactory.Center, HudFactory.Center, HudFactory.Center, Vector2.zero, Vector2.zero);
+        // The snapshot covers the whole gauge cell (so the break-out has room), at PortraitZoom × the ring's pixels.
+        float cell = GaugeCell * (size / 80f);
+        p.snapshot = new PortraitSnapshot(Mathf.RoundToInt(GaugeCell / PortraitZoom));
+        p.portrait = Raw(discRt, "Portrait", p.snapshot.Full, cell);
 
         if (skin.avatarFrame != null) HudFactory.AddImage(HudFactory.Stretch(rt, "Frame"), skin.avatarFrame, Color.white);
         else HudFactory.AddImage(HudFactory.Stretch(rt, "Frame"), skin.ring, skin.fieldBarRim);
@@ -83,12 +83,11 @@ public class ActivePanel : MonoBehaviour
 
         // Break-out layer over the ring AND the gauges (user 2026-09-27: the bars sit underneath the lobster): the
         // claws and antennae again, visible only outside the disc.
-        float cell = GaugeCell * (size / 80f);
         if (skin.avatarPopMask != null)
         {
             var pop = HudFactory.Image(rt, "BreakOut", skin.avatarPopMask, Color.white, new Vector2(cell, cell));
             pop.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-            p.popParts = HudFactory.Rect(pop.transform, "Parts", HudFactory.Center, HudFactory.Center, HudFactory.Center, Vector2.zero, Vector2.zero);
+            p.portraitPop = Raw(pop.transform, "Portrait", p.snapshot.Pop, cell);
         }
 
         p.iconSize = 18f;
@@ -96,6 +95,15 @@ public class ActivePanel : MonoBehaviour
 
         rt.gameObject.SetActive(false);
         return p;
+    }
+
+    private static RawImage Raw(Transform parent, string name, Texture tex, float size)
+    {
+        var rt = HudFactory.Rect(parent, name, HudFactory.Center, HudFactory.Center, HudFactory.Center, Vector2.zero, new Vector2(size, size));
+        var raw = rt.gameObject.AddComponent<RawImage>();
+        raw.texture = tex;
+        raw.raycastTarget = false;
+        return raw;
     }
 
     private static Image Arc(RectTransform parent, string name, Sprite sprite, float size, bool clockwise, Color color)
@@ -122,86 +130,8 @@ public class ActivePanel : MonoBehaviour
         if (bg != null) disc.sprite = bg;
         ShownClass = lob.classId;
 
-        BuildMirror(lob);
+        snapshot.Capture(lob, PortraitDrop);
         Refresh();
-    }
-
-    /// <summary>One Image per body-part renderer, stacked in the rig's draw order; the fit comes from the parts'
-    /// bounds now, so the live mirror never breathes in and out with the animation.</summary>
-    private void BuildMirror(LobsterController lob)
-    {
-        foreach (var m in mirror) { if (m.img != null) Destroy(m.img.gameObject); if (m.pop != null) Destroy(m.pop.gameObject); }
-        mirror.Clear();
-        var srs = new List<SpriteRenderer>();
-        foreach (var sr in lob.GetComponentsInChildren<SpriteRenderer>(true))
-            if (sr.sprite != null && LobsterController.IsBodyPart(sr.gameObject.name)) srs.Add(sr);
-        srs.Sort((a, b) => a.sortingLayerID != b.sortingLayerID
-            ? SortingLayer.GetLayerValueFromID(a.sortingLayerID).CompareTo(SortingLayer.GetLayerValueFromID(b.sortingLayerID))
-            : a.sortingOrder.CompareTo(b.sortingOrder));
-        if (srs.Count == 0) return;
-
-        // Fit to the PAINTED pixels of the front half: every part is a full 64 px layer, so renderer bounds are
-        // mostly padding; the sprites import with tight meshes, whose vertices hug the art. The tail, legs and
-        // antennae are left out of the fit — the first two crop away, the antennae break out on top.
-        bool any = false;
-        var bounds = new Bounds();
-        foreach (var sr in srs)
-        {
-            if (!sr.enabled || !sr.gameObject.activeInHierarchy || !FrontHalf(sr.gameObject.name)) continue;
-            var m = sr.transform.localToWorldMatrix;
-            foreach (var v in sr.sprite.vertices)
-            {
-                var w = m.MultiplyPoint3x4(v);
-                if (!any) { bounds = new Bounds(w, Vector3.zero); any = true; } else bounds.Encapsulate(w);
-            }
-        }
-        if (!any) { bounds = srs[0].bounds; foreach (var sr in srs) bounds.Encapsulate(sr.bounds); }
-        fitScale = discSize * PortraitFill / Mathf.Max(bounds.size.x, bounds.size.y, 0.01f);   // canvas units per world unit
-        fitCenter = bounds.center - lob.transform.position + new Vector3(0f, discSize * PortraitDrop / fitScale, 0f);
-
-        foreach (var sr in srs)
-        {
-            var img = HudFactory.Image(parts, sr.gameObject.name, sr.sprite, Color.white, Vector2.zero);
-            Image pop = popParts != null && BreaksOut(sr.gameObject.name) ? HudFactory.Image(popParts, sr.gameObject.name, sr.sprite, Color.white, Vector2.zero) : null;
-            mirror.Add((sr, img, pop));
-        }
-        Debug.Log($"[BattleHud] avatar {lob.lobsterId} mirrors {mirror.Count} parts, {bounds.size.x:F2}x{bounds.size.y:F2}u at {fitScale:F0}/u");
-    }
-
-    private static bool FrontHalf(string part) =>
-        part == "Carapace" || part == "Eyes" || part.StartsWith("Claw_") || part.StartsWith("UpperArm_");
-
-    private static bool BreaksOut(string part) =>
-        part == "Antennae" || part.StartsWith("Claw_") || part.StartsWith("UpperArm_");
-
-    /// <summary>Copy each part's sprite, pose and colour from the rig (world-space, so facing comes along).</summary>
-    private void SyncMirror(LobsterController lob, Color tint)
-    {
-        var root = lob.transform.position;
-        foreach (var (sr, img, pop) in mirror)
-        {
-            if (sr == null || img == null) continue;
-            Pose(sr, img, root, tint);
-            if (pop != null) Pose(sr, pop, root, tint);
-        }
-    }
-
-    private void Pose(SpriteRenderer sr, Image img, Vector3 root, Color tint)
-    {
-        bool on = sr.enabled && sr.gameObject.activeInHierarchy && sr.sprite != null;
-        img.enabled = on;
-        if (!on) return;
-        var sp = sr.sprite;
-        if (img.sprite != sp) img.sprite = sp;
-        var rt = img.rectTransform;
-        rt.sizeDelta = sp.rect.size / sp.pixelsPerUnit * fitScale;
-        rt.pivot = new Vector2(sp.pivot.x / sp.rect.width, sp.pivot.y / sp.rect.height);
-        var d = sr.transform.position - root - fitCenter;
-        rt.anchoredPosition = new Vector2(d.x, d.y) * fitScale;
-        rt.localRotation = Quaternion.Euler(0f, 0f, sr.transform.eulerAngles.z);
-        var ls = sr.transform.lossyScale;
-        rt.localScale = new Vector3(ls.x * (sr.flipX ? -1f : 1f), ls.y * (sr.flipY ? -1f : 1f), 1f);
-        img.color = sr.color * tint;
     }
 
     public void Hide()
@@ -223,7 +153,8 @@ public class ActivePanel : MonoBehaviour
         hpFill.color = HpColor(pct);
         chargeFill.fillAmount = lob.alive ? span * Mathf.Clamp01(lob.charge / 3f) : 0f;
         var tint = lob.alive ? Color.white : new Color(0.45f, 0.45f, 0.45f, 0.9f);
-        SyncMirror(lob, tint);
+        portrait.color = tint;
+        if (portraitPop != null) portraitPop.color = tint;
 
         // Status row: the defending shield first, then up to three statuses.
         var sprites = new List<Sprite>(4);

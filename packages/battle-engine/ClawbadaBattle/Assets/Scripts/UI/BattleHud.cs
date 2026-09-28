@@ -132,6 +132,7 @@ public class BattleHud : MonoBehaviour
         Skin = skin;
         cam = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
         ppc = cam != null ? cam.GetComponent("PixelPerfectCamera") as Behaviour : null;
+        if (cam != null) cam.cullingMask &= ~(1 << PortraitSnapshot.Layer);   // avatar portraits render on their own
         ApplyCameraMode();
 
         HudFactory.EnsureEventSystem();
