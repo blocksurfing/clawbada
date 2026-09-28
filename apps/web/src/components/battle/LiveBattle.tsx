@@ -5,7 +5,7 @@
  * One instance per battle page; works for participants (submit turns) and
  * spectators (read-only).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
@@ -16,7 +16,7 @@ import { useArenaMusic } from '@/hooks/use-arena-music';
 import { setMusicPref, setSfxPref, type AudioPrefChange } from '@/lib/audio-prefs';
 import type { Side, TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
-import { BattleStage } from './BattleStage';
+import { BattleStage, type BattleStageControls } from './BattleStage';
 import { DisputeAction } from '@/components/game/battle-moves';
 import { selectionToData } from './unity-bridge';
 import { HexBoard } from './HexBoard';
@@ -48,6 +48,8 @@ const RETURN_SECONDS = 6;
 export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed, onClose, stay }: LiveBattleProps) {
   const { getAuthParams, getAuthHeaders, getSessionToken } = useAuth();
   const [unityAvailable, setUnityAvailable] = useState<boolean | null>(null);
+  /** The stage's fullscreen toggle, for the FULL SCREEN button in the status row. */
+  const stageControls = useRef<BattleStageControls | null>(null);
   const [unityReady, setUnityReady] = useState(false);
   const gate = unityAvailable === true && unityReady;
   const isSpectator = !!spectate || !address;
@@ -253,6 +255,17 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
           {isSpectator && <Badge className="bg-ocean-surface/60 text-text-secondary border-0 text-[10px]">spectating</Badge>}
         </div>
         {unityAvailable === false && <span className="text-[10px] text-text-secondary">Unity build not deployed — showing the plain board</span>}
+        {unityAvailable === true && (
+          <button
+            type="button"
+            onClick={() => stageControls.current?.toggleFullscreen()}
+            aria-label="Full screen"
+            title="Full screen (Esc to leave)"
+            className="rounded-md border border-white/20 bg-ocean-surface/60 px-3 py-1.5 font-pixel text-xs text-text-primary hover:bg-ocean-surface hover:border-white/40"
+          >
+            ⛶ FULL SCREEN
+          </button>
+        )}
       </div>
 
       {/* D-06: a result landed on-chain while this battle is still being played. */}
@@ -263,6 +276,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
       {/* Stage: Unity when deployed, SVG board otherwise */}
       {unityAvailable !== false && (
         <BattleStage
+          controlRef={stageControls}
           onForfeit={handleForfeit}
           onAudioPref={handleAudioPref}
           speed={speed}

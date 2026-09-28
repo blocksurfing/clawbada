@@ -58,6 +58,13 @@ export interface BattleStageProps {
   onClosed?: () => void;
   /** Drawn over the canvas, bottom-centre — inside the stage so it survives fullscreen. */
   overlay?: React.ReactNode;
+  /** Filled with the stage's controls, so the page can offer them outside the canvas (the FULL SCREEN
+   *  button sits in the page's status row; it must call requestFullscreen inside the click itself). */
+  controlRef?: React.MutableRefObject<BattleStageControls | null>;
+}
+
+export interface BattleStageControls {
+  toggleFullscreen: () => void;
 }
 
 export function BattleStage(props: BattleStageProps) {
@@ -135,6 +142,12 @@ function UnityStage(props: BattleStageProps) {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     else void el.requestFullscreen?.().catch(() => {});
   }, []);
+  const { controlRef } = props;
+  useEffect(() => {
+    if (!controlRef) return;
+    controlRef.current = { toggleFullscreen };
+    return () => { controlRef.current = null; };
+  }, [controlRef, toggleFullscreen]);
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
@@ -383,15 +396,17 @@ function UnityStage(props: BattleStageProps) {
           {props.overlay}
         </div>
       )}
-      {isLoaded && (
+      {/* Entering fullscreen lives in the page's status row (LiveBattle); inside fullscreen the page is gone,
+          so the way out is here (and Esc). A stage without a controlRef keeps its own FULL button. */}
+      {isLoaded && (isFullscreen || !props.controlRef) && (
         <button
           type="button"
           onClick={toggleFullscreen}
           aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
           title={isFullscreen ? 'Exit full screen (Esc)' : 'Full screen'}
-          className="absolute bottom-2 right-2 z-10 rounded border border-white/20 bg-black/50 px-2 py-1 font-pixel text-[9px] text-white/80 hover:bg-black/70 hover:text-white"
+          className="absolute bottom-2 right-2 z-10 rounded-md border border-white/25 bg-black/60 px-3 py-1.5 font-pixel text-xs text-white/85 hover:bg-black/80 hover:text-white"
         >
-          {isFullscreen ? '✕ EXIT' : '⛶ FULL'}
+          {isFullscreen ? '✕ EXIT' : '⛶ FULL SCREEN'}
         </button>
       )}
       {!isLoaded && (
