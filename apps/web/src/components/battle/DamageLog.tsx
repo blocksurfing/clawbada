@@ -5,9 +5,14 @@ import { FrostedPanel } from '@/components/ui/frosted-panel';
 import type { BattleSnapshot, TurnResolvedPayload } from '@/lib/battle-protocol';
 
 export function DamageLog({ snapshot, log }: { snapshot: BattleSnapshot; log: TurnResolvedPayload[] }) {
+  // "MantisB" is ambiguous when a side fields two of a class (Dojo / trio teams): number those by slot —
+  // MantisB1, MantisB2 — or two lobsters read as one casting Special twice in a row (user 2026-09-28).
   const name = (id: string) => {
     const r = snapshot.roster.find((x) => x.id === id);
-    return r ? `${CLASS_NAMES_LIST[r.classId]}${r.side}` : id;
+    if (!r) return id;
+    const base = `${CLASS_NAMES_LIST[r.classId]}${r.side}`;
+    const same = snapshot.roster.filter((x) => x.side === r.side && x.classId === r.classId).sort((a, b) => a.slot - b.slot);
+    return same.length > 1 ? `${base}${same.indexOf(r) + 1}` : base;
   };
   const items = [...log].reverse().slice(0, 40);
   return (
