@@ -82,3 +82,6 @@ export default async function (b: Browser) {
   show(/\[LobsterController\] attack/, 'attack animations');
   show(/BattleSfxLibrary|silent/, 'library warnings');
 }
+
+/** Tests audio itself: opt out of the harness mute (cdp.ts). */
+export const keepAudio = true;

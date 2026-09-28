@@ -157,8 +157,54 @@ if (typeof run !== 'function') {
   process.exit(2);
 }
 const browser = await connect();
+
+// House rules for every probe (user 2026-09-27): run MUTED, and FORFEIT the battle when done.
+//  • Muted: music + SFX prefs are written to localStorage before every page's own scripts run, so it
+//    survives the Storage.clearDataForOrigin most probes start with. A probe that tests audio opts out
+//    with `export const keepAudio = true` (or AUDIO=1).
+//  • Forfeit: after the probe, a still-live battle page is resigned through the options menu, so no
+//    practice battle is left running on the API. Opt out with `export const keepBattle = true` (or KEEP=1).
+if (!mod.keepAudio && !process.env.AUDIO) {
+  await browser.send('Page.addScriptToEvaluateOnNewDocument', {
+    source: "try { localStorage.setItem('clawbada_music', 'off'); localStorage.setItem('clawbada_sfx', 'off'); } catch (e) {}",
+  });
+}
+
+/** Resign a live battle through the in-canvas options menu (gear → Forfeit battle → Yes). */
+async function forfeitIfLive(b: Browser) {
+  try {
+    if (!(await b.eval(`/^\\/battle\\//.test(location.pathname)`))) return;
+    if (b.logs.some((l) => /\[BattleHud\] banner|forfeit accepted/.test(l))) return;
+    const g = await b.eval(`(() => { const c = document.querySelector('canvas'); if (!c) return null; const r = c.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bw: c.width, bh: c.height }; })()`);
+    if (!g) return;
+    const rect = (key: string) => {
+      for (let i = b.logs.length - 1; i >= 0; i--) {
+        const m = b.logs[i].match(new RegExp(`\\[BattleHud\\] options .*?${key}=\\((-?\\d+),(-?\\d+),(\\d+),(\\d+)\\)`));
+        if (m) return { x: g.x + (+m[1] + +m[3] / 2) * g.w / g.bw, y: g.y + (g.bh - (+m[2] + +m[4] / 2)) * g.h / g.bh };
+      }
+      return null;
+    };
+    const step = async (key: string) => {
+      const t0 = Date.now();
+      let r = rect(key);
+      while (!r && Date.now() - t0 < 5000) { await b.sleep(250); r = rect(key); }
+      if (!r) throw new Error(`no ${key} button logged`);
+      await b.clickAt(r.x, r.y);
+      await b.sleep(500);
+    };
+    await step('gear');
+    await step('forfeit');
+    await step('yes');
+    const ok = await b.waitFor(`/by forfeit|DEFEAT/i.test(document.body.innerText)`, 15000, 300);
+    console.log(ok ? '[harness] battle forfeited' : '[harness] forfeit sent, no result seen');
+  } catch (e) {
+    console.log(`[harness] could not forfeit: ${(e as Error).message}`);
+  }
+}
+
 try {
   await run(browser);
 } finally {
+  if (!mod.keepBattle && !process.env.KEEP) await forfeitIfLive(browser);
   process.exit(0);
 }
