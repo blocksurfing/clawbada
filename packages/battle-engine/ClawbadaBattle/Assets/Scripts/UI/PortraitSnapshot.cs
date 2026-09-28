@@ -1,11 +1,12 @@
 using UnityEngine;
 
 /// <summary>
-/// A still portrait of a lobster, rendered from its own rig (user 2026-09-27: "a portrait should be still", and it
-/// must look exactly like the lobster on the board). On Capture, the rig is cloned off-stage (inside an inactive
-/// holder, so none of its scripts wake up), stripped to its body-part sprites, frozen on the first frame of Idle,
-/// and rendered ONCE by a private camera on the board's own pixel grid (64 px per unit, point-filtered) into
-/// two textures:
+/// Still portraits of the battle's lobsters, rendered from their own rigs ONCE, when the battle loads (user
+/// 2026-09-27: "a portrait should be still"; "not a snapshot every turn — just once, normal idle, eyes open").
+/// Each rig is cloned off-stage (inside an inactive holder, so none of its scripts wake up), stripped to its
+/// body-part sprites with every part shown in its own colours (so a heal blink, a stun or the corpse tint never
+/// leak in), frozen on the first frame of Idle, and rendered by a private camera on the board's own pixel grid
+/// (64 px per unit, point-filtered) into two textures per lobster, kept for the whole battle:
 ///   Full — every body part (shown inside the avatar's disc);
 ///   Pop  — only the claws and antennae (shown outside the disc, over the ring: the break-out, as in Nzib's mock).
 /// The camera frames the lobster's front half (shell, claws, eyes). Nothing renders per frame.
@@ -17,8 +18,8 @@ public class PortraitSnapshot
     private const float Ppu = 64f;
     private static int count;
 
-    public RenderTexture Full { get; }
-    public RenderTexture Pop { get; }
+    public class Portrait { public RenderTexture Full, Pop; }
+    private readonly System.Collections.Generic.Dictionary<string, Portrait> cache = new();
 
     private readonly int px;
     private readonly Vector3 stage;
@@ -32,8 +33,6 @@ public class PortraitSnapshot
         px = texturePx;
         stage = new Vector3(1000f + 50f * count, 1000f, 0f);
         count++;
-        Full = NewTexture("PortraitFull");
-        Pop = NewTexture("PortraitPop");
         holder = new GameObject("PortraitStage");
         holder.transform.position = stage;
         holder.SetActive(false);
@@ -63,10 +62,30 @@ public class PortraitSnapshot
     public static bool BreaksOut(string part) => part == "Antennae" || part.StartsWith("Claw_") || part.StartsWith("UpperArm_");
     private static bool FrontHalf(string part) => part == "Carapace" || part == "Eyes" || part.StartsWith("Claw_") || part.StartsWith("UpperArm_");
 
-    /// <param name="drop">Share of the view to sit the body below centre (room for antennae to break out on top).</param>
-    public void Capture(LobsterController lob, float drop)
+    /// <summary>The lobster's portrait, rendering it now only if it was not taken at battle load.</summary>
+    public Portrait Get(LobsterController lob, float drop)
     {
-        if (lob == null) return;
+        if (lob == null) return null;
+        if (!cache.TryGetValue(lob.lobsterId, out var p)) p = Capture(lob, drop);
+        return p;
+    }
+
+    /// <summary>New battle: drop every portrait (the lobster ids are reused across battles).</summary>
+    public void Clear()
+    {
+        foreach (var p in cache.Values) { p.Full.Release(); Object.Destroy(p.Full); p.Pop.Release(); Object.Destroy(p.Pop); }
+        cache.Clear();
+    }
+
+    /// <param name="drop">Share of the view to sit the body below centre (room for antennae to break out on top).</param>
+    public Portrait Capture(LobsterController lob, float drop)
+    {
+        if (lob == null) return null;
+        if (!cache.TryGetValue(lob.lobsterId, out var portrait))
+        {
+            portrait = new Portrait { Full = NewTexture("PortraitFull_" + lob.lobsterId), Pop = NewTexture("PortraitPop_" + lob.lobsterId) };
+            cache[lob.lobsterId] = portrait;
+        }
         // Destroy is deferred to the end of the frame: hide the previous portrait NOW, or this frame's render
         // photographs both (the last actor, often facing the other way, showed up mirrored over the new one).
         if (clone != null) { clone.SetActive(false); Object.Destroy(clone); }
@@ -87,7 +106,13 @@ public class PortraitSnapshot
         }
         foreach (var a in clone.GetComponentsInChildren<AudioSource>(true)) Object.DestroyImmediate(a);
         foreach (var r in clone.GetComponentsInChildren<Renderer>(true))
-            if (!(r is SpriteRenderer sr && sr.sprite != null && LobsterController.IsBodyPart(r.gameObject.name))) r.enabled = false;
+        {
+            bool part = r is SpriteRenderer sr && sr.sprite != null && LobsterController.IsBodyPart(r.gameObject.name);
+            r.enabled = part;
+            if (!part) continue;
+            // Rest state regardless of what the live rig is doing: every part visible, in its own colours.
+            ((SpriteRenderer)r).color = Color.white;
+        }
         foreach (var tr in clone.GetComponentsInChildren<Transform>(true)) tr.gameObject.layer = Layer;
 
         holder.SetActive(true);
@@ -122,17 +147,19 @@ public class PortraitSnapshot
 
         if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null)
         {
-            cam.targetTexture = Full;
+            cam.targetTexture = portrait.Full;
             cam.Render();
             var hidden = new System.Collections.Generic.List<SpriteRenderer>();
             foreach (var sr in clone.GetComponentsInChildren<SpriteRenderer>())
                 if (sr.enabled && !BreaksOut(sr.gameObject.name)) { sr.enabled = false; hidden.Add(sr); }
-            cam.targetTexture = Pop;
+            cam.targetTexture = portrait.Pop;
             cam.Render();
             foreach (var sr in hidden) sr.enabled = true;
             cam.targetTexture = null;
         }
         holder.SetActive(false);
+        clone.SetActive(false);
         Debug.Log($"[BattleHud] portrait {lob.lobsterId} ({lob.className}) front half {bounds.size.x * Ppu:F0}x{bounds.size.y * Ppu:F0} px in a {px} px view");
+        return portrait;
     }
 }
