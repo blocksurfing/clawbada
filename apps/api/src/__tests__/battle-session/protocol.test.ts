@@ -2,6 +2,10 @@ import { describe, test, expect } from 'bun:test';
 import { parseClientMessage, isPracticeId, CHAIN_ID_RE, turnResultToWire } from '../../lib/battle-session/protocol';
 
 describe('parseClientMessage', () => {
+  test('accepts ready (battle-start intro done) and rejects it without a battle id', () => {
+    expect(parseClientMessage(JSON.stringify({ type: 'ready', battleId: 'p_x' }))).toEqual({ type: 'ready', battleId: 'p_x' });
+    expect(parseClientMessage(JSON.stringify({ type: 'ready' }))).toBeNull();
+  });
   test('accepts ping and submit_turn', () => {
     expect(parseClientMessage('{"type":"ping"}')).toEqual({ type: 'ping' });
     expect(parseClientMessage(JSON.stringify({ type: 'submit_turn', battleId: '42', turn: 3, command: { lobsterId: 'A0', action: 'defend' } })))

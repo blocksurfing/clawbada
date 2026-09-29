@@ -80,6 +80,13 @@ export interface SessionOptions {
    * floor (RESUME_MIN_CLOCK_MS).
    */
   firstTurnGraceMs?: number;
+  /**
+   * Fresh battles only: hold the first turn until every human side has said `ready` (its client finished the
+   * battle-start intro — user 2026-09-28: nothing should move before the player is watching), capped at this many
+   * ms so an agent that never says ready, or a closed tab, cannot stall the battle. A submitted move counts as ready.
+   * 0 / undefined = start at once (tests, resumes).
+   */
+  startWaitMs?: number;
 }
 
 export type SubmitResult =
@@ -102,6 +109,10 @@ export class BattleSession {
   private firstTurnClockMs: number | undefined;
   /** Which sides still have their first-turn load grace owed (fresh battles only). */
   private graceOwed: Record<Side, boolean>;
+  /** False while a fresh battle waits for its players' `ready` (startWaitMs). */
+  private started = false;
+  private readonly readySides = new Set<Side>();
+  private readonly fresh: boolean;
 
   constructor(
     public readonly record: SessionRecord,
@@ -112,6 +123,7 @@ export class BattleSession {
     this.timeouts = { timeouts: { A: resume?.timeouts.A ?? 0, B: resume?.timeouts.B ?? 0 } };
     this.firstTurnClockMs = opts.firstTurnClockMs;
     const fresh = resume === undefined;
+    this.fresh = fresh;
     this.graceOwed = { A: fresh, B: fresh };
     if (state.finished) this.status = 'finished';
   }
@@ -165,14 +177,54 @@ export class BattleSession {
     };
   }
 
-  /** Begin (or resume) driving the loop: resolves stun skips, schedules the bot, or arms the human clock. */
+  private get startKey(): string {
+    return `session-start:${this.record.id}`;
+  }
+
+  /** Human (non-bot) sides — the ones whose clients play the intro and say `ready`. */
+  private humanSides(): Side[] {
+    return (['A', 'B'] as Side[]).filter((s) => this.opts.botSide !== s);
+  }
+
+  /**
+   * Begin (or resume) driving the loop: resolves stun skips, schedules the bot, or arms the human clock. A fresh
+   * battle with `startWaitMs` first waits for its players' `ready` (or the cap).
+   */
   start(): void {
+    const wait = this.opts.startWaitMs ?? 0;
+    if (this.fresh && wait > 0 && this.state.turn === 0 && !this.state.finished) {
+      this.opts.clock.arm(this.startKey, wait, () => this.begin('cap'));
+      return;
+    }
+    this.begin('immediate');
+  }
+
+  /** True once the first turn has been scheduled. */
+  get isStarted(): boolean {
+    return this.started;
+  }
+
+  private begin(reason: 'immediate' | 'ready' | 'cap' | 'submit'): void {
+    if (this.started || this.stopped) return;
+    this.started = true;
+    this.opts.clock.cancel(this.startKey);
+    if (reason !== 'immediate') this.opts.hooks.emit(this.record.id, 'battle_started', { reason });
     this.advance();
+  }
+
+  /** A player's client finished its battle-start intro. The battle begins once every human side is ready. */
+  ready(side: Side): { ok: true; started: boolean } {
+    if (!this.started) {
+      this.readySides.add(side);
+      if (this.humanSides().every((s) => this.readySides.has(s))) this.begin('ready');
+    }
+    return { ok: true, started: this.started };
   }
 
   stop(): void {
     this.stopped = true;
     this.opts.clock.cancel(this.key);
+    this.opts.clock.cancel(this.startKey);
   }
 
   /** Player submission. Validates before touching anything; a rejected command changes nothing. */
@@ -185,6 +237,8 @@ export class BattleSession {
       return { ok: false, code: 'turn_mismatch', message: `Turn ${turn} already resolved; current turn is ${cur}`, turn: cur };
     }
     if (turn > cur) return { ok: false, code: 'turn_mismatch', message: `Turn ${turn} is not yet playable; current turn is ${cur}`, turn: cur };
+    // A move is as good as `ready` (an agent that skips the intro just plays).
+    if (!this.started) this.begin('submit');
     const actor = v3.nextActor(this.state);
     if (!actor) return { ok: false, code: 'finished', message: 'No living lobster' };
     if (actor.team !== side) return { ok: false, code: 'not_your_turn', message: `It is ${actor.team}'s turn`, turn: cur };

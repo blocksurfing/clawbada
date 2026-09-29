@@ -1,4 +1,5 @@
 import type { Browser } from './cdp';
+import { waitForIntro } from './intro-wait';
 const S = `${import.meta.dir}/out`;
 const CLASS = process.env.TRIO ?? 'Specter';
 
@@ -53,6 +54,7 @@ export default async function (b: Browser) {
   }
   expect(inited, 'HUD bound');
   if (!inited) return;
+  await waitForIntro(b);
   await b.eval(`document.querySelector('canvas')?.scrollIntoView({ block: 'start' })`);
   await b.sleep(1500);
 

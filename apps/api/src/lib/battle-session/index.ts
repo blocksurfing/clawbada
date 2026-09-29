@@ -10,6 +10,8 @@ import { readBattle, readLobster, readTeam } from '../chain';
 import { battleWS } from '../ws';
 import { getLayoutById } from '../../data/arenas';
 import { BattleSessionManager, DEFAULT_BOT_THINK_MS, DEFAULT_FIRST_TURN_GRACE_MS, DEFAULT_POLL_MS, DEFAULT_SHOT_CLOCK_MS } from './manager';
+/** Production wait for the players' `ready` (battle-start intro); the manager's own default is 0 (tests). */
+const START_WAIT_MS = 15_000;
 import { SessionStore } from './store';
 
 export * from './protocol';
@@ -60,6 +62,7 @@ export const battleSessions = new BattleSessionManager({
   shotClockMs: envInt('BATTLE_SHOT_CLOCK_MS', DEFAULT_SHOT_CLOCK_MS),
   botThinkMs: envInt('BOT_THINK_MS', DEFAULT_BOT_THINK_MS),
   firstTurnGraceMs: envInt('BATTLE_FIRST_TURN_GRACE_MS', DEFAULT_FIRST_TURN_GRACE_MS),
+  startWaitMs: envInt('BATTLE_START_WAIT_MS', START_WAIT_MS),
   pollMs: envInt('BATTLE_SESSION_POLL_MS', DEFAULT_POLL_MS),
   layoutById: (id) => getLayoutById(id) as v3.ArenaLayout | undefined,
 });

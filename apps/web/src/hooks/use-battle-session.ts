@@ -146,6 +146,8 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
   const closedByUs = useRef(false);
   /** A command pressed while the socket was down — sent the moment it is back (see submitTurn). */
   const queued = useRef<{ turn: number; command: TurnCommand } | null>(null);
+  /** `ready` asked for while the socket was down: sent on open. */
+  const readyQueued = useRef(false);
   const snapshotRef = useRef<BattleSnapshot | null>(null);
   snapshotRef.current = state.snapshot;
 
@@ -187,6 +189,11 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
         console.log(`[BattleSession] socket open${attempt > 0 ? ` (reconnect #${attempt})` : ''}`);
         attempt = 0;
         dispatch({ type: 'connection', value: 'open' });
+        if (readyQueued.current) {
+          readyQueued.current = false;
+          ws.send(JSON.stringify({ type: 'ready', battleId }));
+          console.log('[BattleSession] socket open — sending the queued ready');
+        }
         const q = queued.current;
         if (q) {
           queued.current = null;
@@ -281,5 +288,14 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
 
   const markAnimated = useCallback((turn: number) => dispatch({ type: 'animated', turn }), []);
 
-  return { ...state, submitTurn, markAnimated, refreshSnapshot: fetchSnapshot };
+  /** Battle-start intro done: a fresh battle begins once every player is ready (the server caps the wait). */
+  const sendReady = useCallback(() => {
+    if (!battleId) return;
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) { readyQueued.current = true; return; }
+    ws.send(JSON.stringify({ type: 'ready', battleId }));
+    console.log('[BattleSession] ready sent');
+  }, [battleId]);
+
+  return { ...state, submitTurn, markAnimated, sendReady, refreshSnapshot: fetchSnapshot };
 }
