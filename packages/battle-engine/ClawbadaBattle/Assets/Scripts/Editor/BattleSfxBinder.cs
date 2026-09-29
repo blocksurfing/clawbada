@@ -14,7 +14,7 @@ using UnityEngine;
 ///   Assets/Audio/SFX/Defend/SFX_Defend[_NN].wav                              (defend, shared pool — random pick)
 ///   Assets/Audio/SFX/Defend/SFX_&lt;Class&gt;_Defend.wav                           (defend, per-class override)
 ///   Assets/Audio/SFX/UI/SFX_UI_Open.wav, SFX_UI_Close.wav                     (in-game panels)
-///   Assets/Audio/SFX/UI/SFX_UI_Ready.wav, SFX_UI_Fight.wav                    (battle-start intro, optional)
+///   Assets/Audio/SFX/UI/SFX_UI_ClawsUp, SFX_UI_Battle (.wav / .mp3 / .ogg)     (battle-start intro, optional)
 ///   Assets/Audio/SFX/Death/SFX_Death[_NN].wav                                (death, shared pool — random pick)
 ///   Assets/Audio/SFX/Death/SFX_&lt;Class&gt;_Death.wav                             (death, per-class override)
 /// so a misspelled class (Spectre for Specter) binds nothing and that class is simply silent.
@@ -132,8 +132,9 @@ public static class BattleSfxBinder
         // In-game panels: one open and one close clip, shared by every panel.
         lib.uiOpen = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Open.wav");
         lib.uiClose = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Close.wav");
-        lib.introReady = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Ready.wav");
-        lib.introFight = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Fight.wav");
+        // .wav, or .mp3 when that is the generation the user kept (SFX_UI_ClawsUp, 2026-09-29).
+        lib.introReady = LoadAny($"{UiDir}SFX_UI_ClawsUp");
+        lib.introFight = LoadAny($"{UiDir}SFX_UI_Battle");
 
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
@@ -144,6 +145,7 @@ public static class BattleSfxBinder
                   $" | defend ×{lib.defend.Length}{(defendOverrides > 0 ? $" + {defendOverrides} class override(s)" : "")}" +
                   $" | death ×{lib.death.Length}{(deathOverrides > 0 ? $" + {deathOverrides} class override(s)" : "")}" +
                   $" | ui: open {(lib.uiOpen != null ? "✓" : "—")} close {(lib.uiClose != null ? "✓" : "—")}" +
+                  $" | intro: claws-up {(lib.introReady != null ? lib.introReady.name : "—")} battle {(lib.introFight != null ? lib.introFight.name : "—")}" +
                   $" → {LibraryPath}");
     }
 
@@ -227,6 +229,17 @@ public static class BattleSfxBinder
         t.variants = takes.ToArray();
         t.variantBeats = beats.ToArray();
         return (t.shared != null ? 1 : 0) + (t.evolved != null ? 1 : 0) + (t.elite != null ? 1 : 0) + (t.apex != null ? 1 : 0) + takes.Count;
+    }
+
+    /// <summary>`stem.wav`, else `stem.mp3`, else `stem.ogg` (Unity imports all three).</summary>
+    private static AudioClip LoadAny(string stem)
+    {
+        foreach (var ext in new[] { ".wav", ".mp3", ".ogg" })
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(stem + ext);
+            if (clip != null) return clip;
+        }
+        return null;
     }
 
     private static string FirstExisting(string stem)
