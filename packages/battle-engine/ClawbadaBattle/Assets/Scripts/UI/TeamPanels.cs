@@ -13,9 +13,16 @@ using UnityEngine;
 /// </summary>
 public class TeamPanels : MonoBehaviour
 {
-    /// <summary>3 design px between panels (Nzib 2026-09-28), at the canvas's 1.5 units per art pixel.</summary>
-    public const float Gap = 3f * ActionBar.ArtScale;
+    /// <summary>Margin of the other corner widgets (buttons, settings, timer) from the canvas edges.</summary>
     public const float Edge = 10f;
+
+    // Nzib's layout (2026-09-29 target shot). Measured on his art: Avatar_Frame's PAINTED pixels span x 7–104,
+    // y 9–55 of its 112×64 cell, so panels are placed by their visible art, not their padded rect.
+    private const float ArtLeft = 7f, ArtRight = 8f, ArtTop = 9f, ArtBottom = 9f;   // design px of padding
+    /// <summary>3 design px between the painted art of neighbouring panels (Nzib: "3px away between card").</summary>
+    private const float VisibleGap = 3f;
+    /// <summary>Canvas units from the screen edge to the painted art: bottom row (left, bottom), top row (right, top).</summary>
+    private static readonly Vector2 BottomInset = new Vector2(35f, 17f), TopInset = new Vector2(8f, 9f);
 
     private readonly Dictionary<string, ActivePanel> byId = new();
     private readonly List<ActivePanel> all = new();
@@ -58,12 +65,15 @@ public class TeamPanels : MonoBehaviour
             if (lob == null) continue;
             (lob.side == bottomSide ? bottom : top).Add(lob);
         }
-        float pitch = ActivePanel.Width + Gap;
+        float k = ActionBar.ArtScale;
+        float pitch = (112f - ArtLeft - ArtRight + VisibleGap) * k;
         // Bottom row from the left edge; top row ends at the right edge. Slot order left to right in both.
+        var b0 = new Vector2(BottomInset.x - ArtLeft * k, BottomInset.y - ArtBottom * k);
         for (int i = 0; i < bottom.Count; i++)
-            Add(bottom[i], $"Panel_{bottom[i].lobsterId}", Vector2.zero, new Vector2(Edge + i * pitch, Edge));
+            Add(bottom[i], $"Panel_{bottom[i].lobsterId}", Vector2.zero, new Vector2(b0.x + i * pitch, b0.y));
+        var t0 = new Vector2(-(TopInset.x - ArtRight * k), -(TopInset.y - ArtTop * k));
         for (int i = 0; i < top.Count; i++)
-            Add(top[i], $"Panel_{top[i].lobsterId}", Vector2.one, new Vector2(-(Edge + (top.Count - 1 - i) * pitch), -Edge));
+            Add(top[i], $"Panel_{top[i].lobsterId}", Vector2.one, new Vector2(t0.x - (top.Count - 1 - i) * pitch, t0.y));
         Debug.Log($"[BattleHud] team panels bottom={Describe(bottom)} top={Describe(top)}");
     }
 
