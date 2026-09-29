@@ -3,30 +3,32 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// Nzib's button feel (2026-09-27): hover = a subtle glow and 1–2 px larger; press = 1–2 px smaller and a
-/// little darker. Scales the button's own rect (so plate, frame and glow move together) and shows the glow
-/// image; the Button's colour tint darkens the plate on press. Disabled buttons never react.
+/// Drives Nzib's ActionButtonUI Animator (drop 28c11f5) from input + selection, per his handoff:
+///   pointer down            → "Pressed" (frame cell 2, the Visual one design pixel down);
+///   release / leave         → back to the resting state;
+///   resting state           → "Selected" (looping shine) while this action is armed, else "Normal".
+/// A press that is released outside does not select; selection only comes from React (ActionBar.Apply → SetArmed).
+/// Hover shows a soft halo (a separate image — nothing else touches his Frame sprite). Disabled buttons rest at
+/// Normal and never react.
 /// </summary>
 public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
 {
     public Image glow;
-    /// <summary>Glow colour on hover; ActionBar also drives the glow for the armed action.</summary>
+    public Animator animator;
     public Color hoverGlow = new Color(1f, 1f, 0.9f, 0.55f);
-    /// <summary>Scale step for "1–2 px" at the button's size (set by the owner).</summary>
-    public float step = 0.04f;
 
     private Selectable sel;
-    private bool over, down;
-    /// <summary>Armed = its own glow colour, always on (the ActionBar's selection).</summary>
-    private bool armed;
-    private Color armedGlow;
+    private bool over, down, armed;
+    private string state = "";
 
     void Awake() => sel = GetComponent<Selectable>();
 
-    public void SetArmed(bool on, Color color)
+    void OnEnable() { state = ""; Apply(); }
+    void OnDisable() { over = down = false; }
+
+    public void SetArmed(bool on)
     {
         armed = on;
-        armedGlow = color;
         Apply();
     }
 
@@ -34,8 +36,6 @@ public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     public void OnPointerExit(PointerEventData e) { over = false; down = false; Apply(); }
     public void OnPointerDown(PointerEventData e) { down = true; Apply(); }
     public void OnPointerUp(PointerEventData e) { down = false; Apply(); }
-
-    void OnDisable() { over = down = false; transform.localScale = Vector3.one; }
 
     void Update()
     {
@@ -46,11 +46,16 @@ public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private void Apply()
     {
         bool live = sel == null || sel.interactable;
-        float s = !live ? 1f : down ? 1f - step : over ? 1f + step : 1f;
-        transform.localScale = new Vector3(s, s, 1f);
-        if (glow == null) return;
-        bool hoverOn = live && over && !down;
-        glow.enabled = armed || hoverOn;
-        glow.color = armed ? armedGlow : hoverGlow;
+        string want = live && down ? "Pressed" : live && armed ? "Selected" : "Normal";
+        if (animator != null && animator.isActiveAndEnabled && want != state)
+        {
+            animator.Play(want, 0, 0f);
+            state = want;
+        }
+        if (glow != null)
+        {
+            glow.enabled = live && over && !down;
+            glow.color = hoverGlow;
+        }
     }
 }

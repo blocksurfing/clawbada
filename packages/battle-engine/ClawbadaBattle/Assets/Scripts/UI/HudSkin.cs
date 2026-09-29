@@ -55,31 +55,40 @@ public class HudSkin : ScriptableObject
     public Sprite btnGear;      // options
     public Sprite hexGlow;      // armed ring, drawn over the plate
 
-    [Header("Nzib's HUD (Art/UI/ActionButton.png + Avatar.png — Clawbada/HUD/Bind Nzib HUD Art)")]
-    [Tooltip("Silver hex outline drawn over every action button; tinted when the action is armed.")]
+    [Header("Nzib's HUD — prefabs + sheets (drop 28c11f5; Clawbada/HUD/Bind Nzib HUD Art)")]
+    [Tooltip("Assets/Prefabs/UI/Avatar/AvatarUI.prefab: frame, class background, HP + MP fills, animated selected outline.")]
+    public GameObject avatarPrefab;
+    [Tooltip("Assets/Prefabs/UI/ActionButton/ActionButtonUI.prefab: Animator (Normal / Pressed / Selected) → Visual → Frame + Icon.")]
+    public GameObject actionButtonPrefab;
+    [Tooltip("Normal button frame (ActionButton_Frame.png → ActionButton_Frame_Normal); the target badge draws it too.")]
     public Sprite actionFrame;
     public Sprite actionAttack;
     public Sprite actionDefend;
     public Sprite actionWait;
-    [Tooltip("One Special button per class, indexed by classId (Bulwark = 0 … Ember = 9).")]
+    [Tooltip("One Special icon per class, indexed by classId (Bulwark = 0 … Ember = 9).")]
     public Sprite[] specialButtons = new Sprite[10];
-    [Tooltip("Stepped pixel halo around the hex, generated from actionFrame: hover and armed glow.")]
+    [Tooltip("Stepped pixel halo around the hex, generated from actionFrame: hover glow.")]
     public Sprite actionGlow;
-    [Tooltip("Silver ring over the round avatar.")]
-    public Sprite avatarFrame;
-    [Tooltip("Class-coloured disc behind the portrait (also its circle mask), indexed by classId.")]
+    [Tooltip("Class background behind the portrait (Avatar/Avatar_BG.png), indexed by classId.")]
     public Sprite[] avatarBg = new Sprite[10];
-    [Tooltip("Frames of the HP (left) and charge (right) gauges outside the avatar ring — placeholder until Nzib's gauge art.")]
-    public Sprite avatarGaugeTrack;
-    [Tooltip("Opaque outside the portrait disc: masks the copy of the claws/antennae that breaks out over the ring.")]
+    [Tooltip("HP fill per state: Healthy, Wounded, Low, Critical (Avatar/HP_Bar.png).")]
+    public Sprite[] hpStates = new Sprite[4];
+    [Tooltip("HP % at or above which each state shows: Healthy ≥ [0], Wounded ≥ [1], Low ≥ [2], else Critical. " +
+             "User 2026-09-28: 75 / 50 / 25.")]
+    public float[] hpThresholds = { 0.75f, 0.5f, 0.25f };
+    [Tooltip("Opaque OUTSIDE the portrait aperture (generated): masks the claws/antennae that break out over the frame.")]
     public Sprite avatarPopMask;
-    [Tooltip("Fill band inside the gauge frames (radial fill, tinted) — placeholder until Nzib's gauge art.")]
-    public Sprite avatarArc;
-    public Color hpGaugeFull = C("#59b97b");
-    public Color chargeArc = C("#3171df");
 
     public Sprite SpecialButton(int classId) =>
         specialButtons != null && classId >= 0 && classId < specialButtons.Length ? specialButtons[classId] : null;
+
+    /// <summary>The HP fill sprite for a health fraction (0..1), by hpThresholds.</summary>
+    public Sprite HpStateSprite(float pct)
+    {
+        if (hpStates == null || hpStates.Length < 4) return null;
+        int i = pct >= hpThresholds[0] ? 0 : pct >= hpThresholds[1] ? 1 : pct >= hpThresholds[2] ? 2 : 3;
+        return hpStates[i];
+    }
 
     public Sprite AvatarBg(int classId) =>
         avatarBg != null && classId >= 0 && classId < avatarBg.Length ? avatarBg[classId] : null;
