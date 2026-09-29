@@ -40,8 +40,8 @@ export default async function (b: Browser) {
   // for headless Chrome to burn the WebGL context Unity needs. Prefs are read at battle start.
   await b.goto(`${ORIGIN}/game/battle?preset=${PRESET}&auto=1&speed=1`); // real time: the battle must outlive every window below
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
-  await b.eval(`(() => { localStorage.setItem('clawbada_music', ${JSON.stringify(seed.music ?? 'off')}); localStorage.setItem('clawbada_sfx', ${JSON.stringify(seed.sfx ?? 'off')}); return true; })()`);
-  console.log('seeded on picker:', await b.eval(`JSON.stringify({ music: localStorage.getItem('clawbada_music'), sfx: localStorage.getItem('clawbada_sfx') })`));
+  await b.eval(`(() => { localStorage.setItem('clawbada_battle_music', ${JSON.stringify(seed.music ?? 'off')}); localStorage.setItem('clawbada_sfx', ${JSON.stringify(seed.sfx ?? 'off')}); return true; })()`);
+  console.log('seeded on picker:', await b.eval(`JSON.stringify({ music: localStorage.getItem('clawbada_battle_music'), sfx: localStorage.getItem('clawbada_sfx') })`));
   for (let i = 0; i < 4; i++) {
     await b.sleep(800);
     const r = await b.eval(`(() => { const el = Array.from(document.querySelectorAll('button')).find(e => (e.textContent||'').includes('burner wallet')); if (!el) return null; const q = el.getBoundingClientRect(); return {x:q.x+q.width/2,y:q.y+q.height/2}; })()`);
@@ -87,7 +87,7 @@ export default async function (b: Browser) {
   expect(count(b, /\[BattleBridge\] SetAudioPrefs music=True sfx=True/) >= 1, 'echo refreshed Unity (music=True sfx=True)');
   expect(u1 > u0, `turns still running during the resume window (${u0} → ${u1}, battle over: ${over})`);
   expect(q1 > q0, `SFX plays resumed after sfx on (${q0} → ${q1})`);
-  console.log('prefs now:', await b.eval(`JSON.stringify({ music: localStorage.getItem('clawbada_music'), sfx: localStorage.getItem('clawbada_sfx') })`));
+  console.log('prefs now:', await b.eval(`JSON.stringify({ music: localStorage.getItem('clawbada_battle_music'), sfx: localStorage.getItem('clawbada_sfx') })`));
   console.log(fails.length ? `FAILED: ${fails.length}` : 'ALL CHECKS PASSED');
 }
 

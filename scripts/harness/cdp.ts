@@ -171,7 +171,7 @@ const browser = await connect();
 //    practice battle is left running on the API. Opt out with `export const keepBattle = true` (or KEEP=1).
 if (!mod.keepAudio && !process.env.AUDIO) {
   await browser.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: "try { localStorage.setItem('clawbada_music', 'off'); localStorage.setItem('clawbada_sfx', 'off'); } catch (e) {}",
+    source: "try { localStorage.setItem('clawbada_music', 'off'); localStorage.setItem('clawbada_battle_music', 'off'); localStorage.setItem('clawbada_sfx', 'off'); } catch (e) {}",
   });
 }
 

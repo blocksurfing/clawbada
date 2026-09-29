@@ -7,14 +7,15 @@
  * ~69 MB of PCM per track in the WebGL heap.
  *
  * The track simply loops if a battle outlasts it (fade-out tail and all — chosen, not a bug),
- * fades in as the battle begins and out as it ends. It honours the theme's on/off preference
- * (`clawbada_music`), pauses the theme while it plays and resumes it afterwards, and reacts
- * to the toggle live via the `clawbada:music` event.
+ * fades in as the battle begins and out as it ends. It honours the BATTLE music preference
+ * (`clawbada_battle_music`, the in-battle options menu) — separate from the site theme's (user 2026-09-28) — and
+ * reacts to it live via `clawbada:battle-music`. The theme fades out as soon as a battle view opens (before Unity
+ * loads) and comes back when the view closes, if the site music is on.
  */
 import { ARENA_MUSIC, type ArenaTier } from './arena-music.generated';
 import { getThemeAudio } from '@/components/music-toggle';
-import { getMusicPref, MUSIC_EVENT } from './audio-prefs';
-export { MUSIC_EVENT };
+import { BATTLE_MUSIC_EVENT, getBattleMusicPref, getMusicPref } from './audio-prefs';
+export { BATTLE_MUSIC_EVENT };
 
 const GAIN = 0.35;          // under Unity's SFX at 0.5 and the theme's 0.4
 const FADE_IN_MS = 1500;
@@ -26,9 +27,44 @@ let activeTier: ArenaTier | null = null;   // non-null while a battle is in prog
 let themeWasPlaying = false;
 
 const log = (...a: unknown[]) => console.log('[ArenaMusic]', ...a);
-const prefOff = () => !getMusicPref();
+const prefOff = () => !getBattleMusicPref();
+const THEME_GAIN = 0.4;
+const THEME_FADE_MS = 800;
+let inBattleView = false;
 
-export function isArenaMusicActive(): boolean { return activeTier !== null; }
+/** True while a battle view is open (the theme stays off, whatever its toggle says). */
+export function isArenaMusicActive(): boolean { return activeTier !== null || inBattleView; }
+
+/** A battle view opened: fade the site theme out now — before Unity loads — and remember to bring it back. */
+export function enterBattleView() {
+  inBattleView = true;
+  const theme = getThemeAudio();
+  if (theme.paused) return;
+  themeWasPlaying = true;
+  const from = theme.volume, start = performance.now();
+  const timer = window.setInterval(() => {
+    const t = Math.min(1, (performance.now() - start) / THEME_FADE_MS);
+    theme.volume = from * (1 - t);
+    if (t >= 1) { window.clearInterval(timer); theme.pause(); theme.volume = THEME_GAIN; log('theme faded out for the battle'); }
+  }, 50);
+}
+
+/** The battle view closed: the theme returns if it was playing and the site music is still on. */
+export function leaveBattleView() {
+  inBattleView = false;
+  if (activeTier !== null) return;   // stopArenaMusic hands back once its fade ends
+  resumeThemeIfWanted();
+}
+
+function resumeThemeIfWanted() {
+  if (themeWasPlaying && getMusicPref() && !inBattleView) {
+    const theme = getThemeAudio();
+    theme.volume = THEME_GAIN;
+    theme.play().catch(() => {});
+    log('theme resumed');
+  }
+  themeWasPlaying = false;
+}
 
 function fadeTo(target: number, ms: number, then?: () => void) {
   if (!audio) return;
@@ -65,7 +101,7 @@ export function startArenaMusic(tier: ArenaTier) {
   activeTier = tier;
   const theme = getThemeAudio();
   if (!theme.paused) { themeWasPlaying = true; theme.pause(); log('theme paused for the battle'); }
-  if (prefOff()) { log(`music preference is off — ${tier} bed not started`); return; }
+  if (prefOff()) { log(`battle music is off — ${tier} bed not started`); return; }
   play(tier);
 }
 
@@ -73,10 +109,7 @@ export function startArenaMusic(tier: ArenaTier) {
 export function stopArenaMusic() {
   if (activeTier === null) return;
   activeTier = null;
-  const resumeTheme = () => {
-    if (themeWasPlaying && !prefOff()) { getThemeAudio().play().catch(() => {}); log('theme resumed'); }
-    themeWasPlaying = false;
-  };
+  const resumeTheme = () => { if (!inBattleView) resumeThemeIfWanted(); };
   if (audio && !audio.paused) {
     log(`fade out over ${FADE_OUT_MS} ms`);
     fadeTo(0, FADE_OUT_MS, () => { audio?.pause(); resumeTheme(); });
@@ -85,7 +118,7 @@ export function stopArenaMusic() {
 
 // Live reaction to the toggle: off → fade the bed out; on mid-battle → start it.
 if (typeof window !== 'undefined') {
-  window.addEventListener(MUSIC_EVENT, (e) => {
+  window.addEventListener(BATTLE_MUSIC_EVENT, (e) => {
     const on = (e as CustomEvent<'on' | 'off'>).detail === 'on';
     if (activeTier === null) return;
     if (!on && audio && !audio.paused) { log('toggled off — fading out'); fadeTo(0, 600, () => audio?.pause()); }

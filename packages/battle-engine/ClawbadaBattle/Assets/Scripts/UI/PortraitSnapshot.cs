@@ -101,7 +101,9 @@ public class PortraitSnapshot
         clone.name = "Portrait_" + lob.lobsterId;
         var t = clone.transform;
         t.localPosition = Vector3.zero;
-        t.rotation = lob.transform.rotation;         // facing is a 0/180° turn about Y (LobsterController.SetFacing)
+        // Every portrait faces right (Nzib 2026-09-28): enemy rigs face left on the board, and a left-facing portrait
+        // put its antennae over the turn-order number at the panel's top-left. Facing is a Y turn (SetFacing).
+        t.rotation = Quaternion.Euler(0f, LobsterController.FaceRightY, 0f);
         t.localScale = lob.transform.lossyScale;
         // Scripts can require each other, so a single pass may refuse some: repeat until none are left.
         for (int pass = 0; pass < 4; pass++)

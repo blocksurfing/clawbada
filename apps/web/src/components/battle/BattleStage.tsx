@@ -7,7 +7,7 @@
  * page falls back to the SVG board.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getMusicPref, getSfxPref, MUSIC_EVENT, SFX_EVENT, type AudioPrefChange } from '@/lib/audio-prefs';
+import { getBattleMusicPref, getSfxPref, BATTLE_MUSIC_EVENT, SFX_EVENT, type AudioPrefChange } from '@/lib/audio-prefs';
 import { Unity, useUnityContext } from 'react-unity-webgl';
 import {
   UNITY_GAME_OBJECT,
@@ -127,7 +127,7 @@ function UnityStage(props: BattleStageProps) {
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** The turn Unity was last told about — actor included, because the same number can be
    *  announced for a different lobster after a reconnect. */
-  const lastStartedTurn = useRef<{ turn: number; lobsterId: string } | null>(null);
+  const lastStartedTurn = useRef<{ turn: number; lobsterId: string; deadline: number | null } | null>(null);
   const endedSent = useRef(false);
   /** Set once the close sequence starts: no message may reach a quit instance. */
   const closed = useRef(false);
@@ -227,11 +227,11 @@ function UnityStage(props: BattleStageProps) {
 
   // Site-wide audio preferences → Unity, on init and whenever they change (floating toggle,
   // options-menu echo, another tab). Unity applies SFX and refreshes its menu labels.
-  const pushAudioPrefs = useCallback(() => send(UNITY_METHODS.SET_AUDIO_PREFS, { music: getMusicPref(), sfx: getSfxPref() }), [send]);
+  const pushAudioPrefs = useCallback(() => send(UNITY_METHODS.SET_AUDIO_PREFS, { music: getBattleMusicPref(), sfx: getSfxPref() }), [send]);
   useEffect(() => {
-    window.addEventListener(MUSIC_EVENT, pushAudioPrefs);
+    window.addEventListener(BATTLE_MUSIC_EVENT, pushAudioPrefs);
     window.addEventListener(SFX_EVENT, pushAudioPrefs);
-    return () => { window.removeEventListener(MUSIC_EVENT, pushAudioPrefs); window.removeEventListener(SFX_EVENT, pushAudioPrefs); };
+    return () => { window.removeEventListener(BATTLE_MUSIC_EVENT, pushAudioPrefs); window.removeEventListener(SFX_EVENT, pushAudioPrefs); };
   }, [pushAudioPrefs]);
 
   // Clean close: leave fullscreen, then hand back so the view can navigate. Quitting Unity is
@@ -336,9 +336,18 @@ function UnityStage(props: BattleStageProps) {
   useEffect(() => {
     if (!ready || !props.current?.lobsterId || props.nextToAnimate || animating.current !== null) return;
     const last = lastStartedTurn.current;
-    if (last && last.turn === props.current.turn && last.lobsterId === props.current.lobsterId) return;
+    const mine = props.playerSide !== 'spectator' && props.current.side === props.playerSide;
+    if (last && last.turn === props.current.turn && last.lobsterId === props.current.lobsterId) {
+      // Same turn, but its deadline arrived later: a fresh battle announces turn 1 from the snapshot before the
+      // server starts it (it waits for `ready`), then turn_started brings the real deadline — start the clock now.
+      if (mine && props.current.deadline && props.current.deadline !== last.deadline) {
+        last.deadline = props.current.deadline;
+        send(UNITY_METHODS.SET_CLOCK, { remainingMs: Math.max(0, props.current.deadline - Date.now()) });
+      }
+      return;
+    }
     if (last && props.current.turn < last.turn) return;   // out-of-order leftover from a dropped socket
-    lastStartedTurn.current = { turn: props.current.turn, lobsterId: props.current.lobsterId };
+    lastStartedTurn.current = { turn: props.current.turn, lobsterId: props.current.lobsterId, deadline: props.current.deadline ?? null };
     send(UNITY_METHODS.START_TURN, {
       turn: props.current.turn,
       lobsterId: props.current.lobsterId,
@@ -348,7 +357,7 @@ function UnityStage(props: BattleStageProps) {
     });
     send(UNITY_METHODS.UPDATE_BAR, barToData(props.current.turn, props.bar));
     // Shot clock: Unity counts down locally from what is left right now.
-    if (props.playerSide !== 'spectator' && props.current.side === props.playerSide && props.current.deadline) {
+    if (mine && props.current.deadline) {
       send(UNITY_METHODS.SET_CLOCK, { remainingMs: Math.max(0, props.current.deadline - Date.now()) });
     }
   }, [ready, props.current, props.nextToAnimate, props.bar, props.playerSide, send]);

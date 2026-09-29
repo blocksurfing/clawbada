@@ -13,7 +13,8 @@ using UnityEngine;
 /// </summary>
 public class TeamPanels : MonoBehaviour
 {
-    public const float Gap = 6f;
+    /// <summary>3 design px between panels (Nzib 2026-09-28), at the canvas's 1.5 units per art pixel.</summary>
+    public const float Gap = 3f * ActionBar.ArtScale;
     public const float Edge = 10f;
 
     private readonly Dictionary<string, ActivePanel> byId = new();
