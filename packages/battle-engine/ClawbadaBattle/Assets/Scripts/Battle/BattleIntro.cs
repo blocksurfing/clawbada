@@ -6,7 +6,8 @@ using UnityEngine.UI;
 /// <summary>
 /// Fighting-game battle start (user 2026-09-28): instead of dropping the player into a running battle —
 ///   1. black → fade in on the EMPTY arena (no lobsters, no HUD);
-///   2. centre screen: "READY" rises in, then "FIGHT!" slams down (white flash, camera shake);
+///   2. centre screen: "CLAWS UP!" rises in, then "BATTLE!" slams down (white flash, camera shake) — the user's
+///      Clawbada call, 2026-09-29 (was READY / FIGHT!);
 ///   3. the lobsters drop onto their hexes, slot by slot, both teams at once;
 ///   4. the HUD slides into place (BattleHud.SlideIn).
 /// Runs on unscaled time (presentation, not playback — ?speed never stretches it). A click or tap skips to the end.
@@ -51,8 +52,8 @@ public static class BattleIntro
         var black = HudFactory.AddImage(HudFactory.Stretch(root, "Black"), skin != null ? skin.barFill : null, Color.black);
         var flash = HudFactory.AddImage(HudFactory.Stretch(root, "Flash"), skin != null ? skin.barFill : null, new Color(1f, 1f, 1f, 0f));
         Font font = skin != null ? skin.PixelFontOrDefault() : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        var ready = Title(root, "Ready", font, 48, Color.white, "READY");
-        var fight = Title(root, "Fight", font, 72, Gold, "FIGHT!");
+        var ready = Title(root, "ClawsUp", font, 48, Color.white, "CLAWS UP!");
+        var fight = Title(root, "Battle", font, 72, Gold, "BATTLE!");
 
         bool skip = false;
         bool Skipped()
@@ -75,7 +76,7 @@ public static class BattleIntro
         yield return Wait(BlackHold);
         yield return Tween(FadeIn, k => black.color = new Color(0f, 0f, 0f, 1f - k));
 
-        // 2. READY, then FIGHT!
+        // 2. CLAWS UP!, then BATTLE!
         BattleSfx.PlayIntroReady();
         ready.gameObject.SetActive(true);
         yield return Tween(ReadyIn, k => { SetAlpha(ready, k); ready.transform.localScale = Vector3.one * Mathf.Lerp(0.7f, 1f, EaseOut(k)); });
