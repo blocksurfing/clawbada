@@ -61,8 +61,8 @@ export default async function (b: Browser) {
   const gear = parseRects(gearLine).gear;
   expect(!!gear, `gear rect logged (${gearLine.slice(0, 80)})`);
   if (!gear) return;
-  // Top-right corner of the canvas: assert placement, not just existence.
-  expect(gear.x + gear.w > g.bw * 0.9 && gear.y + gear.h > g.bh * 0.9, `gear sits in the top-right corner (x=${gear.x} y=${gear.y} of ${g.bw}x${g.bh})`);
+  // Top-left corner of the canvas (Nzib's layout, 2026-09-28): assert placement, not just existence.
+  expect(gear.x < g.bw * 0.1 && gear.y + gear.h > g.bh * 0.9, `gear sits in the top-left corner (x=${gear.x} y=${gear.y} of ${g.bw}x${g.bh})`);
   await b.screenshot(`${S}/forfeit-1-board.png`);
 
   let p = toCss(g, gear.x + gear.w / 2, gear.y + gear.h / 2);

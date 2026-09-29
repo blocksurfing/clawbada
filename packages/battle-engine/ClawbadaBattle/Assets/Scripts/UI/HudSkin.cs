@@ -78,6 +78,11 @@ public class HudSkin : ScriptableObject
     public float[] hpThresholds = { 0.75f, 0.5f, 0.25f };
     [Tooltip("Opaque OUTSIDE the portrait aperture (generated): masks the claws/antennae that break out over the frame.")]
     public Sprite avatarPopMask;
+    [Tooltip("PLACEHOLDERS in Nzib's style until he draws them (generated from his button frame): the top-left turn-timer hex, " +
+             "the settings hex, and the small turn-order hex on each team panel.")]
+    public Sprite timerHex;
+    public Sprite settingsHex;
+    public Sprite orderHex;
 
     public Sprite SpecialButton(int classId) =>
         specialButtons != null && classId >= 0 && classId < specialButtons.Length ? specialButtons[classId] : null;
