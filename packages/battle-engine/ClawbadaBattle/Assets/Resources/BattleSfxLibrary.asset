@@ -40,13 +40,17 @@ MonoBehaviour:
       evolved: {fileID: 0}
       elite: {fileID: 0}
       apex: {fileID: 0}
-      variants: []
+      variants:
+      - {fileID: 8300000, guid: 78aab6ce6548f4d409b962d443cf48ee, type: 3}
+      - {fileID: 8300000, guid: 1d80fe778df194888bf3b47c341f3d73, type: 3}
       sharedBeat: 0
       evolvedBeat: 0
       eliteBeat: 0
       apexBeat: 0
-      variantBeats: []
-    impactLead: 0
+      variantBeats:
+      - 0.15
+      - 0
+    impactLead: 0.15
     heal:
       shared: {fileID: 0}
       evolved: {fileID: 0}
@@ -58,6 +62,7 @@ MonoBehaviour:
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
+    impactAtCastEnd: 1
   - cast:
       shared: {fileID: 8300000, guid: 7da3a392503bc4d56b5857c03b1a8ec1, type: 3}
       evolved: {fileID: 0}
@@ -92,6 +97,7 @@ MonoBehaviour:
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
+    impactAtCastEnd: 0
   - cast:
       shared: {fileID: 8300000, guid: 7b9ac9ba90ce048c19a2e40cdf262725, type: 3}
       evolved: {fileID: 0}
@@ -130,6 +136,7 @@ MonoBehaviour:
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
+    impactAtCastEnd: 0
   - cast:
       shared: {fileID: 8300000, guid: fa0a95e224f4a476e88c6f6a75e297e5, type: 3}
       evolved: {fileID: 0}
@@ -164,6 +171,7 @@ MonoBehaviour:
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
+    impactAtCastEnd: 0
   - cast:
       shared: {fileID: 0}
       evolved: {fileID: 8300000, guid: 0cab62ff8819b40b2a3392b8961a3503, type: 3}
@@ -198,6 +206,7 @@ MonoBehaviour:
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
+    impactAtCastEnd: 0
   - cast:
       shared: {fileID: 0}
       evolved: {fileID: 0}
@@ -240,6 +249,7 @@ MonoBehaviour:
       variantBeats:
       - 0.05
       - 0.05
+    impactAtCastEnd: 0
   - cast:
       shared: {fileID: 0}
       evolved: {fileID: 0}
@@ -280,6 +290,7 @@ MonoBehaviour:
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
+    impactAtCastEnd: 0
   - cast:
       shared: {fileID: 0}
       evolved: {fileID: 0}
@@ -318,6 +329,7 @@ MonoBehaviour:
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
+    impactAtCastEnd: 0
   - cast:
       shared: {fileID: 0}
       evolved: {fileID: 0}
@@ -360,6 +372,7 @@ MonoBehaviour:
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
+    impactAtCastEnd: 0
   - cast:
       shared: {fileID: 8300000, guid: 6994ab8b4dbc548c784d086e6c8624cf, type: 3}
       evolved: {fileID: 0}
@@ -394,6 +407,7 @@ MonoBehaviour:
       eliteBeat: 0
       apexBeat: 0
       variantBeats: []
+    impactAtCastEnd: 0
   move:
   - {fileID: 8300000, guid: 9ceda9dc534a546d3b8245419b963958, type: 3}
   - {fileID: 8300000, guid: deafd23ecffc543c589427bfac0dc019, type: 3}
@@ -424,5 +438,7 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
+  introReady: {fileID: 0}
+  introFight: {fileID: 0}
   uiOpen: {fileID: 8300000, guid: 9e96661ff575749bc9c1377d08162045, type: 3}
   uiClose: {fileID: 8300000, guid: 24db77162692246f79cb0b0c6798e4eb, type: 3}
