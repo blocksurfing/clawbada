@@ -13,6 +13,9 @@ using UnityEngine;
 ///   Art/UI/Avatar/HP_Bar.png → HP_Healthy / _Wounded / _Low / _Critical → hpStates.
 /// Also generates, to line up with his art pixel for pixel:
 ///   action_glow.png    — a stepped 3 px halo around the frame's hex (hover glow);
+///   hud_timer_hex.png / hud_settings_hex.png — PLACEHOLDERS (user 2026-09-28) for the top-left turn timer and settings
+///                        hexes: his button frame with a dark green / dark brown fill, until he draws them;
+///   hud_order_hex.png  — a small hex in the same palette for the turn-order number on each team panel;
 ///   avatar_popmask.png — opaque everywhere OUTSIDE the portrait aperture of Avatar_Frame (plus a PopMargin border),
 ///                        the mask for the claws/antennae that break out over the frame.
 /// Slices are found by NAME, so a re-slice or a re-ordered sheet still binds. Re-run after any HUD drop.
@@ -71,6 +74,9 @@ public static class NzibHudBinder
 
         skin.actionGlow = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("action_glow", Glow(skin.actionFrame)));
         skin.avatarPopMask = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("avatar_popmask", PopMask()));
+        skin.timerHex = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("hud_timer_hex", FilledFrame(skin.actionFrame, new Color32(0x1c, 0x3a, 0x2a, 0xff), new Color32(0x2e, 0x6a, 0x45, 0xff))));
+        skin.settingsHex = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("hud_settings_hex", FilledFrame(skin.actionFrame, new Color32(0x3a, 0x2c, 0x26, 0xff), new Color32(0x5a, 0x45, 0x38, 0xff))));
+        skin.orderHex = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("hud_order_hex", OrderHex()));
 
         EditorUtility.SetDirty(skin);
         AssetDatabase.SaveAssets();
@@ -142,6 +148,67 @@ public static class NzibHudBinder
             {
                 int d = dist[x, y];
                 tex.SetPixel(x, y, d >= 1 && d <= 3 ? new Color(1f, 1f, 1f, alpha[d]) : Color.clear);
+            }
+        tex.Apply();
+        return tex;
+    }
+
+    /// <summary>His hex frame with its hollow interior filled: `fill`, and a 1 px `rim` just inside the frame.</summary>
+    private static Texture2D FilledFrame(Sprite frame, Color fill, Color rim)
+    {
+        var src = SlicePixels(frame);
+        int w = src.GetLength(0), h = src.GetLength(1);
+        // Interior = transparent pixels reachable from the centre without crossing the frame.
+        var inside = new bool[w, h];
+        var stack = new System.Collections.Generic.Stack<Vector2Int>();
+        stack.Push(new Vector2Int(w / 2, h / 2));
+        while (stack.Count > 0)
+        {
+            var q = stack.Pop();
+            if (q.x < 0 || q.y < 0 || q.x >= w || q.y >= h || inside[q.x, q.y] || src[q.x, q.y].a > 0.1f) continue;
+            inside[q.x, q.y] = true;
+            stack.Push(new Vector2Int(q.x + 1, q.y)); stack.Push(new Vector2Int(q.x - 1, q.y));
+            stack.Push(new Vector2Int(q.x, q.y + 1)); stack.Push(new Vector2Int(q.x, q.y - 1));
+        }
+        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+            {
+                if (!inside[x, y]) { tex.SetPixel(x, y, src[x, y]); continue; }
+                bool edge = false;
+                for (int dx = -1; dx <= 1 && !edge; dx++)
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        int nx = x + dx, ny = y + dy;
+                        if (nx >= 0 && ny >= 0 && nx < w && ny < h && !inside[nx, ny]) { edge = true; break; }
+                    }
+                tex.SetPixel(x, y, edge ? rim : fill);
+            }
+        tex.Apply();
+        return tex;
+    }
+
+    /// <summary>A 15×17 pointy-top hex: near-black outline, light rim top-left, dark rim bottom-right, slate fill.</summary>
+    private static Texture2D OrderHex()
+    {
+        const int w = 15, h = 17;
+        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        Color outline = new Color32(0x0e, 0x0e, 0x0e, 0xff), light = new Color32(0xbf, 0xe6, 0xee, 0xff),
+              dark = new Color32(0x5a, 0x76, 0x88, 0xff), fill = new Color32(0x1b, 0x27, 0x33, 0xff);
+        float cx = (w - 1) / 2f, cy = (h - 1) / 2f;
+        // Pointy-top hex test in pixel space.
+        bool In(float x, float y, float r) { float dx = Mathf.Abs(x - cx), dy = Mathf.Abs(y - cy); return dx <= r * 0.866f && dy <= r - dx * 0.577f; }
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+            {
+                Color c = Color.clear;
+                if (In(x, y, 8.4f))
+                {
+                    if (!In(x, y, 7.3f)) c = outline;
+                    else if (!In(x, y, 6.2f)) c = y >= cy ? light : dark;   // lit from above, like his frame
+                    else c = fill;
+                }
+                tex.SetPixel(x, y, c);
             }
         tex.Apply();
         return tex;

@@ -9,38 +9,38 @@ using UnityEngine.UI;
 /// scene or prefab wiring is needed. React still owns the rules: it sends the turn,
 /// bar, clock and unit truth; Unity draws them and reports clicks.
 ///
-/// Layout (960x540 reference): turn strip top-centre, badges top corners, unit
-/// overlays following the rigs, the acting lobster's round avatar bottom-left with the action
-/// buttons right beside it (Nzib, 2026-09-27), clock bottom-right, floats and the result banner
-/// over everything.
+/// Layout (960x540 reference, Nzib's layout 2026-09-28): settings + timer hexes top-left, the opponents'
+/// three team panels top-right, yours bottom-left (turn-order numbers, pulsing outline on the lobster acting
+/// now), the 2×2 action buttons bottom-right with the hint line above them, unit overlays following the rigs,
+/// floats and the result banner over everything.
 /// </summary>
 public class BattleHud : MonoBehaviour
 {
     public HudSkin Skin { get; private set; }
     public Canvas Canvas { get; private set; }
-    public TurnStrip Strip { get; private set; }
-    public ActivePanel Panel { get; private set; }
-    /// <summary>The selected-but-unconfirmed target (two-step targeting): class, HP, charge, statuses.</summary>
-    public ActivePanel TargetPanel { get; private set; }
-    /// <summary>Shot clock, bottom-right in its own box (players only). Sits above the
-    /// React fullscreen button that occupies the very corner.</summary>
+    /// <summary>The six team panels (Nzib's layout, 2026-09-28): yours bottom-left, theirs top-right, turn-order numbers.</summary>
+    public TeamPanels Teams { get; private set; }
+    /// <summary>The acting lobster's panel.</summary>
+    public ActivePanel Panel => Teams != null ? Teams.PanelFor(activeId) : null;
+    /// <summary>The selected-but-unconfirmed target's panel (two-step targeting), or null.</summary>
+    public ActivePanel TargetPanel => Teams != null && !string.IsNullOrEmpty(targetedId) ? Teams.PanelFor(targetedId) : null;
+    /// <summary>Shot clock: a hex top-left beside the settings hex, always shown, counting on the player's turn.</summary>
     public ClockView Clock { get; private set; }
-    private RectTransform clockBox;
-    /// <summary>Clock box bottom edge: leaves a line under it for the hint, clear of React's FULL button (≈ 8–26 up).</summary>
-    private const float ClockBottom = 54f;
+    /// <summary>Top-left hexes (settings, timer) — design px 48 at 1.25.</summary>
+    private const float HexSize = 60f;
 
-    /// <summary>Start the shot clock (box shown) or stop it (box hidden — no empty frame on bot turns).</summary>
+    /// <summary>Run the shot clock on the player's turn; otherwise the hex stays, dimmed and empty.</summary>
     private void SetClock(int remainingMs)
     {
-        if (remainingMs > 0) { clockBox.gameObject.SetActive(true); Clock.StartClock(remainingMs); }
-        else { Clock.StopClock(); clockBox.gameObject.SetActive(false); }
+        if (remainingMs > 0) Clock.StartClock(remainingMs);
+        else Clock.StopClock();
     }
     public ResultBanner Banner { get; private set; }
     public ActiveMarker Marker { get; private set; }
     public ActionBar Bar { get; private set; }
     /// <summary>Every lobster's avatar portrait, taken once when the battle binds.</summary>
     public PortraitSnapshot Portraits { get; private set; }
-    /// <summary>Gear menu, top-right. Participants only; carries the forfeit.</summary>
+    /// <summary>Settings hex menu, top-left. Participants only; carries the forfeit.</summary>
     public OptionsMenu Options { get; private set; }
     public IReadOnlyDictionary<string, UnitOverlay> Overlays => overlays;
 
@@ -142,18 +142,12 @@ public class BattleHud : MonoBehaviour
         canvasRect = Canvas.GetComponent<RectTransform>();
 
         overlayLayer = HudFactory.Stretch(canvasRect, "Overlays");
-        Strip = TurnStrip.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
         Portraits = ActivePanel.NewPortraits();
-        Panel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, Portraits);
-        clockBox = HudFactory.Rect(canvasRect, "ClockBox", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-8f, ClockBottom), new Vector2(96f, 40f));
-        HudFactory.AddImage(clockBox, skin.panelBg, new Color(1f, 1f, 1f, 0.92f));
-        Clock = ClockView.Create(clockBox, "Clock", skin, 20);
-        Clock.Rect.anchorMin = Clock.Rect.anchorMax = new Vector2(0.5f, 0.5f);
-        Clock.Rect.pivot = new Vector2(0.5f, 0.5f);
-        Clock.Rect.anchoredPosition = new Vector2(6f, 0f);
-        clockBox.gameObject.SetActive(false);
-        // Above the clock box (+ 40 + 6), mirroring the acting lobster's avatar bottom-left.
-        TargetPanel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, Portraits, rightSide: true, bottom: ClockBottom + 46f);
+        Teams = TeamPanels.Create(canvasRect, skin, Portraits);
+        // Top-left: the settings hex (Options, below) then the timer hex beside it.
+        Clock = ClockView.Create(canvasRect, "Clock", skin, HexSize, 24);
+        Clock.Rect.anchorMin = Clock.Rect.anchorMax = Clock.Rect.pivot = new Vector2(0f, 1f);
+        Clock.Rect.anchoredPosition = new Vector2(TeamPanels.Edge + HexSize + 6f, -TeamPanels.Edge);
         // LOKR-style: the selected target carries a small copy of the armed action's button above it.
         // Clickable (user 2026-09-27): tapping the badge confirms the selected target, exactly like pressing
         // the armed action again — so it is raycast-on and forwards the armed action to React.
@@ -179,12 +173,12 @@ public class BattleHud : MonoBehaviour
             bridge?.NotifyActionSelected(targetAction);
         });
         targetBadge.gameObject.SetActive(false);
-        // Buttons right beside the avatar panel, bottom-aligned (centred they covered the board's bottom row).
-        // The hint line sits under the clock, flush with its right edge, above React's FULL button in the corner.
-        Bar = ActionBar.Create(canvasRect, skin, new Vector2(ActivePanel.Margin + ActivePanel.Width + 6f, 10f), new Vector2(-10f, ClockBottom - 20f));
+        // 2×2 button cluster bottom-right; the hint line right-aligned just above it.
+        Bar = ActionBar.Create(canvasRect, skin, new Vector2(-TeamPanels.Edge, TeamPanels.Edge), Vector2.zero);
+        Bar.PlaceHint(new Vector2(-TeamPanels.Edge, TeamPanels.Edge + Bar.Height + 4f));
         bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
-        Options = OptionsMenu.Create(canvasRect, skin);
+        Options = OptionsMenu.Create(canvasRect, skin, new Vector2(TeamPanels.Edge, -TeamPanels.Edge), HexSize);
         Options.ForfeitConfirmed += () => bridge?.NotifyForfeit();
         Options.MusicToggled += on => bridge?.NotifyAudioPref("music", on);
         Options.SfxToggled += on => bridge?.NotifyAudioPref("sfx", on);
@@ -279,19 +273,19 @@ public class BattleHud : MonoBehaviour
         badgeLogPending = true;
     }
 
+    /// <summary>The selected target's own team panel pulses orange (it replaces the separate target avatar).</summary>
     private void ShowTargetPanel()
     {
         LobsterController target = null;
         if (!string.IsNullOrEmpty(targetedId) && manager != null)
             foreach (var lob in manager.Lobsters) if (lob != null && lob.lobsterId == targetedId) { target = lob; break; }
-        if (target == null) { if (shownTargetId != "") { TargetPanel.Hide(); shownTargetId = ""; } return; }
+        Teams.SetTarget(target != null ? target.lobsterId : "");
+        if (target == null) { shownTargetId = ""; return; }
         if (target.lobsterId != shownTargetId)
         {
-            TargetPanel.Show(target, !string.IsNullOrEmpty(sideOfPlayer) && target.side == sideOfPlayer);
             shownTargetId = target.lobsterId;
             Debug.Log($"[BattleHud] target panel {target.lobsterId} ({target.className}) HP {target.currentHp}/{target.maxHp} charge {target.charge}");
         }
-        else TargetPanel.Refresh();
     }
 
     /// <summary>Field bars, LOKR-style: only the enemy hit last and the unit being targeted carry
@@ -346,8 +340,7 @@ public class BattleHud : MonoBehaviour
         // Avatar portraits: once per lobster, now, while every rig stands at rest (user: not every turn).
         Portraits.Clear();
         foreach (var lob in manager.Lobsters) if (lob != null) Portraits.Capture(lob, ActivePanel.PortraitDrop);
-        Strip.Bind(manager.Lobsters);
-        Strip.SetEntries("", null);
+        Teams.Bind(manager.Lobsters, sideOfPlayer == "B" ? "B" : "A");
 
         // Team corners used to carry TEAM A · YOU / TEAM B · BOT plates. Sides read from
         // facing, the move prompt and the active-lobster card, so the corners stay clear —
@@ -360,8 +353,7 @@ public class BattleHud : MonoBehaviour
         RefreshFieldBars();
 
         activeId = "";
-        Panel.Hide();
-        TargetPanel.Hide();
+        Teams.ClearMarks();
         shownTargetId = "";
         targetLob = null;
         if (targetBadge != null) targetBadge.gameObject.SetActive(false);
@@ -384,10 +376,9 @@ public class BattleHud : MonoBehaviour
         var lob = manager.GetLobster(activeId);
         if (lob != null) Bar.SetActorClass(lob.classId);
         Marker.Follow(lob);
-        Panel.Show(lob, data.isPlayer);
         SetClock(data.isPlayer ? fallbackRemainingMs : 0);
-        Strip.SetEntries(activeId, manager.upcoming);
-        Debug.Log($"[BattleHud] turn {data.turn} active={activeId} strip={Strip.DescribeIds()}");
+        Teams.SetTurn(activeId, manager.upcoming);
+        Debug.Log($"[BattleHud] turn {data.turn} active={activeId} order=[{string.Join(",", Teams.CurrentOrder)}]");
         // Layout dump for the harness: the first two turns, plus the player's first two own
         // turns (the bots may act first, so turn <= 2 alone can miss the player entirely).
         if (data.turn <= 2 || (data.isPlayer && playerTurnsDumped++ < 2)) DumpLayout();
@@ -430,8 +421,8 @@ public class BattleHud : MonoBehaviour
 
     private void OnBarUpdated(BarData data)
     {
-        Strip.SetEntries(activeId, data?.entries);
-        Debug.Log($"[BattleHud] bar turn={data?.turn} strip={Strip.DescribeIds()}");
+        Teams.SetTurn(activeId, data?.entries);
+        Debug.Log($"[BattleHud] bar turn={data?.turn} order=[{string.Join(",", Teams.CurrentOrder)}]");
     }
 
     private void OnClockSet(int remainingMs)
@@ -442,8 +433,8 @@ public class BattleHud : MonoBehaviour
 
     private void OnUnitsSynced(UnitsSyncData data)
     {
-        // Truth may have killed or revived someone: rebuild the strip, not just its bars.
-        Strip.SetEntries(activeId, manager.upcoming);
+        // Truth may have killed or revived someone: renumber the order, not just the bars.
+        Teams.SetTurn(activeId, manager.upcoming);
         Refresh();
         var sb = new StringBuilder();
         foreach (var lob in manager.Lobsters)
@@ -487,15 +478,15 @@ public class BattleHud : MonoBehaviour
         if (overlays.TryGetValue(lob.lobsterId, out var o)) o.Refresh();
         if (lob.lobsterId == lastHitEnemyId) lastHitEnemyId = "";
         RefreshFieldBars();
-        Strip.Refresh();
+        Teams.SetTurn(activeId, manager.upcoming);   // the dead lose their number and outline
+        Teams.Refresh();
         if (lob.lobsterId == activeId) Marker.Hide();
     }
 
     private void OnBattleEnded(BattleEndData data)
     {
         Options.SetAvailable(false);
-        Panel.Hide();
-        TargetPanel.Hide();
+        Teams.ClearMarks();
         shownTargetId = "";
         targetLob = null;
         if (targetBadge != null) targetBadge.gameObject.SetActive(false);
@@ -512,9 +503,7 @@ public class BattleHud : MonoBehaviour
     public void Refresh()
     {
         foreach (var o in overlays.Values) o.Refresh();
-        Strip.Refresh();
-        Panel.Refresh();
-        TargetPanel.Refresh();
+        Teams.Refresh();
     }
 
     public void ShowBanner(string winner, bool playerWon, string reason, string playerSide)
@@ -553,9 +542,7 @@ public class BattleHud : MonoBehaviour
             o.Rect.anchoredPosition = CanvasPointFor(lob.transform.position + Vector3.up * Skin.overlayWorldYOffset);
             o.Refresh();
         }
-        Strip.Refresh();
-        Panel.Refresh();
-        TargetPanel.Refresh();
+        Teams.Refresh();
         if (targetBadge != null && targetBadge.gameObject.activeSelf)
         {
             if (targetLob == null || !targetLob.alive) targetBadge.gameObject.SetActive(false);

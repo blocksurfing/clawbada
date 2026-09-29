@@ -4,7 +4,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Gear button in the top-right corner and the options panel behind it: Music on/off,
+/// Settings hex in the top-left corner (Nzib's layout, 2026-09-28 — a placeholder hex in his style until he draws it)
+/// and the options panel that drops down from it: Music on/off,
 /// SFX on/off, game hints on/off (Unity-only, ActionBar.HintsEnabled in PlayerPrefs), and the
 /// only in-battle escape hatch, forfeit. Quitting loses the battle, so
 /// that press is confirmed before Unity reports it — React owns the actual call to the API.
@@ -41,19 +42,21 @@ public class OptionsMenu : MonoBehaviour
 
     public bool IsOpen => panel != null && panel.gameObject.activeSelf;
 
-    public static OptionsMenu Create(Transform parent, HudSkin skin)
+    /// <param name="topLeft">Where the settings hex's top-left corner sits, from the canvas's top-left.</param>
+    public static OptionsMenu Create(Transform parent, HudSkin skin, Vector2 topLeft, float hexSize)
     {
-        var root = HudFactory.Rect(parent, "Options", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
-            new Vector2(-8f, -8f), new Vector2(190f, 280f));
+        var root = HudFactory.Rect(parent, "Options", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            topLeft, new Vector2(190f, 280f));
         var menu = root.gameObject.AddComponent<OptionsMenu>();
         var font = skin.FontOrDefault();
 
-        float gearSize = 40f;
-        menu.gear = HudFactory.Button(root, "Gear", skin.btnGear != null ? skin.btnGear : skin.hexBevel,
+        float gearSize = hexSize;
+        menu.gear = HudFactory.Button(root, "Gear", skin.settingsHex != null ? skin.settingsHex : skin.btnGear,
             skin.iconGear, "", font, gearSize, menu.Toggle);
         var grt = menu.gear.GetComponent<RectTransform>();
-        grt.anchorMin = grt.anchorMax = grt.pivot = new Vector2(1f, 1f);
+        grt.anchorMin = grt.anchorMax = grt.pivot = new Vector2(0f, 1f);
         grt.anchoredPosition = Vector2.zero;
+        grt.sizeDelta = new Vector2(gearSize, gearSize);   // his hex cell is square
         // Button() lays the label under the glyph; the gear carries no caption.
         var gearLabel = menu.gear.transform.Find("Label");
         if (gearLabel != null) gearLabel.gameObject.SetActive(false);
@@ -64,8 +67,8 @@ public class OptionsMenu : MonoBehaviour
             gearIcon.anchoredPosition = Vector2.zero;
         }
 
-        menu.panel = HudFactory.Rect(root, "Panel", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
-            new Vector2(0f, -(gearSize * 1.143f + 6f)), new Vector2(176f, 234f));
+        menu.panel = HudFactory.Rect(root, "Panel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(0f, -(gearSize + 6f)), new Vector2(176f, 234f));
         HudFactory.AddImage(menu.panel, skin.panelBg, new Color(1f, 1f, 1f, 0.97f), raycast: true);
 
         var title = HudFactory.Text(menu.panel, "Title", font, 12, skin.textPrimary, TextAnchor.MiddleCenter, new Vector2(160f, 18f));

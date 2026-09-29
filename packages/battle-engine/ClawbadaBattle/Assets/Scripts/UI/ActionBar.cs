@@ -4,8 +4,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Action buttons: a row of Nzib's ActionButtonUI prefabs (drop 28c11f5) right of the avatar, bottom-left —
-/// Attack, Defend, the acting lobster's own class Special, Wait. No text: his icons carry their glyphs. His
+/// Action buttons: Nzib's ActionButtonUI prefabs (drop 28c11f5) as a 2×2 hex cluster bottom-right (his layout,
+/// 2026-09-28) — Attack and the acting lobster's own class Special on top, Defend and Wait below, offset half a hex. No text: his icons carry their glyphs. His
 /// Animator owns the frame: Pressed while held (the Visual drops a design pixel), Selected (looping shine) for
 /// the armed action, Normal otherwise — driven by ButtonFeel; hover adds a soft halo. There is no Undo button: tapping your own lobster (or its start hex) cancels a move, and the
 /// hint line says so. Unity only reports presses; React decides what they mean and submits the turn. Its state
@@ -23,6 +23,8 @@ public class ActionBar : MonoBehaviour
     public const float ArtScale = 1.5f;
     /// <summary>Hex spacing: the frame's hex is 42 art px wide in its 48 px cell, plus a 2 px gap.</summary>
     private const float PitchArt = 44f;
+    /// <summary>Row spacing of the cluster: three quarters of the hex's height, plus a 2 px gap.</summary>
+    private const float RowArt = 37f;
     private const string CancelMoveHint = "Tap your lobster to cancel the move";
     private const string HintsPref = "clawbada.hints";
 
@@ -42,26 +44,35 @@ public class ActionBar : MonoBehaviour
     private int actorClass = -1;
     private SelectionData lastSel;
 
-    /// <summary>Width of the whole row in canvas units (for the owner's layout).</summary>
+    /// <summary>Size of the whole cluster in canvas units (for the owner's layout).</summary>
     public float Width { get; private set; }
+    public float Height { get; private set; }
     public float ButtonHeight { get; private set; }
 
+    /// <summary>Move the hint line's bottom-right corner (from the canvas's bottom-right).</summary>
+    public void PlaceHint(Vector2 bottomRight) => hint.rectTransform.anchoredPosition = bottomRight;
+
     /// <param name="hintBottomRight">Where the hint line's bottom-right corner sits, from the canvas's bottom-right.</param>
-    public static ActionBar Create(Transform parent, HudSkin skin, Vector2 bottomLeft, Vector2 hintBottomRight)
+    /// <param name="bottomRight">Where the cluster's bottom-right corner sits, from the canvas's bottom-right.</param>
+    public static ActionBar Create(Transform parent, HudSkin skin, Vector2 bottomRight, Vector2 hintBottomRight)
     {
         float size = 48f * ArtScale;
         float pitch = PitchArt * ArtScale;
-        var rt = HudFactory.Rect(parent, "ActionBar", Vector2.zero, Vector2.zero, Vector2.zero, bottomLeft, new Vector2(pitch * 3f + size, size));
+        float row = RowArt * ArtScale;
+        var corner = new Vector2(1f, 0f);
+        var rt = HudFactory.Rect(parent, "ActionBar", corner, corner, corner, bottomRight, new Vector2(pitch * 1.5f + size, row + size));
         var bar = rt.gameObject.AddComponent<ActionBar>();
         bar.skin = skin;
         bar.Width = rt.sizeDelta.x;
+        bar.Height = rt.sizeDelta.y;
         bar.ButtonHeight = size;
         if (skin.actionButtonPrefab == null) Debug.LogError("[BattleHud] HudSkin.actionButtonPrefab is not bound — run Clawbada ▸ HUD ▸ Bind Nzib HUD Art");
 
-        bar.attack = bar.Make(rt, "Attack", skin.actionAttack, 0, size, pitch, () => bar.Press("attack"), out bar.attackFeel, out _);
-        bar.defend = bar.Make(rt, "Defend", skin.actionDefend, 1, size, pitch, () => bar.Press("defend"), out bar.defendFeel, out _);
-        bar.special = bar.Make(rt, "Special", skin.SpecialButton(0), 2, size, pitch, () => bar.Press("special"), out bar.specialFeel, out bar.specialIcon);
-        bar.wait = bar.Make(rt, "Wait", skin.actionWait, 3, size, pitch, () => bar.Press("none"), out bar.waitFeel, out _);
+        float h = size * 0.5f;
+        bar.attack = bar.Make(rt, "Attack", skin.actionAttack, new Vector2(h, row + h), size, () => bar.Press("attack"), out bar.attackFeel, out _);
+        bar.special = bar.Make(rt, "Special", skin.SpecialButton(0), new Vector2(h + pitch, row + h), size, () => bar.Press("special"), out bar.specialFeel, out bar.specialIcon);
+        bar.defend = bar.Make(rt, "Defend", skin.actionDefend, new Vector2(h + pitch * 0.5f, h), size, () => bar.Press("defend"), out bar.defendFeel, out _);
+        bar.wait = bar.Make(rt, "Wait", skin.actionWait, new Vector2(h + pitch * 1.5f, h), size, () => bar.Press("none"), out bar.waitFeel, out _);
 
         // On the canvas, not the row: bottom-right under the clock, right-aligned so long lines grow leftwards.
         bar.hint = HudFactory.Text(parent, "Hint", skin.FontOrDefault(), 12, skin.textPrimary, TextAnchor.LowerRight, new Vector2(560f, 18f));
@@ -76,10 +87,10 @@ public class ActionBar : MonoBehaviour
 
     /// <summary>One button: a slot (the stationary click area: transparent raycast image + Button) holding the hover
     /// halo and Nzib's prefab (his root stays put; his Animator moves the Visual). Icon.sprite is the action's.</summary>
-    private Button Make(RectTransform row, string name, Sprite icon, int index, float size, float pitch,
+    private Button Make(RectTransform cluster, string name, Sprite icon, Vector2 centre, float size,
         UnityEngine.Events.UnityAction onClick, out ButtonFeel feel, out Image iconImage)
     {
-        var rt = HudFactory.Rect(row, name, Vector2.zero, Vector2.zero, HudFactory.Center, new Vector2(pitch * index + size * 0.5f, size * 0.5f), new Vector2(size, size));
+        var rt = HudFactory.Rect(cluster, name, Vector2.zero, Vector2.zero, HudFactory.Center, centre, new Vector2(size, size));
         // The click area: invisible, and never moves (his Pressed state moves only the Visual inside).
         var hit = HudFactory.AddImage(rt, skin.actionFrame, new Color(1f, 1f, 1f, 0f), raycast: true);
 
