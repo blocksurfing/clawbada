@@ -67,6 +67,8 @@ export interface BattleInitData {
   opponentBadge: string;
   stakeBracket: string;
   stakeAmount: number;
+  /** Play the battle-start intro (fresh battle: no turn resolved yet). Reconnects mid-battle skip it. */
+  intro: boolean;
 }
 
 export interface TurnStartData { turn: number; lobsterId: string; side: Side; deadlineMs: number; isPlayer: boolean }
@@ -159,6 +161,8 @@ export const JS_CALLBACKS = {
   ON_UNDO_MOVE: 'onUndoMove',
   ON_FORFEIT: 'onForfeit',
   ON_AUDIO_PREF: 'onAudioPref',
+  /** The battle-start intro finished (or was skipped): React starts the music and tells the server it is ready. */
+  ON_INTRO_COMPLETE: 'onIntroComplete',
 } as const;
 
 export interface UnityCallbackHandler {
@@ -173,6 +177,7 @@ export interface UnityCallbackHandler {
   onForfeit?: () => void;
   /** Options-menu Music/SFX row pressed. React persists it; the echo (SetAudioPrefs) refreshes the menu. */
   onAudioPref?: (pref: { kind: 'music' | 'sfx'; on: boolean }) => void;
+  onIntroComplete?: () => void;
 }
 
 /** Register the callbacks Unity's jslib calls. Returns a cleanup. */
@@ -188,6 +193,7 @@ export function registerUnityCallbacks(handlers: UnityCallbackHandler): () => vo
     [JS_CALLBACKS.ON_ACTION_SELECTED]: (json) => handlers.onActionSelected?.(JSON.parse(json ?? '{}').action),
     [JS_CALLBACKS.ON_UNDO_MOVE]: () => handlers.onUndoMove?.(),
     [JS_CALLBACKS.ON_FORFEIT]: () => handlers.onForfeit?.(),
+    [JS_CALLBACKS.ON_INTRO_COMPLETE]: () => handlers.onIntroComplete?.(),
     [JS_CALLBACKS.ON_AUDIO_PREF]: (json) => {
       const p = JSON.parse(json ?? '{}');
       if (p.kind === 'music' || p.kind === 'sfx') handlers.onAudioPref?.({ kind: p.kind, on: !!p.on });
@@ -242,6 +248,7 @@ export function buildInitData(snapshot: BattleSnapshot, playerSide: Side | 'spec
     opponentBadge: playerSide === 'A' ? badge('B') : playerSide === 'B' ? badge('A') : badge('B'),
     stakeBracket: session.kind,
     stakeAmount: 0,
+    intro: snapshot.state.turn === 0 && !snapshot.state.finished,
   };
 }
 

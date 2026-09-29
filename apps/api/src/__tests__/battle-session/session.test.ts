@@ -37,7 +37,7 @@ interface Harness {
   ev: (name: string) => any[];
 }
 
-function harness(opts: { bot?: v3.BotName; seed?: bigint; shotClockMs?: number; botThinkMs?: number; resume?: { timeouts: Record<'A' | 'B', number>; firstTurnClockMs?: number } } = {}): Harness {
+function harness(opts: { bot?: v3.BotName; seed?: bigint; shotClockMs?: number; botThinkMs?: number; startWaitMs?: number; resume?: { timeouts: Record<'A' | 'B', number>; firstTurnClockMs?: number } } = {}): Harness {
   const fake = new FakeClock();
   const clock = new ShotClock(fake);
   const a = inputs('A', [LobsterClass.Bulwark, LobsterClass.Sentinel, LobsterClass.Reaver]);
@@ -54,6 +54,7 @@ function harness(opts: { bot?: v3.BotName; seed?: bigint; shotClockMs?: number; 
     botSide: bot ? 'B' : null,
     botPolicy: bot ? v3.botPolicy(bot) : null,
     firstTurnClockMs: opts.resume?.firstTurnClockMs,
+    startWaitMs: opts.startWaitMs,
     hooks: {
       emit: (_id, event, data) => h.events!.push({ event, data }),
       persist: async (_s, turns, snap) => { h.persisted!.push({ turns, snap }); },
@@ -230,6 +231,65 @@ describe('BattleSession — human vs human (real)', () => {
     expect(snap.current.deadline).toBe(h.fake.now() + 60_000);
     expect(snap.roster).toHaveLength(6);
     expect(snap.timeouts).toEqual({ A: 0, B: 0 });
+  });
+});
+
+describe('BattleSession — battle-start wait (intro, user 2026-09-28)', () => {
+  test('practice: nothing happens until the player is ready, then the first turn starts', () => {
+    const h = harness({ bot: 'balanced', startWaitMs: 15_000 });
+    h.session.start();
+    h.fake.advance(5_000);
+    expect(h.ev('turn_started')).toHaveLength(0);
+    expect(h.ev('turn_resolved')).toHaveLength(0);   // the bot has not moved behind the intro
+    expect(h.session.isStarted).toBe(false);
+    expect(h.session.ready('A')).toEqual({ ok: true, started: true });
+    expect(h.ev('battle_started')).toEqual([{ reason: 'ready' }]);
+    expect(h.ev('turn_started')).toHaveLength(1);
+  });
+
+  test('the cap starts a battle whose players never say ready (an agent, a closed tab)', () => {
+    const h = harness({ bot: 'balanced', startWaitMs: 15_000 });
+    h.session.start();
+    h.fake.advance(14_999);
+    expect(h.ev('turn_started')).toHaveLength(0);
+    h.fake.advance(1);
+    expect(h.ev('battle_started')).toEqual([{ reason: 'cap' }]);
+    expect(h.ev('turn_started')).toHaveLength(1);
+  });
+
+  test('human vs human: waits for BOTH players', () => {
+    const h = harness({ startWaitMs: 15_000 });
+    h.session.start();
+    expect(h.session.ready('A').started).toBe(false);
+    expect(h.ev('turn_started')).toHaveLength(0);
+    expect(h.session.ready('B').started).toBe(true);
+    expect(h.ev('turn_started')).toHaveLength(1);
+  });
+
+  test('a submitted move counts as ready', () => {
+    const h = harness({ startWaitMs: 15_000 });
+    h.session.start();
+    const cur = h.session.current();
+    const actor = h.session.state.lobsters.find((l) => l.id === cur.lobsterId)!;
+    const res = h.session.submit(cur.side!, cur.turn, v3.BOTS.balanced(h.session.state, actor));
+    expect(res.ok).toBe(true);
+    expect(h.ev('battle_started')).toEqual([{ reason: 'submit' }]);
+    expect(h.session.state.turn).toBe(1);
+  });
+
+  test('a resumed battle never waits', () => {
+    const h = harness({ bot: 'balanced', startWaitMs: 15_000, resume: { timeouts: { A: 0, B: 0 } } });
+    h.session.start();
+    expect(h.session.isStarted).toBe(true);
+    expect(h.ev('turn_started')).toHaveLength(1);
+  });
+
+  test('stop() during the wait cancels the start', () => {
+    const h = harness({ bot: 'balanced', startWaitMs: 15_000 });
+    h.session.start();
+    h.session.stop();
+    h.fake.advance(20_000);
+    expect(h.ev('turn_started')).toHaveLength(0);
   });
 });
 

@@ -61,7 +61,12 @@ export interface BattleStageProps {
   /** Filled with the stage's controls, so the page can offer them outside the canvas (the FULL SCREEN
    *  button sits in the page's status row; it must call requestFullscreen inside the click itself). */
   controlRef?: React.MutableRefObject<BattleStageControls | null>;
+  /** The battle-start intro is over (Unity reported it, or it was not played, or the safety net fired). */
+  onIntroComplete?: () => void;
 }
+
+/** If Unity never reports the intro's end (an old build, an error), carry on after this long. */
+const INTRO_WATCHDOG_MS = 8_000;
 
 export interface BattleStageControls {
   toggleFullscreen: () => void;
@@ -182,6 +187,18 @@ function UnityStage(props: BattleStageProps) {
     return () => { ro.disconnect(); window.removeEventListener('resize', compute); };
   }, [isFullscreen]);
 
+  const introReported = useRef(false);
+  const introWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportIntro = useCallback((why: string) => {
+    if (introWatchdog.current) { clearTimeout(introWatchdog.current); introWatchdog.current = null; }
+    if (introReported.current) return;
+    introReported.current = true;
+    console.log(`[BattleStage] intro complete (${why})`);
+    props.onIntroComplete?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.onIntroComplete]);
+  useEffect(() => () => { if (introWatchdog.current) clearTimeout(introWatchdog.current); }, []);
+
   const send = useCallback((method: string, data?: unknown) => {
     if (closed.current) return;
     if (data === undefined) sendMessage(UNITY_GAME_OBJECT, method);
@@ -198,6 +215,7 @@ function UnityStage(props: BattleStageProps) {
       onUndoMove: props.onUndoMove,
       onForfeit: props.onForfeit,
       onAudioPref: props.onAudioPref,
+      onIntroComplete: () => reportIntro('unity'),
       onTurnAnimationComplete: (turn) => {
         if (watchdog.current) { clearTimeout(watchdog.current); watchdog.current = null; }
         animating.current = null;
@@ -205,7 +223,7 @@ function UnityStage(props: BattleStageProps) {
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit, props.onAudioPref]);
+  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit, props.onAudioPref, reportIntro]);
 
   // Site-wide audio preferences → Unity, on init and whenever they change (floating toggle,
   // options-menu echo, another tab). Unity applies SFX and refreshes its menu labels.
@@ -257,7 +275,10 @@ function UnityStage(props: BattleStageProps) {
     if (initedFor.current === id) return;
     initedFor.current = id;
     syncedSeq.current = props.snapshotSeq;
-    send(UNITY_METHODS.INIT_BATTLE, buildInitData(props.snapshot, props.playerSide));
+    const init = buildInitData(props.snapshot, props.playerSide);
+    send(UNITY_METHODS.INIT_BATTLE, init);
+    if (init.intro) introWatchdog.current = setTimeout(() => reportIntro('watchdog'), INTRO_WATCHDOG_MS);
+    else reportIntro('no intro');
     // Statuses / defending are not part of InitBattle; the HUD needs them from the start.
     send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
     if (props.speed && props.speed !== 1) send(UNITY_METHODS.SET_SPEED, { speed: props.speed });

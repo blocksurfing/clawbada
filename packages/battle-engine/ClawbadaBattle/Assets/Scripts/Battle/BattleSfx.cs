@@ -101,6 +101,9 @@ public static class BattleSfx
 
     /// <summary>An in-game panel opening (options menu, confirm step) / closing. Same two clips for every panel.</summary>
     public static void PlayUiOpen() => Play(Library?.uiOpen, "ui-open");
+    /// <summary>Battle-start intro beats (optional clips).</summary>
+    public static void PlayIntroReady() => Play(Library?.introReady, "intro-ready");
+    public static void PlayIntroFight() => Play(Library?.introFight, "intro-fight");
     public static void PlayUiClose() => Play(Library?.uiClose, "ui-close");
 
     /// <summary>Cast phase — fires with the windup and underscores the whole sequence. Returns the beat inside the
