@@ -159,7 +159,12 @@ public static class BattleSfx
         var clip = slot.impact.Pick(tier, out float beat);
         if (clip == null) return;
         chosenClass = classId; chosenImpact = clip;
-        chosenHit = beat > 0f ? beat : slot.impactLead;
+        // A numbered take's measured hit may be exactly 0 (Fortify _02 cracks on its first frame): trust it, don't
+        // mistake it for "unmeasured" and borrow take _01's.
+        var t = slot.impact;
+        bool measuredTake = t.variants != null && t.variantBeats != null && t.variantBeats.Length == t.variants.Length
+                            && System.Array.IndexOf(t.variants, clip) >= 0;
+        chosenHit = measuredTake || beat > 0f ? beat : slot.impactLead;
         Debug.Log($"[BattleSfx] impact take {clip.name} (hit {chosenHit:F2}s in)");
     }
 
@@ -169,6 +174,9 @@ public static class BattleSfx
         hit = Library?.SpecialImpactLead(classId) ?? 0f;
         return Library?.SpecialImpactFor(classId, tier);
     }
+
+    /// <summary>The class's impact lands near the end of its cast clip, not on the effect's beat (Fortify).</summary>
+    public static bool ImpactAtCastEnd(int classId) => Library?.SpecialSlot(classId)?.impactAtCastEnd ?? false;
 
     /// <summary>Seconds into this cast's impact take where its hit sits (the binder's measured loudest moment).</summary>
     public static float SpecialImpactHit(int classId) => chosenClass == classId && chosenImpact != null ? chosenHit : Library?.SpecialImpactLead(classId) ?? 0f;

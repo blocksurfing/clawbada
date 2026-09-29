@@ -69,6 +69,9 @@ public class BattleSfxLibrary : ScriptableObject
         [Tooltip("Restorative — plays when the Special actually restored HP (Devour's heal, Rally). A heal of 0 is silent. " +
                  "SFX/Special/SFX_<Class>_<Ability>_Heal.wav")]
         public TierClips heal = new TierClips();
+        [Tooltip("The impact lands near the END of the cast clip instead of on the effect's impact beat (Fortify, user " +
+                 "2026-09-29: the armour's 6.8 s cast sound ends on the impact). Set by the binder.")]
+        public bool impactAtCastEnd;
     }
 
     [Tooltip("Basic attack, one per class, indexed by LobsterClass. Empty slots are silent, not an error.")]
