@@ -91,7 +91,8 @@ public static class BattleSfxBinder
             string stem = $"{SpecialDir}SFX_{Classes[i]}_{Abilities[i]}";
 
             int castN = Fill(slot.cast, stem);
-            bool attack = AttackTimedImpacts.Contains(Classes[i]);
+            var attack = OnsetTimedImpacts.Contains(Classes[i]) ? Timing.Onset
+                       : AttackTimedImpacts.Contains(Classes[i]) ? Timing.Attack : Timing.Loudest;
             int impactN = Fill(slot.impact, stem + "_Impact", attack);
             int healN = Fill(slot.heal, stem + "_Heal");
             string leadSource = FirstExisting(stem + "_Impact");
@@ -188,13 +189,20 @@ public static class BattleSfxBinder
     /// </summary>
     private static readonly HashSet<string> AttackTimedImpacts = new() { "Leviathan" };
 
+    /// <summary>Impacts that START on the beat instead of peaking on it: a laugh isn't a crack, so its loudest syllable
+    /// would put its start up to a second early. Haunt's four 2 s demonic laughs (user 2026-09-29) begin as the
+    /// possession lands on the target (the effect's 3.9 s beat): lead = the take's first audible 10 ms.</summary>
+    private static readonly HashSet<string> OnsetTimedImpacts = new() { "Specter" };
+
+    private enum Timing { Loudest, Attack, Onset }
+
     /// <summary>Impact sounds pinned to a moment of the cast instead of the effect's impact beat, in seconds.
     /// Fortify 2.6 s: its dome starts coming down at 2.5 s and is gone by 2.9 s (FX_Bulwark_Fortify UpperLayer); the
     /// cast sound's climax (3.0–3.3 s) rolls out of the hit. The end of the file (6.65 s) sat in 3 s of near-silence
     /// and read as far too late (user 2026-09-29).</summary>
     private static readonly Dictionary<string, float> ImpactAtSeconds = new() { ["Bulwark"] = 2.6f };
 
-    private static int Fill(BattleSfxLibrary.TierClips t, string stem, bool attack = false)
+    private static int Fill(BattleSfxLibrary.TierClips t, string stem, Timing attack = Timing.Loudest)
     {
         t.shared = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}.wav");
         t.evolved = AssetDatabase.LoadAssetAtPath<AudioClip>($"{stem}_{Tiers[0]}.wav");
@@ -235,7 +243,7 @@ public static class BattleSfxBinder
     /// Seconds from the start of a 16-bit PCM WAV to its loudest 50 ms window — where the strike
     /// actually cracks. 0 if the file can't be read as PCM, which just means "no lead".
     /// </summary>
-    private static float MeasureLoudestMoment(string assetPath, bool attack = false)
+    private static float MeasureLoudestMoment(string assetPath, Timing mode = Timing.Loudest)
     {
         try
         {
@@ -261,7 +269,26 @@ public static class BattleSfxBinder
             dataLen = System.Math.Min(dataLen, b.Length - dataOff);
 
             int frames = dataLen / (2 * channels);
-            if (attack)
+            if (mode == Timing.Onset)
+            {
+                // First 10 ms window whose peak (any channel) reaches 10 % of the file's peak.
+                int w10 = rate / 100, filePeak = 1;
+                var peaks = new System.Collections.Generic.List<int>();
+                for (int start = 0; start + w10 <= frames; start += w10)
+                {
+                    int peak = 0;
+                    for (int i = 0; i < w10 * channels; i++)
+                    {
+                        int v = System.Math.Abs((int)System.BitConverter.ToInt16(b, dataOff + (start * channels + i) * 2));
+                        if (v > peak) peak = v;
+                    }
+                    peaks.Add(peak);
+                    if (peak > filePeak) filePeak = peak;
+                }
+                for (int k = 0; k < peaks.Count; k++) if (peaks[k] >= filePeak / 10) return k * w10 / (float)rate;
+                return 0f;
+            }
+            if (mode == Timing.Attack)
             {
                 // Sharpest attack: the 10 ms window whose peak (any channel) rises most over the one before it.
                 int w10 = rate / 100;
