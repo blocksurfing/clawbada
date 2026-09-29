@@ -143,7 +143,7 @@ public class BattleHud : MonoBehaviour
 
         overlayLayer = HudFactory.Stretch(canvasRect, "Overlays");
         Strip = TurnStrip.Create(canvasRect, skin, manager != null ? manager.partLibrary : null);
-        Portraits = new PortraitSnapshot(ActivePanel.PortraitPixels);
+        Portraits = ActivePanel.NewPortraits();
         Panel = ActivePanel.Create(canvasRect, skin, manager != null ? manager.partLibrary : null, Portraits);
         clockBox = HudFactory.Rect(canvasRect, "ClockBox", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-8f, ClockBottom), new Vector2(96f, 40f));
         HudFactory.AddImage(clockBox, skin.panelBg, new Color(1f, 1f, 1f, 0.92f));
@@ -179,10 +179,9 @@ public class BattleHud : MonoBehaviour
             bridge?.NotifyActionSelected(targetAction);
         });
         targetBadge.gameObject.SetActive(false);
-        // Buttons right beside the avatar, low: centred on it they covered the lower edge of the board's bottom row.
-        float avatar = ActivePanel.Size(skin);
+        // Buttons right beside the avatar panel, bottom-aligned (centred they covered the board's bottom row).
         // The hint line sits under the clock, flush with its right edge, above React's FULL button in the corner.
-        Bar = ActionBar.Create(canvasRect, skin, new Vector2(ActivePanel.Margin + avatar + ActivePanel.GaugeOverhang + 6f, 10f), new Vector2(-10f, ClockBottom - 20f));
+        Bar = ActionBar.Create(canvasRect, skin, new Vector2(ActivePanel.Margin + ActivePanel.Width + 6f, 10f), new Vector2(-10f, ClockBottom - 20f));
         bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
         Options = OptionsMenu.Create(canvasRect, skin);

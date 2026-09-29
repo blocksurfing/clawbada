@@ -3,167 +3,164 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Round avatar of the acting lobster, bottom-left (Nzib, 2026-09-27): a STILL portrait rendered from its own rig
-/// ONCE at battle load (PortraitSnapshot — how it looks on the board at rest, its own DNA-mixed parts, Idle's first frame)
-/// masked by its class-coloured disc, under his silver ring. Framed like his mock: zoomed on the FRONT half (shell,
-/// claws, eyes — the tail and back legs fall outside the disc), and the claws and antennae BREAK OUT over the ring
-/// and the gauges (a second render of just those, masked to everything outside the disc). Side view, like the rigs;
-/// a true front view is post-beta polish (needs a front part set). Outside the
-/// ring, as in his mock, two framed gauges: HP on the LEFT (green, yellow when hurt, red when critical) and
-/// Special charge on the RIGHT in blue. No HP numbers: humans read the gauges, agents get exact numbers from the
-/// API. The gauges are generated placeholders (NzibHudBinder) until his gauge art and class-icon badge land. Statuses and the
-/// defending shield sit in a small row above the ring.
-/// A second instance on the right (<c>rightSide</c>, above the clock) is the TARGET avatar: the lobster the
-/// player has selected but not yet confirmed.
+/// The acting lobster's avatar, bottom-left, built on Nzib's AvatarUI prefab (drop 28c11f5, 2026-09-28): his frame,
+/// the class background in the round portrait window, a curved HP bar (four colour states) and the Special-charge
+/// (MP) bar, and an animated "selected" outline behind the frame. We add the portrait: a STILL render of the
+/// lobster's own rig taken once at battle load (PortraitSnapshot), clipped to the window, with a second render of
+/// just its claws and antennae breaking out over the frame and the bars (user: the bars sit under the lobster).
+/// No HP numbers: humans read the bars, agents get exact numbers from the API.
+/// A second instance on the right (<c>rightSide</c>, above the clock) is the TARGET avatar: the lobster the player has
+/// selected but not yet confirmed. Selected outline (user 2026-09-28, "both"): on the left while it is your turn,
+/// on the right whenever it shows. Class icon and Nzib's status icons are still being designed; statuses use the
+/// current icon row above the panel until then.
 /// </summary>
 public class ActivePanel : MonoBehaviour
 {
     public RectTransform Rect { get; private set; }
     public LobsterController Lobster { get; private set; }
-    /// <summary>The class whose disc is showing (tests / harness).</summary>
+    /// <summary>The class whose background is showing (tests / harness).</summary>
     public int ShownClass { get; private set; } = -1;
+    public bool Selected { get; private set; }
 
-    /// <summary>The ring's size: Nzib's 80 px frame at the canvas's 1.5 units per art pixel.</summary>
-    public static float Size(HudSkin skin) => (skin.avatarFrame != null ? skin.avatarFrame.rect.width : 80f) * ActionBar.ArtScale;
+    // AvatarUI geometry in design pixels (docs/AVATAR_UI_VISUAL_HANDOFF.md): 112×64 frame; the portrait window is
+    // ClassBackground, 32×32 at (-29, -2) from the centre. The portrait renders cover the frame plus PopMargin
+    // on every side (NzibHudBinder.PopMargin — the pop mask is generated to the same size).
+    private const float FrameW = 112f, FrameH = 64f, PopMargin = 16f;
+    private static readonly Vector2 Aperture = new Vector2(-29f, -2f);
+    private static float ViewW => FrameW + 2f * PopMargin;
+    private static float ViewH => FrameH + 2f * PopMargin;
 
-    /// <summary>Gap from the screen edge: the gauges stand ~7.5 units outside the ring.</summary>
-    public const float Margin = 16f;
-    /// <summary>How far the gauges reach past the ring's 80 px cell, in canvas units (for the button row's spacing).</summary>
-    public const float GaugeOverhang = 7.5f;
-    // Must match NzibHudBinder's generated gauge art (96 px cell, 130° arcs, 2.2° end caps).
-    private const float GaugeCell = 96f, GaugeSpanDeg = 130f, GaugeCapDeg = 2.2f;
-    private static float FillSpan => (GaugeSpanDeg - GaugeCapDeg) / 360f;
-    /// <summary>Portrait zoom over the board's pixel scale (1 = a lobster pixel is a ring pixel, as Nzib draws).
-    /// 1.75: the front half fills the disc and the claws break out (user 2026-09-27: "zoom in a bit more", then
-    /// "just a touch more").</summary>
-    public const float PortraitZoom = 1.75f;
-    /// <summary>Drop the body this share of the view below centre, so the antennae have room to break out on top.</summary>
-    public const float PortraitDrop = 0.06f;
+    /// <summary>The panel in canvas units: Nzib's design pixels at the canvas's 1.5 units per art pixel.</summary>
+    public static float Width => FrameW * ActionBar.ArtScale;
+    public static float Height => FrameH * ActionBar.ArtScale;
+    /// <summary>Gap from the screen edge.</summary>
+    public const float Margin = 12f;
+
+    /// <summary>Portrait zoom over the board's pixel scale. 1 = a lobster pixel is a frame pixel: Nzib's grid.</summary>
+    public const float PortraitZoom = 1f;
+    /// <summary>Drop the body this share of the view below the window's centre, so the antennae break out on top.</summary>
+    public const float PortraitDrop = 0.04f;
+
+    /// <summary>The portrait renders for this layout: the view in world pixels, the front half on the window.</summary>
+    public static PortraitSnapshot NewPortraits() =>
+        new PortraitSnapshot(Mathf.RoundToInt(ViewW / PortraitZoom), Mathf.RoundToInt(ViewH / PortraitZoom), Aperture / PortraitZoom);
 
     private HudSkin skin;
-    private LobsterPartLibrary partLibrary;
-    private Image disc;
-    private RawImage portrait, portraitPop;
     private PortraitSnapshot portraits;
-    private Image hpFill, chargeFill;
+    private bool rightSide;
+    private Image classBg, hpFill, mpFill;
+    private GameObject outline;
+    private RawImage portrait, portraitPop;
     private RectTransform statusRow;
     private readonly List<Image> statusIcons = new();
-    private float iconSize;
-
-    /// <summary>The camera frame the portraits are taken in: the whole gauge cell at PortraitZoom × the ring's pixels.</summary>
-    public static int PortraitPixels => Mathf.RoundToInt(GaugeCell / PortraitZoom / 2f) * 2;
+    private const float IconSize = 18f;
 
     public static ActivePanel Create(Transform parent, HudSkin skin, LobsterPartLibrary partLibrary, PortraitSnapshot portraits, bool rightSide = false, float bottom = 8f)
     {
-        float size = Size(skin);
         var corner = rightSide ? new Vector2(1f, 0f) : Vector2.zero;
-        var rt = HudFactory.Rect(parent, rightSide ? "TargetPanel" : "ActivePanel", corner, corner, corner, new Vector2(rightSide ? -Margin : Margin, bottom), new Vector2(size, size));
+        var rt = HudFactory.Rect(parent, rightSide ? "TargetPanel" : "ActivePanel", corner, corner, corner,
+            new Vector2(rightSide ? -Margin : Margin, bottom), new Vector2(Width, Height));
         var p = rt.gameObject.AddComponent<ActivePanel>();
         p.Rect = rt;
         p.skin = skin;
-        p.partLibrary = partLibrary;
-
-        // Class disc = the portrait's circle mask (Nzib's discs are 60 px circles inside the ring's 80 px cell).
-        var discRt = HudFactory.Stretch(rt, "Disc");
-        p.disc = HudFactory.AddImage(discRt, skin.AvatarBg(0) != null ? skin.AvatarBg(0) : skin.pip, skin.AvatarBg(0) != null ? Color.white : skin.cardInner);
-        if (skin.AvatarBg(0) == null) { discRt.offsetMin = Vector2.one * size * 0.125f; discRt.offsetMax = -Vector2.one * size * 0.125f; }
-        discRt.gameObject.AddComponent<Mask>().showMaskGraphic = true;
-
-        // The snapshot covers the whole gauge cell (so the break-out has room), at PortraitZoom × the ring's pixels.
-        float cell = GaugeCell * (size / 80f);
         p.portraits = portraits;
-        p.portrait = Raw(discRt, "Portrait", null, cell);
+        p.rightSide = rightSide;
+        p.statusRow = HudFactory.Rect(rt, "Statuses", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(4f, 2f),
+            new Vector2(IconSize * 4f + 3f, IconSize));
 
-        if (skin.avatarFrame != null) HudFactory.AddImage(HudFactory.Stretch(rt, "Frame"), skin.avatarFrame, Color.white);
-        else HudFactory.AddImage(HudFactory.Stretch(rt, "Frame"), skin.ring, skin.fieldBarRim);
+        if (skin.avatarPrefab == null)
+        {
+            Debug.LogError("[BattleHud] HudSkin.avatarPrefab is not bound — run Clawbada ▸ HUD ▸ Bind Nzib HUD Art");
+            rt.gameObject.SetActive(false);
+            return p;
+        }
+        // Nzib's prefab at design scale, scaled as a unit (his handoff: "scale the parent as a unit").
+        var ui = (RectTransform)Instantiate(skin.avatarPrefab, rt, false).transform;
+        ui.name = "AvatarUI";
+        ui.anchorMin = ui.anchorMax = ui.pivot = HudFactory.Center;
+        ui.anchoredPosition = Vector2.zero;
+        ui.localScale = new Vector3(ActionBar.ArtScale, ActionBar.ArtScale, 1f);
+        p.outline = ui.Find("SelectedOutline")?.gameObject;
+        p.classBg = ui.Find("ClassBackground")?.GetComponent<Image>();
+        p.hpFill = ui.Find("HPFill")?.GetComponent<Image>();
+        p.mpFill = ui.Find("MPFill")?.GetComponent<Image>();
 
-        // Gauges outside the ring: the frames, then radial fills from each arc's lower end — HP climbs the left
-        // side (clockwise from the bottom), charge the right (counter-clockwise).
-        float gaugeCell = GaugeCell * ActionBar.ArtScale * (size / (80f * ActionBar.ArtScale));
-        if (skin.avatarGaugeTrack != null) HudFactory.Image(rt, "GaugeFrames", skin.avatarGaugeTrack, Color.white, new Vector2(gaugeCell, gaugeCell));
-        var fill = skin.avatarArc != null ? skin.avatarArc : skin.ring;
-        p.hpFill = Arc(rt, "Hp", fill, gaugeCell, clockwise: true, Color.white);
-        p.chargeFill = Arc(rt, "Charge", fill, gaugeCell, clockwise: false, skin.chargeArc);
-
-        // Break-out layer over the ring AND the gauges (user 2026-09-27: the bars sit underneath the lobster): the
-        // claws and antennae again, visible only outside the disc.
+        // Portrait: above ClassBackground, below Frame (his handoff), clipped to the round window by using the class
+        // background itself as the mask. Sized to the whole view and centred on the frame.
+        if (p.classBg != null)
+        {
+            p.classBg.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+            p.portrait = Raw(p.classBg.transform, "Portrait", -Aperture);
+        }
+        // Break-out: the claws and antennae again, everywhere OUTSIDE the window, over the frame and the bars.
         if (skin.avatarPopMask != null)
         {
-            var pop = HudFactory.Image(rt, "BreakOut", skin.avatarPopMask, Color.white, new Vector2(cell, cell));
+            var pop = HudFactory.Image(ui, "BreakOut", skin.avatarPopMask, Color.white, new Vector2(ViewW, ViewH));
             pop.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-            p.portraitPop = Raw(pop.transform, "Portrait", null, cell);
+            p.portraitPop = Raw(pop.transform, "Portrait", Vector2.zero);
         }
-
-        p.iconSize = 18f;
-        p.statusRow = HudFactory.Rect(rt, "Statuses", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(rightSide ? 0f : 4f, 0f), new Vector2(p.iconSize * 4f + 3f, p.iconSize));
-
         rt.gameObject.SetActive(false);
         return p;
     }
 
-    private static RawImage Raw(Transform parent, string name, Texture tex, float size)
+    private static RawImage Raw(Transform parent, string name, Vector2 pos)
     {
-        var rt = HudFactory.Rect(parent, name, HudFactory.Center, HudFactory.Center, HudFactory.Center, Vector2.zero, new Vector2(size, size));
+        var rt = HudFactory.Rect(parent, name, HudFactory.Center, HudFactory.Center, HudFactory.Center, pos, new Vector2(ViewW, ViewH));
         var raw = rt.gameObject.AddComponent<RawImage>();
-        raw.texture = tex;
         raw.raycastTarget = false;
+        raw.enabled = false;
         return raw;
     }
 
-    private static Image Arc(RectTransform parent, string name, Sprite sprite, float size, bool clockwise, Color color)
-    {
-        var rt = HudFactory.Rect(parent, name, HudFactory.Center, HudFactory.Center, HudFactory.Center, Vector2.zero, new Vector2(size, size));
-        // Each arc is centred on 9 / 3 o'clock, so its lower end (inside the cap) is this far round from the bottom.
-        float start = 90f - (GaugeSpanDeg - GaugeCapDeg) / 2f;
-        rt.localRotation = Quaternion.Euler(0f, 0f, clockwise ? -start : start);
-        var img = HudFactory.AddImage(rt, sprite, color);
-        img.type = Image.Type.Filled;
-        img.fillMethod = Image.FillMethod.Radial360;
-        img.fillOrigin = (int)Image.Origin360.Bottom;
-        img.fillClockwise = clockwise;
-        img.fillAmount = 0f;
-        return img;
-    }
-
+    /// <param name="isPlayer">The player's own turn: the acting avatar shows the selected outline.</param>
     public void Show(LobsterController lob, bool isPlayer)
     {
         Lobster = lob;
         if (lob == null) { Hide(); return; }
         gameObject.SetActive(true);
         var bg = skin.AvatarBg(lob.classId);
-        if (bg != null) disc.sprite = bg;
+        if (bg != null && classBg != null) classBg.sprite = bg;
         ShownClass = lob.classId;
 
         var pic = portraits?.Get(lob, PortraitDrop);   // taken once at battle load; this only looks it up
-        portrait.texture = pic?.Full;
-        portrait.enabled = pic != null;
+        if (portrait != null) { portrait.texture = pic?.Full; portrait.enabled = pic != null; }
         if (portraitPop != null) { portraitPop.texture = pic?.Pop; portraitPop.enabled = pic != null; }
+        SetSelected(rightSide || isPlayer);
         Refresh();
+    }
+
+    public void SetSelected(bool on)
+    {
+        Selected = on;
+        // Re-activating restarts his outline animation from its first frame.
+        if (outline != null && outline.activeSelf != on) outline.SetActive(on);
     }
 
     public void Hide()
     {
         Lobster = null;
+        SetSelected(false);
         gameObject.SetActive(false);
     }
-
-    /// <summary>Full = green, hurt = yellow, critical = red (Nzib).</summary>
-    private Color HpColor(float pct) => pct > 0.5f ? skin.hpGaugeFull : pct > 0.25f ? skin.hpMid : skin.hpLow;
 
     public void Refresh()
     {
         var lob = Lobster;
         if (lob == null || !gameObject.activeSelf) return;
-        float span = FillSpan;
         float pct = lob.alive && lob.maxHp > 0 ? Mathf.Clamp01((float)lob.currentHp / lob.maxHp) : 0f;
-        hpFill.fillAmount = span * pct;
-        hpFill.color = HpColor(pct);
-        chargeFill.fillAmount = lob.alive ? span * Mathf.Clamp01(lob.charge / 3f) : 0f;
+        if (hpFill != null)
+        {
+            // His contract: swap the state sprite, never reset fillAmount or scale the bar.
+            var state = skin.HpStateSprite(pct);
+            if (state != null && hpFill.sprite != state) hpFill.sprite = state;
+            hpFill.fillAmount = pct;
+        }
+        if (mpFill != null) mpFill.fillAmount = lob.alive ? Mathf.Clamp01(lob.charge / 3f) : 0f;
         var tint = lob.alive ? Color.white : new Color(0.45f, 0.45f, 0.45f, 0.9f);
-        portrait.color = tint;
+        if (portrait != null) portrait.color = tint;
         if (portraitPop != null) portraitPop.color = tint;
 
-        // Status row: the defending shield first, then up to three statuses.
+        // Status row: the defending shield first, then up to three statuses (current icons until Nzib's land).
         var sprites = new List<Sprite>(4);
         if (lob.alive && lob.defending && skin.iconShield != null) sprites.Add(skin.iconShield);
         if (lob.alive && lob.statuses != null)
@@ -175,7 +172,7 @@ public class ActivePanel : MonoBehaviour
             }
         while (statusIcons.Count < sprites.Count)
         {
-            var img = HudFactory.Image(statusRow, "Status", null, Color.white, new Vector2(iconSize, iconSize));
+            var img = HudFactory.Image(statusRow, "Status", null, Color.white, new Vector2(IconSize, IconSize));
             img.rectTransform.anchorMin = img.rectTransform.anchorMax = Vector2.zero;
             img.rectTransform.pivot = Vector2.zero;
             statusIcons.Add(img);
@@ -186,7 +183,7 @@ public class ActivePanel : MonoBehaviour
             statusIcons[i].enabled = on;
             if (!on) continue;
             statusIcons[i].sprite = sprites[i];
-            statusIcons[i].rectTransform.anchoredPosition = new Vector2(i * (iconSize + 1f), 0f);
+            statusIcons[i].rectTransform.anchoredPosition = new Vector2(i * (IconSize + 1f), 0f);
         }
     }
 }

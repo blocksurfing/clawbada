@@ -21,16 +21,21 @@ public class PortraitSnapshot
     public class Portrait { public RenderTexture Full, Pop; }
     private readonly System.Collections.Generic.Dictionary<string, Portrait> cache = new();
 
-    private readonly int px;
+    private readonly int w, h;
+    /// <summary>Where the front half's centre lands in the texture, in texture pixels from its centre.</summary>
+    private readonly Vector2 focus;
     private readonly Vector3 stage;
     private readonly GameObject holder;
     private readonly Camera cam;
     private GameObject clone;
 
-    /// <param name="texturePx">Side of the square textures in art pixels (the area the camera sees).</param>
-    public PortraitSnapshot(int texturePx)
+    /// <param name="widthPx">Texture width in world pixels (the area the camera sees, at the board's 64 px/u).</param>
+    /// <param name="heightPx">Texture height in world pixels.</param>
+    /// <param name="focusPx">Where the lobster's front half should sit, in texture pixels from the texture centre
+    /// (the avatar frame's portrait aperture is left of centre).</param>
+    public PortraitSnapshot(int widthPx, int heightPx, Vector2 focusPx)
     {
-        px = texturePx;
+        w = widthPx; h = heightPx; focus = focusPx;
         stage = new Vector3(1000f + 50f * count, 1000f, 0f);
         count++;
         holder = new GameObject("PortraitStage");
@@ -42,7 +47,8 @@ public class PortraitSnapshot
         cam = camGo.AddComponent<Camera>();
         cam.enabled = false;
         cam.orthographic = true;
-        cam.orthographicSize = px / 2f / Ppu;
+        cam.orthographicSize = h / 2f / Ppu;
+        cam.aspect = (float)w / h;
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = new Color(0f, 0f, 0f, 0f);
         cam.cullingMask = 1 << Layer;
@@ -54,7 +60,7 @@ public class PortraitSnapshot
 
     private RenderTexture NewTexture(string name)
     {
-        var rt = new RenderTexture(px, px, 16, RenderTextureFormat.ARGB32) { name = name, filterMode = FilterMode.Point, antiAliasing = 1 };
+        var rt = new RenderTexture(w, h, 16, RenderTextureFormat.ARGB32) { name = name, filterMode = FilterMode.Point, antiAliasing = 1 };
         rt.Create();
         return rt;
     }
@@ -139,7 +145,10 @@ public class PortraitSnapshot
             }
         }
         var c = any ? bounds.center : stage;
-        c.y += drop * (px / Ppu);
+        c.y += drop * (h / Ppu);
+        // Put the front half on the aperture, not the texture centre.
+        c.x -= focus.x / Ppu;
+        c.y -= focus.y / Ppu;
         // Snap to the pixel grid so the copy is as crisp as the board.
         c.x = Mathf.Round(c.x * Ppu) / Ppu;
         c.y = Mathf.Round(c.y * Ppu) / Ppu;
@@ -159,7 +168,7 @@ public class PortraitSnapshot
         }
         holder.SetActive(false);
         clone.SetActive(false);
-        Debug.Log($"[BattleHud] portrait {lob.lobsterId} ({lob.className}) front half {bounds.size.x * Ppu:F0}x{bounds.size.y * Ppu:F0} px in a {px} px view");
+        Debug.Log($"[BattleHud] portrait {lob.lobsterId} ({lob.className}) front half {bounds.size.x * Ppu:F0}x{bounds.size.y * Ppu:F0} px in a {w}x{h} px view");
         return portrait;
     }
 }

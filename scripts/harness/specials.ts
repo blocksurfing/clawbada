@@ -324,8 +324,11 @@ export default async function (b: Browser) {
     } else if (m && !process.env.AUDIO) {
       // Muted run (harness default): nothing is scheduled, so check the plan instead — the swing's contact must
       // land where the fit put it (cast + the chosen impact take's hit).
-      const planned = fit[fit.length - 1].match(/contact at ([\d.]+)s, swing/);
-      const actual = grab(b, /\[BattleManager\] special .* contact at ([\d.]+)s \(cast speed/).slice(-1)[0]?.match(/contact at ([\d.]+)s/);
+      // Pair the LAST fit with the first swing contact logged after it (a Mantis leap's contact belongs to another cast).
+      const all = b.logs.map((l) => l.replace(/^\[log\] /, ''));
+      const fi = all.map((l, i) => (/\[BattleManager\] special .* audio fit:/.test(l) ? i : -1)).filter((i) => i >= 0).pop() ?? -1;
+      const planned = fi >= 0 ? all[fi].match(/contact at ([\d.]+)s, swing/) : null;
+      const actual = fi >= 0 ? all.slice(fi + 1).find((l) => /\[BattleManager\] special .* contact at [\d.]+s \(cast speed/.test(l))?.match(/contact at ([\d.]+)s/) : null;
       if (planned && actual) expect(Math.abs(Number(planned[1]) - Number(actual[1])) < 0.05, `${CLASS}: the swing lands on the planned audio hit (planned ${planned[1]} s, contact ${actual[1]} s; muted run)`);
       else console.log(`  fit: muted run, no contact line to compare (AUDIO=1 checks the scheduled clip)`);
     } else expect(false, `${CLASS}: audio-fit and impact-schedule lines both present`);
