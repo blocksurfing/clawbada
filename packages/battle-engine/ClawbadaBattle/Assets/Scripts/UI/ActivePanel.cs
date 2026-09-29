@@ -9,10 +9,10 @@ using UnityEngine.UI;
 /// lobster's own rig taken once at battle load (PortraitSnapshot), clipped to the window, with a second render of
 /// just its claws and antennae breaking out over the frame and the bars (user: the bars sit under the lobster).
 /// No HP numbers: humans read the bars, agents get exact numbers from the API.
-/// A second instance on the right (<c>rightSide</c>, above the clock) is the TARGET avatar: the lobster the player has
-/// selected but not yet confirmed. Selected outline (user 2026-09-28, "both"): on the left while it is your turn,
-/// on the right whenever it shows. Class icon and Nzib's status icons are still being designed; statuses use the
-/// current icon row above the panel until then.
+/// One panel per lobster, all six on screen (TeamPanels, Nzib's layout 2026-09-28): his animated outline marks the
+/// lobster acting now (white) and the selected-but-unconfirmed target (orange), and a small hex carries the panel's
+/// place in the upcoming turn order (1 = acting now) — the same order agents read from the API. Class icon and Nzib's
+/// status icons are still being designed; statuses use the current icons beside the bars until then.
 /// </summary>
 public class ActivePanel : MonoBehaviour
 {
@@ -20,7 +20,11 @@ public class ActivePanel : MonoBehaviour
     public LobsterController Lobster { get; private set; }
     /// <summary>The class whose background is showing (tests / harness).</summary>
     public int ShownClass { get; private set; } = -1;
-    public bool Selected { get; private set; }
+    public enum Highlight { None, Turn, Target }
+    public Highlight Mark { get; private set; }
+    /// <summary>Place in the upcoming turn order (1 = acting now), 0 = none shown.</summary>
+    public int Order { get; private set; }
+    private static readonly Color TargetOutline = new Color(1f, 0.55f, 0.18f, 1f);
 
     // AvatarUI geometry in design pixels (docs/AVATAR_UI_VISUAL_HANDOFF.md): 112×64 frame; the portrait window is
     // ClassBackground, 32×32 at (-29, -2) from the centre. The portrait renders cover the frame plus PopMargin
@@ -47,26 +51,27 @@ public class ActivePanel : MonoBehaviour
 
     private HudSkin skin;
     private PortraitSnapshot portraits;
-    private bool rightSide;
     private Image classBg, hpFill, mpFill;
-    private GameObject outline;
+    private Image outline;
+    private Image orderHex;
+    private Text orderText;
     private RawImage portrait, portraitPop;
     private RectTransform statusRow;
     private readonly List<Image> statusIcons = new();
-    private const float IconSize = 18f;
+    private const float IconSize = 16f;
 
-    public static ActivePanel Create(Transform parent, HudSkin skin, LobsterPartLibrary partLibrary, PortraitSnapshot portraits, bool rightSide = false, float bottom = 8f)
+    /// <param name="corner">Anchor and pivot on the canvas (e.g. (0,0) bottom-left, (1,1) top-right).</param>
+    public static ActivePanel Create(Transform parent, string name, HudSkin skin, PortraitSnapshot portraits, Vector2 corner, Vector2 pos)
     {
-        var corner = rightSide ? new Vector2(1f, 0f) : Vector2.zero;
-        var rt = HudFactory.Rect(parent, rightSide ? "TargetPanel" : "ActivePanel", corner, corner, corner,
-            new Vector2(rightSide ? -Margin : Margin, bottom), new Vector2(Width, Height));
+        var rt = HudFactory.Rect(parent, name, corner, corner, corner, pos, new Vector2(Width, Height));
         var p = rt.gameObject.AddComponent<ActivePanel>();
         p.Rect = rt;
         p.skin = skin;
         p.portraits = portraits;
-        p.rightSide = rightSide;
-        p.statusRow = HudFactory.Rect(rt, "Statuses", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(4f, 2f),
-            new Vector2(IconSize * 4f + 3f, IconSize));
+        // Statuses beside the bars' tail, inside the panel (as in his mock) — above it they'd leave the canvas for the
+        // top row. Design (20, -13) from the centre, scaled.
+        p.statusRow = HudFactory.Rect(rt, "Statuses", HudFactory.Center, HudFactory.Center, new Vector2(0f, 0.5f),
+            new Vector2(20f, -13f) * ActionBar.ArtScale, new Vector2(IconSize * 3f + 2f, IconSize));
 
         if (skin.avatarPrefab == null)
         {
@@ -80,7 +85,7 @@ public class ActivePanel : MonoBehaviour
         ui.anchorMin = ui.anchorMax = ui.pivot = HudFactory.Center;
         ui.anchoredPosition = Vector2.zero;
         ui.localScale = new Vector3(ActionBar.ArtScale, ActionBar.ArtScale, 1f);
-        p.outline = ui.Find("SelectedOutline")?.gameObject;
+        p.outline = ui.Find("SelectedOutline")?.GetComponent<Image>();
         p.classBg = ui.Find("ClassBackground")?.GetComponent<Image>();
         p.hpFill = ui.Find("HPFill")?.GetComponent<Image>();
         p.mpFill = ui.Find("MPFill")?.GetComponent<Image>();
@@ -99,6 +104,16 @@ public class ActivePanel : MonoBehaviour
             pop.gameObject.AddComponent<Mask>().showMaskGraphic = false;
             p.portraitPop = Raw(pop.transform, "Portrait", Vector2.zero);
         }
+        // Turn-order hex on the portrait ring's top-left (design (-44, 13)), above everything.
+        if (skin.orderHex != null)
+        {
+            p.orderHex = HudFactory.Image(rt, "Order", skin.orderHex, Color.white, skin.orderHex.rect.size * ActionBar.ArtScale);
+            p.orderHex.rectTransform.anchoredPosition = new Vector2(-44f, 13f) * ActionBar.ArtScale;
+            p.orderText = HudFactory.Text(p.orderHex.transform, "N", skin.PixelFontOrDefault(), 16, skin.textPrimary, TextAnchor.MiddleCenter, p.orderHex.rectTransform.sizeDelta);
+            p.orderText.rectTransform.anchoredPosition = new Vector2(0.5f, 0.5f);
+            p.orderHex.gameObject.SetActive(false);
+        }
+        p.statusRow.SetAsLastSibling();
         rt.gameObject.SetActive(false);
         return p;
     }
@@ -112,8 +127,8 @@ public class ActivePanel : MonoBehaviour
         return raw;
     }
 
-    /// <param name="isPlayer">The player's own turn: the acting avatar shows the selected outline.</param>
-    public void Show(LobsterController lob, bool isPlayer)
+    /// <summary>Bind the panel to its lobster for the battle.</summary>
+    public void Show(LobsterController lob)
     {
         Lobster = lob;
         if (lob == null) { Hide(); return; }
@@ -125,21 +140,34 @@ public class ActivePanel : MonoBehaviour
         var pic = portraits?.Get(lob, PortraitDrop);   // taken once at battle load; this only looks it up
         if (portrait != null) { portrait.texture = pic?.Full; portrait.enabled = pic != null; }
         if (portraitPop != null) { portraitPop.texture = pic?.Pop; portraitPop.enabled = pic != null; }
-        SetSelected(rightSide || isPlayer);
         Refresh();
     }
 
-    public void SetSelected(bool on)
+    /// <summary>His animated outline: white = acting now, orange = the selected target, off otherwise.</summary>
+    public void SetHighlight(Highlight h)
     {
-        Selected = on;
+        Mark = h;
+        if (outline == null) return;
+        bool on = h != Highlight.None;
+        if (on) outline.color = h == Highlight.Target ? TargetOutline : Color.white;
         // Re-activating restarts his outline animation from its first frame.
-        if (outline != null && outline.activeSelf != on) outline.SetActive(on);
+        if (outline.gameObject.activeSelf != on) outline.gameObject.SetActive(on);
+    }
+
+    /// <summary>Place in the upcoming turn order (1 = acting now); 0 hides the hex.</summary>
+    public void SetOrder(int n)
+    {
+        Order = n;
+        if (orderHex == null) return;
+        orderHex.gameObject.SetActive(n > 0);
+        if (n > 0) orderText.text = n.ToString();
     }
 
     public void Hide()
     {
         Lobster = null;
-        SetSelected(false);
+        SetHighlight(Highlight.None);
+        SetOrder(0);
         gameObject.SetActive(false);
     }
 

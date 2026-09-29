@@ -64,10 +64,14 @@ public static class HudSmokeTest
             Canvas.ForceUpdateCanvases();
             hud.Refresh();
 
-            Check(hud.Strip.CurrentIds.Count == 8, $"strip shows 8 entries (got {hud.Strip.CurrentIds.Count})");
-            Check(hud.Strip.CurrentIds[0] == "A1", "strip starts with the active lobster");
-            Check(hud.Strip.CurrentIds[1] == "B0", "strip dedupes the actor instead of repeating it");
-            Check(!hud.Strip.CurrentIds.Contains("B1"), "dead lobster skipped in the strip");
+            // Nzib's layout (2026-09-28): six team panels replace the turn strip; each shows its place in the order.
+            Check(hud.Teams.Panels.Count == 6, $"six team panels (got {hud.Teams.Panels.Count})");
+            string order = string.Join(",", hud.Teams.CurrentOrder);
+            Check(order == "A1,B0,A2,A0,B2", $"turn order: actor first, each living lobster once, dead B1 left out (got {order})");
+            Check(hud.Teams.PanelFor("A1").Order == 1 && hud.Teams.PanelFor("B0").Order == 2 && hud.Teams.PanelFor("B2").Order == 5, "order numbers on the panels");
+            Check(hud.Teams.PanelFor("B1").Order == 0, "the dead lobster's panel has no number");
+            Check(hud.Teams.PanelFor("A1").Mark == ActivePanel.Highlight.Turn, "the acting lobster's panel pulses (turn outline)");
+            Check(hud.Teams.PanelFor("A0").Rect.anchorMin == Vector2.zero && hud.Teams.PanelFor("B0").Rect.anchorMin == Vector2.one, "player's team bottom-left, opponents top-right");
             Check(hud.Panel.gameObject.activeSelf && hud.Panel.Lobster != null && hud.Panel.Lobster.lobsterId == "A1", "active panel shows A1");
             Check(hud.Panel.ShownClass == 1, $"active avatar shows the Mantis disc (got class {hud.Panel.ShownClass})");
             Check(hud.Panel.transform.Find("Name") == null, "no HP / name text on the avatar (numbers are for agents, via the API)");
@@ -119,7 +123,7 @@ public static class HudSmokeTest
                 Check(anchored == body, "TargetBody anchor resolves to the target's body centre");
             }
 
-            string msg = $"[HudSmokeTest] OK — {images} images, {texts} texts, strip [{hud.Strip.DescribeIds()}], clock {hud.Clock.RemainingSeconds:F1}s";
+            string msg = $"[HudSmokeTest] OK — {images} images, {texts} texts, order [{string.Join(",", hud.Teams.CurrentOrder)}], clock {hud.Clock.RemainingSeconds:F1}s";
             Debug.Log(msg);
             if (Application.isBatchMode) System.Console.WriteLine(msg);
         }
