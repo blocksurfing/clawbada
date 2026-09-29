@@ -96,6 +96,7 @@ public static class BattleSfxBinder
             int healN = Fill(slot.heal, stem + "_Heal");
             string leadSource = FirstExisting(stem + "_Impact");
             slot.impactLead = leadSource != null ? MeasureLoudestMoment(leadSource, attack) : 0f;
+            slot.impactAtCastEnd = ImpactAtCastEnd.Contains(Classes[i]);
             lib.specialByClass[i] = slot;
 
             if (castN + impactN > 0)
@@ -186,6 +187,10 @@ public static class BattleSfxBinder
     /// impact would move the approved Ambush (0.00 → 0.25 s) and Maelstrom (0.30 → 0.01 s) timings.
     /// </summary>
     private static readonly HashSet<string> AttackTimedImpacts = new() { "Leviathan" };
+
+    /// <summary>Classes whose impact sound lands near the END of the cast clip rather than on the effect's beat
+    /// (user 2026-09-29: Fortify's impacts come "right near the end of the full cast sound").</summary>
+    private static readonly HashSet<string> ImpactAtCastEnd = new() { "Bulwark" };
 
     private static int Fill(BattleSfxLibrary.TierClips t, string stem, bool attack = false)
     {
