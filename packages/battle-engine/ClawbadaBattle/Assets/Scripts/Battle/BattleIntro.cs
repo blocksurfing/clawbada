@@ -85,10 +85,11 @@ public static class BattleIntro
         ready.gameObject.SetActive(false);
 
         fight.gameObject.SetActive(true);
+        // The voice peaks 0.15 s in and the slam takes 0.14 s: start it WITH the slam so the word hits on impact.
+        BattleSfx.PlayIntroFight();
         yield return Tween(FightSlam, k => { SetAlpha(fight, k); fight.transform.localScale = Vector3.one * Mathf.Lerp(2.4f, 1f, k * k); });
         if (!skip)
         {
-            BattleSfx.PlayIntroFight();
             CameraShake.Shake(0.08f, 0.3f);
             host.StartCoroutine(FadeFlash(flash));
         }
