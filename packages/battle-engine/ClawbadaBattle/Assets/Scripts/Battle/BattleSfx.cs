@@ -175,8 +175,8 @@ public static class BattleSfx
         return Library?.SpecialImpactFor(classId, tier);
     }
 
-    /// <summary>The class's impact lands near the end of its cast clip, not on the effect's beat (Fortify).</summary>
-    public static bool ImpactAtCastEnd(int classId) => Library?.SpecialSlot(classId)?.impactAtCastEnd ?? false;
+    /// <summary>Seconds after the cast starts where the class's impact hit lands, or 0 to follow the effect's beat.</summary>
+    public static float ImpactAtSeconds(int classId) => Library?.SpecialSlot(classId)?.impactAtSeconds ?? 0f;
 
     /// <summary>Seconds into this cast's impact take where its hit sits (the binder's measured loudest moment).</summary>
     public static float SpecialImpactHit(int classId) => chosenClass == classId && chosenImpact != null ? chosenHit : Library?.SpecialImpactLead(classId) ?? 0f;
