@@ -35,6 +35,16 @@ public static class BattleSfx
     }
     private static bool enabled = true;
 
+    /// <summary>The player's SFX volume (0–1; settings menu, pushed from React). Scales <see cref="Headroom"/>, so
+    /// 100% is the level the battle was mixed at.</summary>
+    public static float Volume
+    {
+        get => volume;
+        set { volume = Mathf.Clamp01(value); if (moveSource != null && moveFade == null) moveSource.volume = Gain; }
+    }
+    private static float volume = 1f;
+    private static float Gain => Headroom * volume;
+
     private static BattleSfxLibrary library;
     private static AudioSource source;
     /// <summary>Dedicated, looping: a walk is ONE sound that lasts exactly as long as the walk (see StartMove).</summary>
@@ -60,11 +70,11 @@ public static class BattleSfx
         EnsureSource();
         if (moveFade != null) { runner.StopCoroutine(moveFade); moveFade = null; }
         moveSource.clip = clip;
-        moveSource.volume = Headroom;
+        moveSource.volume = Gain;
         moveSource.loop = true;
         moveSource.Play();
         moveStartedAt = Time.unscaledTime;
-        Debug.Log($"[BattleSfx] {clip.name} (move) start @ {Headroom:F2}");
+        Debug.Log($"[BattleSfx] {clip.name} (move) start @ {Gain:F2}");
     }
 
     /// <summary>The walk ended: a few frames of fade so the cut isn't a click, then stop.</summary>
@@ -88,7 +98,7 @@ public static class BattleSfx
             yield return null;
         }
         moveSource.Stop();
-        moveSource.volume = Headroom;
+        moveSource.volume = Gain;
         moveFade = null;
         Debug.Log($"[BattleSfx] {name} (move) stop after {played:F2}s");
     }
@@ -104,6 +114,12 @@ public static class BattleSfx
     /// <summary>Battle-start intro beats (optional clips).</summary>
     public static void PlayIntroReady() => Play(Library?.introReady, "intro-ready");
     public static void PlayIntroFight() => Play(Library?.introFight, "intro-fight");
+    /// <summary>Intro landings: an obstacle / a lobster hitting the board (random take among the bound ones).</summary>
+    public static void PlayIntroObstacleLand() => Play(RandomOf(Library?.introObstacleLand), "intro-obstacle");
+    public static void PlayIntroLobsterLand() => Play(RandomOf(Library?.introLobsterLand), "intro-lobster");
+
+    private static AudioClip RandomOf(AudioClip[] takes) =>
+        takes == null || takes.Length == 0 ? null : takes[Random.Range(0, takes.Length)];
     public static void PlayUiClose() => Play(Library?.uiClose, "ui-close");
 
     /// <summary>Cast phase — fires with the windup and underscores the whole sequence. Returns the beat inside the
@@ -227,8 +243,8 @@ public static class BattleSfx
     {
         if (!Enabled || clip == null || !Application.isPlaying) return;
         EnsureSource();
-        source.PlayOneShot(clip, Headroom);
-        Debug.Log($"[BattleSfx] {clip.name} ({phase}) @ {Headroom:F2}");
+        source.PlayOneShot(clip, Gain);
+        Debug.Log($"[BattleSfx] {clip.name} ({phase}) @ {Gain:F2}");
     }
 
     private static IEnumerator PlayAfter(AudioClip clip, float delay, string phase = "impact")

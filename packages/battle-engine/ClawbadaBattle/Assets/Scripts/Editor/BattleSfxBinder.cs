@@ -15,6 +15,7 @@ using UnityEngine;
 ///   Assets/Audio/SFX/Defend/SFX_&lt;Class&gt;_Defend.wav                           (defend, per-class override)
 ///   Assets/Audio/SFX/UI/SFX_UI_Open.wav, SFX_UI_Close.wav                     (in-game panels)
 ///   Assets/Audio/SFX/UI/SFX_UI_ClawsUp, SFX_UI_Battle (.wav / .mp3 / .ogg)     (battle-start intro, optional)
+///   Assets/Audio/SFX/UI/SFX_UI_IntroObstacleLand[_01…], SFX_UI_IntroLobsterLand[_01…]   (intro landings, optional)
 ///   Assets/Audio/SFX/Death/SFX_Death[_NN].wav                                (death, shared pool — random pick)
 ///   Assets/Audio/SFX/Death/SFX_&lt;Class&gt;_Death.wav                             (death, per-class override)
 /// so a misspelled class (Spectre for Specter) binds nothing and that class is simply silent.
@@ -135,6 +136,8 @@ public static class BattleSfxBinder
         // .wav, or .mp3 when that is the generation the user kept (SFX_UI_ClawsUp, 2026-09-29).
         lib.introReady = LoadAny($"{UiDir}SFX_UI_ClawsUp");
         lib.introFight = LoadAny($"{UiDir}SFX_UI_Battle");
+        lib.introObstacleLand = LoadTakes($"{UiDir}SFX_UI_IntroObstacleLand");
+        lib.introLobsterLand = LoadTakes($"{UiDir}SFX_UI_IntroLobsterLand");
 
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
@@ -145,7 +148,7 @@ public static class BattleSfxBinder
                   $" | defend ×{lib.defend.Length}{(defendOverrides > 0 ? $" + {defendOverrides} class override(s)" : "")}" +
                   $" | death ×{lib.death.Length}{(deathOverrides > 0 ? $" + {deathOverrides} class override(s)" : "")}" +
                   $" | ui: open {(lib.uiOpen != null ? "✓" : "—")} close {(lib.uiClose != null ? "✓" : "—")}" +
-                  $" | intro: claws-up {(lib.introReady != null ? lib.introReady.name : "—")} battle {(lib.introFight != null ? lib.introFight.name : "—")}" +
+                  $" | intro: claws-up {(lib.introReady != null ? lib.introReady.name : "—")} battle {(lib.introFight != null ? lib.introFight.name : "—")} obstacle-land ×{lib.introObstacleLand.Length} lobster-land ×{lib.introLobsterLand.Length}" +
                   $" → {LibraryPath}");
     }
 
@@ -240,6 +243,20 @@ public static class BattleSfxBinder
             if (clip != null) return clip;
         }
         return null;
+    }
+
+    /// <summary>`stem` alone and/or its numbered takes `stem_01`, `stem_02` … (any of .wav / .mp3 / .ogg).</summary>
+    private static AudioClip[] LoadTakes(string stem)
+    {
+        var takes = new List<AudioClip>();
+        var single = LoadAny(stem);
+        if (single != null) takes.Add(single);
+        for (int i = 1; i <= 20; i++)
+        {
+            var clip = LoadAny($"{stem}_{i:00}");
+            if (clip != null) takes.Add(clip);
+        }
+        return takes.ToArray();
     }
 
     private static string FirstExisting(string stem)
