@@ -18,7 +18,7 @@ public class LobsterController : MonoBehaviour
     // The rigs are authored facing screen-LEFT at identity; Y=180 mirrors them to
     // face right (user-confirmed live in play mode, 2026-07-17 — do not re-derive
     // this from screenshots). Team A spawns left and faces right (Y=180).
-    private const float FaceRightY = 180f;
+    public const float FaceRightY = 180f;
     private const float FaceLeftY = 0f;
 
     public string lobsterId;
