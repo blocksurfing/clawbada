@@ -13,7 +13,8 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { useBattleSession } from '@/hooks/use-battle-session';
 import { useArenaMusic } from '@/hooks/use-arena-music';
-import { setMusicPref, setSfxPref, type AudioPrefChange } from '@/lib/audio-prefs';
+import { setBattleMusicPref, setSfxPref, type AudioPrefChange } from '@/lib/audio-prefs';
+import { enterBattleView, leaveBattleView } from '@/lib/arena-music';
 import type { Side, TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
 import { BattleStage, type BattleStageControls } from './BattleStage';
@@ -77,7 +78,10 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     sendReady();
   }, [introDone, unityAvailable, snapshot, isSpectator, sendReady]);
   const handleIntroComplete = useCallback(() => setIntroDone(true), []);
-  const handleAudioPref = useCallback((p: AudioPrefChange) => (p.kind === 'music' ? setMusicPref(p.on) : setSfxPref(p.on)), []);
+  // The in-battle Music row is the BATTLE music; the site theme has its own toggle (user 2026-09-28).
+  const handleAudioPref = useCallback((p: AudioPrefChange) => (p.kind === 'music' ? setBattleMusicPref(p.on) : setSfxPref(p.on)), []);
+  // The theme fades out as the battle view opens — before Unity loads — and comes back when it closes.
+  useEffect(() => { enterBattleView(); return () => leaveBattleView(); }, []);
 
   const mySide: Side | null = useMemo(() => {
     if (!snapshot || !address || isSpectator) return null;

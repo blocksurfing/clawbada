@@ -28,7 +28,7 @@ async function openMenu(b: Browser) {
 }
 const count = (b: Browser, re: RegExp) => b.logs.filter((l) => re.test(l)).length;
 const audioState = (b: Browser) => b.eval(`(() => { const m = window.__clawbadaArenaMusic; return m ? { paused: m.audio.paused, volume: +m.audio.volume.toFixed(2) } : null; })()`);
-const prefs = (b: Browser) => b.eval(`({ music: localStorage.getItem('clawbada_music'), sfx: localStorage.getItem('clawbada_sfx') })`);
+const prefs = (b: Browser) => b.eval(`({ music: localStorage.getItem('clawbada_battle_music'), sfx: localStorage.getItem('clawbada_sfx') })`);
 
 async function connectAndStart(b: Browser) {
   await b.goto(`${ORIGIN}/game/battle?preset=${PRESET}&auto=1&speed=3`);

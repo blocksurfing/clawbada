@@ -56,10 +56,10 @@ export function MusicToggle() {
   const toggle = useCallback(() => {
     const audio = getThemeAudio();
     const on = !getMusicPref();
-    setMusicPref(on);          // persists and announces; arena-music and the Unity menu follow
+    setMusicPref(on);          // the SITE theme only — battle music is its own control (in-battle options menu)
     setPlaying(on);
     if (!on) audio.pause();
-    else if (!isArenaMusicActive()) audio.play().catch(() => {}); // in a battle the arena bed takes over
+    else if (!isArenaMusicActive()) audio.play().catch(() => {}); // never inside a battle view
   }, []);
 
   if (!ready) return null;

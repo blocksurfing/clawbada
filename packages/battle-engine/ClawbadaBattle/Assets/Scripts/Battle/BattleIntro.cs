@@ -15,11 +15,12 @@ using UnityEngine.UI;
 /// </summary>
 public static class BattleIntro
 {
-    private const float BlackHold = 0.2f, FadeIn = 0.6f;
-    private const float ReadyIn = 0.25f, ReadyHold = 0.5f, ReadyOut = 0.15f;
-    private const float FightSlam = 0.14f, FightHold = 0.45f, FightOut = 0.2f;
-    private const float DropHeight = 1.6f, DropTime = 0.28f, DropStagger = 0.08f, Bounce = 0.06f;
-    private const float SlideTime = 0.55f;
+    // ~5 s in all. User 2026-09-28: the first cut (~3.5 s) felt rushed → +1.5 s, spread over every beat.
+    private const float BlackHold = 0.4f, FadeIn = 0.9f;
+    private const float ReadyIn = 0.35f, ReadyHold = 0.8f, ReadyOut = 0.15f;
+    private const float FightSlam = 0.14f, FightHold = 0.75f, FightOut = 0.2f;
+    private const float DropHeight = 1.6f, DropTime = 0.32f, DropStagger = 0.14f, Bounce = 0.06f;
+    private const float SlideTime = 0.7f;
 
     private static readonly Color Gold = new Color32(0xfb, 0xbf, 0x24, 0xff);
 
