@@ -32,6 +32,7 @@ export type BattleEvent =
   | 'match_cancelled'
   // V3 live battle session (battle rooms; see lib/battle-session/protocol.ts):
   | 'battle_snapshot'
+  | 'battle_started'
   | 'turn_started'
   | 'turn_committed'
   | 'turn_resolved'

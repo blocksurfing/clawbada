@@ -464,6 +464,11 @@ export default {
         battleWS.sendTo(ws, 'error', msg.battleId, { code: 'wrong_battle', message: 'This socket is subscribed to a different battle' });
         return;
       }
+      if (msg.type === 'ready') {
+        const r = battleSessions.ready(msg.battleId, data.address);
+        if (!r.ok) battleWS.sendTo(ws, 'error', msg.battleId, { code: r.code, message: r.message });
+        return;
+      }
       // Identity is the authenticated socket address — never the payload.
       const res = battleSessions.submit(msg.battleId, data.address, msg.turn, msg.command);
       // A rejected turn is the player's "the game froze" report of tomorrow: keep the reason.

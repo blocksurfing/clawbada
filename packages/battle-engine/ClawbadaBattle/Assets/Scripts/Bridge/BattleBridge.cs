@@ -31,6 +31,7 @@ public class BattleBridge : MonoBehaviour
     [DllImport("__Internal")] private static extern void SendUndoMove();
     [DllImport("__Internal")] private static extern void SendForfeit();
     [DllImport("__Internal")] private static extern void SendAudioPref(string json);
+    [DllImport("__Internal")] private static extern void SendIntroComplete();
 
     private BattleManager battleManager;
     private HexGrid hexGrid;
@@ -173,12 +174,15 @@ public class BattleBridge : MonoBehaviour
     /// targets. See HexGrid.ShowSelection for precedence and payload shape.</summary>
     public void ShowSelection(string json)
     {
+        // The intro opens on an empty arena: move highlights wait for it like every other turn call.
+        if (battleManager != null && battleManager.DeferDuringIntro("ShowSelection", () => ShowSelection(json))) return;
         if (hexGrid != null) hexGrid.ShowSelection(json);
     }
 
     /// <summary>Clear all hex highlights.</summary>
     public void ClearHighlights()
     {
+        if (battleManager != null && battleManager.DeferDuringIntro("ClearHighlights", ClearHighlights)) return;
         if (hexGrid != null) hexGrid.ClearHighlights();
     }
 
@@ -241,6 +245,16 @@ public class BattleBridge : MonoBehaviour
         SendForfeit();
         #else
         Debug.Log("[BattleBridge] Forfeit");
+        #endif
+    }
+
+    /// <summary>The battle-start intro finished (or was skipped): React starts the music and tells the server.</summary>
+    public void NotifyIntroComplete()
+    {
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendIntroComplete();
+        #else
+        Debug.Log("[BattleBridge] intro complete");
         #endif
     }
 
@@ -312,6 +326,8 @@ public class BattleInitData
     public string opponentBadge;
     public string stakeBracket;
     public int stakeAmount;
+    /// <summary>Play the battle-start intro (a fresh battle; reconnects mid-battle skip it).</summary>
+    public bool intro;
 }
 
 // ─── V3 per-turn payloads ───

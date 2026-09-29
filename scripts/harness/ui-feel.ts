@@ -1,4 +1,5 @@
 import type { Browser } from './cdp';
+import { waitForIntro } from './intro-wait';
 /** Nzib's HUD (2026-09-27): screenshots of the avatar + button row idle, hovered and pressed.
  *  `TRIO=Sentinel bun cdp.ts ui-feel.ts` → out/ui-feel-<class>-{idle,hover,press}.png */
 const S = `${import.meta.dir}/out`;
@@ -23,6 +24,7 @@ export default async function (b: Browser) {
   while (Date.now() - t0 < 150000 && !b.logs.some((l) => /\[BattleHud\] bind/.test(l))) await b.sleep(500);
   await b.eval(`document.querySelector('canvas')?.scrollIntoView({ block: 'start' })`);
   await b.waitFor(`/Your turn/i.test(document.body.innerText) && !/animating…/.test(document.body.innerText)`, 60000, 300);
+  await waitForIntro(b);
   await b.sleep(900);
   // PLAY=n: Defend through n own turns first, so the avatar has swapped lobsters several times (the stale-clone bug).
   const turnNo = `(document.body.innerText.match(/Turn (\\d+)/i) || [])[1]`;

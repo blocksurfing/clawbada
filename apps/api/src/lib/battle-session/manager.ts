@@ -61,6 +61,8 @@ export interface ManagerDeps {
   shotClockMs?: number;
   botThinkMs?: number;
   firstTurnGraceMs?: number;
+  /** Fresh battles wait up to this long for the players' `ready` (battle-start intro) before the first turn. */
+  startWaitMs?: number;
   pollMs?: number;
   /** Test hook: deterministic practice seeds. */
   randomSeed?: () => bigint;
@@ -95,6 +97,8 @@ export const DEFAULT_POLL_MS = 2_000;
 export const RESUME_MIN_CLOCK_MS = 5_000;
 /** Extra time on each side's first human turn of a fresh battle — covers the browser loading the arena. */
 export const DEFAULT_FIRST_TURN_GRACE_MS = 15_000;
+/** Cap on the wait for `ready` (battle-start intro, ~4 s after the arena loads). 0 = no wait. */
+export const DEFAULT_START_WAIT_MS = 0;
 
 const TIER_NAMES: Record<number, v3.ArenaLayout['tier']> = { 0: 'evolved', 1: 'evolved', 2: 'elite', 3: 'apex' };
 
@@ -123,6 +127,7 @@ export class BattleSessionManager {
   private readonly shotClockMs: number;
   private readonly botThinkMs: number;
   private readonly firstTurnGraceMs: number;
+  private readonly startWaitMs: number;
   private readonly pollMs: number;
   /** D-06: battleId -> when its settlement_alert was last pushed (ms). Re-sent while the battle
    *  is still live, so a player who reconnects inside the dispute window still sees it. */
@@ -135,6 +140,7 @@ export class BattleSessionManager {
     this.shotClockMs = deps.shotClockMs ?? DEFAULT_SHOT_CLOCK_MS;
     this.botThinkMs = deps.botThinkMs ?? DEFAULT_BOT_THINK_MS;
     this.firstTurnGraceMs = deps.firstTurnGraceMs ?? DEFAULT_FIRST_TURN_GRACE_MS;
+    this.startWaitMs = deps.startWaitMs ?? DEFAULT_START_WAIT_MS;
     this.pollMs = deps.pollMs ?? DEFAULT_POLL_MS;
   }
 
@@ -148,7 +154,7 @@ export class BattleSessionManager {
     }
     if (this.timer !== null) return;
     this.timer = setInterval(() => void this.pollOnce(), this.pollMs);
-    this.deps.log.info({ pollMs: this.pollMs, shotClockMs: this.shotClockMs, botThinkMs: this.botThinkMs, firstTurnGraceMs: this.firstTurnGraceMs }, 'battle_session_manager_started');
+    this.deps.log.info({ pollMs: this.pollMs, shotClockMs: this.shotClockMs, botThinkMs: this.botThinkMs, firstTurnGraceMs: this.firstTurnGraceMs, startWaitMs: this.startWaitMs }, 'battle_session_manager_started');
   }
 
   stop(): void {
@@ -190,6 +196,15 @@ export class BattleSessionManager {
     const cmd = v3.parseTurnCommand(rawCmd);
     if (!cmd) return { ok: false, code: 'bad_command', message: 'Malformed turn command' };
     return session.submit(side, turn, cmd);
+  }
+
+  /** A player's client finished the battle-start intro. */
+  ready(id: string, address: string): { ok: true; started: boolean } | { ok: false; code: string; message: string } {
+    const session = this.sessions.get(id);
+    if (!session) return { ok: false, code: 'session_not_found', message: 'No live battle with that id' };
+    const side = session.sideOf(address);
+    if (!side) return { ok: false, code: 'not_participant', message: 'You are not a participant in this battle' };
+    return session.ready(side);
   }
 
   /** Route a player's resignation. The caller's own side forfeits; the other side wins. */
@@ -449,6 +464,7 @@ export class BattleSessionManager {
         botPolicy: bot.botPolicy,
         firstTurnClockMs: resume?.firstTurnClockMs,
         firstTurnGraceMs: this.firstTurnGraceMs,
+        startWaitMs: resume ? 0 : this.startWaitMs,
         hooks: {
           emit: this.deps.emit,
           persist: (s, turns, snap) => this.deps.store.writeTurns(s.record.id, turns, snap),

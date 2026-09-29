@@ -46,6 +46,12 @@ mergeInto(LibraryManager.library, {
         }
     },
 
+    SendIntroComplete: function() {
+        if (window.__clawbada && window.__clawbada.onIntroComplete) {
+            window.__clawbada.onIntroComplete();
+        }
+    },
+
     SendAudioPref: function(jsonPtr) {
         var json = UTF8ToString(jsonPtr);
         if (window.__clawbada && window.__clawbada.onAudioPref) {

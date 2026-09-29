@@ -42,6 +42,30 @@ public class BattleManager : MonoBehaviour
     /// <summary>In-canvas HUD, attached in Awake when a HudSkin exists (see BattleHud.Attach).</summary>
     public BattleHud hud;
 
+    /// <summary>The battle-start intro is on screen: turn traffic from React waits and replays after it, in order.</summary>
+    public bool IntroPlaying { get; private set; }
+    private readonly List<System.Action> introQueue = new();
+
+    /// <summary>True (and the call queued) while the intro plays. Public for the bridge's grid calls.</summary>
+    public bool DeferDuringIntro(string what, System.Action call)
+    {
+        if (!IntroPlaying) return false;
+        introQueue.Add(call);
+        Debug.Log($"[BattleManager] {what} held until the intro ends ({introQueue.Count} queued)");
+        return true;
+    }
+
+    private System.Collections.IEnumerator IntroRoutine()
+    {
+        IntroPlaying = true;
+        yield return BattleIntro.Play(this, hud, lobsters.Values);
+        IntroPlaying = false;
+        var queued = new List<System.Action>(introQueue);
+        introQueue.Clear();
+        foreach (var call in queued) call();
+        if (bridge != null) bridge.NotifyIntroComplete();
+    }
+
     // HUD hooks. BattleHud subscribes; every invocation is null-safe so a build without
     // generated HUD art still plays (React's fallback HUD covers it).
     public event Action<BattleInitData> Initialized;
@@ -158,7 +182,11 @@ public class BattleManager : MonoBehaviour
         isPlayerTurn = false;
         ClearPreview();
         currentPhase = BattlePhase.Idle;
+        IntroPlaying = false;
+        introQueue.Clear();
         Initialized?.Invoke(data);
+        // Fighting-game start (user 2026-09-28): empty arena → READY / FIGHT → lobsters drop in → HUD slides in.
+        if (data.intro && Application.isPlaying) StartCoroutine(IntroRoutine());
     }
 
     /// <summary>Replace the arena backdrop with the tier's designer prefab
@@ -369,6 +397,7 @@ public class BattleManager : MonoBehaviour
     /// Highlights come from React via ShowSelection.</summary>
     public void StartTurn(TurnStartData data)
     {
+        if (DeferDuringIntro($"StartTurn {data?.turn}", () => StartTurn(data))) return;
         currentTurn = data.turn;
         activeLobsterId = data.lobsterId ?? "";
         activeTurn = data;
@@ -401,6 +430,7 @@ public class BattleManager : MonoBehaviour
 
     public void SetSelection(SelectionData data)
     {
+        if (DeferDuringIntro("SetSelection", () => SetSelection(data))) return;
         selection = data;
         SelectionChanged?.Invoke(data);
     }
@@ -411,6 +441,7 @@ public class BattleManager : MonoBehaviour
     /// first.</summary>
     public void PreviewMove(PreviewMoveData data)
     {
+        if (DeferDuringIntro("PreviewMove", () => PreviewMove(data))) return;
         if (data == null || !lobsters.TryGetValue(data.lobsterId ?? "", out var lob) || !lob.alive) return;
         if (currentPhase == BattlePhase.AnimatingTurn) return;
         // A Special that LEAPS (Mantis Ambush) is not walked in preview: walking there made the confirmed
@@ -489,6 +520,7 @@ public class BattleManager : MonoBehaviour
     /// <summary>Animate one resolved turn, then tell React so it can send the next.</summary>
     public void PlayTurn(TurnPlayData data)
     {
+        if (DeferDuringIntro($"PlayTurn {data?.turn}", () => PlayTurn(data))) return;
         // React only sends the next turn after this one reports complete — or after its watchdog
         // gives up waiting. In the second case the previous routine is still mid-hold; two turn
         // routines interleaving spawn effects on top of each other and apply reads out of order,
