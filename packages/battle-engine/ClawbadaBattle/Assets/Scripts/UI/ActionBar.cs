@@ -4,10 +4,10 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Action buttons (Nzib's layout, 2026-09-27): a row of hex buttons right of the round avatar, bottom-left —
-/// Attack, Defend, the acting lobster's own class Special, Wait. No text: his buttons carry their glyphs.
-/// Hover glows and grows a pixel, press shrinks and darkens (ButtonFeel); the armed action keeps its glow and
-/// a gold frame. There is no Undo button: tapping your own lobster (or its start hex) cancels a move, and the
+/// Action buttons: a row of Nzib's ActionButtonUI prefabs (drop 28c11f5) right of the avatar, bottom-left —
+/// Attack, Defend, the acting lobster's own class Special, Wait. No text: his icons carry their glyphs. His
+/// Animator owns the frame: Pressed while held (the Visual drops a design pixel), Selected (looping shine) for
+/// the armed action, Normal otherwise — driven by ButtonFeel; hover adds a soft halo. There is no Undo button: tapping your own lobster (or its start hex) cancels a move, and the
 /// hint line says so. Unity only reports presses; React decides what they mean and submits the turn. Its state
 /// (which action is armed, what is legal) arrives through Apply. One line above the buttons says why a press
 /// went nowhere ("Out of range — move closer first", a server rejection) and shows "Sending…" — inside the
@@ -23,7 +23,6 @@ public class ActionBar : MonoBehaviour
     public const float ArtScale = 1.5f;
     /// <summary>Hex spacing: the frame's hex is 42 art px wide in its 48 px cell, plus a 2 px gap.</summary>
     private const float PitchArt = 44f;
-    private static readonly Color ArmedGlow = new Color(1f, 0.82f, 0.4f, 0.9f);
     private const string CancelMoveHint = "Tap your lobster to cancel the move";
     private const string HintsPref = "clawbada.hints";
 
@@ -36,8 +35,7 @@ public class ActionBar : MonoBehaviour
 
     private HudSkin skin;
     private Button attack, special, defend, wait;
-    private Image specialPlate, specialIcon;
-    private Image attackFrame, specialFrame, defendFrame, waitFrame;
+    private Image specialIcon;
     private ButtonFeel attackFeel, specialFeel, defendFeel, waitFeel;
     private Text hint;
     private string lastNote = "";
@@ -51,20 +49,19 @@ public class ActionBar : MonoBehaviour
     /// <param name="hintBottomRight">Where the hint line's bottom-right corner sits, from the canvas's bottom-right.</param>
     public static ActionBar Create(Transform parent, HudSkin skin, Vector2 bottomLeft, Vector2 hintBottomRight)
     {
-        bool nzib = skin.actionFrame != null;
-        float size = nzib ? skin.actionFrame.rect.width * ArtScale : skin.buttonSize;
-        float pitch = nzib ? PitchArt * ArtScale : skin.buttonSize + 10f;
-        float h = nzib ? size : size * 1.143f;
-        var rt = HudFactory.Rect(parent, "ActionBar", Vector2.zero, Vector2.zero, Vector2.zero, bottomLeft, new Vector2(pitch * 3f + size, h));
+        float size = 48f * ArtScale;
+        float pitch = PitchArt * ArtScale;
+        var rt = HudFactory.Rect(parent, "ActionBar", Vector2.zero, Vector2.zero, Vector2.zero, bottomLeft, new Vector2(pitch * 3f + size, size));
         var bar = rt.gameObject.AddComponent<ActionBar>();
         bar.skin = skin;
         bar.Width = rt.sizeDelta.x;
-        bar.ButtonHeight = h;
+        bar.ButtonHeight = size;
+        if (skin.actionButtonPrefab == null) Debug.LogError("[BattleHud] HudSkin.actionButtonPrefab is not bound — run Clawbada ▸ HUD ▸ Bind Nzib HUD Art");
 
-        bar.attack = bar.Make(rt, "Attack", skin.actionAttack, skin.btnAttack, skin.iconAttack, 0, size, pitch, () => bar.Press("attack"), out bar.attackFrame, out bar.attackFeel, out _, out _);
-        bar.defend = bar.Make(rt, "Defend", skin.actionDefend, skin.btnDefend, skin.iconDefend, 1, size, pitch, () => bar.Press("defend"), out bar.defendFrame, out bar.defendFeel, out _, out _);
-        bar.special = bar.Make(rt, "Special", skin.SpecialButton(0), skin.btnSpecial, skin.iconSpecial, 2, size, pitch, () => bar.Press("special"), out bar.specialFrame, out bar.specialFeel, out bar.specialPlate, out bar.specialIcon);
-        bar.wait = bar.Make(rt, "Wait", skin.actionWait, skin.btnWait, skin.iconWait, 3, size, pitch, () => bar.Press("none"), out bar.waitFrame, out bar.waitFeel, out _, out _);
+        bar.attack = bar.Make(rt, "Attack", skin.actionAttack, 0, size, pitch, () => bar.Press("attack"), out bar.attackFeel, out _);
+        bar.defend = bar.Make(rt, "Defend", skin.actionDefend, 1, size, pitch, () => bar.Press("defend"), out bar.defendFeel, out _);
+        bar.special = bar.Make(rt, "Special", skin.SpecialButton(0), 2, size, pitch, () => bar.Press("special"), out bar.specialFeel, out bar.specialIcon);
+        bar.wait = bar.Make(rt, "Wait", skin.actionWait, 3, size, pitch, () => bar.Press("none"), out bar.waitFeel, out _);
 
         // On the canvas, not the row: bottom-right under the clock, right-aligned so long lines grow leftwards.
         bar.hint = HudFactory.Text(parent, "Hint", skin.FontOrDefault(), 12, skin.textPrimary, TextAnchor.LowerRight, new Vector2(560f, 18f));
@@ -77,48 +74,46 @@ public class ActionBar : MonoBehaviour
         return bar;
     }
 
-    /// <summary>Old generated plate for an action, when Nzib's art is not bound.</summary>
-    private Sprite Fallback(Sprite plate) =>
-        plate != null ? plate : skin.hexBevel != null ? skin.hexBevel : skin.hexButton64;
-
-    /// <summary>One button: glow (behind), plate (clickable), frame (over). With Nzib's art the plate carries its glyph;
-    /// the fallback plate gets the old icon on top.</summary>
-    private Button Make(RectTransform row, string name, Sprite art, Sprite oldPlate, Sprite oldIcon, int index, float size, float pitch,
-        UnityEngine.Events.UnityAction onClick, out Image frame, out ButtonFeel feel, out Image plate, out Image icon)
+    /// <summary>One button: a slot (the stationary click area: transparent raycast image + Button) holding the hover
+    /// halo and Nzib's prefab (his root stays put; his Animator moves the Visual). Icon.sprite is the action's.</summary>
+    private Button Make(RectTransform row, string name, Sprite icon, int index, float size, float pitch,
+        UnityEngine.Events.UnityAction onClick, out ButtonFeel feel, out Image iconImage)
     {
-        bool nzib = skin.actionFrame != null;
-        float h = nzib ? size : size * 1.143f;
-        var rt = HudFactory.Rect(row, name, Vector2.zero, Vector2.zero, new Vector2(0.5f, 0.5f), new Vector2(pitch * index + size * 0.5f, h * 0.5f), new Vector2(size, h));
+        var rt = HudFactory.Rect(row, name, Vector2.zero, Vector2.zero, HudFactory.Center, new Vector2(pitch * index + size * 0.5f, size * 0.5f), new Vector2(size, size));
+        // The click area: invisible, and never moves (his Pressed state moves only the Visual inside).
+        var hit = HudFactory.AddImage(rt, skin.actionFrame, new Color(1f, 1f, 1f, 0f), raycast: true);
 
         Image glow = null;
-        if (skin.actionGlow != null && nzib)
+        if (skin.actionGlow != null)
         {
-            float k = size / skin.actionFrame.rect.width;
-            glow = HudFactory.Image(rt, "Glow", skin.actionGlow, Color.white, skin.actionGlow.rect.size * k);
+            glow = HudFactory.Image(rt, "Glow", skin.actionGlow, Color.white, skin.actionGlow.rect.size * ArtScale);
             glow.enabled = false;
         }
 
-        plate = HudFactory.AddImage(HudFactory.Stretch(rt, "Plate"), nzib && art != null ? art : Fallback(oldPlate), Color.white, raycast: true);
-        icon = null;
-        if (!nzib && oldIcon != null) icon = HudFactory.Image(rt, "Icon", oldIcon, Color.white, new Vector2(size * 0.5f, size * 0.5f));
-        frame = nzib ? HudFactory.AddImage(HudFactory.Stretch(rt, "Frame"), skin.actionFrame, Color.white) : null;
+        Animator anim = null;
+        iconImage = null;
+        if (skin.actionButtonPrefab != null)
+        {
+            var ui = (RectTransform)Instantiate(skin.actionButtonPrefab, rt, false).transform;
+            ui.name = "ActionButtonUI";
+            ui.anchorMin = ui.anchorMax = ui.pivot = HudFactory.Center;
+            ui.anchoredPosition = Vector2.zero;
+            ui.localScale = new Vector3(ArtScale, ArtScale, 1f);
+            anim = ui.GetComponent<Animator>();
+            iconImage = ui.Find("Visual/Icon")?.GetComponent<Image>();
+            if (iconImage != null && icon != null) iconImage.sprite = icon;
+        }
 
         var btn = rt.gameObject.AddComponent<Button>();
-        btn.targetGraphic = plate;
-        var colors = btn.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = Color.white;          // hover is the glow + grow, not a tint
-        colors.selectedColor = Color.white;
-        colors.pressedColor = new Color(0.78f, 0.78f, 0.78f, 1f);
-        colors.disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.6f);
-        colors.fadeDuration = 0.05f;
-        btn.colors = colors;
+        btn.targetGraphic = hit;
+        btn.transition = Selectable.Transition.None;   // his Animator is the only thing that draws the frame
         btn.navigation = new Navigation { mode = Navigation.Mode.None };
         btn.onClick.AddListener(onClick);
 
+        rt.gameObject.AddComponent<CanvasGroup>();
         feel = rt.gameObject.AddComponent<ButtonFeel>();
         feel.glow = glow;
-        feel.step = 2f * ArtScale / size;   // 2 art px
+        feel.animator = anim;
         return btn;
     }
 
@@ -128,7 +123,7 @@ public class ActionBar : MonoBehaviour
         if (classId == actorClass) return;
         actorClass = classId;
         var art = skin.SpecialButton(classId);
-        if (skin.actionFrame != null && art != null) specialPlate.sprite = art;
+        if (art != null && specialIcon != null) specialIcon.sprite = art;
     }
 
     private void Press(string action)
@@ -153,10 +148,10 @@ public class ActionBar : MonoBehaviour
 
         ShowHint(d);
 
-        SetArmed(attackFeel, attackFrame, attack, d.action == "attack");
-        SetArmed(specialFeel, specialFrame, special, d.action == "special");
-        SetArmed(defendFeel, defendFrame, defend, d.action == "defend");
-        SetArmed(waitFeel, waitFrame, wait, d.action == "none");
+        SetArmed(attackFeel, attack, d.action == "attack");
+        SetArmed(specialFeel, special, d.action == "special");
+        SetArmed(defendFeel, defend, d.action == "defend");
+        SetArmed(waitFeel, wait, d.action == "none");
 
         Canvas.ForceUpdateCanvases();
         LogButtons();
@@ -178,12 +173,12 @@ public class ActionBar : MonoBehaviour
         if (lastSel != null && lastSel.isPlayerTurn && gameObject.activeSelf) ShowHint(lastSel);
     }
 
-    /// <summary>Armed = gold frame + steady glow; a disabled button's frame dims with its plate.</summary>
-    private void SetArmed(ButtonFeel feel, Image frame, Button b, bool armed)
+    /// <summary>Armed = his looping Selected state; a disabled button is dimmed and held at Normal.</summary>
+    private static void SetArmed(ButtonFeel feel, Button b, bool armed)
     {
-        armed &= b.interactable;
-        feel.SetArmed(armed, ArmedGlow);
-        if (frame != null) frame.color = armed ? skin.buttonArmed : b.interactable ? Color.white : new Color(0.55f, 0.55f, 0.55f, 0.7f);
+        feel.SetArmed(armed && b.interactable);
+        var group = b.GetComponent<CanvasGroup>();
+        if (group != null) group.alpha = b.interactable ? 1f : 0.45f;
     }
 
     /// <summary>Harness signal: button rects in screen pixels (x, y-from-bottom, w, h).</summary>

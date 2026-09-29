@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: f845396c76c64afd879fdf4c357f19d4
+guid: c9d14d8be79aed54b9da3672fdc6a6c3
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -50,7 +50,7 @@ TextureImporter:
   spritePivot: {x: 0.5, y: 0.5}
   spritePixelsToUnits: 64
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
-  spriteGenerateFallbackPhysicsShape: 0
+  spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
   alphaIsTransparency: 1
   spriteTessellationDetail: -1
@@ -85,7 +85,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -98,7 +98,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -111,7 +111,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -123,296 +123,230 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: ActionButton_Attack
+      name: Avatar_BG_Bulwark
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 48
-        height: 48
+        width: 32
+        height: 32
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
+      customData:
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 11454e900c554a56a1d0980f0cc7d1a1
-      internalID: 638132931267961869
+      spriteID: 8fcd00a649e354045a9caaebc87c2b76
+      internalID: 2135084777
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: ActionButton_Defend
+      name: Avatar_BG_Mantis
       rect:
         serializedVersion: 2
-        x: 48
+        x: 32
         y: 0
-        width: 48
-        height: 48
+        width: 32
+        height: 32
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
+      customData:
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 56ba93e825764aed924ee42e048cb14b
-      internalID: 1052731709752394881
+      spriteID: 4e8ce89d4deaff04eb29ed33a82a67db
+      internalID: -1594243220
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: ActionButton_Wait
+      name: Avatar_BG_Leviathan
+      rect:
+        serializedVersion: 2
+        x: 64
+        y: 0
+        width: 32
+        height: 32
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData:
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: cc325bf137ff8ae4d99f7cb335376d1c
+      internalID: -1701658827
+      vertices: []
+      indices:
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Avatar_BG_Tempest
       rect:
         serializedVersion: 2
         x: 96
         y: 0
-        width: 48
-        height: 48
+        width: 32
+        height: 32
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
+      customData:
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: fe3538000a3041a49a17ddac163aaaaa
-      internalID: 510141584573289722
+      spriteID: a4521b978e4a8f242b747f6d9c32d6b4
+      internalID: 1571835289
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: ActionButton_Bulwark_Fortify
+      name: Avatar_BG_Specter
       rect:
         serializedVersion: 2
-        x: 144
+        x: 128
         y: 0
-        width: 48
-        height: 48
+        width: 32
+        height: 32
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
+      customData:
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 7820c9ac32f249fba713195d98a68006
-      internalID: 309208911559238888
+      spriteID: aa5aa781d9b223c418b0ce2062b9db9a
+      internalID: -1028313172
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: ActionButton_Mantis_Ambush
+      name: Avatar_BG_Sentinel
+      rect:
+        serializedVersion: 2
+        x: 160
+        y: 0
+        width: 32
+        height: 32
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData:
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: af599cac647d8b04c8592faeceea4c81
+      internalID: -1114151644
+      vertices: []
+      indices:
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Avatar_BG_Reaver
       rect:
         serializedVersion: 2
         x: 192
         y: 0
-        width: 48
-        height: 48
+        width: 32
+        height: 32
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
+      customData:
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 782fbeeaff444e37b1ea2c4472d40cd8
-      internalID: 82798145244591140
+      spriteID: ea17807f0c937fb41a8f6353ee5a507a
+      internalID: 173379805
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: ActionButton_Leviathan_Crush
+      name: Avatar_BG_Abyss
       rect:
         serializedVersion: 2
-        x: 240
+        x: 224
         y: 0
-        width: 48
-        height: 48
+        width: 32
+        height: 32
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
+      customData:
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 8cd6297a77ba49838d0a72f083448ed5
-      internalID: 661580910626022569
+      spriteID: bf16ed0c36bbbef4aa62cd1526fddbfb
+      internalID: -1350044372
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: ActionButton_Tempest_Maelstrom
+      name: Avatar_BG_Kraken
+      rect:
+        serializedVersion: 2
+        x: 256
+        y: 0
+        width: 32
+        height: 32
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData:
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c0f2caffc5319994f821483a6e2e1934
+      internalID: 995236197
+      vertices: []
+      indices:
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Avatar_BG_Ember
       rect:
         serializedVersion: 2
         x: 288
         y: 0
-        width: 48
-        height: 48
+        width: 32
+        height: 32
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
+      customData:
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: b049dd7c5db2411ba8b03e9f4be6cf1a
-      internalID: 628168317060265006
-      vertices: []
-      indices:
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: ActionButton_Specter_Haunt
-      rect:
-        serializedVersion: 2
-        x: 336
-        y: 0
-        width: 48
-        height: 48
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 5e1b9a538f6543ba925c33b004dbdb77
-      internalID: 303767863544038568
-      vertices: []
-      indices:
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: ActionButton_Sentinel_Rally
-      rect:
-        serializedVersion: 2
-        x: 384
-        y: 0
-        width: 48
-        height: 48
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 608c711fdfc24922bb7267a8bd4e6a1a
-      internalID: 447217917981205675
-      vertices: []
-      indices:
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: ActionButton_Reaver_Rend
-      rect:
-        serializedVersion: 2
-        x: 432
-        y: 0
-        width: 48
-        height: 48
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 55097187812448d084be810014372e0b
-      internalID: 989566198067381422
-      vertices: []
-      indices:
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: ActionButton_Abyss_Devour
-      rect:
-        serializedVersion: 2
-        x: 480
-        y: 0
-        width: 48
-        height: 48
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: b2d22aac0e2c48da94924b03c928e44b
-      internalID: 65832651474875564
-      vertices: []
-      indices:
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: ActionButton_Kraken_Bind
-      rect:
-        serializedVersion: 2
-        x: 528
-        y: 0
-        width: 48
-        height: 48
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 466fa8b9f4e74c89b44ef241ca3062e4
-      internalID: 1119645059197154369
-      vertices: []
-      indices:
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: ActionButton_Ember_Inferno
-      rect:
-        serializedVersion: 2
-        x: 576
-        y: 0
-        width: 48
-        height: 48
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: null
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: b20d71d8977d4587b1d487f553b10d43
-      internalID: 831314738952758419
+      spriteID: 3008f56d81b65a646b38ce24c0db8cab
+      internalID: -1523594419
       vertices: []
       indices:
       edges: []
       weights: []
     outline: []
-    customData: null
+    customData:
     physicsShape: []
     bones: []
-    spriteID: e77c2179c15543b78ff5ddacf19eeb05
+    spriteID: 5cb6a851d12ae6e44a2983fb66641227
     internalID: 0
     vertices: []
     indices:
@@ -422,21 +356,18 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      ActionButton_Abyss_Devour: 65832651474875564
-      ActionButton_Attack: 638132931267961869
-      ActionButton_Bulwark_Fortify: 309208911559238888
-      ActionButton_Defend: 1052731709752394881
-      ActionButton_Ember_Inferno: 831314738952758419
-      ActionButton_Kraken_Bind: 1119645059197154369
-      ActionButton_Leviathan_Crush: 661580910626022569
-      ActionButton_Mantis_Ambush: 82798145244591140
-      ActionButton_Reaver_Rend: 989566198067381422
-      ActionButton_Sentinel_Rally: 447217917981205675
-      ActionButton_Specter_Haunt: 303767863544038568
-      ActionButton_Tempest_Maelstrom: 628168317060265006
-      ActionButton_Wait: 510141584573289722
-  mipmapLimitGroupName: null
+      Avatar_BG_Abyss: -1350044372
+      Avatar_BG_Bulwark: 2135084777
+      Avatar_BG_Ember: -1523594419
+      Avatar_BG_Kraken: 995236197
+      Avatar_BG_Leviathan: -1701658827
+      Avatar_BG_Mantis: -1594243220
+      Avatar_BG_Reaver: 173379805
+      Avatar_BG_Sentinel: -1114151644
+      Avatar_BG_Specter: -1028313172
+      Avatar_BG_Tempest: 1571835289
+  mipmapLimitGroupName:
   pSDRemoveMatte: 0
-  userData: null
-  assetBundleName: null
-  assetBundleVariant: null
+  userData:
+  assetBundleName:
+  assetBundleVariant:

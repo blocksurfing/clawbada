@@ -71,6 +71,14 @@ public static class HudSmokeTest
             Check(hud.Panel.gameObject.activeSelf && hud.Panel.Lobster != null && hud.Panel.Lobster.lobsterId == "A1", "active panel shows A1");
             Check(hud.Panel.ShownClass == 1, $"active avatar shows the Mantis disc (got class {hud.Panel.ShownClass})");
             Check(hud.Panel.transform.Find("Name") == null, "no HP / name text on the avatar (numbers are for agents, via the API)");
+            // Nzib's AvatarUI (28c11f5): A1 is at 300/450 (67 %) with 3 charge → the Wounded bar two-thirds full,
+            // the charge bar full (thresholds 75/50/25, user 2026-09-28).
+            var hpFill = hud.Panel.transform.Find("AvatarUI/HPFill")?.GetComponent<Image>();
+            var mpFill = hud.Panel.transform.Find("AvatarUI/MPFill")?.GetComponent<Image>();
+            Check(hpFill != null && hpFill.sprite != null && hpFill.sprite.name == "HP_Wounded", $"HP bar shows the Wounded state at 67 % (got {(hpFill != null && hpFill.sprite != null ? hpFill.sprite.name : "none")})");
+            Check(hpFill != null && Mathf.Abs(hpFill.fillAmount - 300f / 450f) < 0.01f, $"HP bar filled to 300/450 (got {(hpFill != null ? hpFill.fillAmount : -1f):F2})");
+            Check(mpFill != null && Mathf.Approximately(mpFill.fillAmount, 1f), "charge bar full at 3 charge");
+            Check(hud.Panel.transform.Find("AvatarUI/ClassBackground/Portrait") != null, "portrait sits inside the class background's window");
             Check(hud.Clock.Running && hud.Clock.RemainingSeconds > 8f, "clock running from 15 s");
             Check(hud.Banner.Visible, "banner visible");
             var a1 = manager.GetLobster("A1");
