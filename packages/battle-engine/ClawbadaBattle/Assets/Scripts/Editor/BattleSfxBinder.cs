@@ -96,7 +96,7 @@ public static class BattleSfxBinder
             int healN = Fill(slot.heal, stem + "_Heal");
             string leadSource = FirstExisting(stem + "_Impact");
             slot.impactLead = leadSource != null ? MeasureLoudestMoment(leadSource, attack) : 0f;
-            slot.impactAtCastEnd = ImpactAtCastEnd.Contains(Classes[i]);
+            slot.impactAtSeconds = ImpactAtSeconds.TryGetValue(Classes[i], out var at) ? at : 0f;
             lib.specialByClass[i] = slot;
 
             if (castN + impactN > 0)
@@ -188,9 +188,11 @@ public static class BattleSfxBinder
     /// </summary>
     private static readonly HashSet<string> AttackTimedImpacts = new() { "Leviathan" };
 
-    /// <summary>Classes whose impact sound lands near the END of the cast clip rather than on the effect's beat
-    /// (user 2026-09-29: Fortify's impacts come "right near the end of the full cast sound").</summary>
-    private static readonly HashSet<string> ImpactAtCastEnd = new() { "Bulwark" };
+    /// <summary>Impact sounds pinned to a moment of the cast instead of the effect's impact beat, in seconds.
+    /// Fortify 2.6 s: its dome starts coming down at 2.5 s and is gone by 2.9 s (FX_Bulwark_Fortify UpperLayer); the
+    /// cast sound's climax (3.0–3.3 s) rolls out of the hit. The end of the file (6.65 s) sat in 3 s of near-silence
+    /// and read as far too late (user 2026-09-29).</summary>
+    private static readonly Dictionary<string, float> ImpactAtSeconds = new() { ["Bulwark"] = 2.6f };
 
     private static int Fill(BattleSfxLibrary.TierClips t, string stem, bool attack = false)
     {
