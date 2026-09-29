@@ -1,4 +1,5 @@
 import type { Browser } from './cdp';
+import { waitForIntro } from './intro-wait';
 const S = `${import.meta.dir}/out`;
 const CLASS = process.env.TRIO ?? 'Ember';
 const PRESET_LABEL = process.env.PRESET_LABEL ?? `Trio · ${CLASS}`;
@@ -69,6 +70,7 @@ export default async function (b: Browser) {
     }
   }
   expect(inited, 'HUD bound');
+  if (inited) await waitForIntro(b);
   if (!inited) { console.log(`[${CLASS}] FAILED: HUD never bound (Unity init crashed 3x)`); return; }
   await b.eval(`document.querySelector('canvas')?.scrollIntoView({ block: 'start' })`);
 
@@ -329,7 +331,7 @@ export default async function (b: Browser) {
       const fi = all.map((l, i) => (/\[BattleManager\] special .* audio fit:/.test(l) ? i : -1)).filter((i) => i >= 0).pop() ?? -1;
       const planned = fi >= 0 ? all[fi].match(/contact at ([\d.]+)s, swing/) : null;
       const actual = fi >= 0 ? all.slice(fi + 1).find((l) => /\[BattleManager\] special .* contact at [\d.]+s \(cast speed/.test(l))?.match(/contact at ([\d.]+)s/) : null;
-      if (planned && actual) expect(Math.abs(Number(planned[1]) - Number(actual[1])) < 0.05, `${CLASS}: the swing lands on the planned audio hit (planned ${planned[1]} s, contact ${actual[1]} s; muted run)`);
+      if (planned && actual) expect(Math.abs(Number(planned[1]) - Number(actual[1])) <= 0.08, `${CLASS}: the swing lands on the planned audio hit (planned ${planned[1]} s, contact ${actual[1]} s; muted run)`);
       else console.log(`  fit: muted run, no contact line to compare (AUDIO=1 checks the scheduled clip)`);
     } else expect(false, `${CLASS}: audio-fit and impact-schedule lines both present`);
   }

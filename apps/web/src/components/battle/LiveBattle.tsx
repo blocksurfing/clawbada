@@ -51,6 +51,8 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   /** The stage's fullscreen toggle, for the FULL SCREEN button in the status row. */
   const stageControls = useRef<BattleStageControls | null>(null);
   const [unityReady, setUnityReady] = useState(false);
+  /** The battle-start intro is over (Unity), or there is none (plain board / mid-battle reconnect). */
+  const [introDone, setIntroDone] = useState(false);
   const gate = unityAvailable === true && unityReady;
   const isSpectator = !!spectate || !address;
 
@@ -62,9 +64,19 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     getSessionToken: isSpectator ? undefined : getSessionToken,
     gateOnAnimation: gate,
   });
-  const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, snapshotSeq, refreshSnapshot } = session;
-  // The bed waits for the arena to be visible: Unity bound, or the plain board shown because Unity is unavailable.
-  useArenaMusic(snapshot?.session.tier, gate || unityAvailable === false, !!ended);
+  const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, sendReady, snapshotSeq, refreshSnapshot } = session;
+  // The bed waits for the arena to be visible: after Unity's battle-start intro, or the plain board shown because
+  // Unity is unavailable.
+  useArenaMusic(snapshot?.session.tier, (gate && introDone) || unityAvailable === false, !!ended);
+  // Tell the server this player is watching: a fresh battle's first turn waits for it (user 2026-09-28).
+  const readySent = useRef(false);
+  useEffect(() => {
+    if (readySent.current || isSpectator || !snapshot) return;
+    if (!(introDone || unityAvailable === false)) return;
+    readySent.current = true;
+    sendReady();
+  }, [introDone, unityAvailable, snapshot, isSpectator, sendReady]);
+  const handleIntroComplete = useCallback(() => setIntroDone(true), []);
   const handleAudioPref = useCallback((p: AudioPrefChange) => (p.kind === 'music' ? setMusicPref(p.on) : setSfxPref(p.on)), []);
 
   const mySide: Side | null = useMemo(() => {
@@ -297,6 +309,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
           onUndoMove={handleUndo}
           onUnavailable={handleUnavailable}
           onReady={handleReady}
+          onIntroComplete={handleIntroComplete}
           closing={closing}
           onClosed={handleClosed}
           overlay={gate ? returnRow : undefined}

@@ -5,6 +5,7 @@
  *
  * Client → server (WS `message`):
  *   { type: 'submit_turn', battleId, turn, command }   turn = the turn being played
+ *   { type: 'ready', battleId }                          battle-start intro done (a move also counts)
  *   { type: 'ping' }
  */
 import { v3 } from '@clawbada/game-logic';
@@ -16,6 +17,8 @@ export type EndReason = 'wipeout' | 'turn_cap' | 'forfeit';
 
 export const SESSION_EVENTS = [
   'battle_snapshot',
+  /** A fresh battle's first turn was scheduled: every player said `ready`, one moved, or the wait cap passed. */
+  'battle_started',
   'turn_started',
   'turn_committed',
   'turn_resolved',
@@ -153,6 +156,9 @@ export interface TurnAckPayload { turn: number; duplicate: boolean }
 
 export type ClientMessage =
   | { type: 'submit_turn'; battleId: string; turn: number; command: unknown }
+  /** The client finished its battle-start intro: a fresh battle begins once every human side is ready (or at the
+   *  server's cap). Agents may send it at once — or just submit their first move, which counts as ready. */
+  | { type: 'ready'; battleId: string }
   | { type: 'ping' };
 
 const MAX_MESSAGE_BYTES = 4096;
@@ -177,6 +183,10 @@ export function parseClientMessage(raw: string | Buffer | ArrayBuffer | Uint8Arr
   if (!obj || typeof obj !== 'object') return null;
   const o = obj as Record<string, unknown>;
   if (o.type === 'ping') return { type: 'ping' };
+  if (o.type === 'ready') {
+    if (typeof o.battleId !== 'string' || o.battleId.length === 0 || o.battleId.length > 64) return null;
+    return { type: 'ready', battleId: o.battleId };
+  }
   if (o.type === 'submit_turn') {
     if (typeof o.battleId !== 'string' || o.battleId.length === 0 || o.battleId.length > 64) return null;
     if (typeof o.turn !== 'number' || !Number.isInteger(o.turn) || o.turn < 0) return null;

@@ -498,6 +498,60 @@ public class BattleHud : MonoBehaviour
         ShowBanner(data.winner, data.playerWon, data.reason, manager.PlayerSide);
     }
 
+    // ─── Battle-start intro (BattleIntro) ───
+
+    /// <summary>The intro opens on the empty arena: the whole HUD is off until it slides in.</summary>
+    public void HideForIntro()
+    {
+        if (Canvas != null) Canvas.enabled = false;
+    }
+
+    /// <summary>
+    /// Slide the HUD into place: your panels up from the bottom, the opponents' down from the top, the button cluster
+    /// in from the right, the settings + timer hexes down from the top. Ease-out-back, unscaled time.
+    /// </summary>
+    public System.Collections.IEnumerator SlideIn(float seconds, System.Func<bool> skipped)
+    {
+        var moves = new List<(RectTransform rt, Vector2 home, Vector2 from, float delay)>();
+        void Add(RectTransform rt, Vector2 offset, float delay)
+        {
+            if (rt == null) return;
+            moves.Add((rt, rt.anchoredPosition, rt.anchoredPosition + offset, delay));
+        }
+        foreach (var p in Teams.Panels) Add(p.Rect, p.Rect.anchorMin == Vector2.zero ? new Vector2(0f, -140f) : new Vector2(0f, 140f), 0f);
+        Add(Bar != null ? Bar.GetComponent<RectTransform>() : null, new Vector2(260f, 0f), 0.08f);
+        Add(Options != null ? Options.GetComponent<RectTransform>() : null, new Vector2(0f, 120f), 0.12f);
+        Add(Clock != null ? Clock.Rect : null, new Vector2(0f, 120f), 0.16f);
+        foreach (var m in moves) m.rt.anchoredPosition = m.from;
+        if (Canvas != null) Canvas.enabled = true;
+
+        float total = seconds + 0.16f;
+        for (float t = 0f; t < total && !skipped(); t += Time.unscaledDeltaTime)
+        {
+            foreach (var m in moves)
+            {
+                float k = Mathf.Clamp01((t - m.delay) / seconds);
+                m.rt.anchoredPosition = Vector2.LerpUnclamped(m.from, m.home, EaseOutBack(k));
+            }
+            yield return null;
+        }
+        foreach (var m in moves) m.rt.anchoredPosition = m.home;
+    }
+
+    /// <summary>End of the intro (or a skip): HUD visible, everything home.</summary>
+    public void EndIntro()
+    {
+        if (Canvas != null) Canvas.enabled = true;
+        Debug.Log("[BattleHud] intro over — HUD in place");
+    }
+
+    private static float EaseOutBack(float k)
+    {
+        const float c1 = 1.70158f, c3 = c1 + 1f;
+        float x = k - 1f;
+        return 1f + c3 * x * x * x + c1 * x * x;
+    }
+
     // ─── Public helpers (tests / demo loop) ───
 
     public void Refresh()

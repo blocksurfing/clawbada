@@ -14,6 +14,7 @@ using UnityEngine;
 ///   Assets/Audio/SFX/Defend/SFX_Defend[_NN].wav                              (defend, shared pool — random pick)
 ///   Assets/Audio/SFX/Defend/SFX_&lt;Class&gt;_Defend.wav                           (defend, per-class override)
 ///   Assets/Audio/SFX/UI/SFX_UI_Open.wav, SFX_UI_Close.wav                     (in-game panels)
+///   Assets/Audio/SFX/UI/SFX_UI_Ready.wav, SFX_UI_Fight.wav                    (battle-start intro, optional)
 ///   Assets/Audio/SFX/Death/SFX_Death[_NN].wav                                (death, shared pool — random pick)
 ///   Assets/Audio/SFX/Death/SFX_&lt;Class&gt;_Death.wav                             (death, per-class override)
 /// so a misspelled class (Spectre for Specter) binds nothing and that class is simply silent.
@@ -129,6 +130,8 @@ public static class BattleSfxBinder
         // In-game panels: one open and one close clip, shared by every panel.
         lib.uiOpen = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Open.wav");
         lib.uiClose = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Close.wav");
+        lib.introReady = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Ready.wav");
+        lib.introFight = AssetDatabase.LoadAssetAtPath<AudioClip>($"{UiDir}SFX_UI_Fight.wav");
 
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
