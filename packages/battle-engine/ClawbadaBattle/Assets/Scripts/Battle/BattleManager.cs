@@ -44,8 +44,6 @@ public class BattleManager : MonoBehaviour
 
     /// <summary>The battle-start intro is on screen: turn traffic from React waits and replays after it, in order.</summary>
     public bool IntroPlaying { get; private set; }
-    /// <summary>Where a cast-end impact's hit lands: this long before the cast clip ends.</summary>
-    private const float ImpactBeforeCastEnd = 0.15f;
     private readonly List<System.Action> introQueue = new();
 
     /// <summary>True (and the call queued) while the intro plays. Public for the bridge's grid calls.</summary>
@@ -720,12 +718,13 @@ public class BattleManager : MonoBehaviour
                             if (windup.dimAlpha > 0f) ScreenDim.Run(windup.dimAlpha, windup.dimFadeIn, clip - windup.dimFadeOut, windup.dimFadeOut);
                             // The effect owns the beat, so the impact sound is scheduled against it here
                             // rather than fired when the wait below ends — its crack has to START early.
-                            // Fortify (user 2026-09-29): its impact comes right near the end of the full cast sound.
+                            // A Special can pin its impact sound to its own moment (Fortify: as the dome comes down).
                             float sfxBeat = windup.impactAt;
-                            if (castClip != null && BattleSfx.ImpactAtCastEnd(actor.classId))
+                            float pinned = BattleSfx.ImpactAtSeconds(actor.classId);
+                            if (pinned > 0f)
                             {
-                                sfxBeat = Mathf.Max(windup.impactAt, castLength - ImpactBeforeCastEnd);
-                                Debug.Log($"[BattleManager] special {actor.className} impact sound at the cast's end: {sfxBeat:F2}s of {castLength:F2}s");
+                                sfxBeat = pinned;
+                                Debug.Log($"[BattleManager] special {actor.className} impact sound pinned at {sfxBeat:F2}s (cast clip {castLength:F2}s)");
                             }
                             BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, sfxBeat);
                             // The caster's cast swing runs alongside the effect, not before it: waiting for
