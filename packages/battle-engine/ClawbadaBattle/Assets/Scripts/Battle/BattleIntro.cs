@@ -4,46 +4,61 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Fighting-game battle start (user 2026-09-28): instead of dropping the player into a running battle —
-///   1. black → fade in on the EMPTY arena (no lobsters, no HUD);
-///   2. centre screen: "CLAWS UP!" rises in, then "BATTLE!" slams down (white flash, camera shake) — the user's
-///      Clawbada call, 2026-09-29 (was READY / FIGHT!);
-///   3. the lobsters drop onto their hexes, slot by slot, both teams at once;
-///   4. the HUD slides into place (BattleHud.SlideIn).
+/// Fighting-game battle start (user 2026-09-28), lengthened for suspense (user 2026-09-29, ~13 s):
+///   1. black → a slow fade in on the EMPTY arena (no obstacles, no lobsters, no HUD);
+///   2. the obstacles drop into place one by one, back row first — a puff of dust and a small shake each;
+///   3. the lobsters drop in ONE AT A TIME, alternating sides (yours first), heavier landings;
+///   4. a beat to take in both teams, while the arena music starts fading in (onMusicCue → React);
+///   5. centre screen: "CLAWS UP!" rises in, then "BATTLE!" slams down (white flash, camera shake);
+///   6. the HUD slides into place (BattleHud.SlideIn).
 /// Runs on unscaled time (presentation, not playback — ?speed never stretches it). A click or tap skips to the end.
-/// The type treatment is a placeholder for Nzib's art; sounds are optional clips (BattleSfx.PlayIntroReady/Fight).
-/// BattleManager holds turn traffic until this finishes, then tells React (music starts, the server is told ready).
+/// The type treatment and dust are placeholders for Nzib's art; sounds are optional clips (BattleSfx.PlayIntro*).
+/// BattleManager holds turn traffic until this finishes, then tells React (the server is told ready).
 /// </summary>
 public static class BattleIntro
 {
-    // ~5 s in all. User 2026-09-28: the first cut (~3.5 s) felt rushed → +1.5 s, spread over every beat.
-    private const float BlackHold = 0.4f, FadeIn = 0.9f;
+    // Every beat is a named constant so the pacing can be tuned by eye. Totals ≈ 12.8 s.
+    private const float BlackHold = 0.6f, FadeIn = 2.0f, BeforeObstacles = 0.4f;
+    private const float ObstacleStagger = 0.28f, ObstacleDrop = 0.35f, ObstacleHeight = 1.4f, BeforeLobsters = 0.3f;
+    private const float LobsterStagger = 0.5f, LobsterDrop = 0.4f, LobsterHeight = 2.4f, Bounce = 0.08f;
+    private const float TeamsHold = 1.0f;
     private const float ReadyIn = 0.35f, ReadyHold = 0.8f, ReadyOut = 0.15f;
     private const float FightSlam = 0.14f, FightHold = 0.75f, FightOut = 0.2f;
-    private const float DropHeight = 1.6f, DropTime = 0.32f, DropStagger = 0.14f, Bounce = 0.06f;
     private const float SlideTime = 0.7f;
 
     private static readonly Color Gold = new Color32(0xfb, 0xbf, 0x24, 0xff);
 
-    public static IEnumerator Play(MonoBehaviour host, BattleHud hud, IEnumerable<LobsterController> lobsterSet)
+    /// <param name="obstacleSet">The board's obstacles (HexGrid.Obstacles); dropped in before the lobsters.</param>
+    /// <param name="firstSide">The side whose lobsters land first ("A"/"B"): the player's own.</param>
+    /// <param name="onMusicCue">Fired once as the music should start fading in (on skip too, if not yet).</param>
+    public static IEnumerator Play(MonoBehaviour host, BattleHud hud, IEnumerable<LobsterController> lobsterSet,
+        IEnumerable<GameObject> obstacleSet, string firstSide, System.Action onMusicCue)
     {
         var lobsters = new List<LobsterController>();
         foreach (var l in lobsterSet) if (l != null) lobsters.Add(l);
-        var homes = new Dictionary<LobsterController, (Vector3 pos, Vector3 scale)>();
-        foreach (var l in lobsters) homes[l] = (l.transform.position, l.transform.localScale);
-        // Slot = order within its team (rigs are spawned team by team in slot order).
-        var slot = new Dictionary<LobsterController, int>();
-        var perSide = new Dictionary<string, int>();
-        foreach (var l in lobsters)
+        var obstacles = new List<Transform>();
+        if (obstacleSet != null) foreach (var o in obstacleSet) if (o != null) obstacles.Add(o.transform);
+
+        var homes = new Dictionary<Transform, (Vector3 pos, Vector3 scale)>();
+        foreach (var l in lobsters) homes[l.transform] = (l.transform.position, l.transform.localScale);
+        foreach (var o in obstacles) homes[o] = (o.position, o.localScale);
+
+        // Landing order. Obstacles: back row first (higher on screen = further back). Lobsters: alternate sides,
+        // slot by slot (rigs are spawned team by team in slot order), the player's side first.
+        obstacles.Sort((a, b) => b.position.y.CompareTo(a.position.y));
+        var mine = new List<LobsterController>();
+        var theirs = new List<LobsterController>();
+        foreach (var l in lobsters) ((l.side ?? "") == firstSide ? mine : theirs).Add(l);
+        if (mine.Count == 0) { mine = theirs; theirs = new List<LobsterController>(); }
+        var lobsterOrder = new List<LobsterController>();
+        for (int i = 0; i < Mathf.Max(mine.Count, theirs.Count); i++)
         {
-            string side = l.side ?? "";
-            perSide.TryGetValue(side, out int n);
-            slot[l] = n;
-            perSide[side] = n + 1;
+            if (i < mine.Count) lobsterOrder.Add(mine[i]);
+            if (i < theirs.Count) lobsterOrder.Add(theirs[i]);
         }
 
         // Hidden by scale, not SetActive: SyncUnits arrives right after InitBattle and must still reach the rigs.
-        foreach (var l in lobsters) l.transform.localScale = Vector3.zero;
+        foreach (var t in homes.Keys) t.localScale = Vector3.zero;
         hud?.HideForIntro();
 
         var skin = hud != null ? hud.Skin : null;
@@ -70,23 +85,76 @@ public static class BattleIntro
             for (float t = 0f; t < s && !Skipped(); t += Time.unscaledDeltaTime) { step(Mathf.Clamp01(t / s)); yield return null; }
             if (!skip) step(1f);
         }
+        bool musicCued = false;
+        void CueMusic()
+        {
+            if (musicCued) return;
+            musicCued = true;
+            Debug.Log("[BattleIntro] music cue");
+            onMusicCue?.Invoke();
+        }
+        // Drops run as their own coroutines on a stagger; this counts the ones still falling.
+        int running = 0;
+        IEnumerator DropAll<T>(List<T> items, System.Func<T, Transform> tf, float stagger, float time, float height,
+            System.Action<T> landed)
+        {
+            for (int i = 0; i < items.Count && !Skipped(); i++)
+            {
+                var item = items[i];
+                running++;
+                host.StartCoroutine(Drop(tf(item), homes[tf(item)], time, height, () => Skipped(), () => { running--; if (!skip) landed(item); }));
+                yield return Wait(stagger);
+            }
+            while (running > 0 && !Skipped()) yield return null;
+        }
 
         Debug.Log("[BattleIntro] start");
-        // 1. Black → the empty arena.
+        // 1. Black → the empty arena, slowly.
         yield return Wait(BlackHold);
-        yield return Tween(FadeIn, k => black.color = new Color(0f, 0f, 0f, 1f - k));
+        yield return Tween(FadeIn, k => black.color = new Color(0f, 0f, 0f, 1f - Smooth(k)));
+        yield return Wait(BeforeObstacles);
 
-        // 2. CLAWS UP!, then BATTLE!
-        BattleSfx.PlayIntroReady();
-        ready.gameObject.SetActive(true);
+        // 2. Obstacles, one by one.
+        Debug.Log($"[BattleIntro] obstacles ({obstacles.Count})");
+        yield return DropAll(obstacles, o => o, ObstacleStagger, ObstacleDrop, ObstacleHeight, o =>
+        {
+            var g = o.GetComponent<UnityEngine.Rendering.SortingGroup>();
+            IntroDust.Burst(host, homes[o].pos, g != null ? g.sortingOrder : DepthSort.ActorOrder, 0.8f);
+            CameraShake.Shake(0.025f, 0.12f);
+            BattleSfx.PlayIntroObstacleLand();
+        });
+        yield return Wait(BeforeLobsters);
+
+        // 3. Lobsters, one at a time.
+        Debug.Log($"[BattleIntro] lobsters ({lobsterOrder.Count})");
+        yield return DropAll(lobsterOrder, l => l.transform, LobsterStagger, LobsterDrop, LobsterHeight, l =>
+        {
+            IntroDust.Burst(host, homes[l.transform].pos, l.SortingOrder, 1.25f);
+            CameraShake.Shake(0.05f, 0.18f);
+            BattleSfx.PlayIntroLobsterLand();
+        });
+
+        // 4. Take in the teams; the music starts creeping in.
+        CueMusic();
+        yield return Wait(TeamsHold);
+
+        // 5. CLAWS UP!, then BATTLE!
+        if (!skip)
+        {
+            BattleSfx.PlayIntroReady();
+            ready.gameObject.SetActive(true);
+        }
         yield return Tween(ReadyIn, k => { SetAlpha(ready, k); ready.transform.localScale = Vector3.one * Mathf.Lerp(0.7f, 1f, EaseOut(k)); });
         yield return Wait(ReadyHold);
         yield return Tween(ReadyOut, k => SetAlpha(ready, 1f - k));
         ready.gameObject.SetActive(false);
 
-        fight.gameObject.SetActive(true);
-        // The voice peaks 0.15 s in and the slam takes 0.14 s: start it WITH the slam so the word hits on impact.
-        BattleSfx.PlayIntroFight();
+        if (!skip)
+        {
+            fight.gameObject.SetActive(true);
+            // The voice peaks 0.15 s in and the slam takes 0.14 s: start it WITH the slam so the word hits on impact.
+            BattleSfx.PlayIntroFight();
+        }
         yield return Tween(FightSlam, k => { SetAlpha(fight, k); fight.transform.localScale = Vector3.one * Mathf.Lerp(2.4f, 1f, k * k); });
         if (!skip)
         {
@@ -97,28 +165,13 @@ public static class BattleIntro
         yield return Tween(FightOut, k => { SetAlpha(fight, 1f - k); fight.transform.localScale = Vector3.one * Mathf.Lerp(1f, 1.3f, k); });
         fight.gameObject.SetActive(false);
 
-        // 3. Lobsters drop onto their hexes, slot by slot (both teams together).
-        if (!skip)
-        {
-            var bySlot = new List<LobsterController>(lobsters);
-            bySlot.Sort((a, b) => slot[a].CompareTo(slot[b]));
-            int running = 0;
-            foreach (var l in bySlot)
-            {
-                float delay = slot[l] * DropStagger;
-                running++;
-                host.StartCoroutine(Drop(l, homes[l], delay, () => running--));
-            }
-            while (running > 0 && !Skipped()) yield return null;
-            if (!skip) CameraShake.Shake(0.04f, 0.15f);
-        }
-
-        // 4. HUD slides in.
+        // 6. HUD slides in.
         if (hud != null && !skip) yield return hud.SlideIn(SlideTime, Skipped);
 
-        // End state, whatever was skipped: rigs home, HUD in place, overlay gone.
-        foreach (var l in lobsters)
-            if (l != null) { l.transform.position = homes[l].pos; l.transform.localScale = homes[l].scale; }
+        // End state, whatever was skipped: everything home, HUD in place, overlay gone, music started.
+        foreach (var kv in homes)
+            if (kv.Key != null) { kv.Key.position = kv.Value.pos; kv.Key.localScale = kv.Value.scale; }
+        CueMusic();
         hud?.EndIntro();
         Object.Destroy(canvas.gameObject);
         Debug.Log($"[BattleIntro] done{(skip ? " (skipped)" : "")}");
@@ -151,25 +204,29 @@ public static class BattleIntro
         flash.color = new Color(1f, 1f, 1f, 0f);
     }
 
-    private static IEnumerator Drop(LobsterController l, (Vector3 pos, Vector3 scale) home, float delay, System.Action done)
+    private static float Smooth(float k) => k * k * (3f - 2f * k);
+
+    /// <summary>Falls from <paramref name="height"/> above its home, accelerating, then a small bounce. Stops
+    /// where it is if the intro is skipped (the end state puts everything home).</summary>
+    private static IEnumerator Drop(Transform t, (Vector3 pos, Vector3 scale) home, float time, float height,
+        System.Func<bool> skipped, System.Action done)
     {
-        for (float t = 0f; t < delay; t += Time.unscaledDeltaTime) yield return null;
-        if (l == null) { done(); yield break; }
-        l.transform.localScale = home.scale;
-        var top = home.pos + Vector3.up * DropHeight;
-        for (float t = 0f; t < DropTime; t += Time.unscaledDeltaTime)
+        if (t == null) { done(); yield break; }
+        t.localScale = home.scale;
+        var top = home.pos + Vector3.up * height;
+        for (float e = 0f; e < time && !skipped() && t != null; e += Time.unscaledDeltaTime)
         {
-            float k = t / DropTime;
-            l.transform.position = Vector3.Lerp(top, home.pos, k * k);   // falls, accelerating
+            float k = e / time;
+            t.position = Vector3.Lerp(top, home.pos, k * k);
             yield return null;
         }
-        // A small bounce on landing.
-        for (float t = 0f; t < 0.12f; t += Time.unscaledDeltaTime)
+        if (t != null) t.position = home.pos;
+        done();   // the landing: dust, shake, thud
+        for (float e = 0f; e < 0.14f && !skipped() && t != null; e += Time.unscaledDeltaTime)
         {
-            l.transform.position = home.pos + Vector3.up * (Bounce * Mathf.Sin(Mathf.PI * t / 0.12f));
+            t.position = home.pos + Vector3.up * (Bounce * Mathf.Sin(Mathf.PI * e / 0.14f));
             yield return null;
         }
-        l.transform.position = home.pos;
-        done();
+        if (t != null) t.position = home.pos;
     }
 }

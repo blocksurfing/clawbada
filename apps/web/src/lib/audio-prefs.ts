@@ -30,4 +30,44 @@ export const setBattleMusicPref = (on: boolean) => write(BATTLE_MUSIC_KEY, on, B
 export const getSfxPref = () => read(SFX_KEY);
 export const setMusicPref = (on: boolean) => write(MUSIC_KEY, on, MUSIC_EVENT);
 export const setSfxPref = (on: boolean) => write(SFX_KEY, on, SFX_EVENT);
-export type AudioPrefChange = { kind: 'music' | 'sfx'; on: boolean };
+
+/**
+ * Volumes (user 2026-09-29: "the music is too loud relative to the SFX"), 0–100, separate from the on/off switches
+ * above (which stay the mute — and what the harness sets). Battle music defaults to 50 (half its old level), SFX to
+ * 100 (as mixed). Changes are announced on VOLUME_EVENT.
+ */
+export const VOLUME_EVENT = 'clawbada:volume';
+const BATTLE_MUSIC_VOL_KEY = 'clawbada_battle_music_vol';
+const SFX_VOL_KEY = 'clawbada_sfx_vol';
+export const DEFAULT_BATTLE_MUSIC_VOL = 50;
+export const DEFAULT_SFX_VOL = 100;
+const readVol = (key: string, fallback: number) => {
+  try {
+    const raw = localStorage.getItem(key);
+    const n = raw === null ? NaN : Number(raw);
+    return Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n))) : fallback;
+  } catch { return fallback; }
+};
+const writeVol = (key: string, v: number) => {
+  const clamped = Math.min(100, Math.max(0, Math.round(v)));
+  try { localStorage.setItem(key, String(clamped)); } catch { /* private mode */ }
+  window.dispatchEvent(new CustomEvent(VOLUME_EVENT));
+};
+export const getBattleMusicVolume = () => readVol(BATTLE_MUSIC_VOL_KEY, DEFAULT_BATTLE_MUSIC_VOL);
+export const setBattleMusicVolume = (v: number) => writeVol(BATTLE_MUSIC_VOL_KEY, v);
+export const getSfxVolume = () => readVol(SFX_VOL_KEY, DEFAULT_SFX_VOL);
+export const setSfxVolume = (v: number) => writeVol(SFX_VOL_KEY, v);
+
+export type AudioPrefChange =
+  | { kind: 'music' | 'sfx'; on: boolean }
+  | { kind: 'musicVol' | 'sfxVol'; value: number };
+
+/** Persist an options-menu change from Unity (the echo back to Unity follows from the event). */
+export function applyAudioPrefChange(p: AudioPrefChange) {
+  switch (p.kind) {
+    case 'music': return setBattleMusicPref(p.on);
+    case 'sfx': return setSfxPref(p.on);
+    case 'musicVol': return setBattleMusicVolume(p.value);
+    case 'sfxVol': return setSfxVolume(p.value);
+  }
+}

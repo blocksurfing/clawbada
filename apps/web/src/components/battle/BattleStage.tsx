@@ -7,7 +7,7 @@
  * page falls back to the SVG board.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getBattleMusicPref, getSfxPref, BATTLE_MUSIC_EVENT, SFX_EVENT, type AudioPrefChange } from '@/lib/audio-prefs';
+import { getBattleMusicPref, getBattleMusicVolume, getSfxPref, getSfxVolume, BATTLE_MUSIC_EVENT, SFX_EVENT, VOLUME_EVENT, type AudioPrefChange } from '@/lib/audio-prefs';
 import { Unity, useUnityContext } from 'react-unity-webgl';
 import {
   UNITY_GAME_OBJECT,
@@ -63,10 +63,13 @@ export interface BattleStageProps {
   controlRef?: React.MutableRefObject<BattleStageControls | null>;
   /** The battle-start intro is over (Unity reported it, or it was not played, or the safety net fired). */
   onIntroComplete?: () => void;
+  /** The intro reached its music beat: the teams are on the board, the arena bed should start creeping in. */
+  onIntroMusic?: () => void;
 }
 
-/** If Unity never reports the intro's end (an old build, an error), carry on after this long. */
-const INTRO_WATCHDOG_MS = 8_000;
+/** If Unity never reports the intro's end (an old build, an error), carry on after this long. The intro itself runs
+ *  ~13 s (user 2026-09-29), so this must sit well above that. */
+const INTRO_WATCHDOG_MS = 25_000;
 
 export interface BattleStageControls {
   toggleFullscreen: () => void;
@@ -216,6 +219,7 @@ function UnityStage(props: BattleStageProps) {
       onForfeit: props.onForfeit,
       onAudioPref: props.onAudioPref,
       onIntroComplete: () => reportIntro('unity'),
+      onIntroMusic: () => props.onIntroMusic?.(),
       onTurnAnimationComplete: (turn) => {
         if (watchdog.current) { clearTimeout(watchdog.current); watchdog.current = null; }
         animating.current = null;
@@ -223,15 +227,17 @@ function UnityStage(props: BattleStageProps) {
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit, props.onAudioPref, reportIntro]);
+  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit, props.onAudioPref, props.onIntroMusic, reportIntro]);
 
   // Site-wide audio preferences → Unity, on init and whenever they change (floating toggle,
   // options-menu echo, another tab). Unity applies SFX and refreshes its menu labels.
-  const pushAudioPrefs = useCallback(() => send(UNITY_METHODS.SET_AUDIO_PREFS, { music: getBattleMusicPref(), sfx: getSfxPref() }), [send]);
+  const pushAudioPrefs = useCallback(() => send(UNITY_METHODS.SET_AUDIO_PREFS, {
+    music: getBattleMusicPref(), sfx: getSfxPref(), musicVol: getBattleMusicVolume(), sfxVol: getSfxVolume(),
+  }), [send]);
   useEffect(() => {
-    window.addEventListener(BATTLE_MUSIC_EVENT, pushAudioPrefs);
-    window.addEventListener(SFX_EVENT, pushAudioPrefs);
-    return () => { window.removeEventListener(BATTLE_MUSIC_EVENT, pushAudioPrefs); window.removeEventListener(SFX_EVENT, pushAudioPrefs); };
+    const events = [BATTLE_MUSIC_EVENT, SFX_EVENT, VOLUME_EVENT];
+    events.forEach((e) => window.addEventListener(e, pushAudioPrefs));
+    return () => events.forEach((e) => window.removeEventListener(e, pushAudioPrefs));
   }, [pushAudioPrefs]);
 
   // Clean close: leave fullscreen, then hand back so the view can navigate. Quitting Unity is

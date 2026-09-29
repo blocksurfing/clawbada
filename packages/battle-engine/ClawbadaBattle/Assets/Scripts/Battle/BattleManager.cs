@@ -58,7 +58,9 @@ public class BattleManager : MonoBehaviour
     private System.Collections.IEnumerator IntroRoutine()
     {
         IntroPlaying = true;
-        yield return BattleIntro.Play(this, hud, lobsters.Values);
+        string first = PlayerSide == "B" ? "B" : "A";   // spectators: side A first
+        yield return BattleIntro.Play(this, hud, lobsters.Values, hexGrid != null ? hexGrid.Obstacles : null, first,
+            () => { if (bridge != null) bridge.NotifyIntroMusic(); });
         IntroPlaying = false;
         var queued = new List<System.Action>(introQueue);
         introQueue.Clear();

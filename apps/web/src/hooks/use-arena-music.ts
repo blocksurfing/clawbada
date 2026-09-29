@@ -9,11 +9,13 @@ import type { ArenaTier } from '@/lib/arena-music.generated';
  * which is seconds before Unity has loaded — and fades it out when the battle ends or the
  * view unmounts. `visible` is Unity-ready, or the plain-board fallback being shown.
  */
-export function useArenaMusic(tier: ArenaTier | null | undefined, visible: boolean, ended: boolean) {
+export function useArenaMusic(tier: ArenaTier | null | undefined, visible: boolean, ended: boolean, fadeMs?: number) {
   useEffect(() => {
     if (!tier || !visible) return;
-    startArenaMusic(tier);
+    startArenaMusic(tier, fadeMs);
     return () => stopArenaMusic();
+    // fadeMs only shapes the start; changing it must not restart the bed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tier, visible]);
 
   useEffect(() => { if (ended) stopArenaMusic(); }, [ended]);
