@@ -40,6 +40,10 @@ public class LobsterController : MonoBehaviour
 
     /// <summary>VFX bindings, assigned by BattleManager at spawn. May be null.</summary>
     [System.NonSerialized] public BattleVfxLibrary vfx;
+    /// <summary>Where the shadow sits while the body is off the ground (the intro drop); null = under the rig.</summary>
+    [System.NonSerialized] public Vector3? ShadowGround;
+    /// <summary>The shadow's size (0..1): it grows as a dropping lobster nears the ground.</summary>
+    [System.NonSerialized] public float ShadowScale = 1f;
 
     private Animator animator;
     private SortingGroup sortingGroup;
