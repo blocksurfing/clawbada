@@ -453,6 +453,15 @@ public class HexGrid : MonoBehaviour
         {
             PaintHighlight(data.targetCol, data.targetRow, attackTile != null ? attackTile : selectedTile, TargetTint);
             pulseCell = new Vector3Int(data.targetCol, data.targetRow, 0);
+            pulseFrom = TargetTint; pulseTo = TargetPulse;
+        }
+        // The picked-but-not-committed move (touch-move, user 2026-09-30): a second tap commits it for good, so the
+        // hex pulses teal ↔ white — unmistakably "about to move here", not one of the options.
+        if (data.destCol >= 0 && data.destRow >= 0 && claimed.Add((data.destCol, data.destRow)))
+        {
+            PaintHighlight(data.destCol, data.destRow, moveTile, MoveTint);
+            pulseCell = new Vector3Int(data.destCol, data.destRow, 0);
+            pulseFrom = MoveTint; pulseTo = DestPulse;
         }
         if (data.originCol >= 0 && data.originRow >= 0 && claimed.Add((data.originCol, data.originRow)))
             PaintHighlight(data.originCol, data.originRow, selectedTile, SelectedTint);
@@ -493,12 +502,14 @@ public class HexGrid : MonoBehaviour
     private static readonly Color TargetPulse = new Color(1f, 0.92f, 0.6f, 1f);
     private const float TargetPulseHz = 1.6f;
     private Vector3Int? pulseCell;
+    private Color pulseFrom = TargetTint, pulseTo = TargetPulse;
+    private static readonly Color DestPulse = new Color(0.95f, 1f, 1f, 1f);
 
     void Update()
     {
         if (pulseCell == null || boardTilemap == null) return;
         float k = 0.5f + 0.5f * Mathf.Sin(Time.time * TargetPulseHz * Mathf.PI * 2f);
-        boardTilemap.SetColor(pulseCell.Value, Color.Lerp(TargetTint, TargetPulse, k));
+        boardTilemap.SetColor(pulseCell.Value, Color.Lerp(pulseFrom, pulseTo, k));
     }
 
     private void PaintHighlight(int col, int row, TileBase tile, Color tint)
@@ -610,4 +621,8 @@ public class HexListData
     /// everything else and pulsing. -1,-1 = none.</summary>
     public int targetCol = -1;
     public int targetRow = -1;
+
+    /// <summary>The picked move destination awaiting its confirming second tap (touch-move). Pulsing teal. -1,-1 = none.</summary>
+    public int destCol = -1;
+    public int destRow = -1;
 }

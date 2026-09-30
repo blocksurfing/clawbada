@@ -7,8 +7,8 @@ using UnityEngine.UI;
 /// Action buttons: Nzib's ActionButtonUI prefabs (drop 28c11f5) as a 2×2 hex cluster bottom-right (his layout,
 /// 2026-09-28) — Attack and the acting lobster's own class Special on top, Defend and Wait below, offset half a hex. No text: his icons carry their glyphs. His
 /// Animator owns the frame: Pressed while held (the Visual drops a design pixel), Selected (looping shine) for
-/// the armed action, Normal otherwise — driven by ButtonFeel; hover adds a soft halo. There is no Undo button: tapping your own lobster (or its start hex) cancels a move, and the
-/// hint line says so. Unity only reports presses; React decides what they mean and submits the turn. Its state
+/// the armed action, Normal otherwise — driven by ButtonFeel; hover adds a soft halo. There is no Undo button, and moves are touch-move (user 2026-09-30):
+/// the first tap on a hex picks it (pulsing), a second tap commits the move for good; the hint line says so. Unity only reports presses; React decides what they mean and submits the turn. Its state
 /// (which action is armed, what is legal) arrives through Apply. One line above the buttons says why a press
 /// went nowhere ("Out of range — move closer first", a server rejection) and shows "Sending…" — inside the
 /// canvas, because in fullscreen React's status row is off screen and a silent press reads as a frozen game.
@@ -25,7 +25,7 @@ public class ActionBar : MonoBehaviour
     private const float PitchArt = 44f;
     /// <summary>Row spacing of the cluster: three quarters of the hex's height, plus a 2 px gap.</summary>
     private const float RowArt = 37f;
-    private const string CancelMoveHint = "Tap your lobster to cancel the move";
+    private const string CancelMoveHint = "Tap the hex again to move there. Moves are final";
     private const string HintsPref = "clawbada.hints";
 
     /// <summary>Game hints on/off (options menu). Off keeps only "Sending…" and errors.</summary>

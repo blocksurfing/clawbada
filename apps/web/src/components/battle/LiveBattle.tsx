@@ -133,6 +133,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     (window as unknown as { __clawbada_selection?: unknown }).__clawbada_selection = {
       actor: selection.actor?.id ?? null, moves: selection.summary?.moves ?? [], attackTargets: selection.summary?.attackTargets ?? [],
       specialTargets: selection.summary?.specialTargets ?? [], action: selection.action, moveTo: selection.moveTo, targetId: selection.targetId,
+      pendingMove: selection.pendingMove, moveLocked: selection.moveLocked,
       hint: selection.hint, canSpecial: selection.canSpecial, specialKind: selection.specialKind,
       lobsters: snapshot?.state.lobsters.map((l) => ({ id: l.id, team: l.team, col: l.pos.col, row: l.pos.row, alive: l.alive })) ?? [],
     };

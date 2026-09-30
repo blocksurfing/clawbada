@@ -83,8 +83,26 @@ export default async function (b: Browser) {
     if (moves.length) {
       const mv = moves[Math.floor(moves.length / 2)];
       const c = cells.get(`${mv.col},${mv.row}`);
-      if (c) { const p = toCss(g, c.x, c.y); await b.clickAt(p.x, p.y); moved = true; }
-      await b.sleep(1200);   // preview walk (0.35 s/hex) + SetSelection round trip
+      if (c) {
+        // Touch-move (2026-09-30): first tap picks (nothing moves), second tap commits for good.
+        const p = toCss(g, c.x, c.y);
+        await b.clickAt(p.x, p.y); await b.sleep(400);
+        const picked = await sel(b);
+        expect(!!picked?.pendingMove && !picked?.moveTo, `turn ${turnBefore}: the first tap only picks the hex (pending=${JSON.stringify(picked?.pendingMove)} moveTo=${JSON.stringify(picked?.moveTo)})`);
+        await b.clickAt(p.x, p.y); moved = true;
+        await b.sleep(1200);   // walk (0.35 s/hex) + SetSelection round trip
+        const locked = await sel(b);
+        expect(!!locked?.moveLocked && locked?.moveTo?.col === mv.col && locked?.moveTo?.row === mv.row, `turn ${turnBefore}: the second tap commits the move`);
+        // Any other hex now: the move is final.
+        const other = moves.find((m) => m.col !== mv.col || m.row !== mv.row);
+        const oc = other ? cells.get(`${other.col},${other.row}`) : null;
+        if (oc) {
+          const q = toCss(g, oc.x, oc.y);
+          await b.clickAt(q.x, q.y); await b.sleep(300); await b.clickAt(q.x, q.y); await b.sleep(600);
+          const after = await sel(b);
+          expect(after?.moveTo?.col === mv.col && after?.moveTo?.row === mv.row, `turn ${turnBefore}: a second move is refused (${after?.hint})`);
+        }
+      }
     }
     const s1 = await sel(b);
     const btns = parseButtons(grab(b, /\[BattleHud\] buttons/).slice(-1)[0] ?? '');
