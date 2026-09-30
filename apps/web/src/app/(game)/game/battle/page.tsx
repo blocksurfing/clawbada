@@ -24,6 +24,7 @@ import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catal
 import { Swords, Loader2, Bot } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { exitBattleFullscreen, requestBattleFullscreen } from '@/lib/battle-fullscreen';
 
 const PRESETS = [
   // Every Special whose VFX is finished, one lobster each (Ember Inferno, Tempest Maelstrom,
@@ -500,6 +501,7 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
   }, []);
 
   const start = useCallback(async () => {
+    requestBattleFullscreen();   // must run inside the click; the battle view fills it as it loads
     setBusy(true);
     setErr(null);
     try {
@@ -515,6 +517,7 @@ function PracticeView({ teams }: { teams: TeamData[] }) {
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not start the practice battle');
       setBusy(false);
+      exitBattleFullscreen();
     }
   }, [teamId, preset, bot, opponent, arena, getAuthHeaders, router]);
 
