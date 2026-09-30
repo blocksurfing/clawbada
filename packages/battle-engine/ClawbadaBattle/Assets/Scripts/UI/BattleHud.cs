@@ -182,6 +182,8 @@ public class BattleHud : MonoBehaviour
         Options.ForfeitConfirmed += () => bridge?.NotifyForfeit();
         Options.MusicToggled += on => bridge?.NotifyAudioPref("music", on);
         Options.SfxToggled += on => bridge?.NotifyAudioPref("sfx", on);
+        Options.MusicVolumeChanged += v => bridge?.NotifyAudioVolume("musicVol", v);
+        Options.SfxVolumeChanged += v => bridge?.NotifyAudioVolume("sfxVol", v);
         Options.HintsToggled += _ => Bar.RefreshHint();
         floatLayer = HudFactory.Stretch(canvasRect, "Floats");
         Banner = ResultBanner.Create(canvasRect, skin);

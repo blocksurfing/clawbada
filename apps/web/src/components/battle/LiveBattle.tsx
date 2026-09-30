@@ -13,7 +13,8 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { useBattleSession } from '@/hooks/use-battle-session';
 import { useArenaMusic } from '@/hooks/use-arena-music';
-import { setBattleMusicPref, setSfxPref, type AudioPrefChange } from '@/lib/audio-prefs';
+import { applyAudioPrefChange } from '@/lib/audio-prefs';
+import { INTRO_FADE_IN_MS } from '@/lib/arena-music';
 import { enterBattleView, leaveBattleView } from '@/lib/arena-music';
 import type { Side, TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
@@ -54,6 +55,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   const [unityReady, setUnityReady] = useState(false);
   /** The battle-start intro is over (Unity), or there is none (plain board / mid-battle reconnect). */
   const [introDone, setIntroDone] = useState(false);
+  const [introMusic, setIntroMusic] = useState(false);
   const gate = unityAvailable === true && unityReady;
   const isSpectator = !!spectate || !address;
 
@@ -68,7 +70,10 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   const { snapshot, current, bar, timeouts, log, pending, ended, error, lastAck, connection, submitTurn, markAnimated, sendReady, snapshotSeq, refreshSnapshot } = session;
   // The bed waits for the arena to be visible: after Unity's battle-start intro, or the plain board shown because
   // Unity is unavailable.
-  useArenaMusic(snapshot?.session.tier, (gate && introDone) || unityAvailable === false, !!ended);
+  // The intro's music beat (the teams just landed) starts it with a slow creep-in; intro complete / a skip covers an
+  // older Unity build that never sends the beat.
+  useArenaMusic(snapshot?.session.tier, (gate && (introMusic || introDone)) || unityAvailable === false, !!ended,
+    introMusic ? INTRO_FADE_IN_MS : undefined);
   // Tell the server this player is watching: a fresh battle's first turn waits for it (user 2026-09-28).
   const readySent = useRef(false);
   useEffect(() => {
@@ -78,8 +83,9 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     sendReady();
   }, [introDone, unityAvailable, snapshot, isSpectator, sendReady]);
   const handleIntroComplete = useCallback(() => setIntroDone(true), []);
+  const handleIntroMusic = useCallback(() => setIntroMusic(true), []);
   // The in-battle Music row is the BATTLE music; the site theme has its own toggle (user 2026-09-28).
-  const handleAudioPref = useCallback((p: AudioPrefChange) => (p.kind === 'music' ? setBattleMusicPref(p.on) : setSfxPref(p.on)), []);
+  const handleAudioPref = applyAudioPrefChange;
   // The theme fades out as the battle view opens — before Unity loads — and comes back when it closes.
   useEffect(() => { enterBattleView(); return () => leaveBattleView(); }, []);
 
@@ -314,6 +320,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
           onUnavailable={handleUnavailable}
           onReady={handleReady}
           onIntroComplete={handleIntroComplete}
+          onIntroMusic={handleIntroMusic}
           closing={closing}
           onClosed={handleClosed}
           overlay={gate ? returnRow : undefined}

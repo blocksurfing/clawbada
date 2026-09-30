@@ -32,6 +32,7 @@ public class BattleBridge : MonoBehaviour
     [DllImport("__Internal")] private static extern void SendForfeit();
     [DllImport("__Internal")] private static extern void SendAudioPref(string json);
     [DllImport("__Internal")] private static extern void SendIntroComplete();
+    [DllImport("__Internal")] private static extern void SendIntroMusic();
 
     private BattleManager battleManager;
     private HexGrid hexGrid;
@@ -103,8 +104,9 @@ public class BattleBridge : MonoBehaviour
         Debug.Log($"[BattleBridge] SetSpeed {speed:F2}x");
     }
 
-    [Serializable] private class AudioPrefsData { public bool music = true; public bool sfx = true; }
-    [Serializable] private class AudioPrefEvent { public string kind; public bool on; }
+    // Volumes are 0–100; -1 = not sent (an older page), leave as is.
+    [Serializable] private class AudioPrefsData { public bool music = true; public bool sfx = true; public int musicVol = -1; public int sfxVol = -1; }
+    [Serializable] private class AudioPrefEvent { public string kind; public bool on; public int value; }
 
     /// <summary>Site-wide audio preferences from React's localStorage — sent after InitBattle and
     /// whenever either changes (floating toggle, another tab). SFX is applied here; music is
@@ -114,9 +116,21 @@ public class BattleBridge : MonoBehaviour
     {
         var d = JsonUtility.FromJson<AudioPrefsData>(json) ?? new AudioPrefsData();
         BattleSfx.Enabled = d.sfx;
+        if (d.sfxVol >= 0) BattleSfx.Volume = d.sfxVol / 100f;
         var hud = FindFirstObjectByType<BattleHud>();
-        hud?.Options?.SetAudioState(d.music, d.sfx);
-        Debug.Log($"[BattleBridge] SetAudioPrefs music={d.music} sfx={d.sfx}");
+        hud?.Options?.SetAudioState(d.music, d.sfx, d.musicVol, d.sfxVol);
+        Debug.Log($"[BattleBridge] SetAudioPrefs music={d.music} sfx={d.sfx} musicVol={d.musicVol} sfxVol={d.sfxVol}");
+    }
+
+    /// <summary>Options-menu volume − / + pressed ("musicVol" / "sfxVol", 0–100): same round trip as the toggles.</summary>
+    public void NotifyAudioVolume(string kind, int value)
+    {
+        string json = JsonUtility.ToJson(new AudioPrefEvent { kind = kind, on = value > 0, value = value });
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendAudioPref(json);
+        #else
+        Debug.Log($"[BattleBridge] audio volume (editor) {json}");
+        #endif
     }
 
     /// <summary>Options-menu row pressed: tell React, which persists it and echoes SetAudioPrefs.</summary>
@@ -245,6 +259,16 @@ public class BattleBridge : MonoBehaviour
         SendForfeit();
         #else
         Debug.Log("[BattleBridge] Forfeit");
+        #endif
+    }
+
+    /// <summary>The intro reached its music beat (the teams are on the board): React fades the arena music in.</summary>
+    public void NotifyIntroMusic()
+    {
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendIntroMusic();
+        #else
+        Debug.Log("[BattleBridge] intro music cue");
         #endif
     }
 

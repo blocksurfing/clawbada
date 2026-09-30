@@ -14,11 +14,15 @@
  */
 import { ARENA_MUSIC, type ArenaTier } from './arena-music.generated';
 import { getThemeAudio } from '@/components/music-toggle';
-import { BATTLE_MUSIC_EVENT, getBattleMusicPref, getMusicPref } from './audio-prefs';
+import { BATTLE_MUSIC_EVENT, VOLUME_EVENT, getBattleMusicPref, getBattleMusicVolume, getMusicPref } from './audio-prefs';
 export { BATTLE_MUSIC_EVENT };
 
-const GAIN = 0.35;          // under Unity's SFX at 0.5 and the theme's 0.4
+const FULL_GAIN = 0.35;     // 100% on the volume row; under Unity's SFX at 0.5 and the theme's 0.4
+/** The bed's level right now: FULL_GAIN × the player's battle-music volume (default 50%). */
+const gain = () => FULL_GAIN * getBattleMusicVolume() / 100;
 const FADE_IN_MS = 1500;
+/** The battle-start intro's music beat: the bed creeps in under the team reveal (user 2026-09-29). */
+export const INTRO_FADE_IN_MS = 3000;
 const FADE_OUT_MS = 2000;
 
 let audio: HTMLAudioElement | null = null;
@@ -78,7 +82,7 @@ function fadeTo(target: number, ms: number, then?: () => void) {
   }, 50);
 }
 
-function play(tier: ArenaTier) {
+function play(tier: ArenaTier, fadeMs = FADE_IN_MS) {
   const url = ARENA_MUSIC[tier];
   if (!url) { log(`no track for ${tier} — silent`); return; }
   if (!audio || !audio.src.endsWith(url)) {
@@ -90,19 +94,19 @@ function play(tier: ArenaTier) {
   audio.volume = 0;
   const t0 = performance.now();
   audio.play().then(() => {
-    log(`${url.split('/').pop()} (${tier}) playing after ${Math.round(performance.now() - t0)} ms → fade to ${GAIN} over ${FADE_IN_MS} ms`);
-    fadeTo(GAIN, FADE_IN_MS);
+    log(`${url.split('/').pop()} (${tier}) playing after ${Math.round(performance.now() - t0)} ms → fade to ${gain().toFixed(3)} over ${fadeMs} ms`);
+    fadeTo(gain(), fadeMs);
   }).catch((e) => log('play blocked:', e?.name ?? e));
   (window as unknown as { __clawbadaArenaMusic?: unknown }).__clawbadaArenaMusic = { audio, tier };
 }
 
 /** Call when the battle is known: starts the bed for that arena (unless music is off). */
-export function startArenaMusic(tier: ArenaTier) {
+export function startArenaMusic(tier: ArenaTier, fadeMs = FADE_IN_MS) {
   activeTier = tier;
   const theme = getThemeAudio();
   if (!theme.paused) { themeWasPlaying = true; theme.pause(); log('theme paused for the battle'); }
   if (prefOff()) { log(`battle music is off — ${tier} bed not started`); return; }
-  play(tier);
+  play(tier, fadeMs);
 }
 
 /** Call when the battle ends or the view unmounts: fades out, then hands back to the theme. */
@@ -123,5 +127,11 @@ if (typeof window !== 'undefined') {
     if (activeTier === null) return;
     if (!on && audio && !audio.paused) { log('toggled off — fading out'); fadeTo(0, 600, () => audio?.pause()); }
     if (on && (!audio || audio.paused)) play(activeTier);
+  });
+  // Volume row: glide to the new level (a quick fade, so a step doesn't click).
+  window.addEventListener(VOLUME_EVENT, () => {
+    if (activeTier === null || !audio || audio.paused) return;
+    log(`volume → ${getBattleMusicVolume()}%`);
+    fadeTo(gain(), 200);
   });
 }

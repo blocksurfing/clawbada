@@ -1,7 +1,8 @@
 import type { Browser } from './cdp';
 /**
- * Battle-start intro (user 2026-09-28): a fresh practice battle must open on the empty arena, play READY / FIGHT,
- * drop the lobsters in, slide the HUD in — and only THEN start (server `ready`), so no move happens off screen.
+ * Battle-start intro (user 2026-09-28, lengthened 2026-09-29): a fresh practice battle must fade in on the empty
+ * arena, drop the obstacles then the lobsters in one by one, cue the music, play CLAWS UP / BATTLE, slide the HUD in —
+ * and only THEN start (server `ready`), so no move happens off screen.
  *   TRIO=Kraken bun cdp.ts intro-probe.ts   → out/intro-fNN.jpg frame burst + log-order checks
  */
 const S = `${import.meta.dir}/out`;
@@ -29,7 +30,7 @@ export default async function (b: Browser) {
   const started = Date.now();
   // Small JPEGs of the canvas only: full-page PNGs take ~1 s each and miss the READY / FIGHT beats.
   const clip = await b.eval(`(() => { const r = document.querySelector('canvas').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, scale: 0.5 }; })()`);
-  for (let f = 0; f < 60 && !b.logs.some((l) => /\[BattleIntro\] done/.test(l)); f++) {
+  for (let f = 0; f < 150 && !b.logs.some((l) => /\[BattleIntro\] done/.test(l)); f++) {
     const r = await b.send('Page.captureScreenshot', { format: 'jpeg', quality: 60, clip });
     await Bun.write(`${S}/intro-f${String(f).padStart(2, '0')}.jpg`, Buffer.from(r.data, 'base64'));
   }
@@ -42,6 +43,11 @@ export default async function (b: Browser) {
   const firstPlay = idx(/\[BattleManager\] PlayTurn|\[BattleBridge\] PlayTurn/), held = grab(b, /held until the intro ends/);
   const firstStart = idx(/\[BattleHud\] turn \d+ active=/);
   expect(done >= 0, `intro ran to the end (${introMs} ms incl. the first turn)`);
+  const obst = idx(/\[BattleIntro\] obstacles/), lob = idx(/\[BattleIntro\] lobsters/), cue = idx(/\[BattleIntro\] music cue/);
+  expect(obst >= 0 && lob > obst && cue > lob && done > cue, 'beats in order: obstacles → lobsters → music cue → done');
+  const at = (re: RegExp) => { const l = b.logs.find((x) => re.test(x)); return l; };
+  console.log(`  ${at(/\[BattleIntro\] obstacles/) ?? ''} · ${at(/\[BattleIntro\] lobsters/) ?? ''}`);
+  expect(b.logs.some((l) => /\[ArenaMusic\].*(battle music is off|playing after)/.test(l)), 'React acted on the music cue (muted: "battle music is off")');
   expect(ready > done, 'ready was sent after the intro');
   expect(firstStart > done, 'the first turn started after the intro');
   expect(firstPlay < 0 || firstPlay > done, 'no turn animated before the intro ended');
