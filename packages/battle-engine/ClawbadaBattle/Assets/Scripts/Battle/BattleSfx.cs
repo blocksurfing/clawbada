@@ -127,6 +127,17 @@ public static class BattleSfx
         takes == null || takes.Length == 0 ? null : takes[Random.Range(0, takes.Length)];
     public static void PlayUiClose() => Play(Library?.uiClose, "ui-close");
 
+    /// <summary>An action button lit up under the pointer: its hover click, at <see cref="HoverLevel"/> — the takes are
+    /// mastered near full scale (~8 dB over the menu clicks) and hover fires often, so it sits under everything else.</summary>
+    public static void PlayUiHover(string action)
+    {
+        var lib = Library;
+        if (lib == null) return;
+        var clip = action switch { "attack" => lib.uiHoverAttack, "special" => lib.uiHoverSpecial, "defend" => lib.uiHoverDefend, _ => lib.uiHoverWait };
+        Play(clip, "ui-hover", HoverLevel);
+    }
+    private const float HoverLevel = 0.5f;
+
     /// <summary>Cast phase — fires with the windup and underscores the whole sequence. Returns the beat inside the
     /// chosen clip (seconds; 0 when none or unmeasured) so a plain Special can time its contact frame to it.</summary>
     public static float PlaySpecial(int classId, int tier)

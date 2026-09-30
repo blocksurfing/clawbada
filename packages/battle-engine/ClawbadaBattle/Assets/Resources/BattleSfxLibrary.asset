@@ -623,6 +623,10 @@ MonoBehaviour:
   - {fileID: 8300000, guid: edcd8e157506e42f0837e41ba8f53b24, type: 3}
   - {fileID: 8300000, guid: e4b3a9cf796ef45f5b297490bc904f6b, type: 3}
   - {fileID: 8300000, guid: 13107217b8e6e4cdd9c1c7d25547f509, type: 3}
+  uiHoverAttack: {fileID: 8300000, guid: 2eef202c109f34e61a92415f4d1f13e2, type: 3}
+  uiHoverSpecial: {fileID: 8300000, guid: 1fdd58c697ebf4014be8b2ca6692a2db, type: 3}
+  uiHoverDefend: {fileID: 8300000, guid: ec6dbb0c7be554e4fb81969e81843021, type: 3}
+  uiHoverWait: {fileID: 8300000, guid: 3f2b02c555d1d4c3db8582dc2a304938, type: 3}
   introLobsterLand:
   - {fileID: 8300000, guid: 62bd3425bd6ae4f0c80b819e184ebe88, type: 3}
   - {fileID: 8300000, guid: 9f1cb07f830544aa78c39672877c2696, type: 3}
