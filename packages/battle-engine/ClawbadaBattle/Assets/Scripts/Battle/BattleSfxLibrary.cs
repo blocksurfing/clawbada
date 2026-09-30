@@ -31,8 +31,41 @@ public class BattleSfxLibrary : ScriptableObject
                  "For a cast clip the engine delays the swing so the contact frame lands on it.")]
         public float sharedBeat, evolvedBeat, eliteBeat, apexBeat;
         public float[] variantBeats = new float[0];
+        [Tooltip("Seconds into each clip where its audible body ends (the last 50 ms within 18 dB of its loudest) — cast " +
+                 "files carry long near-silent tails (Bind: 2.4 s file, heard to ~1.3–1.5 s). Measured by the binder; " +
+                 "0 = unmeasured, use the clip's length.")]
+        public float sharedEnd, evolvedEnd, eliteEnd, apexEnd;
+        public float[] variantEnds = new float[0];
 
         public AudioClip For(int tier) => Pick(tier, out _);
+
+        /// <summary>As <see cref="Pick(int, out float)"/>, plus where the chosen clip's audible body ends (its length when unmeasured).</summary>
+        public AudioClip Pick(int tier, out float beat, out float end)
+        {
+            end = 0f;
+            AudioClip c = tier == 2 ? elite : tier == 3 ? apex : evolved;
+            if (c != null)
+            {
+                beat = tier == 2 ? eliteBeat : tier == 3 ? apexBeat : evolvedBeat;
+                end = tier == 2 ? eliteEnd : tier == 3 ? apexEnd : evolvedEnd;
+            }
+            else if (variants != null && variants.Length > 0)
+            {
+                int i = Random.Range(0, variants.Length);
+                c = variants[i];
+                beat = variantBeats != null && i < variantBeats.Length ? variantBeats[i] : 0f;
+                end = variantEnds != null && i < variantEnds.Length ? variantEnds[i] : 0f;
+            }
+            else
+            {
+                c = shared != null ? shared : null;
+                beat = sharedBeat;
+                end = sharedEnd;
+            }
+            if (c == null) { beat = 0f; return null; }
+            if (end <= 0f || end > c.length) end = c.length;
+            return c;
+        }
 
         /// <summary>The clip for a tier plus the beat inside it (0 when unmeasured).</summary>
         public AudioClip Pick(int tier, out float beat)

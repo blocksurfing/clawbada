@@ -219,6 +219,11 @@ public static class BattleSfxBinder
         t.evolvedBeat = t.evolved != null ? MeasureLoudestMoment($"{stem}_{Tiers[0]}.wav", attack) : 0f;
         t.eliteBeat = t.elite != null ? MeasureLoudestMoment($"{stem}_{Tiers[1]}.wav", attack) : 0f;
         t.apexBeat = t.apex != null ? MeasureLoudestMoment($"{stem}_{Tiers[2]}.wav", attack) : 0f;
+        t.sharedEnd = t.shared != null ? MeasureBodyEnd($"{stem}.wav") : 0f;
+        t.evolvedEnd = t.evolved != null ? MeasureBodyEnd($"{stem}_{Tiers[0]}.wav") : 0f;
+        t.eliteEnd = t.elite != null ? MeasureBodyEnd($"{stem}_{Tiers[1]}.wav") : 0f;
+        t.apexEnd = t.apex != null ? MeasureBodyEnd($"{stem}_{Tiers[2]}.wav") : 0f;
+        var ends = new List<float>();
         var takes = new List<AudioClip>();
         var beats = new List<float>();
         for (int n = 1; n <= 20; n++)
@@ -228,9 +233,11 @@ public static class BattleSfxBinder
             if (clip == null) continue;
             takes.Add(clip);
             beats.Add(MeasureLoudestMoment(p, attack));
+            ends.Add(MeasureBodyEnd(p));
         }
         t.variants = takes.ToArray();
         t.variantBeats = beats.ToArray();
+        t.variantEnds = ends.ToArray();
         return (t.shared != null ? 1 : 0) + (t.evolved != null ? 1 : 0) + (t.elite != null ? 1 : 0) + (t.apex != null ? 1 : 0) + takes.Count;
     }
 
@@ -267,6 +274,60 @@ public static class BattleSfxBinder
             if (AssetDatabase.LoadAssetAtPath<AudioClip>(p) != null) return p;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Where a 16-bit PCM WAV's audible body ends: the end of the last 50 ms window (RMS over all channels) within
+    /// 18 dB of the loudest one. Cast files carry long near-silent tails, and timing the next beat to the file's end
+    /// put Bind's claw hit ~1 s after its cast had audibly finished (user 2026-09-30). 0 if unreadable.
+    /// </summary>
+    private static float MeasureBodyEnd(string assetPath)
+    {
+        try
+        {
+            string full = Path.GetFullPath(Path.Combine(Application.dataPath, "..", assetPath));
+            byte[] b = File.ReadAllBytes(full);
+            if (b.Length < 44 || System.Text.Encoding.ASCII.GetString(b, 0, 4) != "RIFF") return 0f;
+            int pos = 12, channels = 0, rate = 0, bits = 0, dataOff = -1, dataLen = 0;
+            while (pos + 8 <= b.Length)
+            {
+                string id = System.Text.Encoding.ASCII.GetString(b, pos, 4);
+                int len = System.BitConverter.ToInt32(b, pos + 4);
+                if (id == "fmt ")
+                {
+                    channels = System.BitConverter.ToInt16(b, pos + 10);
+                    rate = System.BitConverter.ToInt32(b, pos + 12);
+                    bits = System.BitConverter.ToInt16(b, pos + 22);
+                }
+                else if (id == "data") { dataOff = pos + 8; dataLen = len; break; }
+                pos += 8 + len + (len & 1);
+            }
+            if (dataOff < 0 || bits != 16 || channels < 1 || rate <= 0) return 0f;
+            dataLen = System.Math.Min(dataLen, b.Length - dataOff);
+            int frames = dataLen / (2 * channels), win = rate / 20;
+            var energy = new List<double>();
+            for (int start = 0; start + win <= frames; start += win)
+            {
+                double acc = 0;
+                for (int i = 0; i < win * channels; i++)
+                {
+                    double s = System.BitConverter.ToInt16(b, dataOff + (start * channels + i) * 2);
+                    acc += s * s;
+                }
+                energy.Add(acc);
+            }
+            if (energy.Count == 0) return 0f;
+            double peak = 0;
+            foreach (var e in energy) if (e > peak) peak = e;
+            double floor = peak * System.Math.Pow(10, -18.0 / 10);   // −18 dB in energy
+            for (int k = energy.Count - 1; k >= 0; k--) if (energy[k] >= floor) return (k + 1) * win / (float)rate;
+            return 0f;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[BattleSfxBinder] could not measure the body of {assetPath}: {e.Message}");
+            return 0f;
+        }
     }
 
     /// <summary>
