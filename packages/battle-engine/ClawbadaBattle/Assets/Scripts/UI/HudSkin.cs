@@ -97,6 +97,32 @@ public class HudSkin : ScriptableObject
     public Sprite settingsNormal;
     public Sprite settingsPressed;
 
+    [Tooltip("Status badges (Avatar/StatusBadge.png, drop 36c7068): Defense, ArmorBuff, Bleeding, Debuff, BlockedTurn.")]
+    public Sprite statusDefense, statusArmorBuff, statusBleeding, statusDebuff, statusBlockedTurn;
+
+    /// <summary>Nzib's badge for a game status (user-approved mapping, 2026-09-30), or null when it has none.
+    /// Fortify / shield / reflect are all "armor buff"; haunt and slow are "debuff"; stun is "blocked turn".</summary>
+    public Sprite StatusBadge(string status)
+    {
+        switch (status)
+        {
+            case "defending": return statusDefense;
+            case "fortify": case "shield": case "reflect": return statusArmorBuff;
+            case "bleed": return statusBleeding;
+            case "haunt": case "slow": return statusDebuff;
+            case "stun": return statusBlockedTurn;
+        }
+        return null;
+    }
+
+    /// <summary>Which statuses show first when a panel has more than its three slots (user 2026-09-30: the ones that
+    /// change your options most — stun, then bleed — then the rest). Lower = earlier.</summary>
+    public static int StatusPriority(string status) => status switch
+    {
+        "stun" => 0, "bleed" => 1, "haunt" => 2, "slow" => 2, "defending" => 3,
+        "fortify" => 4, "shield" => 4, "reflect" => 4, _ => 9,
+    };
+
     public Sprite OrderBadge(int n) => orderBadges != null && n >= 1 && n <= orderBadges.Length ? orderBadges[n - 1] : null;
     public Sprite ClassBadge(int classId) =>
         classBadges != null && classId >= 0 && classId < classBadges.Length ? classBadges[classId] : null;

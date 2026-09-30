@@ -385,6 +385,7 @@ public class BattleManager : MonoBehaviour
             var controller = go.AddComponent<LobsterController>();
             controller.Setup(lob, hexGrid);
             controller.vfx = vfxLibrary;
+            CharacterShadow.Attach(controller, vfxLibrary != null ? vfxLibrary.characterShadow : null);
             if (lob.partClassIds != null && lob.partClassIds.Length == 6)
             {
                 controller.ApplyGenetics(lob.partClassIds, lob.tier, partLibrary);

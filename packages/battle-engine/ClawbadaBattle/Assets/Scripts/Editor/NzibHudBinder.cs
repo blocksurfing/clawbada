@@ -90,12 +90,19 @@ public static class NzibHudBinder
         skin.timerIndicators = new[] { "Green", "Yellow", "Orange", "Red" }.Select(c => Find(timerSheet, $"Timer_Indicator_{c}")).ToArray();
         skin.settingsNormal = Find(gearSheet, "SettingsButton_Normal");
         skin.settingsPressed = Find(gearSheet, "SettingsButton_Pressed");
+        var statusSheet = Sheet("Assets/Art/UI/Avatar/StatusBadge.png");
+        skin.statusDefense = Find(statusSheet, "StatusBadge_Defense");
+        skin.statusArmorBuff = Find(statusSheet, "StatusBadge_ArmorBuff");
+        skin.statusBleeding = Find(statusSheet, "StatusBadge_Bleeding");
+        skin.statusDebuff = Find(statusSheet, "StatusBadge_Debuff");
+        skin.statusBlockedTurn = Find(statusSheet, "StatusBadge_BlockedTurn");
+        int nStatus = new[] { skin.statusDefense, skin.statusArmorBuff, skin.statusBleeding, skin.statusDebuff, skin.statusBlockedTurn }.Count(s => s != null);
         int nOrder = skin.orderBadges.Count(s => s != null), nClass = skin.classBadges.Count(s => s != null), nTimer = skin.timerIndicators.Count(s => s != null);
 
         EditorUtility.SetDirty(skin);
         AssetDatabase.SaveAssets();
         string msg = $"[NzibHudBinder] OK — prefabs avatar+button, frame + 3 icons, specials {specials}/10, class BGs {nBg}/10, HP states 4/4, glow + pop mask generated" +
-                     $" | order badges {nOrder}/6, class badges {nClass}/10, timer card {(skin.timerCardPrefab != null ? "✓" : "—")} states {nTimer}/4, settings {(skin.settingsNormal != null && skin.settingsPressed != null ? "✓" : "—")}";
+                     $" | order badges {nOrder}/6, class badges {nClass}/10, timer card {(skin.timerCardPrefab != null ? "✓" : "—")} states {nTimer}/4, settings {(skin.settingsNormal != null && skin.settingsPressed != null ? "✓" : "—")}, status badges {nStatus}/5";
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
     }

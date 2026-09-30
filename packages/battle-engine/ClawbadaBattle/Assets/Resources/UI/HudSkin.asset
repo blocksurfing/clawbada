@@ -126,6 +126,11 @@ MonoBehaviour:
   - {fileID: -1389930917, guid: 16e0648847bd6424eb11db7455dfce92, type: 3}
   settingsNormal: {fileID: -5228007558302363713, guid: f5e2a1811dec3784799e432edf798c87, type: 3}
   settingsPressed: {fileID: -6215808793854141569, guid: f5e2a1811dec3784799e432edf798c87, type: 3}
+  statusDefense: {fileID: 7100428780147270887, guid: aa5787cac36b6fb41a37d6d497a4a724, type: 3}
+  statusArmorBuff: {fileID: -6963442330286028947, guid: aa5787cac36b6fb41a37d6d497a4a724, type: 3}
+  statusBleeding: {fileID: 142138782375212939, guid: aa5787cac36b6fb41a37d6d497a4a724, type: 3}
+  statusDebuff: {fileID: -4856763431754460118, guid: aa5787cac36b6fb41a37d6d497a4a724, type: 3}
+  statusBlockedTurn: {fileID: 2331562523815786112, guid: aa5787cac36b6fb41a37d6d497a4a724, type: 3}
   cardFrame: {fileID: 21300000, guid: 22a19b238309e443eb0e5294fe0ebfcb, type: 3}
   cardHeader: {fileID: 21300000, guid: 9e9164114ed374d988f13e03c4c4a70a, type: 3}
   pennant: {fileID: 21300000, guid: 9d8c0ae792c9649fead6141e3708912b, type: 3}
