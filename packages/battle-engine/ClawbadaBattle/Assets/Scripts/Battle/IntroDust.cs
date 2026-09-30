@@ -13,12 +13,28 @@ public static class IntroDust
     private static readonly Color Sand = new Color32(0xe8, 0xd6, 0xb0, 0xff);
     private static Sprite puff;
 
+    /// <summary>Nzib's landing effect (BattleVfxLibrary.introLanding — FX_Generic_Shockwave, 2026-09-30): a ring on the
+    /// floor. When set it replaces the procedural puff. Set by BattleManager before the intro.</summary>
+    public static GameObject LandingPrefab;
+
     /// <param name="at">World position of the landing point (the hex centre).</param>
     /// <param name="sortingOrder">The lander's sorting order; the dust draws just in front of it.</param>
     /// <param name="size">1 = an obstacle's puff; a lobster's landing is bigger.</param>
     public static void Burst(MonoBehaviour host, Vector3 at, int sortingOrder, float size)
     {
         if (host == null) return;
+        if (LandingPrefab != null)
+        {
+            // His ring lies on the floor: the GROUND band (under every row's actors), centred on the landing hex.
+            var fx = Object.Instantiate(LandingPrefab, at, Quaternion.identity);
+            fx.name = "IntroLanding";
+            fx.transform.localScale = Vector3.one * size;
+            var sg = fx.GetComponent<SortingGroup>();
+            if (sg == null) sg = fx.AddComponent<SortingGroup>();   // never ?? on a UnityEngine.Object
+            sg.sortingLayerName = DepthSort.Layer;
+            sg.sortingOrder = DepthSort.GroundOrder;
+            return;
+        }
         var root = new GameObject("IntroDust");
         root.transform.position = at;
         var group = root.AddComponent<SortingGroup>();
