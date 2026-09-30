@@ -798,7 +798,11 @@ public class BattleManager : MonoBehaviour
                                 Debug.Log($"[BattleManager] special {actor.className} audio fit: cast {castLength:F2}s (heard to {heard:F2}s) + impact hit at {impactHit:F2}s → contact at {contact:F2}s, swing contact {contactAt:F2}s → hold {hold:F2}s, cast starts at {castDelay:F2}s");
                                 BattleSfx.PlayCast(castClip, castDelay);
                                 BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, contact);
-                                if (hold > 0.02f) yield return new WaitForSeconds(hold);
+                                // Bind (user 2026-09-30): claws rise with the cast sound, hold at the top, drop just
+                                // before the strike — then the full swing lands on the impact as before.
+                                if (windup != null && windup.windupPeakAt > 0f && hold >= 0.6f)
+                                    yield return actor.RaiseAndHold(targetPos, swing, windup.windupPeakAt, hold);
+                                else if (hold > 0.02f) yield return new WaitForSeconds(hold);
                             }
                             else if (special && !leapt && castBeat > 0f)
                             {
