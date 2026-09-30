@@ -59,8 +59,20 @@ public class OptionsMenu : MonoBehaviour
         var font = skin.FontOrDefault();
 
         float gearSize = hexSize;
-        menu.gear = HudFactory.Button(root, "Gear", skin.settingsHex != null ? skin.settingsHex : skin.btnGear,
-            skin.iconGear, "", font, gearSize, menu.Toggle);
+        // Nzib's settings button (drop 25d2fbe) carries its own gear and a pressed state: shown with a sprite swap,
+        // no glyph on top. Without it, the placeholder hex + gear icon.
+        bool his = skin.settingsNormal != null;
+        menu.gear = HudFactory.Button(root, "Gear", his ? skin.settingsNormal : skin.settingsHex != null ? skin.settingsHex : skin.btnGear,
+            his ? null : skin.iconGear, "", font, gearSize, menu.Toggle);
+        if (his && skin.settingsPressed != null)
+        {
+            menu.gear.transition = Selectable.Transition.SpriteSwap;
+            var ss = menu.gear.spriteState;
+            ss.pressedSprite = skin.settingsPressed;
+            ss.selectedSprite = null;
+            ss.highlightedSprite = null;
+            menu.gear.spriteState = ss;
+        }
         var grt = menu.gear.GetComponent<RectTransform>();
         grt.anchorMin = grt.anchorMax = grt.pivot = new Vector2(0f, 1f);
         grt.anchoredPosition = Vector2.zero;
