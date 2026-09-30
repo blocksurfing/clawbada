@@ -59,6 +59,7 @@ public class BattleManager : MonoBehaviour
     {
         IntroPlaying = true;
         string first = PlayerSide == "B" ? "B" : "A";   // spectators: side A first
+        IntroDust.LandingPrefab = vfxLibrary != null ? vfxLibrary.introLanding : null;
         yield return BattleIntro.Play(this, hud, lobsters.Values, hexGrid != null ? hexGrid.Obstacles : null, first,
             () => { if (bridge != null) bridge.NotifyIntroMusic(); });
         IntroPlaying = false;
