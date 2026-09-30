@@ -641,8 +641,8 @@ public class BattleManager : MonoBehaviour
                         // every other Special starts its cast sound with the windup, right now.
                         bool projectile = special && windup != null && windup.IsProjectile;
                         bool cinematic = special && !projectile && windup != null && windup.prefab != null && windup.impactAt > 0f;
-                        float castBeat = 0f, castLength = 0f;
-                        AudioClip castClip = special ? BattleSfx.PeekSpecialCast(actor.classId, actor.tier, out castBeat, out castLength) : null;
+                        float castBeat = 0f, castLength = 0f, castEnd = 0f;
+                        AudioClip castClip = special ? BattleSfx.PeekSpecialCast(actor.classId, actor.tier, out castBeat, out castLength, out castEnd) : null;
                         if (special) BattleSfx.ChooseSpecialImpact(actor.classId, actor.tier);   // one take, timed and played alike
                         // After a leap the cast sound is already playing and the strike is quick: no audio fit,
                         // the impact sound lands on the contact frame instead.
@@ -785,14 +785,17 @@ public class BattleManager : MonoBehaviour
                             float contactAt = Mathf.Max(attackDuration, actor.ClipLength(swing) / castSpeed) * LobsterController.AttackImpactFraction;
                             if (swingCombo)
                             {
-                                // Cast (the wind-up) then impact (the hit), back to back, as for Inferno: the impact
-                                // clip starts the instant the cast clip ends and its hit IS the contact frame, so the
-                                // swing is held until then. A cast too short for the swing starts late instead.
+                                // Cast (the wind-up) then impact (the hit), back to back: the impact clip starts as the
+                                // cast is HEARD to finish — its audible end, not the file's end (Bind's files run 2.4 s
+                                // but are heard to ~1.3–1.5 s; timing to the file put the claw ~1 s after the cast went
+                                // quiet, user 2026-09-30) — and its hit IS the contact frame, so the swing is held until
+                                // then. A cast too short for the swing starts late instead.
                                 float impactHit = BattleSfx.SpecialImpactHit(actor.classId);
-                                float contact = Mathf.Max(castLength + impactHit, contactAt);
-                                float castDelay = contact - impactHit - castLength;
+                                float heard = castEnd > 0f ? castEnd : castLength;
+                                float contact = Mathf.Max(heard + impactHit, contactAt);
+                                float castDelay = contact - impactHit - heard;
                                 float hold = contact - contactAt;
-                                Debug.Log($"[BattleManager] special {actor.className} audio fit: cast {castLength:F2}s + impact hit at {impactHit:F2}s → contact at {contact:F2}s, swing contact {contactAt:F2}s → hold {hold:F2}s, cast starts at {castDelay:F2}s");
+                                Debug.Log($"[BattleManager] special {actor.className} audio fit: cast {castLength:F2}s (heard to {heard:F2}s) + impact hit at {impactHit:F2}s → contact at {contact:F2}s, swing contact {contactAt:F2}s → hold {hold:F2}s, cast starts at {castDelay:F2}s");
                                 BattleSfx.PlayCast(castClip, castDelay);
                                 BattleSfx.PlaySpecialImpactIn(actor.classId, actor.tier, contact);
                                 if (hold > 0.02f) yield return new WaitForSeconds(hold);
