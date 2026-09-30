@@ -115,7 +115,8 @@ export default async function (b: Browser) {
       const best = [...sel.moves].sort((a: any, c: any) => near(a) - near(c))[0];
       const cell = cells.get(`${best.col},${best.row}`);
       if (cell && me && near(best) < near(me)) {
-        const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); moves++; movedThisTurn = true;
+        // Touch-move (2026-09-30): the first tap picks the hex, the second commits the move.
+        const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); await b.sleep(350); await b.clickAt(q.x, q.y); moves++; movedThisTurn = true;
         await b.sleep(900);
         sel = await b.eval(`window.__clawbada_selection ? JSON.parse(JSON.stringify(window.__clawbada_selection)) : null`) as any ?? sel;
       }

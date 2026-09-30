@@ -10,7 +10,12 @@
  *    press. A TARGETED action is two-step (user, 2026-09-25 — targeting decides matches): the
  *    first tap on a target SELECTS it (ringed, info panel, a melee Special's step previewed) and
  *    nothing is sent; tapping the same target again, or pressing the armed action again, confirms.
- *    No target is ever chosen for the player. A tentative move is previewed and can be undone.
+ *    No target is ever chosen for the player.
+ *  Moves are touch-move (user 2026-09-30, "like chess … once you take your hand off the piece it's final"): the
+ *    first tap on a reachable hex PICKS it (pulsing, nothing moves); tapping it again COMMITS the move — the lobster
+ *    walks there and that is its movement for the turn, whatever range it had left: no undo, no second move, only
+ *    the action remains. Tapping the lobster (or pressing an action) drops a pick that was never committed.
+ *    Agents are unaffected: they send the whole turn (move + action) in one message.
  *  - explicit (the React fallback panel): pick action + target, then Confirm.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -30,6 +35,10 @@ export interface TurnSelectionOptions {
 export interface TurnSelection {
   actor: v3.AtbLobster | null;
   moveTo: HexPosition | null;
+  /** A picked-but-uncommitted move destination (touch-move): the second tap on it commits. */
+  pendingMove: HexPosition | null;
+  /** The player's own move is committed: no more movement this turn. */
+  moveLocked: boolean;
   action: ActionChoice;
   targetId: string | null;
   summary: v3.LegalSummary | null;
@@ -61,6 +70,7 @@ export function useTurnSelection(
   opts: TurnSelectionOptions = {},
 ): TurnSelection {
   const [moveTo, setMoveTo] = useState<HexPosition | null>(null);
+  const [pendingMove, setPendingMove] = useState<HexPosition | null>(null);
   const [action, setActionState] = useState<ActionChoice>('attack');
   const [targetId, setTargetId] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -74,6 +84,7 @@ export function useTurnSelection(
   // New turn → fresh selection.
   useEffect(() => {
     setMoveTo(null);
+    setPendingMove(null);
     setTargetId(null);
     setActionState('attack');
     setHint(null);
@@ -142,13 +153,17 @@ export function useTurnSelection(
     return {
       originCol: from?.col ?? actor.pos.col,
       originRow: from?.row ?? actor.pos.row,
-      rangeHexes: summary.moves,
+      // A committed move is the turn's only one: no more reachable hexes. Otherwise the range from where it STANDS
+      // (a selection's step is not a move).
+      rangeHexes: manualMove ? [] : home?.moves ?? summary.moves,
       enemyTargets: enemy.map(pos).filter((p): p is HexPosition => !!p),
       allyTargets: ally.map(pos).filter((p): p is HexPosition => !!p),
       targetCol: targetId ? pos(targetId)?.col ?? -1 : -1,
       targetRow: targetId ? pos(targetId)?.row ?? -1 : -1,
+      destCol: pendingMove?.col ?? -1,
+      destRow: pendingMove?.row ?? -1,
     };
-  }, [actor, summary, home, manualMove, state, action, specialKind, from, specialReach, targetId]);
+  }, [actor, summary, home, manualMove, state, action, specialKind, from, specialReach, targetId, pendingMove]);
 
   /** Validate with the real rules and hand the command to the session. */
   const trySubmit = useCallback((cmd: TurnCommand): boolean => {
@@ -179,9 +194,9 @@ export function useTurnSelection(
     if (!summary || !home) return { ok: false, why: 'Not your turn' };
     if (act === 'attack') {
       const legal = manualMove ? summary.attackTargets : home.attackTargets;
-      return legal.includes(id) ? { ok: true, step: null } : { ok: false, why: manualMove ? 'Out of range from that hex. Move elsewhere or undo' : 'Out of range. Move closer first' };
+      return legal.includes(id) ? { ok: true, step: null } : { ok: false, why: manualMove ? 'Out of range from here. Defend or Wait' : 'Out of range. Move closer first' };
     }
-    if (manualMove) return summary.specialTargets.includes(id) ? { ok: true, step: null } : { ok: false, why: `Out of reach for ${specialName} from that hex. Undo the move to let it step in` };
+    if (manualMove) return summary.specialTargets.includes(id) ? { ok: true, step: null } : { ok: false, why: `Out of reach for ${specialName} from here` };
     if (home.specialTargets.includes(id)) return { ok: true, step: null };
     const cell = specialReach.get(id);
     return cell ? { ok: true, step: cell } : { ok: false, why: `Out of reach for ${specialName} this turn. Press Attack to attack instead` };
@@ -194,6 +209,7 @@ export function useTurnSelection(
     if (!plan.ok) { setHint(plan.why); return; }
     setActionState(act);
     setTargetId(id);
+    setPendingMove(null);
     if (!manualMove) { setMoveTo(plan.step); setAutoMoved(!!plan.step); }
     const picked = state.lobsters.find((l) => l.id === id);
     const who = picked ? CLASS_NAMES[picked.class as LobsterClass] ?? 'Target' : 'Target';
@@ -219,6 +235,7 @@ export function useTurnSelection(
 
   const pressAction = useCallback((a: ActionChoice) => {
     if (!actor || !summary) { console.warn(`[TurnSelection] press ${a} ignored — no actor/summary`); return; }
+    setPendingMove(null);   // an action acts from where the lobster stands: an uncommitted pick is dropped
     if (!autoSubmit) {
       setActionState(a);
       if (a === 'defend' || a === 'none') setTargetId(null);
@@ -261,11 +278,28 @@ export function useTurnSelection(
   }, [actor, summary, home, autoSubmit, action, targetId, canSpecial, specialKind, specialReach, manualMove, planTarget, selectTarget, confirmTarget, clearTarget, trySubmit, withMove]);
 
   const onHexClick = useCallback((hex: HexPosition) => {
-    if (!actor || !summary) return;
-    // Any hex the player taps is THEIR move: it replaces a selection's step and drops the target.
-    if (summary.moves.some((m) => m.col === hex.col && m.row === hex.row)) { setMoveTo(hex); setAutoMoved(false); setTargetId(null); setHint(null); return; }
-    if (actor.pos.col === hex.col && actor.pos.row === hex.row) { setMoveTo(null); setAutoMoved(false); setTargetId(null); }
-  }, [actor, summary]);
+    if (!actor || !summary || !home) return;
+    if (manualMove) { setHint('Already moved this turn. Attack, Special, Defend or Wait'); return; }
+    const same = (a: HexPosition | null) => !!a && a.col === hex.col && a.row === hex.row;
+    // Any reachable hex the player taps is THEIR move (it replaces a selection's step and drops the target):
+    // first tap picks it, the second tap on the same hex commits it — final.
+    if (home.moves.some((m) => same(m))) {
+      if (autoMoved) { setMoveTo(null); setAutoMoved(false); }
+      setTargetId(null);
+      if (same(pendingMove)) {
+        setPendingMove(null);
+        setMoveTo(hex);
+        setHint(null);
+        console.log(`[TurnSelection] move committed → (${hex.col},${hex.row})`);
+        return;
+      }
+      setPendingMove(hex);
+      setHint(null);
+      console.log(`[TurnSelection] move picked → (${hex.col},${hex.row}) — tap again to commit`);
+      return;
+    }
+    if (same(actor.pos)) { setPendingMove(null); if (autoMoved) { setMoveTo(null); setAutoMoved(false); } setTargetId(null); }
+  }, [actor, summary, home, manualMove, autoMoved, pendingMove]);
 
   const onLobsterClick = useCallback((id: string) => {
     if (!actor || !state || !summary) return;
@@ -274,7 +308,11 @@ export function useTurnSelection(
     const enemy = target.team !== actor.team;
 
     if (!autoSubmit) {
-      if (id === actor.id && !(specialKind === 'ally' && canSpecial)) { setMoveTo(null); setTargetId(null); return; }
+      if (id === actor.id && !(specialKind === 'ally' && canSpecial)) {
+        setPendingMove(null); setTargetId(null);
+        if (autoMoved) { setMoveTo(null); setAutoMoved(false); }   // a committed move stays: touch-move
+        return;
+      }
       if (enemy) {
         setTargetId(id);
         if (action !== 'special' || specialKind !== 'enemy') setActionState('attack');
@@ -295,14 +333,16 @@ export function useTurnSelection(
     } else if (specialKind === 'ally' && canSpecial && action === 'special') {
       selectTarget(id, 'special');
     } else if (id === actor.id) {
-      // Tapping yourself with nothing armed for allies = cancel the move and the selection.
-      setMoveTo(null); setAutoMoved(false); setTargetId(null); setHint(null);
+      // Tapping yourself with nothing armed for allies = drop an uncommitted pick and the selection. A committed
+      // move stays (touch-move).
+      setPendingMove(null); setTargetId(null); setHint(null);
+      if (autoMoved) { setMoveTo(null); setAutoMoved(false); }
     } else if (specialKind === 'ally' && canSpecial) {
       setHint(`Press ${specialName} first, then tap the ally`);
     } else if (specialKind === 'ally') {
       setHint('Special needs 3 charge');
     }
-  }, [actor, state, summary, action, targetId, specialKind, canSpecial, autoSubmit, specialName, selectTarget, confirmTarget]);
+  }, [actor, state, summary, action, targetId, specialKind, canSpecial, autoSubmit, specialName, selectTarget, confirmTarget, autoMoved]);
 
   const setAction = useCallback((a: ActionChoice) => {
     setActionState(a);
@@ -310,11 +350,12 @@ export function useTurnSelection(
   }, []);
 
   return {
-    actor, moveTo, action, targetId, summary, canSpecial, specialKind, highlights, command,
+    actor, moveTo, pendingMove, moveLocked: manualMove, action, targetId, summary, canSpecial, specialKind, highlights, command,
     valid: validity.valid, invalidReason: validity.reason, hint,
     setAction, pressAction,
-    clearMove: () => { setMoveTo(null); setAutoMoved(false); setTargetId(null); setHint(null); },
+    // Drops an uncommitted pick, a selection and a selection's step — never a committed move (touch-move).
+    clearMove: () => { setPendingMove(null); if (autoMoved) { setMoveTo(null); setAutoMoved(false); } setTargetId(null); setHint(null); },
     onHexClick, onLobsterClick,
-    reset: () => { setMoveTo(null); setAutoMoved(false); setTargetId(null); setActionState('attack'); setHint(null); },
+    reset: () => { setMoveTo(null); setPendingMove(null); setAutoMoved(false); setTargetId(null); setActionState('attack'); setHint(null); },
   };
 }
