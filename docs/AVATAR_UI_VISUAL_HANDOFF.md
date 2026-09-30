@@ -4,7 +4,7 @@
 
 Universal visual-only uGUI prefab: `Assets/Prefabs/UI/Avatar/AvatarUI.prefab`.
 No Avatar battle scene, existing HUD, or gameplay script integration. The accompanying ActionButton migration only updates the normal-frame reference in HudSkin and its editor binder. Existing `Assets/Art/UI/Avatar.png` is preserved.
-Includes the exported frame sheet, class backgrounds, four-state HP fill sheet and MP fill. Portraits and status icons are not supplied or fabricated. No HP thresholds or runtime class/state mapping are implemented.
+Includes the exported frame sheet, class backgrounds, four-state HP fill sheet, MP fill, and the ordering badge sheet. Portraits and status icons are not supplied or fabricated. No HP thresholds, runtime class/state mapping, or unit-order mapping are implemented.
 
 ## Layout
 
@@ -17,6 +17,7 @@ Sibling draw order (back to front):
 3. `Frame`: 112 x 64, centered, always visible.
 4. `HPFill`: 64 x 32, position (15, 9), `HP_Healthy` by default.
 5. `MPFill`: 32 x 32, position (1, -12), `MP_Fill`.
+6. `OrderingBadge`: 16 x 16, position **(-46, 10)**, `OrderingBadge_1` by default. This is above the frame/bars and is a sprite swap target for battle order `1` through `6`.
 
 The fills are above Frame because Frame includes opaque dark bar backings. Their nontransparent pixels sit fully within those backings and do not cover the colored border at full fill. Both use Image.Type.Filled / Horizontal / Left, fillAmount=1, with raycastTarget=false. Preserve rect sizes/positions when swapping HP sprites. Canvas padding is retained: fillAmount clips the full sprite rect, not an exact curved-area percentage.
 
@@ -49,6 +50,17 @@ Unity bottom-left slice Y values are 192, 128, 64, 0 respectively.
 10. Ember
 
 Names: `Avatar_BG_<Class>`.
+
+`Assets/Art/UI/Avatar/OrderingBadge.png`: 96 x 16, six 16 x 16 cells, left-to-right:
+
+1. `OrderingBadge_1`
+2. `OrderingBadge_2`
+3. `OrderingBadge_3`
+4. `OrderingBadge_4`
+5. `OrderingBadge_5`
+6. `OrderingBadge_6`
+
+Developer hookup: swap `OrderingBadge`'s Image.sprite from the current battle/unit ordering data. The badge is visible by default as `OrderingBadge_1`; disable the GameObject or clear the sprite only if a screen state intentionally has no displayed order number.
 
 ## Selected animation
 
