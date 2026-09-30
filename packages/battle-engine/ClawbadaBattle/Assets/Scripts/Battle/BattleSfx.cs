@@ -114,9 +114,14 @@ public static class BattleSfx
     /// <summary>Battle-start intro beats (optional clips).</summary>
     public static void PlayIntroReady() => Play(Library?.introReady, "intro-ready");
     public static void PlayIntroFight() => Play(Library?.introFight, "intro-fight");
-    /// <summary>Intro landings: an obstacle / a lobster hitting the board (random take among the bound ones).</summary>
-    public static void PlayIntroObstacleLand() => Play(RandomOf(Library?.introObstacleLand), "intro-obstacle");
-    public static void PlayIntroLobsterLand() => Play(RandomOf(Library?.introLobsterLand), "intro-lobster");
+    /// <summary>Intro landings, at <see cref="IntroLandLevel"/>: the obstacles' one shared smash (they land together) and
+    /// each lobster's thud (random take among the bound ones).</summary>
+    public static void PlayIntroObstacleLand() => Play(RandomOf(Library?.introObstacleLand), "intro-obstacle", IntroLandLevel);
+    public static void PlayIntroLobsterLand() => Play(RandomOf(Library?.introLobsterLand), "intro-lobster", IntroLandLevel);
+    /// <summary>Where the smash takes peak, 0.06–0.09 s in (measured 2026-09-29): started this early, the boom hits on contact.</summary>
+    public const float IntroObstacleLandLead = 0.07f;
+    /// <summary>User 2026-09-29: "maybe around 80% to try first".</summary>
+    private const float IntroLandLevel = 0.8f;
 
     private static AudioClip RandomOf(AudioClip[] takes) =>
         takes == null || takes.Length == 0 ? null : takes[Random.Range(0, takes.Length)];
@@ -239,12 +244,12 @@ public static class BattleSfx
         }
     }
 
-    private static void Play(AudioClip clip, string phase)
+    private static void Play(AudioClip clip, string phase, float level = 1f)
     {
         if (!Enabled || clip == null || !Application.isPlaying) return;
         EnsureSource();
-        source.PlayOneShot(clip, Gain);
-        Debug.Log($"[BattleSfx] {clip.name} ({phase}) @ {Gain:F2}");
+        source.PlayOneShot(clip, Gain * level);
+        Debug.Log($"[BattleSfx] {clip.name} ({phase}) @ {Gain * level:F2}");
     }
 
     private static IEnumerator PlayAfter(AudioClip clip, float delay, string phase = "impact")

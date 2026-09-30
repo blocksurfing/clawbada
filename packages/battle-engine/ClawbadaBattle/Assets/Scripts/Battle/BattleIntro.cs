@@ -6,7 +6,7 @@ using UnityEngine.UI;
 /// <summary>
 /// Fighting-game battle start (user 2026-09-28), lengthened for suspense (user 2026-09-29, ~13 s):
 ///   1. black → a slow fade in on the EMPTY arena (no obstacles, no lobsters, no HUD);
-///   2. the obstacles drop into place one by one, back row first — a puff of dust and a small shake each;
+///   2. the obstacles all drop together and hit the board at once — one smash, dust at each, a bigger shake;
 ///   3. the lobsters drop in ONE AT A TIME, alternating sides (yours first), heavier landings;
 ///   4. a beat to take in both teams, while the arena music starts fading in (onMusicCue → React);
 ///   5. centre screen: "CLAWS UP!" rises in, then "BATTLE!" slams down (white flash, camera shake);
@@ -17,9 +17,11 @@ using UnityEngine.UI;
 /// </summary>
 public static class BattleIntro
 {
-    // Every beat is a named constant so the pacing can be tuned by eye. Totals ≈ 12.8 s.
+    // Every beat is a named constant so the pacing can be tuned by eye. Totals ≈ 12 s.
+    // Obstacles land TOGETHER (user 2026-09-29: the smash takes are one big boom, "so long as all the obstacles fall
+    // and contact the ground at the same time"); the hold after lets the boom ring out before the lobsters.
     private const float BlackHold = 0.6f, FadeIn = 2.0f, BeforeObstacles = 0.4f;
-    private const float ObstacleStagger = 0.28f, ObstacleDrop = 0.35f, ObstacleHeight = 1.4f, BeforeLobsters = 0.3f;
+    private const float ObstacleDrop = 0.5f, ObstacleHeight = 2.4f, BeforeLobsters = 1.0f;
     private const float LobsterStagger = 0.5f, LobsterDrop = 0.4f, LobsterHeight = 2.4f, Bounce = 0.08f;
     private const float TeamsHold = 1.0f;
     private const float ReadyIn = 0.35f, ReadyHold = 0.8f, ReadyOut = 0.15f;
@@ -103,7 +105,7 @@ public static class BattleIntro
                 var item = items[i];
                 running++;
                 host.StartCoroutine(Drop(tf(item), homes[tf(item)], time, height, () => Skipped(), () => { running--; if (!skip) landed(item); }));
-                yield return Wait(stagger);
+                if (stagger > 0f) yield return Wait(stagger);
             }
             while (running > 0 && !Skipped()) yield return null;
         }
@@ -114,15 +116,19 @@ public static class BattleIntro
         yield return Tween(FadeIn, k => black.color = new Color(0f, 0f, 0f, 1f - Smooth(k)));
         yield return Wait(BeforeObstacles);
 
-        // 2. Obstacles, one by one.
+        // 2. Obstacles, all at once: one smash, started a hair early so its peak lands on contact.
         Debug.Log($"[BattleIntro] obstacles ({obstacles.Count})");
-        yield return DropAll(obstacles, o => o, ObstacleStagger, ObstacleDrop, ObstacleHeight, o =>
+        if (obstacles.Count > 0)
         {
-            var g = o.GetComponent<UnityEngine.Rendering.SortingGroup>();
-            IntroDust.Burst(host, homes[o].pos, g != null ? g.sortingOrder : DepthSort.ActorOrder, 0.8f);
-            CameraShake.Shake(0.025f, 0.12f);
-            BattleSfx.PlayIntroObstacleLand();
-        });
+            host.StartCoroutine(SmashOnContact(ObstacleDrop - BattleSfx.IntroObstacleLandLead, () => skip));
+            bool shook = false;
+            yield return DropAll(obstacles, o => o, 0f, ObstacleDrop, ObstacleHeight, o =>
+            {
+                var g = o.GetComponent<UnityEngine.Rendering.SortingGroup>();
+                IntroDust.Burst(host, homes[o].pos, g != null ? g.sortingOrder : DepthSort.ActorOrder, 1.1f);
+                if (!shook) { shook = true; CameraShake.Shake(0.07f, 0.35f); }
+            });
+        }
         yield return Wait(BeforeLobsters);
 
         // 3. Lobsters, one at a time.
@@ -202,6 +208,12 @@ public static class BattleIntro
     {
         for (float t = 0f; t < 0.3f; t += Time.unscaledDeltaTime) { flash.color = new Color(1f, 1f, 1f, 0.7f * (1f - t / 0.3f)); yield return null; }
         flash.color = new Color(1f, 1f, 1f, 0f);
+    }
+
+    private static IEnumerator SmashOnContact(float delay, System.Func<bool> skipped)
+    {
+        for (float t = 0f; t < delay && !skipped(); t += Time.unscaledDeltaTime) yield return null;
+        if (!skipped()) BattleSfx.PlayIntroObstacleLand();
     }
 
     private static float Smooth(float k) => k * k * (3f - 2f * k);
