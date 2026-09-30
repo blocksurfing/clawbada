@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: bd706e1286634a61a3b06b329bf19f16
+guid: 9aa20726d6c0b18f5f3dba6cb49f4b63
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -45,7 +45,7 @@ TextureImporter:
   compressionQuality: 50
   spriteMode: 2
   spriteExtrude: 1
-  spriteMeshType: 1
+  spriteMeshType: 0
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
   spritePixelsToUnits: 64
@@ -85,7 +85,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -98,8 +98,8 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
-    compressionQuality: 0
+    textureCompression: 1
+    compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
     overridden: 0
@@ -111,7 +111,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -123,13 +123,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_00
+      name: OrderingBadge_1
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 96
-        height: 64
+        width: 16
+        height: 16
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -138,20 +138,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 39dff4f0ecc64e55a4aa605934344c4b
-      internalID: 8662048837917718194
+      spriteID: 4d492da956d82714789c8b6579ad5d02
+      internalID: 586508877
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_01
+      name: OrderingBadge_2
       rect:
         serializedVersion: 2
-        x: 96
+        x: 16
         y: 0
-        width: 96
-        height: 64
+        width: 16
+        height: 16
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -160,20 +160,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: f9c4eb753bcf99c325a370533453e984
-      internalID: 5719958597630503845
+      spriteID: 2cc350d66dd4bea42c7b252ce47f78fc
+      internalID: 1444352936
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_02
+      name: OrderingBadge_3
       rect:
         serializedVersion: 2
-        x: 192
+        x: 32
         y: 0
-        width: 96
-        height: 64
+        width: 16
+        height: 16
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -182,20 +182,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 50fd31d069e9e0bc0f757bbb714bfa97
-      internalID: 5862534037126957385
+      spriteID: bad8e0c9f8a3520ea0bbc2f6c05c131c
+      internalID: 169110437
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_03
+      name: OrderingBadge_4
       rect:
         serializedVersion: 2
-        x: 288
+        x: 48
         y: 0
-        width: 96
-        height: 64
+        width: 16
+        height: 16
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -204,20 +204,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 565fe2fefc074095c6affc3dc072b9f6
-      internalID: 9119806079928919517
+      spriteID: 505873d41ef0ab14a791bac09fd0ebe9
+      internalID: 345363208
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_04
+      name: OrderingBadge_5
       rect:
         serializedVersion: 2
-        x: 384
+        x: 64
         y: 0
-        width: 96
-        height: 64
+        width: 16
+        height: 16
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -226,8 +226,30 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: d6f1e1ac0221361d862010804fb200ee
-      internalID: 961829298033553484
+      spriteID: 1c5975682ffab044a7ce0d8621077937
+      internalID: 1159805342
+      vertices: []
+      indices:
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: OrderingBadge_6
+      rect:
+        serializedVersion: 2
+        x: 80
+        y: 0
+        width: 16
+        height: 16
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData:
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c738150f03b9d87778124d2e23a1f69d
+      internalID: 144558418
       vertices: []
       indices:
       edges: []
@@ -236,7 +258,7 @@ TextureImporter:
     customData:
     physicsShape: []
     bones: []
-    spriteID: 5269badbd0d33906d549ef14c916a2d7
+    spriteID: 88df8005444e083779fced201d2f9201
     internalID: 0
     vertices: []
     indices:
@@ -246,11 +268,12 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      FX_Specter_Haunt_SigilIdle_00: 8662048837917718194
-      FX_Specter_Haunt_SigilIdle_01: 5719958597630503845
-      FX_Specter_Haunt_SigilIdle_02: 5862534037126957385
-      FX_Specter_Haunt_SigilIdle_03: 9119806079928919517
-      FX_Specter_Haunt_SigilIdle_04: 961829298033553484
+      OrderingBadge_1: 586508877
+      OrderingBadge_2: 1444352936
+      OrderingBadge_3: 169110437
+      OrderingBadge_4: 345363208
+      OrderingBadge_5: 1159805342
+      OrderingBadge_6: 144558418
   mipmapLimitGroupName:
   pSDRemoveMatte: 0
   userData:

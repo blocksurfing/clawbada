@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: bd706e1286634a61a3b06b329bf19f16
+guid: 16e0648847bd6424eb11db7455dfce92
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -45,7 +45,7 @@ TextureImporter:
   compressionQuality: 50
   spriteMode: 2
   spriteExtrude: 1
-  spriteMeshType: 1
+  spriteMeshType: 0
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
   spritePixelsToUnits: 64
@@ -85,7 +85,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -98,8 +98,8 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
-    compressionQuality: 0
+    textureCompression: 1
+    compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
     overridden: 0
@@ -111,7 +111,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -123,13 +123,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_00
+      name: Timer_Indicator_Green
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 96
-        height: 64
+        width: 48
+        height: 48
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -138,20 +138,42 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 39dff4f0ecc64e55a4aa605934344c4b
-      internalID: 8662048837917718194
+      spriteID: 158572ef294582c42a81f9335d1277d1
+      internalID: 987146552
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_01
+      name: Timer_Indicator_Yellow
+      rect:
+        serializedVersion: 2
+        x: 48
+        y: 0
+        width: 48
+        height: 48
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData:
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 954dd9fb636fa0e4caf62bbdc871514d
+      internalID: 1062690419
+      vertices: []
+      indices:
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Timer_Indicator_Orange
       rect:
         serializedVersion: 2
         x: 96
         y: 0
-        width: 96
-        height: 64
+        width: 48
+        height: 48
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -160,20 +182,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: f9c4eb753bcf99c325a370533453e984
-      internalID: 5719958597630503845
+      spriteID: 7bd3a2da656362f40b8d191eaa811b45
+      internalID: 2004357151
       vertices: []
       indices:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_02
+      name: Timer_Indicator_Red
       rect:
         serializedVersion: 2
-        x: 192
+        x: 144
         y: 0
-        width: 96
-        height: 64
+        width: 48
+        height: 48
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -182,52 +204,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 50fd31d069e9e0bc0f757bbb714bfa97
-      internalID: 5862534037126957385
-      vertices: []
-      indices:
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_03
-      rect:
-        serializedVersion: 2
-        x: 288
-        y: 0
-        width: 96
-        height: 64
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 565fe2fefc074095c6affc3dc072b9f6
-      internalID: 9119806079928919517
-      vertices: []
-      indices:
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: FX_Specter_Haunt_SigilIdle_04
-      rect:
-        serializedVersion: 2
-        x: 384
-        y: 0
-        width: 96
-        height: 64
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData:
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: d6f1e1ac0221361d862010804fb200ee
-      internalID: 961829298033553484
+      spriteID: a2bf428a6925aa948a7f6504741c4838
+      internalID: -1389930917
       vertices: []
       indices:
       edges: []
@@ -236,7 +214,7 @@ TextureImporter:
     customData:
     physicsShape: []
     bones: []
-    spriteID: 5269badbd0d33906d549ef14c916a2d7
+    spriteID: 62316ce79b0614845b1c6c2875e5061c
     internalID: 0
     vertices: []
     indices:
@@ -246,11 +224,10 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      FX_Specter_Haunt_SigilIdle_00: 8662048837917718194
-      FX_Specter_Haunt_SigilIdle_01: 5719958597630503845
-      FX_Specter_Haunt_SigilIdle_02: 5862534037126957385
-      FX_Specter_Haunt_SigilIdle_03: 9119806079928919517
-      FX_Specter_Haunt_SigilIdle_04: 961829298033553484
+      Timer_Indicator_Green: 987146552
+      Timer_Indicator_Orange: 2004357151
+      Timer_Indicator_Red: -1389930917
+      Timer_Indicator_Yellow: 1062690419
   mipmapLimitGroupName:
   pSDRemoveMatte: 0
   userData:
