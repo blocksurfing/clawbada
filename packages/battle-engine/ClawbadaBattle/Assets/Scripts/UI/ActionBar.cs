@@ -74,6 +74,10 @@ public class ActionBar : MonoBehaviour
         bar.special = bar.Make(rt, "Special", skin.SpecialButton(0), new Vector2(h + pitch, row + h), size, () => bar.Press("special"), out bar.specialFeel, out bar.specialIcon);
         bar.defend = bar.Make(rt, "Defend", skin.actionDefend, new Vector2(h + pitch * 0.5f, h), size, () => bar.Press("defend"), out bar.defendFeel, out _);
         bar.wait = bar.Make(rt, "Wait", skin.actionWait, new Vector2(h + pitch * 1.5f, h), size, () => bar.Press("none"), out bar.waitFeel, out _);
+        bar.attackFeel.onHover = () => BattleSfx.PlayUiHover("attack");
+        bar.specialFeel.onHover = () => BattleSfx.PlayUiHover("special");
+        bar.defendFeel.onHover = () => BattleSfx.PlayUiHover("defend");
+        bar.waitFeel.onHover = () => BattleSfx.PlayUiHover("wait");
 
         // On the canvas, not the row: bottom-right under the clock, right-aligned so long lines grow leftwards.
         bar.hint = HudFactory.Text(parent, "Hint", skin.FontOrDefault(), 12, skin.textPrimary, TextAnchor.LowerRight, new Vector2(560f, 18f));
