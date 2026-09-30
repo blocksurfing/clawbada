@@ -365,6 +365,7 @@ MonoBehaviour:
     onTop: 0
     spawnAtContact: 0
     castSpeed: 0.5
+    windupPeakAt: 0.25
     shakeAmplitude: 0
     shakeSeconds: 0.3
     rowsCovered: 0
