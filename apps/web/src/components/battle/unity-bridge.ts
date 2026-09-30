@@ -39,6 +39,9 @@ export interface HexListData {
   /** The SELECTED (not yet confirmed) target's hex, -1 for none — painted as the pulsing target. */
   targetCol?: number;
   targetRow?: number;
+  /** The picked-but-uncommitted move destination (touch-move), -1 for none — painted pulsing teal. */
+  destCol?: number;
+  destRow?: number;
 }
 
 export interface BattleLobster {
@@ -321,7 +324,8 @@ export function selectionToData(
     hasMove: !!sel.moveTo,
     targetId: sel.targetId ?? '',
     targetCount: targets.length,
-    canUndo: !!sel.moveTo,
+    // Only an uncommitted pick can be dropped (the bar then says "tap again to move"); a committed move is final.
+    canUndo: !!sel.pendingMove,
     // The local hint (legality, "could not send") or the server's rejection — the bar draws it.
     hint: sel.hint ?? flags.error ?? '',
     hintIsError: sel.hint ? sel.hint.startsWith('Could not send') : !!flags.error,
