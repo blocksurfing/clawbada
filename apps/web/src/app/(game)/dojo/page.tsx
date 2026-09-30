@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { getArenaBackground } from '@/lib/assets';
 import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { Swords, Loader2, Dumbbell } from 'lucide-react';
+import { exitBattleFullscreen, requestBattleFullscreen } from '@/lib/battle-fullscreen';
 
 /**
  * The dojo: build any three-class team at any tier and purity and fight a bot with it.
@@ -78,6 +79,7 @@ export default function DojoPage() {
   }, []);
 
   const start = useCallback(async () => {
+    requestBattleFullscreen();   // must run inside the click; the battle view fills it as it loads
     setBusy(true);
     setErr(null);
     try {
@@ -91,6 +93,7 @@ export default function DojoPage() {
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not start the dojo battle');
       setBusy(false);
+      exitBattleFullscreen();
     }
   }, [team, tier, purity, bot, opponent, arena, getAuthHeaders, router]);
 

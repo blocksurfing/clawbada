@@ -378,3 +378,8 @@
   from { background-position: 0 0; }
   to { background-position: calc(var(--sprite-frames, 4) * var(--sprite-width, 32px) * -1) 0; }
 }
+
+/* A battle filling the fullscreen page (BattleStage, lib/battle-fullscreen.ts): the site's fixed chrome hides. */
+html[data-battle-fullscreen] [data-site-chrome] {
+  display: none !important;
+}
