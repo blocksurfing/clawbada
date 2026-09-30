@@ -21,10 +21,11 @@ public class ActionBar : MonoBehaviour
 
     /// <summary>Canvas units per art pixel: the 960x540 canvas over the 640x360 art frame.</summary>
     public const float ArtScale = 1.5f;
-    /// <summary>Hex spacing: the frame's hex is 42 art px wide in its 48 px cell, plus a 2 px gap.</summary>
-    private const float PitchArt = 44f;
-    /// <summary>Row spacing of the cluster: three quarters of the hex's height, plus a 2 px gap.</summary>
-    private const float RowArt = 37f;
+    /// <summary>Hex spacing: the frame's hex is 42 art px wide in its 48 px cell, plus a 4 px gap (was 2; user 2026-09-30:
+    /// "the 4 action buttons need a little more space").</summary>
+    private const float PitchArt = 46f;
+    /// <summary>Row spacing of the cluster: three quarters of the hex's height, plus a 4 px gap (was 2).</summary>
+    private const float RowArt = 39f;
     private const string CancelMoveHint = "Tap the hex again to move there. Moves are final";
     private const string HintsPref = "clawbada.hints";
 
