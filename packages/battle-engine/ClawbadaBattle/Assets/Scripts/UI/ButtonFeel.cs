@@ -16,6 +16,9 @@ public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     public Image glow;
     public Animator animator;
     public Color hoverGlow = new Color(1f, 1f, 0.9f, 0.55f);
+    /// <summary>Played once when the pointer comes onto a live (interactable) button — its hover click
+    /// (user 2026-09-30: SFX_UI_Hover_Attack / _Special / _Defend / _Wait). Null = silent.</summary>
+    public System.Action onHover;
 
     private Selectable sel;
     private bool over, down, armed;
@@ -32,7 +35,12 @@ public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         Apply();
     }
 
-    public void OnPointerEnter(PointerEventData e) { over = true; Apply(); }
+    public void OnPointerEnter(PointerEventData e)
+    {
+        over = true;
+        Apply();
+        if (sel == null || sel.interactable) onHover?.Invoke();   // only a button that lights up clicks
+    }
     public void OnPointerExit(PointerEventData e) { over = false; down = false; Apply(); }
     public void OnPointerDown(PointerEventData e) { down = true; Apply(); }
     public void OnPointerUp(PointerEventData e) { down = false; Apply(); }

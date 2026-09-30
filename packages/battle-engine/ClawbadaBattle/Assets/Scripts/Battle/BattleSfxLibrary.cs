@@ -136,6 +136,8 @@ public class BattleSfxLibrary : ScriptableObject
     public AudioClip introFight;
     [Tooltip("Battle-start intro: an obstacle landing on the board. SFX_UI_IntroObstacleLand[_01, _02 …] (optional; one take picked at random).")]
     public AudioClip[] introObstacleLand;
+    [Tooltip("Action button hover clicks (UI/SFX_UI_Hover_Attack / _Special / _Defend / _Wait).")]
+    public AudioClip uiHoverAttack, uiHoverSpecial, uiHoverDefend, uiHoverWait;
     [Tooltip("Battle-start intro: a lobster landing on its hex. SFX_UI_IntroLobsterLand[_01, _02 …] (optional; one take picked at random).")]
     public AudioClip[] introLobsterLand;
     [Tooltip("In-game UI opening (the options menu, confirm steps): Assets/Audio/SFX/UI/SFX_UI_Open.wav.")]
