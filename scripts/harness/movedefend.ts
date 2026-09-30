@@ -39,7 +39,8 @@ export default async function (b: Browser) {
   // DevTools "offline" emulation leaves an already-open socket alive.
   await b.send('Page.enable');
   await b.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__sockets = []; const W = window.WebSocket; window.WebSocket = function (...a) { const s = new W(...a); window.__sockets.push(s); return s; }; window.WebSocket.prototype = W.prototype; Object.assign(window.WebSocket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });` });
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${PRESET}`);
+  // SPEED (0.25-4) slows Unity's playback, e.g. to catch a 0.33 s effect in screenshots.
+  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${PRESET}${process.env.SPEED ? `&speed=${process.env.SPEED}` : ''}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);
@@ -90,7 +91,12 @@ export default async function (b: Browser) {
         const picked = await sel(b);
         expect(!!picked?.pendingMove && !picked?.moveTo, `turn ${turnBefore}: the first tap only picks the hex (pending=${JSON.stringify(picked?.pendingMove)} moveTo=${JSON.stringify(picked?.moveTo)})`);
         await b.clickAt(p.x, p.y); moved = true;
-        await b.sleep(1200);   // walk (0.35 s/hex) + SetSelection round trip
+        if (process.env.ARRIVAL_SHOTS && played === 0) {
+          // Frame burst through the walk and its arrival ring (FRAMES of the committed move, ~120 ms apart).
+          for (let f = 0; f < 12; f++) { await b.screenshot(`${S}/arrival-f${String(f).padStart(2, '0')}.png`); await b.sleep(60); }
+          await b.sleep(800);
+          for (const l of grab(b, /IntroDust\] ring|LobsterController\] move /)) console.log('[movedefend] ', l.slice(0, 140));
+        } else await b.sleep(1200);   // walk (0.35 s/hex) + SetSelection round trip
         const locked = await sel(b);
         expect(!!locked?.moveLocked && locked?.moveTo?.col === mv.col && locked?.moveTo?.row === mv.row, `turn ${turnBefore}: the second tap commits the move`);
         // Any other hex now: the move is final.
