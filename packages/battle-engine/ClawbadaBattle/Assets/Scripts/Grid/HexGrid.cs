@@ -464,7 +464,9 @@ public class HexGrid : MonoBehaviour
             pulseFrom = MoveTint; pulseTo = DestPulse;
         }
         if (data.originCol >= 0 && data.originRow >= 0 && claimed.Add((data.originCol, data.originRow)))
-            PaintHighlight(data.originCol, data.originRow, selectedTile, SelectedTint);
+            // Nzib's hex_selected art under the lobster whose turn it is, in its own colours (2026-09-30: "why don't u
+            // use this selected hex, for current player's character turn") — the gold tint turned his blue hex green.
+            PaintHighlight(data.originCol, data.originRow, selectedTile, Color.white);
 
         foreach (var h in data.enemyTargets)
             if (claimed.Add((h.col, h.row))) PaintHighlight(h.col, h.row, attackTile, AttackTint);
@@ -495,7 +497,7 @@ public class HexGrid : MonoBehaviour
     private static readonly Color MoveTint = new Color(0.45f, 0.95f, 0.85f, 1f);     // teal — reachable cell
     private static readonly Color AttackTint = new Color(1f, 0.55f, 0.5f, 1f);       // coral — enemy in range
     private static readonly Color AllyTint = new Color(0.55f, 0.95f, 0.55f, 1f);     // green — ally target
-    private static readonly Color SelectedTint = new Color(1f, 0.85f, 0.45f, 1f);    // gold — the actor's cell
+    private static readonly Color SelectedTint = new Color(1f, 0.85f, 0.45f, 1f);    // gold — (unused for the actor's cell: his art shows untinted)
     // The selected target pulses between a hot orange and a pale yellow, so it can never be read as
     // just another coral option (or as the actor's gold cell).
     private static readonly Color TargetTint = new Color(1f, 0.45f, 0.15f, 1f);
