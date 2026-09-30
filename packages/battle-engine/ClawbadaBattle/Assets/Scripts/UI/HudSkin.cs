@@ -84,6 +84,23 @@ public class HudSkin : ScriptableObject
     public Sprite settingsHex;
     public Sprite orderHex;
 
+    [Header("Nzib's HUD — drop 25d2fbe (2026-09-30): badges, timer card, settings button")]
+    [Tooltip("Turn-order badges 1–6 (Avatar/OrderingBadge.png → OrderingBadge_1 … _6), swapped onto AvatarUI/OrderingBadge.")]
+    public Sprite[] orderBadges = new Sprite[6];
+    [Tooltip("Class badge per class, indexed by classId (Avatar/ClassBadge.png → ClassBadge_<Class>), on AvatarUI/ClassBadge.")]
+    public Sprite[] classBadges = new Sprite[10];
+    [Tooltip("Prefabs/UI/TimerCard/TimerCardUI.prefab: Frame + radial Indicator + Number (visual only).")]
+    public GameObject timerCardPrefab;
+    [Tooltip("Timer outline per state (Timer_Indicator.png): Green, Yellow, Orange, Red.")]
+    public Sprite[] timerIndicators = new Sprite[4];
+    [Tooltip("Settings button (SettingsButton.png): Normal, Pressed.")]
+    public Sprite settingsNormal;
+    public Sprite settingsPressed;
+
+    public Sprite OrderBadge(int n) => orderBadges != null && n >= 1 && n <= orderBadges.Length ? orderBadges[n - 1] : null;
+    public Sprite ClassBadge(int classId) =>
+        classBadges != null && classId >= 0 && classId < classBadges.Length ? classBadges[classId] : null;
+
     public Sprite SpecialButton(int classId) =>
         specialButtons != null && classId >= 0 && classId < specialButtons.Length ? specialButtons[classId] : null;
 

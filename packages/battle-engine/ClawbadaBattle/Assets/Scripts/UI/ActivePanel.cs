@@ -11,8 +11,9 @@ using UnityEngine.UI;
 /// No HP numbers: humans read the bars, agents get exact numbers from the API.
 /// One panel per lobster, all six on screen (TeamPanels, Nzib's layout 2026-09-28): his animated outline marks the
 /// lobster acting now (white) and the selected-but-unconfirmed target (orange), and a small hex carries the panel's
-/// place in the upcoming turn order (1 = acting now) — the same order agents read from the API. Class icon and Nzib's
-/// status icons are still being designed; statuses use the current icons beside the bars until then.
+/// place in the upcoming turn order (1 = acting now) — the same order agents read from the API. Drop 25d2fbe
+/// (2026-09-30): the order number is his OrderingBadge (sprite per place, 1–6) and his ClassBadge sits right of the MP
+/// bar; statuses (current icons until his land) start just right of the class badge.
 /// </summary>
 public class ActivePanel : MonoBehaviour
 {
@@ -55,10 +56,14 @@ public class ActivePanel : MonoBehaviour
     private Image outline;
     private Image orderHex;
     private Text orderText;
+    private Image orderBadge, classBadge;   // Nzib's (drop 25d2fbe); orderHex/orderText are the fallback
     private RawImage portrait, portraitPop;
     private RectTransform statusRow;
     private readonly List<Image> statusIcons = new();
     private const float IconSize = 16f;
+    /// <summary>Status icons per row right of the class badge before wrapping upward (the panel ends ~20 design px on).</summary>
+    private const int IconsPerRow = 2;
+    private bool statusBesideBadge;
 
     /// <param name="corner">Anchor and pivot on the canvas (e.g. (0,0) bottom-left, (1,1) top-right).</param>
     public static ActivePanel Create(Transform parent, string name, HudSkin skin, PortraitSnapshot portraits, Vector2 corner, Vector2 pos)
@@ -104,8 +109,22 @@ public class ActivePanel : MonoBehaviour
             pop.gameObject.AddComponent<Mask>().showMaskGraphic = false;
             p.portraitPop = Raw(pop.transform, "Portrait", Vector2.zero);
         }
-        // Turn-order hex on the portrait ring's top-left (design (-44, 13)), above everything.
-        if (skin.orderHex != null)
+        // His badges: drawn over the break-out claws (they are part of the frame's read), bound per lobster.
+        p.orderBadge = ui.Find("OrderingBadge")?.GetComponent<Image>();
+        p.classBadge = ui.Find("ClassBadge")?.GetComponent<Image>();
+        if (p.orderBadge != null) { p.orderBadge.transform.SetAsLastSibling(); p.orderBadge.gameObject.SetActive(false); }
+        if (p.classBadge != null)
+        {
+            p.classBadge.transform.SetAsLastSibling();
+            // His note: statuses must not overlap the badge. Badge = 16 px at (28, -6) → start the row just right of
+            // it (design x 37), centred on it; icons wrap upward two to a row.
+            var sr = p.statusRow;
+            sr.pivot = new Vector2(0f, 0f);
+            sr.anchoredPosition = new Vector2(37f, -6f) * ActionBar.ArtScale - new Vector2(0f, IconSize * 0.5f);
+            p.statusBesideBadge = true;
+        }
+        // Fallback turn-order hex (placeholder) on the portrait ring's top-left (design (-44, 13)), above everything.
+        if (p.orderBadge == null && skin.orderHex != null)
         {
             p.orderHex = HudFactory.Image(rt, "Order", skin.orderHex, Color.white, skin.orderHex.rect.size * ActionBar.ArtScale);
             p.orderHex.rectTransform.anchoredPosition = new Vector2(-44f, 13f) * ActionBar.ArtScale;
@@ -136,6 +155,12 @@ public class ActivePanel : MonoBehaviour
         var bg = skin.AvatarBg(lob.classId);
         if (bg != null && classBg != null) classBg.sprite = bg;
         ShownClass = lob.classId;
+        if (classBadge != null)
+        {
+            var badge = skin.ClassBadge(lob.classId);
+            if (badge != null) classBadge.sprite = badge;
+            classBadge.gameObject.SetActive(badge != null);
+        }
 
         var pic = portraits?.Get(lob, PortraitDrop);   // taken once at battle load; this only looks it up
         if (portrait != null) { portrait.texture = pic?.Full; portrait.enabled = pic != null; }
@@ -154,10 +179,17 @@ public class ActivePanel : MonoBehaviour
         if (outline.gameObject.activeSelf != on) outline.gameObject.SetActive(on);
     }
 
-    /// <summary>Place in the upcoming turn order (1 = acting now); 0 hides the hex.</summary>
+    /// <summary>Place in the upcoming turn order (1 = acting now); 0 hides the badge.</summary>
     public void SetOrder(int n)
     {
         Order = n;
+        if (orderBadge != null)
+        {
+            var sp = skin.OrderBadge(n);
+            if (sp != null) orderBadge.sprite = sp;
+            orderBadge.gameObject.SetActive(n > 0 && sp != null);
+            return;
+        }
         if (orderHex == null) return;
         orderHex.gameObject.SetActive(n > 0);
         if (n > 0) orderText.text = n.ToString();
@@ -211,7 +243,9 @@ public class ActivePanel : MonoBehaviour
             statusIcons[i].enabled = on;
             if (!on) continue;
             statusIcons[i].sprite = sprites[i];
-            statusIcons[i].rectTransform.anchoredPosition = new Vector2(i * (IconSize + 1f), 0f);
+            statusIcons[i].rectTransform.anchoredPosition = statusBesideBadge
+                ? new Vector2(i % IconsPerRow * (IconSize + 1f), i / IconsPerRow * (IconSize + 1f))
+                : new Vector2(i * (IconSize + 1f), 0f);
         }
     }
 }

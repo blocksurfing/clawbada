@@ -100,6 +100,32 @@ MonoBehaviour:
   timerHex: {fileID: 21300000, guid: 25da7ba7c13fc49f49adf3f8b51bb590, type: 3}
   settingsHex: {fileID: 21300000, guid: 3d18b7a21507d41e1b887878a17e825b, type: 3}
   orderHex: {fileID: 21300000, guid: 6576660b42ca2476099db7a494dc5f06, type: 3}
+  orderBadges:
+  - {fileID: 586508877, guid: 9aa20726d6c0b18f5f3dba6cb49f4b63, type: 3}
+  - {fileID: 1444352936, guid: 9aa20726d6c0b18f5f3dba6cb49f4b63, type: 3}
+  - {fileID: 169110437, guid: 9aa20726d6c0b18f5f3dba6cb49f4b63, type: 3}
+  - {fileID: 345363208, guid: 9aa20726d6c0b18f5f3dba6cb49f4b63, type: 3}
+  - {fileID: 1159805342, guid: 9aa20726d6c0b18f5f3dba6cb49f4b63, type: 3}
+  - {fileID: 144558418, guid: 9aa20726d6c0b18f5f3dba6cb49f4b63, type: 3}
+  classBadges:
+  - {fileID: 302617287, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  - {fileID: -163044599, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  - {fileID: -1398838766, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  - {fileID: -238609529, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  - {fileID: 226261090, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  - {fileID: 20408931, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  - {fileID: 1769058452, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  - {fileID: 931134078, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  - {fileID: -1705274936, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  - {fileID: -1274803793, guid: 09c142e7e8916c1408bd30aa515d11c4, type: 3}
+  timerCardPrefab: {fileID: 6438763134508682023, guid: a70eae117d0541540b5de9dd23d3a02c, type: 3}
+  timerIndicators:
+  - {fileID: 987146552, guid: 16e0648847bd6424eb11db7455dfce92, type: 3}
+  - {fileID: 1062690419, guid: 16e0648847bd6424eb11db7455dfce92, type: 3}
+  - {fileID: 2004357151, guid: 16e0648847bd6424eb11db7455dfce92, type: 3}
+  - {fileID: -1389930917, guid: 16e0648847bd6424eb11db7455dfce92, type: 3}
+  settingsNormal: {fileID: -5228007558302363713, guid: f5e2a1811dec3784799e432edf798c87, type: 3}
+  settingsPressed: {fileID: -6215808793854141569, guid: f5e2a1811dec3784799e432edf798c87, type: 3}
   cardFrame: {fileID: 21300000, guid: 22a19b238309e443eb0e5294fe0ebfcb, type: 3}
   cardHeader: {fileID: 21300000, guid: 9e9164114ed374d988f13e03c4c4a70a, type: 3}
   pennant: {fileID: 21300000, guid: 9d8c0ae792c9649fead6141e3708912b, type: 3}
