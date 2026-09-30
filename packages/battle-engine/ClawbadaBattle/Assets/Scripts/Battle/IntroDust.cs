@@ -23,18 +23,7 @@ public static class IntroDust
     public static void Burst(MonoBehaviour host, Vector3 at, int sortingOrder, float size)
     {
         if (host == null) return;
-        if (LandingPrefab != null)
-        {
-            // His ring lies on the floor: the GROUND band (under every row's actors), centred on the landing hex.
-            var fx = Object.Instantiate(LandingPrefab, at, Quaternion.identity);
-            fx.name = "IntroLanding";
-            fx.transform.localScale = Vector3.one * size;
-            var sg = fx.GetComponent<SortingGroup>();
-            if (sg == null) sg = fx.AddComponent<SortingGroup>();   // never ?? on a UnityEngine.Object
-            sg.sortingLayerName = DepthSort.Layer;
-            sg.sortingOrder = DepthSort.GroundOrder;
-            return;
-        }
+        if (LandingPrefab != null) { Ring(LandingPrefab, at, size, 1f); return; }
         var root = new GameObject("IntroDust");
         root.transform.position = at;
         var group = root.AddComponent<SortingGroup>();
@@ -51,6 +40,23 @@ public static class IntroDust
             host.StartCoroutine(Blob(root.transform, dir * speed, scale, Random.Range(0.45f, 0.65f)));
         }
         host.StartCoroutine(DestroyAfter(root, 0.8f));
+    }
+
+    /// <summary>Nzib's shockwave ring on the floor at <paramref name="at"/>: the GROUND band (under every row's
+    /// actors), scaled and faded as asked. Used by the intro landings and, small and faint, where a walk ends.</summary>
+    public static void Ring(GameObject prefab, Vector3 at, float scale, float alpha)
+    {
+        if (prefab == null) return;
+        var fx = Object.Instantiate(prefab, at, Quaternion.identity);
+        fx.name = "LandingRing";
+        fx.transform.localScale = Vector3.one * scale;
+        if (alpha < 1f)
+            foreach (var sr in fx.GetComponentsInChildren<SpriteRenderer>()) { var c = sr.color; c.a *= alpha; sr.color = c; }
+        var sg = fx.GetComponent<SortingGroup>();
+        if (sg == null) sg = fx.AddComponent<SortingGroup>();   // never ?? on a UnityEngine.Object
+        sg.sortingLayerName = DepthSort.Layer;
+        sg.sortingOrder = DepthSort.GroundOrder;
+        Debug.Log($"[IntroDust] ring {prefab.name} at ({at.x:F2},{at.y:F2}) scale {scale:F2} alpha {alpha:F2}");
     }
 
     private static IEnumerator Blob(Transform parent, Vector2 velocity, float scale, float life)
