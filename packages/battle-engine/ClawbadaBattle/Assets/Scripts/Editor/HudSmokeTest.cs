@@ -89,6 +89,13 @@ public static class HudSmokeTest
             Check(a1.currentHp == 300 && a1.charge == 3 && a1.statuses.Count == 1 && a1.statuses[0].type == "bleed", "SyncUnits applied hp/charge/statuses");
             Check(manager.GetLobster("B1").alive == false, "SyncUnits marks B1 dead");
             Check(hud.Overlays["A2"].Lobster.defending, "defending flag synced");
+            // Nzib's status badges (drop 36c7068): A1 bleeds → Bleeding; A2 defends → Defense; B1 is dead → none.
+            var skinS = hud.Skin;
+            string Badges(string id) => string.Join(",", hud.Teams.PanelFor(id).ActiveBadges.Select(b => b != null ? b.name : "null"));
+            Check(hud.Teams.PanelFor("A1").ActiveBadges.Count == 1 && hud.Teams.PanelFor("A1").ActiveBadges[0] == skinS.statusBleeding, $"A1's panel shows the Bleeding badge (got {Badges("A1")})");
+            Check(hud.Teams.PanelFor("A2").ActiveBadges.Contains(skinS.statusDefense), $"A2's panel shows the Defense badge (got {Badges("A2")})");
+            Check(hud.Teams.PanelFor("B1").ActiveBadges.Count == 0, $"the dead B1 shows no badges (got {Badges("B1")})");
+            Check(skinS.StatusBadge("fortify") == skinS.StatusBadge("reflect") && skinS.StatusBadge("stun") == skinS.statusBlockedTurn && skinS.StatusBadge("slow") == skinS.statusDebuff, "status → badge mapping");
 
             int nullSprites = 0, nullFonts = 0, images = 0, texts = 0;
             foreach (var img in hud.Canvas.GetComponentsInChildren<Image>(true))

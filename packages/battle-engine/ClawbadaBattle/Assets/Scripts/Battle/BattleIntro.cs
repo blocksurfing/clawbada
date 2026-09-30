@@ -227,13 +227,18 @@ public static class BattleIntro
         if (t == null) { done(); yield break; }
         t.localScale = home.scale;
         var top = home.pos + Vector3.up * height;
+        // A lobster's shadow waits on its landing hex and grows as the body falls onto it.
+        var lob = t.GetComponent<LobsterController>();
+        if (lob != null) { lob.ShadowGround = home.pos; lob.ShadowScale = 0.25f; }
         for (float e = 0f; e < time && !skipped() && t != null; e += Time.unscaledDeltaTime)
         {
             float k = e / time;
             t.position = Vector3.Lerp(top, home.pos, k * k);
+            if (lob != null) lob.ShadowScale = Mathf.Lerp(0.25f, 1f, k * k);
             yield return null;
         }
         if (t != null) t.position = home.pos;
+        if (lob != null) { lob.ShadowGround = null; lob.ShadowScale = 1f; }
         done();   // the landing: dust, shake, thud
         for (float e = 0f; e < 0.14f && !skipped() && t != null; e += Time.unscaledDeltaTime)
         {

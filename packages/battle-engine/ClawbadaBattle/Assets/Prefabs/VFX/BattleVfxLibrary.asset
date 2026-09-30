@@ -163,6 +163,7 @@ MonoBehaviour:
     yOffset: 0
     swingOnImpact: 0
   introLanding: {fileID: 1381161979853175308, guid: 561f2d0073a754dda89bca2f21078cf2, type: 3}
+  characterShadow: {fileID: 3064682910243802885, guid: ba0a7817b52496d469869faada139dd2, type: 3}
   specialByClass:
   - prefab: {fileID: 7387653704767747260, guid: 70c7a829feea7e847931fe76269421df, type: 3}
     anchor: 2

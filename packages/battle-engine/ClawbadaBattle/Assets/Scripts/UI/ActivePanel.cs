@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -60,6 +61,18 @@ public class ActivePanel : MonoBehaviour
     private RawImage portrait, portraitPop;
     private RectTransform statusRow;
     private readonly List<Image> statusIcons = new();
+    // Nzib's compact StatusRow (drop 36c7068): three slots in a 2×2 block with the class badge —
+    // [ClassBadge][Slot1] / [Slot2][Slot3]. When bound, it replaces the legacy row above.
+    private GameObject badgeRow;
+    private Image[] badgeSlots;
+    private readonly List<Sprite> badgeList = new();
+    private int rotateAt;              // index into badgeList shown in slot 3 while more than three are active
+    private float nextRotate;
+    /// <summary>More than three statuses: slots 1–2 hold the top two by priority, slot 3 cycles through the rest
+    /// (user 2026-09-30: "cycle through what's active … every 5 seconds a new one takes the place").</summary>
+    public const float RotateSeconds = 5f;
+    /// <summary>The badges currently active on this panel, in display priority (harness / tests).</summary>
+    public IReadOnlyList<Sprite> ActiveBadges => badgeList;
     private const float IconSize = 16f;
     /// <summary>Status icons per row right of the class badge before wrapping upward (the panel ends ~20 design px on).</summary>
     private const int IconsPerRow = 2;
@@ -133,6 +146,18 @@ public class ActivePanel : MonoBehaviour
             p.orderHex.gameObject.SetActive(false);
         }
         p.statusRow.SetAsLastSibling();
+        var row = ui.Find("StatusRow");
+        if (row != null && skin.statusBleeding != null)
+        {
+            p.badgeRow = row.gameObject;
+            p.badgeSlots = new[] { "StatusSlot1", "StatusSlot2", "StatusSlot3" }
+                .Select(n => row.Find(n)?.GetComponent<Image>()).ToArray();
+            var overflow = row.Find("StatusSlot3/OverflowLabel");
+            if (overflow != null) overflow.gameObject.SetActive(false);   // we cycle instead of "+N"
+            row.SetAsLastSibling();                                        // over the break-out claws
+            p.badgeRow.SetActive(false);                                   // shown once a status is bound
+            p.statusRow.gameObject.SetActive(false);                       // never both rows (his handoff)
+        }
         rt.gameObject.SetActive(false);
         return p;
     }
@@ -220,7 +245,9 @@ public class ActivePanel : MonoBehaviour
         if (portrait != null) portrait.color = tint;
         if (portraitPop != null) portraitPop.color = tint;
 
-        // Status row: the defending shield first, then up to three statuses (current icons until Nzib's land).
+        if (badgeRow != null) { RefreshBadges(lob); return; }
+
+        // Legacy status row (no StatusRow in the prefab): the defending shield first, then up to three statuses.
         var sprites = new List<Sprite>(4);
         if (lob.alive && lob.defending && skin.iconShield != null) sprites.Add(skin.iconShield);
         if (lob.alive && lob.statuses != null)
@@ -247,5 +274,52 @@ public class ActivePanel : MonoBehaviour
                 ? new Vector2(i % IconsPerRow * (IconSize + 1f), i / IconsPerRow * (IconSize + 1f))
                 : new Vector2(i * (IconSize + 1f), 0f);
         }
+    }
+
+    /// <summary>Nzib's badges from the lobster's live statuses: defending counts as a status; statuses that share a
+    /// badge (fortify + reflect) show once; ordered by HudSkin.StatusPriority.</summary>
+    private void RefreshBadges(LobsterController lob)
+    {
+        var types = new List<string>();
+        if (lob.alive && lob.defending) types.Add("defending");
+        if (lob.alive && lob.statuses != null) foreach (var st in lob.statuses) if (st != null) types.Add(st.type);
+        types.Sort((a, b) => HudSkin.StatusPriority(a).CompareTo(HudSkin.StatusPriority(b)));
+        var list = new List<Sprite>();
+        foreach (var t in types)
+        {
+            var sp = skin.StatusBadge(t);
+            if (sp != null && !list.Contains(sp)) list.Add(sp);
+        }
+        bool changed = list.Count != badgeList.Count;
+        for (int i = 0; !changed && i < list.Count; i++) changed = list[i] != badgeList[i];
+        if (!changed) return;
+        badgeList.Clear();
+        badgeList.AddRange(list);
+        rotateAt = 2;
+        nextRotate = Time.unscaledTime + RotateSeconds;
+        ShowBadges();
+    }
+
+    private void ShowBadges()
+    {
+        badgeRow.SetActive(badgeList.Count > 0);
+        for (int i = 0; i < badgeSlots.Length; i++)
+        {
+            var slot = badgeSlots[i];
+            if (slot == null) continue;
+            Sprite sp = i < 2 ? (i < badgeList.Count ? badgeList[i] : null)
+                              : badgeList.Count > 2 ? badgeList[Mathf.Clamp(rotateAt, 2, badgeList.Count - 1)] : null;
+            slot.enabled = sp != null;   // his note: toggle the Image, not the slot GameObject
+            if (sp != null) slot.sprite = sp;
+        }
+    }
+
+    void Update()
+    {
+        // Slot 3 cycles through everything past the top two, every RotateSeconds, while more than three are active.
+        if (badgeRow == null || badgeList.Count <= 3 || Time.unscaledTime < nextRotate) return;
+        nextRotate = Time.unscaledTime + RotateSeconds;
+        rotateAt = rotateAt + 1 >= badgeList.Count ? 2 : rotateAt + 1;
+        ShowBadges();
     }
 }
