@@ -28,6 +28,8 @@ public class BattleHud : MonoBehaviour
     public ClockView Clock { get; private set; }
     /// <summary>Top-left hexes (settings, timer) — design px 48 at 1.25.</summary>
     private const float HexSize = 60f;
+    private float TimerSize => Skin != null && Skin.timerCardPrefab != null ? 48f * ActionBar.ArtScale : HexSize;
+    private float GearSize => Skin != null && Skin.settingsNormal != null ? 32f * ActionBar.ArtScale : HexSize;
 
     /// <summary>Run the shot clock on the player's turn; otherwise the hex stays, dimmed and empty.</summary>
     private void SetClock(int remainingMs)
@@ -144,10 +146,12 @@ public class BattleHud : MonoBehaviour
         overlayLayer = HudFactory.Stretch(canvasRect, "Overlays");
         Portraits = ActivePanel.NewPortraits();
         Teams = TeamPanels.Create(canvasRect, skin, Portraits);
-        // Top-left: the settings hex (Options, below) then the timer hex beside it.
-        Clock = ClockView.Create(canvasRect, "Clock", skin, HexSize, 24);
+        // Top-left: the settings button (Options, below) then the timer beside it. With Nzib's art (drop 25d2fbe) both
+        // are drawn at his design size — timer card 48 px, settings button 32 px, ×ArtScale — the button centred on
+        // the card's height; the placeholders keep one hex size.
+        Clock = ClockView.Create(canvasRect, "Clock", skin, TimerSize, 24);
         Clock.Rect.anchorMin = Clock.Rect.anchorMax = Clock.Rect.pivot = new Vector2(0f, 1f);
-        Clock.Rect.anchoredPosition = new Vector2(TeamPanels.Edge + HexSize + 6f, -TeamPanels.Edge);
+        Clock.Rect.anchoredPosition = new Vector2(TeamPanels.Edge + GearSize + 6f, -TeamPanels.Edge);
         // LOKR-style: the selected target carries a small copy of the armed action's button above it.
         // Clickable (user 2026-09-27): tapping the badge confirms the selected target, exactly like pressing
         // the armed action again — so it is raycast-on and forwards the armed action to React.
@@ -178,7 +182,7 @@ public class BattleHud : MonoBehaviour
         Bar.PlaceHint(new Vector2(-TeamPanels.Edge, TeamPanels.Edge + Bar.Height + 4f));
         bridge = FindFirstObjectByType<BattleBridge>();
         Bar.ActionPressed += a => bridge?.NotifyActionSelected(a);
-        Options = OptionsMenu.Create(canvasRect, skin, new Vector2(TeamPanels.Edge, -TeamPanels.Edge), HexSize);
+        Options = OptionsMenu.Create(canvasRect, skin, new Vector2(TeamPanels.Edge, -TeamPanels.Edge - (TimerSize - GearSize) * 0.5f), GearSize);
         Options.ForfeitConfirmed += () => bridge?.NotifyForfeit();
         Options.MusicToggled += on => bridge?.NotifyAudioPref("music", on);
         Options.SfxToggled += on => bridge?.NotifyAudioPref("sfx", on);

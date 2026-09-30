@@ -78,9 +78,24 @@ public static class NzibHudBinder
         skin.settingsHex = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("hud_settings_hex", FilledFrame(skin.actionFrame, new Color32(0x3a, 0x2c, 0x26, 0xff), new Color32(0x5a, 0x45, 0x38, 0xff))));
         skin.orderHex = HudArtGenerator.LoadSprite(HudArtGenerator.WritePng("hud_order_hex", OrderHex()));
 
+        // Drop 25d2fbe (2026-09-30): his badges, timer card and settings button replace the placeholders above
+        // wherever they are bound (the placeholders stay generated as the fallback).
+        var orderSheet = Sheet("Assets/Art/UI/Avatar/OrderingBadge.png");
+        var classSheet = Sheet("Assets/Art/UI/Avatar/ClassBadge.png");
+        var timerSheet = Sheet("Assets/Art/UI/Timer_Indicator.png");
+        var gearSheet = Sheet("Assets/Art/UI/SettingsButton.png");
+        skin.orderBadges = Enumerable.Range(1, 6).Select(n => Find(orderSheet, $"OrderingBadge_{n}")).ToArray();
+        skin.classBadges = LobsterClasses.Names.Select(c => Find(classSheet, $"ClassBadge_{c}")).ToArray();
+        skin.timerCardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/TimerCard/TimerCardUI.prefab");
+        skin.timerIndicators = new[] { "Green", "Yellow", "Orange", "Red" }.Select(c => Find(timerSheet, $"Timer_Indicator_{c}")).ToArray();
+        skin.settingsNormal = Find(gearSheet, "SettingsButton_Normal");
+        skin.settingsPressed = Find(gearSheet, "SettingsButton_Pressed");
+        int nOrder = skin.orderBadges.Count(s => s != null), nClass = skin.classBadges.Count(s => s != null), nTimer = skin.timerIndicators.Count(s => s != null);
+
         EditorUtility.SetDirty(skin);
         AssetDatabase.SaveAssets();
-        string msg = $"[NzibHudBinder] OK — prefabs avatar+button, frame + 3 icons, specials {specials}/10, class BGs {nBg}/10, HP states 4/4, glow + pop mask generated";
+        string msg = $"[NzibHudBinder] OK — prefabs avatar+button, frame + 3 icons, specials {specials}/10, class BGs {nBg}/10, HP states 4/4, glow + pop mask generated" +
+                     $" | order badges {nOrder}/6, class badges {nClass}/10, timer card {(skin.timerCardPrefab != null ? "✓" : "—")} states {nTimer}/4, settings {(skin.settingsNormal != null && skin.settingsPressed != null ? "✓" : "—")}";
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
     }
