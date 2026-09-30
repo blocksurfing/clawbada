@@ -4,7 +4,7 @@
 
 Universal visual-only uGUI prefab: `Assets/Prefabs/UI/Avatar/AvatarUI.prefab`.
 No Avatar battle scene, existing HUD, or gameplay script integration. The accompanying ActionButton migration only updates the normal-frame reference in HudSkin and its editor binder. Existing `Assets/Art/UI/Avatar.png` is preserved.
-Includes the exported frame sheet, class backgrounds, four-state HP fill sheet, MP fill, and the ordering badge sheet. Portraits and status icons are not supplied or fabricated. No HP thresholds, runtime class/state mapping, or unit-order mapping are implemented.
+Includes the exported frame sheet, class backgrounds, four-state HP fill sheet, MP fill, ordering badge sheet, and class badge sheet. Portraits and status icons are not supplied or fabricated. No HP thresholds, runtime class/state mapping, or unit-order mapping are implemented.
 
 ## Layout
 
@@ -18,6 +18,7 @@ Sibling draw order (back to front):
 4. `HPFill`: 64 x 32, position (15, 9), `HP_Healthy` by default.
 5. `MPFill`: 32 x 32, position (1, -12), `MP_Fill`.
 6. `OrderingBadge`: 16 x 16, position **(-46, 10)**, `OrderingBadge_1` by default. This is above the frame/bars and is a sprite swap target for battle order `1` through `6`.
+7. `ClassBadge`: 16 x 16, center-anchored position **(28, -6)**, centered pivot, unit scale, `ClassBadge_Bulwark` as preview/default only. Simple Image, preserveAspect=true, raycastTarget=false. Positioned to the right of the MP bar, before the green status arrow shown in the artist's mockup. The arrow itself is not added to this visual prefab. Existing children, including the manually tuned OrderingBadge, are unchanged.
 
 The fills are above Frame because Frame includes opaque dark bar backings. Their nontransparent pixels sit fully within those backings and do not cover the colored border at full fill. Both use Image.Type.Filled / Horizontal / Left, fillAmount=1, with raycastTarget=false. Preserve rect sizes/positions when swapping HP sprites. Canvas padding is retained: fillAmount clips the full sprite rect, not an exact curved-area percentage.
 
@@ -61,6 +62,27 @@ Names: `Avatar_BG_<Class>`.
 6. `OrderingBadge_6`
 
 Developer hookup: swap `OrderingBadge`'s Image.sprite from the current battle/unit ordering data. The badge is visible by default as `OrderingBadge_1`; disable the GameObject or clear the sprite only if a screen state intentionally has no displayed order number.
+
+## Class badge slices and integration boundary
+
+`Assets/Art/UI/Avatar/ClassBadge.png`: 160 x 16, ten 16 x 16 cells, left-to-right in the artist-confirmed order:
+
+1. `ClassBadge_Bulwark`
+2. `ClassBadge_Mantis`
+3. `ClassBadge_Leviathan`
+4. `ClassBadge_Tempest`
+5. `ClassBadge_Specter`
+6. `ClassBadge_Sentinel`
+7. `ClassBadge_Reaver`
+8. `ClassBadge_Abyss`
+9. `ClassBadge_Kraken`
+10. `ClassBadge_Ember`
+
+Unity slice rects are (x, 0, 16, 16), with x = 0, 16, 32, 48, 64, 80, 96, 112, 128, 144. Center pivots, 64 PPU, Point filter, uncompressed, no mipmaps, Full Rect mesh. The source export is copied unchanged.
+
+Developer hookup still required: map `ClassBadge`'s Image.sprite from the unit's class, alongside ClassBackground. **Bulwark is only the serialized preview/default, not an automatic runtime class mapping.** Current ActivePanel instantiation does not bind this new child. Shift the runtime status icons/green arrow to the right of the badge so they do not overlap it; the existing status row starts around design (20, -13) and must not be assumed compatible with the new badge. This patch does not modify ActivePanel, status layout code, or any gameplay/runtime scripts.
+
+ClassBadge validation used a temporary Unity Editor API helper: loaded all ten imported Sprite sub-assets and checked their names, rects, pivots, PPU, GUID/local IDs and importer settings; saved and reloaded the prefab; verified the Bulwark sprite reference, badge geometry, and all six existing child states. The helper was removed after verification. No screenshots, generated previews, playtesting, or rendered visual approval were performed; Nzib owns final visual QA and runtime status spacing remains a developer integration task.
 
 ## Selected animation
 
