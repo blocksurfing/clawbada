@@ -285,9 +285,17 @@ public class LobsterController : MonoBehaviour
         }
 
         BattleSfx.StopMove();
+        // Where the walk ends (user 2026-09-30): Nzib's shockwave, small and faint — it marks the move landing (with
+        // touch-move, the moment it became final) without the stomp a full ring on every hop would read as.
+        if (path.Count > 0 && vfx != null && vfx.introLanding != null)
+            IntroDust.Ring(vfx.introLanding, transform.position, MoveArrivalScale, MoveArrivalAlpha);
         FaceEnemySide();
         PlayState("Idle");
     }
+
+    /// <summary>The arrival ring at the end of a walk. It must reach past the lobster to read (0.6 and 1.0 hid under its body
+    /// entirely); the intro's landing is 1.25 at full strength, this one is fainter.</summary>
+    public const float MoveArrivalScale = 1.3f, MoveArrivalAlpha = 0.5f;
 
     /// <summary>True when this rig's controller has the named state (a missing one would hold Idle).</summary>
     public bool HasState(string stateName)
