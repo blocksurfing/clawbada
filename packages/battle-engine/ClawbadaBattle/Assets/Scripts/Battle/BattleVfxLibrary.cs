@@ -111,6 +111,9 @@ public class BattleVfxLibrary : ScriptableObject
     public VfxSlot moveStep = new() { anchor = AnchorPoint.ActorFeet };
     [Tooltip("Spawned on the target of heals/buffs/debuffs.")]
     public VfxSlot status = new() { anchor = AnchorPoint.TargetFeet };
+    [Tooltip("Battle-start intro: played on the floor where each obstacle and lobster lands (Nzib 2026-09-30: his " +
+             "FX_Generic_Shockwave). Empty = the procedural dust puff.")]
+    public GameObject introLanding;
 
     [Header("Special windups (index = classId; falls back to Attack Windup)")]
     [Tooltip("0 Bulwark, 1 Mantis, 2 Leviathan, 3 Tempest, 4 Specter, 5 Sentinel, 6 Reaver, 7 Abyss, 8 Kraken, 9 Ember")]
