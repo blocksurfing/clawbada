@@ -329,7 +329,7 @@ MonoBehaviour:
     impactLead: 0
     lingerSeconds: 0
     alsoOnStatus: 
-    yOffset: 0
+    yOffset: 0.3
     swingOnImpact: 1
   - prefab: {fileID: 8493234022627442931, guid: e615de9d60354fc4193434ccd675905c, type: 3}
     anchor: 3

@@ -141,12 +141,18 @@ public static class BattleSfx
     /// <summary>Choose the cast clip for a Special without playing it — for a branch that must know the clip's
     /// length before it starts (the projectile fits its flight to the audio). Play it with <see cref="PlayCast"/>.
     /// Returns null (length 0) when no cast clip is bound.</summary>
-    public static AudioClip PeekSpecialCast(int classId, int tier, out float beat, out float length)
+    public static AudioClip PeekSpecialCast(int classId, int tier, out float beat, out float length) =>
+        PeekSpecialCast(classId, tier, out beat, out length, out _);
+
+    /// <summary>As above, plus where the chosen clip's audible body ends (its length when unmeasured) — the moment
+    /// the cast is HEARD to finish, ahead of the file's near-silent tail.</summary>
+    public static AudioClip PeekSpecialCast(int classId, int tier, out float beat, out float length, out float audibleEnd)
     {
-        beat = 0f; length = 0f;
+        beat = 0f; length = 0f; audibleEnd = 0f;
         var slot = Library?.SpecialSlot(classId);
-        var clip = slot?.cast?.Pick(tier, out beat);
-        if (clip == null) { beat = 0f; return null; }
+        if (slot?.cast == null) return null;
+        var clip = slot.cast.Pick(tier, out beat, out audibleEnd);
+        if (clip == null) { beat = 0f; audibleEnd = 0f; return null; }
         length = clip.length;
         return clip;
     }
