@@ -137,12 +137,33 @@ function UnityStage(props: BattleStageProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Fullscreen: the stage element itself goes fullscreen; the canvas keeps 16:9 and is
-  // letterboxed on black. Unity re-reads the canvas size, so the HUD rescales with it.
+  // Fullscreen: the stage element itself goes fullscreen (the FULL SCREEN button), or the whole page already is —
+  // the Start click requested it (lib/battle-fullscreen.ts) — and the stage lays itself over the page, full-bleed.
+  // Either way the canvas keeps 16:9, letterboxed on black; Unity re-reads the canvas size, so the HUD rescales.
   useEffect(() => {
-    const onChange = () => setIsFullscreen(document.fullscreenElement === stageRef.current && stageRef.current !== null);
+    const onChange = () => {
+      const page = document.fullscreenElement === document.documentElement;
+      setIsFullscreen(stageRef.current !== null && (document.fullscreenElement === stageRef.current || page));
+      // The page's own scrollbars would still take their width out of the full-bleed stage, and the site's fixed
+      // chrome (sidebar, phone nav bar, music button) sits in a stacking layer the stage can't rise above from inside
+      // the page — so it is hidden outright (globals.css, [data-site-chrome]).
+      document.documentElement.style.overflow = page ? 'hidden' : '';
+      if (page) document.documentElement.setAttribute('data-battle-fullscreen', '');
+      else document.documentElement.removeAttribute('data-battle-fullscreen');
+    };
+    onChange();   // the page may already be fullscreen when the stage mounts
     document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.documentElement.style.overflow = '';
+      document.documentElement.removeAttribute('data-battle-fullscreen');
+      // Navigating away some other way (sidebar link, back button): don't strand the page in fullscreen. Checked a
+      // tick later, so a remount (React dev's double mount, a key change) doesn't drop out of it.
+      setTimeout(() => {
+        if (document.fullscreenElement === document.documentElement && !document.querySelector('[data-battle-stage]'))
+          void document.exitFullscreen().catch(() => {});
+      }, 0);
+    };
   }, []);
   const toggleFullscreen = useCallback(() => {
     const el = stageRef.current;
@@ -417,7 +438,7 @@ function UnityStage(props: BattleStageProps) {
       // of the arena. Containment makes the stage's inline size the column's, never the reverse.
       className={
         isFullscreen
-          ? 'relative flex h-full w-full items-center justify-center bg-black'
+          ? `${document.fullscreenElement === document.documentElement ? 'fixed left-0 top-0 z-[100] h-[100dvh] w-[100vw]' : 'relative h-full w-full'} flex items-center justify-center bg-black`
           : `relative w-full aspect-video rounded-lg overflow-hidden bg-ocean-deep [contain:inline-size]${snap ? ' flex items-center justify-center' : ''}`
       }
     >

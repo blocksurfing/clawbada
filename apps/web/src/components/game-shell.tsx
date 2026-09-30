@@ -178,7 +178,7 @@ export function GameShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:block fixed inset-y-0 left-0 z-40 w-60">
+      <aside data-site-chrome className="hidden lg:block fixed inset-y-0 left-0 z-40 w-60">
         <SidebarFrame className="h-full w-full" scale={0.5}>{sidebarContent}</SidebarFrame>
       </aside>
 
@@ -188,7 +188,7 @@ export function GameShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar/95 backdrop-blur-md border-t border-sidebar-border">
+      <nav data-site-chrome className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar/95 backdrop-blur-md border-t border-sidebar-border">
         <div className="flex items-stretch">
           {BOTTOM_NAV.map((link) => {
             const active = isActive(pathname, link.href);

@@ -22,7 +22,8 @@ public static class BattleIntro
     // and contact the ground at the same time"); the hold after lets the boom ring out before the lobsters.
     private const float BlackHold = 0.6f, FadeIn = 2.0f, BeforeObstacles = 0.4f;
     private const float ObstacleDrop = 0.5f, ObstacleHeight = 2.4f, BeforeLobsters = 1.0f;
-    private const float LobsterStagger = 0.5f, LobsterDrop = 0.4f, LobsterHeight = 2.4f, Bounce = 0.08f;
+    // Lobster section 30 % quicker (user 2026-09-29): was 0.5 s stagger / 0.4 s fall.
+    private const float LobsterStagger = 0.35f, LobsterDrop = 0.28f, LobsterHeight = 2.4f, Bounce = 0.08f;
     private const float TeamsHold = 1.0f;
     private const float ReadyIn = 0.35f, ReadyHold = 0.8f, ReadyOut = 0.15f;
     private const float FightSlam = 0.14f, FightHold = 0.75f, FightOut = 0.2f;
