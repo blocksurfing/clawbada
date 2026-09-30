@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -136,6 +137,10 @@ public static class BattleSfxBinder
         // .wav, or .mp3 when that is the generation the user kept (SFX_UI_ClawsUp, 2026-09-29).
         lib.introReady = LoadAny($"{UiDir}SFX_UI_ClawsUp");
         lib.introFight = LoadAny($"{UiDir}SFX_UI_Battle");
+        lib.uiHoverAttack = LoadAny($"{UiDir}SFX_UI_Hover_Attack");
+        lib.uiHoverSpecial = LoadAny($"{UiDir}SFX_UI_Hover_Special");
+        lib.uiHoverDefend = LoadAny($"{UiDir}SFX_UI_Hover_Defend");
+        lib.uiHoverWait = LoadAny($"{UiDir}SFX_UI_Hover_Wait");
         lib.introObstacleLand = LoadTakes($"{UiDir}SFX_UI_IntroObstacleLand");
         lib.introLobsterLand = LoadTakes($"{UiDir}SFX_UI_IntroLobsterLand");
 
@@ -149,6 +154,7 @@ public static class BattleSfxBinder
                   $" | death ×{lib.death.Length}{(deathOverrides > 0 ? $" + {deathOverrides} class override(s)" : "")}" +
                   $" | ui: open {(lib.uiOpen != null ? "✓" : "—")} close {(lib.uiClose != null ? "✓" : "—")}" +
                   $" | intro: claws-up {(lib.introReady != null ? lib.introReady.name : "—")} battle {(lib.introFight != null ? lib.introFight.name : "—")} obstacle-land ×{lib.introObstacleLand.Length} lobster-land ×{lib.introLobsterLand.Length}" +
+                  $" | hover: {new[] { lib.uiHoverAttack, lib.uiHoverSpecial, lib.uiHoverDefend, lib.uiHoverWait }.Count(c => c != null)}/4" +
                   $" → {LibraryPath}");
     }
 
