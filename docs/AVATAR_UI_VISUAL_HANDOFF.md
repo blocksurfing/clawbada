@@ -4,7 +4,7 @@
 
 Universal visual-only uGUI prefab: `Assets/Prefabs/UI/Avatar/AvatarUI.prefab`.
 No Avatar battle scene, existing HUD, or gameplay script integration. The accompanying ActionButton migration only updates the normal-frame reference in HudSkin and its editor binder. Existing `Assets/Art/UI/Avatar.png` is preserved.
-Includes the exported frame sheet, class backgrounds, four-state HP fill sheet, MP fill, ordering badge sheet, and class badge sheet. Portraits and status icons are not supplied or fabricated. No HP thresholds, runtime class/state mapping, or unit-order mapping are implemented.
+Includes the exported frame sheet, class backgrounds, four-state HP fill sheet, MP fill, ordering badge sheet, class badge sheet, and five artist-confirmed status badges. Portraits are not supplied or fabricated. No HP thresholds, runtime class/status/state mapping, or unit-order mapping are implemented.
 
 ## Layout
 
@@ -18,7 +18,8 @@ Sibling draw order (back to front):
 4. `HPFill`: 64 x 32, position (15, 9), `HP_Healthy` by default.
 5. `MPFill`: 32 x 32, position (1, -12), `MP_Fill`.
 6. `OrderingBadge`: 16 x 16, position **(-46, 10)**, `OrderingBadge_1` by default. This is above the frame/bars and is a sprite swap target for battle order `1` through `6`.
-7. `ClassBadge`: 16 x 16, center-anchored position **(28, -6)**, centered pivot, unit scale, `ClassBadge_Bulwark` as preview/default only. Simple Image, preserveAspect=true, raycastTarget=false. Positioned to the right of the MP bar, before the green status arrow shown in the artist's mockup. The arrow itself is not added to this visual prefab. Existing children, including the manually tuned OrderingBadge, are unchanged.
+7. `ClassBadge`: 16 x 16, center-anchored position **(28, -6)**, centered pivot, unit scale, `ClassBadge_Bulwark` as preview/default only. Simple Image, preserveAspect=true, raycastTarget=false. Positioned to the right of the MP bar, before the green status arrow shown in the artist's mockup. The five status sprites are supplied as a library for the three reusable StatusRow slots; no runtime arrow/status logic is added. Existing children, including the manually tuned OrderingBadge, are unchanged.
+8. `StatusRow`: 34 x 34, center anchors and centered pivot, anchored position **(37, -15)**, unit scale, last sibling. **Inactive by default** so an unbound instance does not falsely display statuses. Three reusable 16 x 16 Image slots form a compact two-row cluster with the unchanged ClassBadge: `[ClassBadge][StatusSlot1]` above `[StatusSlot2][StatusSlot3]`, with 2 px gaps. Slot 3 has a separately toggled, inactive overflow Text child. No layout or runtime components are added. See status integration below.
 
 The fills are above Frame because Frame includes opaque dark bar backings. Their nontransparent pixels sit fully within those backings and do not cover the colored border at full fill. Both use Image.Type.Filled / Horizontal / Left, fillAmount=1, with raycastTarget=false. Preserve rect sizes/positions when swapping HP sprites. Canvas padding is retained: fillAmount clips the full sprite rect, not an exact curved-area percentage.
 
@@ -80,9 +81,54 @@ Developer hookup: swap `OrderingBadge`'s Image.sprite from the current battle/un
 
 Unity slice rects are (x, 0, 16, 16), with x = 0, 16, 32, 48, 64, 80, 96, 112, 128, 144. Center pivots, 64 PPU, Point filter, uncompressed, no mipmaps, Full Rect mesh. The source export is copied unchanged.
 
-Developer hookup still required: map `ClassBadge`'s Image.sprite from the unit's class, alongside ClassBackground. **Bulwark is only the serialized preview/default, not an automatic runtime class mapping.** Current ActivePanel instantiation does not bind this new child. Shift the runtime status icons/green arrow to the right of the badge so they do not overlap it; the existing status row starts around design (20, -13) and must not be assumed compatible with the new badge. This patch does not modify ActivePanel, status layout code, or any gameplay/runtime scripts.
+**Bulwark is only the serialized preview/default.** Upstream ActivePanel now binds ClassBadge from the unit class through HudSkin and uses the OrderingBadge sprites. Its separate legacy status row starts beside ClassBadge and wraps upward in two columns; that is not the compact prefab layout below. Integrate the new StatusRow explicitly rather than displaying both rows. This art patch does not modify ActivePanel, status layout code, or any gameplay/runtime scripts.
 
 ClassBadge validation used a temporary Unity Editor API helper: loaded all ten imported Sprite sub-assets and checked their names, rects, pivots, PPU, GUID/local IDs and importer settings; saved and reloaded the prefab; verified the Bulwark sprite reference, badge geometry, and all six existing child states. The helper was removed after verification. No screenshots, generated previews, playtesting, or rendered visual approval were performed; Nzib owns final visual QA and runtime status spacing remains a developer integration task.
+
+## Status badge slices and integration boundary
+
+`Assets/Art/UI/Avatar/StatusBadge.png` is the unchanged 80 x 16 artist export: one sheet imported as Sprite (Multiple), five 16 x 16 cells, 64 PPU, Point, uncompressed, no mipmaps, centered pivots, Full Rect mesh.
+
+### Retained sprite library (not fixed semantic slots)
+
+| Sprite name | Slice rect (x, y, w, h) |
+| --- | --- |
+| `StatusBadge_Defense` (defense stance) | (0, 0, 16, 16) |
+| `StatusBadge_ArmorBuff` | (16, 0, 16, 16) |
+| `StatusBadge_Bleeding` | (32, 0, 16, 16) |
+| `StatusBadge_Debuff` | (48, 0, 16, 16) |
+| `StatusBadge_BlockedTurn` | (64, 0, 16, 16) |
+
+All five imported Sprite sub-assets and their PNG/meta remain unchanged and available for runtime swapping. Three visible slots are a presentation capacity, not a limit on simultaneous game statuses.
+
+### Compact prefab hierarchy
+
+```text
+AvatarUI (112 x 64; unchanged)
+├── ClassBadge (unchanged center 28,-6; 16 x 16)
+└── StatusRow (inactive; center 37,-15; 34 x 34)
+    ├── StatusSlot1 (Image; local 9,9; Avatar center 46,-6)
+    ├── StatusSlot2 (Image; local -9,-9; Avatar center 28,-24)
+    └── StatusSlot3 (Image; local 9,-9; Avatar center 46,-24)
+        └── OverflowLabel (Text; inactive; local 0,0; 16 x 16)
+```
+
+Row, slots, and label use center anchors (0.5, 0.5), centered pivots and unit scale. Each slot is 16 x 16, Simple Image, preserveAspect=true, raycastTarget=false. Slots are reusable display positions, not bound status types. All three slots have activeSelf=true and enabled Images; their serialized previews are Defense, ArmorBuff, and Bleeding respectively, **not game state or a chosen ordering policy**. Enable StatusRow only for authoring preview or after binding actual statuses.
+
+Layout is `[ClassBadge][StatusSlot1]` / `[StatusSlot2][StatusSlot3]`, with 2 px horizontal and vertical gaps. Combined badge/slot bounds are x=[20,54], y=[-32,2], inside the unchanged 112 x 64 root bounds x=[-56,56], y=[-32,32]. No original frame, badge, bars, or root sizing/placement changed.
+
+`StatusSlot3/OverflowLabel` uses existing `UnityEngine.UI.Text`, white Silkscreen-Regular at fixed **8 px**, middle-center alignment, raycastTarget=false, rich text and best-fit disabled. Its serialized text is **+2**, inactive by default. Unity TextGenerator measured that preview at **13 x 10**, fitting its 16 x 16 rect. The slot Image component and child Text/GameObject can be toggled separately: keep StatusSlot3 active, disable its **Image component** (not its parent GameObject), and activate OverflowLabel for overflow. Restore the Image and hide the label for an ordinary third icon. No automatic switching or count calculation exists in this prefab.
+
+### Developer hookup required (not implemented)
+
+- Bind from authoritative active-status data; hide/reset unused slots and overflow before enabling StatusRow. With zero statuses keep the row hidden. The row remains inactive by default because ActivePanel does not bind it yet.
+- For **one to three** active statuses, show all statuses in the reusable slots and hide OverflowLabel.
+- For **more than three**, show the first two status icons; replace the third icon with **+N**, where **N = active status count - 2** (four statuses => +2; five => +3). This user-approved convention counts every status not shown as an icon, not just the amount above three.
+- Runtime chooses and consistently applies the status ordering policy; **no priority/order is assumed here**. Swap Image.sprite from the retained library as appropriate. This layout defines no status maximum, duration, threshold, eligibility, or mechanics; `StatusBadge_BlockedTurn` must not be implicitly mapped to stun. Larger count strings need developer handling/fit validation rather than assuming a maximum count.
+- Full-status detail access/interaction (for example whatever detail UI the developer selects) remains a **developer task, not implemented**. There is no click handler, tooltip, popup, input routing, or runtime script added by this visual patch.
+- ActivePanel's existing legacy runtime status row currently caps at four entries including defense and may overlap this cluster. Replace or explicitly reconcile that row, its capacity, and its placement before enabling this prefab row in battle; never display both uncoordinated rows.
+
+Validation: a temporary Unity Editor API helper verified all five imported Sprite names/rects, saved/unloaded/imported/reloaded the prefab, checked exactly three reusable Images and one inactive overflow Text, slot geometry and preview references, and measured +2 with TextGenerator. Original non-status components were compared before save, with serialized preservation checked after reload. The helper and its meta were removed. No screenshots, playtest, or rendered visual approval performed; runtime binding and final visual QA remain outside this patch.
 
 ## Selected animation
 
