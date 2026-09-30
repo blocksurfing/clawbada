@@ -357,6 +357,32 @@ public class LobsterController : MonoBehaviour
     /// has made one (2026-09-27: every rig has it — most are still copies of Attack), else "Attack".</summary>
     public string SpecialSwingState => HasState("Special") ? "Special" : "Attack";
 
+    /// <summary>
+    /// The cast's held wind-up (Bind, user 2026-09-30): over <paramref name="total"/> seconds, raise into the swing's
+    /// wind-up pose (<paramref name="peakAt"/> seconds into <paramref name="state"/>'s clip), hold it frozen, then drop
+    /// back to Idle just before the real swing starts. Unscaled by nothing: runs on the battle's own clock like the hold.
+    /// </summary>
+    public IEnumerator RaiseAndHold(Vector3 targetWorldPos, string state, float peakAt, float total)
+    {
+        const float Drop = 0.2f;
+        float raise = Mathf.Min(0.45f, total * 0.35f);
+        float hold = Mathf.Max(0f, total - raise - Drop);
+        float t0 = Time.time;
+        FaceToward(targetWorldPos);
+        PlayState(state);
+        if (animator != null) animator.speed = peakAt / raise;   // reach the top exactly as the raise ends
+        yield return new WaitForSeconds(raise);
+        if (animator != null && !frozen) animator.speed = 0f;    // claws up — hold the pose
+        Debug.Log($"[LobsterController] {className} wind-up held: raise {raise:F2}s, hold {hold:F2}s, drop {Drop:F2}s");
+        yield return new WaitForSeconds(hold);
+        if (animator != null && !frozen) animator.speed = 1f;
+        PlayState("Idle", Drop);                                 // claws come down just before the strike
+        // End on the planned moment exactly: each wait above rounds up to a frame, and the swing's contact is timed
+        // from here to land on the impact sound.
+        float left = total - (Time.time - t0);
+        if (left > 0f) yield return new WaitForSeconds(left);
+    }
+
     public IEnumerator PlayAttack(Vector3 targetWorldPos, float duration, bool melee, System.Action onImpact, float animSpeed = 1f, string state = "Attack")
     {
         FaceToward(targetWorldPos);

@@ -53,6 +53,11 @@ public class BattleVfxLibrary : ScriptableObject
         [Tooltip("Plain Specials only: playback speed of the caster's swing (1 = the class's normal attack). 0.5 halves it, " +
                  "so the contact frame lands twice as late — room for a cast sound to build before the hit.")]
         public float castSpeed = 1f;
+        [Tooltip("Cast → impact Specials that hold before the swing (Bind): seconds into the caster's swing clip, at its " +
+                 "authored speed, where the wind-up tops out (claws highest). > 0 = during the hold the caster raises into " +
+                 "that pose as the cast sound starts, freezes there, drops back just before the strike, then plays the full " +
+                 "swing (user 2026-09-30). 0 = stand still through the hold.")]
+        public float windupPeakAt = 0f;
         [Tooltip("Screen shake on this effect's beat, in world units (0 = none). Maelstrom's lightning, Inferno's burst.")]
         public float shakeAmplitude = 0f;
         [Tooltip("How long the shake takes to die out.")]
@@ -231,7 +236,7 @@ public class BattleVfxLibrary : ScriptableObject
             var slot = specialByClass[classId];
             // The class's own slot wins even without a prefab: its settings (castSpeed, spawnAtContact)
             // still describe the cast; Spawn() ignores a slot with no prefab.
-            if (slot != null && (slot.prefab != null || slot.castSpeed != 1f)) return slot;
+            if (slot != null && (slot.prefab != null || slot.castSpeed != 1f || slot.windupPeakAt > 0f)) return slot;
         }
         return attackWindup;
     }
