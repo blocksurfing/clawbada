@@ -10,8 +10,9 @@ import { readBattle, readLobster, readTeam } from '../chain';
 import { battleWS } from '../ws';
 import { getLayoutById } from '../../data/arenas';
 import { BattleSessionManager, DEFAULT_BOT_THINK_MS, DEFAULT_FIRST_TURN_GRACE_MS, DEFAULT_POLL_MS, DEFAULT_SHOT_CLOCK_MS } from './manager';
-/** Production wait for the players' `ready` (battle-start intro); the manager's own default is 0 (tests). */
-const START_WAIT_MS = 15_000;
+/** Production wait for the players' `ready` (battle-start intro); the manager's own default is 0 (tests). The intro
+ *  runs ~13 s on top of Unity's load (user 2026-09-29), so the cap leaves room for both. */
+const START_WAIT_MS = 30_000;
 import { SessionStore } from './store';
 
 export * from './protocol';

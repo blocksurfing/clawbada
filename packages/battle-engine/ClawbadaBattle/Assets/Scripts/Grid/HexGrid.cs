@@ -91,6 +91,8 @@ public class HexGrid : MonoBehaviour
     private readonly HashSet<(int, int)> blocked = new();
     private readonly List<Vector3Int> highlightedCells = new();
     private readonly List<GameObject> activeObstacles = new();
+    /// <summary>The obstacles spawned for the current layout (the battle intro drops them in one by one).</summary>
+    public IReadOnlyList<GameObject> Obstacles => activeObstacles;
     private Color activeTileTint = Color.white;
     private Vector3 authoredGridPosition;
     private Vector3 authoredGridScale;

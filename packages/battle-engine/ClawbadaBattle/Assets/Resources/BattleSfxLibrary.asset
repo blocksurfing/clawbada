@@ -448,5 +448,13 @@ MonoBehaviour:
   - {fileID: 0}
   introReady: {fileID: 8300000, guid: 06053e33d753f459c938677f1fbee63c, type: 3}
   introFight: {fileID: 8300000, guid: c095e9fd331944c9d95bb7dc99455692, type: 3}
+  introObstacleLand:
+  - {fileID: 8300000, guid: edcd8e157506e42f0837e41ba8f53b24, type: 3}
+  - {fileID: 8300000, guid: e4b3a9cf796ef45f5b297490bc904f6b, type: 3}
+  - {fileID: 8300000, guid: 13107217b8e6e4cdd9c1c7d25547f509, type: 3}
+  introLobsterLand:
+  - {fileID: 8300000, guid: 62bd3425bd6ae4f0c80b819e184ebe88, type: 3}
+  - {fileID: 8300000, guid: 9f1cb07f830544aa78c39672877c2696, type: 3}
+  - {fileID: 8300000, guid: 01edeeffa2d934f3da81f8a3b671fd2d, type: 3}
   uiOpen: {fileID: 8300000, guid: 9e96661ff575749bc9c1377d08162045, type: 3}
   uiClose: {fileID: 8300000, guid: 24db77162692246f79cb0b0c6798e4eb, type: 3}

@@ -46,6 +46,12 @@ mergeInto(LibraryManager.library, {
         }
     },
 
+    SendIntroMusic: function() {
+        if (window.__clawbada && window.__clawbada.onIntroMusic) {
+            window.__clawbada.onIntroMusic();
+        }
+    },
+
     SendIntroComplete: function() {
         if (window.__clawbada && window.__clawbada.onIntroComplete) {
             window.__clawbada.onIntroComplete();

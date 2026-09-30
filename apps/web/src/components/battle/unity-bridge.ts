@@ -9,6 +9,7 @@
  *
  * C# twin: packages/battle-engine/ClawbadaBattle/Assets/Scripts/Bridge/BattleBridge.cs
  */
+import type { AudioPrefChange } from '@/lib/audio-prefs';
 import { CLASS_NAMES_LIST, CLASS_SPECIAL_NAMES } from '@clawbada/game-logic';
 import type { LobsterClass } from '@clawbada/game-logic';
 import type { BattleSnapshot, RosterEntry, Side, TurnResolvedPayload, WireBarEntry } from '@/lib/battle-protocol';
@@ -163,6 +164,7 @@ export const JS_CALLBACKS = {
   ON_AUDIO_PREF: 'onAudioPref',
   /** The battle-start intro finished (or was skipped): React starts the music and tells the server it is ready. */
   ON_INTRO_COMPLETE: 'onIntroComplete',
+  ON_INTRO_MUSIC: 'onIntroMusic',
 } as const;
 
 export interface UnityCallbackHandler {
@@ -176,8 +178,10 @@ export interface UnityCallbackHandler {
   /** Options-menu forfeit, already confirmed in the canvas. React calls the API. */
   onForfeit?: () => void;
   /** Options-menu Music/SFX row pressed. React persists it; the echo (SetAudioPrefs) refreshes the menu. */
-  onAudioPref?: (pref: { kind: 'music' | 'sfx'; on: boolean }) => void;
+  onAudioPref?: (pref: AudioPrefChange) => void;
   onIntroComplete?: () => void;
+  /** The intro reached its music beat (the teams are on the board): fade the arena bed in. */
+  onIntroMusic?: () => void;
 }
 
 /** Register the callbacks Unity's jslib calls. Returns a cleanup. */
@@ -194,9 +198,11 @@ export function registerUnityCallbacks(handlers: UnityCallbackHandler): () => vo
     [JS_CALLBACKS.ON_UNDO_MOVE]: () => handlers.onUndoMove?.(),
     [JS_CALLBACKS.ON_FORFEIT]: () => handlers.onForfeit?.(),
     [JS_CALLBACKS.ON_INTRO_COMPLETE]: () => handlers.onIntroComplete?.(),
+    [JS_CALLBACKS.ON_INTRO_MUSIC]: () => handlers.onIntroMusic?.(),
     [JS_CALLBACKS.ON_AUDIO_PREF]: (json) => {
       const p = JSON.parse(json ?? '{}');
       if (p.kind === 'music' || p.kind === 'sfx') handlers.onAudioPref?.({ kind: p.kind, on: !!p.on });
+      if ((p.kind === 'musicVol' || p.kind === 'sfxVol') && Number.isFinite(p.value)) handlers.onAudioPref?.({ kind: p.kind, value: Number(p.value) });
     },
   };
   (window as unknown as { __clawbada?: unknown }).__clawbada = bridge;

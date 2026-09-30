@@ -5,8 +5,8 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Settings hex in the top-left corner (Nzib's layout, 2026-09-28 — a placeholder hex in his style until he draws it)
-/// and the options panel that drops down from it: Music on/off,
-/// SFX on/off, game hints on/off (Unity-only, ActionBar.HintsEnabled in PlayerPrefs), and the
+/// and the options panel that drops down from it: Music on/off + volume,
+/// SFX on/off + volume (− / + either side of the row, user 2026-09-29), game hints on/off (Unity-only, ActionBar.HintsEnabled in PlayerPrefs), and the
 /// only in-battle escape hatch, forfeit. Quitting loses the battle, so
 /// that press is confirmed before Unity reports it — React owns the actual call to the API.
 ///
@@ -26,6 +26,10 @@ public class OptionsMenu : MonoBehaviour
     public event Action<bool> MusicToggled;
     /// <summary>Raised when the SFX row is pressed, with the requested state.</summary>
     public event Action<bool> SfxToggled;
+    /// <summary>Raised when Music − / + is pressed, with the requested volume (0–100).</summary>
+    public event Action<int> MusicVolumeChanged;
+    /// <summary>Raised when SFX − / + is pressed, with the requested volume (0–100).</summary>
+    public event Action<int> SfxVolumeChanged;
     /// <summary>Raised when the Hints row is pressed, after the setting is saved.</summary>
     public event Action<bool> HintsToggled;
 
@@ -39,6 +43,10 @@ public class OptionsMenu : MonoBehaviour
     private Text musicLabel, sfxLabel, hintsLabel;
     private Image musicImage, sfxImage, hintsImage;
     private bool musicOn = true, sfxOn = true;
+    // Volumes in %, React's (echoed back through SetAudioState). Defaults match audio-prefs.ts.
+    private int musicVol = 50, sfxVol = 100;
+    private const int VolStep = 10;
+    private Button musicDown, musicUp, sfxDown, sfxUp;
 
     public bool IsOpen => panel != null && panel.gameObject.activeSelf;
 
@@ -79,6 +87,11 @@ public class OptionsMenu : MonoBehaviour
         menu.mainRows = HudFactory.Stretch(menu.panel, "Main");
         menu.musicRow = Row(menu.mainRows, skin, "Music", "Music: On", OnTint, -34f, menu.ToggleMusic, out menu.musicLabel, out menu.musicImage);
         menu.sfxRow = Row(menu.mainRows, skin, "Sfx", "SFX: On", OnTint, -70f, menu.ToggleSfx, out menu.sfxLabel, out menu.sfxImage);
+        // Volume (user 2026-09-29): the middle of the row still mutes; − / + either side step the level.
+        menu.musicDown = Step(menu.musicRow, skin, "Down", "-", -1f, () => menu.StepMusic(-VolStep));
+        menu.musicUp = Step(menu.musicRow, skin, "Up", "+", 1f, () => menu.StepMusic(VolStep));
+        menu.sfxDown = Step(menu.sfxRow, skin, "Down", "-", -1f, () => menu.StepSfx(-VolStep));
+        menu.sfxUp = Step(menu.sfxRow, skin, "Up", "+", 1f, () => menu.StepSfx(VolStep));
         menu.hintsRow = Row(menu.mainRows, skin, "Hints", "Hints: On", OnTint, -106f, menu.ToggleHints, out menu.hintsLabel, out menu.hintsImage);
         menu.forfeitRow = Row(menu.mainRows, skin, "Forfeit", "Forfeit battle", new Color(0.79f, 0.27f, 0.23f, 1f), -142f, menu.AskConfirm, out _, out _);
         menu.closeRow = Row(menu.mainRows, skin, "Close", "Close", OffTint, -178f, menu.Close, out _, out _);
@@ -117,18 +130,67 @@ public class OptionsMenu : MonoBehaviour
         return btn;
     }
 
-    /// <summary>React's current preferences — refreshes the rows without raising events.</summary>
-    public void SetAudioState(bool music, bool sfx)
+    /// <summary>A − / + button hung off either side of a volume row (the row's middle keeps its own width: the
+    /// mute toggle). Its own rect, parented to the row so it moves with it.</summary>
+    private static Button Step(Button row, HudSkin skin, string name, string glyph, float side, UnityEngine.Events.UnityAction onClick)
+    {
+        var rowRt = row.GetComponent<RectTransform>();
+        rowRt.sizeDelta = new Vector2(96f, rowRt.sizeDelta.y);   // 152 → 96 + two 24 px steppers with 4 px gaps
+        var rt = HudFactory.Rect(rowRt, name, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(side * (48f + 4f + 12f), 0f), new Vector2(24f, 26f));
+        var image = HudFactory.AddImage(rt, skin.barFill != null ? skin.barFill : skin.panelBg, OffTint, raycast: true);
+        var btn = rt.gameObject.AddComponent<Button>();
+        btn.targetGraphic = image;
+        var colors = btn.colors;
+        colors.highlightedColor = new Color(1.25f, 1.25f, 1.25f, 1f);
+        colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
+        colors.disabledColor = new Color(0.6f, 0.6f, 0.6f, 0.5f);
+        btn.colors = colors;
+        btn.onClick.AddListener(onClick);
+        var label = HudFactory.Text(rt, "Label", skin.FontOrDefault(), 14, Color.white, TextAnchor.MiddleCenter, new Vector2(24f, 22f));
+        label.text = glyph;
+        return btn;
+    }
+
+    /// <summary>React's current preferences — refreshes the rows without raising events. A volume below 0 = unchanged.</summary>
+    public void SetAudioState(bool music, bool sfx, int musicVolume = -1, int sfxVolume = -1)
     {
         musicOn = music;
         sfxOn = sfx;
+        if (musicVolume >= 0) musicVol = Mathf.Clamp(musicVolume, 0, 100);
+        if (sfxVolume >= 0) sfxVol = Mathf.Clamp(sfxVolume, 0, 100);
         Refresh();
+    }
+
+    private void StepMusic(int delta)
+    {
+        int v = Mathf.Clamp(musicVol + delta, 0, 100);
+        if (v == musicVol) return;
+        musicVol = v;   // optimistic, like the toggles; React echoes the persisted value
+        Refresh();
+        Debug.Log($"[BattleHud] music volume {musicVol}");
+        MusicVolumeChanged?.Invoke(musicVol);
+        LogRects();
+    }
+
+    private void StepSfx(int delta)
+    {
+        int v = Mathf.Clamp(sfxVol + delta, 0, 100);
+        if (v == sfxVol) return;
+        sfxVol = v;
+        BattleSfx.Volume = sfxVol / 100f;   // immediate, so the next sound obeys the press
+        Refresh();
+        Debug.Log($"[BattleHud] sfx volume {sfxVol}");
+        SfxVolumeChanged?.Invoke(sfxVol);
+        LogRects();
     }
 
     private void Refresh()
     {
-        if (musicLabel != null) musicLabel.text = musicOn ? "Music: On" : "Music: Off";
-        if (sfxLabel != null) sfxLabel.text = sfxOn ? "SFX: On" : "SFX: Off";
+        if (musicLabel != null) musicLabel.text = musicOn ? $"Music {musicVol}%" : "Music: Off";
+        if (sfxLabel != null) sfxLabel.text = sfxOn ? $"SFX {sfxVol}%" : "SFX: Off";
+        if (musicDown != null) { musicDown.interactable = musicVol > 0; musicUp.interactable = musicVol < 100; }
+        if (sfxDown != null) { sfxDown.interactable = sfxVol > 0; sfxUp.interactable = sfxVol < 100; }
         if (musicImage != null) musicImage.color = musicOn ? OnTint : OffTint;
         if (sfxImage != null) sfxImage.color = sfxOn ? OnTint : OffTint;
         bool hints = ActionBar.HintsEnabled;
@@ -185,7 +247,11 @@ public class OptionsMenu : MonoBehaviour
             if (mainRows.gameObject.activeSelf)
             {
                 Append(sb, $"music:{(musicOn ? "on" : "off")}", musicRow);
+                Append(sb, $"musicDown:{musicVol}", musicDown);
+                Append(sb, $"musicUp:{musicVol}", musicUp);
                 Append(sb, $"sfx:{(sfxOn ? "on" : "off")}", sfxRow);
+                Append(sb, $"sfxDown:{sfxVol}", sfxDown);
+                Append(sb, $"sfxUp:{sfxVol}", sfxUp);
                 Append(sb, $"hints:{(ActionBar.HintsEnabled ? "on" : "off")}", hintsRow);
                 Append(sb, "forfeit", forfeitRow);
                 Append(sb, "close", closeRow);
