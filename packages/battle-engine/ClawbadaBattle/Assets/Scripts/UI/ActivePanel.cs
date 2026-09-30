@@ -152,6 +152,14 @@ public class ActivePanel : MonoBehaviour
             p.badgeRow = row.gameObject;
             p.badgeSlots = new[] { "StatusSlot1", "StatusSlot2", "StatusSlot3" }
                 .Select(n => row.Find(n)?.GetComponent<Image>()).ToArray();
+            // Nzib 2026-09-30: "the status icon gap is too wide … probably 1-2px". His slots sit on an 18 px pitch
+            // (16 px cells, 2 px gaps), but the art inside each cell is padded — the class badge draws 11 px, the
+            // status icons ~9–10 px — so the VISIBLE gaps came out 7–9 px. Pack them so the art is ~2 px apart:
+            // 11 px across, 13 px down (art heights ~11 + 2), from the class badge at (28, -6).
+            var rowRt = (RectTransform)row;
+            var slotAt = new[] { new Vector2(39f, -6f), new Vector2(28f, -19f), new Vector2(39f, -19f) };   // AvatarUI space
+            for (int i = 0; i < p.badgeSlots.Length; i++)
+                if (p.badgeSlots[i] != null) p.badgeSlots[i].rectTransform.anchoredPosition = slotAt[i] - rowRt.anchoredPosition;
             var overflow = row.Find("StatusSlot3/OverflowLabel");
             if (overflow != null) overflow.gameObject.SetActive(false);   // we cycle instead of "+N"
             row.SetAsLastSibling();                                        // over the break-out claws

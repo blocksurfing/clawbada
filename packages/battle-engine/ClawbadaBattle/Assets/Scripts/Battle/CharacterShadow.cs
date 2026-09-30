@@ -20,6 +20,9 @@ public class CharacterShadow : MonoBehaviour
 
     private LobsterController target;
     private SpriteRenderer sr;
+    private float alpha = 1f, baseAlpha = 1f;
+    /// <summary>A dead lobster's shadow fades out (Nzib 2026-09-30: it stayed on the board after the body went).</summary>
+    public const float DeathFadeSeconds = 0.5f;
 
     public static CharacterShadow Attach(LobsterController lobster, GameObject prefab)
     {
@@ -29,6 +32,7 @@ public class CharacterShadow : MonoBehaviour
         var shadow = go.AddComponent<CharacterShadow>();
         shadow.target = lobster;
         shadow.sr = go.GetComponentInChildren<SpriteRenderer>();
+        if (shadow.sr != null) shadow.baseAlpha = shadow.sr.color.a;
         var group = go.GetComponent<SortingGroup>();
         if (group == null) group = go.AddComponent<SortingGroup>();
         group.sortingLayerName = Layer;
@@ -47,6 +51,11 @@ public class CharacterShadow : MonoBehaviour
         Vector3 ground = target.ShadowGround ?? root.position;
         transform.position = new Vector3(ground.x, ground.y + Offset.y * Mathf.Abs(s.y), 0f);
         transform.localScale = new Vector3(Mathf.Abs(s.x) * k, Mathf.Abs(s.y) * k, 1f);
-        if (sr != null) sr.enabled = target.gameObject.activeInHierarchy && s.x != 0f && k > 0f;
+        alpha = Mathf.MoveTowards(alpha, target.alive ? 1f : 0f, Time.deltaTime / DeathFadeSeconds);
+        if (sr != null)
+        {
+            sr.enabled = target.gameObject.activeInHierarchy && s.x != 0f && k > 0f && alpha > 0f;
+            var c = sr.color; c.a = baseAlpha * alpha; sr.color = c;
+        }
     }
 }

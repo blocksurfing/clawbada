@@ -22,8 +22,9 @@ public class TeamPanels : MonoBehaviour
     // Nzib's layout (2026-09-29 target shot). Measured on his art: Avatar_Frame's PAINTED pixels span x 7–104,
     // y 9–55 of its 112×64 cell, so panels are placed by their visible art, not their padded rect.
     private const float ArtLeft = 7f, ArtRight = 8f, ArtTop = 9f, ArtBottom = 9f;   // design px of padding
-    /// <summary>3 design px between the painted art of neighbouring panels (Nzib: "3px away between card").</summary>
-    private const float VisibleGap = 3f;
+    /// <summary>Design px between the painted art of neighbouring panels: Nzib's 3 px ("3px away between card"), +2 for
+    /// a little more room to breathe (user 2026-09-30).</summary>
+    private const float VisibleGap = 5f;
     /// <summary>Canvas units from the screen edge to the painted art: bottom row (left, bottom), top row (right, top).</summary>
     private static readonly Vector2 BottomInset = new Vector2(35f, 17f), TopInset = new Vector2(8f, 9f);
 
