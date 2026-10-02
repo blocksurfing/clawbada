@@ -1,0 +1,39 @@
+# Season rollover (the Safe starts each season)
+
+**Decision D-25 (2026-10-01):** every 60 days a new mining season must be started on-chain with `MiningPool.startSeason(totalEmission, baseReward)`. That call needs `SEASON_ADMIN_ROLE`, which belongs to the governance Safe after the handoff. No engine key holds it, and none must: a hot key that could pick season numbers could print the mining allocation. The engine only watches the clock and hands the Safe the exact transaction.
+
+## What you will see
+
+| Alarm (log `msg`) | When | Meaning |
+|---|---|---|
+| `season_rollover_due` | from 3 days before the season ends, repeated daily | Prepare and collect signatures for the Safe transaction in the alarm. |
+| `season_rollover_overdue` | the season has ended and no new one started, repeated hourly | **Mining pays nothing until the Safe executes the transaction.** |
+| `season_allocation_exhausted` (info) | the 705M mining allocation is used up | Nothing to do: mining emissions have ended for good (TOK-M1). |
+| `New season started` (info) | the indexer synced a new season | The alarms reset. |
+
+Each alarm carries `safeTx`:
+
+```
+{ to: <MiningPool>, value: "0", data: 0x25c7fcdf…, call: "MiningPool.startSeason(<emission>, <baseReward>)" }
+```
+
+## What to do
+
+1. In the Safe, create a transaction to `safeTx.to` with `safeTx.data`. Use the custom-data option; don't retype the numbers.
+2. Check the decoded call against the schedule below.
+3. Collect the signatures before the season ends. `startSeason` reverts `SeasonStillActive` until the end time passes, so execute it right after the end.
+4. Confirm: the indexer logs `New season started` and the API's season endpoint shows the new number.
+
+## The numbers
+
+- **Emission** follows the TOK-M1 schedule, in wei:
+  - Season 1 is 352.5M.
+  - It halves each season through Season 6.
+  - Season 7 is 7.05M.
+  - From Season 8 it's whatever is left of the 705M allocation.
+  - The prepared value is already clamped to the allocation left (`MINING_ALLOCATION − lifetimeMinted`, read from chain). The contract applies the same clamp anyway (D-20).
+- **Base reward** is a governance choice. The plan proposes the current season's launch reward, and the daily glide (TOK-G1) re-pegs it down as needed but never above it. You may change it before signing. If so, rebuild the calldata (`cast calldata "startSeason(uint256,uint256)" <emission> <baseReward>`).
+
+Code: `apps/engine/src/seasons/manager.ts`.
+
+> **Note.** `getSeasonEmission` / `SEASON_EMISSIONS` in `packages/game-logic/src/constants.ts` is a stale pre-TOK-M1 schedule: it starts at 387.5M, has a 7.75M floor, and its numbers carry no token decimals. The engine no longer uses it. The old automatic rollover would have passed it to `startSeason` as wei and started Season 2 with a near-zero budget. Don't use it for anything on-chain.
