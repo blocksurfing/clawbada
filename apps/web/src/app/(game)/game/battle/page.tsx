@@ -77,11 +77,12 @@ export default function BattlePage() {
   });
 
   // B-32: detect an in-progress battle for this wallet on mount. If the user
-  // reloaded the page mid-deposit (or mid-anything in phases 1-5), route them
+  // reloaded the page mid-deposit (or mid-anything in phases 1-4), route them
   // straight to the active battle screen — without this, the matched battleId
   // is lost and the player is stranded in the queue tab even though a battle
-  // exists server-side. Phase 1-5 = Deposit / TeamCommit / TeamReveal / Active
-  // / AwaitingFinalize. Settled (6) and Cancelled (7) are filtered out.
+  // exists server-side. Phase 1-4 = Deposit / (unused TeamCommit) / TeamReveal /
+  // Active. A result in review (5) or frozen (8) needs nothing from the player —
+  // their lobsters are already free — and Settled (6) / Cancelled (7) are over.
   // (Phase enum is hardcoded vs the current contract — re-audit if S2 adds
   // new in-progress phase values.)
   const { data: activeBattlesData } = useQuery({
@@ -91,7 +92,7 @@ export default function BattlePage() {
     staleTime: 30_000,
   });
   const inProgressBattle = (activeBattlesData?.battles ?? []).find(
-    (b) => b.phase >= 1 && b.phase <= 5,
+    (b) => b.phase >= 1 && b.phase <= 4,
   );
 
   // B-42 fix: one-shot ref guard so the auto-route fires AT MOST ONCE per
@@ -608,7 +609,9 @@ function ActiveBattleView({
     refetchInterval: 5_000,
   });
   const phase = battleData?.chain?.phase ?? 0;
-  const settled = phase >= 6;
+  // 5 = result in review, 8 = frozen for review: the battle is over for the player (lobsters
+  // released at settle); only the payout waits.
+  const settled = phase >= 5;
 
   return (
     <FrostedPanel variant="danger" className="space-y-5">
@@ -641,10 +644,10 @@ function ActiveBattleView({
       )}
 
       {/* Pre-battle on-chain steps; once live, the battle page takes over */}
-      {battleData && phase < 4 && (
+      {battleData && (phase < 4 || phase === 5 || phase === 8) && (
         <BattleMoves battleId={battleId} address={address} battleData={battleData} />
       )}
-      {phase >= 4 && !settled && (
+      {phase === 4 && (
         <p className="text-xs text-text-secondary">The battle is live — play it on the battle page.</p>
       )}
 

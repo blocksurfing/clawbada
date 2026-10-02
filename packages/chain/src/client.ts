@@ -71,6 +71,15 @@ export function getBoostAdminClient(testnet = false): any {
   return walletFromKey(roleKey('BOOST_ADMIN_PRIVATE_KEY', testnet), testnet);
 }
 
+/** Signer for the battle watchdog (`BattleArena.freeze`, GUARDIAN_ROLE). The guardian can only
+ *  hold a payout for review — it moves no money — so it is its own key, never the resolver's:
+ *  the key that proposes a result must not be the one that vouches for it. Same fallback
+ *  semantics as the other role keys (GUARDIAN_PRIVATE_KEY, else OPERATOR_PRIVATE_KEY off mainnet). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getGuardianClient(testnet = false): any {
+  return walletFromKey(roleKey('GUARDIAN_PRIVATE_KEY', testnet), testnet);
+}
+
 /**
  * The private key for one hot role.
  *
@@ -79,14 +88,15 @@ export function getBoostAdminClient(testnet = false): any {
  *
  * On mainnet (`testnet === false`) there is NO fallback (audit 2026-09 D-26). The role
  * policy sizes each hot key's blast radius on its own: a stolen resolver key can propose
- * battle results, a stolen boost key can post mining boosts. One shared key collapses
+ * battle results, a stolen boost key can post mining boosts, a stolen guardian key can only
+ * freeze results under review — and the guardian exists to catch a bad resolver. One shared key collapses
  * that — a single compromise could settle self-play battles AND boost the same teams'
  * mining, with no second service to notice. The deploy scripts already refuse to grant
  * two hot roles to one address on mainnet; this makes the server refuse to run as if
  * they had, rather than sign with a key that holds the wrong role and fail on-chain.
  */
 export function roleKey(
-  name: 'MATCHMAKER_PRIVATE_KEY' | 'RESOLVER_PRIVATE_KEY' | 'BOOST_ADMIN_PRIVATE_KEY',
+  name: 'MATCHMAKER_PRIVATE_KEY' | 'RESOLVER_PRIVATE_KEY' | 'BOOST_ADMIN_PRIVATE_KEY' | 'GUARDIAN_PRIVATE_KEY',
   testnet: boolean,
 ): string {
   const own = presentKey(process.env[name]);

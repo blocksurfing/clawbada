@@ -47,7 +47,7 @@ export const battleSessions = pgTable(
     turnLogHash: text('turn_log_hash'),
     /** D-27: hash of the battle rules this session was played under (game-logic
      *  v3/rules-version.ts). It is inside turn_log_hash too; the column makes "which battles
-     *  ran under rules X?" a query, and tells whoever judges a dispute which engine tag to
+     *  ran under rules X?" a query, and tells whoever reviews a frozen result which engine tag to
      *  replay with. NULL = played before rules versions existed. */
     rulesVersion: text('rules_version'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

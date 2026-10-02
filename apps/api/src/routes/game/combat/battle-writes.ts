@@ -2,13 +2,17 @@
  * POST endpoints for battle actions — calldata builders. The API never sends
  * tx itself; it returns calldata for the agent (or wallet) to sign and broadcast.
  *
- * POST /api/game/combat/:battleId/deposit       — approve + deposit stake
- * POST /api/game/combat/:battleId/commit-team   — submit team commit hash
+ * POST /api/game/combat/:battleId/deposit       — approve + deposit(stake consent, team commit)
  * POST /api/game/combat/:battleId/reveal-team   — submit team-reveal salt (F5-01:
  *                                                   server-verified, engine submits the
  *                                                   atomic revealTeams — no calldata)
+ * POST /api/game/combat/:battleId/open-commit   — openOwnCommit calldata, only after the
+ *                                                   resolver reported your commit unopenable (D-14)
  * POST /api/game/combat/:battleId/handle-timeout — permissionless timeout calldata
- * POST /api/game/combat/:battleId/dispute        — approve bond + disputeBattle (D-06)
+ *
+ * There is no dispute route: player disputes were removed (owner decision 2026-10-01). The
+ * engine's watchdog replays every result during its review window and freezes any it cannot
+ * reproduce; the Safe resolves frozen battles, or after 72 h anyone expires them.
  *
  * V3: battle turns are played off-chain over WebSocket (the battle-session
  * manager); the V2 per-round `commit-moves` / `reveal-moves` calldata routes are
@@ -28,8 +32,11 @@ import { db, battles } from '@clawbada/db';
 import { log as baseLog } from '../../../logger';
 import { walletAuth } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
-import { readBattle, readChainTime, readDisputeBond, serializeBigInts } from '../../../lib/chain';
+import { readBattle, serializeBigInts } from '../../../lib/chain';
 import { buildCalldata, singleStep, multiStep } from '../../../lib/calldata';
+
+const BYTES32_RE = /^0x[0-9a-fA-F]{64}$/;
+const ZERO_BYTES32 = `0x${'0'.repeat(64)}`;
 
 const log = baseLog.child({ module: 'combat:writes' });
 
@@ -57,6 +64,25 @@ export function depositConsentMismatch(
   return null;
 }
 
+/** D-08: what the player consents to in `deposit(battleId, expectedStake, maxOpponentPower, commit)`:
+ *  the stake of the bracket they queued for and the opponent Team Power they were shown when
+ *  matched — both from THIS server's match record, never from the chain. The contract reverts
+ *  `ConsentMismatch` if the on-chain battle differs, so a misbehaving matchmaker key cannot
+ *  spring a bigger stake or a stronger opponent on a depositor. Null if the record is incomplete. */
+export function depositConsent(
+  address: string,
+  row: { playerA: string; playerB: string; stakeBracket: number; powerA: number | null; powerB: number | null },
+): { expectedStake: bigint; maxOpponentPower: number } | null {
+  const stake = STAKE_BRACKETS[row.stakeBracket];
+  if (stake === undefined) return null;
+  const isA = row.playerA.toLowerCase() === address;
+  const isB = row.playerB.toLowerCase() === address;
+  if (!isA && !isB) return null;
+  const opponentPower = isA ? row.powerB : row.powerA;
+  if (opponentPower === null || opponentPower === undefined) return null;
+  return { expectedStake: stake * 10n ** 18n, maxOpponentPower: opponentPower };
+}
+
 battleWriteRoutes.post(
   '/:battleId/deposit',
   walletAuth,
@@ -64,18 +90,22 @@ battleWriteRoutes.post(
     const address = (c.get('address') as string).toLowerCase();
     const { battleId } = c.req.param();
     const id = BigInt(battleId);
+    // D-13: the team commit rides in the deposit. Either send the hash you built yourself
+    // (keccak256(abi.encodePacked(battleId, you, teamId, salt)) — keep the salt for /reveal-team),
+    // or send teamId + salt and the server builds it (and keeps the salt for the reveal, so you
+    // do not have to race the 20 s reveal window).
+    const body = (await c.req.json().catch(() => ({}))) as { commitHash?: string; teamId?: string; salt?: string };
 
     const battle = await readBattle(id);
+    if (battle.phase !== BattlePhase.Deposit) {
+      throw new ApiError('BATTLE_PHASE_ERROR', 'Battle is not in the deposit phase');
+    }
 
-    // D-08 (audit 2026-09): consent on-chain is a bare deposit(battleId) — the player never
-    // states the stake, the opponent or the opponent's Power they agreed to. createBattle lets
-    // the MATCHMAKER key choose all three, so a stolen key can pair a Power-3 player who
-    // queued for Low against the thief's own 3x Apex team at the 50,000 stake; this route then
-    // built approve + deposit for 52,500 CLAW from the ON-CHAIN stake, and the reference agent
-    // signed it blindly. Until the contract binds consent itself, this is where it is bound:
-    // calldata is only built when the battle on-chain IS the match this server made for the
-    // caller — same two players, the stake of the bracket they queued for, the Powers the
-    // matchmaker recorded. Anything else is refused, loudly.
+    // D-08 (audit 2026-09): calldata is only built when the battle on-chain IS the match this
+    // server made for the caller — same two players, the stake of the bracket they queued for,
+    // the Powers the matchmaker recorded. The contract now also binds consent itself (the
+    // expected stake + max opponent Power ride in the deposit), so this is defence in depth and
+    // a clear error message instead of a ConsentMismatch revert.
     const row = await db.query.battles.findFirst({ where: eq(battles.battleId, id) });
     const mismatch = depositConsentMismatch(address, battle, row);
     if (mismatch) {
@@ -84,6 +114,43 @@ battleWriteRoutes.post(
         'BATTLE_PHASE_ERROR',
         `This on-chain battle is not the match this server made for you (${mismatch}). Do not deposit. If you did not expect this, report it.`,
       );
+    }
+    const consent = depositConsent(address, row!);
+    if (!consent) {
+      throw new ApiError('BATTLE_PHASE_ERROR', 'The match record is missing the stake or opponent Power you agreed to, so no deposit can be built.');
+    }
+
+    let commitHash: `0x${string}`;
+    let preparedReveal: { teamId: bigint; salt: `0x${string}` } | null = null;
+    if (body.teamId !== undefined || body.salt !== undefined) {
+      if (!body.teamId || !body.salt || !/^\d+$/.test(body.teamId) || !BYTES32_RE.test(body.salt)) {
+        throw new ApiError('INVALID_INPUT', 'teamId (decimal) and salt (bytes32 hex) are both required to build the commit');
+      }
+      const teamId = BigInt(body.teamId);
+      // D-17: commit only the team you queued with — it is the only one the reveal will open.
+      const queued = address === row!.playerA.toLowerCase() ? row!.queuedTeamA : row!.queuedTeamB;
+      if (queued === null || queued === undefined || BigInt(queued) !== teamId) {
+        throw new ApiError('INVALID_INPUT', 'teamId is not the team you queued with for this battle');
+      }
+      preparedReveal = { teamId, salt: body.salt as `0x${string}` };
+      commitHash = teamCommitHash(id, address as `0x${string}`, teamId, preparedReveal.salt);
+      if (body.commitHash && body.commitHash.toLowerCase() !== commitHash.toLowerCase()) {
+        throw new ApiError('INVALID_INPUT', 'commitHash does not match teamId + salt');
+      }
+    } else if (body.commitHash && BYTES32_RE.test(body.commitHash) && body.commitHash.toLowerCase() !== ZERO_BYTES32) {
+      commitHash = body.commitHash as `0x${string}`;
+    } else {
+      throw new ApiError('INVALID_INPUT', 'commitHash (non-zero bytes32) or teamId + salt required: the team commit is part of the deposit');
+    }
+
+    if (preparedReveal) {
+      // The engine's reveal watcher checks this salt against the commit that actually lands
+      // on-chain before it uses it, so a stale or wrong one costs nothing.
+      const isA = address === row!.playerA.toLowerCase();
+      await db
+        .update(battles)
+        .set(isA ? { teamA: preparedReveal.teamId, revealSaltA: preparedReveal.salt } : { teamB: preparedReveal.teamId, revealSaltB: preparedReveal.salt })
+        .where(eq(battles.battleId, id));
     }
 
     const antiGrief = (battle.stakeAmount * ANTI_GRIEF_DEPOSIT_BPS) / 10000n;
@@ -100,43 +167,24 @@ battleWriteRoutes.post(
       addresses.battleArena,
       BattleArenaAbi as any,
       'deposit',
-      [id],
+      [id, consent.expectedStake, consent.maxOpponentPower, commitHash],
     );
 
     return c.json({
       ...multiStep(
         { description: `Approve ${totalDeposit} $CLAW (stake + 5% anti-grief)`, calldata: approveCalldata },
-        { description: 'Deposit stake for battle', calldata: depositCalldata },
+        { description: 'Deposit stake and commit your team', calldata: depositCalldata },
       ),
       preview: serializeBigInts({
         battleId: id,
         stakeAmount: battle.stakeAmount,
         antiGriefDeposit: antiGrief,
         totalDeposit,
+        commitHash,
+        consent: { expectedStake: consent.expectedStake, maxOpponentPower: consent.maxOpponentPower },
+        revealPrepared: preparedReveal !== null,
       }),
     });
-  }),
-);
-
-battleWriteRoutes.post(
-  '/:battleId/commit-team',
-  walletAuth,
-  catchErrors(async (c) => {
-    const { battleId } = c.req.param();
-    const body = await c.req.json<{ commitHash: string }>();
-
-    if (!body.commitHash) {
-      throw new ApiError('INVALID_INPUT', 'commitHash required');
-    }
-
-    const calldata = buildCalldata(
-      addresses.battleArena,
-      BattleArenaAbi as any,
-      'commitTeam',
-      [BigInt(battleId), body.commitHash],
-    );
-
-    return c.json(singleStep('Commit team composition hash', calldata));
   }),
 );
 
@@ -183,7 +231,7 @@ battleWriteRoutes.post(
     }
 
     // D-17 (audit 2026-09): the revealed team must be the team this player QUEUED with.
-    // On-chain, createBattle binds only each side's Power (3-9) and commitTeam takes an
+    // On-chain, createBattle binds only each side's Power (3-9) and the deposit's team commit is an
     // opaque hash, so nothing there ties the commit to the queued team. BattleCreated
     // publishes both addresses and Powers before anyone deposits, and a team's Power can
     // never change while it is assembled — so a single-team opponent's exact line-up is
@@ -226,76 +274,52 @@ battleWriteRoutes.post(
   }),
 );
 
-// D-06 (audit 2026-09): the dispute — the "bonded veto" the whole trust model rests on — had no
-// route. disputeBattle existed only on-chain: the web app had no button and the API built no
-// calldata, so a human could not contest a settlement at all and an agent had to hand-roll
-// the ABI call. A veto nobody can reach is not a veto.
-//
-// Any participant may dispute while the battle is AwaitingFinalize and the chain clock is at
-// or before payoutDeadline. The bond (10% of the bracket stake) is refunded if the admin
-// changes the outcome in ANY respect and slashed if the result stands; 5 disputes per address
-// per rolling 24 h.
+// D-14: the resolver reported that your commit does not open with the salt it holds (or it
+// never got your salt). You have REVEAL_GRACE (2 min) to open it yourself, or you forfeit your
+// 5% anti-grief deposit when the reveal window lapses. Opening only binds what you already
+// committed; the resolver then reveals both teams together as usual.
 battleWriteRoutes.post(
-  '/:battleId/dispute',
+  '/:battleId/open-commit',
   walletAuth,
   catchErrors(async (c) => {
     const address = (c.get('address') as string).toLowerCase();
     const { battleId } = c.req.param();
     const id = BigInt(battleId);
-    const body = (await c.req.json().catch(() => ({}))) as { evidence?: string };
-
+    const body = (await c.req.json().catch(() => ({}))) as { teamId?: string; salt?: string };
+    if (!body.teamId || !body.salt || !/^\d+$/.test(body.teamId) || !BYTES32_RE.test(body.salt)) {
+      throw new ApiError('INVALID_INPUT', 'teamId (decimal) and salt (bytes32 hex) required');
+    }
     const battle = await readBattle(id);
-    if (address !== battle.playerA.toLowerCase() && address !== battle.playerB.toLowerCase()) {
-      throw new ApiError('UNAUTHORIZED', 'Only a participant can dispute a battle');
+    const isA = address === battle.playerA.toLowerCase();
+    const isB = address === battle.playerB.toLowerCase();
+    if (!isA && !isB) throw new ApiError('UNAUTHORIZED', 'Not a participant in this battle');
+    if (battle.phase !== BattlePhase.TeamReveal) throw new ApiError('BATTLE_PHASE_ERROR', 'Battle is not in the team-reveal phase');
+    if (!(isA ? battle.accusedA : battle.accusedB)) {
+      throw new ApiError('BATTLE_PHASE_ERROR', 'Your commit has not been reported unopenable; POST /reveal-team instead');
     }
-    if (battle.phase !== BattlePhase.AwaitingFinalize) {
-      throw new ApiError('BATTLE_PHASE_ERROR', 'A battle can only be disputed while its result is awaiting finalization');
+    const teamId = BigInt(body.teamId);
+    const salt = body.salt as `0x${string}`;
+    const onChainCommit = isA ? battle.teamCommitA : battle.teamCommitB;
+    if (teamCommitHash(id, address as `0x${string}`, teamId, salt).toLowerCase() !== String(onChainCommit).toLowerCase()) {
+      throw new ApiError('INVALID_INPUT', 'Salt/teamId do not match your committed team hash');
     }
-    if (battle.disputed) {
-      throw new ApiError('BATTLE_PHASE_ERROR', 'This battle is already disputed and is waiting for the admin to resolve it');
-    }
-    const now = await readChainTime();
-    if (now > battle.payoutDeadline) {
-      throw new ApiError('BATTLE_PHASE_ERROR', 'The dispute window for this battle has closed');
-    }
-
-    // Free-text evidence for the admin (what you saw, what is wrong), stored in the
-    // BattleDisputed event. Bounded: it is calldata the disputer pays for.
-    const note = (body.evidence ?? '').slice(0, 512);
-    const evidence = `0x${Buffer.from(note, 'utf8').toString('hex')}`;
-    const bond = await readDisputeBond(battle.stakeAmount);
-
-    const approveCalldata = buildCalldata(addresses.clawToken, ClawTokenAbi as any, 'approve', [addresses.battleArena, bond]);
-    const disputeCalldata = buildCalldata(addresses.battleArena, BattleArenaAbi as any, 'disputeBattle', [id, evidence]);
-
-    log.warn({ battleId, address, proposedWinner: battle.proposedWinner }, 'dispute_calldata_requested');
-    return c.json({
-      ...multiStep(
-        { description: `Approve the ${bond / 10n ** 18n} $CLAW dispute bond`, calldata: approveCalldata },
-        { description: 'Dispute the proposed battle result', calldata: disputeCalldata },
-      ),
-      preview: serializeBigInts({
-        battleId: id,
-        bond,
-        proposedWinner: battle.proposedWinner,
-        payoutDeadline: battle.payoutDeadline,
-        secondsLeft: battle.payoutDeadline - now,
-        terms:
-          'The bond is returned if the admin changes the result in any respect (winner, damage or battle hashes) and is slashed if the result stands. Limit: 5 disputes per address per 24 hours.',
-      }),
-    });
+    const calldata = buildCalldata(addresses.battleArena, BattleArenaAbi as any, 'openOwnCommit', [id, teamId, salt]);
+    return c.json(singleStep('Open your own team commit (clears the reveal-failure report)', calldata));
   }),
 );
 
 /** X13: handleTimeout calldata. The contract's `handleTimeout(battleId)` is
  *  permissionless once the phase's deadline has elapsed (BattleArena.sol:727).
  *  It routes to the right cleanup path per phase:
- *    - Deposit / TeamCommit / TeamReveal → cancel + refund stakes.
+ *    - Deposit → cancel + refund stakes.
+ *    - TeamReveal → mutual cancel; a player reported for an unopenable commit who did not
+ *      open it forfeits their 5% (D-14).
  *    - Active → past ACTIVE_WINDOW: mutual cancel with full refunds (V3).
- *    - AwaitingFinalize (undisputed) → finalize payout.
- *  The frontend shows a button when chain.phase has elapsed `phaseDeadline`
- *  (or `payoutDeadline` for AwaitingFinalize); auth here is for telemetry +
- *  rate limit, not access control. Anyone can call on chain. */
+ *    - AwaitingFinalize (in review) → past the review window: pay out.
+ *    - Frozen → past frozenAt + 72 h: expire (stakes burned, both players paid back from the
+ *      refund reserve; returned directly if the reserve is short).
+ *  The frontend shows a button when the relevant deadline has passed; auth here is for
+ *  telemetry + rate limit, not access control. Anyone can call on chain. */
 battleWriteRoutes.post(
   '/:battleId/handle-timeout',
   walletAuth,
@@ -309,6 +333,6 @@ battleWriteRoutes.post(
       [BigInt(battleId)],
     );
 
-    return c.json(singleStep('Handle timeout (cancel / finalize stuck battle)', calldata));
+    return c.json(singleStep('Handle timeout (cancel / pay out / expire a stuck battle)', calldata));
   }),
 );

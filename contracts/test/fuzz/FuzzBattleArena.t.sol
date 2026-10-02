@@ -2,9 +2,12 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import "../helpers/BaseSetup.t.sol";
 
-/// @dev Fuzz tests for BattleArena: phase state machine, stake accounting, access control.
+/// @dev Fuzz tests for BattleArena: phase state machine, consent + commit in deposit, settlement
+///      review (freeze / resolveFrozen / expireFrozen / refund reserve), payout conservation,
+///      reveal-failure attribution, access control and timelocked tuning.
 contract FuzzBattleArena is BaseSetup {
     // D-01: every test battle uses one known secret; the commitment binds it to the battle id.
     bytes32 internal constant SEED_SECRET = keccak256("clawbada-test-seed-secret");
@@ -14,62 +17,79 @@ contract FuzzBattleArena is BaseSetup {
     }
 
     address internal alice = makeAddr("alice");
-    address internal bob   = makeAddr("bob");
+    address internal bob = makeAddr("bob");
+    address internal guardian = makeAddr("guardian");
+    address internal funder = makeAddr("reserve-funder");
+    address internal stranger = makeAddr("stranger");
 
     uint256 internal constant LOW_STAKE = 2_500e18;
     // V3 settle commitments (any non-zero value)
     bytes32 internal constant HASH_STATE = keccak256("final-state");
     bytes32 internal constant HASH_LOG = keccak256("turn-log");
 
-    function _createBattle() internal returns (uint256 battleId) {
+    function setUp() public override {
+        super.setUp();
+        bytes32 guardianRole = battleArena.GUARDIAN_ROLE();
         vm.prank(admin);
-        // Power 3 == three Evolved lobsters (the standard _createEvolvedTeam composition).
-        battleId = battleArena.createBattle(alice, bob, LOW_STAKE, 3, 3);
+        battleArena.grantRole(guardianRole, guardian);
     }
 
-    function _deposit(address player, uint256 battleId) internal {
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 total = LOW_STAKE + antiGrief;
+    // ─────────────────────────── helpers ───────────────────────────
+
+    function _ag(uint256 stake) internal view returns (uint256) {
+        return stake * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
+    }
+
+    function _commitHash(uint256 battleId, address player, uint256 teamId, bytes32 salt)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(battleId, player, teamId, salt));
+    }
+
+    function _saltA(uint256 battleId) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked("salt-A", battleId));
+    }
+
+    function _saltB(uint256 battleId) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked("salt-B", battleId));
+    }
+
+    function _createBattleAt(uint256 stake) internal returns (uint256 battleId) {
+        vm.prank(admin);
+        // Power 3 == three Evolved lobsters (the standard _createEvolvedTeam composition).
+        battleId = battleArena.createBattle(alice, bob, stake, 3, 3);
+    }
+
+    function _createBattle() internal returns (uint256) {
+        return _createBattleAt(LOW_STAKE);
+    }
+
+    /// @dev Fund + approve + deposit with full consent (expected stake, any opponent power).
+    function _depositWith(address player, uint256 battleId, uint256 stake, bytes32 commitHash) internal {
+        uint256 total = stake + _ag(stake);
         _giveClaw(player, total);
         vm.startPrank(player);
         claw.approve(address(battleArena), total);
-        battleArena.deposit(battleId);
+        battleArena.deposit(battleId, stake, 9, commitHash);
         vm.stopPrank();
+    }
+
+    /// @dev Deposit committing to `teamId` with the per-side deterministic salt.
+    function _depositTeam(address player, uint256 battleId, uint256 stake, uint256 teamId) internal {
+        bytes32 salt = player == alice ? _saltA(battleId) : _saltB(battleId);
+        _depositWith(player, battleId, stake, _commitHash(battleId, player, teamId, salt));
+    }
+
+    /// @dev Deposit with a throwaway (non-zero) commitment, for tests that never reveal.
+    function _deposit(address player, uint256 battleId) internal {
+        _depositWith(player, battleId, LOW_STAKE, keccak256(abi.encodePacked("dummy", player, battleId)));
     }
 
     function _bothDeposit(uint256 battleId) internal {
         _deposit(alice, battleId);
         _deposit(bob, battleId);
-    }
-
-    /// @dev V3 S1: mint + approve the dispute bond for `disputer` so a subsequent
-    ///      `battleArena.disputeBattle(...)` call doesn't revert with InsufficientAllowance.
-    ///      All existing tests use LOW_STAKE bracket (index 0); this helper assumes that.
-    function _setupDisputeBond(address disputer) internal {
-        uint256 bond = battleArena.disputeBonds(0);
-        if (bond == 0) return;
-        _giveClaw(disputer, bond);
-        vm.prank(disputer);
-        claw.approve(address(battleArena), bond);
-    }
-
-    function _commitTeam(address player, uint256 battleId, uint256 teamId, bytes32 salt) internal {
-        bytes32 hash = keccak256(abi.encodePacked(battleId, player, teamId, salt));
-        vm.prank(player);
-        battleArena.commitTeam(battleId, hash);
-    }
-
-    // F5-01: team reveal is atomic and resolver-submitted. `admin` holds RESOLVER_ROLE in
-    // this harness. Assumes alice = playerA, bob = playerB (the convention these tests use).
-    function _revealTeams(
-        uint256 battleId,
-        uint256 teamA,
-        bytes32 saltA,
-        uint256 teamB,
-        bytes32 saltB
-    ) internal {
-        vm.prank(admin);
-        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB, _seedCommit(battleId));
     }
 
     function _createEvolvedTeam(address owner) internal returns (uint256 teamId) {
@@ -82,19 +102,140 @@ contract FuzzBattleArena is BaseSetup {
         teamId = teamMgr.createTeam(ids);
     }
 
-    // ── Invalid stake reverts ─────────────────────────────────────
+    /// @dev Battle in TeamReveal with both commits bound to fresh Evolved teams.
+    function _setupRevealPhase(uint256 stake) internal returns (uint256 battleId, uint256 teamA, uint256 teamB) {
+        teamA = _createEvolvedTeam(alice);
+        teamB = _createEvolvedTeam(bob);
+        battleId = _createBattleAt(stake);
+        _depositTeam(alice, battleId, stake, teamA);
+        _depositTeam(bob, battleId, stake, teamB);
+    }
+
+    function _reveal(uint256 battleId, uint256 teamA, uint256 teamB) internal {
+        vm.prank(admin);
+        battleArena.revealTeams(battleId, teamA, _saltA(battleId), teamB, _saltB(battleId), _seedCommit(battleId));
+    }
+
+    function _setupActiveAt(uint256 stake) internal returns (uint256 battleId, uint256 teamA, uint256 teamB) {
+        (battleId, teamA, teamB) = _setupRevealPhase(stake);
+        _reveal(battleId, teamA, teamB);
+    }
+
+    function _setupSettleableBattle() internal returns (uint256 battleId, uint256 teamA, uint256 teamB) {
+        return _setupActiveAt(LOW_STAKE);
+    }
+
+    function _settle(uint256 battleId, address winner, address forfeiter) internal {
+        vm.prank(admin);
+        battleArena.settle(
+            battleId, winner, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET, forfeiter
+        );
+    }
+
+    function _settleProposing(uint256 battleId, address winner) internal {
+        _settle(battleId, winner, address(0));
+    }
+
+    function _fundReserve(uint256 amount) internal {
+        _giveClaw(funder, amount);
+        vm.startPrank(funder);
+        claw.approve(address(battleArena), amount);
+        battleArena.fundReserve(amount);
+        vm.stopPrank();
+    }
+
+    /// @dev Fuzz selector → address: 0 alice, 1 bob, 2 address(0), 3 stranger.
+    function _pick(uint8 sel) internal view returns (address) {
+        sel = sel % 4;
+        if (sel == 0) return alice;
+        if (sel == 1) return bob;
+        if (sel == 2) return address(0);
+        return stranger;
+    }
+
+    function _isValidResult(address winner, address forfeiter) internal view returns (bool) {
+        if (winner != address(0) && winner != alice && winner != bob) return false;
+        if (forfeiter == address(0)) return true;
+        if (winner == address(0) || forfeiter == winner) return false;
+        return forfeiter == alice || forfeiter == bob;
+    }
+
+    function _expectedResultError(uint256 battleId, address winner) internal view returns (bytes memory) {
+        if (winner != address(0) && winner != alice && winner != bob) {
+            return abi.encodeWithSelector(BattleArena.InvalidWinner.selector, battleId);
+        }
+        return abi.encodeWithSelector(BattleArena.InvalidForfeiter.selector, battleId);
+    }
+
+    struct Snap {
+        uint256 alice;
+        uint256 bob;
+        uint256 dev;
+        uint256 supply;
+        uint256 arena;
+        uint256 treasury;
+        uint256 reserve;
+    }
+
+    function _snap() internal view returns (Snap memory s) {
+        s.alice = claw.balanceOf(alice);
+        s.bob = claw.balanceOf(bob);
+        s.dev = claw.balanceOf(devWallet);
+        s.supply = claw.totalSupply();
+        s.arena = claw.balanceOf(address(battleArena));
+        s.treasury = claw.balanceOf(address(treasury));
+        s.reserve = battleArena.refundReserve();
+    }
+
+    /// @dev Expected (alicePaid, bobPaid, feeToTreasury) for a paid result.
+    function _expectedPayout(uint256 stake, address winner, address forfeiter)
+        internal
+        view
+        returns (uint256 toAlice, uint256 toBob, uint256 fee)
+    {
+        uint256 ag = _ag(stake);
+        if (winner == address(0)) {
+            uint256 side = stake * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
+            return (stake - side + ag, stake - side + ag, side * 2);
+        }
+        uint256 pot = stake * 2;
+        uint256 pfee = pot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
+        address loser = winner == alice ? bob : alice;
+        uint256 loserGets = forfeiter == loser ? 0 : ag;
+        fee = pfee + (forfeiter == loser ? ag : 0);
+        if (winner == alice) return (pot - pfee + ag, loserGets, fee);
+        return (loserGets, pot - pfee + ag, fee);
+    }
+
+    /// @dev Assert every escrowed token left the arena to a player or the Treasury split.
+    function _assertPaid(Snap memory before, uint256 stake, address winner, address forfeiter) internal view {
+        (uint256 eA, uint256 eB, uint256 eFee) = _expectedPayout(stake, winner, forfeiter);
+        Snap memory a = _snap();
+        uint256 paidA = a.alice - before.alice;
+        uint256 paidB = a.bob - before.bob;
+        uint256 dev = a.dev - before.dev;
+        uint256 burned = before.supply - a.supply;
+        assertEq(paidA, eA, "alice payout");
+        assertEq(paidB, eB, "bob payout");
+        assertEq(dev + burned, eFee, "fee routed to Treasury");
+        assertEq(burned, eFee * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR(), "85% burned");
+        assertEq(a.treasury, before.treasury, "Treasury keeps nothing");
+        assertEq(paidA + paidB + eFee, 2 * (stake + _ag(stake)), "conservation: transfers + fee == escrow");
+        assertEq(before.arena - a.arena, 2 * (stake + _ag(stake)), "whole escrow left the arena");
+        assertEq(a.arena, a.reserve, "only the reserve remains");
+    }
+
+    // ─────────────────────── creation / phases ───────────────────────
 
     function testFuzz_invalid_stake_reverts(uint256 amount) public {
-        // Not one of the 3 brackets
         vm.assume(amount != 2_500e18 && amount != 10_000e18 && amount != 50_000e18);
         amount = bound(amount, 1, type(uint128).max);
+        vm.assume(amount != 2_500e18 && amount != 10_000e18 && amount != 50_000e18);
 
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeAmount.selector, amount));
         battleArena.createBattle(alice, bob, amount, 3, 3);
     }
-
-    // ── Same player reverts ───────────────────────────────────────
 
     function test_same_player_reverts() public {
         vm.prank(admin);
@@ -102,1308 +243,997 @@ contract FuzzBattleArena is BaseSetup {
         battleArena.createBattle(alice, alice, LOW_STAKE, 3, 3);
     }
 
-    // ── Phase progression ─────────────────────────────────────────
-
-    function test_phase_deposit_to_team_commit() public {
+    /// D-13: the commit rides in the deposit; both deposits go straight to TeamReveal.
+    function test_phase_deposit_to_team_reveal() public {
         uint256 battleId = _createBattle();
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Deposit));
+        assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Deposit));
 
-        _deposit(alice, battleId);
-        b = battleArena.getBattle(battleId);
+        bytes32 hA = keccak256("commit-A");
+        _depositWith(alice, battleId, LOW_STAKE, hA);
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Deposit), "still Deposit after 1");
+        assertEq(b.teamCommitA, hA, "commit A stored with the deposit");
 
-        _deposit(bob, battleId);
-        b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.TeamCommit), "TeamCommit after both");
-    }
-
-    function test_phase_team_commit_to_reveal() public {
-        uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-
-        bytes32 saltA = bytes32(uint256(1));
-        bytes32 saltB = bytes32(uint256(2));
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-
-        _commitTeam(alice, battleId, teamA, saltA);
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.TeamCommit), "still TeamCommit after 1");
-
-        _commitTeam(bob, battleId, teamB, saltB);
+        bytes32 hB = keccak256("commit-B");
+        uint256 t = block.timestamp;
+        _depositWith(bob, battleId, LOW_STAKE, hB);
         b = battleArena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.TeamReveal), "TeamReveal after both");
+        assertEq(b.teamCommitB, hB, "commit B stored with the deposit");
+        assertEq(b.phaseDeadline, t + battleArena.TEAM_REVEAL_WINDOW(), "reveal deadline");
     }
 
     function test_phase_reveal_to_active() public {
-        uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-
-        bytes32 saltA = bytes32(uint256(11));
-        bytes32 saltB = bytes32(uint256(22));
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob, battleId, teamB, saltB);
-
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
+        _reveal(battleId, teamA, teamB);
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.TeamReveal), "TeamReveal after both commits");
-
-        // F5-01: atomic resolver-submitted reveal binds both teams and transitions
-        // straight to Active — there is no one-sided intermediate reveal state.
-        _revealTeams(battleId, teamA, saltA, teamB, saltB);
-        b = battleArena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Active), "Active after atomic reveal");
+        assertTrue(battleArena.teamInBattle(teamA) && battleArena.teamInBattle(teamB), "teams locked while playing");
+        assertTrue(teamMgr.getTeam(teamA).active && teamMgr.getTeam(teamB).active, "TeamManager-active while playing");
     }
 
-    // ── Stake accounting: settlement is zero-sum ──────────────────
-
-    function test_settle_stake_accounting() public {
+    function test_zero_commit_hash_reverts() public {
         uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-
-        bytes32 saltA = bytes32(uint256(111));
-        bytes32 saltB = bytes32(uint256(222));
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob, battleId, teamB, saltB);
-        _revealTeams(battleId, teamA, saltA, teamB, saltB);
-
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore   = claw.balanceOf(bob);
-        uint256 supplyBefore = claw.totalSupply();
-
-        // Settle with alice as winner, minimal damage.
-        // H-01: settle proposes, finalize pays.
-        uint8[3] memory winnerDmg = [uint8(5), 5, 5];
-        uint8[3] memory loserDmg  = [uint8(20), 20, 20];
-
-        vm.prank(admin);
-        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, winnerDmg, loserDmg, SEED_SECRET);
-        vm.warp(block.timestamp + battleArena.disputeWindows(0) + 1);
-        battleArena.finalizeBattle(battleId);
-
-        uint256 aliceAfter = claw.balanceOf(alice);
-        uint256 bobAfter   = claw.balanceOf(bob);
-
-        // Combined pot = 2 × LOW_STAKE
-        uint256 combinedPot = LOW_STAKE * 2;
-        uint256 protocolFee = combinedPot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 winnerPayout = combinedPot - protocolFee;
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-
-        // Alice net: winnerPayout + antiGrief - LOW_STAKE - antiGrief = winnerPayout - LOW_STAKE = net gain
-        uint256 aliceNet = aliceAfter - aliceBefore;
-
-        assertEq(aliceNet, winnerPayout + antiGrief, "alice receives winnerPayout + antiGrief");
-        assertEq(bobAfter, antiGrief, "bob gets antiGrief back"); // bob started with 0 after giving to arena
-
-        // Protocol fee burned
-        uint256 burned = supplyBefore - claw.totalSupply();
-        uint256 burnedFee = protocolFee * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR();
-        assertEq(burned, burnedFee, "protocol fee burn");
+        uint256 total = LOW_STAKE + _ag(LOW_STAKE);
+        _giveClaw(alice, total);
+        vm.startPrank(alice);
+        claw.approve(address(battleArena), total);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
+        battleArena.deposit(battleId, LOW_STAKE, 9, bytes32(0));
+        vm.stopPrank();
     }
-
-    // ── Double deposit reverts ────────────────────────────────────
 
     function test_double_deposit_reverts() public {
         uint256 battleId = _createBattle();
         _deposit(alice, battleId);
 
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 total = LOW_STAKE + antiGrief;
+        uint256 total = LOW_STAKE + _ag(LOW_STAKE);
         _giveClaw(alice, total);
-
         vm.startPrank(alice);
         claw.approve(address(battleArena), total);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.AlreadyDeposited.selector, battleId));
-        battleArena.deposit(battleId);
+        battleArena.deposit(battleId, LOW_STAKE, 9, keccak256("again"));
         vm.stopPrank();
     }
-
-    // ── Non-participant cannot deposit ────────────────────────────
 
     function test_non_participant_reverts() public {
-        address charlie = makeAddr("charlie");
         uint256 battleId = _createBattle();
-
-        uint256 total = LOW_STAKE + (LOW_STAKE * 500 / 10_000);
-        _giveClaw(charlie, total);
-
-        vm.startPrank(charlie);
+        uint256 total = LOW_STAKE + _ag(LOW_STAKE);
+        _giveClaw(stranger, total);
+        vm.startPrank(stranger);
         claw.approve(address(battleArena), total);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.NotBattleParticipant.selector, battleId));
-        battleArena.deposit(battleId);
+        battleArena.deposit(battleId, LOW_STAKE, 9, keccak256("x"));
         vm.stopPrank();
     }
-
-    // ── Deposit timeout cancels and refunds ───────────────────────
 
     function test_deposit_timeout_refunds() public {
         uint256 battleId = _createBattle();
-        _deposit(alice, battleId); // only alice deposits
-
+        _deposit(alice, battleId);
         uint256 aliceBefore = claw.balanceOf(alice);
 
         vm.warp(block.timestamp + battleArena.DEPOSIT_WINDOW() + 1);
         battleArena.handleTimeout(battleId);
 
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Cancelled));
-
-        // Alice should get refunded
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 expectedRefund = LOW_STAKE + antiGrief;
-        assertEq(claw.balanceOf(alice) - aliceBefore, expectedRefund, "alice refunded");
+        assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Cancelled));
+        assertEq(claw.balanceOf(alice) - aliceBefore, LOW_STAKE + _ag(LOW_STAKE), "alice refunded");
+        assertEq(claw.balanceOf(address(battleArena)), 0, "nothing stuck");
     }
-
-    // ── Wrong phase prevents action ───────────────────────────────
 
     function test_wrong_phase_deposit_reverts() public {
         uint256 battleId = _createBattle();
-        _bothDeposit(battleId); // phase → TeamCommit
+        _bothDeposit(battleId); // phase -> TeamReveal
 
-        uint256 total = LOW_STAKE + (LOW_STAKE * 500 / 10_000);
+        uint256 total = LOW_STAKE + _ag(LOW_STAKE);
         _giveClaw(alice, total);
         vm.startPrank(alice);
         claw.approve(address(battleArena), total);
-        vm.expectRevert(); // InvalidBattlePhase
-        battleArena.deposit(battleId);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BattleArena.InvalidBattlePhase.selector,
+                battleId,
+                BattleArena.BattlePhase.Deposit,
+                BattleArena.BattlePhase.TeamReveal
+            )
+        );
+        battleArena.deposit(battleId, LOW_STAKE, 9, keccak256("late"));
         vm.stopPrank();
     }
 
-    // ── Lobster damage gate enforced ──────────────────────────────
+    // ─────────────────────── D-08 consent ───────────────────────
+
+    /// deposit reverts ConsentMismatch iff the stake differs from what the player agreed to or
+    /// the opponent's Power snapshot exceeds the player's ceiling; otherwise it escrows and commits.
+    function testFuzz_consent_revertsIffMismatch(
+        uint8 bracket,
+        uint8 powerA,
+        uint8 powerB,
+        bool depositorIsA,
+        bool stakeMatches,
+        uint256 wrongStake,
+        uint8 maxOpponentPower
+    ) public {
+        uint256 stake = battleArena.STAKE_BRACKETS(bound(bracket, 0, 2));
+        powerA = uint8(bound(powerA, 3, 9));
+        powerB = uint8(bound(powerB, 3, 9));
+        uint256 expectedStake = stakeMatches ? stake : wrongStake;
+
+        vm.prank(admin);
+        uint256 battleId = battleArena.createBattle(alice, bob, stake, powerA, powerB);
+
+        address player = depositorIsA ? alice : bob;
+        uint8 opponentPower = depositorIsA ? powerB : powerA;
+        bool mismatch = expectedStake != stake || opponentPower > maxOpponentPower;
+
+        uint256 total = stake + _ag(stake);
+        _giveClaw(player, total);
+        vm.startPrank(player);
+        claw.approve(address(battleArena), total);
+        if (mismatch) {
+            vm.expectRevert(
+                abi.encodeWithSelector(BattleArena.ConsentMismatch.selector, battleId, stake, opponentPower)
+            );
+        }
+        battleArena.deposit(battleId, expectedStake, maxOpponentPower, keccak256("c"));
+        vm.stopPrank();
+
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        bool deposited = depositorIsA ? b.depositA : b.depositB;
+        assertEq(deposited, !mismatch, "deposit lands iff consent matches");
+        assertEq(claw.balanceOf(address(battleArena)), mismatch ? 0 : total, "escrow iff consent matches");
+        assertEq(claw.balanceOf(player), mismatch ? total : 0, "player keeps funds on mismatch");
+    }
+
+    // ─────────────────────── reveal ───────────────────────
 
     function test_high_damage_lobster_blocked() public {
-        uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-
-        bytes32 saltA = bytes32(uint256(999));
-        bytes32 saltB = bytes32(uint256(888));
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob, battleId, teamB, saltB);
-
-        // Set one of alice's lobsters to damage=80 (blocked)
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
         TeamManager.Team memory team = teamMgr.getTeam(teamA);
         vm.prank(admin);
         nft.setDamage(team.lobsterIds[0], 80);
 
-        // F5-01: atomic reveal validates both teams; alice's over-damaged team reverts.
         vm.prank(admin);
-        vm.expectRevert(); // LobsterDamageTooHigh
-        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB, _seedCommit(battleId));
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.LobsterDamageTooHigh.selector, team.lobsterIds[0], 80));
+        battleArena.revealTeams(battleId, teamA, _saltA(battleId), teamB, _saltB(battleId), _seedCommit(battleId));
     }
-
-    // ── Invalid commit hash reverts ───────────────────────────────
 
     function test_invalid_commit_hash_reverts() public {
-        uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-
-        bytes32 saltA = bytes32(uint256(1));
-        bytes32 saltB = bytes32(uint256(2));
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob, battleId, teamB, saltB);
-
-        // Try to reveal with wrong salt for team A
-        bytes32 wrongSalt = bytes32(uint256(999));
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
-        battleArena.revealTeams(battleId, teamA, wrongSalt, teamB, saltB, _seedCommit(battleId));
+        battleArena.revealTeams(battleId, teamA, bytes32(uint256(999)), teamB, _saltB(battleId), _seedCommit(battleId));
     }
-
-    // ── MED-01: uint8 overflow in _applyDamage caps at 100 ───────────
-    // Regression: currentDamage(60) + damages[i](200) = 260 > 255, panicked
-    // before fix. Now caps at 100 without reverting.
-    function test_applyDamage_overflow_caps_at_100() public {
-        uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-
-        bytes32 saltA = bytes32(uint256(333));
-        bytes32 saltB = bytes32(uint256(444));
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-
-        // Pre-set lobster damage to 60 (below the 80 battle entry threshold)
-        TeamManager.Team memory teamAData = teamMgr.getTeam(teamA);
-        TeamManager.Team memory teamBData = teamMgr.getTeam(teamB);
-        for (uint256 i = 0; i < 3; i++) {
-            vm.prank(admin);
-            nft.setDamage(teamAData.lobsterIds[i], 60);
-            vm.prank(admin);
-            nft.setDamage(teamBData.lobsterIds[i], 60);
-        }
-
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob, battleId, teamB, saltB);
-        _revealTeams(battleId, teamA, saltA, teamB, saltB);
-
-        // 60 + 200 = 260 overflows uint8 — old code panicked, new code caps at 100.
-        // H-01: damage application happens in finalizeBattle, not settle.
-        uint8[3] memory winnerDmg = [uint8(200), 200, 200];
-        uint8[3] memory loserDmg  = [uint8(200), 200, 200];
-
-        vm.prank(admin);
-        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, winnerDmg, loserDmg, SEED_SECRET);
-        vm.warp(block.timestamp + battleArena.disputeWindows(0) + 1);
-        battleArena.finalizeBattle(battleId);
-
-        for (uint256 i = 0; i < 3; i++) {
-            assertEq(nft.getDamage(teamAData.lobsterIds[i]), 100, "winner lobster capped at 100");
-            assertEq(nft.getDamage(teamBData.lobsterIds[i]), 100, "loser lobster capped at 100");
-        }
-    }
-
-    // ── Only resolver can settle ──────────────────────────────────
-
-    function test_non_resolver_settle_reverts() public {
-        uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-
-        uint8[3] memory dmg = [uint8(5), 5, 5];
-        vm.prank(alice);
-        vm.expectRevert();
-        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, dmg, dmg, SEED_SECRET);
-    }
-
-    // ── F5-01: team reveal is atomic + resolver-submitted ─────────
-    // Closes the matchup-dodge exploit. Sequential per-player reveal leaked the first
-    // revealer's composition mid-window, letting the second mover bail on a bad matchup
-    // for only the 5% anti-grief. Now no player can self-submit a reveal (nothing leaks),
-    // and an honest reveal-window timeout is a COSTLESS mutual cancel — a dropped
-    // connection never costs a human (or agent) their stake.
 
     function test_F5_01_revealTeams_onlyResolver() public {
-        uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-        bytes32 saltA = bytes32(uint256(0xA));
-        bytes32 saltB = bytes32(uint256(0xB));
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob, battleId, teamB, saltB);
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
+        bytes32 resolverRole = battleArena.RESOLVER_ROLE();
 
-        // A participant cannot self-submit the reveal — this was the leak vector.
         vm.prank(alice);
-        vm.expectRevert(); // AccessControlUnauthorizedAccount(alice, RESOLVER_ROLE)
-        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB, _seedCommit(battleId));
-
-        // Neither can a non-participant stranger.
-        vm.prank(makeAddr("stranger"));
-        vm.expectRevert();
-        battleArena.revealTeams(battleId, teamA, saltA, teamB, saltB, _seedCommit(battleId));
-
-        // Only the resolver can, and it transitions straight to Active.
-        _revealTeams(battleId, teamA, saltA, teamB, saltB);
-        assertEq(
-            uint8(battleArena.getBattle(battleId).phase),
-            uint8(BattleArena.BattlePhase.Active),
-            "resolver reveal -> Active"
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, alice, resolverRole
+            )
         );
+        battleArena.revealTeams(battleId, teamA, _saltA(battleId), teamB, _saltB(battleId), _seedCommit(battleId));
+
+        vm.prank(stranger);
+        vm.expectRevert();
+        battleArena.revealTeams(battleId, teamA, _saltA(battleId), teamB, _saltB(battleId), _seedCommit(battleId));
+
+        _reveal(battleId, teamA, teamB);
+        assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Active));
     }
 
     function test_F5_01_revealTimeout_isCostlessMutualCancel() public {
-        uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-        bytes32 saltA = bytes32(uint256(0xA));
-        bytes32 saltB = bytes32(uint256(0xB));
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob, battleId, teamB, saltB);
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
+        Snap memory s = _snap();
 
-        // Balances after deposit (stake + anti-grief is escrowed in the arena).
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 supplyBefore = claw.totalSupply();
-
-        // Resolver never submits revealTeams (e.g. a player dropped offline mid-window).
-        // After the reveal window anyone can time it out.
         vm.warp(block.timestamp + battleArena.TEAM_REVEAL_WINDOW() + 1);
+        vm.expectEmit(true, false, false, true, address(battleArena));
+        emit BattleArena.BattleCancelled(battleId, BattleArena.CancelReason.MutualTimeout);
         battleArena.handleTimeout(battleId);
+
+        assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Cancelled));
+        uint256 full = LOW_STAKE + _ag(LOW_STAKE);
+        assertEq(claw.balanceOf(alice) - s.alice, full, "alice fully refunded");
+        assertEq(claw.balanceOf(bob) - s.bob, full, "bob fully refunded");
+        assertEq(claw.totalSupply(), s.supply, "nothing burned");
+        assertFalse(battleArena.teamInBattle(teamA));
+        assertFalse(battleArena.teamInBattle(teamB));
+    }
+
+    // ─────────────────────── D-14 reveal-failure attribution ───────────────────────
+
+    /// For every accuse/open combination, a reveal timeout slashes exactly the accused players
+    /// who did not open their own commit, and refunds everything else.
+    function testFuzz_revealFailureAttribution(bool accA, bool accB, bool openA, bool openB, uint256 lateBy) public {
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
+        lateBy = bound(lateBy, 1, 30 days);
+
+        if (accA) {
+            vm.prank(admin);
+            battleArena.accuseRevealFailure(battleId, alice);
+        }
+        if (accB) {
+            vm.prank(admin);
+            battleArena.accuseRevealFailure(battleId, bob);
+        }
+        if (accA && openA) {
+            vm.prank(alice);
+            battleArena.openOwnCommit(battleId, teamA, _saltA(battleId));
+        } else if (openA) {
+            vm.prank(alice);
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.NotAccused.selector, battleId));
+            battleArena.openOwnCommit(battleId, teamA, _saltA(battleId));
+        }
+        if (accB && openB) {
+            vm.prank(bob);
+            battleArena.openOwnCommit(battleId, teamB, _saltB(battleId));
+        }
 
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Cancelled), "mutual cancel");
-
-        // Both players made whole: full stake + anti-grief refunded, NO slash.
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 fullRefund = LOW_STAKE + antiGrief;
-        assertEq(claw.balanceOf(alice) - aliceBefore, fullRefund, "alice fully refunded");
-        assertEq(claw.balanceOf(bob) - bobBefore, fullRefund, "bob fully refunded");
-
-        // Nothing burned — distinguishes the costless cancel from the forfeit path, where
-        // the loser's anti-grief is slashed to Treasury (85% burned).
-        assertEq(claw.totalSupply(), supplyBefore, "no anti-grief burned on reveal timeout");
-
-        // Neither team was locked (atomic reveal never landed), so both stay free.
-        assertFalse(battleArena.teamInBattle(teamA), "teamA not locked");
-        assertFalse(battleArena.teamInBattle(teamB), "teamB not locked");
-    }
-
-    // ── Forfeit slashes anti-grief ────────────────────────────────
-
-    function test_forfeit_slashes_anti_grief() public {
-        uint256 battleId = _createBattle();
-        _bothDeposit(battleId);
-
-        // Alice commits, bob doesn't → bob forfeits after TeamCommit timeout
-        uint256 teamA = _createEvolvedTeam(alice);
-        bytes32 saltA = bytes32(uint256(55));
-        _commitTeam(alice, battleId, teamA, saltA);
-        // Bob doesn't commit
-
-        uint256 bobBefore   = claw.balanceOf(bob);
-        uint256 supplyBefore = claw.totalSupply();
-
-        vm.warp(block.timestamp + battleArena.TEAM_COMMIT_WINDOW() + 1);
+        Snap memory s = _snap();
+        vm.warp(b.phaseDeadline + lateBy);
         battleArena.handleTimeout(battleId);
 
-        // Bob forfeited: loses antiGrief, gets stake back
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        // Bob got stake back only (no antiGrief)
-        assertEq(claw.balanceOf(bob) - bobBefore, LOW_STAKE, "bob gets only stake back");
-
-        // AntiGrief burned via treasury
-        uint256 burnedFee = antiGrief * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR();
-        assertEq(supplyBefore - claw.totalSupply(), burnedFee, "antiGrief burned");
+        bool faultA = accA && !openA;
+        bool faultB = accB && !openB;
+        uint256 ag = _ag(LOW_STAKE);
+        assertEq(claw.balanceOf(alice) - s.alice, LOW_STAKE + (faultA ? 0 : ag), "alice refund");
+        assertEq(claw.balanceOf(bob) - s.bob, LOW_STAKE + (faultB ? 0 : ag), "bob refund");
+        uint256 slashed = (faultA ? ag : 0) + (faultB ? ag : 0);
+        assertEq(s.supply - claw.totalSupply(), slashed * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR(), "burn");
+        assertEq(claw.balanceOf(address(battleArena)), 0, "nothing stuck");
+        assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Cancelled));
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // H-01: challenge window (AwaitingFinalize / disputeBattle /
-    //       finalizeBattle / adminResolveDispute)
-    // ─────────────────────────────────────────────────────────────
-
-    // Helper: drive a battle to a state where settle() can be called (V3: any
-    // Active battle — turns are off-chain, nothing else has to land on-chain first).
-    function _setupSettleableBattle() internal returns (uint256 battleId, uint256 teamA, uint256 teamB) {
-        battleId = _createBattle();
-        _bothDeposit(battleId);
-
-        teamA = _createEvolvedTeam(alice);
-        teamB = _createEvolvedTeam(bob);
-        bytes32 saltA = keccak256(abi.encodePacked("H01-teamA", battleId));
-        bytes32 saltB = keccak256(abi.encodePacked("H01-teamB", battleId));
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob,   battleId, teamB, saltB);
-        _revealTeams(battleId, teamA, saltA, teamB, saltB);
-
-    }
-
-    // Helper: settle() with the default H-01 proposal (alice wins, small damages)
-    function _settleProposing(uint256 battleId, address winner) internal {
+    /// An accused player who opens their commit lets the resolver reveal inside the grace,
+    /// even after the original 20 s reveal window.
+    function test_accusedOpens_thenRevealWithinGrace() public {
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
         vm.prank(admin);
-        battleArena.settle(battleId, winner, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
+        battleArena.accuseRevealFailure(battleId, bob);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.AlreadyAccused.selector, battleId));
+        battleArena.accuseRevealFailure(battleId, bob);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
+        battleArena.openOwnCommit(battleId, teamB, bytes32(uint256(1)));
+        vm.prank(bob);
+        battleArena.openOwnCommit(battleId, teamB, _saltB(battleId));
+
+        vm.warp(block.timestamp + battleArena.TEAM_REVEAL_WINDOW() + 30);
+        _reveal(battleId, teamA, teamB);
+        assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Active));
     }
 
-    // 1. Happy path: settle → wait out window → permissionless finalize transfers.
-    function test_H01_undisputedFinalize_paysWinner() public {
+    // ─────────────────────── settle / review ───────────────────────
+
+    function test_settle_stake_accounting() public {
         (uint256 battleId,,) = _setupSettleableBattle();
         _settleProposing(battleId, alice);
-
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.AwaitingFinalize), "phase after settle");
-        assertEq(b.proposedWinner, alice, "proposedWinner recorded");
-
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-
-        vm.warp(b.payoutDeadline + 1);
-        address anyone = makeAddr("anyone");
-        vm.prank(anyone);
+        Snap memory s = _snap();
+        vm.warp(block.timestamp + battleArena.reviewWindows(0) + 1);
         battleArena.finalizeBattle(battleId);
-
-        uint256 combinedPot = LOW_STAKE * 2;
-        uint256 protocolFee = combinedPot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 winnerPayout = combinedPot - protocolFee;
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-
-        assertEq(claw.balanceOf(alice) - aliceBefore, winnerPayout + antiGrief, "alice gets payout + antiGrief");
-        assertEq(claw.balanceOf(bob) - bobBefore, antiGrief, "bob gets antiGrief back");
-
-        b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled), "phase Settled after finalize");
-        assertEq(b.winner, alice, "final winner recorded");
+        _assertPaid(s, LOW_STAKE, alice, address(0));
     }
 
-    // 2. Settle alone moves no funds, applies no damage, leaves teams locked.
-    function test_H01_settle_proposes_without_sideEffects() public {
+    /// settle() moves no money, applies damage and releases both teams immediately.
+    function test_settle_appliesDamage_releasesTeams_movesNoFunds() public {
         (uint256 battleId, uint256 teamA, uint256 teamB) = _setupSettleableBattle();
-
-        uint256 contractBalBefore = claw.balanceOf(address(battleArena));
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
+        Snap memory s = _snap();
 
         _settleProposing(battleId, alice);
 
-        assertEq(claw.balanceOf(address(battleArena)), contractBalBefore, "arena balance unchanged");
-        assertEq(claw.balanceOf(alice), aliceBefore, "alice balance unchanged");
-        assertEq(claw.balanceOf(bob), bobBefore, "bob balance unchanged");
+        Snap memory a = _snap();
+        assertEq(a.arena, s.arena, "arena balance unchanged");
+        assertEq(a.alice, s.alice, "alice unchanged");
+        assertEq(a.bob, s.bob, "bob unchanged");
 
-        assertTrue(battleArena.teamInBattle(teamA), "teamA still locked");
-        assertTrue(battleArena.teamInBattle(teamB), "teamB still locked");
+        assertFalse(battleArena.teamInBattle(teamA), "teamA released at settle");
+        assertFalse(battleArena.teamInBattle(teamB), "teamB released at settle");
+        assertFalse(teamMgr.getTeam(teamA).active, "teamA inactive in TeamManager");
+        assertFalse(teamMgr.getTeam(teamB).active, "teamB inactive in TeamManager");
 
         TeamManager.Team memory tA = teamMgr.getTeam(teamA);
+        TeamManager.Team memory tB = teamMgr.getTeam(teamB);
         for (uint256 i = 0; i < 3; i++) {
-            assertEq(nft.getDamage(tA.lobsterIds[i]), 0, "no damage applied yet");
+            assertEq(nft.getDamage(tA.lobsterIds[i]), 5, "A damage applied at settle");
+            assertEq(nft.getDamage(tB.lobsterIds[i]), 20, "B damage applied at settle");
         }
     }
 
-    // 3. Early finalize (before payoutDeadline) reverts.
-    function test_H01_finalizeBeforeDeadline_reverts() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
+    /// A released team can enter a new battle while the old result is in review and while frozen.
+    function test_releasedTeam_canFightAgain_whileReviewedOrFrozen() public {
+        (uint256 id1, uint256 teamA, uint256 teamB) = _setupSettleableBattle();
+        _settleProposing(id1, alice);
+        vm.prank(guardian);
+        battleArena.freeze(id1);
 
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.DisputeWindowOpen.selector, battleId, b.payoutDeadline));
-        battleArena.finalizeBattle(battleId);
+        uint256 id2 = _createBattle();
+        _depositTeam(alice, id2, LOW_STAKE, teamA);
+        _depositTeam(bob, id2, LOW_STAKE, teamB);
+        _reveal(id2, teamA, teamB);
+        assertEq(uint8(battleArena.getBattle(id2).phase), uint8(BattleArena.BattlePhase.Active));
+        assertEq(uint8(battleArena.getBattle(id1).phase), uint8(BattleArena.BattlePhase.Frozen));
     }
 
-    // 4. Late dispute (after payoutDeadline) reverts.
-    function test_H01_disputeAfterDeadline_reverts() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        vm.warp(b.payoutDeadline + 1);
-        vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.DisputeWindowClosed.selector, battleId, b.payoutDeadline));
-        battleArena.disputeBattle(battleId, hex"");
-    }
-
-    // 5. Non-participant cannot dispute.
-    function test_H01_disputeByNonParticipant_reverts() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-
-        address outsider = makeAddr("outsider");
-        vm.prank(outsider);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.NotBattleParticipant.selector, battleId));
-        battleArena.disputeBattle(battleId, hex"");
-    }
-
-    // 6. Double dispute rejected.
-    function test_H01_doubleDispute_reverts() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-
-        _setupDisputeBond(bob);
-        vm.prank(bob);
-        battleArena.disputeBattle(battleId, hex"01");
-
-        // Second dispute reverts at AlreadyDisputed (before bond pull), no bond setup needed.
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.AlreadyDisputed.selector, battleId));
-        battleArena.disputeBattle(battleId, hex"02");
-    }
-
-    // 7. Finalize after dispute reverts.
-    function test_H01_finalizeOnDisputed_reverts() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-
-        _setupDisputeBond(bob);
-        vm.prank(bob);
-        battleArena.disputeBattle(battleId, hex"");
-
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        vm.warp(b.payoutDeadline + 1);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.BattleIsDisputed.selector, battleId));
-        battleArena.finalizeBattle(battleId);
-    }
-
-    // 8. Admin can resolve a disputed battle and override the winner.
-    function test_H01_adminResolve_overridesWinner() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-
-        _setupDisputeBond(bob);
-        vm.prank(bob);
-        battleArena.disputeBattle(battleId, hex"deadbeef");
-
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 disputeBond = battleArena.disputeBonds(0); // V3 S1: bob's bond will refund
+    function test_applyDamage_overflow_caps_at_100() public {
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
+        TeamManager.Team memory tA = teamMgr.getTeam(teamA);
+        TeamManager.Team memory tB = teamMgr.getTeam(teamB);
+        for (uint256 i = 0; i < 3; i++) {
+            vm.prank(admin);
+            nft.setDamage(tA.lobsterIds[i], 60);
+            vm.prank(admin);
+            nft.setDamage(tB.lobsterIds[i], 60);
+        }
+        _reveal(battleId, teamA, teamB);
 
         vm.prank(admin);
-        battleArena.adminResolveDispute(battleId, bob, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        battleArena.settle(
+            battleId, alice, HASH_STATE, HASH_LOG, [uint8(200), 200, 200], [uint8(200), 200, 200], SEED_SECRET, address(0)
+        );
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(nft.getDamage(tA.lobsterIds[i]), 100, "winner lobster capped at 100");
+            assertEq(nft.getDamage(tB.lobsterIds[i]), 100, "loser lobster capped at 100");
+        }
+    }
 
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
-        assertEq(b.winner, bob, "admin flipped winner to bob");
-
-        uint256 combinedPot = LOW_STAKE * 2;
-        uint256 protocolFee = combinedPot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 winnerPayout = combinedPot - protocolFee;
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        // V3 S1: disputer bob was right → bond refunded in addition to winner payout.
-        assertEq(
-            claw.balanceOf(bob) - bobBefore,
-            winnerPayout + antiGrief + disputeBond,
-            "bob gets winner payout + dispute bond refund"
+    function test_non_resolver_settle_reverts() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        bytes32 resolverRole = battleArena.RESOLVER_ROLE();
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, alice, resolverRole)
+        );
+        battleArena.settle(
+            battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(5), 5, 5], SEED_SECRET, address(0)
         );
     }
 
-    // 9. Admin cannot resolve without a dispute.
-    function test_H01_adminResolveWithoutDispute_reverts() public {
+    function test_unfrozenFinalize_paysWinner() public {
         (uint256 battleId,,) = _setupSettleableBattle();
         _settleProposing(battleId, alice);
-
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.NotDisputed.selector, battleId));
-        battleArena.adminResolveDispute(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
-    }
-
-    // 10. Admin cannot flip the winner to a non-participant.
-    function test_H01_adminResolve_invalidWinner_reverts() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-
-        _setupDisputeBond(bob);
-        vm.prank(bob);
-        battleArena.disputeBattle(battleId, hex"");
-
-        address ghost = makeAddr("ghost");
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidWinner.selector, battleId));
-        battleArena.adminResolveDispute(battleId, ghost, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
-    }
-
-    // 11. handleTimeout on undisputed AwaitingFinalize = permissionless finalize.
-    function test_H01_handleTimeout_undisputed_finalizes() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.AwaitingFinalize));
+        assertEq(b.proposedWinner, alice);
+
+        Snap memory s = _snap();
         vm.warp(b.payoutDeadline + 1);
-        address anyone = makeAddr("anyone");
-        vm.prank(anyone);
-        battleArena.handleTimeout(battleId);
+        vm.prank(stranger);
+        battleArena.finalizeBattle(battleId);
+        _assertPaid(s, LOW_STAKE, alice, address(0));
 
         b = battleArena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
-        assertEq(b.winner, alice, "handleTimeout executed the proposed outcome");
+        assertEq(b.winner, alice);
     }
 
-    // 12. handleTimeout on disputed AwaitingFinalize reverts — admin must resolve.
-    function test_H01_handleTimeout_disputed_requiresAdmin() public {
+    function test_finalizeBeforeDeadline_reverts() public {
         (uint256 battleId,,) = _setupSettleableBattle();
         _settleProposing(battleId, alice);
-
-        _setupDisputeBond(bob);
-        vm.prank(bob);
-        battleArena.disputeBattle(battleId, hex"");
-
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        vm.warp(b.payoutDeadline + 1);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.DisputedBattleRequiresAdmin.selector, battleId));
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.ReviewWindowOpen.selector, battleId, b.payoutDeadline));
+        battleArena.finalizeBattle(battleId);
+    }
+
+    function test_handleTimeout_inReview_finalizes() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice);
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        vm.warp(b.payoutDeadline);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseNotTimedOut.selector, battleId));
         battleArena.handleTimeout(battleId);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Adversarial fuzz tests for attack angles identified in the
-    // 2026-04-17 BattleArena read pass. Each targets a specific
-    // concrete property rather than "doesn't revert".
-    // ─────────────────────────────────────────────────────────────
-
-    // Attack angle: dispute window boundary. `disputeBattle` must accept
-    // calls at exactly `payoutDeadline` (<=) and reject anything past it.
-    // Fuzz the deadline offset within a generous range.
-    function testFuzz_disputeWindow_boundaryInside_accepted(uint256 offsetInto) public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        uint256 maxOffset = b.payoutDeadline - block.timestamp;
-        offsetInto = bound(offsetInto, 0, maxOffset);
-        vm.warp(block.timestamp + offsetInto);
-
-        _setupDisputeBond(bob);
-        vm.prank(bob);
-        battleArena.disputeBattle(battleId, hex"");
-
-        b = battleArena.getBattle(battleId);
-        assertTrue(b.disputed, "dispute at or before deadline must be accepted");
-    }
-
-    function testFuzz_disputeWindow_pastDeadline_rejected(uint256 offsetPast) public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        offsetPast = bound(offsetPast, 1, 365 days);
-        vm.warp(b.payoutDeadline + offsetPast);
-
-        vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.DisputeWindowClosed.selector, battleId, b.payoutDeadline));
-        battleArena.disputeBattle(battleId, hex"");
-    }
-
-    // TM-01: BattleArena's terminal paths must tolerate a deleted team
-    // (M-01 parity for BattleArena). Pre-fix, a compromised ACTIVITY_ROLE
-    // could force-mark a battle team inactive, the owner could then
-    // disband it, and the resulting `teamManager.getTeam(...)` call in
-    // `_applyDamage` (or `setTeamActive` in `_releaseTeam`) reverted
-    // `TeamDoesNotExist`, permanently bricking the settle/finalize and
-    // timeout paths and trapping escrowed CLAW.
-    function test_TM01_finalize_toleratesDeletedTeam() public {
-        (uint256 battleId, uint256 teamA,) = _setupSettleableBattle();
-
-        _settleProposing(battleId, alice);
-
-        // Compromised-role attack: force-deactivate alice's team via an
-        // ACTIVITY_ROLE holder (only MiningPool / BattleArena have this in
-        // production; we impersonate MiningPool to simulate compromise).
-        vm.prank(address(miningPool));
-        teamMgr.setTeamActive(teamA, false);
-        vm.prank(alice);
-        teamMgr.disbandTeam(teamA);
-        assertFalse(teamMgr.teamExists(teamA), "setup: team A is gone");
-
-        // Finalize must still terminate cleanly. Without the TM-01 guard,
-        // _applyDamage's getTeam() would revert and brick this path.
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
         vm.warp(b.payoutDeadline + 1);
+        vm.prank(stranger);
+        battleArena.handleTimeout(battleId);
+        b = battleArena.getBattle(battleId);
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
+        assertEq(b.winner, alice);
+    }
+
+    /// For any (winner, forfeiter) pair settle accepts exactly the valid results.
+    function testFuzz_settle_resultValidation(uint8 winnerSel, uint8 forfeiterSel) public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        address winner = _pick(winnerSel);
+        address forfeiter = _pick(forfeiterSel);
+        bool valid = _isValidResult(winner, forfeiter);
+        if (!valid) vm.expectRevert(_expectedResultError(battleId, winner));
+        _settle(battleId, winner, forfeiter);
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        if (valid) {
+            assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.AwaitingFinalize));
+            assertEq(b.proposedWinner, winner);
+            assertEq(b.proposedForfeiter, forfeiter);
+        } else {
+            assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Active));
+        }
+    }
+
+    /// Payout conservation for a random valid result at every bracket, paid through finalize or
+    /// handleTimeout: every escrowed token goes to a player or the Treasury, nothing stays.
+    function testFuzz_payoutConservation(uint8 bracket, uint8 outcome, bool forfeit, bool viaTimeout, uint256 reserve)
+        public
+    {
+        bracket = uint8(bound(bracket, 0, 2));
+        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        (uint256 battleId,,) = _setupActiveAt(stake);
+        reserve = bound(reserve, 0, 500_000e18);
+        if (reserve > 0) _fundReserve(reserve);
+
+        uint8 o = outcome % 3;
+        address winner = o == 0 ? alice : (o == 1 ? bob : address(0));
+        address forfeiter = (forfeit && winner != address(0)) ? (winner == alice ? bob : alice) : address(0);
+        _settle(battleId, winner, forfeiter);
+
+        Snap memory s = _snap();
+        vm.warp(battleArena.getBattle(battleId).payoutDeadline + 1);
+        if (viaTimeout) battleArena.handleTimeout(battleId);
+        else battleArena.finalizeBattle(battleId);
+
+        _assertPaid(s, stake, winner, forfeiter);
+        assertEq(battleArena.refundReserve(), reserve, "payout never touches the reserve");
+    }
+
+    /// A forfeiter (the loser) loses exactly the anti-grief deposit to the Treasury.
+    function test_forfeiter_slashes_anti_grief() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settle(battleId, alice, bob);
+        Snap memory s = _snap();
+        uint256 ag = _ag(LOW_STAKE);
+        vm.warp(battleArena.getBattle(battleId).payoutDeadline + 1);
+        vm.expectEmit(true, true, false, true, address(battleArena));
+        emit BattleArena.AntiGriefSlashed(battleId, bob, ag);
+        battleArena.finalizeBattle(battleId);
+        assertEq(claw.balanceOf(bob), s.bob, "bob gets nothing back");
+        _assertPaid(s, LOW_STAKE, alice, bob);
+    }
+
+    /// D-03: a draw pays exactly the normal protocol fee, split half per side, at every bracket.
+    function testFuzz_drawFee_exact(uint8 bracket) public {
+        bracket = uint8(bound(bracket, 0, 2));
+        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        (uint256 battleId,,) = _setupActiveAt(stake);
+        _settleProposing(battleId, address(0));
+        Snap memory s = _snap();
+        vm.warp(battleArena.getBattle(battleId).payoutDeadline + 1);
+
+        uint256 decidedFee = 2 * stake * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
+        vm.expectEmit(true, true, false, true, address(battleArena));
+        emit BattleArena.BattleSettled(battleId, address(0), 0, decidedFee);
         battleArena.finalizeBattle(battleId);
 
-        b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled), "battle settled despite missing team");
-        assertEq(b.winner, alice, "winner recorded");
+        uint256 side = stake / 10;
+        assertEq(claw.balanceOf(alice) - s.alice, stake - side + _ag(stake), "alice: stake - 10% + 5%");
+        assertEq(claw.balanceOf(bob) - s.bob, stake - side + _ag(stake), "bob: stake - 10% + 5%");
+        assertEq(claw.balanceOf(devWallet) - s.dev + (s.supply - claw.totalSupply()), decidedFee, "draw fee == decided fee");
+        assertEq(claw.balanceOf(devWallet) - s.dev, decidedFee * 15 / 100, "dev share");
+        _assertPaid(s, stake, address(0), address(0));
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        assertEq(b.winner, address(0));
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
     }
 
-    // TM-01: same scenario via the timeout path (no settle, just timeout
-    // on Active phase with a forced-inactive + disbanded team).
-    function test_TM01_handleTimeout_toleratesDeletedTeam() public {
-        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupSettleableBattle();
+    function testFuzz_settle_damageNeverExceeds100(uint8[3] memory dmgA, uint8[3] memory dmgB, uint8 pre, bool draw)
+        public
+    {
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
+        pre = uint8(bound(pre, 0, 79));
+        TeamManager.Team memory tA = teamMgr.getTeam(teamA);
+        TeamManager.Team memory tB = teamMgr.getTeam(teamB);
+        for (uint256 i = 0; i < 3; i++) {
+            vm.prank(admin);
+            nft.setDamage(tA.lobsterIds[i], pre);
+            vm.prank(admin);
+            nft.setDamage(tB.lobsterIds[i], pre);
+        }
+        _reveal(battleId, teamA, teamB);
 
-        // Force-disband team A mid-Active via a compromised ACTIVITY_ROLE holder.
+        vm.prank(admin);
+        battleArena.settle(battleId, draw ? address(0) : alice, HASH_STATE, HASH_LOG, dmgA, dmgB, SEED_SECRET, address(0));
+
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 expA = uint256(pre) + dmgA[i];
+            if (expA > 100) expA = 100;
+            uint256 expB = uint256(pre) + dmgB[i];
+            if (expB > 100) expB = 100;
+            assertEq(nft.getDamage(tA.lobsterIds[i]), expA, "A slot damage");
+            assertEq(nft.getDamage(tB.lobsterIds[i]), expB, "B slot damage");
+        }
+    }
+
+    // ─────────────────────── freeze ───────────────────────
+
+    /// Any time t <= payoutDeadline the result can be frozen (and not finalized); after it, it can
+    /// be finalized and no longer frozen.
+    function testFuzz_freezeTimingBoundary(uint8 bracket, uint256 t, bool byAdmin) public {
+        bracket = uint8(bound(bracket, 0, 2));
+        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        (uint256 battleId,,) = _setupActiveAt(stake);
+        uint256 settledAt = block.timestamp;
+        _settleProposing(battleId, alice);
+        uint256 deadline = battleArena.getBattle(battleId).payoutDeadline;
+        assertEq(deadline, settledAt + battleArena.reviewWindows(bracket), "deadline = settle + window");
+
+        t = bound(t, 0, battleArena.reviewWindows(bracket) + 3 days);
+        vm.warp(settledAt + t);
+        address who = byAdmin ? admin : guardian;
+
+        if (block.timestamp <= deadline) {
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.ReviewWindowOpen.selector, battleId, deadline));
+            battleArena.finalizeBattle(battleId);
+
+            Snap memory s = _snap();
+            vm.expectEmit(true, true, false, true, address(battleArena));
+            emit BattleArena.BattleFrozen(battleId, who);
+            vm.prank(who);
+            battleArena.freeze(battleId);
+            BattleArena.Battle memory b = battleArena.getBattle(battleId);
+            assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Frozen));
+            assertEq(b.frozenAt, block.timestamp);
+            Snap memory a = _snap();
+            assertEq(a.arena, s.arena, "freeze moves no money");
+            assertEq(a.alice, s.alice);
+            assertEq(a.bob, s.bob);
+
+            // A frozen result cannot be finalized, even after the review window.
+            vm.warp(deadline + 1);
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    BattleArena.InvalidBattlePhase.selector,
+                    battleId,
+                    BattleArena.BattlePhase.AwaitingFinalize,
+                    BattleArena.BattlePhase.Frozen
+                )
+            );
+            battleArena.finalizeBattle(battleId);
+        } else {
+            vm.prank(who);
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.ReviewWindowClosed.selector, battleId, deadline));
+            battleArena.freeze(battleId);
+            battleArena.finalizeBattle(battleId);
+            assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Settled));
+        }
+    }
+
+    function testFuzz_freeze_onlyGuardianOrAdmin(address caller) public {
+        vm.assume(caller != admin && caller != guardian);
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice);
+        bytes32 guardianRole = battleArena.GUARDIAN_ROLE();
+        vm.prank(caller);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, caller, guardianRole)
+        );
+        battleArena.freeze(battleId);
+    }
+
+    /// The guardian can only pause: it cannot resolve, withdraw the reserve or settle.
+    function test_guardian_cannotMoveMoney() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice);
+        vm.prank(guardian);
+        battleArena.freeze(battleId);
+        _fundReserve(10_000e18);
+
+        bytes32 adminRole = battleArena.DEFAULT_ADMIN_ROLE();
+        vm.startPrank(guardian);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, guardian, adminRole)
+        );
+        battleArena.resolveFrozen(battleId, alice, address(0), false);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, guardian, adminRole)
+        );
+        battleArena.withdrawReserve(guardian, 1);
+        vm.stopPrank();
+    }
+
+    // ─────────────────────── resolveFrozen ───────────────────────
+
+    /// The Safe settles a frozen battle: refundBoth returns stake + 5% each with no fee; otherwise
+    /// it pays the corrected (valid) result exactly like finalize, and rejects an invalid one.
+    function testFuzz_resolveFrozen(uint8 bracket, uint8 winnerSel, uint8 forfeiterSel, bool refundBoth, uint8 proposed)
+        public
+    {
+        bracket = uint8(bound(bracket, 0, 2));
+        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        (uint256 battleId,,) = _setupActiveAt(stake);
+        _settleProposing(battleId, proposed % 2 == 0 ? alice : address(0));
+        vm.prank(guardian);
+        battleArena.freeze(battleId);
+
+        address winner = _pick(winnerSel);
+        address forfeiter = _pick(forfeiterSel);
+        Snap memory s = _snap();
+
+        if (refundBoth) {
+            vm.prank(admin);
+            battleArena.resolveFrozen(battleId, winner, forfeiter, true);
+            uint256 back = stake + _ag(stake);
+            assertEq(claw.balanceOf(alice) - s.alice, back, "alice refunded");
+            assertEq(claw.balanceOf(bob) - s.bob, back, "bob refunded");
+            assertEq(claw.totalSupply(), s.supply, "no fee on refundBoth");
+            assertEq(claw.balanceOf(devWallet), s.dev, "no dev share on refundBoth");
+            assertEq(claw.balanceOf(address(battleArena)), 0, "nothing stuck");
+            BattleArena.Battle memory b = battleArena.getBattle(battleId);
+            assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
+            assertEq(b.winner, address(0));
+            return;
+        }
+
+        if (!_isValidResult(winner, forfeiter)) {
+            vm.prank(admin);
+            vm.expectRevert(_expectedResultError(battleId, winner));
+            battleArena.resolveFrozen(battleId, winner, forfeiter, false);
+            assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Frozen));
+            return;
+        }
+        vm.prank(admin);
+        battleArena.resolveFrozen(battleId, winner, forfeiter, false);
+        _assertPaid(s, stake, winner, forfeiter);
+        BattleArena.Battle memory b2 = battleArena.getBattle(battleId);
+        assertEq(uint8(b2.phase), uint8(BattleArena.BattlePhase.Settled));
+        assertEq(b2.winner, winner);
+    }
+
+    // ─────────────────────── expireFrozen + reserve ───────────────────────
+
+    /// Long-stop boundary: expireFrozen (and handleTimeout) revert up to frozenAt + 72 h inclusive.
+    function testFuzz_expireFrozen_longStopBoundary(uint256 waitAfterFreeze, uint256 freezeAt) public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice);
+        freezeAt = bound(freezeAt, 0, battleArena.reviewWindows(0));
+        vm.warp(block.timestamp + freezeAt);
+        vm.prank(guardian);
+        battleArena.freeze(battleId);
+        uint256 frozenAt = block.timestamp;
+        uint256 availableAt = frozenAt + battleArena.FREEZE_LONG_STOP();
+
+        waitAfterFreeze = bound(waitAfterFreeze, 0, battleArena.FREEZE_LONG_STOP() + 30 days);
+        vm.warp(frozenAt + waitAfterFreeze);
+        if (block.timestamp <= availableAt) {
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.LongStopNotReached.selector, battleId, availableAt));
+            battleArena.expireFrozen(battleId);
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseNotTimedOut.selector, battleId));
+            battleArena.handleTimeout(battleId);
+        } else {
+            battleArena.expireFrozen(battleId);
+            assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Settled));
+        }
+    }
+
+    /// expireFrozen with any reserve: the held stakes are burned iff the reserve covers 2·stake;
+    /// players always get stake + 5% back; reserve and arena balance stay exactly in step.
+    function testFuzz_expireFrozen_reserveAccounting(uint8 bracket, uint256 reserve, bool viaTimeout, bool forfeit)
+        public
+    {
+        bracket = uint8(bound(bracket, 0, 2));
+        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        (uint256 battleId,,) = _setupActiveAt(stake);
+        // Bias toward the boundary: half the runs land within ±2 wei of 2·stake.
+        if (reserve % 2 == 0) reserve = 2 * stake - 2 + (reserve >> 1) % 5;
+        else reserve = bound(reserve, 0, 300_000e18);
+        if (reserve > 0) _fundReserve(reserve);
+        assertEq(battleArena.refundReserve(), reserve);
+
+        _settle(battleId, alice, forfeit ? bob : address(0));
+        vm.prank(admin);
+        battleArena.freeze(battleId);
+        vm.warp(block.timestamp + battleArena.FREEZE_LONG_STOP() + 1);
+
+        Snap memory s = _snap();
+        bool burns = reserve >= 2 * stake;
+        vm.expectEmit(true, false, false, true, address(battleArena));
+        emit BattleArena.FrozenExpired(battleId, burns ? 2 * stake : 0, burns ? 2 * stake : 0);
+        vm.prank(stranger);
+        if (viaTimeout) battleArena.handleTimeout(battleId);
+        else battleArena.expireFrozen(battleId);
+
+        uint256 back = stake + _ag(stake);
+        assertEq(claw.balanceOf(alice) - s.alice, back, "alice: stake + 5% (forfeiter ignored)");
+        assertEq(claw.balanceOf(bob) - s.bob, back, "bob: stake + 5% (forfeiter ignored)");
+        assertEq(s.supply - claw.totalSupply(), burns ? 2 * stake : 0, "burn iff reserve covers");
+        assertEq(claw.balanceOf(devWallet), s.dev, "no fee on expiry");
+        uint256 newReserve = burns ? reserve - 2 * stake : reserve;
+        assertEq(battleArena.refundReserve(), newReserve, "reserve accounting");
+        assertEq(claw.balanceOf(address(battleArena)), newReserve, "arena holds exactly the reserve");
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
+        assertEq(b.winner, address(0));
+    }
+
+    /// Random fund / withdraw sequences: withdraw beyond the reserve reverts; the arena balance is
+    /// always escrow + reserve; the escrowed battles still pay out in full afterwards.
+    function testFuzz_reserveSequences_neverTouchEscrow(uint256[] memory ops, bool freezeOne) public {
+        vm.assume(ops.length > 0);
+        if (ops.length > 12) {
+            assembly {
+                mstore(ops, 12)
+            }
+        }
+        (uint256 idReview,,) = _setupActiveAt(battleArena.STAKE_BRACKETS(1));
+        _settleProposing(idReview, bob);
+        (uint256 idActive,,) = _setupActiveAt(LOW_STAKE);
+        if (freezeOne) {
+            vm.prank(guardian);
+            battleArena.freeze(idReview);
+        }
+        uint256 escrow = 2 * (battleArena.STAKE_BRACKETS(1) + _ag(battleArena.STAKE_BRACKETS(1)))
+            + 2 * (LOW_STAKE + _ag(LOW_STAKE));
+        assertEq(claw.balanceOf(address(battleArena)), escrow);
+
+        uint256 model;
+        address sink = makeAddr("reserve-sink");
+        for (uint256 i = 0; i < ops.length; i++) {
+            uint256 amount = bound(ops[i] >> 8, 0, 100_000e18);
+            if (ops[i] % 3 == 0) {
+                _fundReserve(amount);
+                model += amount;
+            } else {
+                // Sometimes target exactly the reserve or just over it.
+                if (ops[i] % 3 == 2) amount = model + ((ops[i] >> 4) % 2);
+                uint256 sinkBefore = claw.balanceOf(sink);
+                vm.prank(admin);
+                if (amount > model) {
+                    vm.expectRevert(abi.encodeWithSelector(BattleArena.InsufficientReserve.selector, amount, model));
+                    battleArena.withdrawReserve(sink, amount);
+                } else {
+                    battleArena.withdrawReserve(sink, amount);
+                    model -= amount;
+                    assertEq(claw.balanceOf(sink) - sinkBefore, amount, "sink received");
+                }
+            }
+            assertEq(battleArena.refundReserve(), model, "reserve == model");
+            assertEq(claw.balanceOf(address(battleArena)), escrow + model, "balance == escrow + reserve");
+        }
+
+        // Escrow is intact: both battles still pay out in full.
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InsufficientReserve.selector, model + 1, model));
+        battleArena.withdrawReserve(sink, model + 1);
+
+        if (freezeOne) {
+            vm.prank(admin);
+            battleArena.resolveFrozen(idReview, bob, address(0), false);
+        } else {
+            vm.warp(battleArena.getBattle(idReview).payoutDeadline + 1);
+            battleArena.finalizeBattle(idReview);
+        }
+        vm.warp(battleArena.getBattle(idActive).phaseDeadline + 1);
+        battleArena.handleTimeout(idActive);
+        assertEq(claw.balanceOf(address(battleArena)), model, "after payouts only the reserve remains");
+
+        vm.prank(admin);
+        battleArena.withdrawReserve(sink, model);
+        assertEq(claw.balanceOf(address(battleArena)), 0, "fully drained, nothing stuck");
+    }
+
+    function test_withdrawReserve_guards() public {
+        _fundReserve(1_000e18);
+        bytes32 adminRole = battleArena.DEFAULT_ADMIN_ROLE();
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, stranger, adminRole)
+        );
+        battleArena.withdrawReserve(stranger, 1);
+
+        vm.prank(admin);
+        vm.expectRevert(BattleArena.ZeroAddress.selector);
+        battleArena.withdrawReserve(address(0), 1);
+    }
+
+    // ─────────────────────── TM-01 deleted-team tolerance ───────────────────────
+
+    /// A team force-deleted mid-battle (compromised ACTIVITY_ROLE) cannot brick settle/finalize.
+    function test_TM01_settleAndFinalize_tolerateDeletedTeam() public {
+        (uint256 battleId, uint256 teamA,) = _setupSettleableBattle();
         vm.prank(address(miningPool));
         teamMgr.setTeamActive(teamA, false);
         vm.prank(alice);
         teamMgr.disbandTeam(teamA);
         assertFalse(teamMgr.teamExists(teamA));
 
-        // V3: past ACTIVE_WINDOW, handleTimeout mutually cancels (_cancelBattle →
-        // _releaseTeam). Without TM-01 tolerance, _releaseTeam reverts
-        // TeamDoesNotExist on team A and the stakes are trapped.
+        _settleProposing(battleId, alice);
+        assertFalse(battleArena.teamInBattle(teamA), "link cleared although the team is gone");
+        vm.warp(battleArena.getBattle(battleId).payoutDeadline + 1);
+        battleArena.finalizeBattle(battleId);
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        vm.warp(b.phaseDeadline + 1);
+        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
+        assertEq(b.winner, alice);
+    }
+
+    function test_TM01_handleTimeout_toleratesDeletedTeam() public {
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupSettleableBattle();
+        vm.prank(address(miningPool));
+        teamMgr.setTeamActive(teamA, false);
+        vm.prank(alice);
+        teamMgr.disbandTeam(teamA);
+
+        vm.warp(battleArena.getBattle(battleId).phaseDeadline + 1);
         battleArena.handleTimeout(battleId);
-
-        b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Cancelled), "stale Active battle cancels without bricking");
-        assertFalse(battleArena.teamInBattle(teamB), "team B released");
-        assertFalse(battleArena.teamInBattle(teamA), "team A link cleared even though the team is gone");
+        assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Cancelled));
+        assertFalse(battleArena.teamInBattle(teamB));
+        assertFalse(battleArena.teamInBattle(teamA));
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // V3 S1: bonded disputes + per-address rate limit + per-bracket
-    //        windows + admin tuning. Layered on top of shipped H-01.
-    // ─────────────────────────────────────────────────────────────
+    // ─────────────────────── review windows (T-02 / T-03) ───────────────────────
 
-    /// @dev Like _setupSettleableBattle but accepts any STAKE_BRACKETS value.
-    function _setupSettleableBattleAtStake(uint256 stake) internal returns (uint256 battleId) {
-        vm.prank(admin);
-        battleId = battleArena.createBattle(alice, bob, stake, 3, 3);
-
-        uint256 antiGrief = stake * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 total = stake + antiGrief;
-        _giveClaw(alice, total);
-        _giveClaw(bob,   total);
-        vm.startPrank(alice); claw.approve(address(battleArena), total); battleArena.deposit(battleId); vm.stopPrank();
-        vm.startPrank(bob);   claw.approve(address(battleArena), total); battleArena.deposit(battleId); vm.stopPrank();
-
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-        bytes32 saltA = keccak256(abi.encodePacked("V3-teamA", battleId));
-        bytes32 saltB = keccak256(abi.encodePacked("V3-teamB", battleId));
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob,   battleId, teamB, saltB);
-        _revealTeams(battleId, teamA, saltA, teamB, saltB);
-
-    }
-
-    /// @dev Setup-bond + dispute helper that respects the actual battle's bracket.
-    function _setupBondAndDispute(address disputer, uint256 battleId) internal {
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        uint256 bond;
-        if (b.stakeAmount == battleArena.STAKE_BRACKETS(0)) bond = battleArena.disputeBonds(0);
-        else if (b.stakeAmount == battleArena.STAKE_BRACKETS(1)) bond = battleArena.disputeBonds(1);
-        else bond = battleArena.disputeBonds(2);
-        if (bond > 0) {
-            _giveClaw(disputer, bond);
-            vm.prank(disputer);
-            claw.approve(address(battleArena), bond);
+    function test_perBracket_reviewWindows() public {
+        uint256[3] memory expected = [uint256(5 minutes), 30 minutes, 1 hours];
+        for (uint256 i = 0; i < 3; i++) {
+            (uint256 battleId,,) = _setupActiveAt(battleArena.STAKE_BRACKETS(i));
+            uint256 settleAt = block.timestamp;
+            _settleProposing(battleId, alice);
+            assertEq(battleArena.getBattle(battleId).payoutDeadline, settleAt + expected[i], "bracket window");
         }
-        vm.prank(disputer);
-        battleArena.disputeBattle(battleId, hex"");
     }
 
-    // ── Per-bracket dispute window ────────────────────────────────
+    function test_proposeAndEnactReviewWindow_onlyAdmin() public {
+        vm.prank(stranger);
+        vm.expectRevert();
+        battleArena.proposeReviewWindow(0, 10 minutes);
 
-    function test_V3_perBracket_window_low_5min() public {
-        uint256 battleId = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
-        uint256 settleAt = block.timestamp;
-        _settleProposing(battleId, alice);
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(b.payoutDeadline, settleAt + 5 minutes, "Low: 5 min window");
-    }
-
-    function test_V3_perBracket_window_mid_30min() public {
-        uint256 battleId = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(1));
-        uint256 settleAt = block.timestamp;
-        _settleProposing(battleId, alice);
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(b.payoutDeadline, settleAt + 30 minutes, "Mid: 30 min window");
-    }
-
-    function test_V3_perBracket_window_high_1hour() public {
-        uint256 battleId = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(2));
-        uint256 settleAt = block.timestamp;
-        _settleProposing(battleId, alice);
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(b.payoutDeadline, settleAt + 1 hours, "High: 1 hour window");
-    }
-
-    function test_V3_perBracket_bond_amounts() public {
-        assertEq(battleArena.disputeBonds(0), 250e18,    "Low bond = 250 CLAW");
-        assertEq(battleArena.disputeBonds(1), 1_000e18,  "Mid bond = 1,000 CLAW");
-        assertEq(battleArena.disputeBonds(2), 5_000e18,  "High bond = 5,000 CLAW");
-    }
-
-    // ── Bond slashing on disputer-loses ───────────────────────────
-
-    function test_V3_disputeBond_loserSlashed_routedToTreasury() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice); // alice proposed winner
-
-        _setupBondAndDispute(bob, battleId); // bob disputes (will lose)
-
-        uint256 bond = battleArena.disputeBonds(0);
-        uint256 supplyBefore = claw.totalSupply();
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 bobBefore = claw.balanceOf(bob);
-
-        // Admin upholds the proposed winner (alice). Disputer (bob) was wrong.
         vm.prank(admin);
-        battleArena.adminResolveDispute(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        battleArena.proposeReviewWindow(0, 10 minutes);
+        assertEq(battleArena.reviewWindows(0), 5 minutes, "live value unchanged before enact");
 
-        // Bob's bond is slashed → no refund. Bob still gets antiGrief back as
-        // a losing battle participant.
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        assertEq(claw.balanceOf(bob) - bobBefore, antiGrief, "bob: only antiGrief, no bond refund");
-
-        // Treasury split: 85% burn (true burn — reduces totalSupply) + 15% dev.
-        // The bond passes through the same Treasury.processFee path as the protocol
-        // fee from settlement, so verify the combined effect.
-        uint256 combinedPot = LOW_STAKE * 2;
-        uint256 protocolFee = combinedPot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 totalSlashed = bond + protocolFee;
-        uint256 expectedDev = totalSlashed * 15 / 100;
-        uint256 expectedBurn = totalSlashed - expectedDev;
-
-        assertEq(claw.balanceOf(devWallet) - devBefore, expectedDev, "dev gets 15% of (bond + fee)");
-        assertEq(supplyBefore - claw.totalSupply(),     expectedBurn, "burn = 85% of (bond + fee)");
+        vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
+        vm.prank(stranger);
+        vm.expectRevert();
+        battleArena.enactReviewWindow(0);
+        vm.prank(admin);
+        battleArena.enactReviewWindow(0);
+        assertEq(battleArena.reviewWindows(0), 10 minutes, "live value updated after enact");
     }
 
-    // ── Bond snapshot: admin tuning mid-window does not affect already-disputed ──
-
-    function test_V3_disputeBond_snapshot_independentOfLaterTuning() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-        _setupBondAndDispute(bob, battleId);
-
-        uint256 paidBond = battleArena.getBattle(battleId).disputeBondPaid;
-        assertEq(paidBond, 250e18, "snapshot taken at dispute time");
-
-        // T-02 timelock: admin proposes a new bond, must wait MIN_TUNING_DELAY to enact.
-        // 500e18 is exactly 20% of LOW_STAKE — the new T-01 cap.
+    function testFuzz_proposeReviewWindow_bounds(uint8 bracket, uint256 window) public {
+        uint256 idx = bound(bracket, 0, 3);
+        window = bound(window, 0, 10 days);
         vm.prank(admin);
-        battleArena.proposeDisputeBond(0, 500e18);
+        if (idx >= 3) {
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeBracket.selector, idx));
+            battleArena.proposeReviewWindow(idx, window);
+            return;
+        }
+        uint256 maxW = idx == 0 ? 1 days : (idx == 1 ? 3 days : 7 days);
+        bool ok = window >= 60 && window <= maxW;
+        if (!ok) vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidReviewWindow.selector, window));
+        battleArena.proposeReviewWindow(idx, window);
+        if (ok) assertEq(battleArena.pendingReviewWindow(idx), window);
+    }
+
+    function test_timelock_enactBeforeDelay_reverts() public {
+        uint256 delay = battleArena.MIN_TUNING_DELAY();
+        uint256 proposedAt = block.timestamp;
+        vm.prank(admin);
+        battleArena.proposeReviewWindow(0, 10 minutes);
+        vm.warp(proposedAt + delay - 1);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.TuningDelayNotElapsed.selector, 0, proposedAt + delay));
+        battleArena.enactReviewWindow(0);
+    }
+
+    function test_timelock_enactWithoutPropose_reverts() public {
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.NoPendingChange.selector, 0));
+        battleArena.enactReviewWindow(0);
+    }
+
+    function test_timelock_repropose_resetsTimer() public {
+        uint256 delay = battleArena.MIN_TUNING_DELAY();
+        vm.prank(admin);
+        battleArena.proposeReviewWindow(0, 10 minutes);
+        vm.warp(block.timestamp + 12 hours);
+        uint256 reproposedAt = block.timestamp;
+        vm.prank(admin);
+        battleArena.proposeReviewWindow(0, 20 minutes);
+
+        vm.warp(reproposedAt + 12 hours);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.TuningDelayNotElapsed.selector, 0, reproposedAt + delay));
+        battleArena.enactReviewWindow(0);
+
+        vm.warp(reproposedAt + delay);
+        vm.prank(admin);
+        battleArena.enactReviewWindow(0);
+        assertEq(battleArena.reviewWindows(0), 20 minutes);
+    }
+
+    function test_timelock_enactClearsPending() public {
+        vm.prank(admin);
+        battleArena.proposeReviewWindow(1, 2 hours);
         vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
         vm.prank(admin);
-        battleArena.enactDisputeBond(0);
-
-        // Already-disputed battle still resolves with snapshot (250e18), not new 500e18.
-        uint256 bobBefore = claw.balanceOf(bob);
+        battleArena.enactReviewWindow(1);
         vm.prank(admin);
-        battleArena.adminResolveDispute(battleId, bob, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.NoPendingChange.selector, 1));
+        battleArena.enactReviewWindow(1);
+        assertEq(battleArena.pendingReviewWindow(1), 0);
+        assertEq(battleArena.pendingReviewWindowAt(1), 0);
+    }
 
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 combinedPot = LOW_STAKE * 2;
-        uint256 protocolFee = combinedPot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 winnerPayout = combinedPot - protocolFee;
-        assertEq(
-            claw.balanceOf(bob) - bobBefore,
-            paidBond + winnerPayout + antiGrief,
-            "bob refunded snapshot bond, not new tuned bond"
+    /// A battle already in review keeps the deadline it got at settle.
+    function test_enactedWindow_doesNotMoveExistingDeadline() public {
+        (uint256 battleId,,) = _setupSettleableBattle();
+        _settleProposing(battleId, alice);
+        uint256 deadline = battleArena.getBattle(battleId).payoutDeadline;
+        vm.prank(admin);
+        battleArena.proposeReviewWindow(0, 1 days);
+        vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
+        vm.prank(admin);
+        battleArena.enactReviewWindow(0);
+        assertEq(battleArena.getBattle(battleId).payoutDeadline, deadline);
+    }
+
+    // ─────────────────────── BA-M1 / ACTIVE_WINDOW ───────────────────────
+
+    function test_BA_M1_lateAction_reverts() public {
+        uint256 battleId = _createBattle();
+        vm.warp(battleArena.getBattle(battleId).phaseDeadline + 1);
+        uint256 total = LOW_STAKE + _ag(LOW_STAKE);
+        _giveClaw(alice, total);
+        vm.startPrank(alice);
+        claw.approve(address(battleArena), total);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId));
+        battleArena.deposit(battleId, LOW_STAKE, 9, keccak256("late"));
+        vm.stopPrank();
+
+        (uint256 battleId2,,) = _setupSettleableBattle();
+        vm.warp(battleArena.getBattle(battleId2).phaseDeadline + 1);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId2));
+        battleArena.settle(
+            battleId2, alice, HASH_STATE, HASH_LOG, [uint8(0), 0, 0], [uint8(0), 0, 0], SEED_SECRET, address(0)
         );
     }
 
-    // ── Per-address rate limit (5 per rolling 24h) ────────────────
-
-    function test_V3_rateLimit_5_then_6th_reverts() public {
-        // Build 6 settleable battles for bob to dispute. He's a participant of all.
-        // Alice is participant alongside.
-        uint256[] memory battleIds = new uint256[](6);
-        for (uint256 i = 0; i < 6; i++) {
-            battleIds[i] = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
-            _settleProposing(battleIds[i], alice);
-        }
-
-        // First 5 disputes: succeed.
-        for (uint256 i = 0; i < 5; i++) {
-            _setupBondAndDispute(bob, battleIds[i]);
-        }
-        assertEq(battleArena.activeDisputesFor(bob), 5, "5 active disputes");
-
-        // 6th: rate limit hit.
-        uint256 bond = battleArena.disputeBonds(0);
-        _giveClaw(bob, bond);
-        vm.prank(bob);
-        claw.approve(address(battleArena), bond);
-        vm.prank(bob);
-        // The DisputeRateLimitExceeded selector with the retryAt parameter — we can't
-        // easily compute retryAt without reading internal storage, so use partial match.
-        vm.expectRevert();
-        battleArena.disputeBattle(battleIds[5], hex"");
-    }
-
-    function test_V3_rateLimit_prunesAfter24h() public {
-        // 5 disputes back-to-back, then warp 24h+1, then a 6th must succeed.
-        uint256[] memory battleIds = new uint256[](6);
-        for (uint256 i = 0; i < 6; i++) {
-            battleIds[i] = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
-            _settleProposing(battleIds[i], alice);
-        }
-
-        for (uint256 i = 0; i < 5; i++) {
-            _setupBondAndDispute(bob, battleIds[i]);
-        }
-
-        // Battle 6's payoutDeadline is `settleAt + 5 min`. To make a successful
-        // dispute possible after 24h, we settle battle 6 AGAIN (re-settling is
-        // not possible; the battle is in AwaitingFinalize). So instead: just
-        // advance 24h+1 then verify the 5 prior disputes pruned and the 6th
-        // can be filed — but battle 6's window has long since closed.
-        //
-        // Pivot: warp past battle 6's window, build a NEW battle 7 fresh, file.
-        vm.warp(block.timestamp + 24 hours + 1);
-
-        uint256 battleId7 = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
-        _settleProposing(battleId7, alice);
-
-        // After warp, all prior 5 timestamps are stale → pruned on next dispute.
-        // activeDisputesFor sees 0 active.
-        assertEq(battleArena.activeDisputesFor(bob), 0, "all 5 disputes pruned");
-
-        _setupBondAndDispute(bob, battleId7);
-        assertEq(battleArena.activeDisputesFor(bob), 1, "post-warp dispute counted");
-    }
-
-    // ── Admin setters: timelocked propose + enact (T-02), tiered window caps
-    //    (T-03), 20% bond cap (T-01) ────────────────────────────────
-
-    function test_V3_proposeAndEnactDisputeWindow_onlyAdmin() public {
-        address randomCaller = makeAddr("random");
-        vm.prank(randomCaller);
-        vm.expectRevert();
-        battleArena.proposeDisputeWindow(0, 10 minutes);
-
-        vm.prank(admin);
-        battleArena.proposeDisputeWindow(0, 10 minutes);
-        // Pre-enact: live value unchanged (still default 5 min)
-        assertEq(battleArena.disputeWindows(0), 5 minutes, "live value unchanged before enact");
-
-        vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
-        vm.prank(admin);
-        battleArena.enactDisputeWindow(0);
-        assertEq(battleArena.disputeWindows(0), 10 minutes, "live value updated after enact");
-    }
-
-    function test_V3_proposeDisputeWindow_tieredCapsByBracket() public {
-        vm.startPrank(admin);
-        // T-03: Low bracket cap = 1 day
-        battleArena.proposeDisputeWindow(0, 1 days); // OK
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeWindow.selector, 1 days + 1));
-        battleArena.proposeDisputeWindow(0, 1 days + 1);
-
-        // Mid bracket cap = 3 days
-        battleArena.proposeDisputeWindow(1, 3 days);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeWindow.selector, 3 days + 1));
-        battleArena.proposeDisputeWindow(1, 3 days + 1);
-
-        // High bracket cap = 7 days
-        battleArena.proposeDisputeWindow(2, 7 days);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeWindow.selector, 7 days + 1));
-        battleArena.proposeDisputeWindow(2, 7 days + 1);
-
-        // Below 60s reverts at all brackets
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeWindow.selector, 30));
-        battleArena.proposeDisputeWindow(0, 30);
-
-        // Invalid bracket reverts
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeBracket.selector, 3));
-        battleArena.proposeDisputeWindow(3, 1 minutes);
-        vm.stopPrank();
-    }
-
-    function test_V3_proposeAndEnactDisputeBond_onlyAdmin() public {
-        address randomCaller = makeAddr("random");
-        vm.prank(randomCaller);
-        vm.expectRevert();
-        battleArena.proposeDisputeBond(0, 100e18);
-
-        vm.prank(admin);
-        battleArena.proposeDisputeBond(0, 100e18);
-        assertEq(battleArena.disputeBonds(0), 250e18, "live value unchanged before enact");
-
-        vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
-        vm.prank(admin);
-        battleArena.enactDisputeBond(0);
-        assertEq(battleArena.disputeBonds(0), 100e18, "live value updated after enact");
-    }
-
-    function test_V3_proposeDisputeBond_capped_at_20pct_of_stake() public {
-        vm.startPrank(admin);
-        // T-01: Exactly 20% of Low bracket stake (500 CLAW) is fine
-        battleArena.proposeDisputeBond(0, 500e18);
-        // 20% + 1 wei reverts
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, 500e18 + 1));
-        battleArena.proposeDisputeBond(0, 500e18 + 1);
-        // Bond can be set to 0 (disables bond requirement for that bracket)
-        battleArena.proposeDisputeBond(0, 0);
-        // Mid bracket cap = 2,000 CLAW (20% of 10K)
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, 2_000e18 + 1));
-        battleArena.proposeDisputeBond(1, 2_000e18 + 1);
-        battleArena.proposeDisputeBond(1, 2_000e18);
-        // High bracket cap = 10,000 CLAW (20% of 50K)
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, 10_000e18 + 1));
-        battleArena.proposeDisputeBond(2, 10_000e18 + 1);
-        battleArena.proposeDisputeBond(2, 10_000e18);
-        vm.stopPrank();
-    }
-
-    // T-02 timelock-specific behaviors
-
-    function test_V3_timelock_enactBeforeDelay_reverts() public {
-        uint256 delay = battleArena.MIN_TUNING_DELAY(); // pre-compute so it doesn't consume the prank
-        uint256 proposedAt = block.timestamp;
-        vm.prank(admin);
-        battleArena.proposeDisputeWindow(0, 10 minutes);
-
-        // Try to enact 1 second before delay elapses
-        vm.warp(proposedAt + delay - 1);
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(
-            BattleArena.TuningDelayNotElapsed.selector,
-            0,
-            proposedAt + delay
-        ));
-        battleArena.enactDisputeWindow(0);
-    }
-
-    function test_V3_timelock_enactWithoutPropose_reverts() public {
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.NoPendingChange.selector, 0));
-        battleArena.enactDisputeWindow(0);
-
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.NoPendingChange.selector, 1));
-        battleArena.enactDisputeBond(1);
-    }
-
-    function test_V3_timelock_repropose_resetsTimer() public {
-        uint256 delay = battleArena.MIN_TUNING_DELAY(); // pre-compute
-        vm.prank(admin);
-        battleArena.proposeDisputeWindow(0, 10 minutes);
-
-        vm.warp(block.timestamp + 12 hours); // halfway through original delay
-        uint256 reproposedAt = block.timestamp;
-        vm.prank(admin);
-        battleArena.proposeDisputeWindow(0, 20 minutes); // overwrites + resets timer
-
-        // 24h after the FIRST propose (12h after the second) is too early
-        vm.warp(reproposedAt + 12 hours);
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(
-            BattleArena.TuningDelayNotElapsed.selector,
-            0,
-            reproposedAt + delay
-        ));
-        battleArena.enactDisputeWindow(0);
-
-        // 24h after the SECOND propose succeeds
-        vm.warp(reproposedAt + delay);
-        vm.prank(admin);
-        battleArena.enactDisputeWindow(0);
-        assertEq(battleArena.disputeWindows(0), 20 minutes, "second proposal value enacted");
-    }
-
-    function test_V3_timelock_enactClearsPending() public {
-        vm.prank(admin);
-        battleArena.proposeDisputeBond(0, 100e18);
-        vm.warp(block.timestamp + battleArena.MIN_TUNING_DELAY());
-        vm.prank(admin);
-        battleArena.enactDisputeBond(0);
-
-        // Second enact (no new proposal) reverts NoPendingChange
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.NoPendingChange.selector, 0));
-        battleArena.enactDisputeBond(0);
-
-        // Pending storage is zeroed
-        assertEq(battleArena.pendingDisputeBond(0), 0, "pending value cleared");
-        assertEq(battleArena.pendingDisputeBondAt(0), 0, "pending timestamp cleared");
-    }
-
-    // ── activeDisputesFor view sanity ─────────────────────────────
-
-    function test_V3_activeDisputesFor_matchesActualCount() public {
-        assertEq(battleArena.activeDisputesFor(bob), 0, "no disputes yet");
-
-        uint256 battleId = _setupSettleableBattleAtStake(battleArena.STAKE_BRACKETS(0));
-        _settleProposing(battleId, alice);
-        _setupBondAndDispute(bob, battleId);
-
-        assertEq(battleArena.activeDisputesFor(bob), 1, "one active dispute");
-        assertEq(battleArena.activeDisputesFor(alice), 0, "alice didn't dispute");
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Meat-grinder fixes (2026-05): BA-H1 / BA-M1 / BA-M2 / BA-M3
-    // ─────────────────────────────────────────────────────────────
-
-    /// @dev Drive a battle to Active (teams revealed; V3: the battle itself is off-chain).
-    function _setupActiveBattle() internal returns (uint256 battleId) {
-        battleId = _createBattle();
-        _bothDeposit(battleId);
-        uint256 teamA = _createEvolvedTeam(alice);
-        uint256 teamB = _createEvolvedTeam(bob);
-        bytes32 saltA = keccak256(abi.encodePacked("active-A", battleId));
-        bytes32 saltB = keccak256(abi.encodePacked("active-B", battleId));
-        _commitTeam(alice, battleId, teamA, saltA);
-        _commitTeam(bob,   battleId, teamB, saltB);
-        _revealTeams(battleId, teamA, saltA, teamB, saltB);
-    }
-
-    // BA-M1: phase-bound actions revert once their deadline passes — enforced at the
-    // action, not only via handleTimeout. Covers a late deposit and a late settle.
-    function test_BA_M1_lateAction_reverts() public {
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-
-        // Late deposit.
-        uint256 battleId = _createBattle();
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        vm.warp(b.phaseDeadline + 1);
-        _giveClaw(alice, LOW_STAKE + antiGrief);
-        vm.startPrank(alice);
-        claw.approve(address(battleArena), LOW_STAKE + antiGrief);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId));
-        battleArena.deposit(battleId);
-        vm.stopPrank();
-
-        // Late settle in Active (V3: the only Active-phase action left).
-        uint256 battleId2 = _setupActiveBattle();
-        BattleArena.Battle memory bb = battleArena.getBattle(battleId2);
-        vm.warp(bb.phaseDeadline + 1);
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId2));
-        battleArena.settle(battleId2, alice, HASH_STATE, HASH_LOG, [uint8(0), 0, 0], [uint8(0), 0, 0], SEED_SECRET);
-    }
-
-    // BA-M2: a dispute that changes ONLY the damage arrays (winner unchanged) now
-    // counts as the disputer prevailing → bond refunded. Previously the bond was
-    // always slashed when the winner was unchanged, making damage disputes futile.
-    function test_BA_M2_damageOnlyDispute_refundsBond() public {
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice); // winner alice, dmg [5,5,5]/[20,20,20]
-
-        _setupBondAndDispute(bob, battleId);
-        uint256 bond = battleArena.disputeBonds(0);
-        uint256 bobBefore = claw.balanceOf(bob);
-
-        // Admin keeps the SAME winner (alice) but CORRECTS the loser damage → disputer wins.
-        vm.prank(admin);
-        battleArena.adminResolveDispute(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(10), 10, 10]);
-
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        // Bob lost the battle but was right about the damage: bond refunded + antiGrief.
-        assertEq(claw.balanceOf(bob) - bobBefore, bond + antiGrief, "BA-M2: damage-only disputer refunded bond");
-    }
-
-    // BA-M3: proposeDisputeBond rejects a nonzero bond below the Treasury fee floor
-    // (BPS_DENOMINATOR wei) — which would otherwise brick adminResolveDispute's slash
-    // path and lock the disputed battle. 0 (bonding disabled) and >= floor are allowed.
-    function test_BA_M3_dustDisputeBond_rejected() public {
-        uint256 floor = battleArena.BPS_DENOMINATOR();
-
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, uint256(1)));
-        battleArena.proposeDisputeBond(0, 1);
-
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidDisputeBond.selector, floor - 1));
-        battleArena.proposeDisputeBond(0, floor - 1);
-
-        // Exactly the floor is accepted.
-        vm.prank(admin);
-        battleArena.proposeDisputeBond(0, floor);
-
-        // Zero (bonding disabled) is accepted.
-        vm.prank(admin);
-        battleArena.proposeDisputeBond(0, 0);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // V3: settle carries battle hashes; draws refund; ACTIVE_WINDOW
-    // ─────────────────────────────────────────────────────────────
-
-    /// Damage never exceeds the 100-point cap on either team, win or draw, for any
-    /// pre-existing damage and any proposed per-slot damage.
-    function testFuzz_settle_damageNeverExceeds100(uint8[3] memory dmgA, uint8[3] memory dmgB, uint8 pre, bool draw) public {
-        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupSettleableBattle();
-        pre = uint8(bound(pre, 0, 100));
-        TeamManager.Team memory tA = teamMgr.getTeam(teamA);
-        TeamManager.Team memory tB = teamMgr.getTeam(teamB);
-        for (uint256 i = 0; i < 3; i++) {
-            vm.prank(admin); nft.setDamage(tA.lobsterIds[i], pre);
-            vm.prank(admin); nft.setDamage(tB.lobsterIds[i], pre);
-        }
-
-        vm.prank(admin);
-        battleArena.settle(battleId, draw ? address(0) : alice, HASH_STATE, HASH_LOG, dmgA, dmgB, SEED_SECRET);
-        vm.warp(block.timestamp + battleArena.disputeWindows(0) + 1);
-        battleArena.finalizeBattle(battleId);
-
-        for (uint256 i = 0; i < 3; i++) {
-            uint256 expA = uint256(pre) + dmgA[i]; if (expA > 100) expA = 100;
-            uint256 expB = uint256(pre) + dmgB[i]; if (expB > 100) expB = 100;
-            assertEq(nft.getDamage(tA.lobsterIds[i]), expA, "A slot damage");
-            assertEq(nft.getDamage(tB.lobsterIds[i]), expB, "B slot damage");
-        }
-    }
-
-    /// A draw is exactly conservative at every stake bracket: both players get stake +
-    /// anti-grief back, nothing is burned, the dev wallet gets nothing, the arena is empty.
-    function testFuzz_settle_draw_isConservative_atEveryBracket(uint8 bracketIdx) public {
-        bracketIdx = uint8(bound(bracketIdx, 0, 2));
-        uint256 stake = battleArena.STAKE_BRACKETS(bracketIdx);
-        uint256 battleId = _setupSettleableBattleAtStake(stake);
-
-        uint256 antiGrief = stake * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
-
-        vm.prank(admin);
-        battleArena.settle(battleId, address(0), HASH_STATE, HASH_LOG, [uint8(7), 7, 7], [uint8(9), 9, 9], SEED_SECRET);
-        vm.warp(block.timestamp + battleArena.disputeWindows(bracketIdx) + 1);
-        battleArena.finalizeBattle(battleId);
-
-        assertEq(claw.balanceOf(alice) - aliceBefore, stake + antiGrief, "alice refunded stake + anti-grief");
-        assertEq(claw.balanceOf(bob) - bobBefore, stake + antiGrief, "bob refunded stake + anti-grief");
-        assertEq(claw.balanceOf(devWallet), devBefore, "no dev share on a draw");
-        assertEq(claw.totalSupply(), supplyBefore, "no burn on a draw");
-        assertEq(claw.balanceOf(address(battleArena)), 0, "arena holds nothing after a draw");
-        BattleArena.Battle memory b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
-        assertEq(b.winner, address(0));
-    }
-
-    /// The Active phase cannot outlive ACTIVE_WINDOW: past it, settle reverts and anyone
-    /// can cancel with full refunds — a dead resolver never traps a stake.
     function testFuzz_activeWindow_lateSettleReverts_timeoutRefunds(uint256 late) public {
         late = bound(late, 1, 30 days);
-        uint256 battleId = _setupActiveBattle();
+        (uint256 battleId, uint256 teamA, uint256 teamB) = _setupSettleableBattle();
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
         assertEq(b.phaseDeadline, block.timestamp + battleArena.ACTIVE_WINDOW());
-
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
+        Snap memory s = _snap();
 
         vm.warp(b.phaseDeadline + late);
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId));
-        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
+        battleArena.settle(
+            battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET, address(0)
+        );
 
-        vm.prank(makeAddr("anyone"));
+        vm.prank(stranger);
         battleArena.handleTimeout(battleId);
-
-        b = battleArena.getBattle(battleId);
-        assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Cancelled));
-        assertEq(claw.balanceOf(alice) - aliceBefore, LOW_STAKE + antiGrief);
-        assertEq(claw.balanceOf(bob) - bobBefore, LOW_STAKE + antiGrief);
+        assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Cancelled));
+        assertEq(claw.balanceOf(alice) - s.alice, LOW_STAKE + _ag(LOW_STAKE));
+        assertEq(claw.balanceOf(bob) - s.bob, LOW_STAKE + _ag(LOW_STAKE));
         assertEq(claw.balanceOf(address(battleArena)), 0);
+        assertFalse(battleArena.teamInBattle(teamA) || battleArena.teamInBattle(teamB), "teams released");
     }
 
-    /// settle() and adminResolveDispute() both reject a zero commitment.
-    function test_V3_zeroHash_reverts() public {
+    function test_zeroHash_reverts() public {
         (uint256 battleId,,) = _setupSettleableBattle();
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSettlementHash.selector, battleId));
-        battleArena.settle(battleId, alice, bytes32(0), HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
+        battleArena.settle(
+            battleId, alice, bytes32(0), HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET, address(0)
+        );
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSettlementHash.selector, battleId));
-        battleArena.settle(battleId, alice, HASH_STATE, bytes32(0), [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET);
-
-        _settleProposing(battleId, alice);
-        _setupBondAndDispute(bob, battleId);
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSettlementHash.selector, battleId));
-        battleArena.adminResolveDispute(battleId, alice, HASH_STATE, bytes32(0), [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        battleArena.settle(
+            battleId, alice, HASH_STATE, bytes32(0), [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET, address(0)
+        );
     }
 
-    /// BA-M2 (V3 extension): a hash-only correction counts as the disputer prevailing.
-    function test_V3_hashOnlyDispute_refundsBond() public {
+    function testFuzz_settle_wrongSeedSecret_reverts(bytes32 secret) public {
+        vm.assume(secret != SEED_SECRET);
         (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, alice);
-        _setupBondAndDispute(bob, battleId);
-        uint256 bond = battleArena.disputeBonds(0);
-        uint256 bobBefore = claw.balanceOf(bob);
-
-        bytes32 corrected = keccak256("turn-log-corrected");
         vm.prank(admin);
-        battleArena.adminResolveDispute(battleId, alice, HASH_STATE, corrected, [uint8(5), 5, 5], [uint8(20), 20, 20]);
-
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        assertEq(claw.balanceOf(bob) - bobBefore, bond + antiGrief, "hash-only disputer refunded bond");
-        assertEq(battleArena.getBattle(battleId).turnLogHash, corrected, "admin's hash recorded");
-    }
-
-    /// Draw <-> win disputes route the bond correctly in both directions.
-    function test_V3_drawDispute_bothDirections() public {
-        // Proposed draw, admin names bob -> disputer (bob) refunded + paid.
-        (uint256 battleId,,) = _setupSettleableBattle();
-        _settleProposing(battleId, address(0));
-        _setupBondAndDispute(bob, battleId);
-        uint256 bond = battleArena.disputeBonds(0);
-        uint256 bobBefore = claw.balanceOf(bob);
-        vm.prank(admin);
-        battleArena.adminResolveDispute(battleId, bob, HASH_STATE, HASH_LOG, [uint8(20), 20, 20], [uint8(5), 5, 5]);
-        uint256 combinedPot = LOW_STAKE * 2;
-        uint256 winnerPayout = combinedPot - combinedPot * battleArena.PROTOCOL_FEE_BPS() / battleArena.BPS_DENOMINATOR();
-        uint256 antiGrief = LOW_STAKE * battleArena.ANTI_GRIEF_BPS() / battleArena.BPS_DENOMINATOR();
-        assertEq(claw.balanceOf(bob) - bobBefore, bond + winnerPayout + antiGrief, "draw->win: disputer paid + bond back");
-
-        // Proposed alice win, admin rules a draw -> disputer (bob) refunded, both stakes back.
-        (uint256 battleId2,,) = _setupSettleableBattle();
-        _settleProposing(battleId2, alice);
-        _setupBondAndDispute(bob, battleId2);
-        bobBefore = claw.balanceOf(bob);
-        vm.prank(admin);
-        battleArena.adminResolveDispute(battleId2, address(0), HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(5), 5, 5]);
-        assertEq(claw.balanceOf(bob) - bobBefore, bond + LOW_STAKE + antiGrief, "win->draw: disputer refunded stake + bond");
-        assertEq(battleArena.getBattle(battleId2).winner, address(0));
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidSeedReveal.selector, battleId));
+        battleArena.settle(
+            battleId, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], secret, address(0)
+        );
     }
 }

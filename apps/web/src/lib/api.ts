@@ -415,16 +415,24 @@ interface ChainBattleData {
   roundRevealedA: boolean;
   roundRevealedB: boolean;
   /** X13: Unix-seconds deadlines (stringified bigint). `phaseDeadline`
-   *  applies to Deposit/TeamCommit/TeamReveal/Active; `payoutDeadline`
-   *  applies to AwaitingFinalize. The frontend compares against
-   *  `Date.now() / 1000` to decide whether to surface the handleTimeout
-   *  button. */
+   *  applies to Deposit/TeamReveal/Active; `payoutDeadline` (end of the review
+   *  window) to AwaitingFinalize; a Frozen battle can be expired after
+   *  `frozenAt` + 72 h. The frontend compares against `Date.now() / 1000` to
+   *  decide whether to surface the handleTimeout button. */
   phaseDeadline: string;
   payoutDeadline: string;
-  /** X13 LOW-01: H-01 dispute flag. `handleTimeout` reverts on disputed
-   *  AwaitingFinalize battles (requires admin resolution), so the CTA is
-   *  hidden in that state. */
-  disputed: boolean;
+  /** Team Power each side was matched at (3–9). */
+  powerA: number;
+  powerB: number;
+  /** The player who resigned / timed out three turns (zero address if none). */
+  proposedForfeiter: string;
+  /** Unix seconds the result was frozen for review; 0 unless phase = 8 (Frozen). */
+  frozenAt: number;
+  /** D-14: the resolver reported this side's commit unopenable; `opened*` = they opened it. */
+  accusedA: boolean;
+  accusedB: boolean;
+  openedA: boolean;
+  openedB: boolean;
 }
 
 interface DbBattleData {
@@ -455,24 +463,36 @@ interface BattleData {
    *  Frontend should render a pending-create UI while chain is null. */
   chain: ChainBattleData | null;
   db: DbBattleData | null;
-  /** D-06: present while a result is awaiting finalization. `rogue` means the result on-chain
-   *  is NOT the one the game server computed (or the server is still playing the battle). */
+  /** D-06: present while a result is in review or frozen. `rogue` means the result on-chain
+   *  is NOT the one the game server computed (or the server is still playing the battle) —
+   *  the watchdog freezes such a result; players have nothing to do. */
   settlement?: SettlementCheck | null;
 }
 
 export interface SettlementCheck {
+  status: 'in_review' | 'frozen_for_review';
   /** Lowercase wallet; the zero address is a draw. */
   proposedWinner: string;
-  /** Unix seconds, chain time. */
+  /** Unix seconds, chain time: the end of the review window. */
   payoutDeadline: string;
-  disputed: boolean;
+  frozenAt: number | null;
+  /** Unix seconds after which anyone can expire a frozen battle (null unless frozen). */
+  longStopAt: number | null;
   verdict: 'matches' | 'no_session' | 'session_still_active' | 'result_mismatch';
   rogue: boolean;
-  disputeRoute: string;
 }
 
-export interface DisputeResponse extends StepsResponse {
-  preview: { battleId: string; bond: string; proposedWinner: string; payoutDeadline: string; secondsLeft: string; terms: string };
+export interface DepositResponse extends StepsResponse {
+  preview: {
+    battleId: string;
+    stakeAmount: string;
+    antiGriefDeposit: string;
+    totalDeposit: string;
+    commitHash: string;
+    /** D-08: what the deposit binds you to — the stake and the strongest opponent Power you accept. */
+    consent: { expectedStake: string; maxOpponentPower: number };
+    revealPrepared: boolean;
+  };
 }
 
 export interface CreatePracticeBody {
@@ -566,9 +586,6 @@ const combat = {
    *  has elapsed and nobody has progressed the battle. */
   handleTimeout: (battleId: string, auth: AuthHeaders) =>
     post<StepsResponse>(`/api/game/combat/${battleId}/handle-timeout`, undefined, auth),
-  /** D-06: contest a proposed result. Approve the bond, then disputeBattle. */
-  dispute: (battleId: string, evidence: string, auth: AuthHeaders) =>
-    post<DisputeResponse>(`/api/game/combat/${battleId}/dispute`, { evidence }, auth),
   // V3 live sessions
   createPractice: (body: CreatePracticeBody, auth: AuthHeaders) => post<{ battleId: string; snapshot: BattleSnapshot }>('/api/game/combat/practice', body, auth),
   submitTurn: (battleId: string, turn: number, command: TurnCommand, auth: AuthHeaders) =>
@@ -579,9 +596,14 @@ const combat = {
   getState: (battleId: string, auth?: AuthHeaders) => get<BattleSnapshot>(`/api/game/combat/${battleId}/state`, auth),
   getTurns: (battleId: string, auth?: AuthHeaders) => get<{ battleId: string; count: number; turns: unknown[] }>(`/api/game/combat/${battleId}/turns`, auth),
   getLegal: (battleId: string, auth: AuthHeaders) => get<{ turn: number; lobsterId: string; commands: TurnCommand[] }>(`/api/game/combat/${battleId}/legal`, auth),
-  deposit: (battleId: string, auth: AuthHeaders) => post<StepsResponse>(`/api/game/combat/${battleId}/deposit`, undefined, auth),
-  commitTeam: (battleId: string, commitHash: string, auth: AuthHeaders) =>
-    post<StepsResponse>(`/api/game/combat/${battleId}/commit-team`, { commitHash }, auth),
+  /** D-13: the deposit carries the team commit. Send the hash you built (keep the salt for
+   *  revealTeam) and, optionally, teamId + salt so the server can reveal for you without racing
+   *  the 20 s reveal window. D-08: the server binds the stake + opponent Power you were matched at. */
+  deposit: (battleId: string, commit: { commitHash: string; teamId?: string; salt?: string }, auth: AuthHeaders) =>
+    post<DepositResponse>(`/api/game/combat/${battleId}/deposit`, commit, auth),
+  /** D-14: only after the resolver reported your commit unopenable — open it yourself on-chain. */
+  openCommit: (battleId: string, teamId: string, salt: string, auth: AuthHeaders) =>
+    post<StepsResponse>(`/api/game/combat/${battleId}/open-commit`, { teamId, salt }, auth),
   // F5-01: reveal returns a status (not calldata) — the resolver submits the atomic tx.
   revealTeam: (battleId: string, teamId: string, salt: string, auth: AuthHeaders) =>
     post<TeamRevealResponse>(`/api/game/combat/${battleId}/reveal-team`, { teamId, salt }, auth),

@@ -7,6 +7,7 @@ const logger = makeLogger();
 const mockRecordParticipation = mock(async (..._args: unknown[]) => true);
 const mockApplyBattleOutcome = mock(async (..._args: unknown[]) => ({ applied: true, ratingA: 1216, ratingB: 1184 }));
 const mockCurrentBoostEpochId = mock(async (..._args: unknown[]) => 7);
+const mockVoidParticipation = mock(async (..._args: unknown[]) => 2);
 
 mock.module('@clawbada/db', () => ({
   db,
@@ -19,12 +20,14 @@ mock.module('@clawbada/db', () => ({
   recordParticipation: mockRecordParticipation,
   applyBattleOutcome: mockApplyBattleOutcome,
   currentBoostEpochId: mockCurrentBoostEpochId,
+  voidParticipation: mockVoidParticipation,
 }));
 
+const mockGetBattle = mock(async (..._args: unknown[]): Promise<Record<string, unknown>> => ({}));
 mock.module('@clawbada/chain', () => ({
   BattleArenaAbi: [],
   addresses: { battleArena: '0x00000000000000000000000000000000000000a1' },
-  getBattleArena: () => ({ read: { getBattle: mock(async () => ({})) } }),
+  getBattleArena: () => ({ read: { getBattle: mockGetBattle } }),
   getPublicClient: () => ({}),
 }));
 
@@ -166,10 +169,14 @@ describe('BattleWatcher BattleProposed — rogue settlement (D-06)', () => {
     expect(rogue()[0][0]).toMatchObject({ verdict: 'result_mismatch' });
   });
 
-  test('a draw we computed, proposed as a draw: no alarm', async () => {
-    db.queue('select', [battleRow()], [session({ winner: 'draw' })]);
+  test('a draw we computed, proposed as a draw: no alarm — and the draw is NOT counted as played', async () => {
+    // No participation lookup for a draw, so the only select is the session read.
+    db.queue('select', [session({ winner: 'draw' })]);
     await new BattleWatcher().handleEvent(proposed('0x0000000000000000000000000000000000000000'));
     expect(rogue()).toHaveLength(0);
+    expect(argOf(chainCalls(db.update, 0), 'set')).toEqual({ phase: 5 });
+    expect(mockRecordParticipation).not.toHaveBeenCalled();
+    expect(mockCurrentBoostEpochId).not.toHaveBeenCalled();
   });
 
   test('NO session row: settled before this server ever claimed the battle — rogue', async () => {
@@ -245,27 +252,44 @@ describe('BattleWatcher BattleSettled', () => {
     }
   });
 
-  test('V3 draw (winner == address(0)): row settled with winner null, no ELO, participation for both teams', async () => {
+  test('draw (winner == address(0)): settled with winner null and the draw fee, no ELO, NOT counted as played', async () => {
     queueSettleSelects(battleRow({ phase: 5 }));
     const ZERO = '0x0000000000000000000000000000000000000000';
+    // Low bracket: each side pays 10% of its own 2,500 stake → 500 total.
     await new BattleWatcher().handleEvent(
-      makeEventLog('BattleSettled', { battleId: 9n, winner: ZERO, winnerPayout: 0n, protocolFee: 0n }),
+      makeEventLog('BattleSettled', { battleId: 9n, winner: ZERO, winnerPayout: 0n, protocolFee: 500n * WEI }),
     );
 
     expect(db.transaction).toHaveBeenCalledTimes(1);
     // battles row + battle_sessions status — no agents rows are touched on a draw.
     expect(db.update).toHaveBeenCalledTimes(2);
     const settleSet = argOf(chainCalls(db.update, 0), 'set');
-    expect(settleSet).toMatchObject({ winner: null, phase: 6, winnerPayout: '0', protocolFee: '0', totalRounds: 3 });
+    expect(settleSet).toMatchObject({ winner: null, phase: 6, winnerPayout: '0', protocolFee: '500', totalRounds: 3 });
     expect(settleSet.settledAt).toBeInstanceOf(Date);
 
-    // Nobody won: the winner/loser rating math is skipped, but the match still
-    // counts as PLAYED for both teams.
+    // Nobody won: no rating math, and (owner decision 2026-10-01) a draw does not count as
+    // a played battle for boost qualification.
     expect(mockApplyBattleOutcome).not.toHaveBeenCalled();
-    expect(mockRecordParticipation).toHaveBeenCalledTimes(2);
-    expect(mockRecordParticipation.mock.calls[0][1]).toEqual({ battleId: 9n, teamId: 11n, opponentTeamId: 22n, epochId: 7 });
-    expect(mockRecordParticipation.mock.calls[1][1]).toEqual({ battleId: 9n, teamId: 22n, opponentTeamId: 11n, epochId: 7 });
+    expect(mockRecordParticipation).not.toHaveBeenCalled();
+    expect(mockCurrentBoostEpochId).not.toHaveBeenCalled();
     expect(logger.info.mock.calls.at(-1)?.[1]).toContain('draw settled');
+  });
+
+  test('a frozen result the Safe refunded / that expired (phase 8, winner 0): closed, no ELO, not counted', async () => {
+    queueSettleSelects(battleRow({ phase: 8 }));
+    await new BattleWatcher().handleEvent(
+      makeEventLog('BattleSettled', { battleId: 12n, winner: '0x0000000000000000000000000000000000000000', winnerPayout: 0n, protocolFee: 0n }),
+    );
+    expect(argOf(chainCalls(db.update, 0), 'set')).toMatchObject({ winner: null, phase: 6, protocolFee: '0' });
+    expect(mockApplyBattleOutcome).not.toHaveBeenCalled();
+    expect(mockRecordParticipation).not.toHaveBeenCalled();
+    expect(logger.info.mock.calls.at(-1)?.[1]).toContain('frozen battle closed');
+  });
+
+  test("a frozen result the Safe resolved with a winner (phase 8) is a played battle: kind 'battle'", async () => {
+    queueSettleSelects(battleRow({ phase: 8 }));
+    await new BattleWatcher().handleEvent(settledLog(13n, PLAYER_B));
+    expect(mockApplyBattleOutcome.mock.calls[0][1]).toMatchObject({ winnerTeam: 22n, kind: 'battle' });
   });
 
   test("settled straight from Active is a forfeit: kind 'forfeit_loss', winner resolved to teamB", async () => {
@@ -315,5 +339,48 @@ describe('BattleWatcher BattleSettled', () => {
 
     expect(db.update).not.toHaveBeenCalled();
     expect(mockApplyBattleOutcome).not.toHaveBeenCalled();
+  });
+});
+
+describe('BattleWatcher — deposit, freeze and expiry mirroring', () => {
+  beforeEach(() => { resetAll(); mockGetBattle.mockReset(); });
+
+  test('StakeDeposited with both deposits in: straight to TeamReveal (3) — the commit rode in the deposit', async () => {
+    mockGetBattle.mockImplementation(async () => ({ depositA: true, depositB: true, teamCommitA: '0x' + '1'.repeat(64), teamCommitB: '0x' + '2'.repeat(64), teamRevealedA: false, teamRevealedB: false }));
+    await new BattleWatcher().handleEvent(makeEventLog('StakeDeposited', { battleId: 20n, player: PLAYER_A }));
+    expect(argOf(chainCalls(db.update, 0), 'set')).toEqual({ phase: 3 });
+  });
+
+  test('StakeDeposited with one deposit: no phase change', async () => {
+    mockGetBattle.mockImplementation(async () => ({ depositA: true, depositB: false, teamCommitA: '0x' + '1'.repeat(64), teamCommitB: '0x' + '0'.repeat(64), teamRevealedA: false, teamRevealedB: false }));
+    await new BattleWatcher().handleEvent(makeEventLog('StakeDeposited', { battleId: 21n, player: PLAYER_A }));
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  test('BattleFrozen: phase 8, only from phase 5 (a redelivered event never regresses a settled row)', async () => {
+    await new BattleWatcher().handleEvent(makeEventLog('BattleFrozen', { battleId: 22n, by: PLAYER_A }));
+    const calls = chainCalls(db.update, 0);
+    expect(argOf(calls, 'set')).toEqual({ phase: 8 });
+    expect(JSON.stringify(argOf(calls, 'where'), (_k, v) => (typeof v === 'bigint' ? v.toString() : v))).toMatch(/battles\.phase.*5|5.*battles\.phase/s);
+    expect(logMessages(logger.warn)).toContain('battle result frozen for review');
+  });
+
+  test('FrozenResolved / FrozenExpired are logged; BattleSettled (same tx) does the accounting', async () => {
+    await new BattleWatcher().handleEvent(makeEventLog('FrozenResolved', { battleId: 23n, winner: PLAYER_A, refunded: false }));
+    await new BattleWatcher().handleEvent(makeEventLog('FrozenExpired', { battleId: 24n, burned: 5000n * WEI, paidFromReserve: 5000n * WEI }));
+    expect(db.update).not.toHaveBeenCalled();
+    expect(logger.warn.mock.calls.at(-1)?.[0]).toMatchObject({ battleId: '24', burned: '5000', paidFromReserve: '5000' });
+  });
+
+  test('boost: a frozen battle that ends refunded, expired or as a draw is voided; a corrected win keeps its credit', async () => {
+    const ZERO = '0x0000000000000000000000000000000000000000';
+    const voided = () => mockVoidParticipation.mock.calls.map((c) => String(c[1]));
+    mockVoidParticipation.mockClear();
+    await new BattleWatcher().handleEvent(makeEventLog('FrozenResolved', { battleId: 31n, winner: PLAYER_B, refunded: false }));
+    expect(voided()).toEqual([]);
+    await new BattleWatcher().handleEvent(makeEventLog('FrozenResolved', { battleId: 32n, winner: ZERO, refunded: true }));
+    await new BattleWatcher().handleEvent(makeEventLog('FrozenResolved', { battleId: 33n, winner: ZERO, refunded: false }));
+    await new BattleWatcher().handleEvent(makeEventLog('FrozenExpired', { battleId: 34n, burned: 0n, paidFromReserve: 0n }));
+    expect(voided()).toEqual(['32', '33', '34']);
   });
 });

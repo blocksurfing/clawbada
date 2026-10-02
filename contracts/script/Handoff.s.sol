@@ -21,8 +21,8 @@ import {Faucet} from "../Faucet.sol";
 ///         the deployer in one run. The contracts are not upgradeable, DEFAULT_ADMIN is the
 ///         admin of every role and nothing can re-grant it, so a mistyped GOVERNANCE_SAFE —
 ///         or a Safe address copied from another chain, where it has no code — would have
-///         destroyed admin on all seven contracts for good: disputed battles could never be
-///         resolved (stakes locked forever), no season after the first could start, no hot
+///         destroyed admin on all seven contracts for good: frozen battles could never be
+///         resolved by the Safe (only the 72 h expiry would remain), no season after the first could start, no hot
 ///         key could ever be rotated. Only Treasury was protected, by Ownable2Step.
 ///
 ///         Now:
@@ -33,6 +33,11 @@ import {Faucet} from "../Faucet.sol";
 ///              the on-chain proof that its signers can execute on this chain.
 ///           3. finalize() — refuses to run without that proof, then the deployer
 ///                           renounces everything.
+///
+///         Hot roles are NOT governance and are not moved: MATCHMAKER, RESOLVER, GUARDIAN
+///         (BattleArena), BOOST_ADMIN (MiningPool), VRF OPERATOR stay with their own keys,
+///         granted by Configure.s.sol. The Safe holds BattleArena DEFAULT_ADMIN, which alone
+///         can resolveFrozen() a battle the guardian froze (and can freeze too).
 /// @dev Shared by Handoff.s.sol (broadcast as deployer) and the tests (pranked as deployer)
 ///      so both exercise the EXACT same migration logic.
 library GovernanceHandoff {
@@ -150,7 +155,9 @@ contract Handoff is CheckedDeployHelpers {
 
         console2.log("=== Phase 2 sent. ===");
         console2.log("NEXT 1: VerifyDeployment.s.sol --sig 'finalized()'  - the handoff is complete ONLY when this passes");
-        console2.log("NEXT 2: retire DEPLOYER_PRIVATE_KEY; publish the Safe address:", governanceSafe);
+        console2.log("NEXT 2: from the Safe, ClawToken.approve(BattleArena, 2M) + BattleArena.fundReserve(2M),");
+        console2.log("        then VerifyDeployment.s.sol --sig 'reserveFunded()'");
+        console2.log("NEXT 3: retire DEPLOYER_PRIVATE_KEY; publish the Safe address:", governanceSafe);
     }
 
     /// @notice Recovery, before finalize only: strip a wrongly proposed address of the roles
@@ -201,7 +208,7 @@ contract Handoff is CheckedDeployHelpers {
 
         GovernanceHandoff.finalize(adminContracts, d.miningPool, d.treasury, deployer, governanceSafe);
 
-        DeploymentChecks.requireFinalized(d, adminContracts, deployer, governanceSafe, eligibilityOperator);
+        DeploymentChecks.requireFinalized(d, adminContracts, deployer, governanceSafe, eligibilityOperator, guardianAddress);
     }
 
     /// @dev Env validation shared by both phases.

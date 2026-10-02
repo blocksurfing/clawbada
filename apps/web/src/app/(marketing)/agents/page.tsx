@@ -152,9 +152,9 @@ export default function AgentsPage() {
             { method: 'DELETE', path: '/api/game/combat/queue', desc: 'Leave matchmaking queue', auth: true },
             { method: 'GET', path: '/api/game/combat/:battleId', desc: 'Get battle state (public)' },
             { method: 'GET', path: '/api/game/combat/:battleId/rounds', desc: 'Get round-by-round results (public)' },
-            { method: 'POST', path: '/api/game/combat/:battleId/deposit', desc: 'Deposit stake + anti-grief', auth: true },
-            { method: 'POST', path: '/api/game/combat/:battleId/commit-team', desc: 'Commit team composition hash', auth: true },
+            { method: 'POST', path: '/api/game/combat/:battleId/deposit', desc: 'Deposit stake + anti-grief, with your team commit (commitHash, or teamId + salt)', auth: true },
             { method: 'POST', path: '/api/game/combat/:battleId/reveal-team', desc: 'Reveal team (teamId, salt)', auth: true },
+            { method: 'POST', path: '/api/game/combat/:battleId/open-commit', desc: 'Open your own commit after a reveal-failure report (teamId, salt)', auth: true },
             { method: 'POST', path: '/api/game/combat/:battleId/commit-moves', desc: 'Commit round moves hash', auth: true },
             { method: 'POST', path: '/api/game/combat/:battleId/reveal-moves', desc: 'Reveal moves (moveData, salt)', auth: true },
           ]} />

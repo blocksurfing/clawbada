@@ -13,6 +13,7 @@ import {Treasury} from "../Treasury.sol";
 import {MiningPool} from "../MiningPool.sol";
 import {BattleArena} from "../BattleArena.sol";
 import {MockSafe} from "./helpers/MockSafe.sol";
+import {REFUND_RESERVE_TARGET} from "../script/DeployHelpers.s.sol";
 
 /// @dev Everything the scripts normally read from env, handed over directly. Tests inside
 ///      one contract run in parallel and vm.setEnv is process-wide, so only ONE test below
@@ -28,6 +29,7 @@ struct Params {
     address resolver;
     address vrfOp;
     address boostAdmin;
+    address guardian;
     uint256 minSafeThreshold;
 }
 
@@ -43,6 +45,7 @@ abstract contract ParamHarness is DeployHelpers {
         resolverAddress = p.resolver;
         vrfOperatorAddress = p.vrfOp;
         boostAdminAddress = p.boostAdmin;
+        guardianAddress = p.guardian;
         minSafeThreshold = p.minSafeThreshold;
     }
 }
@@ -101,7 +104,13 @@ contract HandoffHarness is ParamHarness, Handoff {
     }
 
     function checkFinalized(Deployment memory d) external view {
-        DeploymentChecks.requireFinalized(d, _adminContracts(d), deployer, governanceSafe, eligibilityOperator);
+        DeploymentChecks.requireFinalized(
+            d, _adminContracts(d), deployer, governanceSafe, eligibilityOperator, guardianAddress
+        );
+    }
+
+    function checkReserveFunded(Deployment memory d) external view {
+        DeploymentChecks.requireReserveFunded(d);
     }
 }
 
@@ -143,6 +152,7 @@ contract DeployScriptsTest is Test {
             resolver: makeAddr("resolver"),
             vrfOp: makeAddr("vrfOperator"),
             boostAdmin: makeAddr("boostAdmin"),
+            guardian: makeAddr("guardian"),
             minSafeThreshold: 3
         });
         _push();
@@ -204,6 +214,89 @@ contract DeployScriptsTest is Test {
             IAccessControl(d.battleArena).hasRole(BattleArena(d.battleArena).RESOLVER_ROLE(), p.resolver),
             "resolver keeps RESOLVER_ROLE"
         );
+        bytes32 guardianRole = BattleArena(d.battleArena).GUARDIAN_ROLE();
+        assertTrue(IAccessControl(d.battleArena).hasRole(guardianRole, p.guardian), "guardian keeps GUARDIAN_ROLE");
+        assertFalse(IAccessControl(d.battleArena).hasRole(guardianRole, p.deployer), "deployer holds no GUARDIAN_ROLE");
+        assertFalse(IAccessControl(d.battleArena).hasRole(guardianRole, address(safe)), "guardian is not governance");
+
+        // The refund reserve: the Safe funds it after the handoff (here the reserve holder is a
+        // separate account, so Configure could not have done it).
+        vm.expectRevert(RESERVE_LOW);
+        handoffH.checkReserveFunded(d);
+        _fundReserveFrom(d, p.reserve, REFUND_RESERVE_TARGET);
+        handoffH.checkReserveFunded(d);
+    }
+
+    // ───────────────────────── GUARDIAN + refund reserve ─────────────────────────
+
+    bytes internal constant RESERVE_LOW =
+        bytes("verify: BattleArena refund reserve is below 2,000,000 CLAW - the Safe must approve + fundReserve");
+
+    function _fundReserveFrom(DeployHelpers.Deployment memory d, address from, uint256 amount) internal {
+        vm.startPrank(from);
+        ClawToken(d.clawToken).approve(d.battleArena, amount);
+        BattleArena(d.battleArena).fundReserve(amount);
+        vm.stopPrank();
+    }
+
+    function test_guardian_role_on_the_wrong_address_is_caught() public {
+        DeployHelpers.Deployment memory d = _deployAndConfigure();
+        p.guardian = makeAddr("the address ops believes is the guardian");
+        _push();
+        vm.expectRevert(bytes("verify: expected holder lacks BattleArena GUARDIAN_ROLE"));
+        handoffH.checkConfigured(d);
+    }
+
+    function test_deployer_holding_guardian_before_handoff_is_caught() public {
+        DeployHelpers.Deployment memory d = _deployAndConfigure();
+        BattleArena arena = BattleArena(d.battleArena);
+        bytes32 g = arena.GUARDIAN_ROLE();
+        vm.prank(p.deployer);
+        arena.grantRole(g, p.deployer);
+
+        vm.expectRevert(bytes("verify: deployer holds BattleArena GUARDIAN_ROLE"));
+        handoffH.propose(d);
+    }
+
+    /// @dev The end-state check on its own (it does not lean on requireConfigured): a retired
+    ///      deploy key that still holds GUARDIAN after finalize fails verification.
+    function test_deployer_holding_guardian_after_finalize_is_caught() public {
+        DeployHelpers.Deployment memory d = _deployAndConfigure();
+        handoffH.propose(d);
+        _safeAccepts(d);
+        handoffH.finalizeHandoff(d);
+        handoffH.checkFinalized(d);
+
+        BattleArena arena = BattleArena(d.battleArena);
+        safe.exec(d.battleArena, abi.encodeCall(arena.grantRole, (arena.GUARDIAN_ROLE(), p.deployer)));
+
+        vm.expectRevert(bytes("verify: deployer still holds BattleArena GUARDIAN_ROLE"));
+        handoffH.checkFinalized(d);
+    }
+
+    function test_reserve_check_fails_one_wei_short_and_passes_at_target() public {
+        DeployHelpers.Deployment memory d = _deployAndConfigure();
+        vm.expectRevert(RESERVE_LOW);
+        handoffH.checkReserveFunded(d);
+
+        _fundReserveFrom(d, p.reserve, REFUND_RESERVE_TARGET - 1);
+        vm.expectRevert(RESERVE_LOW);
+        handoffH.checkReserveFunded(d);
+
+        _fundReserveFrom(d, p.reserve, 1);
+        handoffH.checkReserveFunded(d);
+        assertEq(BattleArena(d.battleArena).refundReserve(), REFUND_RESERVE_TARGET);
+    }
+
+    /// @dev Mainnet: the deploy key never funds the reserve, even if it happened to hold CLAW.
+    function test_mainnet_configure_does_not_fund_the_reserve() public {
+        vm.chainId(8453);
+        p.reserve = p.deployer; // would let Configure pay, if it ever tried on mainnet
+        _push();
+        DeployHelpers.Deployment memory d = _deployAndConfigure();
+        assertEq(BattleArena(d.battleArena).refundReserve(), 0, "no reserve from the deploy key on mainnet");
+        vm.expectRevert(RESERVE_LOW);
+        handoffH.checkReserveFunded(d);
     }
 
     // ───────────────────────── D-11 ─────────────────────────
@@ -338,11 +431,20 @@ contract DeployScriptsTest is Test {
         p.resolver = p.deployer;
         p.vrfOp = p.deployer;
         p.boostAdmin = p.deployer;
+        p.guardian = p.deployer;
         p.reserve = p.deployer;
         p.lp = p.deployer;
         _push();
         DeployHelpers.Deployment memory d = _deployAndConfigure();
         handoffH.checkConfigured(d);
+
+        // Off mainnet Configure funds the refund reserve from the deployer (it holds the
+        // treasury allocation here), so e2e runs with the reserve mainnet will have.
+        assertEq(BattleArena(d.battleArena).refundReserve(), REFUND_RESERVE_TARGET, "reserve funded by Configure");
+        assertEq(
+            ClawToken(d.clawToken).balanceOf(p.deployer), 100_000_000e18 + 125_000_000e18 - REFUND_RESERVE_TARGET
+        );
+        handoffH.checkReserveFunded(d);
     }
 
     // ───────────────────────── D-24 / D-26: _loadEnv on mainnet ─────────────────────────
@@ -363,8 +465,26 @@ contract DeployScriptsTest is Test {
         vm.setEnv("RESOLVER_ADDRESS", vm.toString(p.resolver));
         vm.setEnv("VRF_OPERATOR_ADDRESS", vm.toString(p.vrfOp));
         vm.setEnv("BOOST_ADMIN_ADDRESS", vm.toString(p.boostAdmin));
+        vm.setEnv("GUARDIAN_ADDRESS", vm.toString(p.guardian));
 
         deployH.loadEnv(); // a fully separated configuration loads
+
+        // The guardian is the check on the resolver: one key must never be both.
+        _expectLoadEnvRevert(
+            "GUARDIAN_ADDRESS", p.resolver, p.guardian, "RESOLVER_ADDRESS and GUARDIAN_ADDRESS must be different addresses"
+        );
+        _expectLoadEnvRevert(
+            "GUARDIAN_ADDRESS", p.boostAdmin, p.guardian, "BOOST_ADMIN_ADDRESS and GUARDIAN_ADDRESS must be different addresses"
+        );
+        _expectLoadEnvRevert(
+            "ELIGIBILITY_OPERATOR", p.guardian, p.eligOp, "GUARDIAN_ADDRESS and ELIGIBILITY_OPERATOR must be different addresses"
+        );
+        _expectLoadEnvRevert("GUARDIAN_ADDRESS", deployer_, p.guardian, "GUARDIAN_ADDRESS must differ from deployer on mainnet");
+        _expectLoadEnvRevert("GOVERNANCE_SAFE", p.guardian, p.safe, "GOVERNANCE_SAFE must not be the hot key GUARDIAN_ADDRESS");
+        _expectLoadEnvRevert(
+            "TREASURY_RESERVE_ADDRESS", p.guardian, p.reserve, "TREASURY_RESERVE_ADDRESS must not be the hot key GUARDIAN_ADDRESS"
+        );
+        _expectLoadEnvRevert("GUARDIAN_ADDRESS", address(0), p.guardian, "GUARDIAN_ADDRESS required for mainnet");
 
         // D-26: the pairs the old checks skipped.
         _expectLoadEnvRevert(

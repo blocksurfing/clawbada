@@ -87,6 +87,15 @@ describe('payloadFromSession', () => {
     expect(p).toMatchObject({ battleId: '42', finalStateHash: HASH_1, turnLogHash: HASH_2 });
   });
 
+  test('forfeiter: null for a battle played out; the resigning player\'s wallet for a forfeit', () => {
+    expect(payloadFromSession(session() as any).forfeiter).toBeNull();
+    const team = (side: string) => [0, 1, 2].map((i) => ({ id: `${side}${i}`, class: i, tier: 1, purity: 0 })) as any;
+    const st = v3.createBattle({ battleId: '42', vrfSeed: 7n, tier: 'evolved', teamA: team('A'), teamB: team('B') } as any);
+    v3.reduceSession(st, { timeouts: { A: 0, B: 0 } }, { type: 'resign', team: 'B' });
+    const p = payloadFromSession(session({ winner: 'A', stateJson: v3.serializeState(st) }) as any);
+    expect(p.forfeiter).toBe(PLAYER_B);
+  });
+
   test('refuses a row with no result hashes', () => {
     expect(() => payloadFromSession(session({ finalStateHash: null }) as any)).toThrow('no result hashes');
   });

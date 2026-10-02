@@ -32,7 +32,7 @@ mock.module('@clawbada/game-logic', () => ({
   EvolutionTier: { 0: 'Base', 1: 'Evolved', 2: 'Elite', 3: 'Apex', Base: 0, Evolved: 1, Elite: 2, Apex: 3 },
   // The REAL contract enum (packages/game-logic/src/types.ts). This mock used to carry the V2
   // numbers (TeamReveal: 2, Settled: 5), so route tests passed against phases that do not exist.
-  BattlePhase: { None: 0, Deposit: 1, StakeDeposit: 1, TeamCommit: 2, TeamReveal: 3, Active: 4, AwaitingFinalize: 5, Settled: 6, Cancelled: 7 },
+  BattlePhase: { None: 0, Deposit: 1, StakeDeposit: 1, TeamCommit: 2, TeamReveal: 3, Active: 4, AwaitingFinalize: 5, Settled: 6, Cancelled: 7, Frozen: 8 },
 }));
 
 // ── Mock @clawbada/db ──
@@ -156,13 +156,11 @@ function _serializeBigInts(obj: any): any {
 }
 
 const mockReadChainTime = mock<any>();
-const mockReadDisputeBond = mock<any>();
 mock.module('../../lib/chain', () => ({
   readTeam: mockReadTeam,
   readLobster: mockReadLobster,
   readBattle: mockReadBattle,
   readChainTime: mockReadChainTime,
-  readDisputeBond: mockReadDisputeBond,
   serializeBigInts: _serializeBigInts,
 }));
 
@@ -399,26 +397,81 @@ describe('combat routes', () => {
 
   // ──────────── POST /combat/:battleId/deposit ────────────
 
-  describe('POST /combat/:battleId/deposit', () => {
+  describe('POST /combat/:battleId/deposit (D-08 consent + D-13 commit in the deposit)', () => {
     const WEI = 10n ** 18n;
-    // The match this server made for TEST_ADDRESS: Low bracket, Power 3 v 3.
-    const matchRow = (over: Record<string, unknown> = {}) => ({ playerA: TEST_ADDRESS, playerB: OTHER_ADDRESS, stakeBracket: 0, powerA: 3, powerB: 3, fromMatchmaker: true, ...over });
-    const onChain = (over: Record<string, unknown> = {}) => mockBattle({ stakeAmount: 2_500n * WEI, powerA: 3, powerB: 3, ...over });
-    const deposit = (headers = authHeaders()) => app.request('/combat/1/deposit', { method: 'POST', headers });
+    // The match this server made for TEST_ADDRESS: Low bracket, Power 3 v 4.
+    const matchRow = (over: Record<string, unknown> = {}) => ({ playerA: TEST_ADDRESS, playerB: OTHER_ADDRESS, stakeBracket: 0, powerA: 3, powerB: 4, queuedTeamA: 1n, queuedTeamB: 2n, fromMatchmaker: true, ...over });
+    const onChain = (over: Record<string, unknown> = {}) => mockBattle({ phase: 1, stakeAmount: 2_500n * WEI, powerA: 3, powerB: 4, ...over });
+    const COMMIT = '0x' + 'c0'.repeat(32);
+    const SALT = '0x' + 'ab'.repeat(32);
+    const deposit = (body: unknown, headers = authHeaders()) =>
+      app.request('/combat/1/deposit', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    const depositCall = () => (mockEncodeFunctionData.mock.calls as any[]).map((c) => c[0]).find((x: any) => x.functionName === 'deposit');
 
-    test('returns approve+deposit calldata', async () => {
+    beforeEach(() => mockEncodeFunctionData.mockClear());
+
+    test('a client-built commit: approve + deposit(battleId, expectedStake, maxOpponentPower, commit) from the MATCH RECORD', async () => {
       mockReadBattle.mockResolvedValue(onChain());
       mockFindFirst.mockResolvedValue(matchRow());
-
-      const res = await app.request('/combat/1/deposit', {
-        method: 'POST',
-        headers: authHeaders(),
-      });
+      const res = await deposit({ commitHash: COMMIT });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.steps).toHaveLength(2);
       expect(body.steps[0].description).toContain('Approve');
-      expect(body.preview).toHaveProperty('totalDeposit');
+      expect(body.steps[1].description).toContain('commit your team');
+      // Consent: the Low stake in wei and the opponent Power the caller (A) was shown — B's 4.
+      expect(depositCall().args).toEqual([1n, 2_500n * WEI, 4, COMMIT]);
+      expect(body.preview).toMatchObject({ commitHash: COMMIT, consent: { expectedStake: (2_500n * WEI).toString(), maxOpponentPower: 4 }, revealPrepared: false });
+      expect(mockUpdateSet).not.toHaveBeenCalled();
+    });
+
+    test('player B consents to A\'s Power', async () => {
+      mockReadBattle.mockResolvedValue(onChain());
+      mockFindFirst.mockResolvedValue(matchRow());
+      expect((await deposit({ commitHash: COMMIT }, authHeaders(OTHER_ADDRESS))).status).toBe(200);
+      expect(depositCall().args).toEqual([1n, 2_500n * WEI, 3, COMMIT]);
+    });
+
+    test('teamId + salt: the server builds the commit and keeps the salt for the reveal', async () => {
+      mockReadBattle.mockResolvedValue(onChain());
+      mockFindFirst.mockResolvedValue(matchRow());
+      mockTeamCommitHash.mockImplementation(() => COMMIT);
+      const res = await deposit({ teamId: '1', salt: SALT });
+      expect(res.status).toBe(200);
+      expect(mockTeamCommitHash).toHaveBeenCalledWith(1n, TEST_ADDRESS.toLowerCase(), 1n, SALT);
+      expect(depositCall().args).toEqual([1n, 2_500n * WEI, 4, COMMIT]);
+      expect(mockUpdateSet).toHaveBeenCalledWith({ teamA: 1n, revealSaltA: SALT });
+      expect((await res.json()).preview.revealPrepared).toBe(true);
+    });
+
+    test('teamId + salt for a team other than the one queued (D-17): refused, nothing stored', async () => {
+      mockReadBattle.mockResolvedValue(onChain());
+      mockFindFirst.mockResolvedValue(matchRow());
+      const res = await deposit({ teamId: '9', salt: SALT });
+      expect(res.status).toBe(400);
+      expect(mockUpdateSet).not.toHaveBeenCalled();
+      expect(depositCall()).toBeUndefined();
+    });
+
+    test('no commit at all, or a zero commit: refused (the commit is part of the deposit)', async () => {
+      mockReadBattle.mockResolvedValue(onChain());
+      mockFindFirst.mockResolvedValue(matchRow());
+      expect((await deposit({})).status).toBe(400);
+      expect((await deposit({ commitHash: '0x' + '0'.repeat(64) })).status).toBe(400);
+      expect((await deposit({ commitHash: '0x1234' })).status).toBe(400);
+      expect((await deposit({ teamId: '1' })).status).toBe(400);
+    });
+
+    test('not in the Deposit phase: refused', async () => {
+      mockReadBattle.mockResolvedValue(onChain({ phase: 3 }));
+      mockFindFirst.mockResolvedValue(matchRow());
+      expect((await deposit({ commitHash: COMMIT })).status).toBe(409);
+    });
+
+    test('a match record without the opponent Power: refused rather than consenting to anything', async () => {
+      mockReadBattle.mockResolvedValue(onChain());
+      mockFindFirst.mockResolvedValue(matchRow({ powerB: null }));
+      expect((await deposit({ commitHash: COMMIT })).status).toBe(409);
     });
   });
 
@@ -428,7 +481,7 @@ describe('combat routes', () => {
     const H1 = '0x' + '11'.repeat(32);
     const H2 = '0x' + '22'.repeat(32);
     const proposal = (over: Record<string, unknown> = {}) =>
-      mockBattle({ phase: 5, proposedWinner: TEST_ADDRESS, finalStateHash: H1, turnLogHash: H2, payoutDeadline: 1_300n, disputed: false, ...over });
+      mockBattle({ phase: 5, proposedWinner: TEST_ADDRESS, finalStateHash: H1, turnLogHash: H2, payoutDeadline: 1_300n, ...over });
     const session = (over: Record<string, unknown> = {}) =>
       ({ status: 'settling', winner: 'A', playerA: TEST_ADDRESS, playerB: OTHER_ADDRESS, finalStateHash: H1, turnLogHash: H2, ...over });
     const read = async () => (await (await app.request('/combat/1')).json()).settlement;
@@ -444,7 +497,15 @@ describe('combat routes', () => {
     test('the proposal is the result this server computed', async () => {
       mockReadBattle.mockResolvedValue(proposal());
       mockSessionFindFirst.mockResolvedValue(session());
-      expect(await read()).toMatchObject({ verdict: 'matches', rogue: false, proposedWinner: TEST_ADDRESS.toLowerCase(), payoutDeadline: '1300', disputeRoute: '/api/game/combat/1/dispute' });
+      const r = await read();
+      expect(r).toMatchObject({ status: 'in_review', verdict: 'matches', rogue: false, proposedWinner: TEST_ADDRESS.toLowerCase(), payoutDeadline: '1300', frozenAt: null, longStopAt: null });
+      expect(r).not.toHaveProperty('disputeRoute');
+    });
+
+    test('a frozen result: status frozen_for_review with the 72 h long-stop', async () => {
+      mockReadBattle.mockResolvedValue(proposal({ phase: 8, frozenAt: 2_000 }));
+      mockSessionFindFirst.mockResolvedValue(session({ winner: 'B' }));
+      expect(await read()).toMatchObject({ status: 'frozen_for_review', frozenAt: 2_000, longStopAt: 2_000 + 72 * 3600, verdict: 'result_mismatch', rogue: true });
     });
 
     test('a proposal while this server is still playing the battle is flagged rogue', async () => {
@@ -480,8 +541,9 @@ describe('combat routes', () => {
   describe('POST /combat/:battleId/deposit — consent binding (D-08)', () => {
     const WEI = 10n ** 18n;
     const matchRow = (over: Record<string, unknown> = {}) => ({ playerA: TEST_ADDRESS, playerB: OTHER_ADDRESS, stakeBracket: 0, powerA: 3, powerB: 3, fromMatchmaker: true, ...over });
-    const onChain = (over: Record<string, unknown> = {}) => mockBattle({ stakeAmount: 2_500n * WEI, powerA: 3, powerB: 3, ...over });
-    const deposit = (headers = authHeaders()) => app.request('/combat/1/deposit', { method: 'POST', headers });
+    const onChain = (over: Record<string, unknown> = {}) => mockBattle({ phase: 1, stakeAmount: 2_500n * WEI, powerA: 3, powerB: 3, ...over });
+    const deposit = (headers = authHeaders()) =>
+      app.request('/combat/1/deposit', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ commitHash: '0x' + 'c0'.repeat(32) }) });
 
     test('the rogue-matchmaker attack: queued for Low, the chain says 50,000 — refused, no calldata', async () => {
       mockReadBattle.mockResolvedValue(onChain({ stakeAmount: 50_000n * WEI }));
@@ -541,98 +603,54 @@ describe('combat routes', () => {
     });
   });
 
-  // ── D-06: the dispute route ──
+  // ── Player disputes were removed (owner decision 2026-10-01) ──
 
-  describe('POST /combat/:battleId/dispute (D-06)', () => {
-    const WEI = 10n ** 18n;
-    const proposed = (over: Record<string, unknown> = {}) =>
-      mockBattle({ phase: 5, stakeAmount: 2_500n * WEI, proposedWinner: OTHER_ADDRESS, payoutDeadline: 1_300n, disputed: false, ...over });
-    const dispute = (body: unknown = {}, headers = authHeaders()) =>
-      app.request('/combat/1/dispute', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
-
-    beforeEach(() => {
-      mockReadChainTime.mockReset();
-      mockReadDisputeBond.mockReset();
-      mockReadChainTime.mockResolvedValue(1_000n);
-      mockReadDisputeBond.mockResolvedValue(250n * WEI);
-    });
-
-    test('inside the window: approve-the-bond + disputeBattle, with the terms spelled out', async () => {
-      mockReadBattle.mockResolvedValue(proposed());
-      const res = await dispute({ evidence: 'I won this battle; the server log shows turn 31 wipeout of side B' });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.steps).toHaveLength(2);
-      expect(body.steps[0].description).toContain('250 $CLAW dispute bond');
-      expect(body.steps[1].description).toContain('Dispute');
-      expect(body.preview).toMatchObject({ bond: (250n * WEI).toString(), proposedWinner: OTHER_ADDRESS, secondsLeft: '300' });
-      expect(body.preview.terms).toContain('5 disputes per address per 24 hours');
-      expect(mockReadDisputeBond).toHaveBeenCalledWith(2_500n * WEI); // the bond is read from the chain, not assumed
-    });
-
-    test('the proposed WINNER may dispute too (e.g. inflated damage on their own team)', async () => {
-      mockReadBattle.mockResolvedValue(proposed({ proposedWinner: TEST_ADDRESS }));
-      expect((await dispute()).status).toBe(200);
-    });
-
-    test('evidence is optional and bounded', async () => {
-      mockReadBattle.mockResolvedValue(proposed());
-      expect((await dispute({ evidence: 'x'.repeat(5_000) })).status).toBe(200);
-      expect((await dispute()).status).toBe(200);
-    });
-
-    test('a non-participant cannot dispute (401)', async () => {
-      mockReadBattle.mockResolvedValue(proposed({ playerA: '0x1111111111111111111111111111111111111111', playerB: '0x2222222222222222222222222222222222222222' }));
-      expect((await dispute()).status).toBe(401);
-    });
-
-    test('only while AwaitingFinalize (409)', async () => {
-      for (const phase of [4, 6, 7]) {
-        mockReadBattle.mockResolvedValue(proposed({ phase }));
-        expect((await dispute()).status).toBe(409);
-      }
-    });
-
-    test('an already-disputed battle (409)', async () => {
-      mockReadBattle.mockResolvedValue(proposed({ disputed: true }));
-      const res = await dispute();
-      expect(res.status).toBe(409);
-      expect((await res.json()).message).toContain('already disputed');
-    });
-
-    test('the window is judged by CHAIN time: one second late is closed, the deadline itself is open', async () => {
-      mockReadBattle.mockResolvedValue(proposed());
-      mockReadChainTime.mockResolvedValue(1_301n);
-      const late = await dispute();
-      expect(late.status).toBe(409);
-      expect((await late.json()).message).toContain('window for this battle has closed');
-      mockReadChainTime.mockResolvedValue(1_300n);
-      expect((await dispute()).status).toBe(200);
-    });
+  test('there is no dispute route any more', async () => {
+    mockReadBattle.mockResolvedValue(mockBattle({ phase: 5 }));
+    const res = await app.request('/combat/1/dispute', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: '{}' });
+    expect(res.status).toBe(404);
   });
 
-  // ──────────── POST /combat/:battleId/commit-team ────────────
+  test('there is no separate commit-team route: the commit rides in the deposit', async () => {
+    const res = await app.request('/combat/1/commit-team', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ commitHash: '0xabc123' }),
+    });
+    expect(res.status).toBe(404);
+  });
 
-  describe('POST /combat/:battleId/commit-team', () => {
-    test('returns commit calldata', async () => {
-      const res = await app.request('/combat/1/commit-team', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ commitHash: '0xabc123' }),
-      });
+  // ── D-14: an accused player opens their own commit ──
+  describe('POST /combat/:battleId/open-commit (D-14)', () => {
+    const SALT = '0x' + 'ab'.repeat(32);
+    const open = (body: unknown, headers = authHeaders()) =>
+      app.request('/combat/1/open-commit', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+
+    beforeEach(() => mockEncodeFunctionData.mockClear());
+
+    test('accused, salt opens the commit: openOwnCommit calldata', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 3, teamCommitA: '0xcommit', accusedA: true }));
+      const res = await open({ teamId: '1', salt: SALT });
       expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.steps).toHaveLength(1);
-      expect(body.steps[0].description).toContain('Commit');
+      const call = (mockEncodeFunctionData.mock.calls as any[]).map((c) => c[0]).find((x: any) => x.functionName === 'openOwnCommit');
+      expect(call.args).toEqual([1n, 1n, SALT]);
     });
 
-    test('returns 400 when commitHash missing', async () => {
-      const res = await app.request('/combat/1/commit-team', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({}),
-      });
-      expect(res.status).toBe(400);
+    test('not accused: refused (use /reveal-team)', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 3, teamCommitA: '0xcommit' }));
+      expect((await open({ teamId: '1', salt: SALT })).status).toBe(409);
+    });
+
+    test('a salt that does not open the commit: refused', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 3, teamCommitA: '0xsomethingelse', accusedA: true }));
+      expect((await open({ teamId: '1', salt: SALT })).status).toBe(400);
+    });
+
+    test('outside TeamReveal, or not a participant: refused', async () => {
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 4, teamCommitA: '0xcommit', accusedA: true }));
+      expect((await open({ teamId: '1', salt: SALT })).status).toBe(409);
+      mockReadBattle.mockResolvedValue(mockBattle({ phase: 3, playerA: '0x1111111111111111111111111111111111111111', playerB: '0x2222222222222222222222222222222222222222' }));
+      expect((await open({ teamId: '1', salt: SALT })).status).toBe(401);
     });
   });
 

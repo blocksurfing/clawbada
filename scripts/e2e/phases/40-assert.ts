@@ -21,27 +21,31 @@ export async function assertPhase(stack: Stack, players: Players, battle: Battle
   const bAddr = players.b.agent.address.toLowerCase();
 
   // ── money (Low bracket example: pot 5,000, fee 500, winner +2,000 net, loser −2,500) ──
+  // A draw: each side pays 10% of its own stake (the normal fee in total). A loser who resigned or
+  // timed out three times (settle's `forfeiter`) also loses the 5% anti-grief deposit.
   const stake = battle.stake;
   const pot = stake * 2n;
-  const fee = draw ? 0n : pot / 10n;
+  const forfeited = String(onChain.proposedForfeiter).toLowerCase() !== '0x0000000000000000000000000000000000000000';
+  const slash = forfeited ? stake / 20n : 0n;
+  const fee = pot / 10n + slash;
   const aside = (p: typeof players.a) => (mining.player === p ? mining.reward : 0n) - (breeding.player === p ? breeding.cost : 0n);
   const balA = (await chain.balance(players.a.agent.address)) - aside(players.a);
   const balB = (await chain.balance(players.b.agent.address)) - aside(players.b);
   const dA = balA - battle.balancesBefore.a;
   const dB = balB - battle.balancesBefore.b;
   if (draw) {
-    checks.eq(dA, 0n, 'draw: A refunded in full');
-    checks.eq(dB, 0n, 'draw: B refunded in full');
+    checks.eq(dA, -stake / 10n, 'draw: A pays 10% of its stake');
+    checks.eq(dB, -stake / 10n, 'draw: B pays 10% of its stake');
   } else {
     const [dw, dl] = winner === aAddr ? [dA, dB] : [dB, dA];
-    checks.eq(dw, pot - fee - stake, `winner net +${(pot - fee - stake) / WEI} CLAW`);
-    checks.eq(dl, -stake, `loser net −${stake / WEI} CLAW`);
+    checks.eq(dw, pot - pot / 10n - stake, `winner net +${(pot - pot / 10n - stake) / WEI} CLAW`);
+    checks.eq(dl, -stake - slash, `loser net −${(stake + slash) / WEI} CLAW${forfeited ? ' (forfeited the anti-grief deposit)' : ''}`);
   }
   // The breeding fee takes the same Treasury route as the battle fee: 85 % burned, 15 % to dev.
   const supplyDelta = (await chain.totalSupply()) - battle.balancesBefore.supply - mining.reward + (breeding.cost * 85n) / 100n;
   const devDelta = (await chain.balance(KEYS.devWallet.address)) - battle.balancesBefore.dev - (breeding.cost * 15n) / 100n;
-  checks.check(draw || supplyDelta === -(fee * 85n) / 100n, 'protocol fee: 85 % burned', `supply Δ ${supplyDelta / WEI} CLAW (fee ${fee / WEI})`);
-  checks.check(draw || devDelta === (fee * 15n) / 100n, 'protocol fee: 15 % to the dev wallet', `dev Δ ${devDelta / WEI} CLAW`);
+  checks.check(supplyDelta === -(fee * 85n) / 100n, 'protocol fee: 85 % burned', `supply Δ ${supplyDelta / WEI} CLAW (fee ${fee / WEI})`);
+  checks.check(devDelta === (fee * 15n) / 100n, 'protocol fee: 15 % to the dev wallet', `dev Δ ${devDelta / WEI} CLAW`);
 
   // ── teams released, damage applied ──
   for (const p of [players.a, players.b]) {
@@ -61,7 +65,7 @@ export async function assertPhase(stack: Stack, players: Players, battle: Battle
   const row = (await db.sql`select phase, status, winner, winner_payout, protocol_fee, settled_at from battles where battle_id = ${battle.battleId}`)[0];
   checks.eq(Number(row?.phase), 6, 'battles.phase = Settled');
   checks.check(draw ? row?.winner == null : String(row?.winner).toLowerCase() === winner, 'battles.winner mirrors chain', String(row?.winner));
-  checks.eq(String(row?.protocol_fee), (fee / WEI).toString(), 'battles.protocol_fee mirrors the fee');
+  checks.eq(String(row?.protocol_fee), (pot / 10n / WEI).toString(), 'battles.protocol_fee mirrors the fee (a draw: 10% of each stake)');
   checks.check(!!row?.settled_at, 'battles.settled_at set');
   const sess = (await db.sql`select status, final_state_hash, turn_log_hash, vrf_round from battle_sessions where id = ${battle.battleId}`)[0];
   checks.eq(String(sess?.status), 'settled', 'battle_sessions.status = settled');

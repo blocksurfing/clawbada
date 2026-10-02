@@ -19,7 +19,6 @@ import { enterBattleView, leaveBattleView } from '@/lib/arena-music';
 import type { Side, TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
 import { BattleStage, type BattleStageControls } from './BattleStage';
-import { DisputeAction } from '@/components/game/battle-moves';
 import { selectionToData } from './unity-bridge';
 import { HexBoard } from './HexBoard';
 import { Hud } from './Hud';
@@ -291,9 +290,15 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
         )}
       </div>
 
-      {/* D-06: a result landed on-chain while this battle is still being played. */}
-      {session.settlementAlert && !isSpectator && !session.settlementAlert.disputed && (
-        <DisputeAction battleId={battleId} rogue deadline={session.settlementAlert.payoutDeadline} />
+      {/* D-06: a result landed on-chain while this battle is still being played. Informational:
+          the watchdog holds it for review; the player has nothing to do but keep playing. */}
+      {session.settlementAlert && !isSpectator && (
+        <div className="rounded-md border border-claw-gold/40 bg-claw-gold/5 p-4 space-y-1">
+          <p className="text-sm font-medium">
+            {session.settlementAlert.frozen ? 'Frozen for review — the team is reviewing this result' : 'Result held for review'}
+          </p>
+          <p className="text-xs text-text-secondary">{session.settlementAlert.message}</p>
+        </div>
       )}
 
       {/* Stage: Unity when deployed, SVG board otherwise */}

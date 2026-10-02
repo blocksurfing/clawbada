@@ -6,7 +6,7 @@
  * `BattleRules` object, but base class stats, the damage formulas, the crit curve, the speed
  * clamps, stun immunity and the HP scale live in code, and the project tunes them from
  * telemetry without redeploying anything. So after a balance patch an honest log stopped
- * replaying at turn 1, the admin judging a dispute (a High-stake window is an hour, the SLA a
+ * replaying at turn 1, whoever reviewed a contested result (a High-stake window is an hour, the SLA a
  * day) could not tell that from a fabricated log without guessing a git commit — and a
  * dishonest operator could pick whichever historical constants made their log verify.
  *

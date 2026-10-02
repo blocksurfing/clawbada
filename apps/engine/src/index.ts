@@ -125,12 +125,15 @@ async function main() {
   });
   boostEpochs.start();
 
-  // F5-01: submits the atomic revealTeams once both players' salts are in (2 s poll).
+  // F5-01: submits the atomic revealTeams once both players' salts open their commits (2 s poll);
+  // D-14: reports a side whose commit it cannot open, and reveals once that player opens it.
   const revealWatcher = RevealWatcher.fromEnv();
   revealWatcher.start();
 
-  // H-01: pays out proposed results once the dispute window has closed (permissionless
-  // finalizeBattle; nothing else calls it). Chain-time based, so it works on a warped local chain.
+  // The battle watchdog: replays every settled result during its review window and freezes
+  // (GUARDIAN key) any it cannot reproduce; pays out clean ones once the window closes
+  // (permissionless finalizeBattle); pages on frozen battles and expires them after 72 h.
+  // Chain-time based, so it works on a warped local chain.
   const finalizeWatcher = FinalizeWatcher.fromEnv();
   finalizeWatcher.start();
 

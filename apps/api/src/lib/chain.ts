@@ -19,7 +19,6 @@ import {
   type Stats,
   EvolutionTier,
   LegendStatus,
-  STAKE_BRACKETS,
 } from '@clawbada/game-logic';
 import { ApiError } from './errors';
 
@@ -380,21 +379,25 @@ export interface ChainBattle {
    *  round — both set by revealTeams. The secret itself is disclosed on-chain by settle(). */
   seedCommit: string;
   revealedAt: number;
-  /** X13: deadline clocks for the X-13 handleTimeout button. The contract
-   *  uses `phaseDeadline` for Deposit/TeamCommit/TeamReveal/Active and
-   *  `payoutDeadline` for AwaitingFinalize (BattleArena.sol:734). Both are
-   *  Unix seconds (uint256 from chain → bigint here; frontend stringifies). */
+  /** X13: deadline clocks for the handleTimeout button. The contract uses `phaseDeadline`
+   *  for Deposit/TeamReveal/Active, `payoutDeadline` (the end of the review window) for
+   *  AwaitingFinalize and `frozenAt + FREEZE_LONG_STOP` for Frozen. Unix seconds. */
   phaseDeadline: bigint;
   payoutDeadline: bigint;
-  /** X13 LOW-01: H-01 dispute flag. When `phase=AwaitingFinalize && disputed`,
-   *  `handleTimeout` reverts `DisputedBattleRequiresAdmin` — frontend must hide
-   *  the timeout CTA in that state and show an "awaiting admin" message. */
-  disputed: boolean;
   /** D-08: Team Power each side was matched at (3..9), bound on-chain by createBattle. */
   powerA: number;
   powerB: number;
-  /** D-06: who filed the dispute, or the zero address. */
-  disputer: string;
+  /** The player settle() named as having resigned / timed out three times (zero address if
+   *  nobody); they lose their 5% anti-grief deposit at payout. */
+  proposedForfeiter: string;
+  /** Unix seconds the watchdog (or the Safe) froze the result, 0 unless phase = Frozen (8). */
+  frozenAt: number;
+  /** D-14 reveal-failure attribution: the resolver reported that this side's commit does not
+   *  open with the salt it handed over; `opened*` = the player then opened it themselves. */
+  accusedA: boolean;
+  accusedB: boolean;
+  openedA: boolean;
+  openedB: boolean;
 }
 
 export async function readBattle(battleId: bigint): Promise<ChainBattle> {
@@ -427,27 +430,18 @@ export async function readBattle(battleId: bigint): Promise<ChainBattle> {
       // X13: expose deadlines for the handleTimeout button.
       phaseDeadline: data.phaseDeadline,
       payoutDeadline: data.payoutDeadline,
-      disputed: data.disputed,
       // D-08: the Powers the matchmaker bound on-chain, for the deposit-consent check.
       powerA: Number(data.powerA),
       powerB: Number(data.powerB),
-      // D-06: who filed a dispute, if anyone (the dispute route + settlement alerts).
-      disputer: data.disputer as string,
+      proposedForfeiter: data.proposedForfeiter as string,
+      frozenAt: Number(data.frozenAt),
+      accusedA: data.accusedA,
+      accusedB: data.accusedB,
+      openedA: data.openedA,
+      openedB: data.openedB,
     };
   } catch {
     throw new ApiError('NOT_FOUND', `Battle #${battleId} not found`);
-  }
-}
-
-/** D-06: the bond `disputeBattle` will pull for a battle at this stake — read from the chain,
- *  because the Safe can re-tune `disputeBonds[bracket]`. `stakeWei` is the on-chain stake. */
-export async function readDisputeBond(stakeWei: bigint): Promise<bigint> {
-  const bracket = STAKE_BRACKETS.findIndex((s) => s * 10n ** 18n === stakeWei);
-  if (bracket < 0) throw new ApiError('CHAIN_ERROR', `Unknown stake bracket for stake ${stakeWei}`);
-  try {
-    return (await getBattleArena(client()).read.disputeBonds([BigInt(bracket)])) as bigint;
-  } catch {
-    throw new ApiError('CHAIN_ERROR', 'Could not read the dispute bond');
   }
 }
 

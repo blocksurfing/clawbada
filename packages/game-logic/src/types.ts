@@ -48,14 +48,19 @@ export enum BattlePhase {
   None = 0,
   /** Matchmaker → both players deposit stake + anti-grief. */
   Deposit = 1,
+  /** Unreachable since the team commit moved into deposit(); kept so later values keep their numbers. */
   TeamCommit = 2,
   TeamReveal = 3,
   /** Combat in progress (covers all on-chain round commit-reveal cycles). */
   Active = 4,
-  /** H-01: settle() proposed a winner; awaiting dispute window or finalize. */
+  /** settle() recorded the result ("in review"): damage applied, teams released; the payout
+   *  waits for the review window, then anyone calls finalizeBattle. */
   AwaitingFinalize = 5,
   Settled = 6,
   Cancelled = 7,
+  /** The watchdog (or the Safe) froze the result: it could not be reproduced. The Safe resolves
+   *  it, or after 72 h anyone expires it (stakes burned, players paid back from the reserve). */
+  Frozen = 8,
   // Pre-F-13 aliases — keep until call sites migrate. New code should use
   // the canonical names above.
   /** @deprecated Use `Deposit`. Pre-F-13 alias for the post-match deposit window. */

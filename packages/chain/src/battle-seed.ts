@@ -3,7 +3,7 @@ import { keccak256, encodePacked, stringToBytes, toHex } from 'viem';
 /**
  * D-01 — how a staked battle's randomness is fixed. Single source of truth for the API (which
  * plays the battle), the engine (which commits the secret on-chain and later discloses it) and
- * any dispute tooling.
+ * any replay tooling (the watchdog, a reviewer of a frozen result).
  *
  *   seed = keccak256(abi.encodePacked(drandRandomness(R), seedSecret, battleId))
  *

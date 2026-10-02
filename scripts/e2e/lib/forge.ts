@@ -16,14 +16,16 @@ export interface Deployment {
   contracts: Record<'ClawToken' | 'LobsterNFT' | 'Treasury' | 'BattleVRF' | 'TeamManager' | 'Faucet' | 'MiningPool' | 'BreedingLab' | 'EvolutionLab' | 'RepairShop' | 'Marketplace' | 'BattleArena', `0x${string}`>;
 }
 
-export interface ForgeOpts { repoRoot: string; rpcUrl: string; deployerKey: string; devWallet: string; logDir: string }
+export interface ForgeOpts { repoRoot: string; rpcUrl: string; deployerKey: string; devWallet: string; logDir: string; guardian?: string }
 
 export async function deployContracts(o: ForgeOpts): Promise<{ deployment: Deployment; restore(): void }> {
   const depPath = join(o.repoRoot, 'deployments', 'base-sepolia.json');
   const backup = depPath + '.e2e-backup';
   if (existsSync(depPath)) copyFileSync(depPath, backup);
 
-  const env = { ...process.env, DEPLOYER_PRIVATE_KEY: o.deployerKey, DEV_WALLET: o.devWallet };
+  // GUARDIAN_ADDRESS: Configure grants BattleArena.GUARDIAN_ROLE to it (the engine's watchdog key)
+  // and, on a testnet/local chain, funds the BattleArena refund reserve.
+  const env = { ...process.env, DEPLOYER_PRIVATE_KEY: o.deployerKey, DEV_WALLET: o.devWallet, GUARDIAN_ADDRESS: o.guardian ?? '' };
   // The verify step gets NO private key: checking a deployment must not need one. It sends
   // nothing, so what it reads is the chain itself — unlike the asserts inside a
   // broadcasting script, which see forge's simulation (audit 2026-09 D-23).
