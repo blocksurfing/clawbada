@@ -227,6 +227,29 @@ export async function recordParticipation(dbx: DbExecutor, p: ParticipationInput
   return true;
 }
 
+/** Undo a battle's participation: its result was voided (the Safe refunded a frozen battle, it
+ *  expired after 72 h, or it was resolved to a draw — draws don't count, D-03). Deletes the
+ *  ledger rows and walks the `team_ratings` caches back. Returns the number of rows removed;
+ *  0 on replay. */
+export async function voidParticipation(dbx: DbExecutor, battleId: bigint): Promise<number> {
+  const removed = await dbx
+    .delete(battleParticipation)
+    .where(eq(battleParticipation.battleId, battleId))
+    .returning({ teamId: battleParticipation.teamId, epochId: battleParticipation.epochId });
+  for (const r of removed) {
+    await dbx
+      .update(teamRatings)
+      .set({
+        gamesPlayedEpoch: sql`CASE WHEN ${teamRatings.epochId} = ${r.epochId}
+          THEN GREATEST(${teamRatings.gamesPlayedEpoch} - 1, 0) ELSE ${teamRatings.gamesPlayedEpoch} END`,
+        gamesPlayedTotal: sql`GREATEST(${teamRatings.gamesPlayedTotal} - 1, 0)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(teamRatings.teamId, r.teamId));
+  }
+  return removed.length;
+}
+
 export interface BattleOutcomeInput {
   battleId: bigint;
   teamA: bigint;

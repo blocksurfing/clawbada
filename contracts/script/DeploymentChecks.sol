@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {DeployHelpers} from "./DeployHelpers.s.sol";
+import {DeployHelpers, REFUND_RESERVE_TARGET} from "./DeployHelpers.s.sol";
 import {ClawToken} from "../ClawToken.sol";
 import {LobsterNFT} from "../LobsterNFT.sol";
 import {TeamManager} from "../TeamManager.sol";
@@ -42,6 +42,7 @@ library DeploymentChecks {
         address resolver;
         address vrfOperator;
         address boostAdmin;
+        address guardian;
         address devWallet; // not a role: the 15% fee leg, checked against Treasury.devWallet()
     }
 
@@ -92,6 +93,9 @@ library DeploymentChecks {
         );
         _requireHeldNotBy(
             d.battleArena, BattleArena(d.battleArena).RESOLVER_ROLE(), k.resolver, deployer, "BattleArena RESOLVER_ROLE"
+        );
+        _requireHeldNotBy(
+            d.battleArena, BattleArena(d.battleArena).GUARDIAN_ROLE(), k.guardian, deployer, "BattleArena GUARDIAN_ROLE"
         );
         _requireHeldNotBy(
             d.battleVRF, BattleVRF(d.battleVRF).OPERATOR_ROLE(), k.vrfOperator, deployer, "BattleVRF OPERATOR_ROLE"
@@ -177,19 +181,48 @@ library DeploymentChecks {
     // ───────────────────────── Stage 3: handoff finalized ─────────────────────────
 
     /// @notice The end state: the Safe governs everything, the deploy key governs nothing.
+    /// @dev `guardian` is the GUARDIAN_ADDRESS the deploy was told to use. The guardian is a
+    ///      hot role that stays with its own key through the handoff; the retired deploy key
+    ///      must not keep it (a leaked deploy key could otherwise freeze every result and run
+    ///      the refund reserve down). The only exception is the testnet/local fallback where
+    ///      the deployer IS the guardian — impossible on mainnet (D-26 key separation).
     function requireFinalized(
         DeployHelpers.Deployment memory d,
         address[] memory adminContracts,
         address deployer,
         address safe,
-        address eligibilityOperator
+        address eligibilityOperator,
+        address guardian
     ) internal view {
         requireProposed(d, adminContracts, deployer, safe, eligibilityOperator);
         requireSafeProvedControl(d.treasury, safe);
         require(Ownable2Step(d.treasury).pendingOwner() == address(0), "verify: Treasury has a pending owner");
         require(
+            IAccessControl(d.battleArena).hasRole(DEFAULT_ADMIN_ROLE, safe),
+            "verify: safe lacks BattleArena DEFAULT_ADMIN_ROLE (it alone can resolveFrozen)"
+        );
+        require(
             deployerHoldsNoGovernance(adminContracts, d.miningPool, d.faucet, d.clawToken, deployer),
             "verify: deployer still holds a governance or mint role"
+        );
+        if (guardian != deployer) {
+            require(
+                !IAccessControl(d.battleArena).hasRole(BattleArena(d.battleArena).GUARDIAN_ROLE(), deployer),
+                "verify: deployer still holds BattleArena GUARDIAN_ROLE"
+            );
+        }
+    }
+
+    // ───────────────────────── After the handoff: the refund reserve ─────────────────────────
+
+    /// @notice The Safe funded the BattleArena refund reserve (approve + fundReserve) from the
+    ///         treasury allocation. Without it, a frozen battle that expires unresolved burns
+    ///         nothing from the reserve and governance loses its cost signal (expireFrozen
+    ///         emits FrozenExpired(id, 0, 0)); players are refunded either way.
+    function requireReserveFunded(DeployHelpers.Deployment memory d) internal view {
+        require(
+            BattleArena(d.battleArena).refundReserve() >= REFUND_RESERVE_TARGET,
+            "verify: BattleArena refund reserve is below 2,000,000 CLAW - the Safe must approve + fundReserve"
         );
     }
 
@@ -257,6 +290,7 @@ abstract contract CheckedDeployHelpers is DeployHelpers {
             resolver: resolverAddress,
             vrfOperator: vrfOperatorAddress,
             boostAdmin: boostAdminAddress,
+            guardian: guardianAddress,
             devWallet: devWallet
         });
     }

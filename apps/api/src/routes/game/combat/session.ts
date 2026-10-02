@@ -232,8 +232,9 @@ sessionRoutes.get(
 // D-12 (audit 2026-09): everything needed to check a finished battle WITHOUT trusting this
 // server. The on-chain `turnLogHash` commits to {rules version, battle id, seed, arena, roster,
 // ordered log}; until now a player could not rebuild it — the API never returned the seed or
-// the drand round, and the only copy of the evidence sat in the database of the party a
-// dispute would accuse. With this bundle anyone can:
+// the drand round, and the only copy of the evidence sat in the server's own database. The
+// engine's watchdog runs the same check on every result during its review window. With this
+// bundle anyone can:
 //   1. check the seed themselves: keccak(drand randomness of `vrfRound`, the seed secret
 //      `settle` disclosed on-chain, battleId);
 //   2. `v3.verifyLog(cfg, log)` — re-execute every turn and compare every per-turn hash;

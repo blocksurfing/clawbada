@@ -66,7 +66,7 @@ function assertReplayableRules(cfg: BattleConfig): void {
  * It used to be accepted at any point with no precondition — the one-entry log
  * [{ action: 'forfeit', loser: 'A' }] replayed `ok`. Combined with timeouts being logged as
  * ordinary Defends, a server could award any battle to either side with a log that verified
- * cleanly, and the admin judging the dispute had nothing to check it against.
+ * cleanly, and whoever reviewed the result had nothing to check it against.
  *
  * Now: a timed-out turn is marked in the hashed log, and a forfeit with reason 'timeout' is
  * only valid directly after TIMEOUTS_TO_FORFEIT consecutive timed-out turns by the loser (a
@@ -161,7 +161,7 @@ function canonicalRoster(roster: LobsterInput[]) {
  * Commitment to the whole battle, as settled on-chain: binds the battle id, the
  * VRF seed, the arena, the roster and the ordered turn log (each entry already
  * carries its post-state hash). `hashState` alone deliberately omits the setup
- * (battleId / seed / layout / stats), so this is what a dispute or an S2 replay
+ * (battleId / seed / layout / stats), so this is what the watchdog, a reviewer or an S2 replay
  * checks against.
  */
 export function turnLogHash(state: AtbBattleState, roster: LobsterInput[]): string {

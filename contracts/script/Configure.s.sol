@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {console2} from "forge-std/Script.sol";
-import {DeployHelpers} from "./DeployHelpers.s.sol";
+import {DeployHelpers, REFUND_RESERVE_TARGET} from "./DeployHelpers.s.sol";
 
 import {Treasury} from "../Treasury.sol";
 import {ClawToken} from "../ClawToken.sol";
@@ -32,7 +32,11 @@ contract Configure is DeployHelpers {
         vm.stopBroadcast();
 
         console2.log("=== Configuration sent ===");
-        console2.log("Total: 6 Treasury authorizations, 15 role grants, 1 season start, 1 faucet pre-mint");
+        console2.log("Total: 6 Treasury authorizations, 16 role grants, 1 season start, 1 faucet pre-mint");
+        if (block.chainid == 8453) {
+            console2.log("Mainnet: the 2M CLAW refund reserve is funded by the Safe after the handoff;");
+            console2.log("  confirm with VerifyDeployment --sig 'reserveFunded()' (docs/runbooks/admin-roles.md).");
+        }
         // D-23: a forge broadcast is not atomic, and the LAST transaction of this script
         // is the one that takes ClawToken MINTER_ROLE back off the deploy key. Nothing
         // above proves it landed — only a read of the chain does.
@@ -51,6 +55,7 @@ contract Configure is DeployHelpers {
         _configureBattleArena(d);
         _configureBattleVRF(d);
         _configureFaucet(d);
+        _fundRefundReserveOffMainnet(d);
     }
 
     function _configureTreasury(Deployment memory d) internal {
@@ -155,6 +160,11 @@ contract Configure is DeployHelpers {
 
         arena.grantRole(arena.RESOLVER_ROLE(), resolverAddress);
         console2.log("  RESOLVER_ROLE ->", resolverAddress);
+
+        // The watchdog: may only freeze a settled result for review. A hot role like
+        // MATCHMAKER/RESOLVER, never governance — Handoff.s.sol leaves it in place.
+        arena.grantRole(arena.GUARDIAN_ROLE(), guardianAddress);
+        console2.log("  GUARDIAN_ROLE ->", guardianAddress);
         console2.log("");
     }
 
@@ -181,6 +191,34 @@ contract Configure is DeployHelpers {
         clawToken.mint(d.faucet, FAUCET_CLAW_ALLOCATION);
         clawToken.revokeRole(minter, deployer);
         console2.log("  Pre-minted 70M $CLAW to Faucet");
+        console2.log("");
+    }
+
+    /// @dev Testnet / local only: the deployer funds the BattleArena refund reserve so an
+    ///      e2e run has the same reserve a mainnet launch will. Off mainnet the 100M genesis
+    ///      reserve falls back to the deployer, so it can pay; when TREASURY_RESERVE_ADDRESS
+    ///      names another account, that account has to fund it (as the Safe does on mainnet).
+    ///      Mainnet never runs this: the deploy key holds no CLAW there, and the reserve comes
+    ///      from the Safe right after the handoff (VerifyDeployment --sig "reserveFunded()").
+    function _fundRefundReserveOffMainnet(Deployment memory d) internal {
+        if (block.chainid == 8453) return;
+        console2.log("--- BattleArena refund reserve (off mainnet) ---");
+        BattleArena arena = BattleArena(d.battleArena);
+        uint256 have = arena.refundReserve();
+        if (have >= REFUND_RESERVE_TARGET) {
+            console2.log("  already funded:", have);
+            console2.log("");
+            return;
+        }
+        if (treasuryReserveAddress != deployer) {
+            console2.log("  SKIPPED: the treasury allocation is not on the deployer; fund it from", treasuryReserveAddress);
+            console2.log("");
+            return;
+        }
+        uint256 amount = REFUND_RESERVE_TARGET - have;
+        ClawToken(d.clawToken).approve(d.battleArena, amount);
+        arena.fundReserve(amount);
+        console2.log("  fundReserve:", amount);
         console2.log("");
     }
 }

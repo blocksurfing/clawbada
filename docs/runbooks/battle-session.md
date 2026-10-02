@@ -34,7 +34,7 @@ Sessions live in memory in **one** API process. The `battle_sessions` primary ke
 
 Every turn writes a full state snapshot (`state_json`) plus the turn row. On boot the manager reloads all `active` rows, rebuilds the state, re-verifies real battles are still Active on chain (else `abandoned`), and re-arms the pending human turn with `max(remaining, 5 s)`. Clients reconnect and receive `battle_snapshot`.
 
-## Verifying a battle (disputes, audits)
+## Verifying a battle (the watchdog, frozen results, audits)
 
 `GET /api/game/combat/<battleId>/log` returns, once the battle has ended, everything the on-chain `turnLogHash` commits to: rules version, battle id, seed, arena, roster and the ordered log. Nothing in it needs this server's database to check:
 
@@ -42,16 +42,16 @@ Every turn writes a full state snapshot (`state_json`) plus the turn row. On boo
 2. **The log.** `v3.verifyLog(cfg, log)` re-executes every turn and compares every per-turn hash.
 3. **The commitment.** `v3.turnLogHash(state, roster)` must equal `BattleArena.getBattle(id).turnLogHash`, and `v3.hashState(state)` the `finalStateHash`. The preimage is canonical JSON (sorted keys), so it does not depend on how any one implementation orders fields.
 
-The e2e harness does exactly this against the live stack (`phases/40-assert.ts`, "evidence bundle").
+The e2e harness does exactly this against the live stack (`phases/40-assert.ts`, "evidence bundle"), and the engine's watchdog does the same for every settled battle during its review window (`v3.reproduceSession` from the session row; see below).
 
-**What the log can and cannot prove (D-12).** A Defend chosen by the shot clock is marked `timeout: true` inside the hashed log, and a forfeit carries its `reason`. Replay rejects a `timeout` forfeit that does not directly follow three consecutive timed-out turns by the loser, and rejects a forfeit with no reason — so a server can no longer award a battle with a bare forfeit entry. It still cannot prove that a player *sent* a move the server says timed out, or that a `resign` was really the player's: turn commands are not signed. Closing that needs a per-battle session key (one wallet signature at battle start); it is an open design item.
+**What the log can and cannot prove (D-12).** A Defend chosen by the shot clock is marked `timeout: true` inside the hashed log, and a forfeit carries its `reason`. Replay rejects a `timeout` forfeit that does not directly follow three consecutive timed-out turns by the loser, and rejects a forfeit with no reason — so a server can no longer award a battle with a bare forfeit entry. It still cannot prove that a player *sent* a move the server says timed out, or that a `resign` was really the player's: **turns are not signed in Season 1** (owner decision D-12, 2026-10-01). A per-battle session key (one wallet signature at battle start) is the later-season option.
 
 **Rules versions (D-27).** `battle_sessions.rules_version` (also inside `turnLogHash`) is a hash of everything that decides an outcome: the v3 constants, the stat tables for every class, tier and legend flag, the class-advantage graph, and every damage/crit/proc formula sampled on a fixed grid. A balance patch changes it automatically. Replaying a battle under other rules is refused with `rules version mismatch` — that log is not wrong, it needs the engine it was played on.
 
 Release process when `RULES_VERSION` changes (the pinned test in `v3-replay.test.ts` fails until you do this):
 1. Tag the last commit of the OLD rules: `git tag engine-rules-<first 12 hex of the old value>`.
 2. Paste the new value into the pinned test and mention the rules change in the release notes.
-3. To judge a battle played under old rules, check out the tag that matches its `rules_version` and run the verification above there.
+3. To review a battle played under old rules, check out the tag that matches its `rules_version` and run the verification above there. (The live watchdog replays with the code it runs: a battle still in review across a rules change would replay as `rules version mismatch` and be frozen — deploy a rules change when no battle is in review, or expect to resolve those by hand.)
 Bump `ENGINE_VERSION` by hand for a logic change no sampled number would notice (turn order, targeting, status handling).
 
 ## Things that go wrong
@@ -75,17 +75,18 @@ To re-verify both defences against a real Postgres (throwaway database, chain fa
 
 By hand: check `operator_jobs` for `settle_battle:<battleId>`. `status 3` (dead) with `revert:PhaseTimedOut` means the window was missed: both players are refunded in full via `handleTimeout(battleId)`. `revert:InvalidSettlementHash` is a bug (zero hash) — file it. Anything else: read `last_error`.
 
-**`rogue_settlement_proposal` fired.**
-A result is on-chain that this server did not compute: the RESOLVER key (and with it `BATTLE_SEED_SECRET`, which `settle` must disclose) is compromised, or the engine has a bug. The verdict in the log says which case: `session_still_active` (proposed while the battle was being played), `result_mismatch` (different winner, hashes or damage than ours), `no_session` (proposed before this server ever started the battle).
+**`battle_frozen` fired** (and usually `rogue_settlement_proposal` from the indexer / API / settle job).
+The watchdog could not reproduce a result `settle` recorded, and froze it with the GUARDIAN key before it could pay. The `reason` in the log says why: `no_session` (recorded before this server ever started the battle), `session_still_active` (recorded while the battle was being played), `result_mismatch` / `replay_mismatch: <field>` (different winner, forfeiter, damage or hashes than the replay), `replay_failed: …` (our own stored log does not replay — an engine bug or a tampered database). Nothing is asked of the players; they see "Frozen for review".
 
-1. **The clock is `payoutDeadline`** (in the log line). Until then either player can dispute; after it anyone can finalize and the payout cannot be undone. The players have been told (`settlement_alert`, the web warning). If neither has disputed and you can reach them, tell them to.
-2. **Stop the bleeding.** From the Safe: `revokeRole(RESOLVER_ROLE, <compromised address>)` on BattleArena, then rotate (`admin-roles.md`). Rotate `BATTLE_SEED_SECRET` with it. Every battle that reaches Active while the key is live is exposed.
-3. **Once disputed, resolve it with the true result.** The real battle ran to its end on the API; the honest settle job is dead with `proposal_mismatch`, and its payload IS the true result:
+1. **Stop the bleeding** if the resolver key is the cause. From the Safe: `revokeRole(RESOLVER_ROLE, <compromised address>)` on BattleArena, then rotate (`admin-roles.md`). Rotate `BATTLE_SEED_SECRET` with it (`settle` must disclose it, so it is exposed too). Every battle that reaches Active while the key is live is exposed. The lobsters are already free — `settle` released both teams — but its repair damage has been applied; make it good off-chain from the treasury if it was wrong.
+2. **Resolve it with the true result, within 72 h of `frozenAt`.** The real battle ran to its end on the API; the honest settle job is dead with `proposal_mismatch`, and its payload IS the true result:
    ```sql
    select payload, last_error from operator_jobs where idempotency_key = 'settle_battle:<battleId>';
    ```
-   From the Safe: `adminResolveDispute(battleId, winner, finalStateHash, turnLogHash, damageA, damageB)` with those values (`winner` = the wallet, or the zero address for a draw). The disputer's bond is refunded because the outcome changed. For a `no_session` battle nothing was played: resolve as a draw (both stakes returned) with any non-zero hashes and zero damage.
-4. The finalize watcher will not finalize a rogue proposal, and a disputed battle cannot be finalized by anyone.
+   From the Safe: `resolveFrozen(battleId, winner, forfeiter, false)` with `winner` = the payload's wallet (zero address for a draw) and `forfeiter` = the payload's forfeiter (zero address if null). For a `no_session` battle nothing was played: `resolveFrozen(battleId, 0x0, 0x0, true)` refunds both players in full.
+3. **If the freeze was a false alarm** (e.g. `replay_failed` after a rules change), re-run the verification above by hand; if the result on-chain is right, resolve it with exactly that result.
+4. **The long-stop.** The engine pages `battle_frozen_awaiting_safe` hourly, then `battle_freeze_long_stop_due` in the last 12 h. If the Safe has not acted 72 h after `frozenAt`, the engine (or anyone) calls `expireFrozen`: the held stakes (2·stake) are **burned** and both players are paid stake + 5 % back from the refund reserve (`refundReserve`), logged `frozen_battle_expired`. If the reserve is short of 2·stake, the held stakes are returned directly and nothing burns. Keep the reserve funded (`fundReserve`, anyone; `withdrawReserve`, the Safe).
+5. **`battle_freeze_missed`** means a result the watchdog could not reproduce left its review window unfrozen (engine down, guardian key out of gas, chain stalled past the window) and will pay as submitted. `battle_freeze_failed` means the guardian signer is missing (`GUARDIAN_PRIVATE_KEY`): freeze it from the Safe immediately — the Safe can also call `freeze` while the window is open.
 
 This whole sequence is rehearsed by the e2e harness (`scripts/e2e/phases/50-rogue-settlement.ts`).
 
@@ -95,13 +96,13 @@ The shot clock is server-side, so a human turn always resolves within `BATTLE_SH
 **Players report "turn_mismatch".**
 Their client is behind: the turn number they submitted is not `state.turn + 1`. They should re-read `GET /:battleId/state` (or wait for `battle_snapshot` on reconnect). Duplicate submissions of an already-applied turn are acknowledged with `duplicate: true`, never replayed.
 
-**Someone disputes a settled battle.**
-Evidence lives in `battle_turns` (command, result, `post_state_hash` per turn) and `battle_sessions` (`final_state_hash`, `turn_log_hash`, `roster`, `vrf_round`). `v3.verifyLog(config, log)` re-executes the log and pinpoints the first inconsistent turn; `v3.turnLogHash` must equal the on-chain value.
+**A player questions a settled battle.**
+There is no on-chain dispute; this is a support question. Evidence lives in `battle_turns` (command, result, `post_state_hash` per turn) and `battle_sessions` (`final_state_hash`, `turn_log_hash`, `roster`, `vrf_round`). `v3.verifyLog(config, log)` re-executes the log and pinpoints the first inconsistent turn; `v3.turnLogHash` must equal the on-chain value.
 
 First check the seed the log was played with, from public data only (nothing from our database):
 1. `getBattle(id)` → `revealedAt`, `seedCommit`, `seedSecret` (disclosed by `settle`). Confirm `keccak256(abi.encodePacked(battleId, seedSecret)) == seedCommit` — the contract enforced this, so a mismatch means you are reading the wrong battle.
 2. Round `R` = the first drand round emitted at or after `revealedAt + 6 s` (`seedRoundFor` in `packages/chain/src/battle-seed.ts`; genesis and period from `<DRAND_CHAIN_URL>/info`). It must equal `battle_sessions.vrf_round`.
-3. `seed = keccak256(abi.encodePacked(randomness(R), seedSecret, battleId))` (`battleSeed`). Replay the log with that seed. If our stored seed differs, the server played with randomness it was not entitled to: uphold the dispute.
+3. `seed = keccak256(abi.encodePacked(randomness(R), seedSecret, battleId))` (`battleSeed`). Replay the log with that seed. If our stored seed differs, the server played with randomness it was not entitled to: treat it as an incident and make the player whole from the treasury.
 
 ## How a staked battle's randomness is fixed (D-01)
 
@@ -116,16 +117,32 @@ Residual risk, accepted: an operator who dislikes a seed can decline to settle, 
 
 Operational notes: a session start now waits for round `R` (a few seconds on quicknet). A failed start retries onto the same round and the same seed. If the API logs `battle_seed_commit_mismatch`, the API and the engine are running different `BATTLE_SEED_SECRET`s: fix the environment; affected battles refund at `ACTIVE_WINDOW`.
 
-## A battle sits in AwaitingFinalize (phase 5)
+## A battle sits in review (phase 5) or frozen (phase 8)
 
-`BattleArena.settle` only proposes the result; the payout waits behind the bracket's dispute
-window (`payoutDeadline`: 5 min Low / 30 min Mid / 1 h High). The engine's **FinalizeWatcher**
-(`apps/engine/src/combat/finalize-watcher.ts`, `FINALIZE_POLL_MS`, default 10 s) calls the
-permissionless `finalizeBattle` once the **chain clock** (latest block timestamp) is past the
-deadline, then the indexer mirrors `BattleSettled` (phase 6, winner, payouts). If a battle
-stays in phase 5 after the window: check the engine log for `finalizeBattle failed`, confirm
-`getBattle(id).disputed` is false (disputed battles need `adminResolveDispute`), and that the
-operator key has gas. Anyone can also call `finalizeBattle(id)` by hand.
+`BattleArena.settle` records the result, applies damage and releases both teams; the payout waits
+for the bracket's review window (`payoutDeadline`: 5 min Low / 30 min Mid / 1 h High). The
+engine's **watchdog** (`apps/engine/src/combat/finalize-watcher.ts`, `FINALIZE_POLL_MS`, default
+10 s) replays the battle (`judgeSettlement`: `judgeProposal` + `v3.reproduceSession`) and either
+freezes it with the GUARDIAN key (`battle_frozen`) or, once the **chain clock** (latest block
+timestamp) is past the deadline, calls the permissionless `finalizeBattle`; the indexer mirrors
+`BattleFrozen` (phase 8) and `BattleSettled` (phase 6, winner, payouts; a draw's fee is the
+total of both halves). If a battle stays in phase 5 after the window: check the engine log for
+`watchdog step failed`, and that the operator key has gas. Anyone can also call
+`finalizeBattle(id)` by hand. Phase 8: see `battle_frozen` above.
+
+Signers: `finalizeBattle` / `expireFrozen` use the operator key (permissionless); `freeze` uses
+`GUARDIAN_PRIVATE_KEY` (GUARDIAN_ROLE; off mainnet it falls back to `OPERATOR_PRIVATE_KEY`).
+
+## A reveal stalls (phase 3)
+
+The team commit rides in the deposit; the reveal window is 20 s from the second deposit. The
+engine's RevealWatcher checks each stored salt against the on-chain commit. A salt that does not
+open its commit is reported at once (`accuseRevealFailure`, log `reveal_failure_reported`); a side
+with no salt is reported when 8 s of the window are left. The report extends the window by 2
+minutes for both sides. The reported player can open their own commit (`POST /:id/open-commit` →
+`openOwnCommit`); the watcher then reveals with the opened values — unless they are not the team
+the player queued with (D-17, `opened_commit_not_queued_team`), in which case the battle lapses
+into a mutual cancel. A reported player who never opens loses their 5 % at `handleTimeout`.
 
 ## Useful SQL
 

@@ -81,6 +81,7 @@ export interface SettlePayload {
   turnLogHash: string;
   damageA: [number, number, number];
   damageB: [number, number, number];
+  forfeiter: string | null;
 }
 
 /** Rebuild exactly what the API's manager would have enqueued, from the persisted session. */
@@ -88,7 +89,9 @@ export function payloadFromSession(row: SettlingRow): SettlePayload {
   if (!row.finalStateHash || !row.turnLogHash || !row.winner) {
     throw new Error(`session ${row.id} is 'settling' but has no result hashes`);
   }
-  const damage = v3.repairDamage(v3.deserializeState(row.stateJson));
+  const state = v3.deserializeState(row.stateJson);
+  const damage = v3.repairDamage(state);
+  const side = row.winner === 'draw' ? null : v3.forfeitedSide(state);
   return {
     battleId: row.id,
     winner: row.winner === 'draw' ? 'draw' : row.winner === 'A' ? row.playerA : row.playerB,
@@ -96,6 +99,7 @@ export function payloadFromSession(row: SettlingRow): SettlePayload {
     turnLogHash: row.turnLogHash,
     damageA: damage.damageA,
     damageB: damage.damageB,
+    forfeiter: side === 'A' ? row.playerA : side === 'B' ? row.playerB : null,
   };
 }
 

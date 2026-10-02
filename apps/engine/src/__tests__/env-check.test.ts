@@ -17,6 +17,7 @@ const mainnet = {
   MATCHMAKER_PRIVATE_KEY: K(2),
   RESOLVER_PRIVATE_KEY: K(3),
   BOOST_ADMIN_PRIVATE_KEY: K(4),
+  GUARDIAN_PRIVATE_KEY: K(5),
 };
 
 describe('engineEnvProblems', () => {
@@ -36,7 +37,7 @@ describe('engineEnvProblems', () => {
   });
 
   test('D-26: mainnet refuses to start without a key per hot role', () => {
-    for (const name of ['MATCHMAKER_PRIVATE_KEY', 'RESOLVER_PRIVATE_KEY', 'BOOST_ADMIN_PRIVATE_KEY']) {
+    for (const name of ['MATCHMAKER_PRIVATE_KEY', 'RESOLVER_PRIVATE_KEY', 'BOOST_ADMIN_PRIVATE_KEY', 'GUARDIAN_PRIVATE_KEY']) {
       expect(engineEnvProblems({ ...mainnet, [name]: undefined })).toEqual([`${name} is not set`]);
       expect(engineEnvProblems({ ...mainnet, [name]: '0x' })).toEqual([`${name} is not set`]);
     }
@@ -45,6 +46,9 @@ describe('engineEnvProblems', () => {
   test('D-26: mainnet refuses one key under two names', () => {
     expect(engineEnvProblems({ ...mainnet, BOOST_ADMIN_PRIVATE_KEY: K(3) })).toEqual([
       'RESOLVER_PRIVATE_KEY and BOOST_ADMIN_PRIVATE_KEY are the same key: on mainnet every hot role needs its own',
+    ]);
+    expect(engineEnvProblems({ ...mainnet, GUARDIAN_PRIVATE_KEY: K(3) })).toEqual([
+      'RESOLVER_PRIVATE_KEY and GUARDIAN_PRIVATE_KEY are the same key: on mainnet every hot role needs its own',
     ]);
     expect(engineEnvProblems({ ...mainnet, MATCHMAKER_PRIVATE_KEY: K(1).toUpperCase().replace('0X', '0x') })).toEqual([
       'OPERATOR_PRIVATE_KEY and MATCHMAKER_PRIVATE_KEY are the same key: on mainnet every hot role needs its own',

@@ -155,6 +155,12 @@ export function mockBattle(overrides: Record<string, any> = {}) {
     proposedWinner: '0x0000000000000000000000000000000000000000',
     finalStateHash: '0x0',
     turnLogHash: '0x0',
+    proposedForfeiter: '0x0000000000000000000000000000000000000000',
+    frozenAt: 0,
+    accusedA: false,
+    accusedB: false,
+    openedA: false,
+    openedB: false,
     ...overrides,
   };
 }

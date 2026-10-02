@@ -3,6 +3,14 @@ pragma solidity ^0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
 
+/// @dev BattleArena refund reserve the Safe funds right after the governance handoff, from
+///      the treasury allocation (BattleArena.fundReserve). expireFrozen() burns 2 x stake
+///      from it whenever a frozen battle reaches its 72 h long-stop unresolved, so a
+///      guardian freeze that governance ignores costs the protocol, not the players.
+///      Checked by VerifyDeployment --sig "reserveFunded()". 2M CLAW = 20 frozen High
+///      (50,000) battles expiring before governance tops it up.
+uint256 constant REFUND_RESERVE_TARGET = 2_000_000e18;
+
 /// @title DeployHelpers
 /// @notice Shared base for Clawbada deployment scripts — env loading, address serialization, constants.
 abstract contract DeployHelpers is Script {
@@ -32,6 +40,7 @@ abstract contract DeployHelpers is Script {
     address internal matchmakerAddress;
     address internal resolverAddress;
     address internal boostAdminAddress;      // hot service wallet that posts the weekly battle-rank boost table (MiningPool BOOST_ADMIN_ROLE)
+    address internal guardianAddress;        // hot watchdog wallet (BattleArena GUARDIAN_ROLE): can only freeze a settled result for review
     address internal vrfOperatorAddress;
     uint256 internal deployerKey;
     uint256 internal minSafeThreshold;       // D-11: lowest signer threshold Handoff accepts on the governance Safe (mainnet)
@@ -52,7 +61,7 @@ abstract contract DeployHelpers is Script {
 
     /// @notice Load environment variables and set deployer/devWallet/role addresses.
     /// @dev On mainnet (chain ID 8453), MATCHMAKER_ADDRESS, RESOLVER_ADDRESS, VRF_OPERATOR_ADDRESS,
-    ///      BOOST_ADMIN_ADDRESS, TREASURY_RESERVE_ADDRESS and LP_RECIPIENT are required — the deployer
+    ///      BOOST_ADMIN_ADDRESS, GUARDIAN_ADDRESS, TREASURY_RESERVE_ADDRESS and LP_RECIPIENT are required — the deployer
     ///      must hold neither operational roles nor genesis allocations. On testnet/local they fall
     ///      back to the deployer.
     function _loadEnv() internal {
@@ -105,12 +114,14 @@ abstract contract DeployHelpers is Script {
         resolverAddress = vm.envOr("RESOLVER_ADDRESS", address(0));
         vrfOperatorAddress = vm.envOr("VRF_OPERATOR_ADDRESS", address(0));
         boostAdminAddress = vm.envOr("BOOST_ADMIN_ADDRESS", address(0));
+        guardianAddress = vm.envOr("GUARDIAN_ADDRESS", address(0));
 
         if (isMainnet) {
             require(matchmakerAddress != address(0), "MATCHMAKER_ADDRESS required for mainnet");
             require(resolverAddress != address(0), "RESOLVER_ADDRESS required for mainnet");
             require(vrfOperatorAddress != address(0), "VRF_OPERATOR_ADDRESS required for mainnet");
             require(boostAdminAddress != address(0), "BOOST_ADMIN_ADDRESS required for mainnet");
+            require(guardianAddress != address(0), "GUARDIAN_ADDRESS required for mainnet");
             // TOK-H1: reserve must be an explicit holding account, never the deploy hot key.
             require(treasuryReserveAddress != address(0), "TREASURY_RESERVE_ADDRESS required for mainnet");
             require(treasuryReserveAddress != deployer, "TREASURY_RESERVE_ADDRESS must differ from deployer on mainnet");
@@ -126,6 +137,7 @@ abstract contract DeployHelpers is Script {
             if (resolverAddress == address(0)) resolverAddress = deployer;
             if (vrfOperatorAddress == address(0)) vrfOperatorAddress = deployer;
             if (boostAdminAddress == address(0)) boostAdminAddress = deployer;
+            if (guardianAddress == address(0)) guardianAddress = deployer;
             if (treasuryReserveAddress == address(0)) treasuryReserveAddress = deployer;
             if (lpRecipient == address(0)) lpRecipient = deployer;
         }
@@ -139,12 +151,13 @@ abstract contract DeployHelpers is Script {
         console2.log("Resolver:", resolverAddress);
         console2.log("VRF Operator:", vrfOperatorAddress);
         console2.log("Boost Admin:", boostAdminAddress);
+        console2.log("Guardian:", guardianAddress);
         console2.log("Chain ID:", block.chainid);
         console2.log("");
     }
 
     /// @notice D-26 — separation of duties, enforced on mainnet.
-    /// @dev Every hot service key (matchmaker, resolver, VRF operator, boost admin, and the
+    /// @dev Every hot service key (matchmaker, resolver, VRF operator, boost admin, guardian, and the
     ///      eligibility operator once it is named) must be a different address from the
     ///      deployer and from every other hot key: the role policy analyses each key's blast
     ///      radius on its own, which only holds while one compromise yields one role. The
@@ -152,10 +165,17 @@ abstract contract DeployHelpers is Script {
     ///      key either. GOVERNANCE_SAFE and ELIGIBILITY_OPERATOR are optional until Handoff,
     ///      so they are checked whenever they are set.
     function _requireKeySeparation() internal view {
-        string[5] memory names =
-            ["MATCHMAKER_ADDRESS", "RESOLVER_ADDRESS", "VRF_OPERATOR_ADDRESS", "BOOST_ADMIN_ADDRESS", "ELIGIBILITY_OPERATOR"];
-        address[5] memory hot =
-            [matchmakerAddress, resolverAddress, vrfOperatorAddress, boostAdminAddress, eligibilityOperator];
+        string[6] memory names = [
+            "MATCHMAKER_ADDRESS",
+            "RESOLVER_ADDRESS",
+            "VRF_OPERATOR_ADDRESS",
+            "BOOST_ADMIN_ADDRESS",
+            "GUARDIAN_ADDRESS",
+            "ELIGIBILITY_OPERATOR"
+        ];
+        address[6] memory hot = [
+            matchmakerAddress, resolverAddress, vrfOperatorAddress, boostAdminAddress, guardianAddress, eligibilityOperator
+        ];
 
         for (uint256 i = 0; i < hot.length; i++) {
             if (hot[i] == address(0)) continue; // only ELIGIBILITY_OPERATOR may be unset here

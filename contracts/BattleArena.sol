@@ -7,64 +7,48 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {TeamManager} from "./TeamManager.sol";
-import {Treasury} from "./Treasury.sol";
+import {Treasury, IClawBurnable} from "./Treasury.sol";
 import {BattleVRF} from "./BattleVRF.sol";
 
 /// @title BattleArena — Battle lifecycle state machine for Clawbada
-/// @notice Manages the full battle lifecycle: stake escrow, team commit-reveal, settlement
-///         of the off-chain ATB battle, timeouts, forfeit, bonded disputes with rate limit.
-///         Zero-sum PvP with protocol fee. Turns themselves are played off-chain over
-///         WebSocket (V3); only deposits, the atomic team reveal, settlement and disputes
-///         touch the chain.
-/// @dev Uses MATCHMAKER_ROLE (off-chain matchmaker) and RESOLVER_ROLE (off-chain combat engine).
+/// @notice Manages the full battle lifecycle: stake escrow (with the team commit and the
+///         player's consent bound into the deposit), the atomic team reveal, settlement of
+///         the off-chain ATB battle, a short review hold before payout, timeouts and the
+///         anti-grief deposit. Zero-sum PvP with protocol fee. Turns are played off-chain
+///         over WebSocket (V3).
+/// @dev Roles: MATCHMAKER_ROLE (off-chain matchmaker), RESOLVER_ROLE (off-chain combat engine),
+///      GUARDIAN_ROLE (the watchdog: can only freeze a result for review), DEFAULT_ADMIN_ROLE
+///      (the governance Safe).
 ///
-/// TRUST MODEL (V3 S1): Resolver proposes, bonded player veto with rate limit, admin final tiebreak.
-/// Settlement is a two-step flow to bound resolver authority:
+/// TRUST MODEL (S1, owner decision 2026-10-01 — player disputes removed):
 ///
-/// 1. `settle()` (RESOLVER_ROLE) records the proposed winner (address(0) = draw), the
-///    per-player repair-damage arrays, and two commitments to the off-chain battle —
-///    `finalStateHash` (keccak of the canonical final state) and `turnLogHash` (keccak
-///    over {battleId, VRF seed, arena layout, roster, ordered turn log}) — and
-///    transitions the battle to `AwaitingFinalize` with a per-bracket dispute window
-///    deadline (5 min Low / 30 min Mid / 1 hour High by default; admin-tunable per
-///    bracket via the timelocked `proposeDisputeWindow` + `enactDisputeWindow` pair,
-///    24h delay enforced on-chain via `MIN_TUNING_DELAY`; tiered max caps Low=1d /
-///    Mid=3d / High=7d). NO transfers happen yet; no damage is applied; teams stay
-///    locked.
-/// 2a. If neither player calls `disputeBattle()` within the window, anyone can call
-///    `finalizeBattle()` after the deadline to execute the proposed payout.
-/// 2b. To dispute, a participant must (a) post a bond — 10% of bracket stake by
-///    default (250 / 1,000 / 5,000 $CLAW for Low/Mid/High), admin-tunable via the
-///    timelocked `proposeDisputeBond` + `enactDisputeBond` pair (24h delay; max cap
-///    20% of bracket stake to keep legitimate disputes economically viable); and
-///    (b) pass the per-address rate limit (5 disputes per rolling 24h). Bonded
-///    disputes set `disputed=true` and freeze payout pending `adminResolveDispute()`
-///    (DEFAULT_ADMIN_ROLE). If the admin's final winner differs from the proposed
-///    winner, the disputer's bond is refunded; otherwise it is slashed to Treasury
-///    via the standard 85/15 burn-dev split.
+/// 1. `settle()` (RESOLVER_ROLE) records the result — winner (address(0) = draw), the
+///    forfeiting player if the battle ended by resignation or three timeouts, repair damage
+///    per slot, and two commitments to the off-chain battle (`finalStateHash`, `turnLogHash`).
+///    Damage is applied and BOTH TEAMS ARE RELEASED HERE: a battle result never locks a
+///    lobster. Only the money waits, for a per-bracket review window (`reviewWindows`).
+/// 2. During the review window a watchdog replays the battle from its log. If it cannot
+///    reproduce the result it calls `freeze()` (GUARDIAN_ROLE or the Safe). A guardian key can
+///    only pause a payout; it cannot move money.
+/// 3. Unfrozen: after the window anyone calls `finalizeBattle()` and the proposed result pays.
+/// 4. Frozen: the Safe calls `resolveFrozen()` with the corrected result, or refunds both
+///    players. If the Safe has not acted within `FREEZE_LONG_STOP` (72 h), anyone calls
+///    `expireFrozen()`: the held stakes are BURNED and both players are paid their stakes back
+///    from the refund reserve (anti-grief deposits are returned from escrow). If the reserve
+///    cannot cover it, the held stakes are returned directly instead — nobody is left unpaid.
 ///
-/// The Active phase carries a hard `ACTIVE_WINDOW` deadline. If the resolver has not
-/// settled by then (server outage), `handleTimeout()` mutually cancels with full refunds:
-/// a server failure never costs a player their stake. There is no `signature` argument
-/// on `settle()` — the RESOLVER_ROLE transaction signature is the authentication.
+/// Losses a glitch causes outside the stakes (wrong repair damage) are made whole off-chain by
+/// the treasury. The Active phase carries a hard `ACTIVE_WINDOW`; past it `handleTimeout()`
+/// cancels with full refunds, so a server failure never costs a stake.
 ///
-/// Draws (`winner == address(0)`, reachable via mutual wipeout or an exact tie at the
-/// 100-turn cap after both tiebreaks) refund both stakes and anti-grief deposits in full
-/// with no protocol fee; repair damage still applies.
+/// ANTI-GRIEF DEPOSIT (5% of stake, D-13/14/15): forfeited by a player who (a) resigns or times
+/// out three times in a row (`settle`'s `forfeiter`), or (b) committed a team the resolver could
+/// not open and did not open it themselves within `REVEAL_GRACE` (`accuseRevealFailure`).
 ///
-/// OPEN RISK: if admin is AWOL while a battle is disputed, its stakes stay escrowed
-/// indefinitely. A future "long-dispute auto-cancel" could mitigate; for now admin
-/// liveness is assumed within a reasonable SLA (24h per docs/runbooks/admin-roles.md).
+/// DRAWS (D-03): each side pays half the normal protocol fee (10% of its own stake), so a draw
+/// is never cheaper than a decided battle; repair damage applies as usual.
 ///
-/// V3 S2 ROADMAP: outcome verification moves on-chain via `BattleResolver.replay()` —
-/// deterministic re-execution from {initial state + VRF beacon + ordered turn
-/// submissions}. This will deprecate `adminResolveDispute()` once the off-chain
-/// engine has stabilized and the on-chain port has parity-tested. See the V3
-/// design memo for the full S1/S2 rollout.
-///
-/// See: docs/audits/2026-03-06-manual-contract-audit.md (H-01 origin),
-///      docs/audits/2026-04-15-adversarial-campaign.md (H-01 challenge window),
-///      project_battle_v2_redesign.md (V3 design + S1/S2 rollout).
+/// V3 S2 ROADMAP: outcome verification moves on-chain via `BattleResolver.replay()`.
 /// @custom:security-contact security@clawbada.com
 contract BattleArena is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -72,48 +56,50 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     // ──────────── Roles ────────────
     bytes32 public constant MATCHMAKER_ROLE = keccak256("MATCHMAKER_ROLE");
     bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
+    /// @notice The watchdog: may freeze a result under review, nothing else.
+    bytes32 public constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
 
     // ──────────── Constants ────────────
     uint256 public constant ANTI_GRIEF_BPS = 500; // 5%
     uint256 public constant BPS_DENOMINATOR = 10_000;
-    uint256 public constant PROTOCOL_FEE_BPS = 1000; // 10% of combined pot
+    uint256 public constant PROTOCOL_FEE_BPS = 1000; // 10% of combined pot (a draw: 10% of each stake)
     uint256 public constant DEPOSIT_WINDOW = 2 minutes;
-    uint256 public constant TEAM_COMMIT_WINDOW = 30 seconds;
     uint256 public constant TEAM_REVEAL_WINDOW = 20 seconds;
+    /// @dev D-14: once the resolver reports a commit it could not open, the accused player has this
+    ///      long to open it themselves before they forfeit the anti-grief deposit.
+    uint256 public constant REVEAL_GRACE = 2 minutes;
     /// @dev V3: turns are off-chain. Ceiling for the Active phase = 100 turns × 60 s shot
     ///      clock (≈100 min) plus settle latency slack. Past it, handleTimeout() cancels
     ///      with full refunds so a dead server can never trap stakes.
     uint256 public constant ACTIVE_WINDOW = 3 hours;
     /// @dev D-01: the battle's drand round is the FIRST round whose emission time is at or after
-    ///      `revealedAt + SEED_ROUND_DELAY`. The delay covers clock skew between the sequencer
-    ///      and the drand network, so the chosen round cannot already be published when the
-    ///      revealTeams transaction is sent. Read off-chain; never used for on-chain logic.
+    ///      `revealedAt + SEED_ROUND_DELAY`. Read off-chain; never used for on-chain logic.
     uint256 public constant SEED_ROUND_DELAY = 6 seconds;
+    /// @notice How long a frozen result may wait for the Safe before anyone can expire it.
+    uint256 public constant FREEZE_LONG_STOP = 72 hours;
     uint8 public constant MIN_EVOLUTION_TIER = 1; // Evolved+
     uint8 public constant MAX_DAMAGE_FOR_BATTLE = 79; // <80 to enter
-    // F-04: power score = sum of evolution tier values across the 3 lobsters
-    // on a team. Evolved=1, Elite=2, Apex=3. Bounds match the off-chain
-    // Power Matchmaking helpers in @clawbada/game-logic.
+    // F-04: power score = sum of evolution tier values across the 3 lobsters on a team.
     uint8 public constant MIN_TEAM_POWER = 3;
     uint8 public constant MAX_TEAM_POWER = 9;
     uint256 public constant NUM_STAKE_BRACKETS = 3;
     uint256 public constant EMERGENCY_WITHDRAW_DELAY = 24 hours;
-    // V3 dispute rate limit — per-address sliding window
-    uint256 public constant DISPUTE_RATE_WINDOW = 24 hours;
-    uint8 public constant DISPUTE_RATE_LIMIT = 5; // max disputes per address per DISPUTE_RATE_WINDOW
-    // V3 S1 hardening (T-02): on-chain timelock for admin tuning of dispute params
+    // T-02: on-chain timelock for admin tuning of the review windows
     uint256 public constant MIN_TUNING_DELAY = 24 hours;
 
     // ──────────── Types ────────────
+    // Values are part of the off-chain contract (indexer, API, agents read the phase number);
+    // keep their order. `TeamCommit` is no longer reachable (the commit moved into deposit()).
     enum BattlePhase {
         None,
         Deposit,
-        TeamCommit,
+        TeamCommit, // unused since the commit moved into deposit(); kept so later values keep their numbers
         TeamReveal,
         Active,
-        AwaitingFinalize, // H-01: settle() has proposed an outcome; awaiting dispute window + finalize
+        AwaitingFinalize, // in review: settle() recorded the result, payout waits for the review window
         Settled,
-        Cancelled
+        Cancelled,
+        Frozen // the watchdog (or the Safe) froze the result for review
     }
     enum CancelReason { DepositTimeout, ForfeitA, ForfeitB, MutualTimeout, StaleBattle }
 
@@ -124,45 +110,37 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         uint256 teamIdB;
         uint256 stakeAmount;
         BattlePhase phase;
-        // F-04: power-binding snapshot recorded at createBattle time. revealTeams
-        // recomputes each team's CURRENT power and reverts if it drifted from
-        // these values — closes the match-found→reveal smurfing window.
+        // F-04: power-binding snapshot recorded at createBattle time.
         uint8 powerA;
         uint8 powerB;
-        uint256 phaseDeadline; // Active: revealTeams timestamp + ACTIVE_WINDOW
+        uint256 phaseDeadline;
         uint256 lastProgressAt; // last meaningful state advance (for emergency withdraw)
         address winner; // address(0) until settled; stays address(0) for a draw (phase disambiguates)
-        // Deposit tracking
+        // Deposit tracking (the team commit rides in the deposit)
         bool depositA;
         bool depositB;
-        // Team commit-reveal
         bytes32 teamCommitA;
         bytes32 teamCommitB;
         bool teamRevealedA;
         bool teamRevealedB;
-        // H-01 challenge window: proposed outcome recorded by settle() and awaiting finalize
+        // D-14: reveal-failure attribution
+        bool accusedA;
+        bool accusedB;
+        bool openedA;
+        bool openedB;
+        // Result under review
         address proposedWinner; // address(0) == draw
-        uint256 payoutDeadline;
-        bool disputed;
-        // V3: repair damage keyed by player slot (not winner/loser — a draw has no winner)
+        address proposedForfeiter; // address(0) == nobody forfeited
+        uint256 payoutDeadline; // end of the review window
+        uint64 frozenAt; // 0 unless frozen
         uint8[3] proposedDamageA;
         uint8[3] proposedDamageB;
-        // V3: commitments to the off-chain battle, for disputes and S2 on-chain replay
         bytes32 finalStateHash;
         bytes32 turnLogHash;
-        // D-01: battle randomness. The off-chain seed is
-        //     keccak256(abi.encodePacked(drandRandomness(R), seedSecret, battleId))
-        // with R fixed by rule from `revealedAt` (see SEED_ROUND_DELAY). The resolver commits to
-        // the secret in the SAME transaction that reveals the teams and must disclose it to
-        // settle, so at the moment it is fixed nobody can know the rolls: R is not published
-        // yet (the resolver cannot grind it) and the secret is unknown to players (they cannot
-        // foresee crits from the public beacon). After settle anyone can recompute the seed.
-        bytes32 seedCommit;  // keccak256(abi.encodePacked(battleId, seedSecret)); set by revealTeams
-        bytes32 seedSecret;  // zero until settle() discloses it
-        uint64 revealedAt;   // block.timestamp of revealTeams
-        // V3 S1: bonded disputes — set by disputeBattle(), consumed by adminResolveDispute()
-        address disputer;            // who filed the dispute (for refund/slash routing)
-        uint256 disputeBondPaid;     // bond escrowed at dispute time (snapshot of disputeBonds[bracket])
+        // D-01: battle randomness — see revealTeams / settle.
+        bytes32 seedCommit;
+        bytes32 seedSecret;
+        uint64 revealedAt;
     }
 
     // ──────────── State ────────────
@@ -174,24 +152,18 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     uint256 public nextBattleId = 1;
     mapping(uint256 => Battle) private _battles;
-    mapping(uint256 => bool) public teamInBattle; // teamId → active battle
+    mapping(uint256 => bool) public teamInBattle; // teamId → in a battle that is still being played
 
     uint256[3] public STAKE_BRACKETS;
 
-    // V3 S1: per-bracket dispute tunables (bracket index aligned with STAKE_BRACKETS)
-    uint256[3] public disputeWindows; // [Low, Mid, High] dispute window seconds
-    uint256[3] public disputeBonds;   // [Low, Mid, High] bond required to dispute (in $CLAW wei)
+    /// @notice Per-bracket review window (seconds) between settle() and payout.
+    uint256[3] public reviewWindows;
+    // T-02: pending tuning, applied by enactReviewWindow after MIN_TUNING_DELAY (0 = none pending).
+    uint256[3] public pendingReviewWindow;
+    uint64[3] public pendingReviewWindowAt;
 
-    // V3 S1: per-address dispute rate limit — sliding 24h window of recent dispute timestamps
-    // slither-disable-next-line uninitialized-state — mapping to a dynamic array, populated via push() in _addDisputeTimestamp; mappings need no initialization (false positive).
-    mapping(address => uint64[]) private _disputeTimestamps;
-
-    // V3 S1 hardening (T-02): pending admin tuning, applied by enact* after MIN_TUNING_DELAY.
-    // proposedAt == 0 indicates no pending change for that bracket.
-    uint256[3] public pendingDisputeWindow;
-    uint64[3]  public pendingDisputeWindowAt;
-    uint256[3] public pendingDisputeBond;
-    uint64[3]  public pendingDisputeBondAt;
+    /// @notice CLAW held for paying players back when a frozen result expires. Never escrow.
+    uint256 public refundReserve;
 
     // ──────────── Events ────────────
     event BattleCreated(uint256 indexed battleId, address indexed playerA, address indexed playerB, uint256 stakeAmount, uint8 powerA, uint8 powerB);
@@ -202,7 +174,6 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     event BattleCancelled(uint256 indexed battleId, CancelReason reason);
     event DamageApplied(uint256 indexed battleId, uint256 indexed lobsterId, uint8 damage);
     event AntiGriefSlashed(uint256 indexed battleId, address indexed player, uint256 amount);
-    // H-01 challenge window lifecycle
     event BattleProposed(
         uint256 indexed battleId,
         address indexed proposedWinner,
@@ -210,20 +181,17 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         bytes32 finalStateHash,
         bytes32 turnLogHash
     );
-    // D-01: seed commit-reveal
     event BattleSeedCommitted(uint256 indexed battleId, bytes32 seedCommit, uint64 revealedAt);
     event BattleSeedRevealed(uint256 indexed battleId, bytes32 seedSecret);
-    event BattleDisputed(uint256 indexed battleId, address indexed disputer, bytes evidence);
-    event BattleAdminResolved(uint256 indexed battleId, address indexed winner);
-    // V3 S1: bonded dispute + admin tuning lifecycle
-    event DisputeBondPosted(uint256 indexed battleId, address indexed disputer, uint256 amount);
-    event DisputeBondRefunded(uint256 indexed battleId, address indexed disputer, uint256 amount);
-    event DisputeBondSlashed(uint256 indexed battleId, address indexed disputer, uint256 amount);
-    event DisputeWindowSet(uint256 indexed bracketIndex, uint256 oldWindow, uint256 newWindow);
-    event DisputeBondSet(uint256 indexed bracketIndex, uint256 oldBond, uint256 newBond);
-    // V3 S1 hardening (T-02): timelocked admin tuning — propose then enact after MIN_TUNING_DELAY
-    event DisputeWindowProposed(uint256 indexed bracketIndex, uint256 newWindow, uint256 enactableAt);
-    event DisputeBondProposed(uint256 indexed bracketIndex, uint256 newBond, uint256 enactableAt);
+    event RevealFailureAccused(uint256 indexed battleId, address indexed player, uint256 graceUntil);
+    event CommitOpened(uint256 indexed battleId, address indexed player, uint256 teamId, bytes32 salt);
+    event BattleFrozen(uint256 indexed battleId, address indexed by);
+    event FrozenResolved(uint256 indexed battleId, address indexed winner, bool refunded);
+    event FrozenExpired(uint256 indexed battleId, uint256 burned, uint256 paidFromReserve);
+    event ReserveFunded(address indexed from, uint256 amount);
+    event ReserveWithdrawn(address indexed to, uint256 amount);
+    event ReviewWindowProposed(uint256 indexed bracketIndex, uint256 newWindow, uint256 enactableAt);
+    event ReviewWindowSet(uint256 indexed bracketIndex, uint256 oldWindow, uint256 newWindow);
 
     // ──────────── Errors ────────────
     error ZeroAddress();
@@ -232,53 +200,37 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     error InvalidBattlePhase(uint256 battleId, BattlePhase expected, BattlePhase actual);
     error NotBattleParticipant(uint256 battleId);
     error AlreadyDeposited(uint256 battleId);
-    error AlreadyCommitted(uint256 battleId);
     error InvalidCommitHash(uint256 battleId);
     error TeamNotOwned(uint256 teamId);
     error TeamAlreadyInBattle(uint256 teamId);
     error LobsterTierTooLow(uint256 lobsterId, uint8 required, uint8 actual);
     error LobsterDamageTooHigh(uint256 lobsterId, uint8 damage);
-    /// @dev F-04: createBattle param outside [MIN_TEAM_POWER, MAX_TEAM_POWER].
     error InvalidPowerScore(uint8 powerScore);
-    /// @dev F-04: revealTeams saw a different team-power than the matchmaker
-    ///      recorded at createBattle. Indicates a mid-flow lobster swap that
-    ///      would have moved the player into a different bracket.
     error TeamPowerChanged(uint256 teamId, uint8 expected, uint8 actual);
+    /// @dev D-08: the battle is not the one the depositor agreed to.
+    error ConsentMismatch(uint256 battleId, uint256 stake, uint8 opponentPower);
     error PhaseNotTimedOut(uint256 battleId);
-    error PhaseTimedOut(uint256 battleId); // BA-M1: action attempted after its phase deadline
+    error PhaseTimedOut(uint256 battleId);
     error PlayerCannotBeSelf();
     error InvalidWinner(uint256 battleId);
-    /// @dev V3: settle()/adminResolveDispute() require non-zero finalStateHash and turnLogHash.
+    error InvalidForfeiter(uint256 battleId);
     error InvalidSettlementHash(uint256 battleId);
-    /// @dev D-01: revealTeams requires a non-zero seed commitment.
     error InvalidSeedCommit(uint256 battleId);
-    /// @dev D-01: settle()'s disclosed secret does not match the commitment made at reveal.
     error InvalidSeedReveal(uint256 battleId);
+    error NotAccused(uint256 battleId);
+    error AlreadyAccused(uint256 battleId);
     error EmergencyWithdrawTooEarly(uint256 battleId, uint256 availableAt);
-    // H-01 challenge window
-    error DisputeWindowOpen(uint256 battleId, uint256 deadline);
-    error DisputeWindowClosed(uint256 battleId, uint256 deadline);
-    error AlreadyDisputed(uint256 battleId);
-    error NotDisputed(uint256 battleId);
-    error BattleIsDisputed(uint256 battleId);
-    error DisputedBattleRequiresAdmin(uint256 battleId);
-    // V3 S1: bonded disputes + rate limit
-    error DisputeRateLimitExceeded(address disputer, uint256 retryAvailableAt);
+    error ReviewWindowOpen(uint256 battleId, uint256 deadline);
+    error ReviewWindowClosed(uint256 battleId, uint256 deadline);
+    error LongStopNotReached(uint256 battleId, uint256 availableAt);
+    error InsufficientReserve(uint256 requested, uint256 available);
     error InvalidStakeBracket(uint256 bracketIndex);
-    error InvalidDisputeWindow(uint256 newWindow);
-    error InvalidDisputeBond(uint256 newBond);
-    // V3 S1 hardening (T-02): timelocked admin tuning
+    error InvalidReviewWindow(uint256 newWindow);
     error NoPendingChange(uint256 bracketIndex);
     error TuningDelayNotElapsed(uint256 bracketIndex, uint256 enactableAt);
 
     // ──────────── Constructor ────────────
 
-    /// @param admin The DEFAULT_ADMIN_ROLE holder
-    /// @param clawToken_ The $CLAW ERC-20 token
-    /// @param lobsterNFT_ The LobsterNFT contract
-    /// @param teamManager_ The TeamManager contract
-    /// @param treasury_ The Treasury fee splitter
-    /// @param battleVRF_ The BattleVRF randomness provider
     constructor(
         address admin,
         address clawToken_,
@@ -306,24 +258,15 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         STAKE_BRACKETS[1] = 10_000e18;
         STAKE_BRACKETS[2] = 50_000e18;
 
-        // V3 S1: per-bracket dispute window defaults — chess-site-style scaling
-        disputeWindows[0] = 5 minutes;   // Low: fast finalize, low downside
-        disputeWindows[1] = 30 minutes;  // Mid
-        disputeWindows[2] = 1 hours;     // High: matches typical chess-site challenge windows
-
-        // V3 S1: per-bracket dispute bond defaults — 10% of bracket stake
-        disputeBonds[0] = 250e18;    // 10% of 2,500
-        disputeBonds[1] = 1_000e18;  // 10% of 10,000
-        disputeBonds[2] = 5_000e18;  // 10% of 50,000
+        // Review windows: long enough for the watchdog to replay the battle and freeze it.
+        reviewWindows[0] = 5 minutes;
+        reviewWindows[1] = 30 minutes;
+        reviewWindows[2] = 1 hours;
     }
 
     // ──────────── Matchmaker ────────────
 
-    /// @notice Create a new battle between two players. Called by off-chain matchmaker.
-    /// @param playerA First player address
-    /// @param playerB Second player address
-    /// @param stakeAmount Must be one of STAKE_BRACKETS
-    /// @return battleId The ID of the created battle
+    /// @notice Create a new battle between two players. Called by the off-chain matchmaker.
     function createBattle(
         address playerA,
         address playerB,
@@ -338,9 +281,6 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         if (playerA == playerB) revert PlayerCannotBeSelf();
         if (playerA == address(0) || playerB == address(0)) revert ZeroAddress();
         if (!_isValidStake(stakeAmount)) revert InvalidStakeAmount(stakeAmount);
-        // F-04: power-binding params come from the matchmaker's M-02 re-read.
-        // Validated bounds (3..9) here so a misbehaving matchmaker can't write
-        // garbage that would later fail validation via underflow/overflow.
         if (powerA < MIN_TEAM_POWER || powerA > MAX_TEAM_POWER) revert InvalidPowerScore(powerA);
         if (powerB < MIN_TEAM_POWER || powerB > MAX_TEAM_POWER) revert InvalidPowerScore(powerB);
 
@@ -360,75 +300,54 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     // ──────────── Player Actions ────────────
 
-    /// @notice Deposit stake + anti-grief for a battle.
-    function deposit(uint256 battleId) external nonReentrant {
+    /// @notice Deposit stake + anti-grief and commit your team, in one step.
+    /// @dev D-08: `expectedStake` and `maxOpponentPower` bind what the player agreed to — a
+    ///      battle with another stake or a stronger opponent reverts `ConsentMismatch`, so a
+    ///      misbehaving matchmaker cannot spring a different battle on a depositor.
+    ///      D-13: the commit is part of the deposit, so there is no separate commit clock for the
+    ///      opponent to start. `commitHash = keccak256(abi.encodePacked(battleId, player, teamId, salt))`.
+    function deposit(uint256 battleId, uint256 expectedStake, uint8 maxOpponentPower, bytes32 commitHash)
+        external
+        nonReentrant
+    {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Deposit);
         _requireParticipant(battleId, msg.sender);
-        // BA-M1: phase deadlines are enforced at the action, not only via handleTimeout.
-        // After expiry the only valid transition is handleTimeout().
-        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId);
+        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId); // BA-M1
+        if (commitHash == bytes32(0)) revert InvalidCommitHash(battleId);
 
         bool isA = msg.sender == b.playerA;
+        uint8 opponentPower = isA ? b.powerB : b.powerA;
+        if (b.stakeAmount != expectedStake || opponentPower > maxOpponentPower) {
+            revert ConsentMismatch(battleId, b.stakeAmount, opponentPower);
+        }
         if (isA) {
             if (b.depositA) revert AlreadyDeposited(battleId);
             b.depositA = true;
+            b.teamCommitA = commitHash;
         } else {
             if (b.depositB) revert AlreadyDeposited(battleId);
             b.depositB = true;
-        }
-
-        uint256 antiGrief = b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
-        uint256 total = b.stakeAmount + antiGrief;
-        clawToken.safeTransferFrom(msg.sender, address(this), total);
-
-        emit StakeDeposited(battleId, msg.sender);
-
-        if (b.depositA && b.depositB) {
-            b.phase = BattlePhase.TeamCommit;
-            b.phaseDeadline = block.timestamp + TEAM_COMMIT_WINDOW;
-        }
-    }
-
-    /// @notice Submit a team composition commit hash.
-    function commitTeam(uint256 battleId, bytes32 commitHash) external {
-        Battle storage b = _battles[battleId];
-        _requirePhase(battleId, BattlePhase.TeamCommit);
-        _requireParticipant(battleId, msg.sender);
-        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId); // BA-M1
-
-        bool isA = msg.sender == b.playerA;
-        if (isA) {
-            if (b.teamCommitA != bytes32(0)) revert AlreadyCommitted(battleId);
-            b.teamCommitA = commitHash;
-        } else {
-            if (b.teamCommitB != bytes32(0)) revert AlreadyCommitted(battleId);
             b.teamCommitB = commitHash;
         }
 
+        uint256 total = b.stakeAmount + _antiGrief(b);
+        clawToken.safeTransferFrom(msg.sender, address(this), total);
+
+        emit StakeDeposited(battleId, msg.sender);
         emit TeamCommitted(battleId, msg.sender);
 
-        if (b.teamCommitA != bytes32(0) && b.teamCommitB != bytes32(0)) {
+        if (b.depositA && b.depositB) {
             b.phase = BattlePhase.TeamReveal;
             b.phaseDeadline = block.timestamp + TEAM_REVEAL_WINDOW;
         }
     }
 
     /// @notice Atomically reveal BOTH teams in a single resolver-submitted transaction.
-    /// @dev F5-01: team reveal is resolver-submitted and atomic to close the matchup-dodge
-    ///      exploit. Sequential per-player reveals leaked the first revealer's composition
-    ///      (readable via getBattle, raw storage, and the TeamRevealed event) within the
-    ///      reveal window, letting the second mover bail on unfavorable matchups for only the
-    ///      5% anti-grief — positive EV against honest first-revealers and a violation of the
-    ///      "neither side sees the other's team first" guarantee. Because on-chain storage is
-    ///      raw-readable, no single-team reveal can be hidden; and letting a *player* submit a
-    ///      combined reveal would require handing both salts to a party that benefits from
-    ///      dodging. So the resolver (which already knows both teams from matchmaking and
-    ///      submits settle()) opens both at once. It cannot forge a team — each side's commit
-    ///      hash binds its (teamId, salt). On timeout the battle mutually cancels with full
-    ///      refunds (see _handleRevealTimeout), so an honest player (human or agent) who never
-    ///      hands over a salt — e.g. a dropped connection in the reveal window — loses nothing,
-    ///      because no information ever reached the chain to dodge on.
+    /// @dev F5-01: atomic, resolver-submitted reveal closes the matchup-dodge exploit (no team
+    ///      identity reaches the chain until both are bound together). The resolver cannot forge a
+    ///      team — each commit hash binds its (teamId, salt). The teams are locked only while the
+    ///      battle is being played; settle() releases them.
     // slither-disable-next-line reentrancy-no-eth — setTeamActive() calls the trusted TeamManager (no callback); the post-call phase write is benign bookkeeping and all shared-state entrypoints are phase-gated.
     function revealTeams(
         uint256 battleId,
@@ -443,25 +362,19 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId); // BA-M1
         if (seedCommit == bytes32(0)) revert InvalidSeedCommit(battleId); // D-01
 
-        // Verify both commit hashes — binds each player to the team they committed.
-        bytes32 expectedA = keccak256(abi.encodePacked(battleId, b.playerA, teamIdA, saltA));
-        if (expectedA != b.teamCommitA) revert InvalidCommitHash(battleId);
-        bytes32 expectedB = keccak256(abi.encodePacked(battleId, b.playerB, teamIdB, saltB));
-        if (expectedB != b.teamCommitB) revert InvalidCommitHash(battleId);
+        if (keccak256(abi.encodePacked(battleId, b.playerA, teamIdA, saltA)) != b.teamCommitA) {
+            revert InvalidCommitHash(battleId);
+        }
+        if (keccak256(abi.encodePacked(battleId, b.playerB, teamIdB, saltB)) != b.teamCommitB) {
+            revert InvalidCommitHash(battleId);
+        }
 
-        // Validate both teams BEFORE any state write (no teamInBattle interference between
-        // the two). Each returns the current power for the F-04 binding check.
-        //
-        // F-04: each revealed team's power must match the matchmaker's snapshot. Without
-        // this, a player can queue with a low-power team, get matched against a similar-power
-        // opponent, then swap to a high-power team before reveal — defeating Power Matchmaking.
+        // F-04: each revealed team's power must match the matchmaker's snapshot.
         uint8 powerA = _validateTeamForBattle(teamIdA, b.playerA);
         if (powerA != b.powerA) revert TeamPowerChanged(teamIdA, b.powerA, powerA);
         uint8 powerB = _validateTeamForBattle(teamIdB, b.playerB);
         if (powerB != b.powerB) revert TeamPowerChanged(teamIdB, b.powerB, powerB);
 
-        // Bind + lock both teams atomically — neither team's identity exists on-chain until
-        // this single transaction lands.
         b.teamIdA = teamIdA;
         b.teamIdB = teamIdB;
         b.teamRevealedA = true;
@@ -474,36 +387,60 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         emit TeamRevealed(battleId, b.playerA, teamIdA);
         emit TeamRevealed(battleId, b.playerB, teamIdB);
 
-        // D-01: fix the battle's randomness here, in the transaction that starts it. The secret
-        // is committed before the drand round it will be mixed with exists.
+        // D-01: commit to the seed secret in the transaction that starts the battle.
         b.seedCommit = seedCommit;
         b.revealedAt = uint64(block.timestamp);
         emit BattleSeedCommitted(battleId, seedCommit, uint64(block.timestamp));
 
-        // V3: the battle now runs off-chain. The resolver must settle() within
-        // ACTIVE_WINDOW or handleTimeout() cancels with full refunds.
         b.phase = BattlePhase.Active;
         b.lastProgressAt = block.timestamp;
         b.phaseDeadline = block.timestamp + ACTIVE_WINDOW;
     }
 
+    /// @notice D-14: the resolver reports that `player`'s commit does not open with the salt they
+    ///         handed over. The player then has `REVEAL_GRACE` to open it themselves with
+    ///         `openOwnCommit`; if they do not, the battle cancels and they forfeit their 5%.
+    /// @dev A false report cannot cost an honest player anything: opening the commit clears them.
+    function accuseRevealFailure(uint256 battleId, address player) external onlyRole(RESOLVER_ROLE) {
+        Battle storage b = _battles[battleId];
+        _requirePhase(battleId, BattlePhase.TeamReveal);
+        _requireParticipant(battleId, player);
+        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId);
+        if (player == b.playerA) {
+            if (b.accusedA) revert AlreadyAccused(battleId);
+            b.accusedA = true;
+        } else {
+            if (b.accusedB) revert AlreadyAccused(battleId);
+            b.accusedB = true;
+        }
+        b.phaseDeadline = block.timestamp + REVEAL_GRACE;
+        emit RevealFailureAccused(battleId, player, b.phaseDeadline);
+    }
+
+    /// @notice D-14: an accused player opens their own commit. The opened (teamId, salt) is emitted
+    ///         so the resolver can reveal both teams atomically as usual before the grace ends.
+    function openOwnCommit(uint256 battleId, uint256 teamId, bytes32 salt) external {
+        Battle storage b = _battles[battleId];
+        _requirePhase(battleId, BattlePhase.TeamReveal);
+        _requireParticipant(battleId, msg.sender);
+        if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId);
+        bool isA = msg.sender == b.playerA;
+        if (isA ? !b.accusedA : !b.accusedB) revert NotAccused(battleId);
+        bytes32 commit = isA ? b.teamCommitA : b.teamCommitB;
+        if (keccak256(abi.encodePacked(battleId, msg.sender, teamId, salt)) != commit) revert InvalidCommitHash(battleId);
+        if (isA) b.openedA = true;
+        else b.openedB = true;
+        emit CommitOpened(battleId, msg.sender, teamId, salt);
+    }
+
     // ──────────── Resolver (Server) ────────────
 
-    /// @notice Step 1 of H-01: record the resolver's proposed outcome and open the dispute window.
-    /// @dev No transfers, no damage application, no team release until `finalizeBattle()` or
-    ///      `adminResolveDispute()`. The phase transitions Active → AwaitingFinalize here.
-    ///
-    ///      V3: the battle was played off-chain. `finalStateHash` commits to the canonical
-    ///      final state and `turnLogHash` to {battleId, VRF seed, layout, roster, ordered turn
-    ///      log}; both must be non-zero so a dispute always has something to check against
-    ///      (S1: admin review; S2: `BattleResolver.replay()`). `winner == address(0)` is a
-    ///      draw. Damage arrays are keyed by player slot (A/B). No `signature` parameter —
-    ///      the RESOLVER_ROLE tx signature is the authentication (deliberate deviation from
-    ///      the `(…, signature)` wording in the design docs). Reverts `PhaseTimedOut` past
-    ///      `ACTIVE_WINDOW`: a late settle cannot race the permissionless cancel path.
-    ///      D-01: `seedSecret` opens the commitment made in revealTeams; from it, the public
-    ///      drand round fixed by `revealedAt`, and the battleId, anyone can recompute the seed
-    ///      the log was played with and replay it.
+    /// @notice Record the battle's result and start its review window. Damage is applied and both
+    ///         teams are released now; the stakes wait for the review window (see TRUST MODEL).
+    /// @param forfeiter The player who resigned or timed out three turns in a row (address(0) if
+    ///        the battle was played out). Must be the loser; they forfeit their 5% at payout.
+    /// @dev D-01: `seedSecret` opens the commitment made in revealTeams.
+    // slither-disable-next-line reentrancy-no-eth — calls only the trusted LobsterNFT/TeamManager (no callback); the battle is already out of Active before they run.
     function settle(
         uint256 battleId,
         address winner,
@@ -511,289 +448,173 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         bytes32 turnLogHash,
         uint8[3] calldata damageA,
         uint8[3] calldata damageB,
-        bytes32 seedSecret
+        bytes32 seedSecret,
+        address forfeiter
     ) external onlyRole(RESOLVER_ROLE) {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Active);
         if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId);
-        if (winner != address(0) && winner != b.playerA && winner != b.playerB) revert InvalidWinner(battleId);
+        _requireValidResult(b, battleId, winner, forfeiter);
         if (finalStateHash == bytes32(0) || turnLogHash == bytes32(0)) revert InvalidSettlementHash(battleId);
-        // D-01: the secret disclosed here must be the one committed when the teams were revealed.
-        // battleId is inside the commitment, so a secret cannot be replayed across battles.
         if (keccak256(abi.encodePacked(battleId, seedSecret)) != b.seedCommit) revert InvalidSeedReveal(battleId);
         b.seedSecret = seedSecret;
         emit BattleSeedRevealed(battleId, seedSecret);
 
         b.phase = BattlePhase.AwaitingFinalize;
         b.proposedWinner = winner;
+        b.proposedForfeiter = forfeiter;
         b.proposedDamageA = damageA;
         b.proposedDamageB = damageB;
         b.finalStateHash = finalStateHash;
         b.turnLogHash = turnLogHash;
-        // V3 S1: per-bracket dispute window. _stakeBracket reverts on unknown stake,
-        // but settle() only runs on battles whose stake was validated at createBattle().
-        b.payoutDeadline = block.timestamp + disputeWindows[_stakeBracket(b.stakeAmount)];
-
+        b.payoutDeadline = block.timestamp + reviewWindows[_stakeBracket(b.stakeAmount)];
         emit BattleProposed(battleId, winner, b.payoutDeadline, finalStateHash, turnLogHash);
+
+        // The battle is over: lobsters take their damage and go free immediately. Only money waits.
+        _applyDamage(battleId, b.teamIdA, damageA);
+        _applyDamage(battleId, b.teamIdB, damageB);
+        _releaseTeam(b.teamIdA);
+        _releaseTeam(b.teamIdB);
     }
 
-    /// @notice Step 2a of H-01 + V3 S1 bonded dispute: either participant can dispute the
-    ///         proposed outcome within the per-bracket dispute window by posting a bond and
-    ///         passing the per-address rate limit. Sets `disputed=true` and freezes payout
-    ///         pending `adminResolveDispute()`. Evidence is passed through in the event for
-    ///         off-chain admin review; it is not verified on-chain.
-    /// @dev V3 S1 additions vs original H-01:
-    ///       - Caller must `approve` the dispute bond (`disputeBonds[bracket]`) on the
-    ///         $CLAW token to this contract before calling. Bond is escrowed on the Battle
-    ///         struct and routed by `adminResolveDispute()`.
-    ///       - Per-address rate limit: at most `DISPUTE_RATE_LIMIT` disputes per
-    ///         `DISPUTE_RATE_WINDOW` (rolling). Old timestamps are pruned in-place.
-    /// @param battleId The battle to dispute
-    /// @param evidence Optional off-chain evidence blob (arbitrary bytes; emitted for admin review)
-    function disputeBattle(uint256 battleId, bytes calldata evidence) external nonReentrant {
-        Battle storage b = _battles[battleId];
-        _requirePhase(battleId, BattlePhase.AwaitingFinalize);
-        _requireParticipant(battleId, msg.sender);
-        if (block.timestamp > b.payoutDeadline) revert DisputeWindowClosed(battleId, b.payoutDeadline);
-        if (b.disputed) revert AlreadyDisputed(battleId);
-
-        // V3 S1: rate limit check + record (reverts DisputeRateLimitExceeded if hit).
-        // Done before bond pull so frivolous spammers don't spend gas on transferFrom.
-        _addDisputeTimestamp(msg.sender);
-
-        // V3 S1: pull bond. Snapshot the bond amount on the Battle struct so admin
-        // tuning of disputeBonds[bracket] mid-window doesn't affect already-disputed
-        // battles. Bond stays escrowed until adminResolveDispute() routes it.
-        uint256 bond = disputeBonds[_stakeBracket(b.stakeAmount)];
-        b.disputed = true;
-        b.disputer = msg.sender;
-        b.disputeBondPaid = bond;
-        if (bond > 0) {
-            clawToken.safeTransferFrom(msg.sender, address(this), bond);
-            emit DisputeBondPosted(battleId, msg.sender, bond);
-        }
-
-        emit BattleDisputed(battleId, msg.sender, evidence);
-    }
-
-    /// @notice Step 2b of H-01 (undisputed finalize): after `payoutDeadline` elapses without a
-    ///         dispute, anyone can trigger the payout. The finalization uses exactly the outcome
-    ///         proposed by `settle()`. Permissionless so stalled resolvers can't lock funds.
+    /// @notice Pay out an unfrozen result once its review window has passed. Permissionless.
     function finalizeBattle(uint256 battleId) external nonReentrant {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.AwaitingFinalize);
-        if (b.disputed) revert BattleIsDisputed(battleId);
-        if (block.timestamp <= b.payoutDeadline) revert DisputeWindowOpen(battleId, b.payoutDeadline);
-
-        _executePayout(battleId, b.proposedWinner, b.proposedDamageA, b.proposedDamageB);
+        if (block.timestamp <= b.payoutDeadline) revert ReviewWindowOpen(battleId, b.payoutDeadline);
+        _executePayout(battleId, b.proposedWinner, b.proposedForfeiter);
     }
 
-    /// @notice Step 2c of H-01 (admin override): for disputed battles, DEFAULT_ADMIN_ROLE sets
-    ///         the final winner (address(0) = draw), damage arrays and battle hashes. This fully
-    ///         replaces the resolver's proposal — admin is the tiebreaker of last resort.
-    /// @dev Admin is expected to review the dispute evidence (emitted by `disputeBattle()`)
-    ///      off-chain before calling this. There is no on-chain enforcement that admin has
-    ///      done so; admin role holders are accountable via governance/multisig.
-    // slither-disable-next-line reentrancy-no-eth — nonReentrant; external calls are to the trusted Treasury/LobsterNFT/TeamManager (no callback); CEI holds (phase set in _executePayout before transfers), post-call writes are benign.
-    function adminResolveDispute(
-        uint256 battleId,
-        address winner,
-        bytes32 finalStateHash,
-        bytes32 turnLogHash,
-        uint8[3] calldata damageA,
-        uint8[3] calldata damageB
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+    // ──────────── Review (watchdog + Safe) ────────────
+
+    /// @notice Freeze a result under review because it could not be reproduced. Moves no money.
+    function freeze(uint256 battleId) external {
+        if (!hasRole(GUARDIAN_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, GUARDIAN_ROLE);
+        }
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.AwaitingFinalize);
-        if (!b.disputed) revert NotDisputed(battleId);
-        if (winner != address(0) && winner != b.playerA && winner != b.playerB) revert InvalidWinner(battleId);
-        if (finalStateHash == bytes32(0) || turnLogHash == bytes32(0)) revert InvalidSettlementHash(battleId);
+        if (block.timestamp > b.payoutDeadline) revert ReviewWindowClosed(battleId, b.payoutDeadline);
+        b.phase = BattlePhase.Frozen;
+        b.frozenAt = uint64(block.timestamp);
+        emit BattleFrozen(battleId, msg.sender);
+    }
 
-        // V3 S1: route the dispute bond. If admin's final winner differs from the
-        // resolver's proposed winner, the disputer was right (server proposed wrong)
-        // → refund the bond. Otherwise the disputer was wrong (server's outcome stands)
-        // → slash the bond to Treasury (85% burn / 15% dev split).
-        // Snapshot the disputer + bond locally and clear them on the struct first (CEI).
-        address disputer = b.disputer;
-        uint256 bond = b.disputeBondPaid;
-        b.disputer = address(0);
-        b.disputeBondPaid = 0;
-
-        if (bond > 0) {
-            // BA-M2: the disputer prevails if the admin changed the outcome in ANY
-            // respect — the winner, either damage array, or (V3) either battle hash —
-            // not just the winner. Previously `disputerWon = (winner != b.proposedWinner)`
-            // meant a valid damage-only dispute (correct winner, wrong damage) always
-            // lost its bond, leaving corrupt damage economically unchallengeable.
-            bool disputerWon = (winner != b.proposedWinner)
-                || !_damageEq(damageA, b.proposedDamageA)
-                || !_damageEq(damageB, b.proposedDamageB)
-                || finalStateHash != b.finalStateHash
-                || turnLogHash != b.turnLogHash;
-            if (disputerWon) {
-                clawToken.safeTransfer(disputer, bond);
-                emit DisputeBondRefunded(battleId, disputer, bond);
-            } else {
-                clawToken.forceApprove(address(treasury), bond);
-                treasury.processFee(bond);
-                emit DisputeBondSlashed(battleId, disputer, bond);
-            }
+    /// @notice The Safe settles a frozen battle: pay the corrected result, or refund both players.
+    function resolveFrozen(uint256 battleId, address winner, address forfeiter, bool refundBoth)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
+        Battle storage b = _battles[battleId];
+        _requirePhase(battleId, BattlePhase.Frozen);
+        if (refundBoth) {
+            b.phase = BattlePhase.Settled;
+            b.winner = address(0);
+            uint256 back = b.stakeAmount + _antiGrief(b);
+            emit FrozenResolved(battleId, address(0), true);
+            clawToken.safeTransfer(b.playerA, back);
+            clawToken.safeTransfer(b.playerB, back);
+            emit BattleSettled(battleId, address(0), 0, 0);
+            return;
         }
-
-        // Record the admin's final commitments so the settled battle carries the
-        // outcome that actually paid out (S2 replay reads these).
-        b.finalStateHash = finalStateHash;
-        b.turnLogHash = turnLogHash;
-
-        emit BattleAdminResolved(battleId, winner);
-        _executePayout(battleId, winner, damageA, damageB);
+        _requireValidResult(b, battleId, winner, forfeiter);
+        emit FrozenResolved(battleId, winner, false);
+        _executePayout(battleId, winner, forfeiter);
     }
 
-    // ──────────── Admin Tuning (V3 S1) ────────────
-    // Two-step propose+enact pattern with MIN_TUNING_DELAY (T-02). Defaults are set
-    // directly in the constructor; only later changes from defaults require the timelock.
+    /// @notice After `FREEZE_LONG_STOP` without the Safe, anyone can close a frozen battle: the held
+    ///         stakes are burned and both players are paid their stakes back from the refund reserve
+    ///         (anti-grief deposits come back from escrow). If the reserve is short, the held stakes
+    ///         are returned directly instead (no burn).
+    function expireFrozen(uint256 battleId) external nonReentrant {
+        _requirePhase(battleId, BattlePhase.Frozen);
+        _expireFrozen(battleId);
+    }
 
-    /// @notice Propose a new dispute window (seconds) for a stake bracket. Becomes
-    ///         enactable after MIN_TUNING_DELAY via `enactDisputeWindow`.
-    /// @dev DEFAULT_ADMIN_ROLE-gated; expected to be a Gnosis Safe multisig per
-    ///      docs/runbooks/admin-roles.md. Re-proposing before enact overwrites the
-    ///      pending value AND resets the delay timer.
-    /// @param bracketIndex 0=Low, 1=Mid, 2=High
-    /// @param newWindow New window in seconds. Bounds (T-03 tiered):
-    ///                  Low ∈ [60s, 1 day], Mid ∈ [60s, 3 days], High ∈ [60s, 7 days].
-    ///                  Tiered caps prevent compromised admin from indefinitely stalling
-    ///                  low-value payouts that should clear quickly.
-    function proposeDisputeWindow(uint256 bracketIndex, uint256 newWindow)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    /// @notice Add CLAW to the refund reserve (pulled from the caller; approve first).
+    function fundReserve(uint256 amount) external nonReentrant {
+        refundReserve += amount;
+        emit ReserveFunded(msg.sender, amount);
+        clawToken.safeTransferFrom(msg.sender, address(this), amount);
+    }
+
+    /// @notice The Safe takes CLAW out of the refund reserve. Escrow is never reachable this way.
+    function withdrawReserve(address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        if (to == address(0)) revert ZeroAddress();
+        if (amount > refundReserve) revert InsufficientReserve(amount, refundReserve);
+        refundReserve -= amount;
+        emit ReserveWithdrawn(to, amount);
+        clawToken.safeTransfer(to, amount);
+    }
+
+    // ──────────── Admin Tuning ────────────
+
+    /// @notice Propose a new review window (seconds) for a stake bracket; enactable after
+    ///         MIN_TUNING_DELAY. Bounds: Low ∈ [60 s, 1 day], Mid ∈ [60 s, 3 days], High ∈ [60 s, 7 days].
+    function proposeReviewWindow(uint256 bracketIndex, uint256 newWindow) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bracketIndex >= NUM_STAKE_BRACKETS) revert InvalidStakeBracket(bracketIndex);
-        // T-03: tiered max windows by bracket so admin can't stall Low payouts for a week.
         uint256 maxWindow = bracketIndex == 0 ? 1 days : (bracketIndex == 1 ? 3 days : 7 days);
-        if (newWindow < 60 seconds || newWindow > maxWindow) revert InvalidDisputeWindow(newWindow);
-        pendingDisputeWindow[bracketIndex] = newWindow;
-        pendingDisputeWindowAt[bracketIndex] = uint64(block.timestamp);
-        emit DisputeWindowProposed(bracketIndex, newWindow, block.timestamp + MIN_TUNING_DELAY);
+        if (newWindow < 60 seconds || newWindow > maxWindow) revert InvalidReviewWindow(newWindow);
+        pendingReviewWindow[bracketIndex] = newWindow;
+        pendingReviewWindowAt[bracketIndex] = uint64(block.timestamp);
+        emit ReviewWindowProposed(bracketIndex, newWindow, block.timestamp + MIN_TUNING_DELAY);
     }
 
-    /// @notice Enact a previously-proposed dispute window after MIN_TUNING_DELAY has elapsed.
-    /// @dev Already-disputed battles snapshot the window via `payoutDeadline` at settle()
-    ///      and are unaffected by later enactment.
-    function enactDisputeWindow(uint256 bracketIndex) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @notice Enact a proposed review window. Battles already in review keep their deadline.
+    function enactReviewWindow(uint256 bracketIndex) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bracketIndex >= NUM_STAKE_BRACKETS) revert InvalidStakeBracket(bracketIndex);
-        uint256 proposedAt = uint256(pendingDisputeWindowAt[bracketIndex]);
+        uint256 proposedAt = uint256(pendingReviewWindowAt[bracketIndex]);
         if (proposedAt == 0) revert NoPendingChange(bracketIndex);
         uint256 enactableAt = proposedAt + MIN_TUNING_DELAY;
         if (block.timestamp < enactableAt) revert TuningDelayNotElapsed(bracketIndex, enactableAt);
-
-        uint256 newWindow = pendingDisputeWindow[bracketIndex];
-        uint256 old = disputeWindows[bracketIndex];
-        disputeWindows[bracketIndex] = newWindow;
-
-        pendingDisputeWindow[bracketIndex] = 0;
-        pendingDisputeWindowAt[bracketIndex] = 0;
-
-        emit DisputeWindowSet(bracketIndex, old, newWindow);
-    }
-
-    /// @notice Propose a new dispute bond ($CLAW wei) for a stake bracket. Becomes
-    ///         enactable after MIN_TUNING_DELAY via `enactDisputeBond`.
-    /// @dev DEFAULT_ADMIN_ROLE-gated. Re-proposing before enact overwrites + resets timer.
-    ///      Already-disputed battles snapshot the bond on the Battle struct
-    ///      (`disputeBondPaid`) and are unaffected by later enactment.
-    /// @param bracketIndex 0=Low, 1=Mid, 2=High
-    /// @param newBond New bond in $CLAW wei. Zero disables the bond requirement for that
-    ///                bracket. Max 20% of bracket stake (T-01) — tighter than 50% so a
-    ///                compromised admin can't make legitimate disputes prohibitively
-    ///                expensive (which would let resolver cheats stand unchallenged).
-    function proposeDisputeBond(uint256 bracketIndex, uint256 newBond)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        if (bracketIndex >= NUM_STAKE_BRACKETS) revert InvalidStakeBracket(bracketIndex);
-        // T-01: cap at 20% of bracket stake (was 50%) to keep legitimate disputes affordable.
-        uint256 maxBond = STAKE_BRACKETS[bracketIndex] / 5;
-        // BA-M3: a nonzero bond below the Treasury fee floor (BPS_DENOMINATOR wei)
-        // is accepted here but makes adminResolveDispute's slash branch revert forever
-        // inside treasury.processFee, permanently locking the disputed battle's escrow
-        // (finalize/handleTimeout/emergencyWithdraw are all blocked once disputed).
-        // Require either 0 (bonding disabled) or >= the floor.
-        if (newBond != 0 && newBond < BPS_DENOMINATOR) revert InvalidDisputeBond(newBond);
-        if (newBond > maxBond) revert InvalidDisputeBond(newBond);
-        pendingDisputeBond[bracketIndex] = newBond;
-        pendingDisputeBondAt[bracketIndex] = uint64(block.timestamp);
-        emit DisputeBondProposed(bracketIndex, newBond, block.timestamp + MIN_TUNING_DELAY);
-    }
-
-    /// @notice Enact a previously-proposed dispute bond after MIN_TUNING_DELAY has elapsed.
-    function enactDisputeBond(uint256 bracketIndex) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (bracketIndex >= NUM_STAKE_BRACKETS) revert InvalidStakeBracket(bracketIndex);
-        uint256 proposedAt = uint256(pendingDisputeBondAt[bracketIndex]);
-        if (proposedAt == 0) revert NoPendingChange(bracketIndex);
-        uint256 enactableAt = proposedAt + MIN_TUNING_DELAY;
-        if (block.timestamp < enactableAt) revert TuningDelayNotElapsed(bracketIndex, enactableAt);
-
-        uint256 newBond = pendingDisputeBond[bracketIndex];
-        uint256 old = disputeBonds[bracketIndex];
-        disputeBonds[bracketIndex] = newBond;
-
-        pendingDisputeBond[bracketIndex] = 0;
-        pendingDisputeBondAt[bracketIndex] = 0;
-
-        emit DisputeBondSet(bracketIndex, old, newBond);
+        uint256 newWindow = pendingReviewWindow[bracketIndex];
+        uint256 old = reviewWindows[bracketIndex];
+        reviewWindows[bracketIndex] = newWindow;
+        pendingReviewWindow[bracketIndex] = 0;
+        pendingReviewWindowAt[bracketIndex] = 0;
+        emit ReviewWindowSet(bracketIndex, old, newWindow);
     }
 
     // ──────────── Timeout ────────────
 
     /// @notice Handle a phase timeout. Anyone can call this after the deadline passes.
-    /// @dev For AwaitingFinalize: if undisputed, this acts as a permissionless finalize
-    ///      (equivalent to `finalizeBattle()`); if disputed, reverts with
-    ///      `DisputedBattleRequiresAdmin` so the admin path is used.
+    /// @dev In review it acts as finalizeBattle(); frozen past the long-stop it acts as expireFrozen().
     function handleTimeout(uint256 battleId) external nonReentrant {
         Battle storage b = _battles[battleId];
-        if (b.phase == BattlePhase.None || b.phase == BattlePhase.Settled || b.phase == BattlePhase.Cancelled) {
+        BattlePhase p = b.phase;
+        if (p == BattlePhase.None || p == BattlePhase.Settled || p == BattlePhase.Cancelled) {
             revert BattleDoesNotExist(battleId);
         }
-
-        // AwaitingFinalize uses `payoutDeadline`, not `phaseDeadline`, for its clock.
-        uint256 deadline = b.phase == BattlePhase.AwaitingFinalize ? b.payoutDeadline : b.phaseDeadline;
+        uint256 deadline = p == BattlePhase.AwaitingFinalize
+            ? b.payoutDeadline
+            : p == BattlePhase.Frozen ? uint256(b.frozenAt) + FREEZE_LONG_STOP : b.phaseDeadline;
         if (block.timestamp <= deadline) revert PhaseNotTimedOut(battleId);
 
-        if (b.phase == BattlePhase.Deposit) {
+        if (p == BattlePhase.Deposit) {
             _cancelBattle(battleId, CancelReason.DepositTimeout);
-        } else if (b.phase == BattlePhase.TeamCommit) {
-            _handleCommitTimeout(battleId);
-        } else if (b.phase == BattlePhase.TeamReveal) {
+        } else if (p == BattlePhase.TeamReveal) {
             _handleRevealTimeout(battleId);
-        } else if (b.phase == BattlePhase.Active) {
-            // V3: the resolver failed to settle within ACTIVE_WINDOW. Nothing about the
-            // off-chain outcome is known on-chain, so neither player can be blamed:
-            // mutual cancel with full refunds ("a server failure never costs a stake").
+        } else if (p == BattlePhase.Active) {
+            // The resolver failed to settle within ACTIVE_WINDOW: neither player can be blamed.
             _cancelBattle(battleId, CancelReason.StaleBattle);
-        } else if (b.phase == BattlePhase.AwaitingFinalize) {
-            if (b.disputed) revert DisputedBattleRequiresAdmin(battleId);
-            _executePayout(battleId, b.proposedWinner, b.proposedDamageA, b.proposedDamageB);
+        } else if (p == BattlePhase.AwaitingFinalize) {
+            _executePayout(battleId, b.proposedWinner, b.proposedForfeiter);
+        } else if (p == BattlePhase.Frozen) {
+            _expireFrozen(battleId);
         }
     }
 
     // ──────────── Emergency ────────────
 
-    /// @notice Emergency neutral exit for stalled Active battles.
-    /// @dev Callable by either participant when the resolver has not settled the battle
-    ///      for EMERGENCY_WITHDRAW_DELAY (24 hours) after the team reveal. Returns stakes +
-    ///      anti-grief to both players. No winner, no damage, no slashing. V3: largely
-    ///      superseded by the permissionless ACTIVE_WINDOW cancel in handleTimeout(); kept
-    ///      as a participant-callable belt-and-braces exit.
+    /// @notice Emergency neutral exit for stalled Active battles (belt-and-braces next to the
+    ///         permissionless ACTIVE_WINDOW cancel). Full refunds, no damage, no slashing.
     function emergencyWithdraw(uint256 battleId) external nonReentrant {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Active);
         _requireParticipant(battleId, msg.sender);
-
         uint256 availableAt = b.lastProgressAt + EMERGENCY_WITHDRAW_DELAY;
-        if (block.timestamp < availableAt) {
-            revert EmergencyWithdrawTooEarly(battleId, availableAt);
-        }
-
+        if (block.timestamp < availableAt) revert EmergencyWithdrawTooEarly(battleId, availableAt);
         _cancelBattle(battleId, CancelReason.StaleBattle);
     }
 
@@ -806,22 +627,6 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         return _battles[battleId];
     }
 
-    /// @notice Number of disputes posted by `disputer` within the rolling
-    ///         `DISPUTE_RATE_WINDOW`. Pure view; does not mutate.
-    /// @dev Read-only counterpart of `_addDisputeTimestamp` for off-chain UX
-    ///      (e.g., showing an agent how many dispute slots they have left).
-    function activeDisputesFor(address disputer) external view returns (uint256 count) {
-        uint64[] storage timestamps = _disputeTimestamps[disputer];
-        uint256 cutoff = block.timestamp >= DISPUTE_RATE_WINDOW
-            ? block.timestamp - DISPUTE_RATE_WINDOW
-            : 0;
-        for (uint256 i = 0; i < timestamps.length; i++) {
-            if (uint256(timestamps[i]) > cutoff) {
-                count++;
-            }
-        }
-    }
-
     // ──────────── Internal ────────────
 
     function _requirePhase(uint256 battleId, BattlePhase expected) internal view {
@@ -831,9 +636,23 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         if (actual != expected) revert InvalidBattlePhase(battleId, expected, actual);
     }
 
-    function _requireParticipant(uint256 battleId, address caller) internal view {
+    function _requireParticipant(uint256 battleId, address who) internal view {
         Battle storage b = _battles[battleId];
-        if (caller != b.playerA && caller != b.playerB) revert NotBattleParticipant(battleId);
+        if (who != b.playerA && who != b.playerB) revert NotBattleParticipant(battleId);
+    }
+
+    /// @dev A result's winner is a participant or address(0) (draw); a forfeiter is address(0) or
+    ///      the LOSER of a decided battle (a draw has no forfeiter).
+    function _requireValidResult(Battle storage b, uint256 battleId, address winner, address forfeiter) internal view {
+        if (winner != address(0) && winner != b.playerA && winner != b.playerB) revert InvalidWinner(battleId);
+        if (forfeiter != address(0)) {
+            if (winner == address(0) || forfeiter == winner) revert InvalidForfeiter(battleId);
+            if (forfeiter != b.playerA && forfeiter != b.playerB) revert InvalidForfeiter(battleId);
+        }
+    }
+
+    function _antiGrief(Battle storage b) internal view returns (uint256) {
+        return b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
     }
 
     function _isValidStake(uint256 amount) internal view returns (bool) {
@@ -843,9 +662,6 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         return false;
     }
 
-    /// @dev Resolve a stake amount to its bracket index (0=Low, 1=Mid, 2=High).
-    ///      Reverts `InvalidStakeAmount` for unknown stakes; callers within the
-    ///      contract only invoke this on already-validated stakes.
     function _stakeBracket(uint256 amount) internal view returns (uint256) {
         for (uint256 i = 0; i < NUM_STAKE_BRACKETS; i++) {
             if (amount == STAKE_BRACKETS[i]) return i;
@@ -853,153 +669,88 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         revert InvalidStakeAmount(amount);
     }
 
-    /// @dev Sliding-window per-address rate limit for `disputeBattle`. Prunes
-    ///      timestamps older than `DISPUTE_RATE_WINDOW`, then reverts
-    ///      `DisputeRateLimitExceeded` if the post-prune count is at the cap, else
-    ///      pushes `block.timestamp`. Pruning is O(length) but length is bounded by
-    ///      `DISPUTE_RATE_LIMIT` in steady state — older entries can only accumulate
-    ///      transiently between disputes that hit the cap.
-    function _addDisputeTimestamp(address disputer) internal {
-        uint64[] storage timestamps = _disputeTimestamps[disputer];
-        uint256 cutoff = block.timestamp >= DISPUTE_RATE_WINDOW
-            ? block.timestamp - DISPUTE_RATE_WINDOW
-            : 0;
-
-        // Find first index that's still within the window.
-        uint256 firstValid = 0;
-        while (firstValid < timestamps.length && uint256(timestamps[firstValid]) <= cutoff) {
-            firstValid++;
-        }
-
-        uint256 validCount = timestamps.length - firstValid;
-
-        if (validCount >= DISPUTE_RATE_LIMIT) {
-            // Earliest still-valid timestamp expires (validCount drops below cap)
-            // exactly DISPUTE_RATE_WINDOW after itself.
-            uint256 retryAt = uint256(timestamps[firstValid]) + DISPUTE_RATE_WINDOW;
-            revert DisputeRateLimitExceeded(disputer, retryAt);
-        }
-
-        // Compact valid entries to the start of the array, then trim.
-        if (firstValid > 0) {
-            for (uint256 i = 0; i < validCount; i++) {
-                timestamps[i] = timestamps[firstValid + i];
-            }
-            for (uint256 i = 0; i < firstValid; i++) {
-                timestamps.pop();
-            }
-        }
-
-        timestamps.push(uint64(block.timestamp));
-    }
-
-    /// @dev F-04: returns the team's current power score (sum of evolution
-    ///      tier values across its 3 lobsters) so callers can compare against
-    ///      a snapshotted value without iterating the lobster set twice.
+    /// @dev F-04: returns the team's current power score (sum of evolution tier values).
     function _validateTeamForBattle(uint256 teamId, address player) internal view returns (uint8 power) {
-        // Check team exists and is owned by player
         if (!teamManager.teamExists(teamId)) revert TeamNotOwned(teamId);
         TeamManager.Team memory team = teamManager.getTeam(teamId);
         if (team.owner != player) revert TeamNotOwned(teamId);
-
-        // Check team not already in a battle
         if (teamInBattle[teamId]) revert TeamAlreadyInBattle(teamId);
-
-        // Check team not active (in mining etc)
         if (team.active) revert TeamAlreadyInBattle(teamId);
-
-        // Validate all 3 lobsters: evolution tier >= 1 and damage <= 79.
-        // Sum tier values to get the team power score (Evolved=1, Elite=2, Apex=3).
         for (uint256 i = 0; i < 3; i++) {
             uint256 lobId = team.lobsterIds[i];
             uint8 tier = lobsterNFT.getEvolutionTier(lobId);
-            if (tier < MIN_EVOLUTION_TIER) {
-                revert LobsterTierTooLow(lobId, MIN_EVOLUTION_TIER, tier);
-            }
+            if (tier < MIN_EVOLUTION_TIER) revert LobsterTierTooLow(lobId, MIN_EVOLUTION_TIER, tier);
             uint8 damage = lobsterNFT.getDamage(lobId);
-            if (damage > MAX_DAMAGE_FOR_BATTLE) {
-                revert LobsterDamageTooHigh(lobId, damage);
-            }
+            if (damage > MAX_DAMAGE_FOR_BATTLE) revert LobsterDamageTooHigh(lobId, damage);
             power += tier;
         }
     }
 
-    /// @dev Shared payout path used by `finalizeBattle` (undisputed) and `adminResolveDispute`
-    ///      (disputed). Was inlined in `settle()` before the H-01 split.
-    /// @dev V3: `winner == address(0)` is a draw — both players get stake + anti-grief
-    ///      back, no protocol fee is taken, repair damage still applies to both teams.
-    ///      Damage arrays are keyed by player slot (A/B).
-    function _executePayout(
-        uint256 battleId,
-        address winner,
-        uint8[3] memory damageA,
-        uint8[3] memory damageB
-    ) internal {
+    /// @dev Pays a result (finalizeBattle, handleTimeout in review, resolveFrozen). Damage was applied
+    ///      and teams released at settle(). A decided battle: the winner takes the pot minus the fee.
+    ///      A draw: each side pays half the normal fee (10% of its own stake). A forfeiter (the loser
+    ///      of a resigned / timed-out battle) also loses their anti-grief deposit.
+    function _executePayout(uint256 battleId, address winner, address forfeiter) internal {
         Battle storage b = _battles[battleId];
-
-        // State updates first (CEI)
         b.phase = BattlePhase.Settled;
         b.winner = winner;
 
-        uint256 antiGrief = b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
+        uint256 antiGrief = _antiGrief(b);
 
         if (winner == address(0)) {
-            // Draw: mutual refund, no fee (I-04: safeTransfer).
-            clawToken.safeTransfer(b.playerA, b.stakeAmount + antiGrief);
-            clawToken.safeTransfer(b.playerB, b.stakeAmount + antiGrief);
-
-            _applyDamage(battleId, b.teamIdA, damageA);
-            _applyDamage(battleId, b.teamIdB, damageB);
-            _releaseTeam(b.teamIdA);
-            _releaseTeam(b.teamIdB);
-
-            emit BattleSettled(battleId, address(0), 0, 0);
+            // The normal fee on the combined pot, half from each side (an odd wei falls on B).
+            uint256 drawFee = b.stakeAmount * 2 * PROTOCOL_FEE_BPS / BPS_DENOMINATOR;
+            uint256 feeA = drawFee / 2;
+            clawToken.forceApprove(address(treasury), drawFee);
+            treasury.processFee(drawFee);
+            clawToken.safeTransfer(b.playerA, b.stakeAmount - feeA + antiGrief);
+            clawToken.safeTransfer(b.playerB, b.stakeAmount - (drawFee - feeA) + antiGrief);
+            emit BattleSettled(battleId, address(0), 0, drawFee);
             return;
         }
 
         address loser = winner == b.playerA ? b.playerB : b.playerA;
-
-        // I-02 (gas): teamInBattle cleared inside _releaseTeam below; no need
-        // for redundant pre-clear here. Reentrancy is already blocked via the
-        // `nonReentrant` modifier on every public entrypoint that reaches
-        // _executePayout. Mirrors the _cancelBattle pattern.
-
-        // Calculate payouts
         uint256 combinedPot = b.stakeAmount * 2;
         uint256 protocolFee = combinedPot * PROTOCOL_FEE_BPS / BPS_DENOMINATOR;
         uint256 winnerPayout = combinedPot - protocolFee;
+        uint256 slashed = forfeiter == loser ? antiGrief : 0;
 
-        // Route protocol fee through Treasury (I-03/I-04: forceApprove +
-        // safeTransfer; ClawToken is well-behaved but the migration future-
-        // proofs against tokens that revert on non-zero-to-non-zero approve).
-        clawToken.forceApprove(address(treasury), protocolFee);
-        treasury.processFee(protocolFee);
+        clawToken.forceApprove(address(treasury), protocolFee + slashed);
+        treasury.processFee(protocolFee + slashed);
+        if (slashed > 0) emit AntiGriefSlashed(battleId, loser, slashed);
 
-        // Transfer payouts: winner gets pot - fee + their anti-grief, loser gets anti-grief back
         clawToken.safeTransfer(winner, winnerPayout + antiGrief);
-        clawToken.safeTransfer(loser, antiGrief);
-
-        // Apply damage to lobsters (keyed by player slot)
-        _applyDamage(battleId, b.teamIdA, damageA);
-        _applyDamage(battleId, b.teamIdB, damageB);
-
-        // Release teams
-        _releaseTeam(b.teamIdA);
-        _releaseTeam(b.teamIdB);
+        if (slashed == 0) clawToken.safeTransfer(loser, antiGrief);
 
         emit BattleSettled(battleId, winner, winnerPayout, protocolFee);
     }
 
-    function _applyDamage(uint256 battleId, uint256 teamId, uint8[3] memory damages) internal {
-        // TM-01 (M-01 parity): tolerate a deleted team. Under compromised
-        // ACTIVITY_ROLE, a battle team can be force-marked inactive and then
-        // disbanded by the owner, vaporising `_teams[teamId]`. Without this
-        // guard, `teamManager.getTeam(...)` reverts `TeamDoesNotExist` here
-        // and permanently bricks the settlement/timeout path, trapping
-        // escrowed stakes. Skip damage application instead — lobsters
-        // (if they still exist) keep their pre-battle damage.
-        if (!teamManager.teamExists(teamId)) return;
+    function _expireFrozen(uint256 battleId) internal {
+        Battle storage b = _battles[battleId];
+        uint256 availableAt = uint256(b.frozenAt) + FREEZE_LONG_STOP;
+        if (block.timestamp <= availableAt) revert LongStopNotReached(battleId, availableAt);
+        b.phase = BattlePhase.Settled;
+        b.winner = address(0);
 
+        uint256 stakes = b.stakeAmount * 2;
+        uint256 antiGrief = _antiGrief(b);
+        if (refundReserve >= stakes) {
+            refundReserve -= stakes;
+            emit FrozenExpired(battleId, stakes, stakes);
+            IClawBurnable(address(clawToken)).burn(stakes);
+        } else {
+            emit FrozenExpired(battleId, 0, 0);
+        }
+        // Either way each player gets their stake + anti-grief back: from the reserve (the held
+        // stakes having been burned) or, with the reserve short, the held stakes themselves.
+        clawToken.safeTransfer(b.playerA, b.stakeAmount + antiGrief);
+        clawToken.safeTransfer(b.playerB, b.stakeAmount + antiGrief);
+        emit BattleSettled(battleId, address(0), 0, 0);
+    }
+
+    function _applyDamage(uint256 battleId, uint256 teamId, uint8[3] memory damages) internal {
+        // TM-01: tolerate a deleted team so settlement can never brick.
+        if (!teamManager.teamExists(teamId)) return;
         TeamManager.Team memory team = teamManager.getTeam(teamId);
         for (uint256 i = 0; i < 3; i++) {
             uint256 lobId = team.lobsterIds[i];
@@ -1011,93 +762,48 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         }
     }
 
-    /// @dev BA-M2 helper: exact equality of two 3-element damage arrays.
-    function _damageEq(uint8[3] memory x, uint8[3] memory y) internal pure returns (bool) {
-        return x[0] == y[0] && x[1] == y[1] && x[2] == y[2];
-    }
-
     function _releaseTeam(uint256 teamId) internal {
         teamInBattle[teamId] = false;
-        // TM-01 (M-01 parity): same deleted-team tolerance as _applyDamage.
-        // If the team record is gone, skip the cross-contract setTeamActive
-        // call so the settlement/timeout path still terminates and releases
-        // the escrowed CLAW.
+        // TM-01: same deleted-team tolerance as _applyDamage.
         if (teamManager.teamExists(teamId)) {
             teamManager.setTeamActive(teamId, false);
         }
     }
 
     function _cancelBattle(uint256 battleId, CancelReason reason) internal {
+        _cancelWithSlash(battleId, false, false, reason);
+    }
+
+    /// @dev Cancel, refunding every deposit; a slashed side forfeits its anti-grief deposit to the
+    ///      Treasury and gets only its stake back.
+    function _cancelWithSlash(uint256 battleId, bool slashA, bool slashB, CancelReason reason) internal {
         Battle storage b = _battles[battleId];
         b.phase = BattlePhase.Cancelled;
-
-        uint256 antiGrief = b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
-        uint256 depositTotal = b.stakeAmount + antiGrief;
-
-        // Refund any deposits (I-04: safeTransfer)
-        if (b.depositA) {
-            clawToken.safeTransfer(b.playerA, depositTotal);
+        uint256 antiGrief = _antiGrief(b);
+        uint256 slashed = (slashA ? antiGrief : 0) + (slashB ? antiGrief : 0);
+        if (slashed > 0) {
+            clawToken.forceApprove(address(treasury), slashed);
+            treasury.processFee(slashed);
+            if (slashA) emit AntiGriefSlashed(battleId, b.playerA, antiGrief);
+            if (slashB) emit AntiGriefSlashed(battleId, b.playerB, antiGrief);
         }
-        if (b.depositB) {
-            clawToken.safeTransfer(b.playerB, depositTotal);
-        }
-
-        // Release any committed teams
+        if (b.depositA) clawToken.safeTransfer(b.playerA, b.stakeAmount + (slashA ? 0 : antiGrief));
+        if (b.depositB) clawToken.safeTransfer(b.playerB, b.stakeAmount + (slashB ? 0 : antiGrief));
         if (b.teamRevealedA) _releaseTeam(b.teamIdA);
         if (b.teamRevealedB) _releaseTeam(b.teamIdB);
-
         emit BattleCancelled(battleId, reason);
     }
 
-    function _forfeit(uint256 battleId, address forfeiter) internal {
-        Battle storage b = _battles[battleId];
-        b.phase = BattlePhase.Cancelled;
-
-        address other = forfeiter == b.playerA ? b.playerB : b.playerA;
-        uint256 antiGrief = b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
-
-        // Forfeiter loses anti-grief → Treasury (burned). I-03/I-04: forceApprove
-        // + safeTransfer migration.
-        clawToken.forceApprove(address(treasury), antiGrief);
-        treasury.processFee(antiGrief);
-        emit AntiGriefSlashed(battleId, forfeiter, antiGrief);
-
-        // Forfeiter gets stake back (no anti-grief)
-        clawToken.safeTransfer(forfeiter, b.stakeAmount);
-        // Other player gets stake + their anti-grief back
-        clawToken.safeTransfer(other, b.stakeAmount + antiGrief);
-
-        // Release any committed teams
-        if (b.teamRevealedA) _releaseTeam(b.teamIdA);
-        if (b.teamRevealedB) _releaseTeam(b.teamIdB);
-
-        CancelReason reason = forfeiter == b.playerA ? CancelReason.ForfeitA : CancelReason.ForfeitB;
-        emit BattleCancelled(battleId, reason);
-    }
-
-    function _handleCommitTimeout(uint256 battleId) internal {
-        Battle storage b = _battles[battleId];
-        bool aCommitted = b.teamCommitA != bytes32(0);
-        bool bCommitted = b.teamCommitB != bytes32(0);
-
-        if (!aCommitted && !bCommitted) {
-            // Neither committed → mutual cancel
-            _cancelBattle(battleId, CancelReason.MutualTimeout);
-        } else if (!aCommitted) {
-            _forfeit(battleId, b.playerA);
-        } else {
-            _forfeit(battleId, b.playerB);
-        }
-    }
-
-    /// @dev F5-01: team reveal is now atomic (revealTeams, resolver-submitted), so either
-    ///      both teams are bound or neither is — there is no one-sided reveal state to
-    ///      attribute. If the resolver hasn't opened both teams by the deadline, nothing was
-    ///      ever revealed or locked, so the battle mutually cancels with full refunds. An
-    ///      honest player who failed to hand over a salt (dropped connection, etc.) loses
-    ///      nothing, and no party gained information to dodge on — closing the cheap-dodge
-    ///      vector without penalising honest fumbles.
+    /// @dev The reveal window closed without revealTeams. Nothing about either team reached the
+    ///      chain (F5-01), so by default it is a no-fault mutual cancel. D-14: a player the resolver
+    ///      accused of an unopenable commit, who did not open it, forfeits their 5%.
     function _handleRevealTimeout(uint256 battleId) internal {
-        _cancelBattle(battleId, CancelReason.MutualTimeout);
+        Battle storage b = _battles[battleId];
+        bool faultA = b.accusedA && !b.openedA;
+        bool faultB = b.accusedB && !b.openedB;
+        CancelReason reason = faultA && !faultB
+            ? CancelReason.ForfeitA
+            : faultB && !faultA ? CancelReason.ForfeitB : CancelReason.MutualTimeout;
+        _cancelWithSlash(battleId, faultA, faultB, reason);
     }
 }

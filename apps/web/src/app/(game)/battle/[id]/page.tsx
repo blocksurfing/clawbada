@@ -19,7 +19,7 @@ import { BattleMoves } from '@/components/game/battle-moves';
 import { LiveBattle } from '@/components/battle/LiveBattle';
 import { Swords, Loader2, ExternalLink } from 'lucide-react';
 
-const PHASE_LABEL: Record<number, string> = { 0: 'Not created', 1: 'Deposits', 2: 'Team commit', 3: 'Team reveal', 4: 'Live', 5: 'Result proposed', 6: 'Settled', 7: 'Cancelled' };
+const PHASE_LABEL: Record<number, string> = { 0: 'Not created', 1: 'Deposits', 2: 'Team commit', 3: 'Team reveal', 4: 'Live', 5: 'Result under review', 6: 'Settled', 7: 'Cancelled', 8: 'Frozen for review' };
 
 export default function BattlePage() {
   const params = useParams();
@@ -51,7 +51,7 @@ export default function BattlePage() {
     enabled: !practice,
     refetchInterval: (q) => {
       const phase = q.state.data?.chain?.phase ?? 0;
-      return phase >= 6 ? false : 5_000;
+      return phase === 6 || phase === 7 ? false : phase === 8 ? 60_000 : 5_000;
     },
   });
 
@@ -97,7 +97,7 @@ export default function BattlePage() {
   const lower = address?.toLowerCase();
   const participant = !!lower && !!chain && (chain.playerA.toLowerCase() === lower || chain.playerB.toLowerCase() === lower);
   const live = phase >= 4;
-  const settled = phase >= 6;
+  const settled = phase === 6 || phase === 7;
   const winner = chain && chain.winner !== '0x0000000000000000000000000000000000000000' ? chain.winner : null;
 
   return (
@@ -127,6 +127,11 @@ export default function BattlePage() {
             <Loader2 className="size-5 mx-auto animate-spin mb-2" />
             Waiting for both teams to deposit and reveal…
           </FrostedPanel>
+        )}
+
+        {/* Result in review (5) or frozen for review (8): say so — players have nothing to do */}
+        {chain && (phase === 5 || phase === 8) && participant && address && (
+          <BattleMoves battleId={battleId} address={address} battleData={battleData} />
         )}
 
         {/* Live session (participants act, everyone else spectates) */}

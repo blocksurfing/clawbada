@@ -102,32 +102,6 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "DISPUTE_RATE_LIMIT",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "DISPUTE_RATE_WINDOW",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "EMERGENCY_WITHDRAW_DELAY",
     "inputs": [],
     "outputs": [
@@ -135,6 +109,32 @@ export const BattleArenaAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "FREEZE_LONG_STOP",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "GUARDIAN_ROLE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -258,6 +258,19 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
+    "name": "REVEAL_GRACE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "SEED_ROUND_DELAY",
     "inputs": [],
     "outputs": [
@@ -290,19 +303,6 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "TEAM_COMMIT_WINDOW",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "TEAM_REVEAL_WINDOW",
     "inputs": [],
     "outputs": [
@@ -316,26 +316,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "activeDisputesFor",
-    "inputs": [
-      {
-        "name": "disputer",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "count",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "adminResolveDispute",
+    "name": "accuseRevealFailure",
     "inputs": [
       {
         "name": "battleId",
@@ -343,29 +324,9 @@ export const BattleArenaAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "winner",
+        "name": "player",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "finalStateHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "turnLogHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "damageA",
-        "type": "uint8[3]",
-        "internalType": "uint8[3]"
-      },
-      {
-        "name": "damageB",
-        "type": "uint8[3]",
-        "internalType": "uint8[3]"
       }
     ],
     "outputs": [],
@@ -396,24 +357,6 @@ export const BattleArenaAbi = [
       }
     ],
     "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "commitTeam",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "commitHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -462,66 +405,25 @@ export const BattleArenaAbi = [
         "name": "battleId",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "disputeBattle",
-    "inputs": [
+      },
       {
-        "name": "battleId",
+        "name": "expectedStake",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "evidence",
-        "type": "bytes",
-        "internalType": "bytes"
+        "name": "maxOpponentPower",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "commitHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "disputeBonds",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "disputeWindows",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -538,7 +440,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "enactDisputeBond",
+    "name": "enactReviewWindow",
     "inputs": [
       {
         "name": "bracketIndex",
@@ -551,10 +453,10 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "enactDisputeWindow",
+    "name": "expireFrozen",
     "inputs": [
       {
-        "name": "bracketIndex",
+        "name": "battleId",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -568,6 +470,32 @@ export const BattleArenaAbi = [
     "inputs": [
       {
         "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "freeze",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fundReserve",
+    "inputs": [
+      {
+        "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -677,7 +605,32 @@ export const BattleArenaAbi = [
             "internalType": "bool"
           },
           {
+            "name": "accusedA",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "accusedB",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "openedA",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "openedB",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
             "name": "proposedWinner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "proposedForfeiter",
             "type": "address",
             "internalType": "address"
           },
@@ -687,9 +640,9 @@ export const BattleArenaAbi = [
             "internalType": "uint256"
           },
           {
-            "name": "disputed",
-            "type": "bool",
-            "internalType": "bool"
+            "name": "frozenAt",
+            "type": "uint64",
+            "internalType": "uint64"
           },
           {
             "name": "proposedDamageA",
@@ -725,16 +678,6 @@ export const BattleArenaAbi = [
             "name": "revealedAt",
             "type": "uint64",
             "internalType": "uint64"
-          },
-          {
-            "name": "disputer",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "disputeBondPaid",
-            "type": "uint256",
-            "internalType": "uint256"
           }
         ]
       }
@@ -843,93 +786,22 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "pendingDisputeBond",
+    "name": "openOwnCommit",
     "inputs": [
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "pendingDisputeBondAt",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "pendingDisputeWindow",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "pendingDisputeWindowAt",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "proposeDisputeBond",
-    "inputs": [
-      {
-        "name": "bracketIndex",
+        "name": "battleId",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "newBond",
+        "name": "teamId",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -937,7 +809,45 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "proposeDisputeWindow",
+    "name": "pendingReviewWindow",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingReviewWindowAt",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "proposeReviewWindow",
     "inputs": [
       {
         "name": "bracketIndex",
@@ -955,6 +865,19 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
+    "name": "refundReserve",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "renounceRole",
     "inputs": [
       {
@@ -966,6 +889,34 @@ export const BattleArenaAbi = [
         "name": "callerConfirmation",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "resolveFrozen",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "winner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "forfeiter",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "refundBoth",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "outputs": [],
@@ -1008,6 +959,25 @@ export const BattleArenaAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "reviewWindows",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1065,6 +1035,11 @@ export const BattleArenaAbi = [
         "name": "seedSecret",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "forfeiter",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -1135,6 +1110,24 @@ export const BattleArenaAbi = [
     "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "withdrawReserve",
+    "inputs": [
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
     "type": "event",
     "name": "AntiGriefSlashed",
     "inputs": [
@@ -1155,25 +1148,6 @@ export const BattleArenaAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "BattleAdminResolved",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "winner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -1242,7 +1216,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "event",
-    "name": "BattleDisputed",
+    "name": "BattleFrozen",
     "inputs": [
       {
         "name": "battleId",
@@ -1251,16 +1225,10 @@ export const BattleArenaAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "disputer",
+        "name": "by",
         "type": "address",
         "indexed": true,
         "internalType": "address"
-      },
-      {
-        "name": "evidence",
-        "type": "bytes",
-        "indexed": false,
-        "internalType": "bytes"
       }
     ],
     "anonymous": false
@@ -1379,6 +1347,37 @@ export const BattleArenaAbi = [
   },
   {
     "type": "event",
+    "name": "CommitOpened",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "player",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "DamageApplied",
     "inputs": [
       {
@@ -1404,7 +1403,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "event",
-    "name": "DisputeBondPosted",
+    "name": "FrozenExpired",
     "inputs": [
       {
         "name": "battleId",
@@ -1413,7 +1412,51 @@ export const BattleArenaAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "disputer",
+        "name": "burned",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "paidFromReserve",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FrozenResolved",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "winner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "refunded",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReserveFunded",
+    "inputs": [
+      {
+        "name": "from",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1429,41 +1472,10 @@ export const BattleArenaAbi = [
   },
   {
     "type": "event",
-    "name": "DisputeBondProposed",
+    "name": "ReserveWithdrawn",
     "inputs": [
       {
-        "name": "bracketIndex",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "newBond",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "enactableAt",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "DisputeBondRefunded",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "disputer",
+        "name": "to",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1479,32 +1491,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "event",
-    "name": "DisputeBondSet",
-    "inputs": [
-      {
-        "name": "bracketIndex",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "oldBond",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "newBond",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "DisputeBondSlashed",
+    "name": "RevealFailureAccused",
     "inputs": [
       {
         "name": "battleId",
@@ -1513,13 +1500,13 @@ export const BattleArenaAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "disputer",
+        "name": "player",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "amount",
+        "name": "graceUntil",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1529,7 +1516,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "event",
-    "name": "DisputeWindowProposed",
+    "name": "ReviewWindowProposed",
     "inputs": [
       {
         "name": "bracketIndex",
@@ -1554,7 +1541,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "event",
-    "name": "DisputeWindowSet",
+    "name": "ReviewWindowSet",
     "inputs": [
       {
         "name": "bracketIndex",
@@ -1738,7 +1725,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
-    "name": "AlreadyCommitted",
+    "name": "AlreadyAccused",
     "inputs": [
       {
         "name": "battleId",
@@ -1760,17 +1747,6 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
-    "name": "AlreadyDisputed",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "BattleDoesNotExist",
     "inputs": [
       {
@@ -1782,34 +1758,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
-    "name": "BattleIsDisputed",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "DisputeRateLimitExceeded",
-    "inputs": [
-      {
-        "name": "disputer",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "retryAvailableAt",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "DisputeWindowClosed",
+    "name": "ConsentMismatch",
     "inputs": [
       {
         "name": "battleId",
@@ -1817,36 +1766,14 @@ export const BattleArenaAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "deadline",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "DisputeWindowOpen",
-    "inputs": [
-      {
-        "name": "battleId",
+        "name": "stake",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "deadline",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "DisputedBattleRequiresAdmin",
-    "inputs": [
-      {
-        "name": "battleId",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "opponentPower",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ]
   },
@@ -1861,6 +1788,22 @@ export const BattleArenaAbi = [
       },
       {
         "name": "availableAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientReserve",
+    "inputs": [
+      {
+        "name": "requested",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "available",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1900,21 +1843,10 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
-    "name": "InvalidDisputeBond",
+    "name": "InvalidForfeiter",
     "inputs": [
       {
-        "name": "newBond",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "InvalidDisputeWindow",
-    "inputs": [
-      {
-        "name": "newWindow",
+        "name": "battleId",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1928,6 +1860,17 @@ export const BattleArenaAbi = [
         "name": "powerScore",
         "type": "uint8",
         "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidReviewWindow",
+    "inputs": [
+      {
+        "name": "newWindow",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },
@@ -2036,6 +1979,22 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
+    "name": "LongStopNotReached",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "availableAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "NoPendingChange",
     "inputs": [
       {
@@ -2047,7 +2006,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
-    "name": "NotBattleParticipant",
+    "name": "NotAccused",
     "inputs": [
       {
         "name": "battleId",
@@ -2058,7 +2017,7 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
-    "name": "NotDisputed",
+    "name": "NotBattleParticipant",
     "inputs": [
       {
         "name": "battleId",
@@ -2098,6 +2057,38 @@ export const BattleArenaAbi = [
     "type": "error",
     "name": "ReentrancyGuardReentrantCall",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReviewWindowClosed",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReviewWindowOpen",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",

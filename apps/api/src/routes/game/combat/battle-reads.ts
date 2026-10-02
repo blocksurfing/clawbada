@@ -61,31 +61,46 @@ export function publicBattleView(row: BattleRow) {
   };
 }
 
+/** How long the Safe has to resolve a frozen result before anyone can expire it
+ *  (BattleArena.FREEZE_LONG_STOP). */
+export const FREEZE_LONG_STOP_SEC = 72 * 60 * 60;
+
 /**
- * D-06 (audit 2026-09): while a result is awaiting finalization, say plainly whether what the
+ * D-06 (audit 2026-09): while a result is in review (or frozen), say plainly whether what the
  * chain was told is the result THIS server computed. Everything in it is public already (the
- * proposal is on-chain; the battle itself is full-information), so it needs no auth — and it
- * is what lets the web app and agents notice a rogue settlement even after the battle ended
- * and the live `settlement_alert` can no longer reach them.
+ * result is on-chain; the battle itself is full-information), so it needs no auth. Players have
+ * nothing to do either way: the engine's watchdog freezes a result it cannot reproduce, and the
+ * Safe resolves a frozen battle (or, after 72 h, anyone expires it and both players are paid back).
  */
 export function settlementCheck(
-  chain: { phase: number; proposedWinner: string; finalStateHash: string; turnLogHash: string; payoutDeadline: bigint; disputed: boolean } | null,
+  chain: { phase: number; proposedWinner: string; finalStateHash: string; turnLogHash: string; payoutDeadline: bigint; frozenAt?: number } | null,
   session: Parameters<typeof judgeProposal>[0],
-  battleId: string,
-): { proposedWinner: string; payoutDeadline: bigint; disputed: boolean; verdict: ProposalVerdict; rogue: boolean; disputeRoute: string } | null {
-  if (!chain || chain.phase !== BattlePhase.AwaitingFinalize) return null;
+): {
+  status: 'in_review' | 'frozen_for_review';
+  proposedWinner: string;
+  payoutDeadline: bigint;
+  frozenAt: number | null;
+  /** Unix seconds after which anyone can expire a frozen battle (null unless frozen). */
+  longStopAt: number | null;
+  verdict: ProposalVerdict;
+  rogue: boolean;
+} | null {
+  if (!chain || (chain.phase !== BattlePhase.AwaitingFinalize && chain.phase !== BattlePhase.Frozen)) return null;
   const verdict = judgeProposal(session, {
     proposedWinner: chain.proposedWinner,
     proposedFinalStateHash: chain.finalStateHash,
     proposedTurnLogHash: chain.turnLogHash,
   });
+  const frozen = chain.phase === BattlePhase.Frozen;
+  const frozenAt = frozen && chain.frozenAt ? chain.frozenAt : null;
   return {
+    status: frozen ? 'frozen_for_review' : 'in_review',
     proposedWinner: chain.proposedWinner.toLowerCase(),
     payoutDeadline: chain.payoutDeadline,
-    disputed: chain.disputed,
+    frozenAt,
+    longStopAt: frozenAt !== null ? frozenAt + FREEZE_LONG_STOP_SEC : null,
     verdict,
     rogue: isRogueVerdict(verdict),
-    disputeRoute: `/api/game/combat/${battleId}/dispute`,
   };
 }
 
@@ -140,9 +155,9 @@ battleReadRoutes.get(
     const skipChainRead = dbRow && (dbRow.status === 0 || dbRow.status === 4);
     const chainBattle = skipChainRead ? null : await readBattle(BigInt(battleId));
 
-    // D-06: only worth a session read while a proposal is actually pending.
+    // D-06: only worth a session read while a result is in review or frozen.
     const session =
-      chainBattle && chainBattle.phase === BattlePhase.AwaitingFinalize
+      chainBattle && (chainBattle.phase === BattlePhase.AwaitingFinalize || chainBattle.phase === BattlePhase.Frozen)
         ? await db.query.battleSessions.findFirst({ where: eq(battleSessions.id, battleId) })
         : undefined;
 
@@ -150,7 +165,7 @@ battleReadRoutes.get(
       serializeBigInts({
         chain: chainBattle,
         db: dbRow ? publicBattleView(dbRow) : null,
-        settlement: settlementCheck(chainBattle, session, battleId),
+        settlement: settlementCheck(chainBattle, session),
       }),
     );
   }),

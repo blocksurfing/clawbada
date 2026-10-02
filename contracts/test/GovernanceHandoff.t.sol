@@ -144,6 +144,35 @@ contract GovernanceHandoffTest is BaseSetup {
         assertTrue(nft.hasRole(minterRole, newMinter), "safe can administer roles");
     }
 
+    /// @dev GUARDIAN is a hot role, not governance: the handoff neither moves it to the Safe
+    ///      nor takes it from the guardian key, and the deployer ends with none. The Safe can
+    ///      still freeze (DEFAULT_ADMIN) and alone can resolveFrozen.
+    function test_guardian_stays_with_its_key_through_the_handoff() public {
+        address guardian = makeAddr("guardian");
+        bytes32 g = battleArena.GUARDIAN_ROLE();
+        vm.prank(admin);
+        battleArena.grantRole(g, guardian);
+
+        _propose(safe);
+        _accept(safe);
+        this.extFinalize(safe);
+
+        assertTrue(battleArena.hasRole(g, guardian), "guardian keeps GUARDIAN_ROLE");
+        assertFalse(battleArena.hasRole(g, safe), "the Safe is not given GUARDIAN_ROLE");
+        assertFalse(battleArena.hasRole(g, admin), "deployer holds no GUARDIAN_ROLE");
+        assertTrue(battleArena.hasRole(DEFAULT_ADMIN_ROLE, safe), "Safe is BattleArena admin (resolveFrozen)");
+        assertTrue(_deprivileged(), "deployer fully de-privileged");
+
+        // Only the Safe can rotate the guardian afterwards.
+        address next = makeAddr("nextGuardian");
+        vm.prank(admin);
+        vm.expectRevert();
+        battleArena.grantRole(g, next);
+        vm.prank(safe);
+        battleArena.grantRole(g, next);
+        assertTrue(battleArena.hasRole(g, next), "safe rotates the guardian");
+    }
+
     // ───────────────────────── recovery ─────────────────────────
 
     /// @dev D-11 end to end: propose to a wrong address, notice (it can never accept),

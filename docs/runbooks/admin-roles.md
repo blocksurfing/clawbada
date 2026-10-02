@@ -8,10 +8,11 @@ The contracts are intentionally non-upgradeable. The only governance lever is th
 
 | Role | Holder type (mainnet) | Rotation cadence | Critical action SLA |
 |------|----------------------|------------------|---------------------|
-| `DEFAULT_ADMIN_ROLE` (every contract) | **Multisig** (3-of-5 minimum) | Immutable; rotate signers | Dispute resolution: 24h |
+| `DEFAULT_ADMIN_ROLE` (every contract) | **Multisig** (3-of-5 minimum) | Immutable; rotate signers | `resolveFrozen`: within 72 h of the freeze (target 24 h) |
 | `SEASON_ADMIN_ROLE` (MiningPool) | **Multisig** | Immutable | Mid-season action: explicit proposal + delay |
 | `BOOST_ADMIN_ROLE` (MiningPool) | **Hot service wallet** | Quarterly + on suspicion | Weekly boost post: before the 10-day epoch TTL lapses |
 | `RESOLVER_ROLE` (BattleArena) | **Hot service wallet** | Quarterly + on suspicion | Settle: <60s |
+| `GUARDIAN_ROLE` (BattleArena) | **Hot service wallet** (the engine watchdog) | Quarterly + on suspicion | Freeze: inside the review window (5 min / 30 min / 1 h) |
 | `MATCHMAKER_ROLE` (BattleArena) | **Hot service wallet** | Quarterly + on suspicion | Match: <60s |
 | `OPERATOR_ROLE` (BattleVRF) | **Hot relayer wallet** | Quarterly | Beacon push: per drand round |
 | `ELIGIBILITY_ROLE` (Faucet) | **Hot service wallet** | Faucet lifetime only | Claim eligibility: <5s |
@@ -23,10 +24,10 @@ The contracts are intentionally non-upgradeable. The only governance lever is th
 
 Most attacks against well-audited contracts route through compromised privileged keys. The Phase 1–3 audit campaign identified several classes of damage that DEFAULT_ADMIN_ROLE compromise enables:
 
-- **C-05 god key**: DEFAULT_ADMIN_ROLE on every contract can grant or revoke any role. Compromise on ClawToken = grant MINTER_ROLE to attacker = mint up to remaining cap. Compromise on BattleArena = adminResolveDispute attacker-favorable. Compromise on TeamManager = unlock any team.
+- **C-05 god key**: DEFAULT_ADMIN_ROLE on every contract can grant or revoke any role. Compromise on ClawToken = grant MINTER_ROLE to attacker = mint up to remaining cap. Compromise on BattleArena = `resolveFrozen` attacker-favorable on any frozen battle, `withdrawReserve` drains the refund reserve. Compromise on TeamManager = unlock any team.
 - **M-02 SEASON_ADMIN drain**: setBaseReward(remaining_budget) consumes the season pool in one expedition.
 - **F-01/F-02 faucet sybil**: ELIGIBILITY_ROLE can mark arbitrary wallets eligible. Sybil farm = drain the 70M faucet pre-mint.
-- **Resolver compromise post-H-01**: 5-min challenge window mitigates blast radius (player veto), but admin tiebreaker is still required for disputed battles.
+- **Resolver compromise**: the review window and the guardian's freeze contain it, but only the Safe can decide a frozen battle (`resolveFrozen`).
 
 A 3-of-5 multisig with documented signers eliminates all single-key compromise paths above.
 
@@ -41,7 +42,7 @@ Granted at deploy via `Configure.s.sol` to the deployer EOA.
 
 **Before mainnet launch, run the handoff (step 3, after Deploy + Configure).** It performs the COMPLETE deployer→governance migration in a scripted, asserted sequence — do NOT hand-roll the AccessControl grant/revoke loop, which historically left three authorities behind (ROLE-M1/M2/M3).
 
-The handoff is **two phases with a proof of control between them** (audit 2026-09 D-11). The contracts are not upgradeable and `DEFAULT_ADMIN_ROLE` is the admin of every role, so handing it to an address nobody controls — a typo, or a Safe address copied from another chain where it has no code — is permanent: disputed battles could never be resolved, no season after the first could start, no hot key could ever be rotated. The deployer therefore gives nothing up until the Safe has proved, on this chain, that it can sign.
+The handoff is **two phases with a proof of control between them** (audit 2026-09 D-11). The contracts are not upgradeable and `DEFAULT_ADMIN_ROLE` is the admin of every role, so handing it to an address nobody controls — a typo, or a Safe address copied from another chain where it has no code — is permanent: frozen battles could never be decided by the Safe (only the 72 h `expireFrozen` would remain), no season after the first could start, no hot key could ever be rotated. The deployer therefore gives nothing up until the Safe has proved, on this chain, that it can sign.
 
 ```
 export GOVERNANCE_SAFE=<safe> ELIGIBILITY_OPERATOR=<service wallet>   # plus the deploy-time address vars
@@ -58,14 +59,18 @@ forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "propo
 # 3. Phase 2 — refuses to run without step 2; the deployer renounces everything
 forge script contracts/script/Handoff.s.sol --rpc-url base --broadcast --sig "finalize()"
 forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "finalized()"
+
+# 4. Refund reserve — Safe transactions from the treasury allocation (see "Refund reserve" below):
+#    ClawToken.approve(BattleArena, 2_000_000e18); BattleArena.fundReserve(2_000_000e18)
+forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "reserveFunded()"
 ```
 
-**The handoff is complete only when the last command passes.** Until then the deployer still governs; do not announce otherwise, and do not open the game to the public between phase 1 and the final check (in that window the deploy key still owns Treasury and could redirect or overwrite the pending transfer — D-24; `finalize()` detects that and refuses). Afterwards, retire `DEPLOYER_PRIVATE_KEY`.
+**The handoff is complete only when `finalized()` passes; the launch is ready only when `reserveFunded()` passes too** (the default `VerifyDeployment.s.sol` entry point, `run()`, checks both). Until then the deployer still governs; do not announce otherwise, and do not open the game to the public between phase 1 and the final check (in that window the deploy key still owns Treasury and could redirect or overwrite the pending transfer — D-24; `finalize()` detects that and refuses). Afterwards, retire `DEPLOYER_PRIVATE_KEY`.
 
 What each phase does:
 1. **Phase 1 (`run()`)** — refuses to start unless Configure finished (D-23). Grants `SEASON_ADMIN_ROLE` (MiningPool) and `DEFAULT_ADMIN_ROLE` on all 7 AccessControl contracts to the Safe; moves `ELIGIBILITY_ROLE` (Faucet) to the operational service wallet; proposes **Treasury ownership** via `Ownable2Step.transferOwnership(safe)`. `SEASON_ADMIN` and `ELIGIBILITY` are NOT `DEFAULT_ADMIN_ROLE` and are not moved by a DEFAULT_ADMIN grant loop. ⚠️ **Treasury is `Ownable2Step`, NOT AccessControl** — a grant/revoke loop is a no-op on it.
 2. **The Safe calls `Treasury.acceptOwnership()`.** Only the Safe can, so this is the proof. It also completes the Treasury transfer.
-3. **Phase 2 (`finalize()`)** — requires `Treasury.owner() == safe` and that the Safe already holds every governance role, then the deployer renounces `SEASON_ADMIN_ROLE` and `DEFAULT_ADMIN_ROLE` everywhere.
+3. **Phase 2 (`finalize()`)** — requires `Treasury.owner() == safe` and that the Safe already holds every governance role, then the deployer renounces `SEASON_ADMIN_ROLE` and `DEFAULT_ADMIN_ROLE` everywhere. Hot roles (`MATCHMAKER`, `RESOLVER`, `GUARDIAN`, `BOOST_ADMIN`, VRF `OPERATOR`) are not governance and are not touched: they stay with their own keys.
 
 On mainnet both phases also require `GOVERNANCE_SAFE` to be a deployed Safe on this chain (`getThreshold()` / `getOwners()` answer) with a signer threshold of at least `MIN_SAFE_THRESHOLD` (default **3**, matching the 3-of-5 policy above; lowering it is an explicit choice, and 1 is never accepted).
 
@@ -79,13 +84,14 @@ Post-launch verification — `VerifyDeployment.s.sol --sig "finalized()"` assert
 - `hasRole(DEFAULT_ADMIN_ROLE, deployer) == false` **and `== true` for the Safe** on ClawToken, LobsterNFT, TeamManager, MiningPool, BattleArena, BattleVRF, Faucet.
 - `MiningPool.hasRole(SEASON_ADMIN_ROLE, deployer) == false` (`true` for the Safe); `Faucet.hasRole(ELIGIBILITY_ROLE, deployer) == false` (`true` for the operator).
 - **`ClawToken.hasRole(MINTER_ROLE, deployer) == false`** and `== true` for MiningPool.
-- Every hot role (`MATCHMAKER`, `RESOLVER`, BattleVRF `OPERATOR`, `BOOST_ADMIN`) is held by its env address and **not** by the deployer; the LobsterNFT / TeamManager contract roles are held by the contracts listed below and not by the deployer. (Handoff leaves hot roles in place — they are service roles, not governance roles.)
+- Every hot role (`MATCHMAKER`, `RESOLVER`, `GUARDIAN`, BattleVRF `OPERATOR`, `BOOST_ADMIN`) is held by its env address and **not** by the deployer — in particular the retired deploy key holds no `GUARDIAN_ROLE`, and the Safe holds `DEFAULT_ADMIN_ROLE` on BattleArena (it alone can `resolveFrozen`); the LobsterNFT / TeamManager contract roles are held by the contracts listed below and not by the deployer. (Handoff leaves hot roles in place — they are service roles, not governance roles.)
 - Treasury: `owner() == safe`, `pendingOwner() == address(0)`, `devWallet() == DEV_WALLET`, all 5 game contracts authorized.
 - `currentSeason >= 1`; while the faucet is open, its balance plus `totalClawClaimed` covers the 70M pre-mint.
+- `--sig "reserveFunded()"`: `BattleArena.refundReserve() >= 2,000,000 CLAW` (`REFUND_RESERVE_TARGET` in `DeployHelpers.s.sol`).
 
 ### Key separation (mainnet, enforced by `DeployHelpers._loadEnv`)
 
-Every hot key — `MATCHMAKER_ADDRESS`, `RESOLVER_ADDRESS`, `VRF_OPERATOR_ADDRESS`, `BOOST_ADMIN_ADDRESS`, `ELIGIBILITY_OPERATOR` — must differ from the deployer and from every other hot key, and `GOVERNANCE_SAFE`, `TREASURY_RESERVE_ADDRESS` and `LP_RECIPIENT` must not be any of them (D-26). The blast-radius analysis in this runbook treats each key on its own; that only holds while one compromise yields one role. The server enforces the same: with `CHAIN_ENV=mainnet` the engine refuses to start unless `MATCHMAKER_PRIVATE_KEY`, `RESOLVER_PRIVATE_KEY` and `BOOST_ADMIN_PRIVATE_KEY` are each set and all different from one another and from `OPERATOR_PRIVATE_KEY` — the `OPERATOR_PRIVATE_KEY` fallback exists for testnet and local chains only.
+Every hot key — `MATCHMAKER_ADDRESS`, `RESOLVER_ADDRESS`, `VRF_OPERATOR_ADDRESS`, `BOOST_ADMIN_ADDRESS`, `GUARDIAN_ADDRESS`, `ELIGIBILITY_OPERATOR` — must differ from the deployer and from every other hot key, and `GOVERNANCE_SAFE`, `TREASURY_RESERVE_ADDRESS` and `LP_RECIPIENT` must not be any of them (D-26). The blast-radius analysis in this runbook treats each key on its own; that only holds while one compromise yields one role. The server enforces the same: with `CHAIN_ENV=mainnet` the engine refuses to start unless `MATCHMAKER_PRIVATE_KEY`, `RESOLVER_PRIVATE_KEY`, `BOOST_ADMIN_PRIVATE_KEY` and `GUARDIAN_PRIVATE_KEY` are each set and all different from one another and from `OPERATOR_PRIVATE_KEY` — the `OPERATOR_PRIVATE_KEY` fallback exists for testnet and local chains only.
 
 `LP_RECIPIENT` (required on mainnet, must differ from the deployer) receives the 125M LP allocation at genesis, so the deploy key never holds 12.5% of supply at rest (D-24). Use the account that will seed the Uniswap V3 pool — a Safe, or a hardware wallet used for nothing else.
 
@@ -93,12 +99,12 @@ Every hot key — `MATCHMAKER_ADDRESS`, `RESOLVER_ADDRESS`, `VRF_OPERATOR_ADDRES
 
 | Action | SLA | Notes |
 |--------|-----|-------|
-| BattleArena `adminResolveDispute` | **24h from dispute event** | Disputed battles freeze stakes pending admin resolution. No emergency-cancel exists by design — H-01's veto guarantee depends on admin tiebreaker. |
+| BattleArena `resolveFrozen` | **24h target, 72h hard limit from `BattleFrozen`** | Past `FREEZE_LONG_STOP` (72 h) anyone can `expireFrozen`: both players are refunded and 2 × stake is burned from the refund reserve. See "Frozen battles" below. |
 | Treasury `setDevWallet` | **48h proposal + 24h delay** | Use a Safe transaction with comment + scheduling. Never single-step. |
 | Treasury `setAuthorized` | **48h proposal** | Adding a new fee-emitting contract requires audit review. |
 | Any `grantRole` post-deploy | **48h proposal** | New role grants are exception, not routine. |
 
-If admin liveness lapses past 48h on a disputed battle, surface to community/governance: the trapped stakes become a public coordination problem.
+If the Safe cannot reach quorum on a frozen battle, nothing is trapped: at 72 h `expireFrozen` refunds both players. Every expiry costs the reserve 2 × stake, so treat one as an incident and top the reserve back up.
 
 ## SEASON_ADMIN_ROLE policy
 
@@ -117,17 +123,14 @@ The weekly battle-rank boost post (`setTeamBoosts` / `activateBoostEpoch`) is **
 ### Season rotation
 `startSeason(totalEmission, baseReward)` is called once per season. The transition closes the previous season's budget; if `getSeasonUnspent()` is non-zero, the leftover is implicitly retired (not rolled forward). Document the rationale for the chosen `totalEmission` in the season-rotation Safe transaction.
 
-## RESOLVER_ROLE / MATCHMAKER_ROLE policy
+## RESOLVER_ROLE / MATCHMAKER_ROLE / GUARDIAN_ROLE policy
 
 Both are **hot service wallets** (server-side keys for the off-chain combat engine and matchmaker). Compromise blast radius:
 
-- **MATCHMAKER**: create any battle — any two addresses, any of the three stakes, any (truthful) Powers. It cannot deposit on a user's behalf, but consent on-chain is a bare `deposit(battleId)`: the player never states the stake, opponent or opponent Power they agreed to (D-08). Off-chain containment: the API only builds deposit calldata for a battle that IS the match it made for the caller (same players, the stake of the bracket they queued for, the recorded Powers), never surfaces a battle it did not make as "your match", and labels such a battle with its real bracket. **An agent that builds its own transactions has none of this protection** — the agent guide tells it to check. Binding consent in the contract (`deposit(battleId, expectedStake, maxOpponentPower)`) is an open design item.
-- **RESOLVER post-H-01**: propose any winner / damage. Players have a veto via `disputeBattle` for the length of the dispute window (5 min Low / 30 min Mid / 1 h High); the admin decides disputed battles. **The veto only works if the player knows a result was proposed** — `settle()` is valid the moment teams are revealed, so a thief can propose while the real battle is still being played, and the Low window can run out before it ends (D-06). What the honest stack does about it:
-  - the **API** pushes `settlement_alert` to both players of a battle it is still running (repeated every 20 s, and on reconnect), exposes `settlement.rogue` on `GET /combat/:battleId`, and serves `POST /combat/:battleId/dispute`; the web app shows a warning with a dispute button;
-  - the **indexer** keeps the on-chain proposal in its own columns and never overwrites the server's record of the battle;
-  - the **engine**'s settle job no longer treats "already past Active" as success without comparing the result, and the finalize watcher refuses to finalize a result that is not provably ours;
-  - all three log **`rogue_settlement_proposal`** at error/fatal level. **Page on it.** Procedure: `docs/runbooks/battle-session.md`.
-  Limits, stated plainly: `finalizeBattle` is permissionless, so refusing to finalize does not stop the thief finalizing; if no player disputes in time the payout is final. A bond-free admin/guardian freeze and a per-address dispute cap that cannot silence an honest player (D-05) are open design items.
+- **MATCHMAKER**: create any battle — any two addresses, any of the three stakes, any (truthful) Powers. It cannot deposit on a user's behalf, and consent is bound on-chain (D-08): `deposit(battleId, expectedStake, maxOpponentPower, commitHash)` reverts `ConsentMismatch` unless the battle's stake is the one the player states and the opponent's Power is within the player's limit.
+- **RESOLVER**: propose any winner / damage / forfeiter. Damage is applied and both teams are released inside `settle()`; only the money waits, for the per-bracket review window (5 min Low / 30 min Mid / 1 h High). There are no player disputes (removed 2026-10-01). The containment is the **guardian**: the engine watchdog replays every settled battle from its turn log during the window and freezes any result it cannot reproduce. A result nobody freezes is paid by the permissionless `finalizeBattle` once the window closes. Wrong repair damage from a bad result is made whole off-chain by the treasury.
+  - all services log **`rogue_settlement_proposal`** at error/fatal level when an on-chain result is not the server's own. **Page on it.** Procedure: `docs/runbooks/battle-session.md`.
+- **GUARDIAN** (the engine watchdog, `GUARDIAN_PRIVATE_KEY` / `GUARDIAN_ADDRESS`): can do exactly one thing — `freeze(battleId)` a battle in review (`AwaitingFinalize`, before its `payoutDeadline`). It moves no money and cannot pick a winner. Blast radius of a stolen guardian key: it can freeze every result in review; each freeze then waits for the Safe (or the 72 h expiry, which refunds both players and burns 2 × stake from the refund reserve). Rotate on the first unexplained `BattleFrozen`. The guardian is the check on the resolver, so the two must never share a key (enforced by the deploy scripts and the engine on mainnet). The Safe can also freeze (it holds `DEFAULT_ADMIN_ROLE`).
 - **RESOLVER and battle randomness (D-01)**: the resolver commits each battle's seed secret in `revealTeams` and discloses it in `settle`. It cannot choose the seed (the drand round it is mixed with does not exist yet at commit time), but it can decline to settle a battle whose seed it dislikes, which refunds both players at `ACTIVE_WINDOW`. `BATTLE_SEED_SECRET` is a second secret of the same class as this key: a leak lets the holder foresee every roll of live battles. Rotate it with the key.
 
 ### Rotation
@@ -139,8 +142,23 @@ Rotate quarterly or on any suspicion of compromise. Rotation procedure:
 4. From the multisig, call `revokeRole(ROLE, oldAddress)`.
 5. Confirm on-chain via Etherscan / Base block explorer.
 
+### Frozen battles (Safe procedure)
+
+A `BattleFrozen(battleId, by)` event means the watchdog could not reproduce a result. The stakes and anti-grief deposits stay in escrow; the lobsters were already released at settle.
+
+1. Replay the battle from its turn log (`docs/runbooks/battle-session.md`) and decide the correct result.
+2. **Within 72 h of the freeze**, from the Safe: `BattleArena.resolveFrozen(battleId, winner, forfeiter, refundBoth)`.
+   - Decided result: `winner` = the real winner, `forfeiter` = `address(0)`, or the loser if the battle really ended by resignation / three timeouts (their 5 % deposit is slashed). Pays exactly like `finalizeBattle`.
+   - Cannot be decided (log missing, server bug): `refundBoth = true` — both players get stake + 5 % back, no fee.
+3. If the Safe has not acted by `frozenAt + 72 h`, **anyone** may call `expireFrozen(battleId)`: both players get stake + 5 % back and 2 × stake is burned from the refund reserve (if the reserve is short, the held stakes are returned and nothing is burned). Top the reserve back up afterwards.
+
+### Refund reserve
+
+`BattleArena.refundReserve` pays `expireFrozen` refunds so the held stakes can be burned — a frozen battle governance ignores costs the protocol, not the players. Target: **2,000,000 CLAW** (`REFUND_RESERVE_TARGET`), funded **by the Safe from the treasury allocation right after the handoff**: `ClawToken.approve(BattleArena, 2_000_000e18)` then `BattleArena.fundReserve(2_000_000e18)` (anyone can fund; only `DEFAULT_ADMIN_ROLE` can `withdrawReserve`). Confirm with `VerifyDeployment.s.sol --sig "reserveFunded()"`. Off mainnet `Configure.s.sol` funds it from the deployer when the deployer holds the treasury allocation (the testnet fallback), so e2e runs with the same reserve. Re-check after every `FrozenExpired` with a non-zero burn.
+
 ### Detection signals
 Surface alerts on:
+- Any `BattleFrozen` (page the Safe signers), any `FrozenExpired`
 - Settlement proposed with damage arrays exceeding bounded ranges
 - Settlements creating losers with damage < 20 (loser_damage by spec is 20-40 VRF)
 - Battle creation rate exceeding sustained baseline by 5x
@@ -153,7 +171,7 @@ Posts the weekly battle-rank mining boost table (S1, locked 2026-09-02): the ser
 ### What the holder does each week
 1. `setTeamBoosts(nextEpoch, entries[])` in batches of at most `MAX_BOOST_BATCH = 200` rows `(teamId, bps, power)` — staged for `currentBoostEpoch + 1`, invisible to `startExpedition` until activated. (True since audit D-09: the table is keyed by epoch. Before that fix one slot per team was shared, so staging silently zeroed every re-posted team's live boost until activation.) Check a staged table with `getTeamBoostAt(nextEpoch, teamId)` before activating; `getTeamBoost(teamId)` reads the live epoch.
 2. `activateBoostEpoch(nextEpoch)` — one tx flips the whole table. Any team not re-posted drops to 0 automatically (the lapse rule needs no clearing writes).
-3. Corrections during the live epoch (e.g. after a dispute resolution changes a result) use `setTeamBoosts(currentEpoch, …)` — amending the live table is allowed, activating it twice is not.
+3. Corrections during the live epoch (e.g. after `resolveFrozen` changes a result) use `setTeamBoosts(currentEpoch, …)` — amending the live table is allowed, activating it twice is not.
 
 ### Required holder (mainnet)
 A **hot service wallet** — the same class as `MATCHMAKER_ROLE` / `RESOLVER_ROLE`, never the governance Safe. `Configure.s.sol` grants it to `BOOST_ADMIN_ADDRESS` (required and must differ from the deployer on mainnet; falls back to the deployer on testnet). `Handoff.s.sol` does **not** touch it: a weekly post from a multisig would miss the cadence.
@@ -172,7 +190,7 @@ Same procedure as RESOLVER/MATCHMAKER (grant new → switch service → revoke o
 ### Detection signals
 Surface alerts on:
 - `TeamBoostSet` for a team with no settled battles in the earning epoch, or with `bps` that does not match the published ladder row
-- A live epoch amended more than a handful of times, or amended for teams outside the published dispute list
+- A live epoch amended more than a handful of times, or amended for teams outside the published correction list
 - No `BoostEpochActivated` for > 8 days (the server's own overdue alarm fires here; the on-chain TTL is 10 days)
 - Boosted `ExpeditionStarted` events (`boostBps > 0`) from a team absent from the ladder
 
@@ -223,6 +241,7 @@ The lobster bound matters more than it looks (audit D-02): a faucet lobster mine
 4. **The multisig calls `Treasury.acceptOwnership()`** — the proof that it can sign on this chain.
 5. **Handoff phase 2** — the deployer renounces `DEFAULT_ADMIN_ROLE` on every contract. It cannot run before step 4.
 6. `VerifyDeployment.s.sol --sig "finalized()"`, then log the multisig address publicly so anyone can verify governance (the verify script needs only public addresses).
+7. **The multisig funds the refund reserve** (2M CLAW: `approve` + `BattleArena.fundReserve`), then `VerifyDeployment.s.sol --sig "reserveFunded()"`. Open the game only after this passes.
 
 This sequence closes C-06 (deployer-as-admin without timelock) at deploy time.
 
@@ -230,7 +249,7 @@ This sequence closes C-06 (deployer-as-admin without timelock) at deploy time.
 
 If you suspect a privileged key is compromised:
 
-1. **Hot service keys (RESOLVER/MATCHMAKER/OPERATOR/ELIGIBILITY/BOOST_ADMIN)**: rotate immediately via the multisig. No paging required — bounded blast radius. For BOOST_ADMIN, also re-post the current epoch's table from the new key if the compromised key amended it.
+1. **Hot service keys (RESOLVER/MATCHMAKER/GUARDIAN/OPERATOR/ELIGIBILITY/BOOST_ADMIN)**: rotate immediately via the multisig. For GUARDIAN, also review every battle it froze and `resolveFrozen` the honest ones before the 72 h expiry. No paging required — bounded blast radius. For BOOST_ADMIN, also re-post the current epoch's table from the new key if the compromised key amended it.
 2. **Multisig signer compromise**: signer remediation via the remaining quorum. Replace the compromised signer's key on the Safe before any further admin actions are queued.
 3. **Multisig contract compromise** (full takeover): there is no on-chain emergency exit. Contracts are not upgradeable. Coordinate publicly: announce, halt off-chain services, document the affected contracts. The token cap, the season budget caps, and the soulbound flags all bound the worst case.
 
