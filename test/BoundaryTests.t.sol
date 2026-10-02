@@ -495,17 +495,12 @@ contract BoundaryTests is Test {
         vm.prank(matchmaker);
         uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
 
-        _depositBothBattle(battleId);
-
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
         bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));
         bytes32 commitB = keccak256(abi.encodePacked(battleId, bob, teamIdB, saltB));
-
-        vm.prank(alice);
-        arena.commitTeam(battleId, commitA);
-        vm.prank(bob);
-        arena.commitTeam(battleId, commitB);
+        // D-13: the team commit rides in the deposit.
+        _depositBothBattle(battleId, commitA, commitB);
 
         // Reveal should succeed with damage=79
         // F5-01: atomic resolver-submitted reveal.
@@ -535,17 +530,12 @@ contract BoundaryTests is Test {
         vm.prank(matchmaker);
         uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
 
-        _depositBothBattle(battleId);
-
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
         bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));
         bytes32 commitB = keccak256(abi.encodePacked(battleId, bob, teamIdB, saltB));
-
-        vm.prank(alice);
-        arena.commitTeam(battleId, commitA);
-        vm.prank(bob);
-        arena.commitTeam(battleId, commitB);
+        // D-13: the team commit rides in the deposit.
+        _depositBothBattle(battleId, commitA, commitB);
 
         // Reveal should REVERT — damage 80 > MAX_DAMAGE_FOR_BATTLE (79). F5-01: atomic
         // reveal validates both teams; alice's over-damaged team reverts first.
@@ -578,8 +568,8 @@ contract BoundaryTests is Test {
 
         // Bob wins (not alice) — H-01: settle proposes, finalize pays
         vm.prank(resolver);
-        arena.settle(battleId, bob, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
-        vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
+        arena.settle(battleId, bob, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET, address(0));
+        vm.warp(block.timestamp + arena.reviewWindows(0) + 1);
         arena.finalizeBattle(battleId);
 
         assertEq(claw.balanceOf(bob), bobBalBefore + winnerPayout + antiGrief);
@@ -594,14 +584,16 @@ contract BoundaryTests is Test {
         _setDamage(teamA.lobsterIds[0], 90);
 
         // Settle with 15 more damage → 90 + 15 = 105, but should cap at 100
-        // H-01: damage application now happens in finalizeBattle, not settle
+        // Damage is applied inside settle(); finalize only pays.
         vm.prank(resolver);
-        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(15), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
-        vm.warp(block.timestamp + arena.disputeWindows(0) + 1);
-        arena.finalizeBattle(battleId);
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(15), 5, 8], [uint8(30), 25, 35], SEED_SECRET, address(0));
 
-        assertEq(nft.getDamage(teamA.lobsterIds[0]), 100); // capped
+        assertEq(nft.getDamage(teamA.lobsterIds[0]), 100); // capped, already at settle
         assertEq(nft.getDamage(teamA.lobsterIds[1]), 5);
+
+        vm.warp(block.timestamp + arena.reviewWindows(0) + 1);
+        arena.finalizeBattle(battleId);
+        assertEq(nft.getDamage(teamA.lobsterIds[0]), 100); // finalize does not re-apply
     }
 
     function test_boundary_settleInvalidWinnerReverts() public {
@@ -610,7 +602,7 @@ contract BoundaryTests is Test {
         address nobody = makeAddr("nobody");
         vm.prank(resolver);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidWinner.selector, battleId));
-        arena.settle(battleId, nobody, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET);
+        arena.settle(battleId, nobody, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET, address(0));
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -1260,17 +1252,12 @@ contract BoundaryTests is Test {
 
         vm.prank(matchmaker);
         uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
-        _depositBothBattle(battleId);
-
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
         bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));
         bytes32 commitB = keccak256(abi.encodePacked(battleId, bob, teamIdB, saltB));
-
-        vm.prank(alice);
-        arena.commitTeam(battleId, commitA);
-        vm.prank(bob);
-        arena.commitTeam(battleId, commitB);
+        // D-13: the team commit rides in the deposit.
+        _depositBothBattle(battleId, commitA, commitB);
 
         // Reveal succeeds — lobster at damage=79 is accepted
         // F5-01: atomic resolver-submitted reveal.
@@ -1354,19 +1341,19 @@ contract BoundaryTests is Test {
 
     // ──────────── Battle Helpers (local to this test) ────────────
 
-    function _depositBothBattle(uint256 battleId) internal {
+    function _depositBothBattle(uint256 battleId, bytes32 commitA, bytes32 commitB) internal {
         uint256 antiGrief = STAKE_LOW * 500 / 10_000;
         uint256 total = STAKE_LOW + antiGrief;
 
         vm.prank(alice);
         claw.approve(address(arena), total);
         vm.prank(alice);
-        arena.deposit(battleId);
+        arena.deposit(battleId, STAKE_LOW, 9, commitA);
 
         vm.prank(bob);
         claw.approve(address(arena), total);
         vm.prank(bob);
-        arena.deposit(battleId);
+        arena.deposit(battleId, STAKE_LOW, 9, commitB);
     }
 
     function _setupActiveBattle() internal returns (uint256 battleId, uint256 teamIdA, uint256 teamIdB) {
@@ -1375,17 +1362,12 @@ contract BoundaryTests is Test {
 
         vm.prank(matchmaker);
         battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
-        _depositBothBattle(battleId);
-
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
         bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));
         bytes32 commitB = keccak256(abi.encodePacked(battleId, bob, teamIdB, saltB));
-
-        vm.prank(alice);
-        arena.commitTeam(battleId, commitA);
-        vm.prank(bob);
-        arena.commitTeam(battleId, commitB);
+        // D-13: the team commit rides in the deposit.
+        _depositBothBattle(battleId, commitA, commitB);
 
         // F5-01: atomic resolver-submitted reveal.
         vm.prank(resolver);

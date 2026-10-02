@@ -27,3 +27,4 @@ export * from './guard';
 export * from './adapter';
 export * from './battle-damage';
 export * from './policies';
+export * from './reproduce';

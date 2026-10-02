@@ -1,5 +1,27 @@
 # Post-June delta audit — decisions needed
 
+## Decided 2026-10-01
+
+The owner decided every item below on 2026-10-01. In one sentence: **players no longer dispute
+results — the game's watchdog re-checks every battle and freezes any result it cannot reproduce,
+the Safe settles frozen battles, and nobody's lobsters are ever held hostage by a payout.**
+
+| # | Finding | Outcome |
+|---|---|---|
+| 1 | D-04 what a dispute can freeze | **Stronger than A: player disputes are removed.** `settle()` applies the repair damage and releases both teams at once; only the stakes wait, for a short review window (5 min / 30 min / 1 h by stake). A frozen result has a 72 h long-stop: if the Safe has not acted, anyone calls `expireFrozen()` — the held stakes are burned and both players are paid their stake + 5 % back from a refund reserve (if the reserve is short, the held stakes are returned instead). |
+| 2 | D-05 the dispute cap | **Moot** — there are no disputes and no cap. |
+| 3 | D-06 / D-16 emergency freeze | **A.** New `GUARDIAN_ROLE` and `freeze(battleId)` (guardian or Safe, only inside the review window, moves no money). The engine's watchdog replays every result from its own log and freezes any it cannot reproduce (winner, forfeiter, damage, both hashes). The Safe resolves a frozen battle with `resolveFrozen()` (pay the corrected result, or refund both). Residual: a sequencer stall longer than the whole review window still blocks the freeze. |
+| 4 | D-13 / D-14 / D-15 anti-grief deposit | **A.** The team commit rides in `deposit()` (no opponent-started commit clock). The resolver can report a commit it cannot open (`accuseRevealFailure`); the player then has 2 minutes to open it themselves (`openOwnCommit`) or loses the 5 %. `settle()` names a `forfeiter` (resign or three timeouts in a row), who loses the 5 % at payout; the watchdog checks it against the replayed log. |
+| 5 | D-08 deposit consent | **A.** `deposit(battleId, expectedStake, maxOpponentPower, commitHash)` reverts `ConsentMismatch` for any other battle. The API fills both from the match the player was shown. |
+| 6 | D-12 signed turns | **C. Turns are not signed in Season 1**, and the docs say so: a timed-out turn and a forfeit's reason are in the hashed log and replay-checked, but a resignation is still the server's word. Session-key signing stays a later-season option. |
+| 7 | D-03 draws | **A.** A draw pays half the normal fee from each side (10 % of its own stake — the normal fee in total) and does **not** count as a played battle for the mining boost. |
+| 8 | D-25 who starts each season | **B. The Safe starts each new season**; the engine alerts several days ahead and prepares the transaction. |
+| 9 | D-19 glide economics | **Re-run the season simulation against the on-chain controller before launch** and decide from the numbers; no contract change now. |
+
+The text below is the original brief, kept for the record.
+
+---
+
 Status on 2026-09-20. Every finding that could be fixed without changing how the game works has a fix: PRs #97–#106 are open, and five more branches are ready locally and open as PRs once those merge (see "Where everything is" at the end). What is left below changes game rules, the contract interface players sign against, or who holds which power. Those are your calls. Each item gives the plain meaning, the choice, and a recommendation.
 
 The contracts are not upgradeable. Whatever is decided here has to be in before the mainnet deploy.

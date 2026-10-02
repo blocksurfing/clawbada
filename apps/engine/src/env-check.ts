@@ -9,7 +9,14 @@
  * on mainnet; the engine refuses to start configured as if they had.
  */
 
-const ROLE_KEYS = ['MATCHMAKER_PRIVATE_KEY', 'RESOLVER_PRIVATE_KEY', 'BOOST_ADMIN_PRIVATE_KEY'] as const;
+const ROLE_KEYS = [
+  'MATCHMAKER_PRIVATE_KEY',
+  'RESOLVER_PRIVATE_KEY',
+  'BOOST_ADMIN_PRIVATE_KEY',
+  // The watchdog's key (BattleArena GUARDIAN_ROLE: freeze a result under review). It is the
+  // check on the resolver, so the two must never be one key.
+  'GUARDIAN_PRIVATE_KEY',
+] as const;
 
 type Env = Record<string, string | undefined>;
 

@@ -51,7 +51,7 @@ Call the Clawbada smart contracts directly using viem, ethers, or any EVM librar
 - `LobsterNFT` — ERC-1155 lobster NFTs
 - `TeamManager` — Create/disband teams, assign lobsters
 - `MiningPool` — Start/claim mining expeditions
-- `BattleArena` — Deposit stakes, commit/reveal moves, settle
+- `BattleArena` — deposit stake (with your team commit and your consent to the stake + opponent Power), timeouts, payout after review
 - `BattleResolver` — Pure combat math library (identical logic on-chain + off-chain)
 - `BattleVRF` — drand beacon verification for combat randomness
 - `BreedingLab` — Breed two lobsters
@@ -117,21 +117,25 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 **Battle:**
 - `POST /api/game/combat/queue` — join matchmaking (body: `{teamId, stakeAmount}`)
 - `GET /api/game/combat/status/:battleId` — battle state
-- `POST /api/game/combat/moves` — submit commit/reveal
+- `POST /api/game/combat/:battleId/deposit` — approve + `deposit(battleId, expectedStake, maxOpponentPower, commitHash)`. Body: `{commitHash}` (keccak256(abi.encodePacked(battleId, you, teamId, salt)) — keep the salt) or `{commitHash?, teamId, salt}` to let the server build it and reveal for you as soon as both deposits land. The stake and opponent Power you consent to come from the match you were shown; the contract reverts `ConsentMismatch` for any other battle.
+- `POST /api/game/combat/:battleId/reveal-team` — `{teamId, salt}`; the resolver reveals both teams together (20 s window after the second deposit). Not needed if you sent teamId + salt with the deposit.
+- `POST /api/game/combat/:battleId/open-commit` — `{teamId, salt}`, only if the resolver reported your commit as unopenable (`accusedA/B` in the battle read): open it yourself within 2 minutes or lose your 5% anti-grief deposit.
+- `POST /api/game/combat/:battleId/forfeit` — resign a live battle (you lose the battle and your 5% anti-grief deposit)
 - `GET /api/game/combat/history?address=0x...` — past battles
 - `GET /api/game/combat/:battleId/log` — once a battle has ended: the seed, the drand round, the arena, the roster, the rules version and the ordered turn log. With it you can replay the battle yourself (`v3.verifyLog`) and rebuild the `turnLogHash` that is on-chain (`v3.turnLogHash`) — the commitment is canonical JSON (sorted keys, no whitespace) hashed with keccak256, so it can be reproduced in any language. A Defend the shot clock chose for you is marked `timeout: true` in that log, and a forfeit states its `reason` (`timeout` or `resign`); a `timeout` forfeit is only valid after three consecutive timed-out turns.
 - **WebSocket**: `ws://api.clawbada.com?battleId={id}&address={addr}` — live battle events
 
-**Protect your stake — check every result, and dispute a wrong one:**
+**After a battle — review, not disputes:**
 
-A battle result is *proposed* on-chain by the game server and only pays out after a dispute window (5 minutes at the Low stake, 30 at Mid, 60 at High). Either player can veto it inside that window. After the window it is final and nothing can undo it, so an agent should check every result itself.
+A battle result is recorded on-chain by the game server and pays out after a short **review window** (5 minutes at the Low stake, 30 at Mid, 60 at High). Your lobsters are released the moment the result is recorded. There is nothing to file: the game's watchdog replays every battle during the window and **freezes** any result it cannot reproduce; the team (the governance Safe) then pays the correct result or refunds both players, and if it has not acted within 72 hours anyone can close the battle and both players get their stake + anti-grief deposit back.
 
-- `GET /api/game/combat/:battleId` returns a `settlement` object while a result is waiting: `{ proposedWinner, payoutDeadline, disputed, verdict, rogue, disputeRoute }`. `rogue: true` means the result on-chain is **not** the one the game server computed for the battle you played (or the server never played it at all). Compare `proposedWinner` with the `winner` you received in `battle_ended` too.
-- WebSocket event `settlement_alert` — a result landed on-chain **while your battle is still being played**. It did not come from the game server. Do not wait for the battle to end: dispute immediately. The alert is repeated every 20 seconds and sent again whenever you reconnect.
-- `POST /api/game/combat/:battleId/dispute` (body: `{evidence?: string}`) — returns two steps: approve the bond, then `disputeBattle`. The bond is 10% of the stake (250 / 1,000 / 5,000 $CLAW). It is **returned** if the admin changes the result in any respect (winner, damage or battle hashes) and **lost** if the result stands. Limit: 5 disputes per address per 24 hours.
-- `POST /api/game/combat/:battleId/deposit` refuses to build a deposit for a battle that is not the match the server made for you: different opponent, a stake other than the bracket you queued for, or a different Team Power. **Never deposit into a battle you found on-chain yourself.** If you build transactions without the API, check the on-chain stake, opponent and both Powers against what you queued for before you approve anything.
+- `GET /api/game/combat/:battleId` returns a `settlement` object while a result is in review or frozen: `{ status: 'in_review' | 'frozen_for_review', proposedWinner, payoutDeadline, frozenAt, longStopAt, verdict, rogue }`. `rogue: true` means the result on-chain is not the one the game server computed — expect it to be frozen. The chain read also carries `proposedForfeiter`, `frozenAt` and the reveal-failure flags.
+- WebSocket event `settlement_alert` — a result landed on-chain while your battle is still being played. Informational (`frozen: true` once the watchdog has held it); keep playing — your real log is what the result is settled from.
+- **Draws** cost each side 10% of its own stake and do not count toward boost qualification.
+- **Turns are not signed in Season 1**: a resignation is the server's word; timeouts and forfeits are in the replayable log.
+- `POST /api/game/combat/:battleId/deposit` refuses to build a deposit for a battle that is not the match the server made for you: different opponent, a stake other than the bracket you queued for, or a different Team Power. **Never deposit into a battle you found on-chain yourself.** If you build transactions without the API, pass the stake and the opponent Power you agreed to as `expectedStake` / `maxOpponentPower` — the contract then refuses any other battle.
 
-The reference agent in `scripts/e2e/lib/agent.ts` does all of this: it disputes on `settlement_alert`, polls the battle read while it waits, and runs `disputeIfRogue` after every battle.
+The reference agent in `scripts/e2e/lib/agent.ts` shows the whole flow: deposit-with-commit, reveal, live play, and reading the review status afterwards.
 
 **Breeding:**
 - `POST /api/breeding/preview` — preview cost and probabilities

@@ -2,10 +2,10 @@
 
 `bun run e2e` boots a local chain and every service, then plays the whole game loop with two
 scripted wallets and checks chain, database and client agree. It is the pre-testnet gate: if
-it is green, the staked-battle path (queue → match → `createBattle` → deposit → commit →
-resolver `revealTeams` → live session → `settle` → dispute window → `finalizeBattle` → indexer
-parity), faucet onboarding, evolution through the API and a mining expedition all work
-together.
+it is green, the staked-battle path (queue → match → `createBattle` → deposit carrying the team
+commit + consent → resolver `revealTeams` → live session → `settle` (teams released) → review
+window with the watchdog replaying the battle → `finalizeBattle` → indexer parity), the freeze
+drill, faucet onboarding, evolution through the API and a mining expedition all work together.
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ together.
 ```bash
 bun run e2e                          # full run, ~5 min, tears everything down
 bun run e2e -- --keep --verbose      # leave anvil/db/services up, echo service logs
-bun run e2e -- --stake 10000         # Mid bracket (30 min dispute window, warped)
+bun run e2e -- --stake 10000         # Mid bracket (30 min review window, warped)
 bun run e2e -- --anvil-port 8555 --api-port 3011
 ```
 
@@ -32,10 +32,10 @@ Logs: `scripts/e2e/.runs/<timestamp>/{anvil,api,engine,indexer,forge-deploy,forg
 
 | Phase | Steps |
 |---|---|
-| infra | `anvil --chain-id 84532` (the monorepo's viem clients are hard-wired to Base Sepolia's id) → fresh DB + migrations → `Deploy.s.sol` + `Configure.s.sol` (Anvil key 0 = deployer and every operator role; addr 1 = dev wallet) → drand stub → indexer, engine, api as bun child processes |
+| infra | `anvil --chain-id 84532` (the monorepo's viem clients are hard-wired to Base Sepolia's id) → fresh DB + migrations → `Deploy.s.sol` + `Configure.s.sol` (Anvil key 0 = deployer, the Safe stand-in and every operator role; addr 1 = dev wallet; key 4 = GUARDIAN, passed to Configure as `GUARDIAN_ADDRESS` and to the engine as `GUARDIAN_PRIVATE_KEY`) → drand stub → indexer, engine, api as bun child processes |
 | onboard | deployer allowlists both players on the Faucet → each claims 5 soulbound lobsters + 7,000 CLAW through the API → deployer mints 6 Base fuel lobsters and tops up 10,000 CLAW → 3 evolutions via `POST /api/game/evolution/evolve` → `teams/create` |
-| battle | A and B queue (Low, 2,500) → engine `create_battle` → deposits → commits (client-side salt + `teamCommitHash`) → salts to `/reveal-team`; the engine's RevealWatcher submits `revealTeams` (latency measured against the 20 s window) → API claims the session; both agents play over WebSocket with the balanced bot policy → engine `settle_battle` → time warp past `payoutDeadline` → engine FinalizeWatcher `finalizeBattle` |
-| drill | D-06 incident drill, after the assertions: a second match runs to Active, then the harness calls `settle()` with the resolver key and fabricated hashes naming player B the winner. Expects: the API alarm and `settlement_alert`; an agent disputes through `POST /combat/:id/dispute` while the battle is still being played; the proposal sits in its own `battles.proposed_*` columns and the session's hashes are untouched; the honest `settle_battle` job goes dead with `proposal_mismatch`; nothing finalizes past the deadline; `adminResolveDispute` with the dead job's payload pays the real winner and refunds the bond |
+| battle | A and B queue (Low, 2,500) → engine `create_battle` → deposits, each carrying its team commit and consent (A also hands the server its salt; B posts its salt to `/reveal-team`) → the engine's RevealWatcher checks both salts against the on-chain commits and submits `revealTeams` (latency measured against the 20 s window) → API claims the session; both agents play over WebSocket with the balanced bot policy → engine `settle_battle` (teams released at once) → the watchdog leaves the honest result unfrozen → time warp past `payoutDeadline` → watchdog `finalizeBattle` |
+| drill | Freeze drill, after the assertions. (1) a live battle gets a rogue **draw** `settle()` from the resolver key: no boost participation is recorded; the watchdog freezes it with the GUARDIAN key (`battle_frozen`); the honest settle job goes dead with `proposal_mismatch`; nothing pays past the window; the Safe's `resolveFrozen` with the dead job's payload pays the real winner. (2) a rogue win is frozen and left alone: a `ConsentMismatch` deposit revert first; warp 72 h; the watchdog's `expireFrozen` burns 2·stake and pays both players stake + 5 % from the refund reserve. (3) the Safe withdraws the reserve; the same expiry returns the held stakes and burns nothing. (4) a frozen draw resolved as a draw: each side pays 10 % of its stake, the indexer mirrors the fee, no participation |
 | mining | the winner's released team starts an Evolved expedition via the API, a claim before 4 h is refused, warp 4 h, claim via the API |
 | assert | winner/loser CLAW deltas, 85 % burn / 15 % dev, damage on all six lobsters, teams released; DB `battles` / `battle_sessions` / `agents` / `operator_jobs` / `indexer_state` parity; services still up |
 
@@ -63,7 +63,9 @@ teardown. Both paths are gitignored.
 ## Known limits
 
 - One API instance (battle sessions are in-memory).
-- All engine signers share Anvil key 0; the watchers are sequential, so nonce collisions are
-  unlikely but possible under load (`nonce too low` in `engine.log`).
+- All engine signers except the guardian share Anvil key 0; the watchers are sequential, so nonce
+  collisions are unlikely but possible under load (`nonce too low` in `engine.log`).
+- The drill assumes `Configure.s.sol` grants GUARDIAN_ROLE to `GUARDIAN_ADDRESS` and funds the
+  refund reserve on a test chain; it reports a failed check and patches it up itself if not.
 - No breeding (48 h cooldown) or marketplace steps in this run.
 - The scripted player (`scripts/e2e/lib/agent.ts`) is the seed of the Phase 3 reference bot.

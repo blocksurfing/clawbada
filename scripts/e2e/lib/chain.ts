@@ -13,6 +13,12 @@ import type { Deployment } from './forge';
 
 export const WEI = 10n ** 18n;
 
+/** BattleArena.BattlePhase. TeamCommit (2) is unreachable since the commit moved into deposit();
+ *  AwaitingFinalize (5) = the result is "in review"; Frozen (8) = the watchdog held it for the Safe. */
+export const PHASE = { Deposit: 1, TeamCommit: 2, TeamReveal: 3, Active: 4, AwaitingFinalize: 5, Settled: 6, Cancelled: 7, Frozen: 8 } as const;
+/** BattleArena.FREEZE_LONG_STOP. */
+export const FREEZE_LONG_STOP_SEC = 72 * 3600;
+
 export class Chain {
   readonly pub;
   constructor(readonly rpcUrl: string, readonly d: Deployment) {
@@ -62,6 +68,8 @@ export class Chain {
   balance(addr: string) { return this.read<bigint>(this.claw, ClawTokenAbi, 'balanceOf', [addr]); }
   totalSupply() { return this.read<bigint>(this.claw, ClawTokenAbi, 'totalSupply'); }
   getBattle(id: bigint) { return this.read<any>(this.arena, BattleArenaAbi, 'getBattle', [id]); }
+  teamInBattle(teamId: bigint) { return this.read<boolean>(this.arena, BattleArenaAbi, 'teamInBattle', [teamId]); }
+  refundReserve() { return this.read<bigint>(this.arena, BattleArenaAbi, 'refundReserve'); }
   getTeam(id: bigint) { return this.read<any>(this.teams, TeamManagerAbi, 'getTeam', [id]); }
   getLobster(id: bigint) { return this.read<any>(this.nft, LobsterNFTAbi, 'getLobster', [id]); }
   getExpedition(id: bigint) { return this.read<any>(this.pool, MiningPoolAbi, 'getExpedition', [id]); }

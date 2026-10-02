@@ -321,6 +321,8 @@ describe('real battles', () => {
     expect(job.winner).toBe(s.state.winner === 'A' ? ALICE : s.state.winner === 'B' ? BOB : 'draw');
     expect(job.finalStateHash).toBe(v3.hashState(s.state));
     expect(job.damageA.every((d) => d >= 5 && d <= 40)).toBe(true);
+    // B timed out three times in a row: B is the forfeiter (they lose their 5% at payout).
+    expect(job.forfeiter).toBe(BOB);
     expect(store.rows.get('503')!.status).toBe('settling');
     const ended = events.find((e) => e.id === '503' && e.event === 'battle_ended')!;
     expect(ended.data).toMatchObject({ settle: 'queued', reason: 'forfeit' });
@@ -342,7 +344,8 @@ describe('real battles', () => {
     await s.flushed();
     await new Promise((r) => setTimeout(r, 0));
     expect(store.jobs).toHaveLength(1);
-    expect(store.jobs[0]).toMatchObject({ battleId: '504', winner: BOB, finalStateHash: v3.hashState(s.state) });
+    // The resigning player is named as the forfeiter.
+    expect(store.jobs[0]).toMatchObject({ battleId: '504', winner: BOB, forfeiter: ALICE, finalStateHash: v3.hashState(s.state) });
     expect(store.rows.get('504')!.status).toBe('settling');
     const ended = events.find((e) => e.id === '504' && e.event === 'battle_ended')!;
     expect(ended.data).toMatchObject({ winner: 'B', reason: 'forfeit', settle: 'queued' });
@@ -394,7 +397,7 @@ describe('settlement_alert (D-06)', () => {
   };
   const MALLORY = '0xCCCCcccccccccccccccccccccccccccccccccccc';
 
-  async function liveBattle(id: bigint, readProposal?: (battleId: bigint) => Promise<{ proposedWinner: string; payoutDeadline: bigint; disputed: boolean }>) {
+  async function liveBattle(id: bigint, readProposal?: (battleId: bigint) => Promise<{ proposedWinner: string; payoutDeadline: bigint; phase: number }>) {
     const store = new FakeStore();
     store.pending.push({ battleId: id, playerA: ALICE, playerB: BOB, teamA: 11n, teamB: 22n });
     const chain = { ...chainWith(teams, lobsters), ...(readProposal ? { readProposal } : {}) };
@@ -405,13 +408,13 @@ describe('settlement_alert (D-06)', () => {
   const alerts = (events: { id: string; event: string; data: unknown }[]) => events.filter((e) => e.event === 'settlement_alert');
 
   test('no proposal on-chain: a live battle never alerts', async () => {
-    const { mgr, events } = await liveBattle(601n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false }));
+    const { mgr, events } = await liveBattle(601n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, phase: 5 }));
     await mgr.pollOnce();
     expect(alerts(events)).toHaveLength(0);
   });
 
-  test('settle() lands while the battle is still being played: both players are told, with the deadline and how to dispute', async () => {
-    const { mgr, store, events } = await liveBattle(602n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false }));
+  test('settle() lands while the battle is still being played: both players are told (informational: no action asked)', async () => {
+    const { mgr, store, events } = await liveBattle(602n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, phase: 5 }));
     store.proposed.push('602');
     await mgr.pollOnce();
 
@@ -423,19 +426,28 @@ describe('settlement_alert (D-06)', () => {
       reason: 'proposed_while_battle_in_progress',
       proposedWinner: MALLORY.toLowerCase(),
       payoutDeadline: '1300',
-      disputed: false,
-      disputeRoute: '/api/game/combat/602/dispute',
+      frozen: false,
     });
+    expect(sent[0]!.data).not.toHaveProperty('disputeRoute');
+    expect((sent[0]!.data as any).message).toContain('Nothing is needed from you');
     // A client that joins (or reconnects) later is told at once, not at the next re-broadcast.
     expect(mgr.alertFor('602')).toMatchObject({ battleId: '602', proposedWinner: MALLORY.toLowerCase() });
     expect(mgr.alertFor('777')).toBeNull();
-    // The session is NOT torn down: its real log is the evidence the admin will need.
+    // The session is NOT torn down: its real log is what the frozen result is reviewed against.
     expect(mgr.get('602')).toBeDefined();
     expect(store.rows.get('602')!.status).toBe('active');
   });
 
+  test('once the watchdog has frozen the result, the alert says so', async () => {
+    const { mgr, store, events } = await liveBattle(607n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, phase: 8 }));
+    store.proposed.push('607');
+    await mgr.pollOnce();
+    expect(alerts(events)[0]!.data).toMatchObject({ frozen: true });
+    expect((alerts(events)[0]!.data as any).message).toContain('frozen for review');
+  });
+
   test('it is not re-sent on every 2 s poll', async () => {
-    const { mgr, store, events } = await liveBattle(603n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false }));
+    const { mgr, store, events } = await liveBattle(603n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, phase: 5 }));
     store.proposed.push('603');
     await mgr.pollOnce();
     await mgr.pollOnce();
@@ -444,7 +456,7 @@ describe('settlement_alert (D-06)', () => {
   });
 
   test('a proposal for some OTHER battle does not alert this one', async () => {
-    const { mgr, store, events } = await liveBattle(604n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false }));
+    const { mgr, store, events } = await liveBattle(604n, async () => ({ proposedWinner: MALLORY, payoutDeadline: 1_300n, phase: 5 }));
     store.proposed.push('999');
     await mgr.pollOnce();
     expect(alerts(events)).toHaveLength(0);
@@ -454,7 +466,7 @@ describe('settlement_alert (D-06)', () => {
     let fail = true;
     const { mgr, store, events } = await liveBattle(605n, async () => {
       if (fail) throw new Error('rpc down');
-      return { proposedWinner: MALLORY, payoutDeadline: 1_300n, disputed: false };
+      return { proposedWinner: MALLORY, payoutDeadline: 1_300n, phase: 5 };
     });
     store.proposed.push('605');
     await mgr.pollOnce();

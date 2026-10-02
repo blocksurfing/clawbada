@@ -118,15 +118,16 @@ export const PRACTICE_ID_RE = /^p_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4
 export const isPracticeId = (id: string): boolean => PRACTICE_ID_RE.test(id);
 
 /** D-06: pushed when a result for this battle lands on-chain while it is still being played
- *  on the game server - so it did not come from the game server. Dispute before the deadline. */
+ *  on the game server - so it did not come from the game server. Informational: the game's
+ *  watchdog freezes such a result for review; players have nothing to do. */
 export interface SettlementAlertPayload {
   battleId: string;
   reason: 'proposed_while_battle_in_progress';
   /** Lowercase wallet; the zero address is a draw. */
   proposedWinner: string;
-  /** Unix seconds, chain time. */
+  /** Unix seconds, chain time: the end of the review window. */
   payoutDeadline: string;
-  disputed: boolean;
-  disputeRoute: string;
+  /** True once the watchdog has frozen the result. */
+  frozen: boolean;
   message: string;
 }

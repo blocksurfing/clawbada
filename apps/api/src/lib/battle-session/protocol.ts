@@ -24,8 +24,9 @@ export const SESSION_EVENTS = [
   'turn_resolved',
   'bar_updated',
   'battle_ended',
-  /** D-06: a settlement was proposed on-chain for a battle this server is STILL RUNNING — it
-   *  did not come from this server. Payload: SettlementAlertPayload. Dispute before the deadline. */
+  /** D-06: a settlement was recorded on-chain for a battle this server is STILL RUNNING — it
+   *  did not come from this server. Payload: SettlementAlertPayload. Informational: the
+   *  watchdog freezes such a result for review; players have nothing to do. */
   'settlement_alert',
   'turn_ack',
   'error',
@@ -203,18 +204,18 @@ export function isPracticeId(id: string): boolean {
   return PRACTICE_ID_RE.test(id);
 }
 
-/** D-06: pushed to both players when the chain holds a settlement proposal for a battle that is
- *  still being played here. The honest settle job only runs after a battle ends, so such a
- *  proposal came from somewhere else — a compromised RESOLVER key, or an engine bug. */
+/** D-06: pushed to both players when the chain holds a settlement for a battle that is still
+ *  being played here. The honest settle job only runs after a battle ends, so such a result came
+ *  from somewhere else — a compromised RESOLVER key, or an engine bug. The engine's watchdog
+ *  freezes it (it cannot reproduce it) and the Safe resolves it; no player action exists. */
 export interface SettlementAlertPayload {
   battleId: string;
   reason: 'proposed_while_battle_in_progress';
   /** Wallet the chain was told won; the zero address means a draw. */
   proposedWinner: string;
-  /** Unix seconds (chain time). After this anyone can finalize the payout and nothing can undo it. */
+  /** Unix seconds (chain time): the end of the review window. */
   payoutDeadline: string;
-  disputed: boolean;
-  /** POST here (wallet-authenticated) for the approve-bond + disputeBattle calldata. */
-  disputeRoute: string;
+  /** True once the watchdog has frozen the result (phase 8) — it will not pay out as submitted. */
+  frozen: boolean;
   message: string;
 }

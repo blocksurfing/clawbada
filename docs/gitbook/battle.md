@@ -39,7 +39,7 @@ You see your team's power on the Team Builder *before* you queue. The matchmaker
 | 60 – 120 s | ±2 power |
 | 120 s+ | any power within your stake bracket — HUD warns about mismatch |
 
-**Match found = consent at deposit**: you see the opponent's power score (not their team composition — that's revealed after both players commit) alongside the deposit prompt. Approve the deposit within the 2-minute window if you accept the matchup, or walk away with no penalty if you don't.
+**Match found = consent at deposit**: you see the opponent's power score (not their team composition — that's revealed only after both players have deposited) alongside the deposit prompt. Approve the deposit within the 2-minute window if you accept the matchup, or walk away with no penalty if you don't. Your consent is written into the deposit itself: it names the stake and the strongest opponent Team Power you accept, and the contract refuses the deposit if the battle is anything else.
 
 **Rating bands**: inside your power × stake sub-pool you are also matched by team rating. Every team starts at 1,200 and moves by the standard chess-style step after each result. The band widens with wait time but, unlike the power radius, it **never opens to "anyone"** — a patient team keeps waiting rather than being handed to a far stronger opponent:
 
@@ -82,20 +82,22 @@ Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempe
 ### 1. Matchmaking
 Pick your team in the Team Builder, see your Team Power score, and join the queue at your chosen stake bracket. The matchmaker pairs you with an opponent in the same power × stake sub-pool. If your power bucket is thin (rare composition), the search radius expands every 30 s to keep wait times bounded — see the [Matchmaking](#matchmaking) section above. Player identity badges show whether you're facing a **Human** or **Agent**.
 
-### 2. Stake Deposit
-Both players deposit their $CLAW stake plus a 5% anti-grief deposit into the contract.
+### 2. Deposit (stake + team commit + consent)
+Each player makes one deposit: their $CLAW stake plus a 5% anti-grief deposit, together with a sealed **commit** of their team (a hash of the team and a secret salt) and their **consent** — the stake and the opponent Team Power they were shown. If the battle on-chain is not the one they agreed to, the deposit reverts. There is no separate commit step, so there is no commit clock for the opponent to start.
 
-### 3. Team Commit-Reveal
-Both players commit a hash of their team composition. Once both have committed, the resolver opens both teams in a single atomic transaction — neither composition reaches the chain until both are revealed together. This delivers genuine simultaneity: it prevents counter-picking *and* the matchup-dodge it used to enable (a player can no longer see the opponent's team and then back out cheaply, because no one-sided action reveals anything). If the reveal times out, the battle mutually cancels with full refunds — a dropped connection never costs a player their stake.
+### 3. Team Reveal
+Once both deposits are in, each player's salt goes to the game server (the web app and the agent kit send it with the deposit). The resolver then opens both teams in a single atomic transaction — neither composition reaches the chain until both are revealed together. This delivers genuine simultaneity: it prevents counter-picking *and* the matchup-dodge it used to enable (a player can no longer see the opponent's team and then back out cheaply, because no one-sided action reveals anything).
+
+If a player's salt does not open their commit (or never arrives), the resolver reports it on-chain. That player then has **2 minutes** to open their commit themselves; if they do, the battle starts as usual. If they do not, the battle cancels and they lose their 5% anti-grief deposit — everyone else is refunded in full. Any other reveal timeout is a no-fault cancel with full refunds: a dropped connection never costs an honest player anything.
 
 **You reveal the team you queued with.** A reveal naming any other team is refused, even one you own at the same Team Power, and the battle then cancels with full refunds when the reveal window ends. This is what stops a player with several teams from queueing one and then picking a counter after the match is made.
 
 **What the commit does not hide.** Your address and your Team Power are public from the moment the match is created, and every wallet's teams are readable on-chain. If you hold exactly one eligible team at that Power, an opponent can work out your line-up before depositing. Players who want their composition to stay private keep more than one eligible team at the same Power.
 
-**MEV protection:** Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Team commits are on-chain and the reveal is a single resolver-submitted transaction; battle turns themselves run off-chain via WebSocket for speed.
+**MEV protection:** Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Team commits ride in the on-chain deposit and the reveal is a single resolver-submitted transaction; battle turns themselves run off-chain via WebSocket for speed.
 
 ### 4. VRF Beacon
-A single drand beacon is rolled at team-reveal time. It seeds a deterministic randomness stream used for damage variance, critical hits, and enhanced Special procs across the entire battle. Same beacon = same battle, every time — which is what makes replay and dispute resolution possible.
+A single drand beacon is rolled at team-reveal time. It seeds a deterministic randomness stream used for damage variance, critical hits, and enhanced Special procs across the entire battle. Same beacon = same battle, every time — which is what lets the game (and anyone else) replay a battle and check its result.
 
 ### 5. Battle (ATB Turns)
 The initiative bar fills and lobsters take turns one at a time in tick order. **On your lobster's turn**, with full board state visible, you have **60 seconds** to commit:
@@ -105,38 +107,34 @@ The initiative bar fills and lobsters take turns one at a time in tick order. **
 
 Combinations: Move only, Action only, or Move-then-Action. No "act-then-move" in S1 — reserved for class-specific traits in later seasons.
 
-If your shot clock expires, the lobster auto-Defends and the bar advances. After 3 consecutive timeouts, you forfeit and your anti-grief deposit is slashed.
+If your shot clock expires, the lobster auto-Defends and the bar advances. After 3 consecutive timeouts you forfeit, and you lose your anti-grief deposit — the same as resigning.
 
 The opponent watches the animation, then their next-Speed lobster acts. Battles typically resolve in **24-36 total turns (~3-5 minutes)**.
 
 **Win condition:** Eliminate all 3 enemy lobsters (a mutual wipeout is a draw). There's a 100-turn hard cap as a griefer cutoff (rarely reached in real games): the team with more remaining HP% wins; if tied, the team that dealt more total damage wins, so a passive team cannot sit out for a draw; only a perfect tie is a draw.
 
-### 6. Settlement (Proposed)
-The server submits the battle result on-chain: `BattleArena.settle(battleId, winner, finalStateHash, turnLogHash, damageA, damageB)`. The two hashes commit to the off-chain battle — the canonical final state, and `{battleId, VRF seed, arena layout, roster, ordered turn log}` — so a dispute always has something concrete to check against. Repair damage is keyed by player slot. The proposed outcome is recorded but **payout is escrowed for a dispute window** — the winner doesn't immediately receive their stake; first the loser has a chance to challenge.
+### 6. Settlement
+The server records the result on-chain: `BattleArena.settle(battleId, winner, finalStateHash, turnLogHash, damageA, damageB, seedSecret, forfeiter)`. The two hashes commit to the off-chain battle — the canonical final state, and `{rules version, battleId, VRF seed, arena layout, roster, ordered turn log}` — so the result can always be checked against the battle itself. `forfeiter` names the player who resigned or timed out three turns in a row (nobody, if the battle was fought out); they lose their anti-grief deposit at payout.
+
+**Your lobsters are free at once.** Repair damage is applied and both teams are released in this same transaction. Only the money waits, for a short review.
 
 There is no separate signature argument: the resolver's transaction signature is the authentication.
 
-**Draws.** A mutual wipeout, or an exact tie at the 100-turn cap after both tiebreaks, settles as a draw (`winner = address(0)`): both players get their stake and anti-grief deposit back in full, no protocol fee is taken, and repair damage still applies.
+**Draws.** A mutual wipeout, or an exact tie at the 100-turn cap after both tiebreaks, settles as a draw (`winner = address(0)`). Each player pays **half the normal fee** — 10% of their own stake, so the two together pay exactly what a decided battle would — and gets the rest of their stake and their anti-grief deposit back. Repair damage still applies, and **a draw does not count** as a played battle for the battle-rank mining boost.
 
 **Server outage.** The Active phase has a hard 3-hour ceiling (`ACTIVE_WINDOW`, ~2× the longest possible battle). If the server has not settled by then, anyone can call `handleTimeout()` and the battle mutually cancels with full refunds — a dead server never costs a player their stake.
 
-### 7. Dispute Window (Optional)
-The dispute window length is per-bracket: **5 min Low / 30 min Mid / 1 hour High** (admin-tunable via a 24h on-chain timelock).
+### 7. Review (automatic)
+Every result waits a short **review window** before it pays: **5 min Low / 30 min Mid / 1 hour High** (tunable through a 24 h on-chain timelock). Players do nothing here — there is no dispute to file.
 
-If the loser thinks the proposed outcome is wrong, they can dispute by:
+During the window the game's **watchdog** replays the battle from its log and checks that what was recorded on-chain is exactly that battle: the winner, the forfeiter, the damage to each lobster and both hashes.
 
-1. Posting a **bond** (10% of bracket stake: 250 / 1,000 / 5,000 $CLAW)
-2. Submitting evidence on-chain via `BattleArena.disputeBattle()`
-3. Subject to the **rate limit**: max 5 disputes per address per rolling 24h
+- **It matches** (almost always): once the window ends, anyone calls `finalizeBattle()` (the game does it for you) and the winner is paid the pot minus the 10% fee.
+- **It does not match**: the watchdog **freezes** the result before it can pay. The battle shows *Frozen for review — the team is reviewing this result*. The team (the governance Safe) then pays the correct result or refunds both players. If nothing has happened **72 hours** after the freeze, anyone can close the battle: the held stakes are burned and both players get their stake and anti-grief deposit back from a refund reserve kept for exactly this — so a frozen battle never leaves anyone unpaid.
 
-Outcomes:
+The freeze key can only pause a payout; it cannot move money.
 
-- **Disputer was right** (admin changes the proposal in any respect — winner, either damage array, or either battle hash): bond refunded + disputer gets their proper payout
-- **Disputer was wrong**: bond is slashed to Treasury (85% burn / 15% dev split)
-
-If no dispute is filed within the window, anyone can call `finalizeBattle()` after the deadline to release the proposed payout. **99% of battles never enter dispute** — the system exists as deterrent and insurance.
-
-> **Trust model footnote.** S1 ships with multisig-admin arbitration on disputes (`adminResolveDispute`, 24h SLA per ops runbook). The S2 roadmap replaces admin arbitration with on-chain `BattleResolver.replay()` — deterministic re-execution from `{initial state + VRF beacon + ordered turn submissions}`. S2 is a multi-week engineering project tracked separately; the bonded-dispute frame in S1 is the practical interim that hardens the trust profile while the on-chain replay engine is built.
+> **Trust model footnote.** Season 1 is server-authoritative: the game runs the battle, and its watchdog plus the Safe stand behind every result. **Turns are not signed in Season 1** — a timed-out turn and the reason for a forfeit are part of the hashed, replayable log, but a resignation is the server's word. The S2 roadmap moves the check on-chain with `BattleResolver.replay()` — deterministic re-execution from `{initial state + VRF beacon + ordered turn submissions}`.
 
 ### 8. Repair
 All participating lobsters take damage. See [Repair](#repair) below.
@@ -313,10 +311,11 @@ Repair costs are burned through the Treasury (85% burn / 15% dev).
 
 ## Anti-Griefing
 
-- **5% anti-grief deposit**: slashed on repeated timeouts or forfeit
+- **5% anti-grief deposit**: lost if you resign, time out three turns in a row, or commit a team you then fail to open; returned otherwise
 - **60-second per-turn shot clock**: generous for humans, agents submit instantly; on timeout the lobster auto-Defends and the bar advances
 - **Auto-forfeit**: after 3 consecutive per-turn timeouts by the same player
-- **Bonded disputes** (10% of bracket stake) and **rate limit** (5 disputes per address per 24h) prevent dispute spam against the admin queue
+- **Commit in the deposit**: your opponent cannot start a clock on you before you are ready
+- **Draws cost a fee and never count for the boost**, so staging draws is never a shortcut
 - **Speed clamps** (effective Speed in [0.5×, 1.5×] of base) and **stun immunity** (2 turns post-stun) prevent ATB-bar exploitation
 
 Griefing is always negative EV — rational agents always cooperate with the protocol.
@@ -325,7 +324,7 @@ Griefing is always negative EV — rational agents always cooperate with the pro
 
 Winning battles doesn't just take the pot — **battle rank makes your team mine hotter**. Each team earns a battle rating; every week, all qualified teams are placed on **one ladder** and receive a mining boost of **+10% to +50%** of that team's own mining income, scaled by their position on it (bottom = +10%, top = +50%, straight line in between).
 
-- **Qualify by playing**: a team must play a minimum number of battles per week (starting at 7/week at launch, rising to 14/week as the arena fills — the current floor is always published). Wins are never required — only showing up and putting stakes at risk.
+- **Qualify by playing**: a team must play a minimum number of battles per week (starting at 7/week at launch, rising to 14/week as the arena fills — the current floor is always published). Wins are never required — only showing up and putting stakes at risk. Draws do not count.
 - **Miss a week, lose the boost**: lapse the floor and the boost is 0 next week. Your rating persists but drifts 15% of the way back toward the 1,200 starting rating for every week you miss the floor — a month away costs about half of what you climbed; a truly strong team wins it back in a week or two.
 - **The rank rides with the team**: swapping a lobster decays the team's rating; changing the team's evolution-tier mix resets qualification entirely. Rank belongs to the roster that earned it.
 - **Matchmaking is rating-banded** within your Power and stake bracket (±75 widening to a hard ±300 cap), so you fight teams at your level.

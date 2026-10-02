@@ -298,7 +298,7 @@ describe('rules version (D-27)', () => {
     // If this fails you changed something that decides battle outcomes (a constant, a stat
     // table, a formula, ENGINE_VERSION). That is allowed — but every battle already played
     // commits to the OLD value, so: (1) tag the last commit of the old rules as
-    // `engine-rules-<first 12 hex of the old value>` so disputed battles can still be replayed,
+    // `engine-rules-<first 12 hex of the old value>` so frozen battles can still be replayed,
     // (2) paste the new value below, (3) say so in the release notes.
     expect(v3.rulesVersion()).toBe(PINNED_RULES_VERSION);
   });

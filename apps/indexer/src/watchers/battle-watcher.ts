@@ -3,7 +3,14 @@
  *
  * Events: BattleCreated, StakeDeposited, TeamCommitted, TeamRevealed,
  *         BattleProposed, BattleSettled, BattleCancelled,
+ *         BattleFrozen, FrozenResolved, FrozenExpired,
  *         DamageApplied, AntiGriefSlashed
+ *
+ * Owner decision 2026-10-01: player disputes are gone. settle() (BattleProposed) puts a result
+ * "in review" (phase 5); the engine's watchdog freezes one it cannot reproduce (BattleFrozen →
+ * phase 8); the Safe resolves it (FrozenResolved) or after 72 h anyone expires it
+ * (FrozenExpired) — both followed by BattleSettled in the same transaction. Draws pay a fee and
+ * do NOT count as played for the battle-rank boost.
  *
  * V3: battle turns run off-chain; there are no per-round MoveCommitted /
  * MoveRevealed events any more and nothing here enqueues round resolution.
@@ -34,6 +41,7 @@ import {
   applyBattleOutcome,
   currentBoostEpochId,
   recordParticipation,
+  voidParticipation,
   type BattleOutcomeResult,
 } from '@clawbada/db';
 import { calculateNewElo, STAKE_BRACKETS } from '@clawbada/game-logic';
@@ -133,10 +141,11 @@ export class BattleWatcher extends EventWatcher {
     address: addresses.battleArena,
     events: [
       'BattleCreated', 'StakeDeposited', 'TeamCommitted', 'TeamRevealed',
-      // X12: BattleProposed fires from settle() — proposes the outcome and
-      // opens the H-01 dispute window. Drives DB phase to AwaitingFinalize (5).
+      // X12: BattleProposed fires from settle() — records the outcome and
+      // opens the review window. Drives DB phase to AwaitingFinalize (5).
       'BattleProposed',
       'BattleSettled', 'BattleCancelled',
+      'BattleFrozen', 'FrozenResolved', 'FrozenExpired',
       'DamageApplied', 'AntiGriefSlashed',
     ],
   };
@@ -214,13 +223,15 @@ export class BattleWatcher extends EventWatcher {
         // stale block_tracker), `depositA && depositB` is still true on
         // chain (those flags never reset post-settle) and the unguarded
         // UPDATE would overwrite phase 6 → 2.
+        // D-13: the team commit rides in the deposit, so both deposits mean both commits:
+        // the battle goes straight to TeamReveal (3). TeamCommit (2) is no longer reachable.
         const battleId = BigInt(args.battleId);
         const state = await readBattleForPhase(battleId);
         if (state && state.depositA && state.depositB) {
           await db
             .update(battles)
-            .set({ phase: 2 }) // BattlePhase.TeamCommit (contract index)
-            .where(and(eq(battles.battleId, battleId), lt(battles.phase, 2)));
+            .set({ phase: 3 }) // BattlePhase.TeamReveal (contract index)
+            .where(and(eq(battles.battleId, battleId), lt(battles.phase, 3)));
         }
         break;
       }
@@ -285,11 +296,10 @@ export class BattleWatcher extends EventWatcher {
       }
 
       case 'BattleProposed': {
-        // X12: contract `settle()` emits this after the resolver proposes
-        // the outcome (BattleArena.sol:536). Phase transitions to
-        // AwaitingFinalize (5). The dispute window stays open until
-        // `payoutDeadline` (already a chain-side field; the indexer just
-        // mirrors the phase so consumers can render the dispute UI).
+        // X12: contract `settle()` emits this after the resolver records
+        // the outcome. Phase transitions to AwaitingFinalize (5) = "in
+        // review": damage is applied and both teams are released already;
+        // the payout waits until `payoutDeadline` (the watchdog may freeze it).
         //
         // Phase regression guard via `lt(phase, 5)` mirrors the
         // StakeDeposited / TeamCommitted / TeamRevealed pattern: a
@@ -329,8 +339,12 @@ export class BattleWatcher extends EventWatcher {
 
         // Boost: the match has been fought to a result, so this is where a
         // battle counts as PLAYED for boost qualification (played, never
-        // won) - the outcome is not final until BattleSettled.
-        await this.recordProposedParticipation(battleId);
+        // won) - the outcome is not final until BattleSettled. A DRAW never
+        // counts (owner decision 2026-10-01): two teams of one owner could
+        // otherwise farm the played-battles floor with cheap mutual draws.
+        if (proposedWinner !== ZERO_ADDRESS) {
+          await this.recordProposedParticipation(battleId);
+        }
 
         // D-06: compare the proposal with the battle THIS server ran. Done last, so a failure
         // here can never cost a team its played-battle credit above.
@@ -343,12 +357,11 @@ export class BattleWatcher extends EventWatcher {
         //
         // Codex PR-C FU F-01: settle accounting (battles row + agents ELO/
         // wins/losses/totalBattles) runs HERE, at on-chain finality. The
-        // contract's `settle()` is only step 1 (proposes outcome, opens
-        // dispute window); `BattleSettled` fires from `_executePayout`
-        // after `finalizeBattle` / `adminResolveDispute` resolves the real
-        // winner. Writing accounting at settle-proposal time would let a
-        // successful disputer's correct outcome lose to the pre-finality
-        // ELO/win-loss credit.
+        // contract's `settle()` is only step 1 (records the outcome, opens
+        // the review window); `BattleSettled` fires at payout — from
+        // `finalizeBattle`, or `resolveFrozen` / `expireFrozen` for a frozen
+        // result. Writing accounting at settle time would let a frozen and
+        // corrected result lose to the pre-finality ELO/win-loss credit.
         //
         // F-02: contract emits `winnerPayout` and `protocolFee` in wei
         // (1e18 units). DB columns are display-scale (`stakeAmount`
@@ -400,10 +413,11 @@ export class BattleWatcher extends EventWatcher {
             .limit(1);
           const totalRounds = Number(sessionRow?.turn ?? 0);
 
-          // V3 draw: `_executePayout(winner == address(0))` refunds both sides with
-          // no fee. Nobody won, so wallet ELO / win-loss and the team rating are
-          // left untouched (the rating math is winner/loser only); the match still
-          // counts as PLAYED for boost qualification.
+          // winner == address(0): a DRAW (each side paid half the normal fee —
+          // `protocolFee` is the total), or a FROZEN result the Safe refunded /
+          // that expired (fee 0). Nobody won, so wallet ELO / win-loss and the
+          // team rating are left untouched, and — owner decision 2026-10-01 — it
+          // does NOT count as played for boost qualification.
           if (winnerLower === ZERO_ADDRESS) {
             await tx
               .update(battles)
@@ -412,7 +426,7 @@ export class BattleWatcher extends EventWatcher {
                 phase: 6, // Settled
                 settledAt: new Date(),
                 winnerPayout: '0',
-                protocolFee: '0',
+                protocolFee: protocolFeeDisplay,
                 totalRounds,
               })
               .where(eq(battles.battleId, battleId));
@@ -421,23 +435,19 @@ export class BattleWatcher extends EventWatcher {
               .set({ status: 'settled', updatedAt: new Date() })
               .where(eq(battleSessions.id, battleId.toString()));
 
-            const drawTeams = resolveBattleTeams(existing);
-            if (drawTeams) {
-              const epochId = await currentBoostEpochId(tx);
-              await recordParticipation(tx, { battleId, teamId: drawTeams.teamA, opponentTeamId: drawTeams.teamB, epochId });
-              await recordParticipation(tx, { battleId, teamId: drawTeams.teamB, opponentTeamId: drawTeams.teamA, epochId });
-            }
-
+            const wasFrozen = existing.phase === 8;
             pinoLog.info(
               {
                 battleId: battleId.toString(),
                 totalRounds,
-                teamA: drawTeams?.teamA.toString(),
-                teamB: drawTeams?.teamB.toString(),
+                protocolFee: protocolFeeDisplay,
+                frozen: wasFrozen,
                 module: 'battle-watcher',
                 op: 'BattleSettled',
               },
-              'draw settled: mutual refund, no rating change, participation recorded',
+              wasFrozen
+                ? 'frozen battle closed with both players paid back: no rating change, not counted as played'
+                : 'draw settled: half fee from each side, no rating change, not counted as played',
             );
             return;
           }
@@ -511,11 +521,11 @@ export class BattleWatcher extends EventWatcher {
           // Boost: team-keyed rating (K=32) + the played ledger, in the same
           // transaction as the wallet accounting so both land or neither does
           // (the `settledAt IS NULL` guard above makes a retry safe).
-          // kind: a mirrored BattleProposed (phase 5) means the match was
-          // played out; settling straight from Active is `_forfeitAsLoss`,
-          // which emits BattleSettled without a proposal.
+          // kind: a mirrored BattleProposed (phase 5, or 8 if it was frozen and
+          // the Safe resolved it) means the match was played out; a BattleSettled
+          // with no mirrored proposal is recorded as 'forfeit_loss'.
           const teamIds = resolveBattleTeams(existing);
-          const kind = existing.phase === 5 ? 'battle' : 'forfeit_loss';
+          const kind = existing.phase === 5 || existing.phase === 8 ? 'battle' : 'forfeit_loss';
           let teamRating: BattleOutcomeResult | null = null;
           if (teamIds) {
             const epochId = await currentBoostEpochId(tx);
@@ -572,6 +582,50 @@ export class BattleWatcher extends EventWatcher {
         break;
       }
 
+      case 'BattleFrozen': {
+        // The watchdog (or the Safe) froze a result in review: it does not pay out until the
+        // Safe resolves it, or anyone expires it 72 h after `frozenAt` (read from the chain).
+        // Only from phase 5 — a redelivered event must not regress a Settled row.
+        const battleId = BigInt(args.battleId);
+        await db
+          .update(battles)
+          .set({ phase: 8 }) // BattlePhase.Frozen (contract index)
+          .where(and(eq(battles.battleId, battleId), eq(battles.phase, 5)));
+        pinoLog.warn(
+          { battleId: battleId.toString(), by: (args.by as string | undefined)?.toLowerCase(), module: 'battle-watcher', op: 'BattleFrozen' },
+          'battle result frozen for review',
+        );
+        break;
+      }
+
+      case 'FrozenResolved': {
+        // BattleSettled follows in the same transaction and does the accounting. A refund or a
+        // draw voids the battle for the boost: the participation credited at BattleProposed (to a
+        // result the watchdog could not reproduce) comes back off.
+        const winner = (args.winner as string | undefined)?.toLowerCase();
+        const refunded = !!args.refunded;
+        pinoLog.info(
+          { battleId: String(args.battleId), winner, refunded, module: 'battle-watcher', op: 'FrozenResolved' },
+          'frozen battle resolved by the Safe',
+        );
+        if (refunded || winner === ZERO_ADDRESS) await this.voidBattleParticipation(BigInt(args.battleId), refunded ? 'refunded' : 'draw');
+        break;
+      }
+
+      case 'FrozenExpired':
+        pinoLog.warn(
+          {
+            battleId: String(args.battleId),
+            burned: args.burned !== undefined ? (BigInt(args.burned) / 10n ** 18n).toString() : null,
+            paidFromReserve: args.paidFromReserve !== undefined ? (BigInt(args.paidFromReserve) / 10n ** 18n).toString() : null,
+            module: 'battle-watcher',
+            op: 'FrozenExpired',
+          },
+          'frozen battle expired after 72 h: players paid back',
+        );
+        await this.voidBattleParticipation(BigInt(args.battleId), 'expired');
+        break;
+
       // Other events logged in on_chain_events via base class
       case 'DamageApplied':
       case 'AntiGriefSlashed':
@@ -581,9 +635,9 @@ export class BattleWatcher extends EventWatcher {
 
   /** D-06: page when an on-chain settlement proposal is not the result this server computed —
    *  or arrives while this server is still playing the battle. Either means the proposal did
-   *  not come from the honest settle job: a compromised RESOLVER key, or an engine bug. Both
-   *  players can still dispute until `payoutDeadline`; the API pushes them `settlement_alert`.
-   *  Never throws: an alarm must not stall the indexer. */
+   *  not come from the honest settle job: a compromised RESOLVER key, or an engine bug. The
+   *  engine's watchdog freezes it before `payoutDeadline`; this is the indexer's independent
+   *  page. Never throws: an alarm must not stall the indexer. */
   private async judgeProposedSettlement(
     battleId: bigint,
     proposal: { proposedWinner: string; proposedFinalStateHash: string; proposedTurnLogHash: string },
@@ -610,6 +664,19 @@ export class BattleWatcher extends EventWatcher {
       );
     } catch (err) {
       pinoLog.error({ err, battleId: battleId.toString(), module: 'battle-watcher', op: 'BattleProposed' }, 'could not judge the settlement proposal');
+    }
+  }
+
+  /** Boost: a frozen battle that ended with no result (refund, expiry) or a draw does not count as
+   *  played. Logged, never thrown — the phase mirror must not depend on the rating layer. */
+  private async voidBattleParticipation(battleId: bigint, why: 'refunded' | 'expired' | 'draw'): Promise<void> {
+    try {
+      const removed = await db.transaction((tx) => voidParticipation(tx, battleId));
+      if (removed > 0) {
+        pinoLog.info({ battleId: battleId.toString(), removed, why, module: 'battle-watcher' }, 'boost participation voided');
+      }
+    } catch (err) {
+      pinoLog.error({ err, battleId: battleId.toString(), why, module: 'battle-watcher' }, 'boost participation void failed');
     }
   }
 

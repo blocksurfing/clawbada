@@ -1,5 +1,5 @@
 import { waitFor } from '../lib/wait';
-import { WEI } from '../lib/chain';
+import { WEI, PHASE } from '../lib/chain';
 import { KEYS } from '../lib/env';
 import type { Checks } from '../lib/checks';
 import type { Stack } from './00-infra';
@@ -13,8 +13,6 @@ export interface BattleOutcome {
   revealLatencyChainSec: number; revealLatencyWallMs: number;
   payoutDeadline: bigint;
 }
-
-const PHASE = { Deposit: 1, TeamCommit: 2, TeamReveal: 3, Active: 4, AwaitingFinalize: 5, Settled: 6 } as const;
 
 export async function battlePhase(stack: Stack, players: Players, flags: Flags, checks: Checks): Promise<BattleOutcome> {
   const { chain, db, anvil } = stack;
@@ -34,31 +32,30 @@ export async function battlePhase(stack: Stack, players: Players, flags: Flags, 
   await waitFor(async () => { const r = await a.agent.battle(battleId); return r.db?.status === 1 && Number(r.chain?.phase) === PHASE.Deposit ? r : null; }, { timeoutMs: 60_000, label: 'createBattle on-chain (status 1, phase Deposit)' });
   checks.check(true, 'createBattle submitted by the engine (status=1, phase=Deposit)');
 
-  // 3. Deposits (approve + deposit, both players).
-  await a.agent.deposit(battleId);
-  await b.agent.deposit(battleId);
+  // 3. Deposits: approve + deposit(battleId, expectedStake, maxOpponentPower, commitHash). The
+  //    commit rides in the deposit (D-13) and the consent is bound on-chain (D-08). A also hands
+  //    the server its salt with the deposit; B sends only the hash and reveals separately, so both
+  //    reveal paths are exercised.
+  const ca = await a.agent.deposit(battleId);
+  checks.eq(BigInt(ca.consent.expectedStake), stake, 'deposit consent: the stake of the queued bracket');
+  const cb = await b.agent.deposit(battleId, { prepareReveal: false });
   const afterDeposit = await chain.getBattle(BigInt(battleId));
-  checks.eq(Number(afterDeposit.phase), PHASE.TeamCommit, 'both deposits → phase TeamCommit');
-  await waitFor(async () => (await db.sql`select phase from battles where battle_id = ${battleId}`)[0]?.phase === PHASE.TeamCommit, { timeoutMs: 30_000, label: 'indexer mirrors TeamCommit' });
-
-  // 4. Commits (client-side salt + hash; one tx each).
-  const ca = await a.agent.commit(battleId);
-  const cb = await b.agent.commit(battleId);
-  const afterCommit = await chain.getBattle(BigInt(battleId));
-  checks.eq(Number(afterCommit.phase), PHASE.TeamReveal, 'both commits → phase TeamReveal');
+  checks.eq(Number(afterDeposit.phase), PHASE.TeamReveal, 'both deposits (each carrying its commit) → phase TeamReveal');
+  checks.check(BigInt(afterDeposit.teamCommitA) !== 0n && BigInt(afterDeposit.teamCommitB) !== 0n, 'both team commits recorded by the deposits');
   const t0Chain = await chain.latestTimestamp();
   const t0Wall = Date.now();
 
-  // 5. Reveal: salts to the API; the engine's RevealWatcher submits the atomic revealTeams.
-  await waitFor(async () => (await db.sql`select phase from battles where battle_id = ${battleId}`)[0]?.phase === PHASE.TeamReveal, { timeoutMs: 30_000, label: 'indexer mirrors TeamReveal' });
-  await a.agent.reveal(battleId, ca.teamId, ca.salt);
-  const rb = await b.agent.reveal(battleId, cb.teamId, cb.salt);
-  checks.eq(rb, 'both_revealed', 'second reveal reports both_revealed');
+  // 4. Reveal: A's salt is already server-side; B posts its salt; the engine's RevealWatcher
+  //    checks both against the commits on-chain and submits the atomic revealTeams.
+  await waitFor(async () => (await db.sql`select phase from battles where battle_id = ${battleId}`)[0]?.phase >= PHASE.TeamReveal, { timeoutMs: 30_000, label: 'indexer mirrors TeamReveal' });
+  const rb = await b.agent.reveal(battleId, cb.teamId, cb.salt).catch((err) => `error: ${String(err).slice(0, 120)}`);
+  checks.check(rb === 'both_revealed' || rb === 'waiting_for_opponent' || rb.includes('not in the team-reveal phase'), 'B posted its salt', rb);
   const active = await waitFor(async () => { const x = await chain.getBattle(BigInt(battleId)); return Number(x.phase) === PHASE.Active ? x : null; }, { timeoutMs: 30_000, everyMs: 300, label: 'revealTeams mined (phase Active)' });
   const t1Chain = await chain.latestTimestamp();
   const revealLatencyChainSec = Number(t1Chain - t0Chain);
   const revealLatencyWallMs = Date.now() - t0Wall;
   checks.check(revealLatencyChainSec < 20, `reveal landed inside the 20 s window`, `${revealLatencyChainSec} s chain / ${revealLatencyWallMs} ms wall`);
+  checks.check(!active.accusedA && !active.accusedB, 'nobody was reported for an unopenable commit');
   // The matchmaker decides who is on-chain player A (the seeker pairs with the oldest queued
   // row), so map by address rather than assuming our A is slot A.
   const aIsSlotA = String(active.playerA).toLowerCase() === a.agent.address.toLowerCase();
@@ -74,18 +71,26 @@ export async function battlePhase(stack: Stack, players: Players, flags: Flags, 
   checks.check(!!ra.finalStateHash && ra.finalStateHash === rbb.finalStateHash, 'final state hash agreed', ra.finalStateHash.slice(0, 18));
   console.log(`battle #${battleId}: winner ${ra.winner} by ${ra.reason} after ${ra.turns} turns`);
 
-  // 7. settle_battle job → chain phase AwaitingFinalize.
+  // 7. settle_battle job → chain phase AwaitingFinalize ("in review"). Damage is applied and both
+  //    teams are released at settle: the lobsters are free before any money moves.
   const proposed = await waitFor(async () => { const x = await chain.getBattle(BigInt(battleId)); return Number(x.phase) === PHASE.AwaitingFinalize ? x : null; }, { timeoutMs: 60_000, label: 'settle() mined (AwaitingFinalize)' });
   checks.check(true, 'settle submitted by the engine', `payoutDeadline ${proposed.payoutDeadline}`);
   checks.eq(String(proposed.finalStateHash).toLowerCase(), ra.finalStateHash.toLowerCase(), 'on-chain finalStateHash matches the session');
+  const loserSlot = ra.winner === 'draw' ? null : (ra.winner === 'A') === aIsSlotA ? 'B' : 'A';
+  checks.check(ra.reason !== 'forfeit' || String(proposed.proposedForfeiter).toLowerCase() !== '0x0000000000000000000000000000000000000000', 'a forfeit names its forfeiter on-chain', `${ra.reason}, loser slot ${loserSlot}`);
+  checks.check(!(await chain.teamInBattle(a.teamId)) && !(await chain.teamInBattle(b.teamId)), 'both teams released at settle — no lobster waits for the payout');
+  checks.check(!(await chain.getTeam(a.teamId)).active && !(await chain.getTeam(b.teamId)).active, 'TeamManager shows both teams inactive while the result is in review');
   await waitFor(async () => (await db.sql`select phase from battles where battle_id = ${battleId}`)[0]?.phase === PHASE.AwaitingFinalize, { timeoutMs: 30_000, label: 'indexer mirrors AwaitingFinalize' });
 
-  // 8. Warp past the dispute window; the FinalizeWatcher pays out.
+  // 8. The watchdog replays the battle during the review window and finds it clean: nothing is
+  //    frozen. Wait a few of its ticks inside the window, then warp past it; it pays out.
+  await new Promise((r) => setTimeout(r, 3_000));
+  checks.eq(Number((await chain.getBattle(BigInt(battleId))).phase), PHASE.AwaitingFinalize, 'the watchdog did not freeze an honest result');
   const now = await chain.latestTimestamp();
   const ahead = Number(BigInt(proposed.payoutDeadline) - now) + 5;
   await anvil.increaseTime(Math.max(ahead, 1));
   await waitFor(async () => { const x = await chain.getBattle(BigInt(battleId)); return Number(x.phase) === PHASE.Settled ? x : null; }, { timeoutMs: 60_000, label: 'finalizeBattle mined (Settled)' });
-  checks.check(true, 'finalizeBattle submitted by the engine after the dispute window');
+  checks.check(true, 'finalizeBattle submitted by the engine after the review window');
   await waitFor(async () => (await db.sql`select phase from battles where battle_id = ${battleId}`)[0]?.phase === PHASE.Settled, { timeoutMs: 30_000, label: 'indexer mirrors Settled' });
 
   return { battleId, stake, ...ra, balancesBefore, revealLatencyChainSec, revealLatencyWallMs, payoutDeadline: BigInt(proposed.payoutDeadline) };
