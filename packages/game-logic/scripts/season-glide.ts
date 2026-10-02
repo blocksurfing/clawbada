@@ -24,10 +24,10 @@ const header = (first: string) => {
 
 say('# D-19 — the mining-reward glide as the contract runs it');
 say();
-say('S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 expeditions a day per team, tier weights 1/3/10/25, 50% of income retained toward upgrades (12k/60k/300k effective), boost on the same budget (+15% expected on Evolved+). "Ideal" is the daily exact re-peg the design was validated with (season.ts): no clamp, no lag, no blind first day. "On-chain" is `MiningPool._repegIfNeeded` as deployed: re-peg once a day from the PREVIOUS day\'s demand, at most ±30% a day, nothing on day 1.');
+say('S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 expeditions a day per team, tier weights 1/3/10/25, 50% of income retained toward upgrades (12k/60k/300k effective), boost on the same budget (+15% expected on Evolved+). "Ideal" is the daily exact re-peg the design was validated with (season.ts): no clamp, no lag, no blind first day. "On-chain" is `MiningPool` as it deploys after D-19 (2026-10-02): re-peg once an HOUR from the previous hour\'s demand, at most ±30% an hour, nothing in hour 0, and no hour minting more than twice its fair share of what is left. Section 2 keeps the controller this replaced ("before D-19") and the alternatives weighed.');
 say();
 
-say('## 1. Ideal glide vs the contract, same populations');
+say('## 1. Ideal glide vs the contract (D-19 controller), same populations');
 say();
 header('Scenario · mode');
 for (const scenario of D19_SCENARIOS) {
@@ -36,7 +36,7 @@ for (const scenario of D19_SCENARIOS) {
 }
 say();
 
-say('## 2. Candidate contract changes on the hard cases');
+say('## 2. The controller before D-19, the alternatives weighed, and the one shipped — on the hard cases');
 say();
 const hard: GlideScenario[] = [D19_SCENARIOS[3], D19_SCENARIOS[4], D19_SCENARIOS[5], D19_SCENARIOS[6], D19_SCENARIOS[7], D19_SCENARIOS[8]];
 for (const scenario of hard) {

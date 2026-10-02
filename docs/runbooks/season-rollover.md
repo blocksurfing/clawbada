@@ -32,7 +32,7 @@ Each alarm carries `safeTx`:
   - Season 7 is 7.05M.
   - From Season 8 it's whatever is left of the 705M allocation.
   - The prepared value is already clamped to the allocation left (`MINING_ALLOCATION − lifetimeMinted`, read from chain). The contract applies the same clamp anyway (D-20).
-- **Base reward** is a governance choice. The plan proposes the current season's launch reward, and the daily glide (TOK-G1) re-pegs it down as needed but never above it. You may change it before signing. If so, rebuild the calldata (`cast calldata "startSeason(uint256,uint256)" <emission> <baseReward>`).
+- **Base reward** is a governance choice. The plan proposes the current season's launch reward, and the hourly glide (TOK-G1) re-pegs it down as needed but never above it. You may change it before signing. If so, rebuild the calldata (`cast calldata "startSeason(uint256,uint256)" <emission> <baseReward>`).
 
 Code: `apps/engine/src/seasons/manager.ts`.
 

@@ -10,6 +10,7 @@ export type ErrorCode =
   | 'INSUFFICIENT_TIER'
   | 'LOBSTER_LOCKED'
   | 'BATTLE_PHASE_ERROR'
+  | 'MINE_FULL'
   | 'INTERNAL_ERROR';
 
 const STATUS_MAP: Record<ErrorCode, number> = {
@@ -22,6 +23,7 @@ const STATUS_MAP: Record<ErrorCode, number> = {
   INSUFFICIENT_TIER: 403,
   LOBSTER_LOCKED: 409,
   BATTLE_PHASE_ERROR: 409,
+  MINE_FULL: 409,
   INTERNAL_ERROR: 500,
 };
 

@@ -175,7 +175,7 @@ contract MiningPoolHandler is BaseSetup {
         } catch {}
     }
 
-    /// @dev D-30: the permissionless daily re-peg. The handler only ever reached the glide
+    /// @dev D-30: the permissionless (hourly, since D-19) re-peg. The handler only ever reached the glide
     ///      lazily through startExpedition; repeg() itself was never called.
     function handler_repeg() external {
         uint256 seasonBefore = miningPool.currentSeason();

@@ -5,17 +5,22 @@ import "../helpers/BaseSetup.t.sol";
 import {stdStorage, StdStorage} from "forge-std/Test.sol";
 
 /// @title FuzzMiningGlideTest
-/// @notice Audit 2026-09 D-30. The daily glide (TOK-G1) sets every miner's reward AND, through
-///         the peg, every repair price — and it was tested by five hand-picked examples that
-///         covered only the -30% clamp and the launch cap. Never executed by any test: the
-///         upward step, the in-band step (next == target), the last day of the season, the
-///         dust floor, several quiet epochs in a row (stale trailing demand carried forward),
-///         and the floor division of boost-scaled demand.
+/// @notice Audit 2026-09 D-30, extended for D-19 (2026-10-02). The glide (TOK-G1) sets every
+///         miner's reward AND, through the peg, every repair price — and it was tested by five
+///         hand-picked examples that covered only the -30% clamp and the launch cap. Never
+///         executed by any test: the upward step, the in-band step (next == target), the last
+///         epoch of the season, the dust floor, several quiet epochs in a row (stale trailing
+///         demand carried forward), and the floor division of boost-scaled demand.
+///
+///         D-19 made the epoch hourly and added a per-epoch spend ceiling (no epoch mints more
+///         than twice its fair share of what is left, never less than one expedition of the
+///         heaviest tier at the highest boost) and a hold whenever less than one Base reward is
+///         left. All three are in the model below.
 ///
 ///         This drives the REAL contract through fuzzed multi-day scenarios — demand that
-///         rises and falls, boosted teams, admin overrides, quiet gaps, the season's end —
-///         and after every action compares it with an independently written reference model,
-///         plus the properties that must hold whatever the model says.
+///         rises and falls, boosted teams, admin overrides, quiet gaps, the ceiling, the
+///         season's end — and after every action compares it with an independently written
+///         reference model, plus the properties that must hold whatever the model says.
 contract FuzzMiningGlideTest is BaseSetup {
     using stdStorage for StdStorage;
 
@@ -38,6 +43,7 @@ contract FuzzMiningGlideTest is BaseSetup {
         uint256 lastEpoch;
         uint256 servedBps; // this epoch's demand, in tier-weight units x 10_000 (boost-scaled)
         uint256 trailing; // last completed epoch WITH demand, in whole tier-weight units
+        uint256 epochMinted; // minted this epoch, against the ceiling
     }
 
     Model internal m;
@@ -48,7 +54,9 @@ contract FuzzMiningGlideTest is BaseSetup {
     uint256 internal sawInBand;
     uint256 internal sawCap;
     uint256 internal sawHoldNoDemand;
-    uint256 internal sawLastDay;
+    uint256 internal sawHoldExhausted;
+    uint256 internal sawLastEpoch;
+    uint256 internal sawCeiling;
 
     function setUp() public override {
         super.setUp();
@@ -81,27 +89,47 @@ contract FuzzMiningGlideTest is BaseSetup {
         return a > b ? a : b;
     }
 
-    /// @dev One lazy re-peg, as specified: at most once per day-epoch; yesterday's demand (if
-    ///      there was any) becomes the trailing signal; pace what is left over the days left
-    ///      INCLUDING today; move at most 30% a step; never above launch; never to zero.
+    function _epochLen() internal view returns (uint256) {
+        return miningPool.REPEG_EPOCH();
+    }
+
+    function _epochsLeft(uint256 epoch) internal view returns (uint256) {
+        uint256 total = miningPool.SEASON_DURATION() / _epochLen();
+        return epoch >= total ? 1 : total - epoch;
+    }
+
+    /// @dev What is left to pace against: the season's budget, or the 705M allocation if less
+    ///      of it remains (D-20).
+    function _left() internal view returns (uint256 left) {
+        left = m.emission > m.minted ? m.emission - m.minted : 0;
+        left = _min(left, miningPool.MINING_ALLOCATION() - miningPool.lifetimeMinted());
+    }
+
+    /// @dev One lazy re-peg, as specified: at most once per epoch; the previous epoch's demand
+    ///      (if there was any) becomes the trailing signal; pace what is left over the epochs
+    ///      left INCLUDING this one; move at most 30% a step; never above launch; never to
+    ///      zero; hold whenever less than one Base reward is left (D-19c).
     function _modelRepeg(uint256 nowTs) internal {
-        uint256 epoch = (nowTs - m.start) / 1 days;
+        uint256 epoch = (nowTs - m.start) / _epochLen();
         if (epoch == m.lastEpoch) return;
         if (m.servedBps > 0) m.trailing = m.servedBps / BPS;
         m.servedBps = 0;
+        m.epochMinted = 0;
         m.lastEpoch = epoch;
         if (m.trailing == 0) {
             sawHoldNoDemand++;
             return;
         }
 
-        uint256 daysLeft = epoch >= 60 ? 1 : 60 - epoch;
-        if (daysLeft == 1) sawLastDay++;
-        uint256 left = m.emission > m.minted ? m.emission - m.minted : 0;
-        left = _min(left, miningPool.MINING_ALLOCATION() - miningPool.lifetimeMinted());
-        if (left == 0) return; // D-19(c): an exhausted budget holds the last real rate
+        uint256 epochsLeft = _epochsLeft(epoch);
+        if (epochsLeft == 1) sawLastEpoch++;
+        uint256 left = _left();
+        if (left < m.base) {
+            sawHoldExhausted++;
+            return;
+        }
 
-        uint256 target = left / (daysLeft * m.trailing);
+        uint256 target = left / (epochsLeft * m.trailing);
         uint256 lo = (m.base * 7_000) / BPS;
         uint256 hi = (m.base * 13_000) / BPS;
         uint256 next = _max(1, _min(m.launch, _min(hi, _max(lo, target))));
@@ -111,6 +139,15 @@ contract FuzzMiningGlideTest is BaseSetup {
         if (next == target && next != m.base) sawInBand++;
         if (next == m.launch && target > m.launch) sawCap++;
         m.base = next;
+    }
+
+    /// @dev D-19: this epoch's spend ceiling — twice the fair share of the budget as it stood
+    ///      when the epoch began, over the epochs left including this one, but never less than
+    ///      one Apex expedition at +50%. Valid after _modelRepeg (m.lastEpoch is this epoch).
+    function _modelCap() internal view returns (uint256 cap) {
+        cap = ((_left() + m.epochMinted) * 20_000) / (BPS * _epochsLeft(m.lastEpoch));
+        uint256 oneMax = ((m.base * (BPS + 5_000)) / BPS) * 25;
+        if (cap < oneMax) cap = oneMax;
     }
 
     function _boostNow(uint256 teamId) internal view returns (uint256) {
@@ -136,7 +173,8 @@ contract FuzzMiningGlideTest is BaseSetup {
     }
 
     /// @dev Start one expedition and check reward + base against the model. Returns false when
-    ///      the model says the budget cannot cover it (and asserts the contract agrees).
+    ///      the model says the budget or this epoch's ceiling cannot cover it (and asserts the
+    ///      contract agrees, with the same error).
     function _start(uint256 teamIdx, uint8 tier) internal returns (bool) {
         uint256 teamId = teams[teamIdx];
         if (teamMgr.isTeamActive(teamId)) return true;
@@ -157,12 +195,22 @@ contract FuzzMiningGlideTest is BaseSetup {
             m = before;
             return false;
         }
+        if (m.epochMinted + reward > _modelCap()) {
+            uint256 nextEpochAt = m.start + (m.lastEpoch + 1) * _epochLen();
+            vm.prank(owner);
+            vm.expectRevert(abi.encodeWithSelector(MiningPool.EpochBudgetFull.selector, nextEpochAt));
+            miningPool.startExpedition(teamId, tier);
+            m = before; // same rollback: the refused call re-pegged nothing
+            sawCeiling++;
+            return false;
+        }
 
         vm.prank(owner);
         uint256 expeditionId = miningPool.startExpedition(teamId, tier);
         openExpeditions.push(expeditionId);
         m.servedBps += _weight(tier) * (BPS + bps);
         m.minted += reward;
+        m.epochMinted += reward;
 
         assertEq(miningPool.getExpedition(expeditionId).reward, reward, "locked reward != model");
         _checkStep(oldBase);
@@ -182,7 +230,9 @@ contract FuzzMiningGlideTest is BaseSetup {
             // An admin override above launch is pulled back to launch by the next re-peg.
             assertLe(base, oldBase, "override above launch must not grow");
         }
-        assertEq(miningPool.getSeasonConfig(1).totalMinted, m.minted, "season totalMinted != model");
+        MiningPool.SeasonConfig memory cfg = miningPool.getSeasonConfig(1);
+        assertEq(cfg.totalMinted, m.minted, "season totalMinted != model");
+        assertEq(cfg.epochMinted, m.epochMinted, "epochMinted != model");
     }
 
     function _begin(uint256 emission, uint256 base) internal {
@@ -196,7 +246,8 @@ contract FuzzMiningGlideTest is BaseSetup {
             start: block.timestamp,
             lastEpoch: 0,
             servedBps: 0,
-            trailing: 0
+            trailing: 0,
+            epochMinted: 0
         });
     }
 
@@ -222,10 +273,13 @@ contract FuzzMiningGlideTest is BaseSetup {
 
         for (uint256 s = 0; s < STEPS; s++) {
             uint256 seed = seeds[s];
-            // 1..12 days on, plus a few hours so visits do not sit on epoch boundaries.
-            vm.warp(block.timestamp + ((seed & 0xff) % 12 + 1) * 1 days + ((seed >> 8) % 20) * 1 hours);
+            // 1..12 days on, plus a few hours and minutes so visits do not sit on epoch boundaries.
+            vm.warp(
+                block.timestamp + ((seed & 0xff) % 12 + 1) * 1 days + ((seed >> 8) % 20) * 1 hours
+                    + ((seed >> 4) % 50 + 1) * 1 minutes
+            );
 
-            if (block.timestamp >= m.start + 60 days) {
+            if (block.timestamp >= m.start + miningPool.SEASON_DURATION()) {
                 vm.expectRevert(MiningPool.SeasonNotActive.selector);
                 miningPool.repeg();
                 assertEq(miningPool.currentBaseReward(), m.base, "rate frozen once the season ends");
@@ -249,7 +303,7 @@ contract FuzzMiningGlideTest is BaseSetup {
                 _checkStep(old);
             }
 
-            uint256 demand = (seed >> 40) % (TEAMS + 1); // 0 = a quiet day
+            uint256 demand = (seed >> 40) % (TEAMS + 1); // 0 = a quiet visit
             for (uint256 k = 0; k < demand; k++) {
                 if (!_start(k, uint8((seed >> (48 + k * 2)) % 4))) break;
             }
@@ -259,7 +313,8 @@ contract FuzzMiningGlideTest is BaseSetup {
     // ───────────────────────── fuzz ─────────────────────────
 
     /// @dev A budget small enough that eight teams' demand moves the glide: 10K .. ~330M CLAW,
-    ///      log-spread (a uniform draw would almost always pin the rate to its cap).
+    ///      log-spread (a uniform draw would almost always pin the rate to its cap). At the
+    ///      small end the hourly ceiling binds on most visits; at the large end it never does.
     function testFuzz_glide_matches_reference_model(uint256 emissionSeed, uint256 baseSeed, uint256[STEPS] memory seeds)
         public
     {
@@ -283,8 +338,9 @@ contract FuzzMiningGlideTest is BaseSetup {
     }
 
     /// @dev Dust budget AND dust rate: a season of a few thousand wei with a rate of 1..50 wei.
-    ///      This is where the target floors to 0 (the dust floor must lift it back to 1) and
-    ///      where a budget gets spent EXACTLY (the rate must then hold, D-19c).
+    ///      This is where the target floors to 0 (the dust floor must lift it back to 1), where
+    ///      the ceiling's fair share floors to 0 (the one-expedition floor must carry it), and
+    ///      where a budget gets spent to a remainder under one reward (the rate must then hold).
     function testFuzz_glide_with_a_dust_budget(uint256 emissionSeed, uint256 baseSeed, uint256[STEPS] memory seeds)
         public
     {
@@ -302,7 +358,7 @@ contract FuzzMiningGlideTest is BaseSetup {
         assertEq(miningPool.getSeasonConfig(1).totalEmission, left, "D-20: season clamped to the allocation left");
 
         for (uint256 s = 0; s < STEPS; s++) {
-            vm.warp(block.timestamp + 1 days + 1 hours);
+            vm.warp(block.timestamp + 1 days + 1 hours + 7 minutes);
             _claimMatured();
             uint256 demand = (seeds[s] >> 40) % (TEAMS + 1);
             for (uint256 k = 0; k < demand; k++) {
@@ -314,77 +370,83 @@ contract FuzzMiningGlideTest is BaseSetup {
 
     // ───────────────────────── the branches, by name ─────────────────────────
     // Deterministic, so a regression names the branch it broke instead of a fuzz counterexample.
+    // Budgets are sized so hour 0's ceiling (2 x budget / 1,440) admits the demand the test
+    // needs, except where the ceiling is the point.
 
-    function _day(uint256 n) internal {
-        vm.warp(m.start + n * 1 days + 1 hours);
+    function _hour(uint256 n) internal {
+        vm.warp(m.start + n * 1 hours + 5 minutes);
         _claimMatured();
     }
 
-    /// @dev Demand collapses after a crowded day: the rate must climb back, +30% a day, and
-    ///      stop exactly at the launch reward.
+    /// @dev Demand collapses after a crowded hour: the rate must climb back, +30% an epoch, and
+    ///      stop exactly at the launch reward. Visits four hours apart so the one team reused
+    ///      has matured in between.
     function test_glide_steps_up_after_demand_falls_and_stops_at_launch() public {
-        _begin(400_000e18, 1_000e18);
-        for (uint256 k = 0; k < TEAMS; k++) _start(k, 3); // day 0: 8 Apex expeditions = 200 units
-        _day(1);
-        _start(0, 0); // re-peg: target 200K/(59*200) ~ 16.9 -> clamped to 700
-        assertEq(m.base, 700e18, "day 1: -30%");
+        _begin(150_000_000e18, 1_000e18);
+        for (uint256 k = 0; k < TEAMS; k++) _start(k, 3); // hour 0: 8 Apex expeditions = 200 units
+        _hour(4);
+        _start(0, 0); // re-peg: target 149.8M/(1,436*200) ~ 521 -> clamped to 700
+        assertEq(m.base, 700e18, "hour 4: -30%");
         assertEq(sawDown, 1);
 
-        _day(2);
+        _hour(8);
         _start(0, 0); // trailing is now 1 unit: target is huge -> +30%
-        assertEq(m.base, 910e18, "day 2: +30%");
-        _day(3);
+        assertEq(m.base, 910e18, "hour 8: +30%");
+        _hour(12);
         _start(0, 0);
-        assertEq(m.base, 1_000e18, "day 3: 1,183 would overshoot - capped at launch");
+        assertEq(m.base, 1_000e18, "hour 12: 1,183 would overshoot - capped at launch");
         assertEq(sawUp, 2);
         assertEq(sawCap, 1);
     }
 
     /// @dev The in-band step: the target lies inside [0.7, 1.3] x old, so next == target exactly.
     function test_glide_in_band_lands_exactly_on_target() public {
-        _begin(5_900_000e18, 1_000e18);
+        _begin(130_000_000e18, 1_000e18);
         for (uint256 k = 0; k < 4; k++) _start(k, 3); // 100 units, 100,000 CLAW
-        _day(1);
+        _hour(1);
         _start(4, 0);
-        // left 5.8M over 59 days x 100 units = 983.05...; inside [700, 1300]
-        assertEq(m.base, uint256(5_800_000e18) / (59 * 100), "next == target");
+        // left 129.9M over 1,439 epochs x 100 units = 902.7...; inside [700, 1300] and under launch
+        assertEq(m.base, uint256(129_900_000e18) / (1_439 * 100), "next == target");
         assertEq(sawInBand, 1);
     }
 
-    /// @dev D-18: on the last day there is exactly one day left to pay for — not zero.
-    function test_glide_last_day_paces_over_one_day() public {
+    /// @dev D-18: in the last epoch there is exactly one epoch left to pay for — not zero.
+    function test_glide_last_epoch_paces_over_one_epoch() public {
         _begin(3_000_000e18, 1_000e18);
-        _day(58);
-        for (uint256 k = 0; k < 2; k++) _start(k, 3); // day 58: 50 units (no trailing yet -> hold)
-        _day(59);
+        _hour(1_438);
+        for (uint256 k = 0; k < 2; k++) _start(k, 3); // epoch 1,438: 50 units (no trailing yet -> hold)
+        _hour(1_439);
         _start(2, 0);
-        // left = 3M - 50,000 = 2.95M; days left 1; trailing 50 -> 59,000 -> capped +30% -> launch cap
+        // left = 3M - 50,000 = 2.95M; one epoch left; trailing 50 -> 59,000 -> capped +30% -> launch cap
         assertEq(m.base, 1_000e18);
-        assertEq(sawLastDay, 1, "the last-day branch ran");
+        assertEq(sawLastEpoch, 1, "the last-epoch branch ran");
     }
 
     /// @dev Quiet epochs carry the last REAL demand forward; they are not read as zero demand.
     function test_glide_quiet_gap_keeps_the_last_demand_signal() public {
-        _begin(400_000e18, 1_000e18);
+        _begin(150_000_000e18, 1_000e18);
         for (uint256 k = 0; k < TEAMS; k++) _start(k, 3); // 200 units
-        _day(1);
+        _hour(1);
         miningPool.repeg();
         _modelRepeg(block.timestamp);
         assertEq(miningPool.currentBaseReward(), 700e18);
 
-        _day(6); // five days nobody touched the pool
+        _hour(6); // five hours nobody touched the pool
         uint256 old = m.base;
         _modelRepeg(block.timestamp);
         miningPool.repeg();
         _checkStep(old);
-        assertEq(m.trailing, 200, "trailing demand is still the last day that had any");
-        assertEq(m.base, 490e18, "one lazy step per touched epoch, not five");
+        assertEq(m.trailing, 200, "trailing demand is still the last epoch that had any");
+        // 149.8M over 1,434 epochs x 200 units = 522.3: one in-band step from 700. Five steps
+        // (one per quiet hour) would have been 117; even two would be at most 490.
+        assertEq(m.base, uint256(149_800_000e18) / (1_434 * 200), "one lazy step per touched epoch, not five");
+        assertGt(m.base, 490e18);
     }
 
     /// @dev No demand has ever been seen: hold. (Before any expedition the target is undefined.)
     function test_glide_holds_until_there_is_a_demand_signal() public {
         _begin(400_000e18, 1_000e18);
-        _day(3);
+        _hour(3);
         miningPool.repeg();
         _modelRepeg(block.timestamp);
         assertEq(miningPool.currentBaseReward(), 1_000e18);
@@ -395,32 +457,69 @@ contract FuzzMiningGlideTest is BaseSetup {
     ///      would set the reward to zero — which would also zero every repair price.
     function test_glide_dust_floor_never_reaches_zero() public {
         _begin(1_000, 1); // 1,000 wei season, 1 wei per Base expedition
-        for (uint256 k = 0; k < TEAMS; k++) _start(k, 3); // 200 units -> 200 wei
-        _day(1);
+        assertTrue(_start(0, 3), "25 units -> 25 wei: exactly the ceiling's one-expedition floor");
+        _hour(1);
         uint256 old = m.base;
-        _modelRepeg(block.timestamp); // target = 800 / (59 * 200) = 0
+        _modelRepeg(block.timestamp); // target = 975 / (1,439 * 25) = 0
         miningPool.repeg();
         _checkStep(old);
         assertEq(miningPool.currentBaseReward(), 1, "floored at 1 wei, never 0");
     }
 
     /// @dev D-19(c): a budget spent to the last wei is not a demand signal. The rate holds, so
-    ///      repair prices (basis points of it) do not walk down 30% a day to nothing.
+    ///      repair prices (basis points of it) do not walk down 30% an epoch to nothing.
     function test_glide_holds_the_rate_once_the_budget_is_gone() public {
-        _begin(50_000e18, 1_000e18); // exactly two Apex expeditions
+        _begin(25_000e18, 1_000e18); // exactly one Apex expedition
         assertTrue(_start(0, 3));
-        assertTrue(_start(1, 3));
         assertEq(m.minted, m.emission, "spent exactly");
 
-        for (uint256 d = 1; d <= 5; d++) {
-            _day(d);
+        for (uint256 h = 1; h <= 5; h++) {
+            _hour(h);
             uint256 old = m.base;
             _modelRepeg(block.timestamp);
             miningPool.repeg();
             _checkStep(old);
         }
-        assertEq(miningPool.currentBaseReward(), 1_000e18, "rate held for five days at zero budget");
-        assertFalse(_start(2, 0), "and nothing more can be started");
+        assertEq(miningPool.currentBaseReward(), 1_000e18, "rate held for five hours at zero budget");
+        assertEq(sawHoldExhausted, 5);
+        assertFalse(_start(1, 0), "and nothing more can be started");
+    }
+
+    /// @dev The gap the D-19 simulation found in that fix: it held only at EXACTLY zero, and a
+    ///      season normally ends with a remainder smaller than one reward — with which the decay
+    ///      went on (1,000 -> 700 -> 490 ...) until a cut-price expedition fitted. Anything under
+    ///      one Base reward now holds, since nothing can start anyway.
+    function test_glide_holds_the_rate_on_a_dust_remainder() public {
+        _begin(25_500e18, 1_000e18); // one Apex expedition and half a Base reward over
+        assertTrue(_start(0, 3));
+        assertEq(m.emission - m.minted, 500e18, "half a reward left");
+
+        for (uint256 h = 1; h <= 5; h++) {
+            _hour(h);
+            uint256 old = m.base;
+            _modelRepeg(block.timestamp);
+            miningPool.repeg();
+            _checkStep(old);
+        }
+        assertEq(miningPool.currentBaseReward(), 1_000e18, "rate held on a dust remainder");
+        assertEq(sawHoldExhausted, 5);
+        assertFalse(_start(1, 0), "a Base expedition does not fit in half a reward");
+    }
+
+    /// @dev D-19: the ceiling. 100M over 1,440 epochs, twice the fair share = 138,888 CLAW an
+    ///      hour: five Apex expeditions at launch (125,000) fit, the sixth (150,000) is refused
+    ///      and names the next epoch — where it starts, at the rate the five pulled down.
+    function test_glide_ceiling_binds_then_opens_next_epoch() public {
+        _begin(100_000_000e18, 1_000e18);
+        for (uint256 k = 0; k < 5; k++) assertTrue(_start(k, 3));
+        assertFalse(_start(5, 3), "the sixth crosses the ceiling");
+        assertEq(sawCeiling, 1);
+        assertEq(m.epochMinted, 125_000e18, "the refused expedition minted nothing");
+
+        _hour(1);
+        assertTrue(_start(5, 3), "a new epoch, a fresh counter");
+        assertEq(m.base, 700e18, "the re-peg saw 125 units: target ~555 -> clamped to 700");
+        assertEq(m.epochMinted, 17_500e18);
     }
 
     /// @dev Boost-scaled demand is FLOORED to whole tier-weight units: 1 unit at +49.99% is
@@ -438,7 +537,7 @@ contract FuzzMiningGlideTest is BaseSetup {
 
         _start(0, 0);
         assertEq(m.servedBps, 14_999);
-        _day(1);
+        _hour(1);
         _start(1, 0);
         assertEq(m.trailing, 1, "14,999 / 10,000 floors to 1 unit");
     }
