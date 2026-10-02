@@ -6,6 +6,13 @@
  *       PREVIOUS epoch's demand (`trailingWeightServed`), so the rate lags demand by one epoch;
  *   (d) populations of 15,000–30,000 teams were never run.
  *
+ * Run on 2026-10-02 (docs/audits/2026-10-02-d19-glide-simulation.md), this showed the daily
+ * controller failing above ~6,000 teams, and decided the fix now in MiningPool: an HOURLY
+ * re-peg, a per-epoch spend ceiling (no epoch mints more than twice its fair share of what is
+ * left, never less than one Apex expedition at +50 %), and a hold whenever less than one Base
+ * reward is left. `ONCHAIN` is that controller; `LEGACY_DAILY` is the one it replaced, kept so
+ * the comparison can be re-run.
+ *
  * The controller here is integer wei math mirroring `contracts/MiningPool.sol::_repegIfNeeded`
  * via the fuzz suite's reference model (`contracts/test/fuzz/FuzzMiningGlide.t.sol::_modelRepeg`,
  * itself fuzz-verified against the contract); `v3-season-glide.test.ts` pins it to the
@@ -14,8 +21,8 @@
  * an exodus can be modelled.
  *
  * `GlideParams` exposes the levers a contract change could pull — epoch length, step sizes,
- * a per-epoch spend ceiling — so candidate fixes are compared on identical populations BEFORE
- * anything is deployed (the contracts are not upgradeable).
+ * the per-epoch spend ceiling — so any future change is compared on identical populations
+ * BEFORE it is deployed (the contracts are not upgradeable).
  */
 
 export const WEI = 10n ** 18n;
@@ -33,19 +40,22 @@ export const MINING_ALLOCATION_WEI = 705_000_000n * WEI;
 // ──────────── The controller ────────────
 
 export interface GlideParams {
-  /** REPEG_EPOCH in hours (24 on-chain). */
+  /** REPEG_EPOCH in hours (1 on-chain since D-19; 24 before). */
   epochHours: number;
   /** Largest upward step per epoch, bps (REPEG_MAX_STEP_BPS = 3,000 on-chain). */
   upStepBps: number;
-  /** Largest downward step per epoch, bps (3,000 on-chain; a candidate fix may widen it). */
+  /** Largest downward step per epoch, bps (3,000 on-chain). */
   downStepBps: number;
-  /** Candidate fix: no epoch may mint more than this multiple of its fair share of what is left
-   *  (left / epochsLeft). Expeditions past the ceiling cannot start until the next epoch. 0 = none. */
+  /** No epoch may mint more than this multiple of its fair share of what is left (left / epochsLeft),
+   *  never less than one Apex expedition at +50 % (EPOCH_SPEND_CAP_BPS / 10,000 = 2 on-chain since
+   *  D-19; 0 = none, as before). Expeditions past the ceiling cannot start until the next epoch. */
   epochSpendCapX: number;
 }
 
-/** The contract as deployed. */
-export const ONCHAIN: GlideParams = { epochHours: 24, upStepBps: 3_000, downStepBps: 3_000, epochSpendCapX: 0 };
+/** The contract as it will deploy (D-19, 2026-10-02): hourly, ±30 %, 2x ceiling. */
+export const ONCHAIN: GlideParams = { epochHours: 1, upStepBps: 3_000, downStepBps: 3_000, epochSpendCapX: 2 };
+/** The controller before D-19: daily, ±30 %, no ceiling — kept for the comparison. */
+export const LEGACY_DAILY: GlideParams = { epochHours: 24, upStepBps: 3_000, downStepBps: 3_000, epochSpendCapX: 0 };
 
 export interface GlideState {
   base: bigint;
@@ -77,7 +87,7 @@ export function repegIfNeeded(s: GlideState, epoch: number, totalEpochs: number,
   let left = s.emission > s.minted ? s.emission - s.minted : 0n;
   const allocationLeft = MINING_ALLOCATION_WEI > s.lifetimeMinted ? MINING_ALLOCATION_WEI - s.lifetimeMinted : 0n; // D-20
   if (allocationLeft < left) left = allocationLeft;
-  if (left === 0n) return; // D-19(c): an exhausted budget holds the last real rate
+  if (left < s.base) return; // D-19(c): less than one Base reward left is not a demand signal — hold
 
   const target = left / (BigInt(epochsLeft) * trailing);
   const lo = (s.base * BigInt(10_000 - p.downStepBps)) / BPS;
@@ -203,11 +213,14 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
         repegIfNeeded(s, epoch, totalEpochs, p);
       }
 
-      // Candidate ceiling: this epoch may mint at most X × its fair share of what is left.
+      // The ceiling: this epoch may mint at most X × its fair share of what is left, never less
+      // than one Apex expedition at +50 % (MiningPool._epochSpendCapFrom).
       let payable = left;
       if (cfg.mode === 'onchain' && p.epochSpendCapX > 0) {
         const epochsLeft = totalEpochs - epoch;
-        const cap = (left * BigInt(Math.round(p.epochSpendCapX * 1000))) / (BigInt(epochsLeft) * 1000n);
+        let cap = (left * BigInt(Math.round(p.epochSpendCapX * 1000))) / (BigInt(epochsLeft) * 1000n);
+        const oneMaxExpedition = ((s.base * 15_000n) / BPS) * BigInt(TIER_WEIGHTS[3]);
+        if (cap < oneMaxExpedition) cap = oneMaxExpedition;
         if (cap < payable) payable = cap;
       }
 
@@ -287,13 +300,13 @@ export const D19_SCENARIOS: GlideScenario[] = [
 ];
 
 export const CANDIDATES: { name: string; params: GlideParams }[] = [
-  { name: 'on-chain today: 24 h epoch, ±30 %', params: ONCHAIN },
-  { name: '6 h epoch, ±30 %', params: { ...ONCHAIN, epochHours: 6 } },
-  { name: '4 h epoch, ±30 %', params: { ...ONCHAIN, epochHours: 4 } },
-  { name: '1 h epoch, ±30 %', params: { ...ONCHAIN, epochHours: 1 } },
-  { name: '1 h epoch, ±30 %, 2× epoch spend ceiling', params: { ...ONCHAIN, epochHours: 1, epochSpendCapX: 2 } },
-  { name: '24 h epoch, down 50 % / up 30 %', params: { ...ONCHAIN, downStepBps: 5_000 } },
-  { name: '24 h epoch, ±30 %, 2× epoch spend ceiling', params: { ...ONCHAIN, epochSpendCapX: 2 } },
-  { name: '6 h epoch, ±30 %, 2× epoch spend ceiling', params: { ...ONCHAIN, epochHours: 6, epochSpendCapX: 2 } },
+  { name: 'before D-19: 24 h epoch, ±30 %, no ceiling', params: LEGACY_DAILY },
+  { name: '6 h epoch, ±30 %', params: { ...LEGACY_DAILY, epochHours: 6 } },
+  { name: '4 h epoch, ±30 %', params: { ...LEGACY_DAILY, epochHours: 4 } },
+  { name: '1 h epoch, ±30 %', params: { ...LEGACY_DAILY, epochHours: 1 } },
+  { name: '24 h epoch, down 50 % / up 30 %', params: { ...LEGACY_DAILY, downStepBps: 5_000 } },
+  { name: '24 h epoch, ±30 %, 2× epoch spend ceiling', params: { ...LEGACY_DAILY, epochSpendCapX: 2 } },
+  { name: '6 h epoch, ±30 %, 2× epoch spend ceiling', params: { ...LEGACY_DAILY, epochHours: 6, epochSpendCapX: 2 } },
   { name: '4 h epoch, down 50 % / up 30 %, 2× ceiling', params: { epochHours: 4, upStepBps: 3_000, downStepBps: 5_000, epochSpendCapX: 2 } },
+  { name: 'ON-CHAIN since D-19: 1 h epoch, ±30 %, 2× ceiling', params: ONCHAIN },
 ];

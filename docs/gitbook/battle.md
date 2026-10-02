@@ -330,4 +330,4 @@ Winning battles doesn't just take the pot — **battle rank makes your team mine
 - **Matchmaking is rating-banded** within your Power and stake bracket (±75 widening to a hard ±300 cap), so you fight teams at your level.
 - **It cannot go stale**: a posted week pays for 10 days at most. If the ladder is ever not posted, every boost drops to 0 on its own.
 
-Battle stakes remain fully zero-sum — the boost is paid from mining emissions through the same daily reward glide, never from other players' stakes.
+Battle stakes remain fully zero-sum — the boost is paid from mining emissions through the same hourly reward glide, never from other players' stakes.

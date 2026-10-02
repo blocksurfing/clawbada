@@ -116,7 +116,7 @@ Same multisig as DEFAULT_ADMIN_ROLE, OR a separate multisig with a tighter time-
 
 ### Mid-season changes
 
-Avoid `setBaseReward` calls outside the published season-rotation cadence. If reward tuning is required mid-season, post the proposal publicly 48h in advance. Players time their expeditions around expected reward; surprise changes erode trust.
+Avoid `setBaseReward` calls outside the published season-rotation cadence. If reward tuning is required mid-season, post the proposal publicly 48h in advance. Players time their expeditions around expected reward; surprise changes erode trust. Since D-19 the glide re-pegs hourly, so an override only sets the point the glide moves from: a value above the launch reward snaps back to launch at the next hour's first touch, and any value is re-pegged ±30% an hour from there.
 
 The weekly battle-rank boost post (`setTeamBoosts` / `activateBoostEpoch`) is **not** a SEASON_ADMIN action and is exempt from this cadence: it is a routine, bounded server write under `BOOST_ADMIN_ROLE` (see below). The boost multiplies each team's own reward by at most 1.5× and is paid from the same season budget through the glide, so it can never move `baseReward` itself.
 
@@ -179,7 +179,7 @@ A **hot service wallet** — the same class as `MATCHMAKER_ROLE` / `RESOLVER_ROL
 ### Compromise blast radius
 Bounded by construction:
 - Every entry is capped at +50% of that team's own reward and stamped with the team's Power; a team whose Power changed earns nothing from a stale entry.
-- Total spend is bounded by the season budget: boosted expeditions are credited as extra demand in the daily glide, so an inflated table compresses `baseReward` for everyone rather than minting past the budget. `SeasonBudgetExhausted` and the 705M lifetime cap still bind on the boosted amount.
+- Total spend is bounded by the season budget: boosted expeditions are credited as extra demand in the hourly glide, so an inflated table compresses `baseReward` for everyone rather than minting past the budget. The D-19 spend ceiling bounds any single hour to twice its fair share of what is left, and `SeasonBudgetExhausted` and the 705M lifetime cap still bind on the boosted amount.
 - The key cannot mint, cannot touch `baseReward`, stakes, or NFTs.
 - **Fail-safe**: a live epoch pays only for `BOOST_EPOCH_TTL = 10 days` after activation. If the server (or the key) goes silent, every boost falls to 0 on its own.
 - Every write is evented (`TeamBoostSet`, `BoostEpochActivated`) and the ladder is published off-chain, so a divergence is publicly checkable.
@@ -207,7 +207,7 @@ Lifetime: 6 days 23 hours after launch (per `closeTime`), then permanently mute 
 ### Compromise blast radius
 A compromised key can mark arbitrary wallets eligible. Each eligible wallet can claim 5 soulbound lobsters + 7,000 CLAW. Worst case, both hard-bounded on-chain: the 70M CLAW pre-mint drained, and `MAX_FAUCET_LOBSTERS` = 50,000 lobsters minted (10,000 wallets × 5 — the population the drip is sized for).
 
-The lobster bound matters more than it looks (audit D-02): a faucet lobster mines the 705M pool with no stake, the daily glide splits a fixed budget across demand, and minted lobsters outlive a key rotation — there is no pause and no miner blacklist. Before the cap the key could mint an unlimited sybil mining fleet; with it the worst case is the sybil taking the whole faucet population's share, which is what the faucet was always allowed to hand out.
+The lobster bound matters more than it looks (audit D-02): a faucet lobster mines the 705M pool with no stake, the hourly glide splits a fixed budget across demand, and minted lobsters outlive a key rotation — there is no pause and no miner blacklist. Before the cap the key could mint an unlimited sybil mining fleet; with it the worst case is the sybil taking the whole faucet population's share, which is what the faucet was always allowed to hand out.
 
 ### Defenses
 - The faucet's pre-mint is exactly 70M (one-shot) and faucet lobsters are capped at 50,000 for the contract's lifetime (`FaucetLobsterCapReached`). Drain past either is impossible.

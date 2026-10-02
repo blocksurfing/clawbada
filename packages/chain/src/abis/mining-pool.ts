@@ -92,6 +92,19 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "EPOCH_SPEND_CAP_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "EXPEDITION_DURATION",
     "inputs": [],
     "outputs": [
@@ -332,6 +345,29 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "epochBudget",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "cap",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minted",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "nextEpochAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getActiveExpedition",
     "inputs": [
       {
@@ -477,6 +513,11 @@ export const MiningPoolAbi = [
           },
           {
             "name": "trailingWeightServed",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "epochMinted",
             "type": "uint256",
             "internalType": "uint256"
           }
@@ -1253,6 +1294,17 @@ export const MiningPoolAbi = [
         "name": "bps",
         "type": "uint16",
         "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "EpochBudgetFull",
+    "inputs": [
+      {
+        "name": "nextEpochAt",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

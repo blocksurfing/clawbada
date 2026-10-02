@@ -123,7 +123,7 @@ Roughly equal EV at ~60-65% battle win rate. Mining is safer and passive; battle
 - $CLAW staking required for expeditions (except faucet first expedition)
 
 ### Tiered Mining
-Mining uses **glide-pegged per-expedition rewards** with a **seasonal budget cap**. Each expedition earns a known amount = `baseReward × tierWeight`, locked at start. The rate re-pegs daily (TOK-G1) so the budget lasts the full season. No per-expedition pro-rata.
+Mining uses **glide-pegged per-expedition rewards** with a **seasonal budget cap**. Each expedition earns a known amount = `baseReward × tierWeight`, locked at start. The rate re-pegs hourly (TOK-G1; hourly since D-19) so the budget lasts the full season, and no hour may mint more than twice its fair share of what is left. No per-expedition pro-rata.
 
 | Mine Tier | Requirement | Weight | Reward per Expedition (at 1,250 base) |
 |-----------|------------|--------|--------------------------------------|
@@ -133,9 +133,10 @@ Mining uses **glide-pegged per-expedition rewards** with a **seasonal budget cap
 | **Apex Mine** | All 3 lobsters at Apex | 25x | 31,250 $CLAW |
 
 - **Locked rewards**: each expedition earns exactly `baseReward × tierWeight`, reserved at start
-- **TOK-G1 auto-glide**: `baseReward` re-pegs daily to `remaining / (remainingDays × trailing epoch demand)`, damped ±30%/epoch, capped at the season's launch reward — crowding compresses yield instead of exhausting the budget; permissionless `repeg()`
+- **TOK-G1 auto-glide**: `baseReward` re-pegs **hourly** (`REPEG_EPOCH = 1 hours`, D-19 2026-10-02) to `remaining / (remainingEpochs × trailing epoch demand)`, damped ±30%/epoch, capped at the season's launch reward, held whenever less than one Base reward is left — crowding compresses yield instead of exhausting the budget; permissionless `repeg()`. A daily re-peg could not track a crowd (15,000 teams spent 38% of S1 in week one; 20,000 arriving on day one drained it by day four — `docs/audits/2026-10-02-d19-glide-simulation.md`)
+- **D-19 spend ceiling**: no epoch may mint more than `EPOCH_SPEND_CAP_BPS = 20,000` (2×) of its fair share of the budget left (`left / epochsLeft`), never less than one Apex expedition at +50%; past it `startExpedition` reverts `EpochBudgetFull(nextEpochAt)` and the expedition starts next hour. `epochBudget()` → `(cap, minted, nextEpochAt)`; the API pre-checks it (`MINE_FULL` with the opening time; `GET /api/game/mining/budget`)
 - **Season budget cap**: `totalMinted + reward > totalEmission` still reverts (`SeasonBudgetExhausted`) as a backstop, structurally unreachable under the glide
-- **Emergency override**: `setBaseReward()` via SEASON_ADMIN_ROLE remains on top of the glide (above-launch values snap back at the next re-peg)
+- **Emergency override**: `setBaseReward()` via SEASON_ADMIN_ROLE remains on top of the glide (above-launch values snap back at the next re-peg — within the hour, since D-19)
 - **S1 launch baseReward**: 1,250 $CLAW (= the glide cap for S1)
 - **Battle-rank boost (S1, on-chain)**: `MiningPool` holds a per-team `TeamBoost {epoch, bps ≤ 5,000, power}` posted per weekly epoch by the hot-key `BOOST_ADMIN_ROLE` — `setTeamBoosts(epoch, entries[≤200])` stages epoch N+1 (or amends the live one), `activateBoostEpoch(N+1)` flips the table in one tx; entries pay only while `epoch == currentBoostEpoch`, within `BOOST_EPOCH_TTL = 10 days` of activation, and while the team's Power still matches. Applied at `startExpedition` as `boostedBase = baseReward × (1 + bps)` **before** the tier weight (reward stays a tier-weight multiple); the boosted weight is credited to glide demand, so the spend is same-budget. `ExpeditionStarted` carries `boostBps`.
 - **Minimum tier gate**: all 3 lobsters on a team must meet the mine's minimum tier
@@ -865,7 +866,7 @@ New human flow:
 - **Player badges** — Human vs Agent identity shown in battle HUD, leaderboard, marketplace
 - **Breeding** — 2 parents → 1 offspring (Base tier, tradeable); 5 breeds max, 48h cooldown; cost scales by breed count × generation; soulbound parents can breed tradeable offspring
 - **Legends** — ~0.3% breeding chance; +10% base stats + unique visuals; not hereditary; faucet lobsters cannot be legends
-- **Tiered mining** — Base/Evolved/Elite/Apex mines; glide-pegged per-expedition rewards (baseReward × tier weight 1x/3x/10x/25x, locked at start; TOK-G1 daily re-peg paces the season budget); 4h expeditions; S1 launch baseReward 1,250 $CLAW = glide cap; minimum tier gate on all 3 team lobsters; battle-rank boost +10%→+50% on a team's own mining, posted weekly on-chain (`BOOST_ADMIN_ROLE`, 10-day TTL, Power-bound)
+- **Tiered mining** — Base/Evolved/Elite/Apex mines; glide-pegged per-expedition rewards (baseReward × tier weight 1x/3x/10x/25x, locked at start; TOK-G1 hourly re-peg + 2× per-hour spend ceiling pace the season budget); 4h expeditions; S1 launch baseReward 1,250 $CLAW = glide cap; minimum tier gate on all 3 team lobsters; battle-rank boost +10%→+50% on a team's own mining, posted weekly on-chain (`BOOST_ADMIN_ROLE`, 10-day TTL, Power-bound)
 - **Repair system** — battle damage accumulates; ≥80 damage blocks battle entry; $CLAW burn to repair
 - **Lobster image compositing** — layer body-part PNGs from dominant genes (for human UI; agents use raw metadata)
 - **Agent-first API** — contracts + REST/WebSocket as primary interface; web UI is secondary

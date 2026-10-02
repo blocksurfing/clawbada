@@ -1112,73 +1112,86 @@ contract MiningPoolTest is Test {
         pool.startExpedition(teamId, 0);
     }
 
-    // ──────────── TOK-G1 glide ────────────
+    // ──────────── TOK-G1 glide (hourly epochs + spend ceiling since D-19) ────────────
 
-    /// @dev Tight budget (100 Base-expedition units over 60 days): the day-1 re-peg targets
-    ///      far below launch, so the -30% damping clamp binds -> reward 1,250 -> 875.
+    /// @dev Six Base teams, one expedition each, all inside the current epoch. Six teams rather
+    ///      than one team six times: a 4 h expedition cadence crosses hourly epochs, and these
+    ///      vectors need all six units of demand inside ONE epoch. Returns the first team.
+    function _sixBaseExpeditionsInThisEpoch() internal returns (uint256 firstTeam, uint256[6] memory eids) {
+        for (uint256 i = 0; i < 6; i++) {
+            uint256 t = _createTeam(alice, 0);
+            if (i == 0) firstTeam = t;
+            vm.prank(alice);
+            eids[i] = pool.startExpedition(t, 0);
+        }
+    }
+
+    /// @dev Tight budget (100 Base-expedition units over the season): six Base expeditions in
+    ///      hour 0, then across the epoch boundary. The first re-peg targets far below launch,
+    ///      so the -30% damping clamp binds -> reward 1,250 -> 875.
     function _runSixThenCrossEpoch() internal returns (uint256 teamId) {
         _startSeasonWith(BASE_REWARD * 100, BASE_REWARD);
-        teamId = _createTeam(alice, 0);
+        uint256[6] memory eids;
+        (teamId, eids) = _sixBaseExpeditionsInThisEpoch();
+        vm.warp(block.timestamp + 4 hours); // epoch 4; the six expeditions have matured
         for (uint256 i = 0; i < 6; i++) {
             vm.prank(alice);
-            uint256 eid = pool.startExpedition(teamId, 0);
-            vm.warp(block.timestamp + 4 hours);
-            vm.prank(alice);
-            pool.claimExpedition(eid);
+            pool.claimExpedition(eids[i]); // claims never touch the glide
         }
     }
 
     function test_glideRepegsDownWithDampingClamp() public {
         uint256 teamId = _runSixThenCrossEpoch();
-        // 7th expedition is in epoch 1: re-peg fires, clamped to 70% of 1,250.
+        // 7th expedition is in a later epoch: re-peg fires, clamped to 70% of 1,250.
         vm.prank(alice);
         pool.startExpedition(teamId, 0);
         assertEq(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000);
         assertEq(pool.getSeasonMinted(1), 6 * BASE_REWARD + (BASE_REWARD * 7_000) / 10_000);
     }
 
-    // ── D-18: the day count includes today ──
-
-    /// @dev One day in, 59 epochs remain INCLUDING this one. Budget chosen so the target lands
-    ///      inside the ±30% band (otherwise the clamp hides the day count). The old formula
-    ///      floored (60d - elapsed) / 1d to 58 everywhere except the exact boundary second, so
-    ///      this warps an hour past it.
-    function test_D18_dayCountIncludesToday() public {
-        _startSeasonWith(BASE_REWARD * 325, BASE_REWARD);
-        uint256 teamId = _createTeam(alice, 0);
-        for (uint256 i = 0; i < 6; i++) {
-            vm.prank(alice);
-            uint256 eid = pool.startExpedition(teamId, 0);
-            vm.warp(block.timestamp + 4 hours);
-            vm.prank(alice);
-            pool.claimExpedition(eid);
-        }
-        vm.warp(block.timestamp + 1 hours); // epoch 1, not on the boundary second
-        pool.repeg();
-        uint256 remaining = BASE_REWARD * 319; // 325 - 6 served at the launch rate
-        assertEq(pool.currentBaseReward(), remaining / (59 * 6), "paced over the 59 days left including today");
-        assertTrue(pool.currentBaseReward() != remaining / (58 * 6), "not the old off-by-one pace");
+    function test_D19_glideConstants() public view {
+        assertEq(pool.REPEG_EPOCH(), 1 hours, "the glide re-pegs hourly");
+        assertEq(pool.SEASON_DURATION() / pool.REPEG_EPOCH(), 1_440, "1,440 epochs a season");
+        assertEq(pool.EPOCH_SPEND_CAP_BPS(), 20_000, "an epoch may mint twice its fair share");
     }
 
-    /// @dev The consequence the audit named: a crowded season paced over 59 days ran dry a day
-    ///      early and nobody could mine on day 60. Steady demand, a budget tight enough that the
-    ///      glide binds all season — mining must still work in the last epoch.
-    function test_D18_crowdedSeasonStillPaysOnTheLastDay() public {
+    // ── D-18: the epoch count includes this one ──
+
+    /// @dev One hour in, 1,439 epochs remain INCLUDING this one. Budget chosen so the target
+    ///      lands inside the ±30% band (otherwise the clamp hides the count): 1,000 CLAW per unit
+    ///      over 1,439 epochs x 6 units, plus the 7,500 served in hour 0. Warped past the
+    ///      boundary second, where the old formula happened to be right.
+    function test_D18_epochCountIncludesThisOne() public {
+        uint256 remaining = 1_000e18 * 1_439 * 6;
+        _startSeasonWith(remaining + 6 * BASE_REWARD, BASE_REWARD);
+        _sixBaseExpeditionsInThisEpoch();
+        vm.warp(block.timestamp + 1 hours + 5 minutes); // epoch 1, not on the boundary second
+        pool.repeg();
+        assertEq(pool.currentBaseReward(), 1_000e18, "paced over the 1,439 epochs left including this one");
+        assertTrue(pool.currentBaseReward() != remaining / (1_438 * 6), "not the old off-by-one pace");
+    }
+
+    /// @dev The consequence the audit named: a crowded season paced one epoch short ran dry
+    ///      early and nobody could mine at the end. Demand in every hour (four teams on a 4 h
+    ///      cadence, one starting each hour) against a budget tight enough that the glide binds
+    ///      all season — mining must still work in the last epoch.
+    function test_D18_crowdedSeasonStillPaysInTheLastEpoch() public {
         _startSeasonWith(BASE_REWARD * 200, BASE_REWARD);
-        uint256 teamId = _createTeam(alice, 0);
+        uint256[4] memory teams;
+        uint256[4] memory eids;
+        for (uint256 i = 0; i < 4; i++) teams[i] = _createTeam(alice, 0);
         uint256 start = block.timestamp;
-        for (uint256 day = 0; day < 60; day++) {
-            // An hour past the day boundary: on the exact boundary second the old formula happened
+        for (uint256 h = 0; h < 1_440; h++) {
+            // Five minutes past the hour: on the exact boundary second the old formula happened
             // to be right, which is how an earlier version of this test passed against the bug.
-            vm.warp(start + day * 1 days + 1 hours);
-            // The last day's sixth expedition would finish after the season ends; five is enough.
-            for (uint256 i = 0; i < (day == 59 ? 5 : 6); i++) {
+            vm.warp(start + h * 1 hours + 5 minutes);
+            uint256 slot = h % 4;
+            if (eids[slot] != 0) {
                 vm.prank(alice);
-                uint256 eid = pool.startExpedition(teamId, 0); // reverted SeasonBudgetExhausted on day 60 before the fix
-                vm.warp(block.timestamp + 4 hours); // six 4 h expeditions fill the day exactly
-                vm.prank(alice);
-                pool.claimExpedition(eid);
+                pool.claimExpedition(eids[slot]); // started 4 h ago, matured
             }
+            vm.prank(alice);
+            eids[slot] = pool.startExpedition(teams[slot], 0); // reverted SeasonBudgetExhausted at the end before the fix
         }
         assertLe(pool.getSeasonMinted(1), BASE_REWARD * 200, "never over budget");
         assertGe(pool.getSeasonMinted(1), (BASE_REWARD * 200 * 95) / 100, "and the budget is actually distributed, not stranded");
@@ -1186,24 +1199,142 @@ contract MiningPoolTest is Test {
 
     // ── D-19(c): an exhausted budget is not a demand signal ──
 
-    /// @dev Before the fix a target of zero walked baseReward down 30% per daily repeg() toward
+    /// @dev Before the fix a target of zero walked baseReward down 30% per repeg() toward
     ///      1 wei — and RepairShop prices, which are basis points of it, toward free.
     function test_D19_exhaustedBudgetHoldsTheRate() public {
         _startSeasonWith(BASE_REWARD * 6, BASE_REWARD);
-        uint256 teamId = _createTeam(alice, 0);
-        for (uint256 i = 0; i < 6; i++) {
-            vm.prank(alice);
-            uint256 eid = pool.startExpedition(teamId, 0);
-            vm.warp(block.timestamp + 4 hours);
-            vm.prank(alice);
-            pool.claimExpedition(eid);
-        }
-        assertEq(pool.getSeasonUnspent(1), 0, "budget spent on day one");
-        for (uint256 d = 0; d < 10; d++) {
-            vm.warp(block.timestamp + 1 days);
-            pool.repeg(); // anyone, every day
+        _sixBaseExpeditionsInThisEpoch();
+        assertEq(pool.getSeasonUnspent(1), 0, "budget spent in hour one");
+        for (uint256 h = 0; h < 10; h++) {
+            vm.warp(block.timestamp + 1 hours);
+            pool.repeg(); // anyone, every hour
         }
         assertEq(pool.currentBaseReward(), BASE_REWARD, "rate held: repair prices cannot be ground to zero");
+    }
+
+    /// @dev The gap the D-19 simulation found in that fix (#99 held only at EXACTLY zero):
+    ///      expeditions are discrete, so an exhausted season normally keeps a remainder smaller
+    ///      than one reward — and with it the decay went on, 1,250 -> 875 -> 612 -> 429 on
+    ///      consecutive re-pegs, until the depressed rate fitted the remainder and a cut-price
+    ///      expedition could start. Anything under one Base reward now holds.
+    function test_D19_dustRemainderHoldsTheRate() public {
+        _startSeasonWith(BASE_REWARD * 6 + BASE_REWARD / 2, BASE_REWARD);
+        _sixBaseExpeditionsInThisEpoch();
+        assertEq(pool.getSeasonUnspent(1), BASE_REWARD / 2, "half a reward left: nothing can start");
+        uint256 spare = _createTeam(alice, 0);
+        for (uint256 h = 0; h < 10; h++) {
+            vm.warp(block.timestamp + 1 hours);
+            pool.repeg();
+            assertEq(pool.currentBaseReward(), BASE_REWARD, "rate held on a dust remainder");
+            vm.prank(alice);
+            vm.expectRevert(MiningPool.SeasonBudgetExhausted.selector);
+            pool.startExpedition(spare, 0);
+        }
+    }
+
+    // ── D-19: the per-epoch spend ceiling ──
+
+    /// @dev S1 budget: hour 0's ceiling is 2 x 352.5M / 1,440 = 489,583.3 CLAW. Fifteen Apex
+    ///      expeditions at launch (468,750) fit; the sixteenth (500,000) does not, and the revert
+    ///      names when the next epoch opens. There it starts — against a fresh counter, at the
+    ///      rate the fifteen pulled down.
+    function test_D19_epochSpendCeilingBindsThenOpensNextEpoch() public {
+        _startSeason();
+        uint256 start = block.timestamp;
+        uint256 cap = (S1_EMISSION * 20_000) / (10_000 * 1_440);
+        uint256 apex = BASE_REWARD * 25;
+        uint256[16] memory teams;
+        for (uint256 i = 0; i < 16; i++) teams[i] = _createTeam(alice, 3);
+        for (uint256 i = 0; i < 15; i++) {
+            vm.prank(alice);
+            pool.startExpedition(teams[i], 3);
+        }
+        (uint256 viewCap, uint256 viewMinted, uint256 viewNext) = pool.epochBudget();
+        assertEq(viewCap, cap, "epochBudget(): the ceiling");
+        assertEq(viewMinted, 15 * apex, "epochBudget(): minted against it");
+        assertEq(viewNext, start + 1 hours, "epochBudget(): when the next epoch opens");
+        assertGt(viewMinted + apex, cap, "a sixteenth would cross the ceiling");
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.EpochBudgetFull.selector, start + 1 hours));
+        pool.startExpedition(teams[15], 3);
+        assertEq(pool.getSeasonMinted(1), 15 * apex, "the refused expedition minted nothing");
+
+        vm.warp(start + 1 hours);
+        (, viewMinted,) = pool.epochBudget();
+        assertEq(viewMinted, 0, "a new epoch starts with an empty counter, before anyone touches it");
+        vm.prank(alice);
+        uint256 eid = pool.startExpedition(teams[15], 3);
+        // The re-peg saw 375 units of demand: target far below launch -> the clamp -> 875 x 25.
+        assertEq(pool.getExpedition(eid).reward, ((BASE_REWARD * 7_000) / 10_000) * 25, "started at the glided rate");
+    }
+
+    /// @dev The ceiling never falls below one expedition of the heaviest tier at the highest
+    ///      boost: the rate only moves on a demand signal, so an epoch that could admit nothing
+    ///      would never re-peg — a deadlock. A tiny season (2 x 125,000 / 1,440 = 174 CLAW an
+    ///      hour) therefore still admits one +50% Apex expedition (46,875) per hour, and no more.
+    function test_D19_ceilingFloorsAtOneMaxExpedition() public {
+        _startSeasonWith(BASE_REWARD * 100, BASE_REWARD);
+        uint256[] memory pair = new uint256[](2);
+        pair[0] = _createTeam(alice, 3);
+        pair[1] = _createTeam(alice, 3);
+        _postAndActivateAll(pair, 5_000);
+        uint256 oneMax = _boosted(BASE_REWARD, 5_000) * 25;
+        (uint256 cap,,) = pool.epochBudget();
+        assertEq(cap, oneMax, "floor: one Apex expedition at +50%");
+        vm.prank(alice);
+        uint256 eid = pool.startExpedition(pair[0], 3);
+        assertEq(pool.getExpedition(eid).reward, oneMax);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.EpochBudgetFull.selector, block.timestamp + 1 hours));
+        pool.startExpedition(pair[1], 3);
+    }
+
+    /// @dev In the last epoch the ceiling is twice what is left, so it never binds: whatever the
+    ///      budget can still pay, it pays. The same three Apex expeditions in hour 0 would have
+    ///      been held to one an hour by the floor.
+    function test_D19_ceilingNeverBindsInTheLastEpoch() public {
+        uint256 apex = BASE_REWARD * 25;
+        _startSeasonWith(apex * 3, BASE_REWARD);
+        uint256[4] memory teams;
+        for (uint256 i = 0; i < 4; i++) teams[i] = _createTeam(alice, 3);
+        vm.warp(block.timestamp + 1_439 hours + 5 minutes); // the last epoch
+        (uint256 cap,,) = pool.epochBudget();
+        assertEq(cap, apex * 6, "twice what is left, paced over the one epoch left");
+        for (uint256 i = 0; i < 3; i++) {
+            vm.prank(alice);
+            pool.startExpedition(teams[i], 3);
+        }
+        assertEq(pool.getSeasonUnspent(1), 0, "the whole remaining budget went out in the last epoch");
+        vm.prank(alice);
+        vm.expectRevert(MiningPool.SeasonBudgetExhausted.selector);
+        pool.startExpedition(teams[3], 3);
+    }
+
+    /// @dev D-20 inside the ceiling: when less of the 705M allocation is left than the season's
+    ///      nominal budget, the ceiling paces what can actually be minted. Pinned after the
+    ///      season started (startSeason itself clamps the budget), 1M CLAW left: 2 x 1M / 1,440
+    ///      is under the floor, so one Apex expedition an hour — where the nominal 352.5M budget
+    ///      would have admitted fifteen.
+    function test_D19_ceilingPacesTheAllocationLeft() public {
+        _startSeason();
+        stdstore.target(address(pool)).sig("lifetimeMinted()").checked_write(pool.MINING_ALLOCATION() - 1_000_000e18);
+        uint256 a = _createTeam(alice, 3);
+        uint256 b = _createTeam(alice, 3);
+        (uint256 cap,,) = pool.epochBudget();
+        assertEq(cap, _boosted(BASE_REWARD, 5_000) * 25, "paced on the allocation left: the floor");
+        vm.prank(alice);
+        pool.startExpedition(a, 3);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.EpochBudgetFull.selector, block.timestamp + 1 hours));
+        pool.startExpedition(b, 3);
+    }
+
+    function test_D19_epochBudgetViewIsZeroWithoutASeason() public view {
+        (uint256 cap, uint256 minted, uint256 nextEpochAt) = pool.epochBudget();
+        assertEq(cap, 0);
+        assertEq(minted, 0);
+        assertEq(nextEpochAt, 0);
     }
 
     function test_repegIsPermissionless() public {
@@ -1220,24 +1351,26 @@ contract MiningPoolTest is Test {
         uint256 teamId = _createTeam(alice, 0);
         vm.prank(alice);
         pool.startExpedition(teamId, 0);
-        vm.warp(block.timestamp + 1 days);
+        vm.warp(block.timestamp + 1 hours);
         pool.repeg();
         assertEq(pool.currentBaseReward(), BASE_REWARD);
     }
 
     function test_inFlightRewardLockedAcrossRepeg() public {
         uint256 teamId = _runSixThenCrossEpoch();
-        // Start in epoch 0's last window... start one more, then cross and repeg before claiming.
+        // Start one more (at the clamped rate), then cross an epoch and re-peg before claiming.
         vm.prank(alice);
         uint256 expeditionId = pool.startExpedition(teamId, 0);
         uint256 mintedBefore = pool.getSeasonMinted(1);
-        vm.warp(block.timestamp + 1 days);
+        vm.warp(block.timestamp + 1 hours);
         pool.repeg();
         assertEq(pool.getSeasonMinted(1), mintedBefore); // repeg reserves nothing
+        assertLt(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000, "the rate moved again");
         uint256 balBefore = claw.balanceOf(alice);
+        vm.warp(block.timestamp + 4 hours);
         vm.prank(alice);
         pool.claimExpedition(expeditionId);
-        // Reward was locked at start (post-clamp epoch-1 rate), unaffected by the later re-peg.
+        // Reward was locked at start (the post-clamp rate), unaffected by the later re-peg.
         assertEq(claw.balanceOf(alice) - balBefore, (BASE_REWARD * 7_000) / 10_000);
     }
 
@@ -1249,7 +1382,7 @@ contract MiningPoolTest is Test {
         uint256 teamId = _createTeam(alice, 0);
         vm.prank(alice);
         pool.startExpedition(teamId, 0);
-        vm.warp(block.timestamp + 1 days);
+        vm.warp(block.timestamp + 1 hours);
         pool.repeg();
         // The launch cap is absolute: an above-launch override snaps back to launch at the
         // next re-peg (the cap applies after the damping clamp).
@@ -1278,6 +1411,19 @@ contract MiningPoolTest is Test {
         // call, and _teamPower() makes several (TOK-G1 prank-consumption gotcha).
         uint8 power = _teamPower(teamId);
         MiningPool.BoostEntry[] memory entries = _entry(teamId, bps, power);
+        epoch = pool.currentBoostEpoch() + 1;
+        vm.prank(boostAdmin);
+        pool.setTeamBoosts(epoch, entries);
+        vm.prank(boostAdmin);
+        pool.activateBoostEpoch(epoch);
+    }
+
+    /// @dev The same for several teams in one table (one staging + one activation).
+    function _postAndActivateAll(uint256[] memory teamIds, uint16 bps) internal returns (uint32 epoch) {
+        MiningPool.BoostEntry[] memory entries = new MiningPool.BoostEntry[](teamIds.length);
+        for (uint256 i = 0; i < teamIds.length; i++) {
+            entries[i] = MiningPool.BoostEntry({teamId: teamIds[i], bps: bps, power: _teamPower(teamIds[i])});
+        }
         epoch = pool.currentBoostEpoch() + 1;
         vm.prank(boostAdmin);
         pool.setTeamBoosts(epoch, entries);
@@ -1499,21 +1645,20 @@ contract MiningPoolTest is Test {
         pool.activateBoostEpoch(1);
     }
 
-    /// @dev Six +50% expeditions in epoch 0 must register as 9 tier-weight units of trailing
+    /// @dev Six +50% expeditions in one epoch must register as 9 tier-weight units of trailing
     ///      demand (6 × 1.5), not 6 — the boost is paid from the same budget, so the glide has
     ///      to see it in its denominator as well as in the remaining-budget numerator.
     function test_boostedExpeditionsCountAsScaledGlideDemand() public {
         _startSeasonWith(BASE_REWARD * 100, BASE_REWARD);
-        uint256 teamId = _createTeam(alice, 0);
-        _postAndActivate(teamId, 5_000);
+        uint256[] memory six = new uint256[](6);
+        for (uint256 i = 0; i < 6; i++) six[i] = _createTeam(alice, 0);
+        _postAndActivateAll(six, 5_000);
         for (uint256 i = 0; i < 6; i++) {
             vm.prank(alice);
-            uint256 eid = pool.startExpedition(teamId, 0);
+            uint256 eid = pool.startExpedition(six[i], 0);
             assertEq(pool.getExpedition(eid).reward, _boosted(BASE_REWARD, 5_000));
-            vm.warp(block.timestamp + 4 hours);
-            vm.prank(alice);
-            pool.claimExpedition(eid);
         }
+        vm.warp(block.timestamp + 1 hours);
         pool.repeg(); // crosses into epoch 1
         assertEq(pool.getSeasonConfig(1).trailingWeightServed, 9, "6 x (1 + 0.5) = 9 units");
         assertEq(pool.getSeasonMinted(1), 6 * _boosted(BASE_REWARD, 5_000));
