@@ -1,7 +1,9 @@
 /**
  * PlayerAgent — a scripted Clawbada player that does everything a real client does through
- * the public API: signed auth, calldata steps executed with its own key, queue / deposit /
- * commit / reveal, and the live V3 battle over WebSocket. Reused as the seed of the Phase 3
+ * the public API: signed auth, calldata steps executed with its own key, queue / deposit (which
+ * carries the team commit and the player's consent) / reveal, and the live V3 battle over
+ * WebSocket. There is no dispute step: the game's watchdog freezes a result it cannot reproduce,
+ * and the Safe settles it — an agent only reads the outcome. Reused as the seed of the Phase 3
  * reference bot; the harness gives each agent its own X-Forwarded-For so per-IP rate limits
  * apply per wallet (the API runs with TRUST_PROXY=true for the run).
  */
@@ -123,28 +125,13 @@ export class PlayerAgent {
   }
 
   /**
-   * D-06: contest a proposed battle result. Any participant may, while the battle is
-   * AwaitingFinalize and the chain clock has not passed payoutDeadline. Posts the bond (10% of
-   * the bracket stake: refunded if the admin changes the result in any respect, slashed if it
-   * stands). Limit: 5 disputes per address per 24 hours.
+   * D-06: after a battle, what the server says about the result on-chain: `status` is
+   * 'in_review' or 'frozen_for_review', `rogue` is true when it is not the result this server
+   * computed (the watchdog freezes those). Null once the battle has paid out. Informational only.
    */
-  async dispute(battleId: string, evidence = ''): Promise<void> {
-    const r = await this.post(`/api/game/combat/${battleId}/dispute`, { evidence });
-    await this.executeSteps(r.steps);
-    this.say(`disputed battle #${battleId} (bond ${r.preview?.bond ?? '?'} wei, ${r.preview?.secondsLeft ?? '?'} s were left)`);
-  }
-
-  /**
-   * D-06: after a battle, compare what the chain was told with what you just played. The
-   * server's own verdict is in `settlement` on the battle read; an agent that kept its own
-   * `battle_ended` result can check the winner itself too. Returns true if it disputed.
-   */
-  async disputeIfRogue(battleId: string): Promise<boolean> {
+  async settlementStatus(battleId: string): Promise<{ status: string; rogue: boolean; verdict: string; payoutDeadline: string } | null> {
     const b = await this.get(`/api/game/combat/${battleId}`);
-    const st = b.settlement;
-    if (!st || !st.rogue || st.disputed) return false;
-    await this.dispute(battleId, `settlement check: ${st.verdict}`);
-    return true;
+    return b.settlement ?? null;
   }
 
   // ── queue → battle ──
@@ -161,21 +148,32 @@ export class PlayerAgent {
   }
   battle(battleId: string) { return this.get(`/api/game/combat/${battleId}`); }
 
-  async deposit(battleId: string) {
-    const r = await this.post(`/api/game/combat/${battleId}/deposit`);
-    await this.executeSteps(r.steps);
-    this.say(`deposited for battle #${battleId}`);
-  }
-
-  async commit(battleId: string): Promise<{ teamId: bigint; salt: Hex }> {
+  /**
+   * D-13 + D-08: one transaction pair (approve + deposit) that also commits the team. The commit
+   * hash is built here from the queued team and a fresh salt; by default teamId + salt go to the
+   * server too, so it can reveal as soon as both deposits land (the reveal window is 20 s).
+   * `prepareReveal: false` sends only the hash — then call `reveal()` yourself. The server binds
+   * the consent (stake of the queued bracket + the opponent Power shown at match time); the
+   * contract reverts ConsentMismatch for any other battle. Returns what `reveal()` /
+   * `openCommit()` need.
+   */
+  async deposit(battleId: string, opts: { prepareReveal?: boolean } = {}): Promise<{ teamId: bigint; salt: Hex; consent: { expectedStake: string; maxOpponentPower: number } }> {
     const mine = await this.get(`/api/game/combat/${battleId}/my-team`);
     const teamId = BigInt(mine.myTeamId);
     const salt = keccak256(toHex(`${battleId}:${this.address}:${Date.now()}:${Math.random()}`)) as Hex;
     const commitHash = teamCommitHash(BigInt(battleId), this.address as Hex, teamId, salt);
-    const r = await this.post(`/api/game/combat/${battleId}/commit-team`, { commitHash });
+    const body = opts.prepareReveal === false ? { commitHash } : { commitHash, teamId: teamId.toString(), salt };
+    const r = await this.post(`/api/game/combat/${battleId}/deposit`, body);
     await this.executeSteps(r.steps);
-    this.say(`committed team #${teamId} for battle #${battleId}`);
-    return { teamId, salt };
+    this.say(`deposited + committed team #${teamId} for battle #${battleId} (consent: stake ${r.preview?.consent?.expectedStake}, opponent Power ≤ ${r.preview?.consent?.maxOpponentPower})`);
+    return { teamId, salt, consent: r.preview?.consent };
+  }
+
+  /** D-14: the resolver reported this player's commit unopenable — open it on-chain ourselves. */
+  async openCommit(battleId: string, teamId: bigint, salt: Hex): Promise<void> {
+    const r = await this.post(`/api/game/combat/${battleId}/open-commit`, { teamId: teamId.toString(), salt });
+    await this.executeSteps(r.steps);
+    this.say(`opened own commit for battle #${battleId}`);
   }
 
   async reveal(battleId: string, teamId: bigint, salt: Hex): Promise<string> {
@@ -185,7 +183,7 @@ export class PlayerAgent {
   }
 
   // ── live battle over WS (ported from apps/api/scripts/play-practice.ts) ──
-  async playBattle(battleId: string, opts: { policy?: v3.BotName; timeoutMs?: number } = {}): Promise<{ winner: string; reason: string; finalStateHash: string; turnLogHash: string; turns: number; disputed: boolean }> {
+  async playBattle(battleId: string, opts: { policy?: v3.BotName; timeoutMs?: number; resign?: boolean } = {}): Promise<{ winner: string; reason: string; finalStateHash: string; turnLogHash: string; turns: number; alerted: boolean }> {
     const policy = v3.botPolicy(opts.policy ?? 'balanced');
     const me = this.address.toLowerCase();
     let local: v3.AtbBattleState | null = null;
@@ -208,23 +206,12 @@ export class PlayerAgent {
       ws?.send(JSON.stringify({ type: 'submit_turn', battleId, turn, command: cmd }));
     };
 
-    let disputing = false;
-    let disputed = false;
-    /** A dispute takes two transactions; a short battle can end before they confirm. */
-    let inFlight: Promise<void> = Promise.resolve();
+    /** D-06: a settlement_alert arrived (a result landed on-chain while this battle is live).
+     *  Informational: the watchdog freezes such a result; there is nothing to do. */
+    let alerted = false;
+    let resigned = false;
     return new Promise(async (resolve, reject) => {
-      const timer = setTimeout(() => { clearInterval(guard); closedByUs = true; ws?.close(); reject(new Error(`battle #${battleId} did not finish within ${opts.timeoutMs ?? 300_000} ms`)); }, opts.timeoutMs ?? 300_000);
-      // D-06: the WebSocket alert only exists while a session is live. A result submitted within a
-      // second or two of the reveal lands BEFORE the server ever starts a session, so there is
-      // nothing to push the alert through. Poll the battle read too: `settlement.rogue` is true
-      // whenever the result on-chain is not provably the server's own.
-      const guard = setInterval(() => {
-        if (disputing) return;
-        disputing = true;
-        inFlight = this.disputeIfRogue(battleId)
-          .then((did) => { if (did) disputed = true; else disputing = false; })
-          .catch((err) => { disputing = false; this.say(`settlement guard: ${String(err).slice(0, 160)}`); });
-      }, 5_000);
+      const timer = setTimeout(() => { closedByUs = true; ws?.close(); reject(new Error(`battle #${battleId} did not finish within ${opts.timeoutMs ?? 300_000} ms`)); }, opts.timeoutMs ?? 300_000);
       const connect = async () => {
         const a = await this.authParams();
         const url = `${this.o.ws}?address=${a.address}&signature=${a.signature}&timestamp=${a.timestamp}&nonce=${a.nonce}&domain=${encodeURIComponent(a.domain)}&battleId=${battleId}`;
@@ -235,6 +222,11 @@ export class PlayerAgent {
           switch (msg.event) {
             case 'battle_snapshot':
               local = v3.fromWire({ ...d.state, vrfSeed: '0' });
+              if (opts.resign && !resigned) {
+                resigned = true;
+                this.post(`/api/game/combat/${battleId}/forfeit`).then(() => this.say(`resigned battle #${battleId}`)).catch((err) => this.say(`resign failed: ${String(err).slice(0, 160)}`));
+                break;
+              }
               if (d.current?.controller?.toLowerCase() === me) await act(d.current.turn, d.current.lobsterId);
               break;
             case 'turn_started':
@@ -245,22 +237,15 @@ export class PlayerAgent {
               if (d.state) local = v3.fromWire({ ...d.state, vrfSeed: '0' });
               break;
             case 'battle_ended':
-              clearTimeout(timer); clearInterval(guard); closedByUs = true; ws?.close();
-              await inFlight; // report `disputed` truthfully even when the battle ends first
-              resolve({ winner: d.winner, reason: d.reason, finalStateHash: d.finalStateHash, turnLogHash: d.turnLogHash, turns, disputed });
+              clearTimeout(timer); closedByUs = true; ws?.close();
+              resolve({ winner: d.winner, reason: d.reason, finalStateHash: d.finalStateHash, turnLogHash: d.turnLogHash, turns, alerted });
               break;
             case 'settlement_alert':
               // D-06: a result for this battle landed on-chain while it is still being played
-              // here, so it did not come from the game server (a stolen RESOLVER key settles
-              // the moment teams are revealed; the dispute window then runs out while you are
-              // busy playing). An agent must not wait for the battle to end: dispute now.
-              this.say(`SETTLEMENT ALERT battle #${battleId}: on-chain winner ${d.proposedWinner}, deadline ${d.payoutDeadline}`);
-              if (!d.disputed && !disputing) {
-                disputing = true;
-                inFlight = this.dispute(battleId, `settlement_alert: ${d.reason}`)
-                  .then(() => { disputed = true; })
-                  .catch((err) => { disputing = false; this.say(`dispute failed: ${String(err).slice(0, 200)}`); });
-              }
+              // here, so it did not come from the game server. Informational: the watchdog
+              // freezes it and the Safe settles the battle from this (real) log. Keep playing.
+              this.say(`SETTLEMENT ALERT battle #${battleId}: on-chain winner ${d.proposedWinner} (${d.frozen ? 'frozen' : 'held for review'})`);
+              alerted = true;
               break;
             case 'error':
               this.say(`ws error: ${JSON.stringify(d)}`);

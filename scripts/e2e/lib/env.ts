@@ -1,7 +1,9 @@
 /**
  * Keys and per-service environments. Anvil key 0 is the deployer and every operator role
  * (matchmaker / resolver / VRF / boost admin all fall back to OPERATOR_PRIVATE_KEY off
- * mainnet); addr 1 is the DEV_WALLET; keys 2 and 3 are the two scripted players.
+ * mainnet); addr 1 is the DEV_WALLET; keys 2 and 3 are the two scripted players; key 4 is the
+ * GUARDIAN (the watchdog's freeze key) — its own key, so the drill can prove the freeze was
+ * signed by the guardian and not by the resolver/operator.
  */
 import { ANVIL_ACCOUNTS } from './anvil';
 import type { Deployment } from './forge';
@@ -11,6 +13,7 @@ export const KEYS = {
   devWallet: ANVIL_ACCOUNTS[1],
   playerA: ANVIL_ACCOUNTS[2],
   playerB: ANVIL_ACCOUNTS[3],
+  guardian: ANVIL_ACCOUNTS[4],
 } as const;
 
 export interface StackConfig {
@@ -66,6 +69,8 @@ export function engineEnv(cfg: StackConfig): Record<string, string> {
   return {
     ...common(cfg),
     OPERATOR_PRIVATE_KEY: KEYS.deployer.key,
+    // The watchdog freezes with GUARDIAN_ROLE; Configure grants it to GUARDIAN_ADDRESS.
+    GUARDIAN_PRIVATE_KEY: KEYS.guardian.key,
     FINALIZE_POLL_MS: '2000',
   };
 }

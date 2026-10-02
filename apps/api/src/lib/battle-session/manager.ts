@@ -15,7 +15,7 @@
  * that never throws out of a tick; every external dependency is injected.
  */
 import { randomUUID, getRandomValues } from 'node:crypto';
-import { v3, deriveRandom, randomDNA, randomDNAWithPurity, calculatePurity, type EvolutionTier, type LobsterClass } from '@clawbada/game-logic';
+import { v3, BattlePhase, deriveRandom, randomDNA, randomDNAWithPurity, calculatePurity, type EvolutionTier, type LobsterClass } from '@clawbada/game-logic';
 import { battleSeed, deriveSeedSecret, seedCommitment, seedRoundFor } from '@clawbada/chain';
 import { ShotClock } from './clock';
 import type { BattleSnapshot, RosterEntry, SessionEventName, SettlementAlertPayload, Side } from './protocol';
@@ -27,9 +27,10 @@ export interface ManagerChain {
   readLobster(tokenId: bigint): Promise<{ tokenId: bigint; owner: string; dna: bigint; evolutionTier: number; purity: number }>;
   /** Optional: used on resume to drop sessions whose battle is no longer Active on chain. */
   readBattlePhase?(battleId: bigint): Promise<number>;
-  /** D-06: what `settle` proposed on-chain, for the alert pushed to players. Optional so a
-   *  manager without chain access (practice-only, tests) simply never alerts. */
-  readProposal?(battleId: bigint): Promise<{ proposedWinner: string; payoutDeadline: bigint; disputed: boolean }>;
+  /** D-06: what `settle` recorded on-chain, for the alert pushed to players. Optional so a
+   *  manager without chain access (practice-only, tests) simply never alerts. `phase` tells an
+   *  in-review result (5) from one the watchdog already froze (8). */
+  readProposal?(battleId: bigint): Promise<{ proposedWinner: string; payoutDeadline: bigint; phase: number }>;
   /** D-01: what revealTeams pinned on-chain — the seed-secret commitment and the block
    *  timestamp that fixes which drand round this battle must use. */
   readBattleSeed(battleId: bigint): Promise<{ seedCommit: string; revealedAt: number }>;
@@ -111,6 +112,14 @@ function rosterInputs(roster: RosterEntry[]): v3.LobsterInput[] {
   return roster.map((r) => ({ id: r.id, class: r.classId as LobsterClass, tier: r.tier as EvolutionTier, purity: r.purity, legend: r.legend }));
 }
 
+/** The forfeiting player's wallet (resign / three timeouts), from the hashed log; null if the
+ *  battle was played out or drawn. */
+function forfeiterWallet(state: v3.AtbBattleState, record: { playerA: string; playerB: string }): string | null {
+  if (state.winner === 'draw') return null;
+  const side = v3.forfeitedSide(state);
+  return side === 'A' ? record.playerA : side === 'B' ? record.playerB : null;
+}
+
 function randomSeed(): bigint {
   const bytes = getRandomValues(new Uint8Array(32));
   return BigInt('0x' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(''));
@@ -130,7 +139,7 @@ export class BattleSessionManager {
   private readonly startWaitMs: number;
   private readonly pollMs: number;
   /** D-06: battleId -> when its settlement_alert was last pushed (ms). Re-sent while the battle
-   *  is still live, so a player who reconnects inside the dispute window still sees it. */
+   *  is still live, so a player who reconnects still sees it. */
   private readonly alertedAt = new Map<string, number>();
   /** D-06: the alert currently standing for a live battle, replayed to any client that joins. */
   private readonly standingAlert = new Map<string, SettlementAlertPayload>();
@@ -288,13 +297,13 @@ export class BattleSessionManager {
 
   /**
    * D-06 (audit 2026-09). The honest settle job runs only AFTER a battle ends here, so a
-   * settlement proposal on-chain for a battle this manager is still running did not come from
-   * this server: a stolen RESOLVER key can call settle() the instant teams are revealed, and
-   * the dispute window (5 minutes at Low) then runs out while both players are busy playing a
-   * battle they believe is live. Nothing used to tell them. This pushes `settlement_alert`
-   * to the battle's room - and keeps pushing it every ALERT_REPEAT_MS while the battle is live,
-   * for reconnecting clients - so a player or agent can dispute in time. The session keeps
-   * running to its real end: that log is the evidence the admin resolves the dispute from.
+   * settlement on-chain for a battle this manager is still running did not come from this
+   * server: a stolen RESOLVER key can call settle() the instant teams are revealed. The engine's
+   * watchdog freezes such a result (it cannot reproduce it) and the Safe reviews it; nothing is
+   * asked of the players. This pushes an informational `settlement_alert` to the battle's room -
+   * and keeps pushing it every ALERT_REPEAT_MS while the battle is live, for reconnecting
+   * clients - so nobody is surprised. The session keeps running to its real end: that log is
+   * the record the result is reviewed against.
    */
   /** D-06: the settlement alert standing for a live battle, if any — sent with the snapshot when
    *  a client joins, so a player who opens the page (or reconnects) late is told at once. */
@@ -316,9 +325,10 @@ export class BattleSessionManager {
       if (last !== undefined && now - last < ALERT_REPEAT_MS) continue;
       try {
         const p = await readProposal(BigInt(id));
+        const frozen = p.phase === BattlePhase.Frozen;
         if (last === undefined) {
           this.deps.log.error(
-            { battleId: id, proposedWinner: p.proposedWinner, payoutDeadline: p.payoutDeadline.toString(), disputed: p.disputed },
+            { battleId: id, proposedWinner: p.proposedWinner, payoutDeadline: p.payoutDeadline.toString(), phase: p.phase },
             'rogue_settlement_proposal - settle() landed on-chain while this battle is still being played',
           );
         }
@@ -327,11 +337,12 @@ export class BattleSessionManager {
           reason: 'proposed_while_battle_in_progress',
           proposedWinner: p.proposedWinner.toLowerCase(),
           payoutDeadline: p.payoutDeadline.toString(),
-          disputed: p.disputed,
-          disputeRoute: `/api/game/combat/${id}/dispute`,
-          message:
-            'A result for this battle was submitted on-chain while it is still being played. It did not come from this game server. ' +
-            'If you do not dispute before the deadline, that result pays out and cannot be undone.',
+          frozen,
+          message: frozen
+            ? 'A result for this battle was submitted on-chain while it is still being played. It did not come from this game server, ' +
+              'so it has been frozen for review: it cannot pay out, and the team will settle this battle from its real log. Nothing is needed from you.'
+            : 'A result for this battle was submitted on-chain while it is still being played. It did not come from this game server. ' +
+              'The game\'s watchdog holds results it cannot reproduce for review before they can pay out. Nothing is needed from you.',
         };
         this.deps.emit(id, 'settlement_alert', payload);
         this.alertedAt.set(id, now);
@@ -496,6 +507,7 @@ export class BattleSessionManager {
         turnLogHash,
         damageA: damage.damageA,
         damageB: damage.damageB,
+        forfeiter: forfeiterWallet(state, record),
       };
       // D-28: one transaction — a finished real battle is never left without its settle job.
       await this.deps.store.finishAndEnqueueSettle(

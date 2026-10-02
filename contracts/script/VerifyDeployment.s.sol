@@ -11,6 +11,7 @@ import {DeploymentChecks, CheckedDeployHelpers} from "./DeploymentChecks.sol";
 ///        forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "configured()"
 ///        forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "proposed()"
 ///        forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "finalized()"
+///        forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "reserveFunded()"
 ///
 ///      Why a separate script: `forge script --broadcast` is not atomic, and the asserts at
 ///      the end of a broadcasting script run against forge's local SIMULATION of that
@@ -20,14 +21,16 @@ import {DeploymentChecks, CheckedDeployHelpers} from "./DeploymentChecks.sol";
 ///      to them. This script sends nothing, so everything it reads is the real chain state.
 ///
 ///      Needs the same address env vars as the deploy (DEV_WALLET, MATCHMAKER_ADDRESS,
-///      RESOLVER_ADDRESS, VRF_OPERATOR_ADDRESS, BOOST_ADMIN_ADDRESS, ... and for the handoff
+///      RESOLVER_ADDRESS, VRF_OPERATOR_ADDRESS, BOOST_ADMIN_ADDRESS, GUARDIAN_ADDRESS, ... and for the handoff
 ///      stages GOVERNANCE_SAFE + ELIGIBILITY_OPERATOR). All are public addresses, so anyone
 ///      can re-run it after launch. DEPLOYER_ADDRESS overrides the deployer recorded in
 ///      deployments/<network>.json.
 contract VerifyDeployment is CheckedDeployHelpers {
-    /// @notice Default: the end state, the one that matters once the game is live.
+    /// @notice Default: the end state, the one that matters once the game is live — the
+    ///         handoff is complete AND the Safe has funded the refund reserve.
     function run() external {
         finalized();
+        reserveFunded();
     }
 
     /// @notice After Configure.s.sol.
@@ -54,9 +57,19 @@ contract VerifyDeployment is CheckedDeployHelpers {
         _requireHandoffAddresses();
         if (block.chainid == 8453) DeploymentChecks.requireLiveSafe(governanceSafe, minSafeThreshold);
         DeploymentChecks.requireConfigured(d, deployer, _hotKeys());
-        DeploymentChecks.requireFinalized(d, _adminContracts(d), deployer, governanceSafe, eligibilityOperator);
+        DeploymentChecks.requireFinalized(
+            d, _adminContracts(d), deployer, governanceSafe, eligibilityOperator, guardianAddress
+        );
         console2.log("OK: handoff complete - the safe governs all 7 contracts and owns Treasury;");
-        console2.log("    the deployer holds no governance, eligibility or mint role. Safe:", governanceSafe);
+        console2.log("    the deployer holds no governance, eligibility, guardian or mint role. Safe:", governanceSafe);
+    }
+
+    /// @notice After the Safe's approve + BattleArena.fundReserve (right after the handoff on
+    ///         mainnet; Configure does it from the deployer off mainnet).
+    function reserveFunded() public {
+        Deployment memory d = _load();
+        DeploymentChecks.requireReserveFunded(d);
+        console2.log("OK: BattleArena refund reserve holds at least 2,000,000 CLAW.");
     }
 
     function _load() internal returns (Deployment memory d) {

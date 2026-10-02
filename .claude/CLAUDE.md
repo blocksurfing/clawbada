@@ -104,7 +104,7 @@ Each body part has a primary stat affinity but contributes to all 5 stats — th
 ### Teams
 - **3 lobsters per team** — must assign 3 lobsters to a team slot to enter mining
 - **Unlimited team slots** — a wallet can have as many teams as they have lobsters (3 per team)
-- **Lobster locking** — lobsters committed to a team, active in mining, or in an active battle are locked and cannot be listed on the marketplace
+- **Lobster locking** — lobsters committed to a team, active in mining, or in a battle that is still being played are locked and cannot be listed on the marketplace. A battle releases both teams the moment its result is settled on-chain — lobsters never wait for a payout, a review or a frozen result
 - A lobster must be removed from its team before it can be sold/transferred
 
 ### Two-Mode Economy: Mining + Battle
@@ -145,7 +145,7 @@ Mining uses **glide-pegged per-expedition rewards** with a **seasonal budget cap
 - Faucet lobsters (Base tier) start in Base mine, work their way up via evolution
 
 ### Battle Mode
-Active PvP where two players wager $CLAW in hex-grid tactical combat. Zero-sum: winner takes the combined pot minus protocol fee. Both players burn additional $CLAW for post-battle repair. Battles use **ATB (Active Time Battle) initiative-bar combat** (LOKR-style) with full information during play — only team composition is hidden via on-chain commit-reveal at battle start. Trust model is server-authoritative during play with on-chain dispute resolution as a backstop (bonded disputes + rate limit; see Trust Model section).
+Active PvP where two players wager $CLAW in hex-grid tactical combat. Zero-sum: winner takes the combined pot minus protocol fee. Both players burn additional $CLAW for post-battle repair. Battles use **ATB (Active Time Battle) initiative-bar combat** (LOKR-style) with full information during play — only team composition is hidden via on-chain commit-reveal at battle start. Trust model is server-authoritative during play; every result then sits in a short on-chain review window while the game's watchdog replays it, and a result it cannot reproduce is frozen for the Safe (no player disputes; see Trust Model section).
 
 **Entry requirement**: all 3 lobsters on the team must be Evolved tier or higher.
 
@@ -211,20 +211,26 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
    (±75 → ±300 cap), both radii widening with wait time
    Match found → both players notified via WebSocket
 
-2. STAKE DEPOSIT (on-chain)
-   Both players call BattleArena.deposit(battleId, stakeAmount)
+2. STAKE DEPOSIT + TEAM COMMIT + CONSENT (on-chain, one call each)
+   Both players call BattleArena.deposit(battleId, expectedStake, maxOpponentPower, commitHash)
    $CLAW escrowed in contract + 5% anti-grief deposit
-   Both deposits confirmed → battle begins
+   commitHash = keccak256(battleId, player, teamId, salt): the team commit rides in the deposit
+   (D-13), so there is no separate commit step or commit clock for the opponent to start
+   expectedStake / maxOpponentPower = the stake and opponent Team Power the player was shown when
+   matched (D-08); any other battle reverts ConsentMismatch. The API fills them from its match
+   record; agents building their own transactions pass them too
+   Both deposits confirmed → TeamReveal (20 s window)
 
-3. TEAM COMMIT-REVEAL (on-chain)
-   Both players commit a team composition hash
-   After both commits, the resolver opens BOTH teams in a single atomic
-   transaction (`revealTeams`) — neither team's identity reaches the chain until
-   both are bound together (F5-01). Prevents counter-picking AND closes the
-   matchup-dodge vector: no player can see the opponent's team and then bail,
-   because nothing is revealed by a one-sided action. An honest reveal-window
-   timeout mutually cancels with full refunds (a dropped connection never costs a
-   player their stake).
+3. TEAM REVEAL (on-chain, resolver-submitted)
+   Players hand the server their (teamId, salt) — with the deposit, or via POST /reveal-team
+   The resolver opens BOTH teams in a single atomic transaction (`revealTeams`) — neither
+   team's identity reaches the chain until both are bound together (F5-01). Prevents
+   counter-picking AND closes the matchup-dodge vector: nothing is revealed by a one-sided action.
+   D-14: if a player's salt does not open their commit (or never arrives), the resolver reports
+   it (`accuseRevealFailure`); that player then has 2 minutes to open their own commit
+   (`openOwnCommit`), after which the resolver reveals as usual. An accused player who never
+   opens it forfeits their 5% when the window lapses; otherwise a lapse mutually cancels with
+   full refunds (a dropped connection never costs an honest player anything).
 
 4. BATTLE SEED (commit on-chain, derive off-chain)
    seed = keccak(drand round R, per-battle server secret, battleId)
@@ -244,25 +250,31 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
      - Auto-Defend on timeout
      - Server resolves the action, animates, advances bar, places next tick
    Battle ends on team wipeout (or 100-turn hard cap: HP% tiebreak, then damage dealt, then draw)
-   Full turn log persisted server-side for replay/dispute
+   Full turn log persisted server-side (the watchdog replays it; GET /:id/log publishes it)
    ~3-5 minutes typical match duration
 
 6. SETTLEMENT (on-chain)
-   Server submits (battleId, winner, finalStateHash, turnLogHash, damageA, damageB) to BattleArena.settle()
-   winner = address(0) is a draw (mutual refund incl. anti-grief, no fee, damage still applied)
+   Server submits (battleId, winner, finalStateHash, turnLogHash, damageA, damageB, seedSecret,
+   forfeiter) to BattleArena.settle()
+   forfeiter = the player who resigned or timed out 3 turns in a row (address(0) otherwise; a draw
+   never has one) — they lose their 5% anti-grief deposit at payout
+   Repair damage is applied and BOTH teams are released right here: lobsters never wait for money
    No signature argument: the RESOLVER_ROLE tx signature is the authentication
    Active phase has a 3h ACTIVE_WINDOW; past it, handleTimeout() cancels with full refunds
-   Winner's payout escrowed pending dispute window
-   Protocol fee → Treasury.sol (85% burn / 15% dev split)
+   The result is now "in review" (AwaitingFinalize) and the payout waits for the review window
 
-7. DISPUTE WINDOW (on-chain, optional)
-   Loser may challenge by calling BattleArena.disputeBattle(battleId, evidence) with a bond
-   Window per bracket: 5 min (Low) / 30 min (Mid) / 1 hour (High), configurable
-   Disputer posts 10% bracket bond (250 / 1,000 / 5,000 $CLAW); rate limit 5/24h per address
-   S1 resolution: adminResolveDispute() — DEFAULT_ADMIN_ROLE (multisig) judges within 24h SLA
+7. REVIEW WINDOW + WATCHDOG (on-chain, automatic — no player action)
+   Window per bracket: 5 min (Low) / 30 min (Mid) / 1 hour (High), configurable (24 h timelock)
+   The engine's watchdog replays every battle from its own log and checks winner, forfeiter,
+   both damage arrays and both hashes. Anything it cannot reproduce → freeze(battleId) with the
+   GUARDIAN key before the window ends (a guardian can only hold a payout; it moves no money)
+   Clean → after the window anyone calls finalizeBattle(): winner gets 2·stake − 10% fee + own 5%
+   Draw → each side pays half the normal fee (10% of its own stake) and gets the rest + 5% back
+   Frozen → the Safe calls resolveFrozen() (pay the corrected result, or refund both) within 72 h;
+   if it does not, anyone calls expireFrozen(): the held stakes are BURNED and both players are paid
+   stake + 5% back from the refund reserve (if the reserve is short, the held stakes are returned)
+   Protocol fee + slashed deposits → Treasury.sol (85% burn / 15% dev split)
    S2 evolution: BattleResolver.replay() — deterministic on-chain re-execution from VRF beacon + turn log
-   Disputer wins → bond returned + penalty paid; disputer loses → bond slashed → Treasury (burn/dev split)
-   99% of battles never enter dispute path; mechanism is deterrent + insurance
 
 8. REPAIR (on-chain)
    Both players call RepairShop.repair(lobsterId) for damaged lobsters
@@ -278,7 +290,7 @@ A lobster's turn = optional **Move** (within class movement range) followed by o
 - **Full information during battle**: nothing hidden — both players see board state, HP, charge, status effects, upcoming turn order. Telegraphed enemy intent (LOKR-style) hints at the next enemy lobster's likely target/action for human UX; agents ignore it.
 - **Hidden information**: only team composition (commit-reveal at battle start, prevents counter-picking).
 
-**MEV protection**: Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. In-battle turn commits are off-chain via WebSocket; only stake deposit, team reveal, settlement, and disputes are on-chain.
+**MEV protection**: Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. In-battle turn commits are off-chain via WebSocket; only stake deposit (with the team commit), team reveal, settlement, and the review/freeze path are on-chain.
 
 #### Combat Resolution
 
@@ -394,7 +406,7 @@ Note: status effect durations are in **turns of the affected lobster** (since AT
 
 **Battle pacing:** Turns 1-6 typically establish positioning; Specials become available from each lobster's 3rd turn (or 2nd if Defending). Fast classes get more turns on the bar — a Mantis (130 Spd) takes ~1.86× as many turns as a Leviathan (70 Spd) over the same battle window. Most battles resolve in 24-36 total turns (~3-5 minutes).
 
-**Randomness:** drand-based VRF (Proof of Play model). One seed per battle drives a deterministic RNG stream: damage variance (±15%), critical hits, enhanced Special procs. The seed is `keccak(drand round, per-battle server secret, battleId)`: the secret is committed on-chain at team reveal and disclosed at settlement, and the drand round is fixed by rule from the reveal timestamp, so neither a player nor the operator can know or choose the rolls in advance, and anyone can recompute the seed afterwards for replay/dispute. (The raw public beacon alone is NOT a usable seed — a player could look it up and foresee every roll.)
+**Randomness:** drand-based VRF (Proof of Play model). One seed per battle drives a deterministic RNG stream: damage variance (±15%), critical hits, enhanced Special procs. The seed is `keccak(drand round, per-battle server secret, battleId)`: the secret is committed on-chain at team reveal and disclosed at settlement, and the drand round is fixed by rule from the reveal timestamp, so neither a player nor the operator can know or choose the rolls in advance, and anyone can recompute the seed afterwards for replay. (The raw public beacon alone is NOT a usable seed — a player could look it up and foresee every roll.)
 
 #### Purity & Special Potency
 Purity does NOT affect base stats — it exclusively enhances Special moves in battle. This keeps mining tier-neutral (purity doesn't help mine faster) and makes purity a battle-specific advantage that rewards breeders.
@@ -475,43 +487,41 @@ enhanced_chance = 5% + (5% × purity_score)
 **Cancel-rate throttling** deferred — telemetry-only at launch.
 **Arena layouts**: blocked-hex placement is VRF-derived and deterministic from S1 (`generateLayout`); themed terrain art and designer layouts are the S2-3 enhancement.
 
-#### Trust Model & Dispute System
-Battle outcomes are **server-authoritative during play** with **on-chain dispute resolution** as a backstop. The rollout has two stages — see `~/.claude/projects/-Users-alepore-Clawbada/memory/project_battle_v2_redesign.md` for full S1/S2 detail:
-
-- **S1 (ships first)**: extends the H-01 challenge window already shipped on `origin/main` (2026-04-28) with V3 spam defenses — per-bracket windows, bonded disputes, rate limit. Resolution remains `adminResolveDispute()` (`DEFAULT_ADMIN_ROLE` multisig, 24h SLA per `docs/runbooks/admin-roles.md`).
-- **S2 (roadmap)**: replaces admin arbitration with on-chain `BattleResolver.replay()` — deterministic re-execution from `{initial state + VRF beacon + ordered turn submissions}`. Trust-minimal end state, no human in the resolution path.
-
-**Common to both stages:**
+#### Trust Model: Review, Freeze, 72 h Long-Stop (owner decision 2026-10-01)
+Battle outcomes are **server-authoritative during play**. **Players do not dispute results** — the
+bonded-dispute system was removed on 2026-10-01. Instead, every result is re-checked by the game
+itself before any money moves, and anything it cannot reproduce is frozen for the Safe:
 
 - **Server runs `BattleResolver`** during play (pure function, identical to on-chain library); clients request actions and animate results, never compute damage. Closes off the client-side cheat surface.
-- **Settlement on-chain**: server submits `(battleId, winner, finalStateHash, turnLogHash, damageA, damageB)` to `BattleArena.settle()` after match ends; transitions to `AwaitingFinalize` (no payout yet). `winner == address(0)` is a draw (mutual refund, no fee). There is no `signature` argument — the resolver's transaction signature is the authentication. `finalStateHash` = keccak of the canonical final state; `turnLogHash` = keccak over `{battleId, VRF seed, layout, roster, ordered turn log}`.
+- **Settlement on-chain**: the resolver submits `(battleId, winner, finalStateHash, turnLogHash, damageA, damageB, seedSecret, forfeiter)` to `BattleArena.settle()`. Damage is applied and **both teams are released at once**; the stakes wait in escrow for the review window (`AwaitingFinalize`, "in review"). `winner == address(0)` is a draw. There is no `signature` argument — the resolver's transaction signature is the authentication. `finalStateHash` = keccak of the canonical final state; `turnLogHash` = keccak over `{rules version, battleId, VRF seed, layout, roster, ordered turn log}`.
+- **Review window** per stake bracket (configurable, 24 h timelock): 5 min (Low) / 30 min (Mid) / 1 hour (High).
+- **The watchdog** (engine) replays each battle from its stored log during the window and compares winner, forfeiter, both damage arrays and both hashes with what `settle()` recorded. A result with no session behind it, from a battle still being played, or that does not replay → `freeze()` with the **GUARDIAN key** (alert `battle_frozen`). The guardian can only freeze inside the window; it cannot move money. Clean results pay out after the window via the permissionless `finalizeBattle()`.
+- **Frozen battles**: the Safe (`DEFAULT_ADMIN_ROLE`) calls `resolveFrozen(battleId, winner, forfeiter, refundBoth)` — pay the corrected result, or refund both players. The engine pages `battle_frozen_awaiting_safe`, then `battle_freeze_long_stop_due` as the deadline nears. **72 h long-stop**: if the Safe has not acted, anyone calls `expireFrozen()` (the engine does it itself): the held stakes are **burned** and both players are paid stake + anti-grief back from the **refund reserve** (`fundReserve` / `withdrawReserve`, kept separate from escrow). If the reserve cannot cover it, the held stakes are returned directly instead — nobody is left unpaid.
 - **Active-phase ceiling**: `ACTIVE_WINDOW = 3 hours` after the team reveal. Past it `settle()` reverts and anyone can `handleTimeout()` → mutual cancel with full refunds, so a server outage never costs a stake.
-- **Dispute window** per stake bracket (configurable): 5 min (Low) / 30 min (Mid) / 1 hour (High).
-- **Disputer must post a bond** (10% of bracket stake: 250 / 1,000 / 5,000 $CLAW). Bond covers admin/replay overhead + deters frivolous disputes.
-- **Outcomes**:
-  - **Disputer wins** (admin changes winner, either damage array, or either battle hash / replay disagrees) → bond returned, disputer refunded full stake + penalty
-  - **Disputer loses** → bond slashed → Treasury (85% burn / 15% dev)
-- **Rate limit**: 5 disputes per address per rolling 24h window, enforced on-chain via `disputeTimestamps[address]`. Reverts with `DisputeRateLimitExceeded` when exceeded.
-- 99% of battles never enter dispute path. The system exists as deterrent + insurance.
+- **Losses outside the stakes** a glitch causes (wrong repair damage) are made whole off-chain by the treasury.
+- **D-12: turns are not signed in Season 1.** A timed-out turn and a forfeit's reason are part of the hashed log and replay-checked, but a resignation is still the server's word. Session-key-signed turns are a later-season option.
+- **Players see it** as "Result under review" (phase 5) and "Frozen for review — the team is reviewing this result" (phase 8). A live battle whose result lands on-chain early gets an informational `settlement_alert`; nobody has to act.
+- **S2 (roadmap)**: on-chain `BattleResolver.replay()` — deterministic re-execution from `{initial state + VRF beacon + ordered turn submissions}` replaces the Safe in the frozen path.
 
 #### Battle-Rank Mining Boost (S1 — locked 2026-09-02)
 Battle rank pays in mining advantage — stakes stay fully zero-sum. Battle ELO attaches to the **team** (teamId); a team's league percentile grants a boost to **that team's own** mining income.
 
 - **Boost curve**: smooth **+10% → +50%** of the team's mining income, linear in ELO percentile among qualified teams (no stepped leagues — steps pay win-traders)
-- **Weekly epochs, played-not-won**: qualification = battles PLAYED per week (never wins — a win quota creates a bought-wins market). Floor **ramps 7/week at launch → 14/week** once ELO bands are liquid (published per epoch, announced a week ahead)
+- **Weekly epochs, played-not-won**: qualification = battles PLAYED per week (never wins — a win quota creates a bought-wins market). **Draws do not count** (owner decision 2026-10-01): two teams of one owner must not farm the floor with cheap mutual draws. Floor **ramps 7/week at launch → 14/week** once ELO bands are liquid (published per epoch, announced a week ahead)
 - **Ladder**: ONE global list of all qualified teams (not per Power bucket or stake bracket — a lone team in an odd bucket must not be "top" by default; population-proof). Rating starts at **1,200** (the baseline every decay rule regresses toward), K = 32, team-keyed
 - **Lapse**: miss the floor → boost = 0 next epoch; rating persists with **15%-of-gap idle decay per non-qualifying epoch** toward the 1,200 baseline (raised from the spec's 5% on 2026-09-03: a month away costs ~half the climb, three months ≈ a full reset, yet a returning strong team stays near its band and does not farm weaker opponents on the way back)
 - **Roster binding**: same-tier lobster swap → ELO regresses **1/3 toward baseline per lobster swapped**; team Power change → **full re-qualification** (closes rank laundering)
 - **Funding**: same-budget — boost spend counts as demand inside the TOK-G1 glide (no separate carve in S1)
 - **Matchmaking**: rating-banded within Power × stake sub-pools from S1, radius ±75 → ±300 cap (existential — random pairing → 0% rational participation even with the boost)
-- **Trust model**: server-computed weekly ladder; the `BOOST_ADMIN_ROLE` hot key stages `setTeamBoosts` for epoch N+1 and flips it with `activateBoostEpoch`; entries are Power-bound and expire after the contract's 10-day TTL if the server stops posting; same dispute-window philosophy as the rest of S1
+- **Trust model**: server-computed weekly ladder; the `BOOST_ADMIN_ROLE` hot key stages `setTeamBoosts` for epoch N+1 and flips it with `activateBoostEpoch`; entries are Power-bound and expire after the contract's 10-day TTL if the server stops posting; same review-window philosophy as the rest of S1
 - **Economics** (`bun run boost`): breakeven base boost 7.0 / 7.2 / 10.0% (Evolved/Elite/Apex at 14 battles/wk; halves at 7/wk); population-proof — identical outcomes at 50 / 500 / 5,000 teams
 
 #### Anti-Griefing
-- **5% anti-grief deposit**: slashed if player times out repeatedly or forfeits, returned otherwise
+- **5% anti-grief deposit** (D-13/14/15): lost by a player who resigns or times out 3 turns in a row (`settle`'s `forfeiter`), or whose team commit the resolver could not open and who did not open it themselves within the 2-minute grace; returned otherwise
 - **Auto-forfeit**: after 3 consecutive per-turn timeouts by the same player, forfeit awarded and anti-grief deposit slashed
 - **60-second per-turn shot clock**: generous for humans on hex grid; agents submit in <1s, turn proceeds immediately on commit (auto-Defend on timeout)
-- **Bonded disputes + rate limit** (see Trust Model above): disputer posts 10% bracket bond; max 5 disputes per address per rolling 24h
+- **Commit in the deposit**: no separate commit clock that the opponent starts; deposit also binds the player's consent (stake + max opponent Power)
+- **Draws**: each side pays half the normal fee (10% of its own stake), so a draw is never cheaper than a decided battle, and draws never count toward boost qualification
 - **Speed clamps + stun immunity**: prevent ATB exploits (effective Speed ∈ [0.5×, 1.5×] of base; 2-turn stun immunity after stun expires)
 - **Design principle**: griefing is always negative EV. Agents are rational profit-maximizers; the economics ensure cooperation with the protocol.
 
@@ -750,7 +760,7 @@ contracts/
 ├── Marketplace.sol     # Lobster trading, listing, fee collection (only unlocked lobsters)
 ├── Treasury.sol        # Protocol fee splitter — 85% burn / 15% dev wallet
 ├── Faucet.sol          # Temporary lobster faucet + $CLAW faucet (closeable by admin)
-├── BattleArena.sol     # Battle lifecycle: stake deposit, team commit-reveal, settlement, dispute resolution, anti-grief
+├── BattleArena.sol     # Battle lifecycle: deposit (+ team commit + consent), atomic reveal, settlement, review window, freeze (GUARDIAN) / 72 h long-stop + refund reserve, anti-grief
 ├── BattleResolver.sol  # Pure combat math library (identical logic on-chain + off-chain)
 ├── BattleVRF.sol       # drand beacon verification for combat randomness
 ├── EvolutionLab.sol    # Lobster evolution: burn 2 fuel + $CLAW → 1 evolved lobster
@@ -771,7 +781,7 @@ api/
 │   │   ├── queue       # POST: join matchmaking (teamId, stakeAmount)
 │   │   ├── status      # GET: battle state, current turn, initiative bar
 │   │   ├── moves       # POST: submit lobster turn (Move + Action)
-│   │   └── history     # GET: past battles, replays, dispute records
+│   │   └── history     # GET: past battles, replays, review/frozen status
 │   ├── breeding/       # Breeding preview, breed request, offspring status
 │   ├── teams/          # Create team, assign lobsters, list teams, disband
 │   └── market/         # List lobster, buy lobster, price history
@@ -850,7 +860,7 @@ New human flow:
 - **Stats** — HP, Attack, Armor, Speed, Critical — base stats per class + body part modifiers + evolution tier bonuses + legend bonuses
 - **Evolution** — Base → Evolved → Elite → Apex; burn 2 fuel lobsters + $CLAW per tier; gates mining tiers and battle access
 - **Two-mode economy** — idle mining (inflationary, passive) + battle mode (zero-sum, active); roughly equal EV at ~60-65% win rate
-- **Battle mode** — hex-grid tactical PvP on 6×5 board, 4 action types (Attack/Defend/Move/Special), ATB initiative-bar combat with full information (LOKR-style), distance-scaled attacks, 60s per-turn shot clock, server-authoritative with on-chain dispute window (10% bonded + 5/24h rate limit), Unity WebGL rendering, drand VRF randomness, ~3-5 min per match
+- **Battle mode** — hex-grid tactical PvP on 6×5 board, 4 action types (Attack/Defend/Move/Special), ATB initiative-bar combat with full information (LOKR-style), distance-scaled attacks, 60s per-turn shot clock, server-authoritative with an on-chain review window (the watchdog freezes results it cannot reproduce; the Safe resolves within 72 h, else stakes are burned and players repaid from a reserve), Unity WebGL rendering, drand VRF randomness, ~3-5 min per match
 - **Movement ranges** — 1 hex (Bulwark, Leviathan), 2 hexes (Sentinel, Abyss, Kraken, Reaver), 3 hexes (Mantis, Tempest, Specter, Ember)
 - **Player badges** — Human vs Agent identity shown in battle HUD, leaderboard, marketplace
 - **Breeding** — 2 parents → 1 offspring (Base tier, tradeable); 5 breeds max, 48h cooldown; cost scales by breed count × generation; soulbound parents can breed tradeable offspring
@@ -947,8 +957,8 @@ No passive staking yield — the only way to earn $CLAW is by playing (mining, b
 
 ### Locking mechanisms
 - Mining stakes: locked during expedition
-- Battle stakes: locked during match + 5% anti-grief deposit
-- Lobster locking: committed to team, active mine, or active battle = cannot sell/transfer
+- Battle stakes: locked during match and its review window (+ 5% anti-grief deposit); a frozen result holds only the stakes
+- Lobster locking: committed to team, active mine, or a battle still being played = cannot sell/transfer (released at settle)
 
 ### Anti-convergence mechanics
 - Rock-paper-scissors class dynamics across 10 classes (no dominant strategy)

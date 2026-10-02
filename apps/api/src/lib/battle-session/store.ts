@@ -36,6 +36,9 @@ export interface SettleJobPayload {
   turnLogHash: string;
   damageA: [number, number, number];
   damageB: [number, number, number];
+  /** Wallet of the player who resigned or timed out three turns in a row (they lose their 5%
+   *  anti-grief deposit), or null when the battle was played out. Never set for a draw. */
+  forfeiter: string | null;
 }
 
 export interface PendingRealBattle {

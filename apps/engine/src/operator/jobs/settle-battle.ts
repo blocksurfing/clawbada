@@ -2,12 +2,16 @@
  *
  *  The API's battle-session manager runs the off-chain ATB battle. When it ends
  *  (wipeout, turn cap, or forfeit) the API enqueues this job in `operator_jobs`
- *  with everything the contract needs; the worker submits
- *  `BattleArena.settle(battleId, winner, finalStateHash, turnLogHash, damageA, damageB, seedSecret)`
+ *  with everything the contract needs; the worker submits, with the RESOLVER key,
+ *  `BattleArena.settle(battleId, winner, finalStateHash, turnLogHash, damageA, damageB, seedSecret, forfeiter)`.
+ *  `winner === 'draw'` maps to address(0); `forfeiter` is the player who resigned or timed out
+ *  three turns in a row (address(0) if nobody did; never set for a draw) — they lose their 5%.
  *  D-01: `seedSecret` opens the commitment made in revealTeams. It is re-derived here from
  *  BATTLE_SEED_SECRET and the battle id — never carried in the job payload, so it is not
  *  sitting in the database while the battle is being played.
- *  with the RESOLVER key. `winner === 'draw'` maps to address(0).
+ *
+ *  settle() applies the repair damage and releases both teams at once; the payout waits for the
+ *  review window, during which the watchdog (combat/finalize-watcher.ts) replays the battle.
  *
  *  Idempotent: a battle already past Active (AwaitingFinalize / Settled) is a
  *  success, and a prior attempt's tx hash is reconciled by receipt before any
@@ -28,6 +32,7 @@ const isTestnet = process.env.CHAIN_ENV !== 'mainnet';
 const PHASE_ACTIVE = 4;
 const PHASE_AWAITING_FINALIZE = 5;
 const PHASE_SETTLED = 6;
+const PHASE_FROZEN = 8;
 
 const PRIOR_TX_HASH_RECEIPT_TIMEOUT_MS = 90_000;
 
@@ -39,6 +44,9 @@ export interface SettleBattlePayload {
   turnLogHash: `0x${string}`;
   damageA: [number, number, number];
   damageB: [number, number, number];
+  /** Wallet of the forfeiting player, or null/absent. Absent = a job enqueued before the field
+   *  existed: treated as "nobody forfeited". */
+  forfeiter?: string | null;
 }
 
 function validatePayload(raw: unknown): SettleBattlePayload {
@@ -52,20 +60,25 @@ function validatePayload(raw: unknown): SettleBattlePayload {
     const arr = p[k];
     if (!Array.isArray(arr) || arr.length !== 3 || arr.some((d) => !Number.isInteger(d) || d < 0 || d > 255)) throw new Error(`settle_battle: bad ${k}`);
   }
+  if (p.forfeiter !== undefined && p.forfeiter !== null) {
+    if (typeof p.forfeiter !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(p.forfeiter)) throw new Error('settle_battle: bad forfeiter');
+    if (p.winner === 'draw') throw new Error('settle_battle: a draw cannot have a forfeiter');
+    if (p.forfeiter.toLowerCase() === p.winner.toLowerCase()) throw new Error('settle_battle: the forfeiter cannot be the winner');
+  }
   return p as SettleBattlePayload;
 }
 
 /** D-06: null when what is on-chain IS this payload; otherwise the first field that differs.
  *
- *  AwaitingFinalize: compare the PROPOSAL (winner, both hashes, both damage arrays).
- *  Settled: compare the FINAL outcome (`winner` + the hashes). After an admin-resolved dispute
- *  the contract overwrites the hashes and pays the admin's winner but leaves the proposed*
- *  fields as they were, so a rogue proposal that was disputed and corrected must read as a
- *  match here — and one that was finalized unchallenged must not. */
+ *  In review / frozen: compare the recorded result (winner, both hashes, both damage arrays,
+ *  forfeiter). Settled: compare the FINAL winner + the hashes — a frozen result the Safe
+ *  corrected with resolveFrozen pays the Safe's winner while the recorded fields stay as they
+ *  were, so a corrected rogue result must not read as a match on the proposed winner alone. */
 export function proposalMismatch(
   onChain: {
     winner?: string;
     proposedWinner?: string;
+    proposedForfeiter?: string;
     finalStateHash?: string;
     turnLogHash?: string;
     proposedDamageA?: readonly (number | bigint)[];
@@ -85,6 +98,9 @@ export function proposalMismatch(
   if (settled) return null;
   if (!sameDamage(onChain.proposedDamageA, payload.damageA)) return 'damageA differs';
   if (!sameDamage(onChain.proposedDamageB, payload.damageB)) return 'damageB differs';
+  if (onChain.proposedForfeiter !== undefined && !eq(onChain.proposedForfeiter, payload.forfeiter ?? zeroAddress)) {
+    return `forfeiter on-chain=${onChain.proposedForfeiter} ours=${payload.forfeiter ?? zeroAddress}`;
+  }
   return null;
 }
 
@@ -97,6 +113,7 @@ export async function settleBattleHandler(rawPayload: unknown, ctx: JobContext):
   }
   const battleId = BigInt(payload.battleId);
   const winner = (payload.winner === 'draw' ? zeroAddress : payload.winner) as `0x${string}`;
+  const forfeiter = (payload.forfeiter ?? zeroAddress) as `0x${string}`;
 
   try {
     const publicClient = getPublicClient(isTestnet);
@@ -106,7 +123,7 @@ export async function settleBattleHandler(rawPayload: unknown, ctx: JobContext):
     // (a prior attempt landed, or the admin path already ran).
     const b = await arena.read.getBattle([battleId]);
     const phase = Number(b.phase);
-    if (phase === PHASE_AWAITING_FINALIZE || phase === PHASE_SETTLED) {
+    if (phase === PHASE_AWAITING_FINALIZE || phase === PHASE_SETTLED || phase === PHASE_FROZEN) {
       // D-06: "already past Active" is only fine if what is on-chain is OUR result. This used to
       // return ok without looking. A stolen RESOLVER key can settle the instant teams are
       // revealed, while the real battle is still being played; when that battle ended, this
@@ -116,7 +133,7 @@ export async function settleBattleHandler(rawPayload: unknown, ctx: JobContext):
       if (mismatch) {
         log.fatal(
           { battleId: payload.battleId, phase, mismatch, payoutDeadline: b.payoutDeadline?.toString(), jobId: ctx.jobId.toString() },
-          'rogue_settlement_proposal — the on-chain result is not the battle this server ran; dispute before payoutDeadline',
+          'rogue_settlement_proposal — the on-chain result is not the battle this server ran; the watchdog freezes it before payoutDeadline',
         );
         return { ok: false, retry: 'dead', error: `proposal_mismatch: ${mismatch}` };
       }
@@ -153,7 +170,7 @@ export async function settleBattleHandler(rawPayload: unknown, ctx: JobContext):
       return { ok: false, retry: 'dead', error: 'seed_commit_mismatch' };
     }
     const sim = await arena.simulate.settle(
-      [battleId, winner, payload.finalStateHash, payload.turnLogHash, payload.damageA, payload.damageB, seedSecret],
+      [battleId, winner, payload.finalStateHash, payload.turnLogHash, payload.damageA, payload.damageB, seedSecret, forfeiter],
       { account: walletClient.account },
     );
     const hash = (await walletClient.writeContract(sim.request)) as `0x${string}`;
@@ -161,7 +178,7 @@ export async function settleBattleHandler(rawPayload: unknown, ctx: JobContext):
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== 'success') return { ok: false, retry: 'dead', error: 'settle_reverted' };
 
-    log.info({ battleId: payload.battleId, winner: payload.winner, hash, jobId: ctx.jobId.toString() }, 'settle submitted; battle AwaitingFinalize');
+    log.info({ battleId: payload.battleId, winner: payload.winner, forfeiter: payload.forfeiter ?? null, hash, jobId: ctx.jobId.toString() }, 'settle submitted; battle in review');
     return { ok: true, txHash: hash };
   } catch (err) {
     if (err instanceof TxHashPersistError) throw err;

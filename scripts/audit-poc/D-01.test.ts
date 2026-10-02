@@ -201,7 +201,7 @@ describe('D-01: battle randomness is the raw public drand beacon', () => {
     const mine = v3.repairDamage({ ...v3.fromWire({ ...json(session.snapshot()).state, vrfSeed: rec!.seed.toString() }) });
     expect(job.damageA).toEqual(mine.damageA);
     expect(job.damageB).toEqual(mine.damageB);
-    // The settle payload's hashes replay cleanly — nothing for a dispute to catch.
+    // The settle payload's hashes replay cleanly — nothing for the watchdog to catch.
     expect(job.finalStateHash).toBe(v3.hashState(session.state));
     console.log(`[D-01] live battle: seed recovered from round ${rec!.round}; BOB predicted ${bobTurns}/${bobTurns} of his turns exactly ` +
       `(attacks on known-crit turns: ${foreseenCrits}, on known-non-crit turns: ${foreseenNonCrits}; ALICE crits foreseen: ${aliceCritsForeseen}); winner=${session.state.winner}`);

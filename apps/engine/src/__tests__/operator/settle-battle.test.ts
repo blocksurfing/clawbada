@@ -8,6 +8,9 @@ const deriveSeedSecret = (master: string, battleId: bigint) =>
   keccak256(encodePacked(['bytes32', 'string', 'uint256'], [keccak256(stringToBytes(master)), 'clawbada:battle-seed:v1', battleId]));
 const seedCommitment = (battleId: bigint, secret: `0x${string}`) => keccak256(encodePacked(['uint256', 'bytes32'], [battleId, secret]));
 const loadSeedMasterSecret = () => ({ secret: process.env.BATTLE_SEED_SECRET as string, ephemeral: false });
+// Imported by combat/reveal-watcher (which this job imports): restated like the seed functions.
+const teamCommitHash = (battleId: bigint, player: `0x${string}`, teamId: bigint, salt: `0x${string}`) =>
+  keccak256(encodePacked(['uint256', 'address', 'uint256', 'bytes32'], [battleId, player, teamId, salt]));
 
 const MASTER = 'engine-test-master-secret-0123456789abcdef';
 process.env.BATTLE_SEED_SECRET = MASTER;
@@ -26,7 +29,7 @@ mock.module('@clawbada/chain', () => ({
   getBattleArena: () => ({ read: { getBattle: mockGetBattle }, simulate: { settle: mockSimulateSettle } }),
   addresses: { battleArena: '0xBattleArenaAddress' },
   BattleArenaAbi: [],
-  deriveSeedSecret, seedCommitment, loadSeedMasterSecret,
+  deriveSeedSecret, seedCommitment, loadSeedMasterSecret, teamCommitHash,
 }));
 
 // ── Import after mocks ──
@@ -36,6 +39,8 @@ import type { JobContext } from '../../operator/types';
 const HASH_A = ('0x' + 'a1'.repeat(32)) as `0x${string}`;
 const HASH_B = ('0x' + 'b2'.repeat(32)) as `0x${string}`;
 const ALICE = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const BOB = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const ZERO = '0x0000000000000000000000000000000000000000';
 
 function makeCtx(overrides: Partial<JobContext> = {}): JobContext {
   return { jobId: 9n, jobType: 'settle_battle', attempts: 1, priorTxHash: null, recordTxHash: mock(() => Promise.resolve()), ...overrides };
@@ -66,8 +71,8 @@ describe('settleBattleHandler', () => {
     expect(res).toEqual({ ok: true, txHash: '0xsettleHash' });
     expect(mockSimulateSettle).toHaveBeenCalledTimes(1);
     const args = (mockSimulateSettle.mock.calls as any)[0][0];
-    // D-01: the last argument discloses the seed secret, re-derived from the master secret.
-    expect(args).toEqual([42n, ALICE, HASH_A, HASH_B, [5, 6, 7], [20, 25, 30], SECRET_42]);
+    // D-01: the seed secret is re-derived from the master secret; the forfeiter (none) is last.
+    expect(args).toEqual([42n, ALICE, HASH_A, HASH_B, [5, 6, 7], [20, 25, 30], SECRET_42, ZERO]);
     expect(mockWriteContract).toHaveBeenCalledWith({ fn: 'settle' });
     expect(ctx.recordTxHash).toHaveBeenCalledWith('0xsettleHash');
     expect(order).toEqual(['record', 'receipt']);
@@ -81,6 +86,21 @@ describe('settleBattleHandler', () => {
     expect(mockWriteContract).not.toHaveBeenCalled();
   });
 
+  test('a forfeit: the forfeiting player (the loser) is passed as settle\'s last argument', async () => {
+    mockGetBattle.mockImplementation(async () => ({ phase: 4, seedCommit: COMMIT_42 }));
+    const res = await settleBattleHandler(payload({ forfeiter: BOB }), makeCtx());
+    expect(res.ok).toBe(true);
+    expect((mockSimulateSettle.mock.calls as any)[0][0][7]).toBe(BOB);
+  });
+
+  test('a job enqueued before the forfeiter field existed settles with forfeiter = address(0)', async () => {
+    mockGetBattle.mockImplementation(async () => ({ phase: 4, seedCommit: COMMIT_42 }));
+    const p = payload();
+    delete (p as any).forfeiter;
+    expect((await settleBattleHandler(p, makeCtx())).ok).toBe(true);
+    expect((mockSimulateSettle.mock.calls as any)[0][0][7]).toBe(ZERO);
+  });
+
   test("a draw settles with winner = address(0)", async () => {
     mockGetBattle.mockImplementation(async () => ({ phase: 4, seedCommit: COMMIT_42 }));
     const res = await settleBattleHandler(payload({ winner: 'draw', damageA: [5, 5, 5], damageB: [6, 6, 6] }), makeCtx());
@@ -89,10 +109,12 @@ describe('settleBattleHandler', () => {
   });
 
   // What the chain holds when OUR settle landed: the proposal is this payload.
-  const ourProposal = { proposedWinner: ALICE, finalStateHash: HASH_A, turnLogHash: HASH_B, proposedDamageA: [5, 6, 7], proposedDamageB: [20, 25, 30] };
+  const ourProposal = { proposedWinner: ALICE, proposedForfeiter: ZERO, finalStateHash: HASH_A, turnLogHash: HASH_B, proposedDamageA: [5, 6, 7], proposedDamageB: [20, 25, 30] };
 
-  test('already AwaitingFinalize or Settled on chain WITH OUR RESULT: idempotent success without a tx', async () => {
+  test('already in review, frozen or Settled on chain WITH OUR RESULT: idempotent success without a tx', async () => {
     mockGetBattle.mockImplementation(async () => ({ phase: 5, ...ourProposal }));
+    expect(await settleBattleHandler(payload(), makeCtx())).toEqual({ ok: true });
+    mockGetBattle.mockImplementation(async () => ({ phase: 8, ...ourProposal }));
     expect(await settleBattleHandler(payload(), makeCtx())).toEqual({ ok: true });
     mockGetBattle.mockImplementation(async () => ({ phase: 6, winner: ALICE, ...ourProposal }));
     expect(await settleBattleHandler(payload(), makeCtx())).toEqual({ ok: true });
@@ -124,6 +146,11 @@ describe('settleBattleHandler', () => {
     expect((await settleBattleHandler(payload(), makeCtx()) as any).error).toBe('proposal_mismatch: damageA differs');
   });
 
+  test('a different forfeiter on-chain (an honest loser slashed as a quitter) is a mismatch', async () => {
+    mockGetBattle.mockImplementation(async () => ({ phase: 5, ...ourProposal, proposedForfeiter: BOB }));
+    expect((await settleBattleHandler(payload(), makeCtx()) as any).error).toStartWith('proposal_mismatch: forfeiter');
+  });
+
   test('D-06: a draw we computed vs a winner on-chain, and the reverse', async () => {
     const ZERO = '0x0000000000000000000000000000000000000000';
     mockGetBattle.mockImplementation(async () => ({ phase: 5, ...ourProposal }));
@@ -132,15 +159,15 @@ describe('settleBattleHandler', () => {
     expect(await settleBattleHandler(payload({ winner: 'draw' }), makeCtx())).toEqual({ ok: true });
   });
 
-  test('D-06: a rogue proposal that was disputed and CORRECTED by the admin reads as a match once Settled', async () => {
-    // adminResolveDispute pays the admin's winner and overwrites the hashes, but leaves the
-    // proposed* fields as the thief wrote them.
+  test('D-06: a rogue result that was frozen and CORRECTED by the Safe reads as a match once Settled', async () => {
+    // resolveFrozen pays the Safe's winner but leaves the recorded proposed* fields as the thief
+    // wrote them (this case also has the hashes ours, i.e. only winner/damage were forged).
     const MALLORY = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     mockGetBattle.mockImplementation(async () => ({ phase: 6, winner: ALICE, finalStateHash: HASH_A, turnLogHash: HASH_B, proposedWinner: MALLORY, proposedDamageA: [0, 0, 0], proposedDamageB: [40, 40, 40] }));
     expect(await settleBattleHandler(payload(), makeCtx())).toEqual({ ok: true });
   });
 
-  test('D-06: a rogue proposal that was finalized UNCHALLENGED still alarms once Settled', async () => {
+  test('D-06: a rogue result that was finalized UNFROZEN still alarms once Settled', async () => {
     const MALLORY = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     mockGetBattle.mockImplementation(async () => ({ phase: 6, winner: MALLORY, ...ourProposal, proposedWinner: MALLORY }));
     expect((await settleBattleHandler(payload(), makeCtx()) as any).error).toStartWith('proposal_mismatch: winner');
@@ -196,6 +223,9 @@ describe('settleBattleHandler', () => {
       payload({ turnLogHash: '0x1234' as `0x${string}` }),
       payload({ damageA: [1, 2] as any }),
       payload({ damageB: [1, 2, 300] as any }),
+      payload({ forfeiter: 'bob' }),
+      payload({ winner: 'draw', forfeiter: BOB }), // a draw has no forfeiter
+      payload({ forfeiter: ALICE }), // the winner cannot be the forfeiter
     ];
     for (const p of bad) {
       const res = await settleBattleHandler(p, makeCtx());

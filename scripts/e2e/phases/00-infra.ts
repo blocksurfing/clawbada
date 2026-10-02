@@ -31,7 +31,7 @@ export async function infraPhase(o: { repoRoot: string; runDir: string; flags: F
   checks.check(true, `database ${db.name} created + migrated`);
 
   // 3. Contracts
-  const { deployment, restore } = await deployContracts({ repoRoot, rpcUrl: anvil.rpcUrl, deployerKey: KEYS.deployer.key, devWallet: KEYS.devWallet.address, logDir: runDir });
+  const { deployment, restore } = await deployContracts({ repoRoot, rpcUrl: anvil.rpcUrl, deployerKey: KEYS.deployer.key, devWallet: KEYS.devWallet.address, guardian: KEYS.guardian.address, logDir: runDir });
   const chain = new Chain(anvil.rpcUrl, deployment);
   checks.check(true, `contracts deployed + configured (BattleArena ${deployment.contracts.BattleArena.slice(0, 10)}…)`);
   const boostAnchorTs = await chain.seasonStart();

@@ -182,55 +182,43 @@ The chess analogy: V3 plays like online chess with 3 pieces per side. Full infor
 
 The commit-reveal pattern is preserved at the **team composition** layer:
 
-- Both players commit a hash of their team selection
-- After both commits, both reveal lobster assignments
+- Each player's deposit carries a hash of their team selection (no separate commit step — and so no commit clock the opponent could start)
+- After both deposits, the resolver reveals both teams in one transaction
 - Prevents counter-picking — neither side sees the other's team first
 - This is the only hidden information in battle; everything else is full-info
 
 ZK/FHE was evaluated and rejected for Season 1 — Base Flashblocks (no public mempool, 200ms blocks) make commit-reveal sufficient at the team layer, and there's nothing to hide during ATB battle play.
 
-### Trust Model: Hybrid Server-Authoritative + On-Chain Dispute
+### Trust Model: Server-Authoritative + Review, Freeze and a 72 h Long-Stop
 
-V3 introduces a **hybrid trust model** combining the speed of server-authoritative play with the verifiability of on-chain dispute resolution. The model is rolled out in **two stages** — S1 ships with admin-arbitrated dispute resolution plus V3's spam defenses; S2 evolves to fully trustless on-chain replay. See `~/.claude/projects/-Users-alepore-Clawbada/memory/project_battle_v2_redesign.md` for the full contract surface delta.
+**Owner decision 2026-10-01: player disputes are removed.** The earlier frame — the loser posts a
+bond to challenge a result, an admin judges it, five disputes per address per day — turned out to
+be the wrong tool. A dispute froze the opponent's *team* along with the money, so a small bond
+could lock a large team out of mining for a day; the daily cap could silence an honest player
+facing a compromised server; and a veto that depends on a player noticing in five minutes is not
+much of a veto. The game is server-authoritative in Season 1 anyway, so the game itself is the
+right party to re-check its results.
 
-**Common to both stages:**
+**How a result is handled now:**
 
 - **During battle**: server runs `BattleResolver` (a pure function identical to the on-chain library) and broadcasts results via WebSocket. Clients only request actions and animate; they never compute damage. Removes the entire client-side cheat surface.
-- **At settlement**: server submits the result + signature to `BattleArena.settle()`. Winner's payout is escrowed in `BattlePhase.AwaitingFinalize` pending the dispute window.
-- **Dispute window** per bracket: 5 min (Low) / 30 min (Mid) / 1 hour (High). Loser may challenge by calling `BattleArena.disputeBattle()` with a bond.
+- **At settlement**: the resolver submits the result to `BattleArena.settle()` — winner, the player who forfeited (if anyone), repair damage and two commitments to the battle. Damage is applied and **both teams are released at once**: a result never locks a lobster. Only the stakes wait, for a short **review window** (5 min Low / 30 min Mid / 1 h High).
+- **The watchdog**: during that window the engine replays the battle from its own log and checks every field the chain was told. If it cannot reproduce the result, it **freezes** the payout with a dedicated guardian key. That key can only pause a payout inside the window; it cannot move money, so stealing it buys an attacker nothing but a delay.
+- **Frozen results**: the governance Safe pays the corrected result or refunds both players. If it has not acted within **72 hours**, anyone can close the battle: the held stakes are **burned** and both players are paid back from a **refund reserve** kept for this (if the reserve is short, the held stakes are returned directly). Players are never left waiting indefinitely, and a Safe that never shows up costs the token supply, not the players.
+- **Draws** pay half the normal fee from each side and do not count toward boost qualification, so staged draws are never a cheap way to farm the boost or dodge fees.
+- **Turns are not signed in Season 1** (D-12). Timeouts and forfeit reasons are in the hashed, replayable log; a resignation is still the server's word. Session-key signing is a later-season option.
 
-**Bonded disputes** make abuse economically unviable:
+### S1 vs S2
 
-- Disputer posts **10% of the bracket stake** as bond (250 / 1,000 / 5,000 $CLAW for Low/Mid/High)
-- Disputer wins → bond returned + disputer refunded full stake + penalty
-- Disputer loses → bond slashed → Treasury (85% burn / 15% dev)
+**S1**: the watchdog + Safe described above. Trust assumption: the game server is honest about the battle it ran, the guardian key and the Safe are independent of the resolver key, and the Safe acts within 72 h (or the long-stop does it for everyone).
 
-**Rate limit**: max 5 disputes per address per rolling 24h window, enforced on-chain via `disputeTimestamps[address]`. The bond filters per-attempt economics; the rate limit prevents bulk attacks from a single account. Together they make abuse uneconomical without deterring legitimate disputes (a 250 $CLAW bond at Low bracket is recoverable on a successful dispute).
-
-### S1 vs S2 Resolution Mechanism
-
-**S1 launch (extends already-shipped H-01)**:
-
-- Resolution mechanism: `adminResolveDispute()` — `DEFAULT_ADMIN_ROLE` (Gnosis Safe 3-of-5 multisig per `docs/runbooks/admin-roles.md`) judges within 24h SLA
-- Trust assumption: multisig admin acts honestly; bonded disputes + 5/24h rate limit prevent admin queue spam
-- The H-01 dispute frame (`AwaitingFinalize` phase, `disputeBattle()`, `finalizeBattle()`, `adminResolveDispute()`) is already in production on `origin/main` since 2026-04-28 (campaign documented in `docs/audits/2026-04-15-adversarial-campaign.md`). S1 contract work bolts V3's spam defenses onto that frame without rewriting the resolution path.
-- Estimated 2–3 days of contract work
-
-**S2 evolution (roadmap)**:
-
-- Resolution mechanism: `BattleResolver.replay()` — deterministic on-chain re-execution of the disputed battle from `{initial state + VRF beacon + ordered turn submissions}`
-- Trust assumption: trust-minimal — no human in the resolution path; matches the agent-first design philosophy
-- Requires extending `BattleResolver.sol` (currently 287 LOC of pure damage math) into a complete deterministic battle replay engine: ATB scheduler, status effects, charge tracking, hex movement, distance-scaled damage, all 10 specials including state-effecting ones (Bind/Haunt/Rend/Fortify/Rally/Devour)
-- Estimated 2–4 weeks of contract work + extensive fuzz, invariant, and parity testing (on-chain replay must produce identical outcomes to the off-chain server resolver for any seed + turn log)
-- Transition: feature-flagged `disputeWithReplay()` runs in parallel with `adminResolveDispute()` during a soak window, then `adminResolveDispute()` is deprecated
-
-**Why staged**: The full S2 model is the agent-first ideal — no human in the resolution loop — but it's a real engineering project with high test-burden. The H-01 frame already exists in production; layering V3's bonded disputes + rate limit on top buys the spam-defense benefits today without gating S1 launch on a multi-week build-out. S2 work begins post-launch when the off-chain server resolver has stabilized and there's a stable reference for the on-chain port to match.
+**S2 (roadmap)**: `BattleResolver.replay()` — deterministic on-chain re-execution of a battle from `{initial state + VRF beacon + ordered turn submissions}` — replaces the Safe in the frozen path. It requires extending `BattleResolver.sol` (currently pure damage math) into a complete deterministic replay engine: ATB scheduler, status effects, charge tracking, hex movement, distance-scaled damage and all 10 specials, with extensive parity testing against the off-chain resolver. Signed turns would then make the whole result trust-minimal.
 
 ### drand VRF: Single Beacon Per Battle
 
 > *"drand-based VRF (Proof of Play model) — faster and cheaper than Chainlink VRF."*
 
-Under V3, drand VRF is even simpler than V2: **one beacon per battle**, rolled at TEAM_REVEAL. The beacon seeds a deterministic RNG stream that powers damage variance (±15%), critical hits, and enhanced Special procs for the entire match. This deterministic-from-seed property is what makes the on-chain dispute replay possible — the same `{initial state + VRF beacon + turn submissions}` always produces the same battle.
+Under V3, drand VRF is even simpler than V2: **one beacon per battle**, rolled at TEAM_REVEAL. The beacon seeds a deterministic RNG stream that powers damage variance (±15%), critical hits, and enhanced Special procs for the entire match. This deterministic-from-seed property is what lets the watchdog (and, in S2, the contract) replay a battle — the same `{initial state + VRF beacon + turn submissions}` always produces the same battle.
 
 Chainlink VRF has per-request costs and multi-block latency that wouldn't suit per-turn randomness even if we needed it.
 
@@ -264,10 +252,10 @@ Strict tier brackets remain available as a fallback if Power Matchmaking proves 
 
 **Design principle**: griefing must always be negative EV. Agents are rational profit-maximizers — the economics must ensure cooperation.
 
-- **5% anti-grief deposit**: slashed if an agent times out repeatedly or forfeits, returned otherwise
+- **5% anti-grief deposit**: lost by a player who resigns or times out three turns in a row (settle names them as the `forfeiter`), or whose team commit cannot be opened and who does not open it themselves within a 2-minute grace; returned otherwise. Before this change it only ever punished an honest slow player — the deliberate griefer paid nothing.
 - **Auto-forfeit**: 3 consecutive per-turn timeouts = automatic loss + deposit slash
 - **60-second per-turn shot clock**: each lobster's turn has 60s (auto-Defend on timeout); generous for humans, agents submit in <1s
-- **Bonded disputes + rate limit** (see Trust Model above): disputer posts 10% bracket bond; max 5 disputes per address per rolling 24h
+- **Commit + consent in the deposit**: the team commit and the player's consent (stake, strongest opponent Power) ride in the deposit, so there is no opponent-started commit clock and no way to spring a different battle on a depositor
 - **Speed clamps + stun immunity**: prevent ATB exploits (effective Speed clamped to [0.5×, 1.5×] of base; 2-turn stun immunity after stun expires)
 
 The deposit and shot clock together are small enough not to deter participation but large enough to make griefing unprofitable.
@@ -623,7 +611,7 @@ The original Battle Mode V2 design used **two-phase commit-reveal per round**: p
 3. **Bots beat humans at hidden-info anyway**. Mixed-strategy mathematics favors bots over humans, undercutting the "humans can still play" goal.
 4. **Spectators couldn't follow battles**. 14-minute commit-window-heavy matches don't replay well; ATB battles produce continuous watchable action.
 
-**Replaced with**: ATB initiative-bar combat with full information during play (LOKR-style). Strategic depth now lives in positioning, ability sequencing, status effect stacking, and Speed manipulation — closer to online chess with 3 pieces per side. Commit-reveal is preserved at the team composition layer (where it actually pays — preventing counter-picking). Trust is reinforced via on-chain dispute resolution with bonded disputes + rate limit. See Section 5 and `~/.claude/projects/-Users-alepore-Clawbada/memory/project_battle_v2_redesign.md` for the full V3 spec.
+**Replaced with**: ATB initiative-bar combat with full information during play (LOKR-style). Strategic depth now lives in positioning, ability sequencing, status effect stacking, and Speed manipulation — closer to online chess with 3 pieces per side. Commit-reveal is preserved at the team composition layer (where it actually pays — preventing counter-picking). Trust is reinforced by an on-chain review window in which the game's watchdog replays every result and freezes any it cannot reproduce (no player disputes since 2026-10-01). See Section 5 and `~/.claude/projects/-Users-alepore-Clawbada/memory/project_battle_v2_redesign.md` for the full V3 spec.
 
 ---
 
@@ -666,9 +654,10 @@ A complete reference of every tuned parameter for Season 1, with the reasoning b
 | Damage threshold | 80 points | Forces repair engagement without being punishing |
 | Speed clamp | [0.5×, 1.5×] of base | Prevents speed-buff/debuff stacking exploits under ATB |
 | Stun immunity | 2 turns post-stun | Prevents Kraken Bind chains from perma-locking lobsters |
-| Dispute window | 5min / 30min / 1h | Per bracket (Low/Mid/High); configurable |
-| Dispute bond | 250 / 1,000 / 5,000 $CLAW | 10% of bracket stake; deters frivolous disputes |
-| Dispute rate limit | 5 per address per 24h | Prevents address-stacked dispute spam |
+| Review window | 5min / 30min / 1h | Per bracket (Low/Mid/High); configurable (24 h timelock); the watchdog replays and may freeze |
+| Frozen-result long-stop | 72 h | Safe resolves; after that anyone expires it: stakes burned, players repaid from the refund reserve |
+| Reveal-failure grace | 2 min | A player whose commit the resolver cannot open may open it themselves, or loses 5% |
+| Draw fee | 10% of each stake | Half the normal fee from each side; draws never count toward boost qualification |
 
 ### Breeding
 

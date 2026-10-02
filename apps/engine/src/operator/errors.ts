@@ -31,20 +31,28 @@ const PERMANENT_REVERT_NAMES = new Set<string>([
   // Reveal mismatches (frontend hash bugs we've already shipped fixes for)
   'InvalidCommitHash',
   'AlreadyDeposited',
-  'AlreadyCommitted',
+  // D-08 consent bound into deposit(); D-14 reveal-failure attribution
+  'ConsentMismatch',
+  'NotAccused',
+  'AlreadyAccused',
   // Resolver / lobster-tier guards
   'LobsterTierTooLow',
   'LobsterDamageTooHigh',
   // Settlement guards
   'InvalidWinner',
+  'InvalidForfeiter',
+  'InvalidSeedCommit',
+  'InvalidSeedReveal',
   // V3 settle: zero battle hash / settle after ACTIVE_WINDOW are resolver bugs, never transient.
   'InvalidSettlementHash',
   'PhaseTimedOut',
-  // Timeout / emergency / dispute guards
+  // Timeout / emergency / review guards
   'PhaseNotTimedOut',
   'EmergencyWithdrawTooEarly',
-  'DisputeWindowOpen',
-  'DisputeWindowClosed',
+  'ReviewWindowOpen',
+  'ReviewWindowClosed',
+  'LongStopNotReached',
+  'InsufficientReserve',
   // MiningPool boost table guards (set_team_boosts / activate_boost_epoch).
   // InvalidBoostEpoch on activate can mean "already done" — the handler
   // checks currentBoostEpoch before trusting this classification.

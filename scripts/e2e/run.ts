@@ -5,7 +5,7 @@
  *
  *   bun run e2e                          # from the repo root
  *   bun run e2e -- --keep --verbose      # leave everything running for inspection
- *   bun run e2e -- --stake 10000         # Mid bracket (30 min dispute window, warped)
+ *   bun run e2e -- --stake 10000         # Mid bracket (30 min review window, warped)
  *   bun run e2e -- --live-drand          # real api.drand.sh instead of the stub
  *
  * Exit codes: 0 pass · 1 assertions failed · 2 infra/setup failure · 3 phase timeout.
@@ -70,7 +70,7 @@ try {
   const breeding = await breedingPhase(stack, players, checks);
   checks.setPhase('assert');
   await assertPhase(stack, players, battle, mining, breeding, checks);
-  // D-06 incident drill: a stolen resolver key settles mid-battle. Runs last, so the dead settle
+  // Freeze drill: a stolen resolver key settles mid-battle; the watchdog freezes it. Runs last, so the dead settle
   // job it is SUPPOSED to leave behind does not disturb the assertions above.
   checks.setPhase('drill');
   await rogueSettlementDrill(stack, players, flags, checks);

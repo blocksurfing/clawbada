@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toHex } from 'viem';
 import { teamCommitHash } from '@clawbada/chain';
@@ -12,10 +12,14 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 
 /**
- * Pre-battle on-chain actions for a participant: deposit, team commit, team
- * reveal. V3: once both teams are revealed the battle itself runs off-chain over
+ * Pre-battle on-chain actions for a participant: deposit (which carries the team
+ * commit and your consent to the stake + opponent Power), then the team reveal.
+ * V3: once both teams are revealed the battle itself runs off-chain over
  * WebSocket (live page + session manager), so this component only shows a
- * "battle in progress" state from that point on.
+ * "battle in progress" state from that point on, then the result's review.
+ *
+ * There is no dispute: the game's watchdog replays every result during its review
+ * window and freezes any it cannot reproduce; the team then settles it.
  */
 interface BattleMovesProps {
   battleId: string;
@@ -28,6 +32,9 @@ function generateSalt(): string {
   crypto.getRandomValues(bytes);
   return toHex(bytes);
 }
+
+const saltKey = (battleId: string, lower: string) => `battle-team-salt-${battleId}-${lower}`;
+const teamKey = (battleId: string, lower: string) => `battle-team-id-${battleId}-${lower}`;
 
 /** Determine which side the player is on. Returns null when chain is null
  *  (PR-B X1: pending_create window before the engine confirms createBattle). */
@@ -74,42 +81,40 @@ export function BattleMoves({ battleId, address, battleData }: BattleMovesProps)
   if (!chain) return null;
   const myDeposit = side === 'A' ? chain.depositA : chain.depositB;
   const oppDeposit = side === 'A' ? chain.depositB : chain.depositA;
-  const myTeamCommit = side === 'A' ? chain.teamCommitA : chain.teamCommitB;
-  const oppTeamCommit = side === 'A' ? chain.teamCommitB : chain.teamCommitA;
   const myTeamRevealed = side === 'A' ? chain.teamRevealedA : chain.teamRevealedB;
-  const oppTeamRevealed = side === 'A' ? chain.teamRevealedB : chain.teamRevealedA;
+  const iAmAccused = side === 'A' ? chain.accusedA : chain.accusedB;
+  const iOpened = side === 'A' ? chain.openedA : chain.openedB;
+  const opponentPower = side === 'A' ? chain.powerB : chain.powerA;
 
-  const hasMyTeamCommit = myTeamCommit !== '0x0000000000000000000000000000000000000000000000000000000000000000';
-  const hasOppTeamCommit = oppTeamCommit !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+  // Contract phases: 1 Deposit, 3 TeamReveal, 4 Active (off-chain battle running),
+  // 5 AwaitingFinalize (result in review), 6 Settled, 7 Cancelled, 8 Frozen.
+  let phase: 'deposit' | 'wait_deposit' | 'reveal_team' | 'open_commit' | 'wait_team_reveal' | 'in_battle' | 'in_review' | 'frozen' | 'settled' | 'cancelled';
 
-  // Determine current action needed. Contract phases: 4 = Active (off-chain
-  // battle running), 5 = AwaitingFinalize (settle proposed), 6 = Settled.
-  let phase: 'deposit' | 'wait_deposit' | 'commit_team' | 'wait_team_commit' | 'reveal_team' | 'wait_team_reveal' | 'in_battle' | 'awaiting_finalize' | 'settled';
-
-  if (chain.phase >= 6) {
+  if (chain.phase === 8) {
+    phase = 'frozen';
+  } else if (chain.phase === 7) {
+    phase = 'cancelled';
+  } else if (chain.phase === 6) {
     phase = 'settled';
   } else if (chain.phase === 5) {
-    phase = 'awaiting_finalize';
+    phase = 'in_review';
+  } else if (chain.phase === 4) {
+    phase = 'in_battle';
   } else if (!myDeposit) {
     phase = 'deposit';
   } else if (!oppDeposit) {
     phase = 'wait_deposit';
-  } else if (!hasMyTeamCommit) {
-    phase = 'commit_team';
-  } else if (!hasOppTeamCommit) {
-    phase = 'wait_team_commit';
+  } else if (iAmAccused && !iOpened) {
+    phase = 'open_commit';
   } else if (!myTeamRevealed) {
     phase = 'reveal_team';
-  } else if (!oppTeamRevealed) {
-    phase = 'wait_team_reveal';
   } else {
-    phase = 'in_battle';
+    phase = 'wait_team_reveal';
   }
 
-  // X13: surface handleTimeout button when the chain phase deadline has
-  // elapsed. Contract routes to cancel/finalize/emergency-exit per the
-  // current phase (BattleArena.sol:727). Anyone can call on chain — auth
-  // server-side is for telemetry + rate-limit only.
+  // X13: surface handleTimeout button when the relevant deadline has
+  // elapsed. Anyone can call on chain — auth server-side is for telemetry +
+  // rate-limit only.
   const showHandleTimeout = isTimeoutable(chain);
 
   return (
@@ -120,17 +125,9 @@ export function BattleMoves({ battleId, address, battleData }: BattleMovesProps)
         <HandleTimeoutAction battleId={battleId} />
       )}
 
-      {canDispute(chain) && (
-        <DisputeAction battleId={battleId} rogue={battleData.settlement?.rogue ?? false} deadline={chain.payoutDeadline} />
-      )}
-
       {phase === 'deposit' && (
-        <DepositAction battleId={battleId} />
-      )}
-
-      {phase === 'commit_team' && (
         myQueuedTeamId ? (
-          <TeamCommitAction battleId={battleId} address={address} teamId={myQueuedTeamId} />
+          <DepositAction battleId={battleId} address={address} teamId={myQueuedTeamId} stake={chain.stakeAmount} opponentPower={opponentPower} />
         ) : (
           <PrivateTeamLoadingOrError query={myTeamQuery} />
         )
@@ -138,13 +135,19 @@ export function BattleMoves({ battleId, address, battleData }: BattleMovesProps)
 
       {phase === 'reveal_team' && (
         /* A2-FU MEDIUM: no chain-teamId fallback. Pre-reveal `chain.teamIdA/B`
-           is '0' and reveal with teamId=0 reverts (and also defeats the
-           wallet+battle-scoped sessionStorage protection). Gate the action
-           on the API-sourced `myQueuedTeamId`. Reveal still prefers the
-           wallet-scoped sessionStorage teamId stored at commit; this prop
-           is only the fallback if sessionStorage was lost. */
+           is '0' and reveal with teamId=0 reverts. Gate the action on the
+           API-sourced `myQueuedTeamId`; the reveal prefers the wallet-scoped
+           sessionStorage teamId stored at deposit. */
         myQueuedTeamId ? (
           <TeamRevealAction battleId={battleId} address={address} teamId={myQueuedTeamId} />
+        ) : (
+          <PrivateTeamLoadingOrError query={myTeamQuery} />
+        )
+      )}
+
+      {phase === 'open_commit' && (
+        myQueuedTeamId ? (
+          <OpenCommitAction battleId={battleId} address={address} teamId={myQueuedTeamId} />
         ) : (
           <PrivateTeamLoadingOrError query={myTeamQuery} />
         )
@@ -156,6 +159,14 @@ export function BattleMoves({ battleId, address, battleData }: BattleMovesProps)
             Both teams are revealed. The battle runs live over WebSocket — open the battle page to play.
           </p>
         </div>
+      )}
+
+      {phase === 'in_review' && (
+        <ReviewNotice payoutDeadline={chain.payoutDeadline} rogue={battleData.settlement?.rogue ?? false} />
+      )}
+
+      {phase === 'frozen' && (
+        <FrozenNotice frozenAt={chain.frozenAt} />
       )}
 
       {phase.startsWith('wait_') && (
@@ -170,15 +181,16 @@ export function BattleMoves({ battleId, address, battleData }: BattleMovesProps)
 
 function PhaseIndicator({ phase }: { phase: string }) {
   const labels: Record<string, string> = {
-    deposit: 'Deposit Stake',
+    deposit: 'Deposit Stake + Commit Team',
     wait_deposit: 'Waiting for Opponent Deposit',
-    commit_team: 'Commit Team',
-    wait_team_commit: 'Waiting for Opponent Team Commit',
     reveal_team: 'Reveal Team',
+    open_commit: 'Open Your Team Commit',
     wait_team_reveal: 'Waiting for Opponent Team Reveal',
     in_battle: 'Battle in Progress',
-    awaiting_finalize: 'Result Proposed — Dispute Window Open',
+    in_review: 'Result under review',
+    frozen: 'Frozen for review',
     settled: 'Battle Settled',
+    cancelled: 'Battle Cancelled',
   };
 
   return (
@@ -193,23 +205,44 @@ function PhaseIndicator({ phase }: { phase: string }) {
   );
 }
 
-function DepositAction({ battleId }: { battleId: string }) {
+/** D-13 + D-08: one action — the deposit carries the team commit (built here from the queued
+ *  team and a fresh random salt) and the player's consent: the server binds the stake and the
+ *  opponent Team Power shown below, and the contract refuses any other battle. */
+function DepositAction({ battleId, address, teamId, stake, opponentPower }: { battleId: string; address: string; teamId: string; stake: string; opponentPower: number }) {
   const { getAuthHeaders } = useAuth();
   const { execute: executeTx, status } = useCalldataTx();
 
   const handleDeposit = useCallback(async () => {
+    if (!address) throw new Error('Wallet not connected');
+    const lower = address.toLowerCase();
+    // Re-use a salt from an earlier attempt at this deposit so a retry commits the same team.
+    const salt = sessionStorage.getItem(saltKey(battleId, lower)) ?? generateSalt();
+    // A2-FU MEDIUM: sessionStorage keys scoped by lowercased wallet address.
+    sessionStorage.setItem(saltKey(battleId, lower), salt);
+    sessionStorage.setItem(teamKey(battleId, lower), teamId);
+    // F5-01: the commit hash MUST include the player address to match BattleArena
+    // (keccak256(abi.encodePacked(battleId, player, teamId, salt))). The shared
+    // teamCommitHash helper is the single source of truth.
+    const commitHash = teamCommitHash(BigInt(battleId), address as `0x${string}`, BigInt(teamId), salt as `0x${string}`);
     const auth = await getAuthHeaders();
-    const { steps } = await api.combat.deposit(battleId, auth);
+    // teamId + salt let the server reveal for you as soon as both deposits land (the reveal
+    // window is 20 s); the salt also stays here for the reveal step as a fallback.
+    const { steps } = await api.combat.deposit(battleId, { commitHash, teamId, salt }, auth);
     await executeTx(steps);
-  }, [battleId, getAuthHeaders, executeTx]);
+  }, [battleId, teamId, address, getAuthHeaders, executeTx]);
 
   const busy = status === 'pending' || status === 'confirming';
+  const stakeClaw = (() => { try { return (BigInt(stake) / 10n ** 18n).toLocaleString(); } catch { return stake; } })();
 
   return (
     <div className="border border-border rounded-md p-6 text-center space-y-3">
-      <p className="text-sm text-muted-foreground">Deposit your stake + 5% anti-grief deposit to begin.</p>
+      <p className="text-sm">Deposit your stake + 5% anti-grief deposit and commit your team.</p>
+      <p className="text-xs text-muted-foreground">
+        You agree to a stake of {stakeClaw} $CLAW against a team of Power {opponentPower}. The contract refuses the
+        deposit if the battle is anything else. Your opponent won&apos;t see your team until both teams are revealed together.
+      </p>
       <Button onClick={handleDeposit} disabled={busy} size="sm">
-        {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Processing...</> : 'Deposit Stake'}
+        {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Processing...</> : 'Deposit + Commit Team'}
       </Button>
     </div>
   );
@@ -282,83 +315,55 @@ function PrivateTeamLoadingOrError({
   );
 }
 
-/** X13: returns true when the chain phase deadline has elapsed AND the
- *  battle is in a phase the contract's `handleTimeout` will accept (i.e.
- *  not None/Settled/Cancelled). Mirrors BattleArena.sol:727 phase gate.
- *
- *  X13 LOW-01: disputed AwaitingFinalize battles route through
- *  `adminResolveDispute`, not `handleTimeout` — the contract reverts
- *  `DisputedBattleRequiresAdmin`. Hide the CTA in that state.
- *  V3: during Active the resolver settles; only after ACTIVE_WINDOW does
- *  handleTimeout succeed (mutual cancel + refund). */
+/** X13: returns true when the deadline for the current phase has elapsed AND the battle is in
+ *  a phase the contract's `handleTimeout` accepts (not None/Settled/Cancelled). Deadlines:
+ *  `phaseDeadline` for Deposit/TeamReveal/Active, `payoutDeadline` (end of the review window)
+ *  for AwaitingFinalize, `frozenAt` + 72 h for Frozen. */
+export const FREEZE_LONG_STOP_SEC = 72 * 60 * 60;
 function isTimeoutable(chain: BattleData['chain']): boolean {
   if (!chain) return false;
-  // Contract phase enum: 0=None, 1=Deposit, 2=TeamCommit, 3=TeamReveal,
-  // 4=Active, 5=AwaitingFinalize, 6=Settled, 7=Cancelled.
-  if (chain.phase < 1 || chain.phase > 5) return false;
-  // LOW-01: dispute path is admin-only.
-  if (chain.phase === 5 && chain.disputed) return false;
-  // V3: the Active phase has a single ACTIVE_WINDOW deadline; past it,
-  // handleTimeout mutually cancels with full refunds (no per-round ladder).
+  // Contract phase enum: 0=None, 1=Deposit, 2=TeamCommit (unused), 3=TeamReveal,
+  // 4=Active, 5=AwaitingFinalize, 6=Settled, 7=Cancelled, 8=Frozen.
+  if (chain.phase < 1 || chain.phase === 6 || chain.phase === 7 || chain.phase > 8) return false;
   const now = BigInt(Math.floor(Date.now() / 1000));
-  // AwaitingFinalize uses `payoutDeadline`; everything else uses `phaseDeadline`.
   const deadline = chain.phase === 5
     ? BigInt(chain.payoutDeadline ?? '0')
-    : BigInt(chain.phaseDeadline ?? '0');
+    : chain.phase === 8
+      ? (chain.frozenAt ? BigInt(chain.frozenAt + FREEZE_LONG_STOP_SEC) : 0n)
+      : BigInt(chain.phaseDeadline ?? '0');
   if (deadline === 0n) return false;
   return now > deadline;
 }
 
-/** D-06: a participant may dispute while the result is awaiting finalization, the window
- *  is open and nobody has disputed yet. (BattleMoves only renders for participants.) */
-function canDispute(chain: BattleData['chain']): boolean {
-  if (!chain || chain.phase !== 5 || chain.disputed) return false;
-  const deadline = BigInt(chain.payoutDeadline ?? '0');
-  return deadline !== 0n && BigInt(Math.floor(Date.now() / 1000)) <= deadline;
-}
-
-/** D-06: the dispute - the bonded veto the trust model rests on - had no button anywhere.
- *  `rogue` comes from the server's own check: the result on-chain is not the one this game
- *  server computed, so it did not come from here. */
-export function DisputeAction({ battleId, rogue, deadline }: { battleId: string; rogue: boolean; deadline: string }) {
-  const { getAuthHeaders } = useAuth();
-  const { execute: executeTx, status } = useCalldataTx();
-  const [evidence, setEvidence] = useState('');
-  const [terms, setTerms] = useState<string | null>(null);
-
-  const handleClick = useCallback(async () => {
-    const auth = await getAuthHeaders();
-    const res = await api.combat.dispute(battleId, evidence, auth);
-    setTerms(res.preview.terms);
-    await executeTx(res.steps);
-  }, [battleId, evidence, getAuthHeaders, executeTx]);
-
-  const busy = status === 'pending' || status === 'confirming';
-  const closes = new Date(Number(deadline) * 1000).toLocaleTimeString();
-
+/** Phase 5: the result is recorded, damage applied and both teams already free; the payout
+ *  waits for the review window while the game's watchdog replays the battle. */
+function ReviewNotice({ payoutDeadline, rogue }: { payoutDeadline: string; rogue: boolean }) {
+  const ends = new Date(Number(payoutDeadline) * 1000).toLocaleTimeString();
   return (
-    <div className={`border rounded-md p-5 space-y-3 ${rogue ? 'border-coral bg-coral/10' : 'border-border bg-surface/40'}`}>
-      <p className="text-sm font-medium">
-        {rogue ? 'Warning: this result did not come from the game server' : 'Disagree with this result?'}
-      </p>
+    <div className={`border rounded-md p-5 space-y-2 ${rogue ? 'border-coral bg-coral/10' : 'border-border bg-surface/40'}`}>
+      <p className="text-sm font-medium">Result under review</p>
       <p className="text-xs text-text-secondary">
         {rogue
-          ? 'The result submitted on-chain does not match the battle this server ran. If nobody disputes it before the window closes, it pays out and cannot be undone.'
-          : 'You can dispute the proposed result until the window closes. An admin then reviews the battle log.'}
-        {' '}The dispute window closes at {closes}. Disputing posts a bond of 10% of the stake: it is
-        returned if the result is changed and lost if the result stands. Limit 5 disputes per 24 hours.
+          ? 'The result submitted on-chain does not match the battle this game server ran. The game\'s watchdog holds such a result for review before it can pay out — you do not need to do anything.'
+          : `Your lobsters are already free. The payout is released after a short review (until ${ends}), while the game re-checks the battle.`}
       </p>
-      <textarea
-        value={evidence}
-        onChange={(e) => setEvidence(e.target.value.slice(0, 512))}
-        placeholder="What is wrong with this result? (optional, stored on-chain)"
-        className="w-full text-xs rounded border border-border bg-transparent p-2"
-        rows={2}
-      />
-      {terms && <p className="text-xs text-text-secondary">{terms}</p>}
-      <Button onClick={handleClick} disabled={busy} size="sm" variant={rogue ? 'default' : 'secondary'}>
-        {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Submitting...</> : 'Dispute this result'}
-      </Button>
+    </div>
+  );
+}
+
+/** Phase 8: frozen. The team settles it; if nobody does within 72 h, anyone can close it and
+ *  both players get their stakes back. */
+function FrozenNotice({ frozenAt }: { frozenAt: number }) {
+  const longStop = frozenAt ? new Date((frozenAt + FREEZE_LONG_STOP_SEC) * 1000).toLocaleString() : null;
+  return (
+    <div className="border border-claw-gold/40 rounded-md p-5 space-y-2 bg-claw-gold/5">
+      <p className="text-sm font-medium">Frozen for review — the team is reviewing this result</p>
+      <p className="text-xs text-text-secondary">
+        The game could not reproduce the result that was submitted, so the payout is on hold. The team will pay out
+        the correct result or refund both players.
+        {longStop ? ` If nothing has happened by ${longStop}, anyone can close the battle and both players get their stake and anti-grief deposit back.` : ''}
+        {' '}Your lobsters are not locked.
+      </p>
     </div>
   );
 }
@@ -384,53 +389,11 @@ function HandleTimeoutAction({ battleId }: { battleId: string }) {
     <div className="border border-claw-gold/40 rounded-md p-5 text-center space-y-2 bg-claw-gold/5">
       <p className="text-sm font-medium">Battle stuck past its deadline</p>
       <p className="text-xs text-text-secondary">
-        Force the contract to resolve this phase (cancel + refund, or finalize the proposed
-        outcome). Anyone can call — auth here is for telemetry.
+        Force the contract to resolve this phase (cancel + refund, pay out a reviewed result, or
+        close a frozen battle after 72 h). Anyone can call — auth here is for telemetry.
       </p>
       <Button onClick={handleClick} disabled={busy} size="sm" variant="secondary">
         {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Submitting...</> : 'Handle timeout'}
-      </Button>
-    </div>
-  );
-}
-
-function TeamCommitAction({ battleId, address, teamId }: { battleId: string; address: string; teamId: string }) {
-  const { getAuthHeaders } = useAuth();
-  const { execute: executeTx, status } = useCalldataTx();
-
-  const handleCommit = useCallback(async () => {
-    if (!address) throw new Error('Wallet not connected');
-    const salt = generateSalt();
-    // A2-FU MEDIUM: sessionStorage keys scoped by lowercased wallet address.
-    // Otherwise wallet B could read wallet A's stored salt/teamId in the
-    // same browser session (commit-reveal secrecy leak + cross-wallet
-    // corruption when wallet B tries to reveal A's commit).
-    const lower = address.toLowerCase();
-    sessionStorage.setItem(`battle-team-salt-${battleId}-${lower}`, salt);
-    sessionStorage.setItem(`battle-team-id-${battleId}-${lower}`, teamId);
-    // F5-01: the commit hash MUST include the player address to match BattleArena
-    // (keccak256(abi.encodePacked(battleId, player, teamId, salt))). The shared
-    // teamCommitHash helper is the single source of truth — an earlier inline version
-    // omitted the address, so no reveal could ever validate on-chain.
-    const commitHash = teamCommitHash(
-      BigInt(battleId),
-      address as `0x${string}`,
-      BigInt(teamId),
-      salt as `0x${string}`,
-    );
-    const auth = await getAuthHeaders();
-    const { steps } = await api.combat.commitTeam(battleId, commitHash, auth);
-    await executeTx(steps);
-  }, [battleId, teamId, address, getAuthHeaders, executeTx]);
-
-  const busy = status === 'pending' || status === 'confirming';
-
-  return (
-    <div className="border border-border rounded-md p-6 text-center space-y-3">
-      <p className="text-sm">Commit your team composition.</p>
-      <p className="text-xs text-muted-foreground">Your opponent won't see your team until both sides reveal.</p>
-      <Button onClick={handleCommit} disabled={busy} size="sm">
-        {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Committing...</> : 'Commit Team'}
       </Button>
     </div>
   );
@@ -441,27 +404,31 @@ function TeamRevealAction({ battleId, address, teamId }: { battleId: string; add
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
 
-  // F5-01: revealing no longer submits an on-chain tx. The player sends their salt to the
-  // server; once BOTH players' salts are in, the resolver submits a single atomic revealTeams
-  // for both teams. This closes the matchup-dodge (nothing leaks from a one-sided reveal) and
-  // means a dropped connection here costs nothing — the reveal window times out to a full
-  // mutual refund.
+  // F5-01: revealing submits no on-chain tx. The player sends their salt to the server; once
+  // BOTH players' salts open their commits, the resolver submits a single atomic revealTeams for
+  // both teams. The deposit already handed the server the salt, so this is the fallback — and
+  // it runs by itself (the reveal window is only 20 s). The salt is KEPT locally until the
+  // battle starts: if the server reports the commit unopenable, you open it yourself (D-14).
   const handleReveal = useCallback(async () => {
     setBusy(true);
     try {
       const lower = address.toLowerCase();
-      const salt = sessionStorage.getItem(`battle-team-salt-${battleId}-${lower}`) ?? '';
-      const storedTeamId = sessionStorage.getItem(`battle-team-id-${battleId}-${lower}`) ?? teamId;
+      const salt = sessionStorage.getItem(saltKey(battleId, lower)) ?? '';
+      const storedTeamId = sessionStorage.getItem(teamKey(battleId, lower)) ?? teamId;
       const auth = await getAuthHeaders();
       const res = await api.combat.revealTeam(battleId, storedTeamId, salt, auth);
-      // Salt is now server-side; safe to clear locally.
-      sessionStorage.removeItem(`battle-team-salt-${battleId}-${lower}`);
-      sessionStorage.removeItem(`battle-team-id-${battleId}-${lower}`);
       setWaiting(res.status === 'waiting_for_opponent');
     } finally {
       setBusy(false);
     }
-  }, [battleId, teamId, getAuthHeaders]);
+  }, [battleId, teamId, address, getAuthHeaders]);
+
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (autoTried.current) return;
+    autoTried.current = true;
+    handleReveal().catch(() => { /* the button below retries */ });
+  }, [handleReveal]);
 
   if (waiting) {
     return (
@@ -476,10 +443,45 @@ function TeamRevealAction({ battleId, address, teamId }: { battleId: string; add
 
   return (
     <div className="border border-border rounded-md p-6 text-center space-y-3">
-      <p className="text-sm">Both teams committed. Submit your team to reveal.</p>
+      <p className="text-sm">Both deposits are in. Submit your team to reveal.</p>
       <Button onClick={handleReveal} disabled={busy} size="sm">
         {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Submitting...</> : 'Reveal Team'}
       </Button>
+    </div>
+  );
+}
+
+/** D-14: the server reported that your commit does not open with the salt it holds (or it
+ *  never got one). Open it yourself on-chain within 2 minutes, or you forfeit your 5%
+ *  anti-grief deposit when the reveal window lapses. Needs the salt from this browser. */
+function OpenCommitAction({ battleId, address, teamId }: { battleId: string; address: string; teamId: string }) {
+  const { getAuthHeaders } = useAuth();
+  const { execute: executeTx, status } = useCalldataTx();
+  const lower = address.toLowerCase();
+  const salt = typeof window !== 'undefined' ? sessionStorage.getItem(saltKey(battleId, lower)) : null;
+
+  const handleOpen = useCallback(async () => {
+    if (!salt) return;
+    const storedTeamId = sessionStorage.getItem(teamKey(battleId, lower)) ?? teamId;
+    const auth = await getAuthHeaders();
+    const { steps } = await api.combat.openCommit(battleId, storedTeamId, salt, auth);
+    await executeTx(steps);
+  }, [battleId, teamId, lower, salt, getAuthHeaders, executeTx]);
+
+  const busy = status === 'pending' || status === 'confirming';
+  return (
+    <div className="border border-coral/40 rounded-md p-6 text-center space-y-3 bg-coral/5">
+      <p className="text-sm font-medium">The server could not open your team commit</p>
+      <p className="text-xs text-text-secondary">
+        Open it yourself within 2 minutes, or you lose your 5% anti-grief deposit when the reveal window ends.
+      </p>
+      {salt ? (
+        <Button onClick={handleOpen} disabled={busy} size="sm">
+          {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Submitting...</> : 'Open my commit'}
+        </Button>
+      ) : (
+        <p className="text-xs text-muted-foreground">This browser no longer has the salt for this commit.</p>
+      )}
     </div>
   );
 }
