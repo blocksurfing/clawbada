@@ -1,203 +1,147 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { decodeFunctionData } from 'viem';
 
-// ── Mock @clawbada/chain ──
-const mockAccount = { address: '0xOperator' };
-const mockWriteContract = mock(() => Promise.resolve('0xtxhash'));
-const mockWaitForTransactionReceipt = mock(() => Promise.resolve({}));
-const mockSimulateStartSeason = mock((..._args: unknown[]) =>
-  Promise.resolve({ request: { functionName: 'startSeason' } }),
-);
-/** First simulate call's [totalEmission, baseReward] tuple. */
-const firstStartSeasonArgs = (): [bigint, bigint] =>
-  mockSimulateStartSeason.mock.calls[0][0] as [bigint, bigint];
-
+// ── Mock @clawbada/chain ── (process-global: mirror the real module's shape for what the manager uses)
+const realChain = await import('@clawbada/chain');
+const mockSimulateStartSeason = mock((..._args: unknown[]) => Promise.resolve({ request: {} }));
 mock.module('@clawbada/chain', () => ({
-  getOperatorClient: () => ({
-    account: mockAccount,
-    writeContract: mockWriteContract,
-  }),
-  getPublicClient: () => ({
-    waitForTransactionReceipt: mockWaitForTransactionReceipt,
-  }),
-  getMiningPool: () => ({
-    simulate: {
-      startSeason: mockSimulateStartSeason,
-    },
-  }),
+  ...realChain,
+  addresses: { ...realChain.addresses, miningPool: '0x00000000000000000000000000000000000000aa' },
+  getPublicClient: () => ({}),
+  // The manager must never try to send startSeason itself (D-25). Kept here only to assert that.
+  getMiningPool: () => ({ simulate: { startSeason: mockSimulateStartSeason }, read: {} }),
 }));
 
 // ── Mock @clawbada/db ──
-const mockDbSelect = mock<any>();
-const mockDbFrom = mock<any>();
-const mockDbOrderBy = mock<any>();
 const mockDbLimit = mock<any>();
-
 mock.module('@clawbada/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        orderBy: () => ({
-          limit: mockDbLimit,
-        }),
-      }),
-    }),
-  },
+  db: { select: () => ({ from: () => ({ orderBy: () => ({ limit: mockDbLimit }) }) }) },
   seasons: { season: 'season' },
 }));
 
-// ── Import after mocks ──
-import { SeasonManager } from '../../seasons/manager';
-import { getSeasonEmission, SEASON_EMISSIONS, S1_BASE_REWARD } from '@clawbada/game-logic';
+import { MiningPoolAbi } from '@clawbada/chain';
+import {
+  SeasonManager,
+  scheduledEmission,
+  nextSeasonEmission,
+  MINING_ALLOCATION,
+  S1_EMISSION,
+  S7_EMISSION,
+  ROLLOVER_DUE_AHEAD_MS,
+  type SeasonChainReader,
+} from '../../seasons/manager';
 
-// ── Helpers ──
+const DAY = 24 * 60 * 60 * 1000;
+const WEI = 10n ** 18n;
 
-function makeSeason(overrides: Partial<{
-  season: number;
-  totalEmission: string;
-  totalMinted: string;
-  baseReward: string;
-  startTime: Date;
-}> = {}) {
+function season(n: number, startedDaysAgo: number, now: number) {
   return {
-    season: overrides.season ?? 1,
-    totalEmission: overrides.totalEmission ?? '387500000',
-    totalMinted: overrides.totalMinted ?? '0',
-    baseReward: overrides.baseReward ?? '1250',
-    startTime: overrides.startTime ?? new Date(),
+    season: n,
+    totalEmission: (scheduledEmission(n)).toString(),
+    totalMinted: '0',
+    baseReward: (1_250n * WEI).toString(),
+    startTime: new Date(now - startedDaysAgo * DAY),
   };
 }
 
-function daysAgo(days: number): Date {
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+function reader(minted: bigint, launch: bigint = 1_250n * WEI): SeasonChainReader {
+  return { lifetimeMinted: async () => minted, launchBaseReward: async () => launch };
 }
 
-describe('getSeasonEmission', () => {
-  test('returns correct values for seasons 1-7', () => {
-    expect(getSeasonEmission(1)).toBe(387_500_000n);
-    expect(getSeasonEmission(2)).toBe(193_750_000n);
-    expect(getSeasonEmission(3)).toBe(96_875_000n);
-    expect(getSeasonEmission(4)).toBe(48_437_500n);
-    expect(getSeasonEmission(5)).toBe(24_218_750n);
-    expect(getSeasonEmission(6)).toBe(12_109_375n);
-    expect(getSeasonEmission(7)).toBe(7_750_000n);
+describe('season schedule (TOK-M1, wei)', () => {
+  test('S1 352.5M halving through S6, S7 7.05M — in wei', () => {
+    expect(scheduledEmission(1)).toBe(352_500_000n * WEI);
+    expect(scheduledEmission(2)).toBe(176_250_000n * WEI);
+    expect(scheduledEmission(6)).toBe(S1_EMISSION / 32n);
+    expect(scheduledEmission(7)).toBe(S7_EMISSION);
   });
-
-  test('returns floor for seasons beyond 7', () => {
-    expect(getSeasonEmission(8)).toBe(7_750_000n);
-    expect(getSeasonEmission(10)).toBe(7_750_000n);
-    expect(getSeasonEmission(100)).toBe(7_750_000n);
+  test('the next season is clamped to what is left of the 705M allocation', () => {
+    const minted = MINING_ALLOCATION - 1_000n * WEI;
+    expect(nextSeasonEmission(8, minted)).toBe(1_000n * WEI);
+    expect(nextSeasonEmission(2, 0n)).toBe(176_250_000n * WEI);
+    expect(nextSeasonEmission(9, MINING_ALLOCATION)).toBe(0n);
   });
-
-  test('throws for season 0', () => {
-    expect(() => getSeasonEmission(0)).toThrow('Season must be >= 1');
-  });
-
-  test('throws for negative season', () => {
-    expect(() => getSeasonEmission(-1)).toThrow('Season must be >= 1');
-  });
+  test('rejects season 0', () => expect(() => scheduledEmission(0)).toThrow());
 });
 
-describe('SeasonManager', () => {
-  let manager: SeasonManager;
-
+describe('SeasonManager.checkRollover (the Safe starts seasons — D-25)', () => {
+  const now = Date.UTC(2027, 0, 1);
   beforeEach(() => {
-    manager = new SeasonManager();
     mockDbLimit.mockReset();
     mockSimulateStartSeason.mockReset();
-    mockWriteContract.mockReset();
-    mockWaitForTransactionReceipt.mockReset();
-
-    // Defaults
-    mockSimulateStartSeason.mockImplementation(() =>
-      Promise.resolve({ request: { functionName: 'startSeason' } }),
-    );
-    mockWriteContract.mockImplementation(() => Promise.resolve('0xtxhash'));
-    mockWaitForTransactionReceipt.mockImplementation(() => Promise.resolve({}));
   });
 
-  describe('checkAndRollover', () => {
-    test('skips when no season exists in DB', async () => {
-      mockDbLimit.mockResolvedValue([]);
+  test('nothing in DB → nothing', async () => {
+    mockDbLimit.mockResolvedValue([]);
+    expect(await new SeasonManager(reader(0n)).checkRollover(now)).toBeNull();
+  });
 
-      const result = await manager.checkAndRollover();
+  test('mid-season → silent', async () => {
+    mockDbLimit.mockResolvedValue([season(1, 30, now)]);
+    expect(await new SeasonManager(reader(0n)).checkRollover(now)).toBeNull();
+  });
 
-      expect(result).toBe(false);
-      expect(mockSimulateStartSeason).not.toHaveBeenCalled();
-    });
+  test('3 days before the end → season_rollover_due with the exact Safe transaction', async () => {
+    mockDbLimit.mockResolvedValue([season(1, 58, now)]); // ends in 2 days
+    const m = new SeasonManager(reader(100_000_000n * WEI, 1_250n * WEI));
+    expect(await m.checkRollover(now)).toBe('due');
+    const plan = await m.buildRolloverPlan(season(1, 58, now) as any);
+    expect(plan.target).toBe('0x00000000000000000000000000000000000000aa');
+    expect(plan.nextSeason).toBe(2);
+    const decoded = decodeFunctionData({ abi: MiningPoolAbi, data: plan.calldata });
+    expect(decoded.functionName).toBe('startSeason');
+    expect(decoded.args).toEqual([176_250_000n * WEI, 1_250n * WEI]);
+    expect(mockSimulateStartSeason).not.toHaveBeenCalled(); // never sends it itself
+  });
 
-    test('skips when season is still active (30 days elapsed)', async () => {
-      mockDbLimit.mockResolvedValue([makeSeason({ startTime: daysAgo(30) })]);
+  test('the due alarm repeats daily, not every tick', async () => {
+    mockDbLimit.mockResolvedValue([season(1, 58, now)]);
+    const m = new SeasonManager(reader(0n));
+    expect(await m.checkRollover(now)).toBe('due');
+    expect(await m.checkRollover(now + 60 * 60 * 1000)).toBeNull();
+    expect(await m.checkRollover(now + DAY)).toBe('due');
+  });
 
-      const result = await manager.checkAndRollover();
+  test('season over and no new one → season_rollover_overdue, repeating hourly', async () => {
+    mockDbLimit.mockResolvedValue([season(2, 61, now)]);
+    const m = new SeasonManager(reader(0n));
+    expect(await m.checkRollover(now)).toBe('overdue');
+    expect(await m.checkRollover(now + 30 * 60 * 1000)).toBeNull();
+    expect(await m.checkRollover(now + 61 * 60 * 1000)).toBe('overdue');
+  });
 
-      expect(result).toBe(false);
-      expect(mockSimulateStartSeason).not.toHaveBeenCalled();
-    });
+  test('allocation exhausted → no alarm to start anything', async () => {
+    mockDbLimit.mockResolvedValue([season(8, 61, now)]);
+    expect(await new SeasonManager(reader(MINING_ALLOCATION)).checkRollover(now)).toBe('exhausted');
+  });
 
-    test('triggers rollover when season has elapsed (61 days)', async () => {
-      mockDbLimit.mockResolvedValue([makeSeason({ season: 1, startTime: daysAgo(61) })]);
+  test('an unreadable launch reward falls back to the S1 value (the Safe may change it)', async () => {
+    mockDbLimit.mockResolvedValue([season(1, 58, now)]);
+    const m = new SeasonManager({ lifetimeMinted: async () => 0n, launchBaseReward: async () => { throw new Error('rpc'); } });
+    expect(await m.checkRollover(now)).toBe('due');
+    const plan = await m.buildRolloverPlan(season(1, 58, now) as any);
+    expect(decodeFunctionData({ abi: MiningPoolAbi, data: plan.calldata }).args?.[1]).toBe(1_250n * WEI);
+  });
 
-      const result = await manager.checkAndRollover();
+  test('the Safe started the next season → handler fires once and the alarms reset', async () => {
+    const m = new SeasonManager(reader(0n));
+    const handler = mock((_season: number, _emission: bigint, _baseReward: bigint) => {});
+    m.setRolloverHandler(handler);
+    mockDbLimit.mockResolvedValue([season(1, 61, now)]);
+    expect(await m.checkRollover(now)).toBe('overdue');
+    mockDbLimit.mockResolvedValue([season(2, 0, now + DAY)]);
+    expect(await m.checkRollover(now + DAY)).toBeNull();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler.mock.calls[0][0]).toBe(2);
+    expect(await m.checkRollover(now + 2 * DAY)).toBeNull();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
 
-      expect(result).toBe(true);
-      expect(mockSimulateStartSeason).toHaveBeenCalledTimes(1);
-      // Should call with S2 emission and S1_BASE_REWARD
-      const callArgs = firstStartSeasonArgs();
-      expect(callArgs[0]).toBe(193_750_000n); // S2 emission
-      expect(callArgs[1]).toBe(S1_BASE_REWARD);
-    });
-
-    test('uses correct emission for S6→S7 rollover (floor)', async () => {
-      mockDbLimit.mockResolvedValue([makeSeason({ season: 6, startTime: daysAgo(61) })]);
-
-      const result = await manager.checkAndRollover();
-
-      expect(result).toBe(true);
-      const callArgs = firstStartSeasonArgs();
-      expect(callArgs[0]).toBe(7_750_000n); // S7 = floor
-    });
-
-    test('uses floor emission for S10→S11 rollover', async () => {
-      mockDbLimit.mockResolvedValue([makeSeason({ season: 10, startTime: daysAgo(61) })]);
-
-      const result = await manager.checkAndRollover();
-
-      expect(result).toBe(true);
-      const callArgs = firstStartSeasonArgs();
-      expect(callArgs[0]).toBe(7_750_000n); // Still floor
-    });
-
-    test('handles chain error gracefully', async () => {
-      mockDbLimit.mockResolvedValue([makeSeason({ season: 1, startTime: daysAgo(61) })]);
-      mockSimulateStartSeason.mockRejectedValue(new Error('SeasonStillActive'));
-
-      const result = await manager.checkAndRollover();
-
-      expect(result).toBe(false);
-    });
-
-    test('calls rollover handler on success', async () => {
-      mockDbLimit.mockResolvedValue([makeSeason({ season: 2, startTime: daysAgo(61) })]);
-
-      const handler = mock<any>();
-      manager.setRolloverHandler(handler);
-
-      await manager.checkAndRollover();
-
-      expect(handler).toHaveBeenCalledTimes(1);
-      expect(handler).toHaveBeenCalledWith(3, 96_875_000n, S1_BASE_REWARD);
-    });
-
-    test('does not call rollover handler on failure', async () => {
-      mockDbLimit.mockResolvedValue([makeSeason({ season: 1, startTime: daysAgo(61) })]);
-      mockSimulateStartSeason.mockRejectedValue(new Error('revert'));
-
-      const handler = mock<any>();
-      manager.setRolloverHandler(handler);
-
-      await manager.checkAndRollover();
-
-      expect(handler).not.toHaveBeenCalled();
-    });
+  test('due window starts exactly ROLLOVER_DUE_AHEAD_MS before the end', async () => {
+    const end = now;
+    mockDbLimit.mockResolvedValue([{ ...season(1, 0, now), startTime: new Date(end - 60 * DAY) }]);
+    const m = new SeasonManager(reader(0n));
+    expect(await m.checkRollover(end - ROLLOVER_DUE_AHEAD_MS - 1)).toBeNull();
+    expect(await m.checkRollover(end - ROLLOVER_DUE_AHEAD_MS)).toBe('due');
   });
 });
