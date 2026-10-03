@@ -1201,12 +1201,34 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a89f9f707534347858349d761cb0e791, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HexGrid
-  hexSize: 1
-  hexTilePrefab: {fileID: 1259336632}
-  fadeOutDuration: 0.25
-  drawPreview: 0
-  previewCols: 5
-  previewRows: 6
+  unityGrid: {fileID: 0}
+  boardTilemap: {fileID: 0}
+  defaultTile: {fileID: 0}
+  moveTile: {fileID: 0}
+  attackTile: {fileID: 0}
+  allyTile: {fileID: 0}
+  selectedTile: {fileID: 0}
+  showBoardAtRest: 0
+  obstacleLibrary: {fileID: 0}
+  obstacleRoot: {fileID: 0}
+  obstacleOffset: {x: 0, y: -0.15}
+  obstacleScale: 0.8
+  randomizeWhenUnspecified: 1
+  randomBlockedMin: 4
+  randomBlockedMax: 5
+  tierPlacements:
+  - tier: evolved
+    offset: {x: 0, y: -0.6}
+    scale: 1
+    tileTint: {r: 1, g: 1, b: 1, a: 1}
+  - tier: elite
+    offset: {x: 0, y: 0}
+    scale: 1
+    tileTint: {r: 1, g: 1, b: 1, a: 1}
+  - tier: apex
+    offset: {x: 0, y: 0}
+    scale: 1
+    tileTint: {r: 1, g: 1, b: 1, a: 1}
 --- !u!4 &1259336634
 Transform:
   m_ObjectHideFlags: 0
