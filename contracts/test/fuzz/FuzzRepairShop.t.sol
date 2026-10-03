@@ -58,14 +58,16 @@ contract FuzzRepairShop is BaseSetup {
     // ── D-30: the cost formula at ANY peg value, not only the launch reward ──
     //
     // Repair prices are basis points of MiningPool.currentBaseReward(), and the glide moves
-    // that every day. Every existing test pinned it at the 1,250 launch value. Across the
+    // that every hour. Every existing test pinned it at the 1,250 launch value. Across the
     // whole range a repair has exactly three outcomes, decided by the numbers alone:
     //   rate == 0                 -> RewardPegUnset        (peg below 10_000/bps wei)
     //   0 < cost < 10_000 wei     -> Treasury AmountBelowMinimum (dust, T-03 floor)
     //   otherwise                 -> succeeds, charged points x rate, split 85/15
     // The two failure bands exist only when the base reward is under ~250 wei — a rate the
-    // glide cannot reach inside a season (-30% a day from 1,250e18 needs ~120 days) — so this
-    // documents the edge rather than guarding a live one. What it guards: a repair can never
+    // glide cannot reach in practice: 120 consecutive -30% steps from 1,250e18, each needing
+    // the target (what is left, over the epochs left, per unit of demand) to sit under the
+    // rate, which at 250 wei means ~10^18 expeditions an hour. So this documents the edge
+    // rather than guarding a live one. What it guards: a repair can never
     // succeed at the wrong price, and can never be free.
     function testFuzz_repair_at_any_peg(uint256 pegSeed, uint8 tier, uint8 damage, uint8 points) public {
         tier = uint8(bound(tier, 1, 3));
