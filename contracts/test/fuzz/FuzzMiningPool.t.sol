@@ -532,11 +532,9 @@ contract FuzzMiningPool is BaseSetup {
         // Old expedition keeps its reward
         assertEq(miningPool.getExpedition(expId1).reward, oldReward, "old expedition unchanged");
 
-        // New expedition uses new base reward
-        vm.warp(block.timestamp + 4 hours + 1);
-        vm.prank(alice);
-        miningPool.claimExpedition(expId1);
-
+        // A new expedition in the same epoch uses the new base reward. (Another team, not a 4 h
+        // wait: the glide re-pegs hourly, and an override ABOVE launch snaps back to launch at
+        // the next re-peg — test_glideNeverExceedsLaunchAfterAdminOverride covers that.)
         uint256[3] memory ids2 = _mint3(alice);
         vm.prank(alice);
         uint256 team2 = teamMgr.createTeam(ids2);

@@ -35,11 +35,13 @@ contract ProtocolHandler is BaseSetup {
     string public violation;
 
     /// @dev Deliberately tiny next to the real 352.5M. The glide targets
-    ///      remaining / (remainingDays x trailing demand); with five actors' worth of demand
+    ///      remaining / (remainingEpochs x trailing demand); with five actors' worth of demand
     ///      against the real budget that target is astronomically above the launch reward, so
     ///      the reward would sit on its cap forever and the repair price would never move.
-    ///      At 50K, one Base expedition a day already pulls the target under 1,250 — the
-    ///      glide steps down and back up during runs, and the budget can run out too.
+    ///      At 50K, one Base expedition an hour already pulls the target under 1,250 — the
+    ///      glide steps down and back up during runs, and the budget can run out too. The
+    ///      D-19 spend ceiling sits at its floor here (one +50% Apex expedition, 46,875, per
+    ///      hour), which is still 37 Base expeditions an hour.
     uint256 internal constant S1_EMISSION = 50_000e18;
     uint256 internal constant S1_BASE_REWARD = 1_250e18;
 
@@ -314,7 +316,7 @@ contract ProtocolHandler is BaseSetup {
     }
 
     // ── Handler: time ─────────────────────────────────────────────
-    //    Up to a day per call: expeditions mature (4h) and the daily glide epoch rolls.
+    //    Up to a day per call: expeditions mature (4h) and hourly glide epochs roll.
 
     function handler_warp(uint32 secs) external {
         vm.warp(block.timestamp + bound(uint256(secs), 1 minutes, 1 days));
@@ -566,8 +568,9 @@ contract InvariantProtocol is Test {
         assertEq(handler.ghostExpeditionsClaimed(), 1, "handler_claim must actually claim");
         assertEq(handler.ghostRewardsClaimed(), 1_250e18, "Base mine pays the launch reward");
 
-        // Next epoch: trailing demand 1, 48,750 left over 59 days -> target ~826, clamped to
-        // -30% = 875. The repair price moves with it: 40 bps of 875 = 3.5 CLAW per point.
+        // A day on (epoch 24): trailing demand 1, 48,750 left over 1,416 hourly epochs ->
+        // target ~34, clamped to -30% = 875 in this one lazy step. The repair price moves with
+        // it: 40 bps of 875 = 3.5 CLAW per point.
         handler.handler_repeg();
         assertEq(handler.getMiningPool().currentBaseReward(), 875e18, "the glide stepped down by the 30% clamp");
         assertEq(handler.getRepairShop().repairRate(1), 3.5e18, "the Evolved repair price followed the glide");

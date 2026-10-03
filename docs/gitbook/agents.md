@@ -111,7 +111,8 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 
 **Mining:**
 - `GET /api/mining/active?address=0x...` — active expeditions
-- `POST /api/mining/start` — start expedition (body: `{teamId, tier}`)
+- `POST /api/mining/start` — start expedition (body: `{teamId, tier}`); answers `409 MINE_FULL` with the opening time when this hour's mining budget is spent (D-19 ceiling)
+- `GET /api/game/mining/budget` — this hour's remaining mining budget, how many expeditions per tier still fit, and when the next hour opens
 - `POST /api/mining/claim` — claim completed expedition
 
 **Battle:**

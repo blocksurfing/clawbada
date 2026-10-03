@@ -23,6 +23,9 @@ const mockReadExpedition = mock<any>();
 const mockReadActiveExpedition = mock<any>();
 const mockReadCurrentSeason = mock<any>();
 const mockReadSeasonConfig = mock<any>();
+const mockReadCurrentBaseReward = mock<any>();
+const mockReadEpochBudget = mock<any>();
+const WEI = 10n ** 18n;
 
 // ── Local serializeBigInts ──
 function _serializeBigInts(obj: any): any {
@@ -46,6 +49,8 @@ mock.module('../../lib/chain', () => ({
   readActiveExpedition: mockReadActiveExpedition,
   readCurrentSeason: mockReadCurrentSeason,
   readSeasonConfig: mockReadSeasonConfig,
+  readCurrentBaseReward: mockReadCurrentBaseReward,
+  readEpochBudget: mockReadEpochBudget,
   serializeBigInts: _serializeBigInts,
 }));
 
@@ -72,6 +77,11 @@ describe('mining routes', () => {
     mockReadActiveExpedition.mockReset();
     mockReadCurrentSeason.mockReset();
     mockReadSeasonConfig.mockReset();
+    // The live glide rate and an hour with room: S1 hour 0 (2 x 352.5M / 1,440), nothing minted yet.
+    mockReadCurrentBaseReward.mockReset();
+    mockReadCurrentBaseReward.mockResolvedValue(1_250n * WEI);
+    mockReadEpochBudget.mockReset();
+    mockReadEpochBudget.mockResolvedValue({ cap: 489_583n * WEI, minted: 0n, nextEpochAt: BigInt(Math.floor(Date.now() / 1000) + 3_600) });
     mockVerifyMessage.mockImplementation(() => Promise.resolve(true));
     mockGetAddress.mockImplementation((addr: string) => addr);
   });
@@ -108,6 +118,28 @@ describe('mining routes', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.count).toBe(0);
+    });
+  });
+
+  // ──────────── GET /mining/budget ────────────
+
+  describe('GET /mining/budget', () => {
+    test("reports this hour's ceiling, what still fits per tier, and when the next hour opens", async () => {
+      mockReadEpochBudget.mockResolvedValue({ cap: 489_583n * WEI, minted: 468_750n * WEI, nextEpochAt: 1_900_000_000n });
+
+      const res = await app.request('/mining/budget');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.remaining).toBe((20_833n * WEI).toString());
+      expect(body.fits).toEqual([16, 5, 1, 0]); // 20,833 / 1,250 / {1, 3, 10, 25}
+      expect(body.nextEpochAtIso).toBe(new Date(1_900_000_000 * 1000).toISOString());
+    });
+
+    test('is not swallowed by the :expeditionId route', async () => {
+      mockReadEpochBudget.mockResolvedValue({ cap: 1n, minted: 0n, nextEpochAt: 0n });
+      const res = await app.request('/mining/budget');
+      expect(res.status).toBe(200);
+      expect(mockReadExpedition).not.toHaveBeenCalled();
     });
   });
 
@@ -155,6 +187,47 @@ describe('mining routes', () => {
       const body = await res.json();
       expect(body.steps).toHaveLength(1);
       expect(body.preview).toHaveProperty('expectedReward');
+    });
+
+    test('quotes the live glide rate, not the launch constant', async () => {
+      mockReadTeam.mockResolvedValue(mockTeam());
+      mockReadActiveExpedition.mockResolvedValue(0n);
+      mockReadLobster.mockImplementation((id: bigint) =>
+        Promise.resolve(mockLobster({ tokenId: id, evolutionTier: 1 })),
+      );
+      mockReadCurrentBaseReward.mockResolvedValue(875n * WEI); // one -30% step into the season
+
+      const res = await app.request('/mining/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ teamId: '1', mineTier: 1 }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.preview.expectedReward).toBe(875 * 3);
+      expect(body.preview.baseReward).toBe((875n * WEI).toString());
+    });
+
+    test("returns 409 MINE_FULL with the opening time when this hour's budget is spent (D-19)", async () => {
+      mockReadTeam.mockResolvedValue(mockTeam());
+      mockReadActiveExpedition.mockResolvedValue(0n);
+      mockReadLobster.mockImplementation((id: bigint) =>
+        Promise.resolve(mockLobster({ tokenId: id, evolutionTier: 1 })),
+      );
+      const opensAt = 1_900_000_000n;
+      // 1,000 CLAW of room left; an Evolved expedition at 1,250 x 3 does not fit.
+      mockReadEpochBudget.mockResolvedValue({ cap: 489_583n * WEI, minted: 488_583n * WEI, nextEpochAt: opensAt });
+
+      const res = await app.request('/mining/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ teamId: '1', mineTier: 1 }),
+      });
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toBe('MINE_FULL');
+      expect(body.message).toContain(new Date(Number(opensAt) * 1000).toISOString());
+      expect(body.steps).toBeUndefined();
     });
 
     test('returns 400 when teamId missing', async () => {

@@ -16,7 +16,7 @@ the Safe settles frozen battles, and nobody's lobsters are ever held hostage by 
 | 6 | D-12 signed turns | **C. Turns are not signed in Season 1**, and the docs say so: a timed-out turn and a forfeit's reason are in the hashed log and replay-checked, but a resignation is still the server's word. Session-key signing stays a later-season option. |
 | 7 | D-03 draws | **A.** A draw pays half the normal fee from each side (10 % of its own stake — the normal fee in total) and does **not** count as a played battle for the mining boost. |
 | 8 | D-25 who starts each season | **B. The Safe starts each new season**; the engine alerts several days ahead and prepares the transaction. |
-| 9 | D-19 glide economics | **Re-run the season simulation against the on-chain controller before launch** and decide from the numbers; no contract change now. |
+| 9 | D-19 glide economics | **Decided 2026-10-02 (full fix, PR #176):** the simulation showed the daily glide failing above ~6,000 teams. The re-peg is now hourly, with a 2× per-hour spend ceiling and a hold under one Base reward — `docs/audits/2026-10-02-d19-glide-simulation.md`. |
 
 The text below is the original brief, kept for the record.
 
@@ -98,6 +98,8 @@ The contracts are not upgradeable. Whatever is decided here has to be in before 
 ## 9. Glide economics (D-19 a, b, d)
 
 Not security. Three modelling questions about the reward glide: the clamp is asymmetric in effect (a 30% drop needs a 43% rise to undo), the first day of a season has no demand signal, and the simulation that validated the glide should be re-run against the on-chain controller at 15,000–30,000 teams. **Recommendation:** re-run the simulation before launch and decide from the numbers; no contract change is proposed yet.
+
+**Outcome (2026-10-02).** Re-run as `packages/game-logic/src/v3/season-glide.ts` (`bun run season:glide`). The daily controller failed above ~6,000 teams: 15,000 teams on a 7-day ramp spent 38% of the season in week one, 20,000 arriving on day one drained the budget by day four. Decision: the full fix — hourly re-peg, a 2× per-epoch spend ceiling with a one-expedition floor, and the D-19(c) hold widened to "less than one Base reward left". Implemented in `MiningPool` (PR #176) with the fuzz reference model, the API pre-check and the docs. Report: `docs/audits/2026-10-02-d19-glide-simulation.md`.
 
 ---
 

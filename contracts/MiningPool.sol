@@ -59,6 +59,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         uint256 lastRepegEpoch; // epoch index of the last glide re-peg
         uint256 epochWeightServed; // tier-weight units × BPS_DENOMINATOR served this epoch (boost-scaled)
         uint256 trailingWeightServed; // tier-weight units served in the last completed epoch with demand
+        uint256 epochMinted; // $CLAW minted this epoch (reset at the re-peg) — the spend ceiling's counter
     }
 
     /// @dev Battle-rank boost entry for one team. Packed into one slot. `epoch` stamps the boost
@@ -84,9 +85,20 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     uint256 public constant SEASON_DURATION = 60 days;
     uint256 public constant NUM_TIERS = 4;
     uint256 public constant ADMIN_RELEASE_GRACE = 7 days;
-    // TOK-G1 glide parameters: daily re-peg, damped to ±30% per epoch.
-    uint256 public constant REPEG_EPOCH = 1 days;
+    // TOK-G1 glide parameters (D-19, 2026-10-02): an HOURLY re-peg, damped to ±30% per epoch, plus a
+    // per-epoch spend ceiling. A daily re-peg could not track a crowd: the launch rate is sized for
+    // ~800 teams, and at -30% a day it took nine days to reach the rate 20,000 teams can sustain —
+    // during which they mined at 5-25x it (15,000 teams on a 7-day ramp spent 38% of the season in
+    // week one; 20,000 arriving on day one drained it by day four). Hourly epochs let the rate find
+    // the crowd within hours; the ceiling bounds what any single epoch can mint whatever the rate is
+    // doing. Modelled in packages/game-logic/src/v3/season-glide.ts
+    // (docs/audits/2026-10-02-d19-glide-simulation.md): with both, the contract tracks the ideal glide
+    // within 1-2% in every scenario, including 30,000 teams arriving in one day.
+    uint256 public constant REPEG_EPOCH = 1 hours;
     uint256 public constant REPEG_MAX_STEP_BPS = 3_000;
+    /// @notice An epoch may mint at most this share (bps) of its fair slice of the budget left:
+    ///         20,000 = twice `left / epochsLeft`.
+    uint256 public constant EPOCH_SPEND_CAP_BPS = 20_000;
     // TOK-M1: hard on-chain lifetime cap on cumulative mining emissions = the 705M
     // (70.5%) fair-launch allocation. Without this, the budget is enforced only by
     // per-season admin discipline (`startSeason` totalEmission), and Treasury burns
@@ -160,6 +172,8 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     error ZeroBaseReward();
     error SeasonBudgetExhausted();
     error MiningAllocationExhausted();
+    /// @dev D-19: this epoch has minted its ceiling; the expedition can start at `nextEpochAt`.
+    error EpochBudgetFull(uint256 nextEpochAt);
     error TeamDoesNotExist(uint256 teamId);
     error NotTeamOwner(uint256 teamId);
     error TeamAlreadyMining(uint256 teamId);
@@ -226,7 +240,8 @@ contract MiningPool is AccessControl, ReentrancyGuard {
             launchBaseReward: baseReward,
             lastRepegEpoch: 0,
             epochWeightServed: 0,
-            trailingWeightServed: 0
+            trailingWeightServed: 0,
+            epochMinted: 0
         });
 
         emit SeasonStarted(currentSeason, totalEmission, baseReward, block.timestamp);
@@ -285,12 +300,17 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         _repegIfNeeded(season);
         uint16 boostBps = _effectiveBoost(teamId, power);
         season.epochWeightServed += TIER_WEIGHTS[mineTier] * (BPS_DENOMINATOR + boostBps);
-        uint256 boostedBase = (season.baseReward * (BPS_DENOMINATOR + boostBps)) / BPS_DENOMINATOR;
-        uint256 reward = boostedBase * TIER_WEIGHTS[mineTier];
+        uint256 reward = _boostedBase(season.baseReward, boostBps) * TIER_WEIGHTS[mineTier];
 
         if (season.totalMinted + reward > season.totalEmission) revert SeasonBudgetExhausted();
         // TOK-M1: enforce the 705M lifetime mining allocation on-chain.
         if (lifetimeMinted + reward > MINING_ALLOCATION) revert MiningAllocationExhausted();
+        // D-19: the per-epoch spend ceiling. Whatever the rate is doing, no epoch mints more than
+        // EPOCH_SPEND_CAP_BPS of its fair slice of what is left — the backstop that keeps a surge
+        // the glide has not caught up with yet from draining the season. The expedition can start
+        // in the next epoch, by which time the glide has seen this one's demand.
+        if (season.epochMinted + reward > _epochSpendCap(season)) revert EpochBudgetFull(_nextEpochAt(season));
+        season.epochMinted += reward;
         season.totalMinted += reward;
         lifetimeMinted += reward;
 
@@ -465,7 +485,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         return s.totalEmission - s.totalMinted;
     }
 
-    /// @notice Permissionless: roll the daily glide re-peg forward without starting an expedition.
+    /// @notice Permissionless: roll the glide's re-peg forward (once per epoch) without starting an expedition.
     function repeg() external {
         _requireActiveSeason();
         _repegIfNeeded(_seasons[currentSeason]);
@@ -477,7 +497,67 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         return _seasons[currentSeason].baseReward;
     }
 
+    /// @notice D-19: this epoch's spend ceiling, what has been minted against it so far, and when
+    ///         the next epoch opens — so a client can say "the mine is full until HH:MM" instead of
+    ///         sending a transaction that reverts `EpochBudgetFull`.
+    function epochBudget() external view returns (uint256 cap, uint256 minted, uint256 nextEpochAt) {
+        SeasonConfig storage season = _seasons[currentSeason];
+        if (currentSeason == 0) return (0, 0, 0);
+        uint256 epoch = (block.timestamp - season.startTime) / REPEG_EPOCH;
+        // The counter is reset lazily at the first touch of an epoch: until then it still holds the
+        // last touched epoch's figure, which no longer applies. (Epochs only move forward, so
+        // "a later epoch than the last touched one" is "not the same epoch".)
+        minted = epoch > season.lastRepegEpoch ? 0 : season.epochMinted;
+        cap = _epochSpendCapFrom(season, epoch, minted);
+        nextEpochAt = season.startTime + (epoch + 1) * REPEG_EPOCH;
+    }
+
     // ──────────── Internal ────────────
+
+    /// @dev What is left to pace against: the season's budget, or the 705M allocation if less of it
+    ///      remains (D-20).
+    function _budgetLeft(SeasonConfig storage season) internal view returns (uint256 left) {
+        left = season.totalEmission > season.totalMinted ? season.totalEmission - season.totalMinted : 0;
+        uint256 allocationLeft = MINING_ALLOCATION > lifetimeMinted ? MINING_ALLOCATION - lifetimeMinted : 0;
+        if (allocationLeft < left) left = allocationLeft;
+    }
+
+    function _nextEpochAt(SeasonConfig storage season) internal view returns (uint256) {
+        return season.startTime + ((block.timestamp - season.startTime) / REPEG_EPOCH + 1) * REPEG_EPOCH;
+    }
+
+    /// @dev D-19: the current epoch's spend ceiling (see _epochSpendCapFrom). Called after
+    ///      _repegIfNeeded, so `epochMinted` is this epoch's.
+    function _epochSpendCap(SeasonConfig storage season) internal view returns (uint256) {
+        return _epochSpendCapFrom(season, (block.timestamp - season.startTime) / REPEG_EPOCH, season.epochMinted);
+    }
+
+    /// @dev EPOCH_SPEND_CAP_BPS of this epoch's fair slice of the budget as it stood when the epoch
+    ///      began (what is left now plus what this epoch has already minted), paced over the epochs
+    ///      left INCLUDING this one — but never less than one expedition of the heaviest tier at the
+    ///      highest boost. That floor is what keeps the ceiling from deadlocking the glide: the rate
+    ///      only moves on a demand signal, so at least one expedition must always be able to start.
+    function _epochSpendCapFrom(SeasonConfig storage season, uint256 epoch, uint256 mintedThisEpoch)
+        internal
+        view
+        returns (uint256 cap)
+    {
+        uint256 totalEpochs = SEASON_DURATION / REPEG_EPOCH;
+        uint256 epochsLeft = epoch >= totalEpochs ? 1 : totalEpochs - epoch;
+        uint256 atEpochStart = _budgetLeft(season) + mintedThisEpoch;
+        cap = (atEpochStart * EPOCH_SPEND_CAP_BPS) / (BPS_DENOMINATOR * epochsLeft);
+        // The same arithmetic as the reward itself, so the floor IS one real expedition.
+        uint256 oneMaxExpedition = _boostedBase(season.baseReward, MAX_BOOST_BPS) * TIER_WEIGHTS[NUM_TIERS - 1];
+        if (cap < oneMaxExpedition) cap = oneMaxExpedition;
+    }
+
+    /// @dev The base reward with a battle-rank boost applied. Rounded here, BEFORE the tier
+    ///      weight is applied by the caller, on purpose: a reward stays an exact tier-weight
+    ///      multiple (`invariant_rewardIsTierWeightMultiple`), which the boost math and the
+    ///      glide's demand accounting both rely on.
+    function _boostedBase(uint256 base, uint16 boostBps) internal pure returns (uint256) {
+        return (base * (BPS_DENOMINATOR + boostBps)) / BPS_DENOMINATOR;
+    }
 
     /// @dev TOK-G1 glide: once per epoch, re-peg baseReward toward
     ///      remaining / (remainingDays × trailingWeightServed), clamped to ±30% per step and
@@ -492,30 +572,29 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         // plain tier-weight units so the target formula and the event keep their semantics.
         if (season.epochWeightServed > 0) season.trailingWeightServed = season.epochWeightServed / BPS_DENOMINATOR;
         season.epochWeightServed = 0;
+        season.epochMinted = 0; // D-19: the spend ceiling counts per epoch
         season.lastRepegEpoch = epoch;
         uint256 trailing = season.trailingWeightServed;
         if (trailing == 0) return;
 
-        // D-18: count today. This runs on the first touch of epoch k, with 60 - k epochs still to
-        // pay for INCLUDING this one. The old `(SEASON_DURATION - elapsed) / 1 days` floored to
-        // 59 - k, so a crowded season was paced over 59 days, ran dry a day early and nobody could
-        // mine on day 60 — and it was 60 - k only in the single boundary second, so one block
-        // could pick a rate up to 30% away from the next. This is constant across the epoch and
-        // matches the model the glide was validated against (season.ts: days - day + 1).
+        // D-18: count this epoch. This runs on the first touch of epoch k, with (total - k) epochs
+        // still to pay for INCLUDING this one. The old `(SEASON_DURATION - elapsed) / epoch` floored
+        // one short, so a crowded season was paced over one epoch too few, ran dry early and nobody
+        // could mine in the last one — and it was right only in the single boundary second, so one
+        // block could pick a rate up to 30% away from the next. This is constant across the epoch
+        // and matches the model the glide was validated against (season-glide.ts: epochsLeft).
         uint256 totalEpochs = SEASON_DURATION / REPEG_EPOCH;
-        uint256 remainingDays = epoch >= totalEpochs ? 1 : totalEpochs - epoch;
-        uint256 remaining =
-            season.totalEmission > season.totalMinted ? season.totalEmission - season.totalMinted : 0;
-        // D-20: never pace against budget that cannot be minted. Near the end of the 705M
-        // allocation the lifetime cap, not the season's nominal budget, is what is left.
-        uint256 allocationLeft = MINING_ALLOCATION > lifetimeMinted ? MINING_ALLOCATION - lifetimeMinted : 0;
-        if (allocationLeft < remaining) remaining = allocationLeft;
-        // D-19(c): an exhausted budget is not a demand signal. Re-pegging toward a target of zero
-        // would walk baseReward down 30% a day to 1 wei, and RepairShop prices — basis points of
-        // baseReward — with it, so anyone could call repeg() daily to make repairs free for the
-        // rest of the season. Hold the last real rate instead; nothing can be started anyway.
-        if (remaining == 0) return;
-        uint256 target = remaining / (remainingDays * trailing);
+        uint256 remainingEpochs = epoch >= totalEpochs ? 1 : totalEpochs - epoch;
+        // D-20: never pace against budget that cannot be minted (the 705M allocation if less is left).
+        uint256 remaining = _budgetLeft(season);
+        // D-19(c): an exhausted budget is not a demand signal. Re-pegging toward a target of ~zero
+        // would walk baseReward down 30% an epoch to 1 wei, and RepairShop prices — basis points of
+        // baseReward — with it, so anyone could call repeg() to make repairs free for the rest of
+        // the season. Expeditions are discrete, so an exhausted season normally keeps a remainder
+        // smaller than one reward (the #99 fix held only at exactly zero): hold the last real rate
+        // whenever less than one Base expedition is left, since nothing can be started anyway.
+        if (remaining < season.baseReward) return;
+        uint256 target = remaining / (remainingEpochs * trailing);
 
         uint256 old = season.baseReward;
         uint256 lo = (old * (10_000 - REPEG_MAX_STEP_BPS)) / 10_000;

@@ -263,6 +263,28 @@ export async function readCurrentSeason(): Promise<bigint> {
   return pool.read.currentSeason() as Promise<bigint>;
 }
 
+/** The live per-expedition rate (wei). TOK-G1 glides it hourly, so the launch constant is only right in hour one. */
+export async function readCurrentBaseReward(): Promise<bigint> {
+  const pool = getMiningPool(client());
+  return pool.read.currentBaseReward() as Promise<bigint>;
+}
+
+export interface ChainEpochBudget {
+  /** This hour's spend ceiling (wei). */
+  cap: bigint;
+  /** Minted against it so far this hour (wei). */
+  minted: bigint;
+  /** Unix seconds at which the next hourly epoch opens. */
+  nextEpochAt: bigint;
+}
+
+/** D-19: the hourly spend ceiling, what has been minted against it, and when the next hour opens. */
+export async function readEpochBudget(): Promise<ChainEpochBudget> {
+  const pool = getMiningPool(client());
+  const [cap, minted, nextEpochAt] = (await pool.read.epochBudget()) as readonly [bigint, bigint, bigint];
+  return { cap, minted, nextEpochAt };
+}
+
 /** Current head block number. */
 export async function readBlockNumber(): Promise<bigint> {
   try {
