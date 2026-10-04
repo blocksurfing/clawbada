@@ -25,6 +25,8 @@ const mockReadCurrentSeason = mock<any>();
 const mockReadSeasonConfig = mock<any>();
 const mockReadCurrentBaseReward = mock<any>();
 const mockReadEpochBudget = mock<any>();
+const mockReadTeamBoostBps = mock<any>();
+const mockSimulateStart = mock<any>();
 const mockReadChainNow = mock<any>();
 const WEI = 10n ** 18n;
 const DAY = 24n * 60n * 60n;
@@ -54,6 +56,8 @@ mock.module('../../lib/chain', () => ({
   readSeasonConfig: mockReadSeasonConfig,
   readCurrentBaseReward: mockReadCurrentBaseReward,
   readEpochBudget: mockReadEpochBudget,
+  readTeamBoostBps: mockReadTeamBoostBps,
+  simulateStartExpedition: mockSimulateStart,
   serializeBigInts: _serializeBigInts,
 }));
 
@@ -90,6 +94,10 @@ describe('mining routes', () => {
     mockReadCurrentBaseReward.mockResolvedValue(1_250n * WEI);
     mockReadEpochBudget.mockReset();
     mockReadEpochBudget.mockResolvedValue({ cap: 489_583n * WEI, minted: 0n, nextEpochAt: BigInt(Math.floor(Date.now() / 1000) + 3_600) });
+    mockReadTeamBoostBps.mockReset();
+    mockReadTeamBoostBps.mockResolvedValue(0);
+    mockSimulateStart.mockReset();
+    mockSimulateStart.mockResolvedValue({ ok: true, simulated: true });
     mockVerifyMessage.mockImplementation(() => Promise.resolve(true));
     mockGetAddress.mockImplementation((addr: string) => addr);
   });
@@ -148,6 +156,23 @@ describe('mining routes', () => {
       const res = await app.request('/mining/budget');
       expect(res.status).toBe(200);
       expect(mockReadExpedition).not.toHaveBeenCalled();
+    });
+
+    test('L4: reports the glide position — this hour, the last re-pegged hour, the demand estimate — and flags a pending re-peg', async () => {
+      const startTime = nowSec() - 10n * DAY;
+      const currentEpoch = (nowSec() - startTime) / 3_600n;
+      mockReadSeasonConfig.mockResolvedValue({ totalEmission: 352_500_000n * WEI, baseReward: 1_250n * WEI, startTime, totalMinted: 0n, lastRepegEpoch: currentEpoch - 2n, trailingWeightServed: 180n });
+      let body = await (await app.request('/mining/budget')).json();
+      expect(body.currentEpoch).toBe(currentEpoch.toString());
+      expect(body.lastRepegEpoch).toBe((currentEpoch - 2n).toString());
+      expect(body.trailingWeight).toBe('180');
+      expect(body.quoteMayMove).toBe(true);
+      expect(body.quoteNote).toContain('re-peg');
+
+      mockReadSeasonConfig.mockResolvedValue({ totalEmission: 352_500_000n * WEI, baseReward: 1_250n * WEI, startTime, totalMinted: 0n, lastRepegEpoch: currentEpoch, trailingWeightServed: 180n });
+      body = await (await app.request('/mining/budget')).json();
+      expect(body.quoteMayMove).toBe(false);
+      expect(body.quoteNote).toBeUndefined();
     });
 
     test('says when the season ends (unix seconds + ISO) — startExpedition reverts from that second (C-L3)', async () => {
@@ -218,6 +243,76 @@ describe('mining routes', () => {
   // ──────────── POST /mining/start ────────────
 
   describe('POST /mining/start', () => {
+    const validTeam = () => {
+      mockReadTeam.mockResolvedValue(mockTeam());
+      mockReadActiveExpedition.mockResolvedValue(0n);
+      mockReadLobster.mockImplementation((id: bigint) => Promise.resolve(mockLobster({ tokenId: id, evolutionTier: 1 })));
+    };
+    const start = (mineTier = 1) => app.request('/mining/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ teamId: '1', mineTier }),
+    });
+
+    test('L5: quotes the boosted reward exactly as the contract computes it (boost before the tier weight, floored)', async () => {
+      validTeam();
+      mockReadTeamBoostBps.mockResolvedValue(2_500); // +25 % at Power 3 (three Evolved lobsters)
+      const res = await start(1);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(mockReadTeamBoostBps).toHaveBeenCalledWith(1n, 3);
+      // 1,250 × 1.25 = 1,562.5 per unit × 3 (Evolved) = 4,687.5 CLAW
+      expect(body.preview.expectedRewardWei).toBe((4_687n * WEI + WEI / 2n).toString());
+      expect(body.preview.expectedReward).toBe(4687);
+      expect(body.preview.boostBps).toBe(2500);
+      expect(body.preview.power).toBe(3);
+      expect(body.preview.simulated).toBe(true);
+      expect(mockSimulateStart).toHaveBeenCalledWith(1n, 1, expect.any(String));
+    });
+
+    test('L5: the chain dry run has the last word — EpochBudgetFull becomes 409 MINE_FULL with the opening time', async () => {
+      validTeam();
+      const opensAt = BigInt(Math.floor(Date.now() / 1000) + 1_800);
+      mockSimulateStart.mockResolvedValue({ ok: false, errorName: 'EpochBudgetFull', args: [opensAt] });
+      const res = await start(0);
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toBe('MINE_FULL');
+      expect(body.message).toContain(new Date(Number(opensAt) * 1000).toISOString());
+    });
+
+    test('L5: an unmapped revert is 409 CHAIN_REVERT naming the error; a transport failure still quotes, flagged unsimulated', async () => {
+      validTeam();
+      mockSimulateStart.mockResolvedValue({ ok: false, errorName: 'SomethingNew', args: [7n] });
+      let res = await start(0);
+      expect(res.status).toBe(409);
+      const revert = await res.json();
+      expect(revert.error).toBe('CHAIN_REVERT');
+      expect(revert.message).toContain('SomethingNew(7)');
+
+      mockSimulateStart.mockResolvedValue({ ok: true, simulated: false, note: 'dry run unavailable: rpc down' });
+      res = await start(0);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.preview.simulated).toBe(false);
+      expect(body.preview.simulationNote).toContain('rpc down');
+    });
+
+    test('L4: quoteMayMove when the hour has not been re-pegged yet, not once it has', async () => {
+      validTeam();
+      const startTime = nowSec() - 10n * DAY;
+      const currentEpoch = (nowSec() - startTime) / 3_600n;
+      mockReadSeasonConfig.mockResolvedValue({ totalEmission: 352_500_000n * WEI, baseReward: 1_250n * WEI, startTime, totalMinted: 0n, lastRepegEpoch: currentEpoch - 1n, trailingWeightServed: 42n });
+      let body = await (await start(0)).json();
+      expect(body.preview.quoteMayMove).toBe(true);
+      expect(body.preview.quoteNote).toContain('first expedition of the hour');
+
+      mockReadSeasonConfig.mockResolvedValue({ totalEmission: 352_500_000n * WEI, baseReward: 1_250n * WEI, startTime, totalMinted: 0n, lastRepegEpoch: currentEpoch, trailingWeightServed: 42n });
+      body = await (await start(0)).json();
+      expect(body.preview.quoteMayMove).toBe(false);
+      expect(body.preview.quoteNote).toBeUndefined();
+    });
+
     test('returns calldata for valid team + tier', async () => {
       mockReadTeam.mockResolvedValue(mockTeam());
       mockReadActiveExpedition.mockResolvedValue(0n);

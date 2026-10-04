@@ -111,8 +111,8 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 
 **Mining:**
 - `GET /api/mining/active?address=0x...` — active expeditions
-- `POST /api/mining/start` — start expedition (body: `{teamId, tier}`); answers `409 MINE_FULL` with the opening time when this hour's mining budget is spent (D-19 ceiling)
-- `GET /api/game/mining/budget` — this hour's remaining mining budget, how many expeditions per tier still fit, and when the next hour opens
+- `POST /api/mining/start` — start expedition (body: `{teamId, tier}`). The quote in `preview` is the contract's own arithmetic — the live glide rate, your team's battle-rank boost at its current Power, the tier weight — and the call is dry-run on-chain as you first (`preview.simulated`): a would-be revert comes back as the matching error instead of a transaction that fails (`409 MINE_FULL` with the opening time when this hour's budget is spent, `409 SEASON_GAP` between seasons, `409 CHAIN_REVERT` naming anything else). `preview.quoteMayMove` is true in the first moments of an hour before its re-peg has run: the first expedition of the hour moves the rate by up to ±30 %, so the quote can change at send time.
+- `GET /api/game/mining/budget` — this hour's remaining mining budget, how many expeditions per tier still fit, when the next hour opens, and the glide's position (`currentEpoch`, `lastRepegEpoch`, `trailingWeight` = the demand estimate it paces against, `quoteMayMove`)
 - `POST /api/mining/claim` — claim completed expedition
 
 **Battle:**
