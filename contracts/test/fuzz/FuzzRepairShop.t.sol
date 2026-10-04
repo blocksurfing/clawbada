@@ -74,7 +74,8 @@ contract FuzzRepairShop is BaseSetup {
         damage = uint8(bound(damage, 1, 100));
         points = uint8(bound(points, 1, damage));
         // Half the runs at dust scale, where the failure bands live; half across the real range.
-        uint256 peg = pegSeed % 2 == 0 ? bound(pegSeed >> 1, 1, 100_000) : bound(pegSeed >> 1, 1e15, 5_000e18);
+        // D-D: an override may not exceed 3x the season's launch reward (1,250 here).
+        uint256 peg = pegSeed % 2 == 0 ? bound(pegSeed >> 1, 1, 100_000) : bound(pegSeed >> 1, 1e15, 3_750e18);
         vm.prank(admin);
         miningPool.setBaseReward(peg);
 
