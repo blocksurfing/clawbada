@@ -29,13 +29,18 @@ export class LobsterWatcher extends EventWatcher {
 
     switch (name) {
       case 'LobsterMinted': {
+        // The event is LobsterMinted(tokenId, to, dna, generation, soulbound): the recipient is `to`.
+        // This read `args.owner` since the initial commit, threw on every mint, and the lobsters
+        // table was never populated by mints (found in the e2e indexer log, 2026-10-04).
         const tokenId = BigInt(args.tokenId);
         const dna = BigInt(args.dna);
         const decoded = decodeDNA(dna);
+        const recipient = (args.to ?? args.owner) as string | undefined;
+        if (!recipient) throw new Error(`LobsterMinted #${tokenId}: no recipient in the event args`);
 
         await db.insert(lobsters).values({
           tokenId,
-          owner: (args.owner as string).toLowerCase(),
+          owner: recipient.toLowerCase(),
           dna: dna.toString(),
           class: decoded.class,
           legend: decoded.legend,
