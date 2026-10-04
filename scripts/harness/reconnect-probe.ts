@@ -14,7 +14,7 @@ function parseCells(line: string) { const out = new Map<string, any>(); for (con
 
 /** Random·Apex battle (high damage → early deaths). Attack when possible until a lobster dies,
  *  then drop the network for a few seconds so the WS reconnects and a fresh snapshot arrives.
- *  Expect: no second InitBattle, dead lobsters stay corpses, overlays stay on their units. */
+ *  Expect: no second InitBattle, dead lobsters stay corpses, the team panels stay bound to their units. */
 export default async function (b: Browser) {
   const fails: string[] = [];
   const expect = (ok: boolean, what: string) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails.push(what); };
