@@ -18,6 +18,10 @@ export interface WatcherConfig {
 
 const isTestnet = process.env.CHAIN_ENV !== 'mainnet';
 const BACKFILL_BATCH_SIZE = 2000n;
+/** An event this old (~60 s on Base) that the live watch has not processed is lag. */
+export const LAG_THRESHOLD_BLOCKS = 30n;
+/** How often the lag probe asks the RPC. */
+const LAG_PROBE_MS = 30_000;
 
 /** `INDEXER_START_BLOCK` as a bigint, or null when unset / not a non-negative integer. */
 export function parseStartBlock(raw: string | undefined): bigint | null {
@@ -38,6 +42,23 @@ export function resolveBackfillStart(lastBlock: bigint, configuredStart: bigint 
   return from;
 }
 
+/**
+ * Pure: the block range the lag probe asks the RPC about — blocks old enough that the live watch
+ * must have processed their events by now (`threshold` behind the head), past whatever was
+ * processed or already probed clean. `null` when nothing new has aged past the threshold.
+ */
+export function lagProbeRange(
+  lastProcessed: bigint,
+  probedThrough: bigint,
+  head: bigint,
+  threshold: bigint = LAG_THRESHOLD_BLOCKS,
+): { fromBlock: bigint; toBlock: bigint } | null {
+  const fromBlock = (lastProcessed > probedThrough ? lastProcessed : probedThrough) + 1n;
+  const toBlock = head - threshold;
+  if (toBlock < fromBlock) return null;
+  return { fromBlock, toBlock };
+}
+
 /** Event args for the JSON `on_chain_events.args` column: bigints (every uint) become decimal strings. */
 export function serializeEventArgs(args: unknown): unknown {
   return JSON.parse(JSON.stringify(args ?? {}, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)));
@@ -47,6 +68,12 @@ export abstract class EventWatcher {
   protected running = false;
   protected unwatch?: () => void;
   private blockTracker: BlockTracker;
+  private client: any;
+  /** In-memory mirror of the block tracker (it only moves when a log is processed). */
+  private lastProcessedBlock = 0n;
+  /** Highest block the lag probe has confirmed holds nothing unprocessed. */
+  private probedThrough = 0n;
+  private lagTimer?: ReturnType<typeof setInterval>;
   protected get log(): Logger {
     return baseLog.child({ module: 'watcher', contract: this.config.contractName });
   }
@@ -66,7 +93,9 @@ export abstract class EventWatcher {
   async start(): Promise<void> {
     this.running = true;
     const client = getPublicClient(isTestnet) as any;
+    this.client = client;
     const lastBlock = await this.blockTracker.getLastBlock(this.config.contractName);
+    this.lastProcessedBlock = lastBlock;
     const currentBlock = await client.getBlockNumber();
 
     this.log.info({ fromBlock: lastBlock.toString(), currentBlock: currentBlock.toString() }, 'Starting watcher');
@@ -96,7 +125,16 @@ export abstract class EventWatcher {
           }
         }
       },
+      // Without this viem swallows a failing poll (RPC down, getLogs rejected) and the watcher
+      // looks alive while indexing nothing. viem keeps retrying the same range, so one error is
+      // a blip; a stream of them is an outage — the lag probe below says whether events were missed.
+      onError: (err: Error) => {
+        this.log.error({ err }, 'indexer_watch_error — the live event poll failed; if this repeats, events are not being indexed');
+      },
     });
+    this.lagTimer = setInterval(() => {
+      this.probeLag().catch((err) => this.log.warn({ err }, 'lag probe failed'));
+    }, LAG_PROBE_MS);
 
     this.log.info('Watcher active');
   }
@@ -104,7 +142,48 @@ export abstract class EventWatcher {
   async stop(): Promise<void> {
     this.running = false;
     this.unwatch?.();
+    if (this.lagTimer) {
+      clearInterval(this.lagTimer);
+      this.lagTimer = undefined;
+    }
     this.log.info('Watcher stopped');
+  }
+
+  /**
+   * Lag alarm (review 2026-10-03, section C). The block tracker only moves when a log is
+   * processed, so "head minus last processed block" alone would page forever on a quiet contract.
+   * Instead the probe asks the RPC whether this contract emitted anything older than
+   * LAG_THRESHOLD_BLOCKS that the live watch has not processed. Anything found is a real miss (a
+   * dead watch, a hung handler, an RPC that stopped returning logs): `indexer_lagging`, error
+   * level, repeated every probe until the events are processed. Returns the number missed.
+   */
+  async probeLag(): Promise<number> {
+    const head: bigint = await this.client.getBlockNumber();
+    const range = lagProbeRange(this.lastProcessedBlock, this.probedThrough, head);
+    if (!range) return 0;
+    const logs: Log[] = await this.client.getContractEvents({
+      address: this.config.address,
+      abi: this.config.abi,
+      fromBlock: range.fromBlock,
+      toBlock: range.toBlock,
+    });
+    // The live loop may have processed part of the range while the RPC answered: not lag.
+    const missed = logs.filter((log) => (log.blockNumber ?? 0n) > this.lastProcessedBlock);
+    if (missed.length > 0) {
+      this.log.error(
+        {
+          count: missed.length,
+          oldestBlock: missed[0]!.blockNumber?.toString(),
+          lastProcessedBlock: this.lastProcessedBlock.toString(),
+          head: head.toString(),
+          thresholdBlocks: LAG_THRESHOLD_BLOCKS.toString(),
+        },
+        'indexer_lagging — events older than the threshold that the live watch has not processed; restart the indexer (the backfill resumes from lastProcessedBlock)',
+      );
+      return missed.length;
+    }
+    this.probedThrough = range.toBlock;
+    return 0;
   }
 
   /**
@@ -130,6 +209,7 @@ export abstract class EventWatcher {
 
       // Update block tracker once per batch range
       await this.blockTracker.setLastBlock(this.config.contractName, end);
+      this.lastProcessedBlock = end;
 
       if (logs.length > 0) {
         this.log.info({ count: logs.length, fromBlock: start.toString(), toBlock: end.toString() }, 'Backfilled events');
@@ -161,6 +241,7 @@ export abstract class EventWatcher {
     // Update block tracker (live mode only — backfill updates per-batch)
     if (updateBlockTracker && log.blockNumber) {
       await this.blockTracker.setLastBlock(this.config.contractName, log.blockNumber);
+      if (log.blockNumber > this.lastProcessedBlock) this.lastProcessedBlock = log.blockNumber;
     }
   }
 

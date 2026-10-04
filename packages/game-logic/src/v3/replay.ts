@@ -80,10 +80,19 @@ class ForfeitAudit {
   checkTurn(entry: TurnLogEntry, team: Team, stunned: boolean): void {
     if (entry.timeout) {
       if (stunned) throw new Error(`turn ${entry.turn}: a stunned lobster cannot time out`);
-      if (entry.action !== 'defend' || entry.moveTo) throw new Error(`turn ${entry.turn}: a timed-out turn must be a plain Defend`);
+      // M2 (review 2026-10-03): the clock's auto-Defend is logged as a plain Defend — unless the
+      // lobster died to bleed at the start of that turn, in which case applyTurn never resolved
+      // the command and logged 'skip' (see turn.ts). The shot clock still ran out on its player,
+      // so the entry is honest and still counts toward the streak. A stun skip never times out
+      // (nobody was asked to act), which the check above already rules out.
+      const plainDefend = entry.action === 'defend' && !entry.moveTo;
+      const diedBeforeActing = entry.action === 'skip' && !entry.moveTo;
+      if (!plainDefend && !diedBeforeActing) throw new Error(`turn ${entry.turn}: a timed-out turn must be a plain Defend`);
       this.streak[team] += 1;
-    } else if (!stunned && entry.action !== 'skip') {
-      this.streak[team] = 0; // the player acted
+    } else if (!stunned) {
+      // The player acted. A non-stunned, non-timed-out 'skip' is a command whose actor died to
+      // bleed before resolving — the live session (reduceSession) resets the counter on it too.
+      this.streak[team] = 0;
     }
   }
 
