@@ -424,13 +424,23 @@ contract BoundaryTests is Test {
     }
 
     function test_boundary_budgetRemainingLessThanBaseReward() public {
-        // Budget = 500, base reward = 1,250 → can't even start 1 expedition
-        _startSeasonWith(500e18, BASE_REWARD);
+        // Budget = 1,750: one expedition fits, then 500 is left — less than one base reward.
+        // (D-D: a season whose budget cannot pay even one expedition cannot be started at all.)
+        _startSeasonWith(BASE_REWARD + 500e18, BASE_REWARD);
 
-        uint256 teamId = _createTeam(alice, 0);
+        uint256 first = _createTeam(alice, 0);
+        uint256 second = _createTeam(alice, 0);
+        vm.prank(alice);
+        pool.startExpedition(first, 0);
         vm.prank(alice);
         vm.expectRevert(MiningPool.SeasonBudgetExhausted.selector);
-        pool.startExpedition(teamId, 0);
+        pool.startExpedition(second, 0);
+    }
+
+    function test_boundary_budgetBelowOneRewardCannotStartASeason() public {
+        vm.prank(seasonAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.SeasonBudgetTooSmall.selector, 500e18, BASE_REWARD));
+        pool.startSeason(500e18, BASE_REWARD);
     }
 
     function test_boundary_mixedTierTeamInHigherMineReverts() public {

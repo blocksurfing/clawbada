@@ -15,7 +15,7 @@ contract InvariantMiningPool is Test {
     MiningPoolHandler internal handler;
 
     function setUp() public {
-        handler = new MiningPoolHandler();
+        handler = new MiningPoolHandler(387_500_000e18);
         targetContract(address(handler));
 
         // Restrict the fuzzer to handler_* entrypoints so it can't re-invoke
@@ -48,6 +48,25 @@ contract InvariantMiningPool is Test {
         MiningPool pool = handler.getMiningPool();
         if (pool.currentSeason() == 0) return;
         assertGt(pool.currentBaseReward(), 0, "baseReward is zero inside a season");
+    }
+
+    // ─── D-19 ceiling: an epoch never mints past the ceiling it opened with ───
+    //
+    // `epochBudget()` reports this epoch's counter; the handler recorded the highest ceiling it
+    // saw in this epoch right before each start (after the epoch's lazy re-peg). The S1 budget
+    // keeps the ceiling far above what twelve teams can mint, so the property is rarely tight
+    // here; InvariantMiningPoolCeiling runs the same check on a budget where it binds.
+    function invariant_epochMintedWithinCap() public view {
+        MiningPool pool = handler.getMiningPool();
+        if (pool.currentSeason() == 0) return;
+        (uint256 season, uint256 epoch) = handler.currentEpoch();
+        (, uint256 minted,) = pool.epochBudget();
+        uint256 high = handler.ghostEpochCapHigh(season, epoch);
+        if (high == 0) {
+            assertEq(minted, 0, "minted in an epoch no start ever touched");
+            return;
+        }
+        assertLe(minted, high, "an epoch minted past the ceiling it opened with");
     }
 
     // ─── I-1: season budget cap holds ──────────────────────────────

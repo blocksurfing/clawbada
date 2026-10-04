@@ -17,7 +17,7 @@ contract MiningPoolHandler is BaseSetup {
     uint256[] public teamIds;
     uint256[] public expeditionIds;
 
-    uint256 internal constant INITIAL_EMISSION   = 387_500_000e18;
+    uint256 internal initialEmission_;
     uint256 internal constant INITIAL_BASE_REWARD = 1_250e18;
 
     // Ghosts — never read by the contract, only by invariants.
@@ -36,6 +36,12 @@ contract MiningPoolHandler is BaseSetup {
     uint256 public ghostGlideSteps;  // re-pegs that actually moved the rate
     uint256 public ghostRepegCalls;  // successful permissionless repeg() calls
 
+    // D-19 ceiling (review 2026-10-03 F-7): the highest ceiling observed in each (season, epoch) at
+    // the moment of a start — read after the epoch's lazy re-peg, so with the rate the epoch opened
+    // at — and how many starts the ceiling refused (reachability).
+    mapping(uint256 => mapping(uint256 => uint256)) public ghostEpochCapHigh;
+    uint256 public ghostCeilingRefusals;
+
     // ─────────── Public accessors ───────────
     function getMiningPool()  external view returns (MiningPool)  { return miningPool; }
     function getClaw()        external view returns (ClawToken)   { return claw; }
@@ -45,8 +51,11 @@ contract MiningPoolHandler is BaseSetup {
 
     // ─────────── Bootstrap ───────────
 
-    constructor() {
+    /// @param initialEmission Season 1's budget: the S1 figure for the general harness, a small one
+    ///        for the ceiling harness (InvariantMiningPoolCeiling) so the epoch ceiling binds.
+    constructor(uint256 initialEmission) {
         setUp();
+        initialEmission_ = initialEmission;
 
         actors[0] = alice_h;
         actors[1] = bob_h;
@@ -75,7 +84,7 @@ contract MiningPoolHandler is BaseSetup {
 
         // Start season 1 so expeditions can be created.
         vm.prank(admin);
-        miningPool.startSeason(INITIAL_EMISSION, INITIAL_BASE_REWARD);
+        miningPool.startSeason(initialEmission_, INITIAL_BASE_REWARD);
     }
 
     // ─────────── Helpers ───────────
@@ -107,6 +116,7 @@ contract MiningPoolHandler is BaseSetup {
 
         uint256 seasonBefore = miningPool.currentSeason();
         uint256 baseBefore = miningPool.currentBaseReward();
+        _noteEpochCap();
 
         vm.prank(owner);
         try miningPool.startExpedition(teamId, mineTier) returns (uint256 expId) {
@@ -118,7 +128,27 @@ contract MiningPoolHandler is BaseSetup {
             // base the reward was locked at.
             uint256 base = miningPool.currentBaseReward();
             if (base > ghostMaxBaseRewardAtStart) ghostMaxBaseRewardAtStart = base;
-        } catch {}
+        } catch (bytes memory err) {
+            if (err.length >= 4 && bytes4(err) == MiningPool.EpochBudgetFull.selector) ghostCeilingRefusals++;
+        }
+    }
+
+    /// @dev The ceiling this epoch opened with: roll the lazy re-peg first (exactly what the
+    ///      start about to run would do), then read the view. Keeps the highest value seen.
+    function _noteEpochCap() internal {
+        if (miningPool.currentSeason() == 0) return;
+        try miningPool.repeg() {} catch { return; } // no active season: nothing to note
+        (uint256 cap,,) = miningPool.epochBudget();
+        (uint256 season, uint256 epoch) = currentEpoch();
+        if (cap > ghostEpochCapHigh[season][epoch]) ghostEpochCapHigh[season][epoch] = cap;
+    }
+
+    /// @dev (season, epoch index) of the current block.
+    function currentEpoch() public view returns (uint256 season, uint256 epoch) {
+        season = miningPool.currentSeason();
+        if (season == 0) return (0, 0);
+        uint256 start = miningPool.getSeasonConfig(season).startTime;
+        epoch = (block.timestamp - start) / miningPool.REPEG_EPOCH();
     }
 
     /// @dev Post a boost for a random team at either its true power or a wrong one, for the

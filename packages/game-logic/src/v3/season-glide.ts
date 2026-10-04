@@ -50,10 +50,17 @@ export interface GlideParams {
    *  never less than one Apex expedition at +50 % (EPOCH_SPEND_CAP_BPS / 10,000 = 2 on-chain since
    *  D-19; 0 = none, as before). Expeditions past the ceiling cannot start until the next epoch. */
   epochSpendCapX: number;
+  /** Review 2026-10-03 D-C: how many of the latest epochs the demand estimate averages over.
+   *  1 (default) = as deployed: the last epoch THAT HAD demand, quiet epochs keep it. W > 1 = the
+   *  last W epochs with quiet ones counting as zero — phase-invariant over one 4 h expedition
+   *  cycle (4) or a day (24). Early in the season the average runs over the epochs seen so far. */
+  estimatorWindow?: number;
 }
 
 /** The contract as it will deploy (D-19, 2026-10-02): hourly, ±30 %, 2x ceiling. */
-export const ONCHAIN: GlideParams = { epochHours: 1, upStepBps: 3_000, downStepBps: 3_000, epochSpendCapX: 2 };
+export const ONCHAIN: GlideParams = { epochHours: 1, upStepBps: 3_000, downStepBps: 3_000, epochSpendCapX: 2, estimatorWindow: 4 };
+/** The controller between D-19 and D-C: the same, pacing against the last epoch that had demand. */
+export const D19_SINGLE_EPOCH: GlideParams = { ...ONCHAIN, estimatorWindow: 1 };
 /** The controller before D-19: daily, ±30 %, no ceiling — kept for the comparison. */
 export const LEGACY_DAILY: GlideParams = { epochHours: 24, upStepBps: 3_000, downStepBps: 3_000, epochSpendCapX: 0 };
 
@@ -66,22 +73,42 @@ export interface GlideState {
   lastEpoch: number;
   /** Boost-scaled weight units served this epoch (units × BPS), as `epochWeightServed`. */
   servedBps: bigint;
-  /** Units served in the last completed epoch with demand, as `trailingWeightServed`. */
+  /** Units served in the last completed epoch with demand, as `trailingWeightServed` (W = 1), or
+   *  the window's per-epoch average (W > 1; for display — the target uses the window sum). */
   trailing: bigint;
+  /** W > 1 only: the last W epochs' served units, slot = epoch % W. */
+  ring: bigint[];
 }
 
 export function newGlideState(emission: bigint, launch: bigint, lifetimeMintedBefore = 0n): GlideState {
-  return { base: launch, launch, emission, minted: 0n, lifetimeMinted: lifetimeMintedBefore, lastEpoch: 0, servedBps: 0n, trailing: 0n };
+  return { base: launch, launch, emission, minted: 0n, lifetimeMinted: lifetimeMintedBefore, lastEpoch: 0, servedBps: 0n, trailing: 0n, ring: [] };
 }
 
 /** `_repegIfNeeded`, exactly. Call at the first touch of each epoch. */
 export function repegIfNeeded(s: GlideState, epoch: number, totalEpochs: number, p: GlideParams): void {
   if (epoch === s.lastEpoch) return; // epoch 0 is blind: lastRepegEpoch starts at 0
-  if (s.servedBps > 0n) s.trailing = s.servedBps / BPS;
+  const W = Math.max(1, p.estimatorWindow ?? 1);
+  // `windowSum` units over `filled` epochs is the demand estimate; W = 1 is the deployed rule.
+  let windowSum: bigint;
+  let filled = 1;
+  if (W === 1) {
+    if (s.servedBps > 0n) s.trailing = s.servedBps / BPS; // quiet epochs keep the last real signal
+    windowSum = s.trailing;
+  } else {
+    if (s.ring.length !== W) s.ring = new Array<bigint>(W).fill(0n);
+    s.ring[s.lastEpoch % W] = s.servedBps / BPS; // the epoch just closed
+    // A gap LONGER than the window leaves nothing recent (the epoch just closed is older than the
+    // window too); a gap inside it zeroes the skipped epochs — they were quiet. Lazy on-chain, so
+    // this is what `_repegIfNeeded` sees on the first touch after a gap.
+    if (epoch - s.lastEpoch > W) s.ring.fill(0n);
+    else for (let e = s.lastEpoch + 1; e < epoch; e++) s.ring[e % W] = 0n; // skipped = quiet
+    windowSum = s.ring.reduce((a, b) => a + b, 0n);
+    filled = Math.min(W, epoch); // the season's first epochs: average over what has been seen
+    s.trailing = windowSum / BigInt(filled);
+  }
   s.servedBps = 0n;
   s.lastEpoch = epoch;
-  const trailing = s.trailing;
-  if (trailing === 0n) return;
+  if (windowSum === 0n) return; // no demand signal: hold
 
   const epochsLeft = epoch >= totalEpochs ? 1 : totalEpochs - epoch; // D-18: counts this epoch
   let left = s.emission > s.minted ? s.emission - s.minted : 0n;
@@ -89,7 +116,8 @@ export function repegIfNeeded(s: GlideState, epoch: number, totalEpochs: number,
   if (allocationLeft < left) left = allocationLeft;
   if (left < s.base) return; // D-19(c): less than one Base reward left is not a demand signal — hold
 
-  const target = left / (BigInt(epochsLeft) * trailing);
+  // The window SUM over `filled` epochs, not the floored average, so a small population still moves the rate.
+  const target = (left * BigInt(filled)) / (BigInt(epochsLeft) * windowSum);
   const lo = (s.base * BigInt(10_000 - p.downStepBps)) / BPS;
   const hi = (s.base * BigInt(10_000 + p.upStepBps)) / BPS;
   let next = target < lo ? lo : target > hi ? hi : target;
@@ -108,8 +136,32 @@ export interface DemandEvent {
   leaveFraction?: number;
 }
 
+/**
+ * How a day's starts are spread over its hourly epochs (review 2026-10-03 D-C). A 4 h expedition is
+ * exactly four epochs, so a cohort that starts on the same hour hits the glide every 4th epoch.
+ * `phaseLocked`: `share` of the population starts only on hours ≡ 0 (mod 4); the rest is smooth.
+ * `daily`: `peakShare` of all starts land inside the first `peakHours` of each day.
+ */
+export type DemandShape =
+  | { kind: 'smooth' }
+  | { kind: 'phaseLocked'; share: number }
+  | { kind: 'daily'; peakShare: number; peakHours: number };
+
+/** Per-epoch multipliers for the two cohorts (each integrates to its cohort's share over a day). */
+export function shapeFactors(shape: DemandShape, hour: number, epochsPerDay: number): { locked: number; spread: number } {
+  if (epochsPerDay !== 24 || shape.kind === 'smooth') return { locked: 0, spread: 1 };
+  if (shape.kind === 'phaseLocked') return { locked: hour % 4 === 0 ? 4 * shape.share : 0, spread: 1 - shape.share };
+  const peak = hour < shape.peakHours;
+  return {
+    locked: peak ? (shape.peakShare * 24) / shape.peakHours : 0,
+    spread: peak ? 0 : ((1 - shape.peakShare) * 24) / (24 - shape.peakHours),
+  };
+}
+
 export interface GlideScenario {
   name: string;
+  /** Demand shape over the day; smooth when omitted. */
+  shape?: DemandShape;
   /** Participating teams that arrive on the ramp (1 mining team each, full time). */
   teams: number;
   /** Days over which arrivals ramp in linearly (the faucet window ≈ 7; 1 = everyone on day 1). */
@@ -142,6 +194,9 @@ export interface GlideRunResult {
   mintedShareByDay: number[];
   /** Largest single-day spend as a multiple of the fair daily share (budget / days). */
   maxDayOverspendX: number;
+  /** Largest single-day spend as a share of the SUM of that day's epoch ceilings: ≤ 1 by construction
+   *  (the ceiling is per epoch, 2× the fair share of what is left, floored at one Apex expedition). */
+  maxDayVsCapX: number;
   unspentClaw: number;
   /** Cumulative season earnings (CLAW) of a team that arrived on day 1. */
   day1TeamEarnings: number;
@@ -149,6 +204,11 @@ export interface GlideRunResult {
   tierMix: number[];
   /** Battle-layer stress: breakeven base boost (bps) for an Elite team at the final reward (season.ts). */
   finalEliteBreakevenBps: number;
+  /** D-C: CLAW earned per unit demanded by the shape's two cohorts (locked / peak vs spread / off-peak),
+   *  and their ratio — 1.0 is fair; refused starts retry next epoch, so this is the time-of-day premium. */
+  cohortPerUnit: { locked: number; spread: number; ratio: number };
+  /** Share of all starts refused by the ceiling at least once (they retried next epoch). */
+  refusedShare: number;
 }
 
 interface Team { tier: number; retained: number; earned: number; active: boolean }
@@ -166,9 +226,13 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
 
   const teams: Team[] = [];
   let arrived = 0;
+  let backlog = { locked: 0, spread: 0 };
+  const cohort = { lockedDemanded: 0, spreadDemanded: 0, lockedEarned: 0, spreadEarned: 0 };
+  let refusedUnits = 0;
   let exhaustionDay: number | null = null;
   let zeroIncomeDays = 0;
   let maxDayOverspendX = 0;
+  let maxDayVsCapX = 0;
   const rewardByDay: number[] = [];
   const mintedShareByDay: number[] = [];
   const fairDay = Number(emission) / days;
@@ -187,6 +251,7 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
     }
 
     const mintedAtDayStart = s.minted;
+    let capToday = 0;
     let incomeToday = 0;
     let unitsToday = 0;
 
@@ -199,7 +264,16 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
         units += (TIER_WEIGHTS[t.tier] * EXPEDITIONS_PER_DAY * (boost && t.tier >= 1 ? BOOST_FACTOR : 1)) / epochsPerDay;
       }
       unitsToday += units;
-      const unitsBps = BigInt(Math.round(units * 10_000));
+      // D-C: the day's starts spread per the shape, plus what the ceiling refused last epoch.
+      const f = shapeFactors(sc.shape ?? { kind: 'smooth' }, k, epochsPerDay);
+      const newLocked = units * f.locked;
+      const newSpread = units * f.spread;
+      cohort.lockedDemanded += newLocked;
+      cohort.spreadDemanded += newSpread;
+      const wantLocked = newLocked + backlog.locked;
+      const wantSpread = newSpread + backlog.spread;
+      const want = wantLocked + wantSpread;
+      const unitsBps = BigInt(Math.round(want * 10_000));
 
       let left = s.emission > s.minted ? s.emission - s.minted : 0n;
       if (cfg.mode === 'ideal') {
@@ -222,15 +296,16 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
         const oneMaxExpedition = ((s.base * 15_000n) / BPS) * BigInt(TIER_WEIGHTS[3]);
         if (cap < oneMaxExpedition) cap = oneMaxExpedition;
         if (cap < payable) payable = cap;
+        capToday += Number(cap);
       }
 
       const demand = (s.base * unitsBps) / BPS;
       let served = 1;
       let mintedNow = demand;
       if (demand > payable) {
-        // Only `payable` can be minted; the rest of this epoch's expeditions cannot start. Minting
-        // exactly `payable` keeps the budget's remainder exact (0 once exhausted — the case the
-        // contract's D-19(c) hold covers; the dust case is probed on the contract itself).
+        // Only `payable` can be minted; the rest of this epoch's starts retry next epoch (backlog).
+        // Minting exactly `payable` keeps the budget's remainder exact (0 once exhausted — the case
+        // the contract's D-19(c) hold covers; the dust case is probed on the contract itself).
         served = demand > 0n ? Number(payable) / Number(demand) : 0;
         mintedNow = payable;
         if (demand > left && exhaustionDay === null) exhaustionDay = day;
@@ -238,8 +313,13 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
       s.minted += mintedNow;
       s.lifetimeMinted += mintedNow;
       s.servedBps += BigInt(Math.round(Number(unitsBps) * served));
+      const rateNow = Number(s.base) / 1e18;
+      cohort.lockedEarned += wantLocked * served * rateNow;
+      cohort.spreadEarned += wantSpread * served * rateNow;
+      refusedUnits += want * (1 - served);
+      backlog = { locked: wantLocked * (1 - served), spread: wantSpread * (1 - served) };
 
-      const perUnit = (Number(s.base) / 1e18) * served;
+      const perUnit = rateNow * served;
       for (const t of teams) {
         if (!t.active) continue;
         const income = (perUnit * TIER_WEIGHTS[t.tier] * EXPEDITIONS_PER_DAY * (boost && t.tier >= 1 ? BOOST_FACTOR : 1)) / epochsPerDay;
@@ -252,6 +332,7 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
     if (unitsToday > 0 && incomeToday === 0) zeroIncomeDays++;
     const spentToday = Number(s.minted - mintedAtDayStart);
     maxDayOverspendX = Math.max(maxDayOverspendX, spentToday / fairDay);
+    if (capToday > 0) maxDayVsCapX = Math.max(maxDayVsCapX, spentToday / capToday);
     rewardByDay.push(Number(s.base) / 1e18);
     mintedShareByDay.push(Number(s.minted) / Number(emission));
 
@@ -272,16 +353,26 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
   const opp = ((finalReward * TIER_WEIGHTS[2] * EXPEDITIONS_PER_DAY) / 24) * 0.25;
   const finalEliteBreakevenBps = eliteMiningPerEpoch > 0 ? (10_000 * 14 * (1_900 + opp)) / eliteMiningPerEpoch : Infinity;
 
+  const lockedPerUnit = cohort.lockedDemanded > 0 ? cohort.lockedEarned / cohort.lockedDemanded : 0;
+  const spreadPerUnit = cohort.spreadDemanded > 0 ? cohort.spreadEarned / cohort.spreadDemanded : 0;
+  const totalDemanded = cohort.lockedDemanded + cohort.spreadDemanded;
   return {
     exhaustionDay,
     zeroIncomeDays,
     rewardByDay,
     mintedShareByDay,
     maxDayOverspendX,
+    maxDayVsCapX,
     unspentClaw: Number(s.emission - s.minted) / 1e18,
     day1TeamEarnings: teams.length ? teams[0].earned : 0,
     tierMix,
     finalEliteBreakevenBps,
+    cohortPerUnit: {
+      locked: lockedPerUnit,
+      spread: spreadPerUnit,
+      ratio: lockedPerUnit > 0 && spreadPerUnit > 0 ? lockedPerUnit / spreadPerUnit : 1,
+    },
+    refusedShare: totalDemanded > 0 ? refusedUnits / totalDemanded : 0,
   };
 }
 
@@ -299,6 +390,24 @@ export const D19_SCENARIOS: GlideScenario[] = [
   { name: 'Exodus: 20,000 teams, 70 % leave on day 30', teams: 20_000, rampDays: 7, retention: 0.5, events: [{ day: 30, leaveFraction: 0.7 }] },
 ];
 
+/** D-C: the demand shapes the hourly controller was never modelled against (20,000 teams from day 1). */
+export const SHAPE_SCENARIOS: GlideScenario[] = [
+  { name: 'smooth', teams: 20_000, rampDays: 1, retention: 0.5, shape: { kind: 'smooth' } },
+  { name: 'phase-locked 25 % (one hour in four)', teams: 20_000, rampDays: 1, retention: 0.5, shape: { kind: 'phaseLocked', share: 0.25 } },
+  { name: 'phase-locked 50 %', teams: 20_000, rampDays: 1, retention: 0.5, shape: { kind: 'phaseLocked', share: 0.5 } },
+  { name: 'phase-locked 90 %', teams: 20_000, rampDays: 1, retention: 0.5, shape: { kind: 'phaseLocked', share: 0.9 } },
+  { name: 'phase-locked 100 %', teams: 20_000, rampDays: 1, retention: 0.5, shape: { kind: 'phaseLocked', share: 1 } },
+  { name: 'daily rhythm: 60 % of starts in 8 of 24 h', teams: 20_000, rampDays: 1, retention: 0.5, shape: { kind: 'daily', peakShare: 0.6, peakHours: 8 } },
+  { name: 'daily rhythm: 80 % of starts in 6 of 24 h', teams: 20_000, rampDays: 1, retention: 0.5, shape: { kind: 'daily', peakShare: 0.8, peakHours: 6 } },
+];
+
+/** D-C: the estimator windows under comparison, on the deployed controller. */
+export const ESTIMATORS: { name: string; params: GlideParams }[] = [
+  { name: 'last epoch with demand (D-19 as first shipped)', params: D19_SINGLE_EPOCH },
+  { name: 'last 4 epochs (one expedition cycle) — ON-CHAIN since D-C', params: ONCHAIN },
+  { name: 'last 24 epochs (a day)', params: { ...ONCHAIN, estimatorWindow: 24 } },
+];
+
 export const CANDIDATES: { name: string; params: GlideParams }[] = [
   { name: 'before D-19: 24 h epoch, ±30 %, no ceiling', params: LEGACY_DAILY },
   { name: '6 h epoch, ±30 %', params: { ...LEGACY_DAILY, epochHours: 6 } },
@@ -308,5 +417,7 @@ export const CANDIDATES: { name: string; params: GlideParams }[] = [
   { name: '24 h epoch, ±30 %, 2× epoch spend ceiling', params: { ...LEGACY_DAILY, epochSpendCapX: 2 } },
   { name: '6 h epoch, ±30 %, 2× epoch spend ceiling', params: { ...LEGACY_DAILY, epochHours: 6, epochSpendCapX: 2 } },
   { name: '4 h epoch, down 50 % / up 30 %, 2× ceiling', params: { epochHours: 4, upStepBps: 3_000, downStepBps: 5_000, epochSpendCapX: 2 } },
-  { name: 'ON-CHAIN since D-19: 1 h epoch, ±30 %, 2× ceiling', params: ONCHAIN },
+  { name: 'D-19 as first shipped: 1 h epoch, ±30 %, 2× ceiling, last epoch with demand', params: D19_SINGLE_EPOCH },
+  { name: 'ON-CHAIN since D-C: D-19 + 4-epoch demand window', params: ONCHAIN },
+  { name: 'D-19 + 24-epoch demand window (D-C runner-up)', params: { ...ONCHAIN, estimatorWindow: 24 } },
 ];
