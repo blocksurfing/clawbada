@@ -29,6 +29,18 @@
  * If the window lapses with an accused player who never opened, the contract slashes their 5%
  * and refunds everyone else (handleTimeout); otherwise a lapse is a no-fault mutual cancel.
  *
+ * Review 2026-10-03 — failures that are not the player's are never reported:
+ *   - a side whose POST /reveal-team the API REFUSED (D-17: no queued team on record, or not the
+ *     queued team) holds no usable salt through no failure of its own client. The API notes why
+ *     on the row (`revealRefusedA/B`); such a side is `refused` here and is never accused, so the
+ *     window lapses into the no-fault mutual cancel (`reveal_refused_not_accused`);
+ *   - once both salts open, `revealTeams` is SIMULATED before it is sent. A revert that names one
+ *     side's team as unplayable (TeamNotOwned / TeamAlreadyInBattle / TeamPowerChanged, or a
+ *     lobster of that team in LobsterTierTooLow / LobsterDamageTooHigh) accuses THAT side at
+ *     once — the player changed, sold or damaged the team after queueing. Any other revert
+ *     (InvalidSeedCommit, an RPC error, …) accuses nobody: `reveal_simulation_failed`, retried
+ *     next tick, and the window lapses into the mutual cancel if it never clears.
+ *
  * TIMING: BattleArena.TEAM_REVEAL_WINDOW bounds how long after the second deposit revealTeams can
  * land (it reverts PhaseTimedOut past the deadline). This poll is deliberately fast, but if
  * the window proves too tight for the API→DB→poll→tx→confirm path on mainnet, widen
@@ -58,6 +70,32 @@ export interface RevealOnChain {
   openedB: boolean;
 }
 
+/** Reverts of `revealTeams` whose first argument is the offending team id. */
+const TEAM_ERRORS = new Set(['TeamNotOwned', 'TeamAlreadyInBattle', 'TeamPowerChanged']);
+/** Reverts whose first argument is a lobster id, mapped to its team through `readTeamLobsters`. */
+const LOBSTER_ERRORS = new Set(['LobsterTierTooLow', 'LobsterDamageTooHigh']);
+
+/** How (and whether) one side's commit can be opened right now. */
+export type Opening =
+  | { kind: 'ok'; teamId: bigint; salt: `0x${string}` }
+  | { kind: 'wrong_salt' }
+  | { kind: 'missing' }
+  /** The API refused this side's reveal (D-17); the player is not at fault and is never accused. */
+  | { kind: 'refused'; reason: string }
+  /** Both commits open but the chain rejects this side's team; accused at once. */
+  | { kind: 'unplayable'; error: string };
+
+/** The custom error a viem simulation surfaced, found anywhere down the `cause` chain. */
+export function decodeRevert(err: unknown): { name: string; args: unknown[] } | null {
+  let e: any = err;
+  for (let depth = 0; e && depth < 8; depth++) {
+    const data = e.data;
+    if (data && typeof data.errorName === 'string') return { name: data.errorName, args: Array.isArray(data.args) ? data.args : [] };
+    e = e.cause;
+  }
+  return null;
+}
+
 export interface RevealWatcherDeps {
   /** drizzle db (select/update on `battles`). */
   db: any;
@@ -66,11 +104,20 @@ export interface RevealWatcherDeps {
     waitForTransactionReceipt(args: { hash: `0x${string}` }): Promise<{ status: string }>;
     getBlock(args: { blockTag: 'latest' }): Promise<{ timestamp: bigint }>;
   };
-  arena: { read: { getBattle(args: [bigint]): Promise<RevealOnChain> } };
+  arena: {
+    read: { getBattle(args: [bigint]): Promise<RevealOnChain> };
+    /** viem contract `simulate` (present on a real getContract instance). Without it the reveal is
+     *  sent unsimulated, exactly as before. */
+    simulate?: { revealTeams(args: unknown[], opts: { account?: `0x${string}` }): Promise<unknown> };
+  };
   /** D-14: the (teamId, salt) an accused player opened on-chain (`CommitOpened`), or null. */
   readOpenedCommit(battleId: bigint, player: `0x${string}`): Promise<{ teamId: bigint; salt: `0x${string}` } | null>;
+  /** The lobsters of a team (TeamManager.getTeam), to attribute a lobster-level revert to a side. */
+  readTeamLobsters?(teamId: bigint): Promise<bigint[]>;
   /** RESOLVER-role signer (revealTeams is onlyRole(RESOLVER_ROLE)). */
   walletClient: { writeContract(request: any): Promise<`0x${string}`> };
+  /** The resolver's address, so the simulation runs with its role (else it reverts on access). */
+  resolverAddress?: `0x${string}`;
   battleArenaAddress: `0x${string}`;
   abi: readonly unknown[];
   /** D-01: master secret the per-battle seed secret is derived from (BATTLE_SEED_SECRET).
@@ -109,6 +156,8 @@ export class RevealWatcher {
     const dbMod = require('@clawbada/db');
     const isTestnet = process.env.CHAIN_ENV !== 'mainnet';
     const publicClient = chain.getPublicClient(isTestnet);
+    const walletClient = chain.getResolverClient(isTestnet);
+    const teamManager = chain.getTeamManager(publicClient);
     return new RevealWatcher({
       db: dbMod.db,
       battles: dbMod.battles,
@@ -128,7 +177,12 @@ export class RevealWatcher {
         return last ? { teamId: BigInt(last.args.teamId), salt: last.args.salt as `0x${string}` } : null;
       },
       arena: chain.getBattleArena(publicClient),
-      walletClient: chain.getResolverClient(isTestnet),
+      readTeamLobsters: async (teamId: bigint) => {
+        const team: any = await teamManager.read.getTeam([teamId]);
+        return [...(team.lobsterIds ?? [])].map((x: unknown) => BigInt(x as bigint));
+      },
+      walletClient,
+      resolverAddress: walletClient.account?.address,
       battleArenaAddress: chain.addresses.battleArena,
       abi: chain.BattleArenaAbi,
       seedMasterSecret: seedMasterSecretFromEnv,
@@ -190,30 +244,42 @@ export class RevealWatcher {
     const now = (await publicClient.getBlock({ blockTag: 'latest' })).timestamp;
     if (now > onChain.phaseDeadline) return; // lapsed: handleTimeout cancels (and slashes an accused player who never opened)
 
-    const a = await this.opening(battleId, row, onChain, 'A');
-    const b = await this.opening(battleId, row, onChain, 'B');
+    let a = await this.opening(battleId, row, onChain, 'A');
+    let b = await this.opening(battleId, row, onChain, 'B');
     if (a.kind === 'ok' && b.kind === 'ok') {
-      await this.submitReveal(battleId, a, b);
-      return;
+      const sim = await this.simulateReveal(battleId, a, b);
+      if (sim.kind === 'ok') {
+        await this.submitReveal(battleId, a, b);
+        return;
+      }
+      if (sim.kind === 'unknown') {
+        // Not attributable to a player: never an accusation. Retried next tick; if it never
+        // clears, the window lapses into the no-fault mutual cancel.
+        this.log.error({ battleId: battleId.toString(), error: sim.error }, 'reveal_simulation_failed — not revealing, nobody accused');
+        return;
+      }
+      if (sim.side === 'A') a = { kind: 'unplayable', error: sim.error };
+      else b = { kind: 'unplayable', error: sim.error };
     }
     for (const [side, o] of [['A', a], ['B', b]] as const) {
       if (o.kind === 'ok') continue;
+      if (o.kind === 'refused') {
+        this.log.info({ battleId: battleId.toString(), side, reason: o.reason }, 'reveal_refused_not_accused — the API refused this reveal; the window lapses into a mutual cancel');
+        continue;
+      }
       const accused = side === 'A' ? onChain.accusedA : onChain.accusedB;
       if (accused) continue; // already reported: waiting for their salt or their own openOwnCommit
       const late = onChain.phaseDeadline - now <= ACCUSE_LEAD_SEC;
-      if (o.kind === 'wrong_salt' || late) {
+      if (o.kind === 'unplayable') {
+        await this.accuse(battleId, side === 'A' ? onChain.playerA : onChain.playerB, `team not playable: ${o.error}`);
+      } else if (o.kind === 'wrong_salt' || late) {
         await this.accuse(battleId, side === 'A' ? onChain.playerA : onChain.playerB, o.kind === 'wrong_salt' ? 'salt does not open the commit' : 'no salt received');
       }
     }
   }
 
   /** How (and whether) one side's commit can be opened right now. */
-  private async opening(
-    battleId: bigint,
-    row: any,
-    onChain: RevealOnChain,
-    side: 'A' | 'B',
-  ): Promise<{ kind: 'ok'; teamId: bigint; salt: `0x${string}` } | { kind: 'wrong_salt' } | { kind: 'missing' }> {
+  private async opening(battleId: bigint, row: any, onChain: RevealOnChain, side: 'A' | 'B'): Promise<Opening> {
     const player = (side === 'A' ? onChain.playerA : onChain.playerB) as `0x${string}`;
     const commit = String(side === 'A' ? onChain.teamCommitA : onChain.teamCommitB).toLowerCase();
     const opened = side === 'A' ? onChain.openedA : onChain.openedB;
@@ -230,9 +296,55 @@ export class RevealWatcher {
     }
     const teamId = side === 'A' ? row.teamA : row.teamB;
     const salt = side === 'A' ? row.revealSaltA : row.revealSaltB;
-    if (!salt || teamId === null || teamId === undefined || BigInt(teamId) === 0n) return { kind: 'missing' };
-    if (teamCommitHash(battleId, player, BigInt(teamId), salt as `0x${string}`).toLowerCase() !== commit) return { kind: 'wrong_salt' };
-    return { kind: 'ok', teamId: BigInt(teamId), salt: salt as `0x${string}` };
+    const refused = side === 'A' ? row.revealRefusedA : row.revealRefusedB;
+    const usable = !!salt && teamId !== null && teamId !== undefined && BigInt(teamId) !== 0n
+      && teamCommitHash(battleId, player, BigInt(teamId), salt as `0x${string}`).toLowerCase() === commit;
+    if (usable) return { kind: 'ok', teamId: BigInt(teamId), salt: salt as `0x${string}` };
+    // No usable salt. If the API refused this side's reveal, that is the server's doing, not the
+    // player's: never an accusation.
+    if (typeof refused === 'string' && refused.length > 0) return { kind: 'refused', reason: refused };
+    return salt && teamId ? { kind: 'wrong_salt' } : { kind: 'missing' };
+  }
+
+  /**
+   * Dry-run `revealTeams` with both openings. `ok` → send it; `unplayable` → the chain named one
+   * side's team (that side is accused); `unknown` → anything else, which must never accuse.
+   */
+  private async simulateReveal(
+    battleId: bigint,
+    a: { teamId: bigint; salt: `0x${string}` },
+    b: { teamId: bigint; salt: `0x${string}` },
+  ): Promise<{ kind: 'ok' } | { kind: 'unplayable'; side: 'A' | 'B'; error: string } | { kind: 'unknown'; error: string }> {
+    const { arena, resolverAddress } = this.deps;
+    if (!arena.simulate) return { kind: 'ok' };
+    try {
+      await arena.simulate.revealTeams(this.revealArgs(battleId, a, b), { account: resolverAddress });
+      return { kind: 'ok' };
+    } catch (err) {
+      const revert = decodeRevert(err);
+      if (!revert) return { kind: 'unknown', error: String((err as Error)?.message ?? err).slice(0, 300) };
+      const error = `${revert.name}(${revert.args.map(String).join(', ')})`;
+      const first = revert.args[0];
+      if (TEAM_ERRORS.has(revert.name) && first !== undefined) {
+        const teamId = BigInt(first as bigint);
+        if (teamId === a.teamId) return { kind: 'unplayable', side: 'A', error };
+        if (teamId === b.teamId) return { kind: 'unplayable', side: 'B', error };
+      } else if (LOBSTER_ERRORS.has(revert.name) && first !== undefined && this.deps.readTeamLobsters) {
+        const lobsterId = BigInt(first as bigint);
+        for (const [side, o] of [['A', a], ['B', b]] as const) {
+          const members = await this.deps.readTeamLobsters(o.teamId).catch(() => [] as bigint[]);
+          if (members.some((m) => m === lobsterId)) return { kind: 'unplayable', side, error };
+        }
+      }
+      return { kind: 'unknown', error };
+    }
+  }
+
+  private revealArgs(battleId: bigint, a: { teamId: bigint; salt: `0x${string}` }, b: { teamId: bigint; salt: `0x${string}` }): unknown[] {
+    return [
+      battleId, a.teamId, a.salt, b.teamId, b.salt,
+      seedCommitment(battleId, deriveSeedSecret(typeof this.deps.seedMasterSecret === 'function' ? this.deps.seedMasterSecret() : this.deps.seedMasterSecret, battleId)),
+    ];
   }
 
   private async accuse(battleId: bigint, player: string, why: string): Promise<void> {
@@ -257,10 +369,7 @@ export class RevealWatcher {
       address: battleArenaAddress,
       abi,
       functionName: 'revealTeams',
-      args: [
-        battleId, a.teamId, a.salt, b.teamId, b.salt,
-        seedCommitment(battleId, deriveSeedSecret(typeof this.deps.seedMasterSecret === 'function' ? this.deps.seedMasterSecret() : this.deps.seedMasterSecret, battleId)),
-      ],
+      args: this.revealArgs(battleId, a, b),
     });
     await publicClient.waitForTransactionReceipt({ hash });
 

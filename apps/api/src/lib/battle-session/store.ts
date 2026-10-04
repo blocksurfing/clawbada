@@ -159,6 +159,17 @@ export class SessionStore {
     return rows.map((r) => r.battleId.toString());
   }
 
+  /** D-14: battles the indexer shows in TeamReveal (phase 3) — the only phase a reveal-failure
+   *  report can stand in. The manager reads who is accused from the chain. */
+  async inTeamReveal(limit = 50): Promise<{ battleId: string; playerA: string; playerB: string }[]> {
+    const rows = await this.dbx
+      .select({ battleId: battles.battleId, playerA: battles.playerA, playerB: battles.playerB })
+      .from(battles)
+      .where(eq(battles.phase, 3))
+      .limit(limit);
+    return rows.map((r) => ({ battleId: r.battleId.toString(), playerA: r.playerA, playerB: r.playerB }));
+  }
+
   async pendingRealBattles(limit = 10): Promise<PendingRealBattle[]> {
     const rows = await this.dbx
       .select({ battleId: battles.battleId, playerA: battles.playerA, playerB: battles.playerB, teamA: battles.teamA, teamB: battles.teamB })

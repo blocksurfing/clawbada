@@ -143,14 +143,27 @@ battleWriteRoutes.post(
       throw new ApiError('INVALID_INPUT', 'commitHash (non-zero bytes32) or teamId + salt required: the team commit is part of the deposit');
     }
 
+    let revealNote: string | null = null;
     if (preparedReveal) {
-      // The engine's reveal watcher checks this salt against the commit that actually lands
-      // on-chain before it uses it, so a stale or wrong one costs nothing.
+      // The engine's reveal watcher checks the stored salt against the commit that actually
+      // lands on-chain before it uses it. A stale or wrong one is NOT free: the watcher reports
+      // it (D-14) and the player forfeits 5% unless they open the commit themselves within the
+      // grace. So once this player's deposit has landed — the commit on-chain is final — a new
+      // salt replaces the stored one only if it opens that commit (an idempotent re-send); a
+      // retry that minted a fresh salt used to overwrite the good one and get the player reported.
       const isA = address === row!.playerA.toLowerCase();
-      await db
-        .update(battles)
-        .set(isA ? { teamA: preparedReveal.teamId, revealSaltA: preparedReveal.salt } : { teamB: preparedReveal.teamId, revealSaltB: preparedReveal.salt })
-        .where(eq(battles.battleId, id));
+      const landed = isA ? battle.depositA : battle.depositB;
+      const onChainCommit = String(isA ? battle.teamCommitA : battle.teamCommitB).toLowerCase();
+      if (landed && commitHash.toLowerCase() !== onChainCommit) {
+        revealNote = 'Your deposit is already on-chain and this salt does not open the commit it carries, so the salt already on record was kept. Reveal with the salt you deposited with.';
+        log.warn({ battleId, address }, 'deposit_salt_kept_new_one_does_not_open_commit');
+        preparedReveal = null;
+      } else {
+        await db
+          .update(battles)
+          .set(isA ? { teamA: preparedReveal.teamId, revealSaltA: preparedReveal.salt } : { teamB: preparedReveal.teamId, revealSaltB: preparedReveal.salt })
+          .where(eq(battles.battleId, id));
+      }
     }
 
     const antiGrief = (battle.stakeAmount * ANTI_GRIEF_DEPOSIT_BPS) / 10000n;
@@ -183,10 +196,23 @@ battleWriteRoutes.post(
         commitHash,
         consent: { expectedStake: consent.expectedStake, maxOpponentPower: consent.maxOpponentPower },
         revealPrepared: preparedReveal !== null,
+        ...(revealNote ? { revealNote } : {}),
       }),
     });
   }),
 );
+
+/** Review 2026-10-03: a reveal the SERVER refuses leaves the player with no usable salt on
+ *  record through no failure of their own client. Note why on the battle row so the engine's
+ *  reveal watcher does not report them (an accusation costs 5% if they never open the commit):
+ *  the window lapses into the no-fault mutual cancel instead. A reveal the server accepts
+ *  clears it. */
+async function recordRevealRefusal(id: bigint, isPlayerA: boolean, reason: string): Promise<void> {
+  await db
+    .update(battles)
+    .set(isPlayerA ? { revealRefusedA: reason } : { revealRefusedB: reason })
+    .where(eq(battles.battleId, id));
+}
 
 // F5-01: team reveal is atomic and RESOLVER-submitted. Players NO LONGER reveal on-chain
 // themselves (the old per-player revealTeam leaked the first revealer's composition and let
@@ -246,20 +272,23 @@ battleWriteRoutes.post(
     const queuedRow = await db.query.battles.findFirst({ where: eq(battles.battleId, id) });
     const queuedTeam = isPlayerA ? queuedRow?.queuedTeamA : queuedRow?.queuedTeamB;
     if (queuedTeam === null || queuedTeam === undefined) {
+      if (queuedRow) await recordRevealRefusal(id, isPlayerA, 'no queued team on record');
       throw new ApiError(
         'BATTLE_PHASE_ERROR',
         'No queued team is on record for this battle, so a reveal cannot be verified. The battle will cancel with full refunds when the reveal window ends.',
       );
     }
     if (BigInt(queuedTeam) !== teamId) {
+      await recordRevealRefusal(id, isPlayerA, `teamId ${teamId} is not the queued team`);
       throw new ApiError('INVALID_INPUT', 'teamId is not the team you queued with for this battle');
     }
 
     // Persist the revealed teamId (teamA/teamB are 0 until reveal) plus the salt (transient —
-    // cleared once revealTeams confirms). The engine's RevealWatcher reads both to submit.
+    // cleared once revealTeams confirms). The engine's RevealWatcher reads both to submit. An
+    // accepted reveal supersedes any refusal noted for this side.
     await db
       .update(battles)
-      .set(isPlayerA ? { teamA: teamId, revealSaltA: salt } : { teamB: teamId, revealSaltB: salt })
+      .set(isPlayerA ? { teamA: teamId, revealSaltA: salt, revealRefusedA: null } : { teamB: teamId, revealSaltB: salt, revealRefusedB: null })
       .where(eq(battles.battleId, id));
 
     const row = await db.query.battles.findFirst({ where: eq(battles.battleId, id) });

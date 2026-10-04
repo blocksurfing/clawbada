@@ -451,22 +451,62 @@ function TeamRevealAction({ battleId, address, teamId }: { battleId: string; add
   );
 }
 
+/** How long after a successful free re-send to wait for the resolver to reveal before offering
+ *  the on-chain fallback (the reveal watcher polls every 2 s, then a transaction confirms). */
+const RESEND_GRACE_MS = 8_000;
+
 /** D-14: the server reported that your commit does not open with the salt it holds (or it
  *  never got one). Open it yourself on-chain within 2 minutes, or you forfeit your 5%
- *  anti-grief deposit when the reveal window lapses. Needs the salt from this browser. */
+ *  anti-grief deposit when the reveal window lapses. Needs the salt from this browser.
+ *
+ *  Review 2026-10-03: the report usually means the server never received (or lost) the salt,
+ *  so this first re-POSTs it to /reveal-team — free, and if accepted the resolver reveals
+ *  both teams and the report is moot. The on-chain `openOwnCommit` (gas) is offered only if
+ *  the report still stands after that. */
 function OpenCommitAction({ battleId, address, teamId }: { battleId: string; address: string; teamId: string }) {
   const { getAuthHeaders } = useAuth();
   const { execute: executeTx, status } = useCalldataTx();
+  const queryClient = useQueryClient();
   const lower = address.toLowerCase();
   const salt = typeof window !== 'undefined' ? sessionStorage.getItem(saltKey(battleId, lower)) : null;
+  const storedTeamId = (typeof window !== 'undefined' ? sessionStorage.getItem(teamKey(battleId, lower)) : null) ?? teamId;
+
+  const [resend, setResend] = useState<'pending' | 'sent' | 'failed'>(salt ? 'pending' : 'failed');
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [fallbackReady, setFallbackReady] = useState(!salt);
+  const resentOnce = useRef(false);
+
+  useEffect(() => {
+    if (!salt || resentOnce.current) return;
+    resentOnce.current = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        await api.combat.revealTeam(battleId, storedTeamId, salt, auth);
+        if (cancelled) return;
+        setResend('sent');
+        void queryClient.invalidateQueries({ queryKey: ['battle', battleId] });
+        // If the report is still standing when this fires (this component is still mounted in
+        // the open_commit phase), the free path did not clear it: offer the on-chain one.
+        timer = setTimeout(() => { if (!cancelled) setFallbackReady(true); }, RESEND_GRACE_MS);
+      } catch (err) {
+        if (cancelled) return;
+        setResend('failed');
+        setResendError(err instanceof Error ? err.message : String(err));
+        setFallbackReady(true);
+      }
+    })();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [battleId, storedTeamId, salt, getAuthHeaders, queryClient]);
 
   const handleOpen = useCallback(async () => {
     if (!salt) return;
-    const storedTeamId = sessionStorage.getItem(teamKey(battleId, lower)) ?? teamId;
     const auth = await getAuthHeaders();
     const { steps } = await api.combat.openCommit(battleId, storedTeamId, salt, auth);
     await executeTx(steps);
-  }, [battleId, teamId, lower, salt, getAuthHeaders, executeTx]);
+  }, [battleId, storedTeamId, salt, getAuthHeaders, executeTx]);
 
   const busy = status === 'pending' || status === 'confirming';
   return (
@@ -475,12 +515,28 @@ function OpenCommitAction({ battleId, address, teamId }: { battleId: string; add
       <p className="text-xs text-text-secondary">
         Open it yourself within 2 minutes, or you lose your 5% anti-grief deposit when the reveal window ends.
       </p>
-      {salt ? (
-        <Button onClick={handleOpen} disabled={busy} size="sm">
-          {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Submitting...</> : 'Open my commit'}
-        </Button>
-      ) : (
+      {!salt ? (
         <p className="text-xs text-muted-foreground">This browser no longer has the salt for this commit.</p>
+      ) : resend === 'pending' ? (
+        <p className="text-xs text-muted-foreground">
+          <Loader2 className="size-3 inline animate-spin mr-1" /> Re-sending your team to the server first (free)…
+        </p>
+      ) : resend === 'sent' && !fallbackReady ? (
+        <p className="text-xs text-muted-foreground">
+          <Loader2 className="size-3 inline animate-spin mr-1" /> Sent. Waiting for the server to reveal both teams…
+        </p>
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground">
+            {resend === 'failed'
+              ? `Re-sending it did not work${resendError ? ` (${resendError})` : ''}.`
+              : 'The report is still standing.'}{' '}
+            Open your commit on-chain to clear it.
+          </p>
+          <Button onClick={handleOpen} disabled={busy} size="sm">
+            {busy ? <><Loader2 className="size-3 animate-spin mr-1" /> Submitting...</> : 'Open my commit'}
+          </Button>
+        </>
       )}
     </div>
   );

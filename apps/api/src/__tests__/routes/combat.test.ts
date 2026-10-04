@@ -473,6 +473,52 @@ describe('combat routes', () => {
       mockFindFirst.mockResolvedValue(matchRow({ powerB: null }));
       expect((await deposit({ commitHash: COMMIT })).status).toBe(409);
     });
+
+    // Review 2026-10-03: a retry after the deposit landed must not swap a good salt for a bad one.
+    describe('once the deposit is on-chain', () => {
+      test('a new salt that does NOT open the on-chain commit is not stored, and the response says so', async () => {
+        mockReadBattle.mockResolvedValue(onChain({ depositA: true, teamCommitA: COMMIT }));
+        mockFindFirst.mockResolvedValue(matchRow());
+        mockTeamCommitHash.mockImplementation(() => '0x' + 'd1'.repeat(32)); // a fresh salt → a different hash
+        const res = await deposit({ teamId: '1', salt: SALT });
+        expect(res.status).toBe(200);
+        expect(mockUpdateSet).not.toHaveBeenCalled();
+        const body = await res.json();
+        expect(body.preview.revealPrepared).toBe(false);
+        expect(body.preview.revealNote).toContain('salt already on record was kept');
+      });
+
+      test('a salt that opens the on-chain commit is stored (idempotent re-send)', async () => {
+        mockReadBattle.mockResolvedValue(onChain({ depositA: true, teamCommitA: COMMIT }));
+        mockFindFirst.mockResolvedValue(matchRow());
+        mockTeamCommitHash.mockImplementation(() => COMMIT);
+        const res = await deposit({ teamId: '1', salt: SALT });
+        expect(res.status).toBe(200);
+        expect(mockUpdateSet).toHaveBeenCalledWith({ teamA: 1n, revealSaltA: SALT });
+        const body = await res.json();
+        expect(body.preview.revealPrepared).toBe(true);
+        expect(body.preview.revealNote).toBeUndefined();
+      });
+
+      test('player B is checked against depositB / teamCommitB', async () => {
+        mockReadBattle.mockResolvedValue(onChain({ depositB: true, teamCommitB: COMMIT }));
+        mockFindFirst.mockResolvedValue(matchRow());
+        mockTeamCommitHash.mockImplementation(() => '0x' + 'd1'.repeat(32));
+        const res = await deposit({ teamId: '2', salt: SALT }, authHeaders(OTHER_ADDRESS));
+        expect(res.status).toBe(200);
+        expect(mockUpdateSet).not.toHaveBeenCalled();
+        expect((await res.json()).preview.revealPrepared).toBe(false);
+      });
+
+      test('before the deposit lands, any salt for the queued team is stored (the commit is not final yet)', async () => {
+        mockReadBattle.mockResolvedValue(onChain({ depositA: false, teamCommitA: '0x0' }));
+        mockFindFirst.mockResolvedValue(matchRow());
+        mockTeamCommitHash.mockImplementation(() => '0x' + 'd1'.repeat(32));
+        const res = await deposit({ teamId: '1', salt: SALT });
+        expect(res.status).toBe(200);
+        expect(mockUpdateSet).toHaveBeenCalledWith({ teamA: 1n, revealSaltA: SALT });
+      });
+    });
   });
 
   // ── D-06: GET /combat/:battleId says whether the on-chain proposal is OUR result ──
@@ -675,7 +721,8 @@ describe('combat routes', () => {
       expect(body.steps).toBeUndefined(); // the player signs nothing to reveal
       // Player A's teamId + salt were written to the battle row.
       expect(mockUpdateSet).toHaveBeenCalledTimes(1);
-      expect(mockUpdateSet.mock.calls[0][0]).toEqual({ teamA: 1n, revealSaltA: '0x' + 'ab'.repeat(32) });
+      // An accepted reveal also clears any refusal noted for this side.
+      expect(mockUpdateSet.mock.calls[0][0]).toEqual({ teamA: 1n, revealSaltA: '0x' + 'ab'.repeat(32), revealRefusedA: null });
       // The hash was checked for THIS player, battle 1, team 1.
       const [battleId, player, teamId] = mockTeamCommitHash.mock.calls[0] as unknown as [bigint, string, bigint, string];
       expect(battleId).toBe(1n);
@@ -759,7 +806,10 @@ describe('combat routes', () => {
       });
       expect(res.status).toBe(400);
       expect((await res.json()).message).toContain('not the team you queued with');
-      expect(mockUpdateSet).not.toHaveBeenCalled(); // nothing reaches the reveal watcher
+      // No salt reaches the reveal watcher — but the refusal is noted on the row, so the watcher
+      // does not report this side for a reveal the SERVER refused (review 2026-10-03).
+      expect(mockUpdateSet).toHaveBeenCalledTimes(1);
+      expect(mockUpdateSet.mock.calls[0][0]).toEqual({ revealRefusedA: 'teamId 7 is not the queued team' });
     });
 
     test('D-17: player B is held to queuedTeamB, not queuedTeamA', async () => {
@@ -772,7 +822,8 @@ describe('combat routes', () => {
         body: revealBody({ teamId: '1' }), // A's queued team, not B's
       });
       expect(res.status).toBe(400);
-      expect(mockUpdateSet).not.toHaveBeenCalled();
+      expect(mockUpdateSet).toHaveBeenCalledTimes(1);
+      expect(mockUpdateSet.mock.calls[0][0]).toEqual({ revealRefusedB: 'teamId 1 is not the queued team' });
     });
 
     test('D-17: fails closed when no queued team is on record (409)', async () => {
@@ -785,7 +836,10 @@ describe('combat routes', () => {
         body: revealBody(),
       });
       expect(res.status).toBe(409);
-      expect(mockUpdateSet).not.toHaveBeenCalled();
+      // The indexer's fallback row: the player did nothing wrong, so the refusal is recorded and
+      // the engine lets the window lapse into a mutual cancel instead of accusing them.
+      expect(mockUpdateSet).toHaveBeenCalledTimes(1);
+      expect(mockUpdateSet.mock.calls[0][0]).toEqual({ revealRefusedA: 'no queued team on record' });
     });
 
     test('D-17: fails closed when the battle row is missing entirely (409)', async () => {

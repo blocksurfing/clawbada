@@ -86,7 +86,7 @@ The watchdog could not reproduce a result `settle` recorded, and froze it with t
    From the Safe: `resolveFrozen(battleId, winner, forfeiter, false)` with `winner` = the payload's wallet (zero address for a draw) and `forfeiter` = the payload's forfeiter (zero address if null). For a `no_session` battle nothing was played: `resolveFrozen(battleId, 0x0, 0x0, true)` refunds both players in full.
 3. **If the freeze was a false alarm** (e.g. `replay_failed` after a rules change), re-run the verification above by hand; if the result on-chain is right, resolve it with exactly that result.
 4. **The long-stop.** The engine pages `battle_frozen_awaiting_safe` hourly, then `battle_freeze_long_stop_due` in the last 12 h. If the Safe has not acted 72 h after `frozenAt`, the engine (or anyone) calls `expireFrozen`: the held stakes (2·stake) are **burned** and both players are paid stake + 5 % back from the refund reserve (`refundReserve`), logged `frozen_battle_expired`. If the reserve is short of 2·stake, the held stakes are returned directly and nothing burns. Keep the reserve funded (`fundReserve`, anyone; `withdrawReserve`, the Safe).
-5. **`battle_freeze_missed`** means a result the watchdog could not reproduce left its review window unfrozen (engine down, guardian key out of gas, chain stalled past the window) and will pay as submitted. `battle_freeze_failed` means the guardian signer is missing (`GUARDIAN_PRIVATE_KEY`): freeze it from the Safe immediately — the Safe can also call `freeze` while the window is open.
+5. **`battle_freeze_missed`** means a result the watchdog could not reproduce left its review window unfrozen (engine down, guardian key out of gas, chain stalled past the window) and will pay as submitted. `battle_freeze_failed` means the watchdog wanted to freeze and could not (guardian signer missing — `GUARDIAN_PRIVATE_KEY` —, `GUARDIAN_ROLE` not granted, no gas, RPC down, or the freeze transaction reverted): freeze it from the Safe immediately — the Safe can also call `freeze` while the window is open. The hourly `guardian_preflight_failed` says the same thing BEFORE a bad result arrives; treat it as urgent.
 
 This whole sequence is rehearsed by the e2e harness (`scripts/e2e/phases/50-rogue-settlement.ts`).
 
@@ -126,12 +126,56 @@ engine's **watchdog** (`apps/engine/src/combat/finalize-watcher.ts`, `FINALIZE_P
 freezes it with the GUARDIAN key (`battle_frozen`) or, once the **chain clock** (latest block
 timestamp) is past the deadline, calls the permissionless `finalizeBattle`; the indexer mirrors
 `BattleFrozen` (phase 8) and `BattleSettled` (phase 6, winner, payouts; a draw's fee is the
-total of both halves). If a battle stays in phase 5 after the window: check the engine log for
-`watchdog step failed`, and that the operator key has gas. Anyone can also call
-`finalizeBattle(id)` by hand. Phase 8: see `battle_frozen` above.
+total of both halves). If a battle stays in phase 5 after the window: the watchdog pages
+`finalize_overdue` after six ticks; check the engine log for `watchdog step failed`, and that the
+operator key has gas. Anyone can also call `finalizeBattle(id)` by hand. Phase 8: see
+`battle_frozen` above.
 
-Signers: `finalizeBattle` / `expireFrozen` use the operator key (permissionless); `freeze` uses
-`GUARDIAN_PRIVATE_KEY` (GUARDIAN_ROLE; off mainnet it falls back to `OPERATOR_PRIVATE_KEY`).
+What the watchdog does besides (review 2026-10-03, section C — the safety net must not fail open
+quietly):
+
+- **Two sources of work.** Each tick it merges the indexer's mirror (`battles.phase` in 1/3/4/5/8)
+  with the chain's own `BattleProposed` / `BattleFrozen` logs over the last 2,000 blocks (~70 min),
+  so a stalled indexer cannot hide a result from review. The heartbeat
+  `watchdog_heartbeat {tick, rows, dbRows, fromLogsOnly}` is logged every tick.
+- **Order.** Results in review are judged earliest `payoutDeadline` first; the whole freeze pass
+  runs before any payout; receipts are tracked in the background (a slow transaction never delays
+  the next freeze; the battle is skipped until its receipt lands).
+- **A judge that throws is a verdict**: `judge_threw: …` is not clean and is frozen like any other
+  mismatch. A session row that cannot be READ (the database, not the replay) is retried while the
+  window has more than 60 s left, then fails closed the same way.
+- **Guardian preflight** at boot and hourly: the key behind `guardianClient` must hold
+  `GUARDIAN_ROLE` on BattleArena and at least 0.002 ETH. Otherwise `guardian_preflight_failed`
+  (fatal), repeated every hour until fixed. A freeze that cannot be sent — missing key, role revert
+  (`AccessControlUnauthorizedAccount`), no gas, RPC down, or a freeze transaction that reverted —
+  is `battle_freeze_failed` (fatal) on every attempt.
+- **Lapsed battles.** A battle in Deposit (1), TeamReveal (3) or Active (4) whose `phaseDeadline`
+  has passed gets the permissionless `handleTimeout` (operator key): `battle_timed_out_by_watchdog`
+  (info for a declined deposit, warn for a lapsed reveal or an unsettled Active battle — the latter
+  is the `settle_window_missed` case above). `PhaseNotTimedOut` / `InvalidBattlePhase` /
+  `BattleDoesNotExist` reverts are benign.
+- **Frozen past the long-stop.** `expireFrozen` is attempted every tick; `expire_failed` pages after
+  six failed attempts, and `battle_freeze_long_stop_due` keeps paging hourly until the battle is gone.
+
+Signers: `finalizeBattle` / `expireFrozen` / `handleTimeout` use the operator key (permissionless);
+`freeze` uses `GUARDIAN_PRIVATE_KEY` (GUARDIAN_ROLE; off mainnet it falls back to
+`OPERATOR_PRIVATE_KEY`).
+
+### Alerting
+
+Page (fatal / error level, message prefix):
+
+| Message | Meaning | First move |
+|---|---|---|
+| `battle_freeze_failed` | the watchdog found a result it cannot reproduce and could NOT freeze it (no key, no role, no gas, RPC, reverted tx) | freeze it from the Safe now (`freeze(battleId)`, window still open), then fix the key |
+| `guardian_preflight_failed` | the guardian key would not be able to freeze (role not granted / below 0.002 ETH / unreadable) | grant `GUARDIAN_ROLE` or fund the key — before a bad result reaches review |
+| `battle_freeze_missed` | a result the watchdog cannot reproduce left its review window unfrozen; it pays as submitted | incident: see `battle_frozen` above for the evidence trail; make players whole from the treasury |
+| `battle_frozen` | a result was frozen for the Safe | resolve within 72 h (above) |
+| `battle_frozen_awaiting_safe` / `battle_freeze_long_stop_due` | hourly reminders while frozen; the second in the last 12 h and past the long-stop | resolve it |
+| `finalize_overdue` / `expire_failed` | the permissionless `finalizeBattle` / `expireFrozen` has not landed six ticks past its deadline | RPC, operator gas, `watchdog step failed` in the log; call it by hand |
+| `watchdog_heartbeat` **silent for > 60 s** | the watchdog is not ticking (engine down, RPC hung) | restart the engine; nothing is lost while the review windows are still open |
+| `indexer_watch_error` (indexer) | the live event poll failed; one is a blip, a stream is an outage | check the RPC |
+| `indexer_lagging` (indexer) | the chain holds events older than 30 blocks the indexer never processed | restart the indexer (the backfill resumes from its last block) |
 
 ## A reveal stalls (phase 3)
 
