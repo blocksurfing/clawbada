@@ -867,9 +867,9 @@ MonoBehaviour:
     walkHalfWidth: 0.2
     disabled: 1
   - id: RightSmall
-    x: 2.1875
-    y: 1.703125
-    walkHalfWidth: 0.08
+    x: 2.171875
+    y: 1.6875
+    walkHalfWidth: 0
     disabled: 0
   - id: RightFar
     x: 4.4
@@ -877,12 +877,12 @@ MonoBehaviour:
     walkHalfWidth: 0
     disabled: 1
   - id: LeftA
-    x: -2.6
+    x: -2.6875
     y: 1.96875
     walkHalfWidth: 0
     disabled: 0
   - id: LeftB
-    x: -3.1
+    x: -3.015625
     y: 1.96875
     walkHalfWidth: 0
     disabled: 0

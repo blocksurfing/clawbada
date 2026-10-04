@@ -114,17 +114,28 @@ public static class BirdFlockSmokeTest
             {
                 var q = perches[j];
                 if (q.disabled) continue;
+                // The painted gull is 18 px wide (x 7..24 of its 32 px frame): neighbours need 21 px between centres
+                // for 3 px of air between their bodies.
                 float gap = Mathf.Abs(p.x - q.x) - p.walkHalfWidth - q.walkHalfWidth;
-                if (gap < 0.45f) throw new Exception($"perches {p.id} and {q.id} too close ({gap:F2} < 0.45 after walk spans)");
+                if (gap < 21f / 64f) throw new Exception($"perches {p.id} and {q.id} too close ({gap * 64f:F0} px < 21 px between centres after walk spans)");
             }
         }
     }
 
     private const string RocksLayerPath = "Assets/Art/Arenas/Evolved/BG_4.png";
 
-    /// <summary>Every enabled perch's feet must sit on the painted rock: the topmost opaque pixel of BG_4
-    /// under the feet column is within 2 px of perch.y, and so is the surface at both ends of the walk
-    /// span. A perch on a rock's rounded shoulder puts a walking gull in the air (Nzib, 2026-10-04).</summary>
+    /// <summary>The gull's feet in its 32 px frames: 4 px left and 5 px right of the pivot (measured on every
+    /// idle/walk sheet, 2026-10-04).</summary>
+    private static readonly float[] FootOffsets = { -4f / 64f, 0f, 5f / 64f };
+    /// <summary>A foot may sit at most this far above the painted surface (air shows) …</summary>
+    private const float MaxFloatPx = 1f;
+    /// <summary>… and at most this far into it (the inner foot on a dome overlaps the crest, which reads fine).</summary>
+    private const float MaxSinkPx = 2.5f;
+
+    /// <summary>Every enabled perch's feet must sit on the painted rock: for each foot column (and the centre), at
+    /// every point of the walk span, the topmost opaque pixel of BG_4 is at most MaxFloatPx above … below the
+    /// feet. The first version checked only the centre column, and the user's screenshot (2026-10-04) showed the
+    /// OUTER foot of each gull floating over the dome's slope.</summary>
     private static void CheckPerchesOnTheRock(List<BirdPerch> perches)
     {
         var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
@@ -135,13 +146,16 @@ public static class BirdFlockSmokeTest
             foreach (var p in perches)
             {
                 if (p.disabled) continue;
-                foreach (float x in new[] { p.x - p.walkHalfWidth, p.x, p.x + p.walkHalfWidth })
-                {
-                    float surface = SurfaceY(tex, x);
-                    if (float.IsNaN(surface)) throw new Exception($"perch {p.id}: nothing painted under x={x:F3}");
-                    float gapPx = (p.y - surface) * 64f; // + feet above the rock (air), - feet sunk into it
-                    if (Mathf.Abs(gapPx) > 2f) throw new Exception($"perch {p.id} at x={x:F3}: feet y={p.y:F4} but the painted surface is y={surface:F4} ({gapPx:+0.0;-0.0} px)");
-                }
+                foreach (float walk in new[] { -p.walkHalfWidth, 0f, p.walkHalfWidth })
+                    foreach (float foot in FootOffsets)
+                    {
+                        float x = p.x + walk + foot;
+                        float surface = SurfaceY(tex, x);
+                        if (float.IsNaN(surface)) throw new Exception($"perch {p.id}: nothing painted under x={x:F3}");
+                        float gapPx = (p.y - surface) * 64f; // + foot above the rock (air), - foot into it
+                        if (gapPx > MaxFloatPx) throw new Exception($"perch {p.id}: foot at x={x:F4} floats {gapPx:0.0} px above the painted surface (y={surface:F4}, feet y={p.y:F4})");
+                        if (-gapPx > MaxSinkPx) throw new Exception($"perch {p.id}: foot at x={x:F4} sinks {-gapPx:0.0} px into the rock (surface y={surface:F4}, feet y={p.y:F4})");
+                    }
             }
         }
         finally { UnityEngine.Object.DestroyImmediate(tex); }
