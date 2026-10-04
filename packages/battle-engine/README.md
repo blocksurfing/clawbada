@@ -130,9 +130,10 @@ when `Assets/Resources/UI/HudSkin.asset` exists — no scene or prefab wiring:
   band, the portrait composited from each lobster's Carapace/Antennae/Eyes sprites
   (`LobsterPartLibrary`), and a segmented HP bar inside the card. The active card is
   scaled up, rimmed gold and carries a pennant.
-- `UnitOverlay` (per lobster, follows the rig): HP bar, charge pips, defend shield,
-  status icons, KO skull, gold ring on the active unit. `ActiveMarker` draws the
-  animated `hex_selector` under the actor in world space.
+- Nothing floats over the rigs except the damage floats and the armed-action badge over
+  the selected target: health, charge, defend and statuses live on the team panels and the
+  active/target panels (the LOKR field HP bar was removed 2026-10-04 as redundant).
+  `ActiveMarker` draws the animated `hex_selector` under the actor in world space.
 - `ActivePanel` (bottom-left, 176×108): card, name, tier/team, HP numbers, pips — sized to
   stay clear of the board's bottom-left cell. The shot clock (`BattleHud.Clock`, counts
   down from `SetClock`) lives in its own bottom-right box, above the React fullscreen
@@ -143,8 +144,8 @@ when `Assets/Resources/UI/HudSkin.asset` exists — no scene or prefab wiring:
   (LOKR-style: tap an enemy to attack, tap a hex to move first, Undo to return).
 
 Art: `Clawbada/Generate HUD Placeholder Art` writes placeholder sprites to
-`Assets/Art/UI` (hex frames, card frame/header, pennant, bevelled hex button, HP
-segments, icons, badges) and seeds `HudSkin` (only empty slots — designer swaps
+`Assets/Art/UI` (hex frames, card frame/header, pennant, bevelled hex button, icons,
+badges) and seeds `HudSkin` (only empty slots — designer swaps
 survive). Verify headlessly with `-executeMethod HudSmokeTest.Run` (no `-nographics`).
 The editor demo loop feeds the same signals, so the HUD shows in play mode too.
 

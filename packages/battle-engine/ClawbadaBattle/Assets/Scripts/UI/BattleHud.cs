@@ -11,8 +11,10 @@ using UnityEngine.UI;
 ///
 /// Layout (960x540 reference, Nzib's layout 2026-09-28): settings + timer hexes top-left, the opponents'
 /// three team panels top-right, yours bottom-left (turn-order numbers, pulsing outline on the lobster acting
-/// now), the 2×2 action buttons bottom-right with the hint line above them, unit overlays following the rigs,
-/// floats and the result banner over everything.
+/// now), the 2×2 action buttons bottom-right with the hint line above them, the damage floats and the armed-action
+/// badge over the selected target, and the result banner over everything. Nothing else floats over the rigs: health,
+/// charge, defend and statuses live on the team panels and the active/target panels (the LOKR field HP bar was
+/// removed 2026-10-04 — redundant with Nzib's panels).
 /// </summary>
 public class BattleHud : MonoBehaviour
 {
@@ -44,20 +46,15 @@ public class BattleHud : MonoBehaviour
     public PortraitSnapshot Portraits { get; private set; }
     /// <summary>Settings hex menu, top-left. Participants only; carries the forfeit.</summary>
     public OptionsMenu Options { get; private set; }
-    public IReadOnlyDictionary<string, UnitOverlay> Overlays => overlays;
 
     private BattleManager manager;
     private RectTransform canvasRect;
-    private RectTransform overlayLayer;
     private RectTransform floatLayer;
-    private readonly Dictionary<string, UnitOverlay> overlays = new();
     private Camera cam;
     private string activeId = "";
-    /// <summary>Field bars (LOKR): the enemy the player's team hit last, and the unit being targeted.</summary>
-    private string lastHitEnemyId = "";
+    /// <summary>The unit being targeted while the player chooses (drives the target panel, marker and badge).</summary>
     private string targetedId = "";
     private string sideOfPlayer = "";
-    private string lastFieldBarDesc = "";
     private bool built;
 
     /// <summary>Attach a HUD to the manager if a skin asset exists; otherwise stay silent
@@ -143,7 +140,6 @@ public class BattleHud : MonoBehaviour
         Canvas = HudFactory.Canvas("BattleHudCanvas", 100, new Vector2(960f, 540f), 0.5f, 64f);
         canvasRect = Canvas.GetComponent<RectTransform>();
 
-        overlayLayer = HudFactory.Stretch(canvasRect, "Overlays");
         Portraits = ActivePanel.NewPortraits();
         Teams = TeamPanels.Create(canvasRect, skin, Portraits);
         // Top-left: the settings button (Options, below) then the timer beside it. With Nzib's art (drop 25d2fbe) both
@@ -207,7 +203,6 @@ public class BattleHud : MonoBehaviour
         m.UnitsSynced += OnUnitsSynced;
         m.DamageApplied += OnDamageApplied;
         m.HealApplied += OnHealApplied;
-        m.StatusChanged += OnStatusChanged;
         m.Died += OnDied;
         m.TurnSkipped += OnTurnSkipped;
         m.BattleEnded += OnBattleEnded;
@@ -223,10 +218,8 @@ public class BattleHud : MonoBehaviour
     private void OnSelectionChanged(SelectionData data)
     {
         Bar.Apply(data);
-        // The unit under consideration as a target carries a field bar while the player chooses.
         targetedId = data != null && data.isPlayerTurn ? (data.targetId ?? "") : "";
         targetAction = data != null ? (data.action ?? "") : "";
-        RefreshFieldBars();
         ShowTargetPanel();
         ShowTargetBadge();
     }
@@ -240,7 +233,7 @@ public class BattleHud : MonoBehaviour
     private BattleBridge bridge;
     private Image targetBadgeIcon;
     private const float BadgeSize = 48f;      // reference px (canvas 960x540): Nzib's 48 px button at 2/3 of the bar's size
-    private const float BadgeLift = 0.40f;    // world units above the field bar's anchor: just clear of the bar, low enough not to sit over the row behind
+    private const float BadgeLift = 0.40f;    // world units above overlayWorldYOffset: clear of the rig, low enough not to sit over the row behind
     private const float BadgeBobPx = 3f;
 
     private bool badgeLogPending;
@@ -294,21 +287,6 @@ public class BattleHud : MonoBehaviour
         }
     }
 
-    /// <summary>Field bars, LOKR-style: only the enemy hit last and the unit being targeted carry
-    /// one; everyone else stays bare (health is in the strip and the active panel).</summary>
-    private void RefreshFieldBars()
-    {
-        var shown = new StringBuilder();
-        foreach (var kv in overlays)
-        {
-            bool on = kv.Key == lastHitEnemyId || kv.Key == targetedId;
-            kv.Value.SetShown(on);
-            if (kv.Value.gameObject.activeSelf) { if (shown.Length > 0) shown.Append(','); shown.Append(kv.Key); }
-        }
-        string desc = $"last={lastHitEnemyId} target={targetedId} shown=[{shown}]";
-        if (desc != lastFieldBarDesc) { lastFieldBarDesc = desc; Debug.Log($"[BattleHud] fieldbar {desc}"); }
-    }
-
     void OnDestroy()
     {
         if (manager == null) return;
@@ -319,7 +297,6 @@ public class BattleHud : MonoBehaviour
         manager.UnitsSynced -= OnUnitsSynced;
         manager.DamageApplied -= OnDamageApplied;
         manager.HealApplied -= OnHealApplied;
-        manager.StatusChanged -= OnStatusChanged;
         manager.Died -= OnDied;
         manager.TurnSkipped -= OnTurnSkipped;
         manager.BattleEnded -= OnBattleEnded;
@@ -330,16 +307,13 @@ public class BattleHud : MonoBehaviour
 
     public void Bind(BattleInitData init)
     {
-        foreach (var o in overlays.Values) if (o != null) Destroy(o.gameObject);
-        overlays.Clear();
         sideOfPlayer = init?.playerSide ?? "";
         var ids = new StringBuilder();
+        int bound = 0;
         foreach (var lob in manager.Lobsters)
         {
             if (lob == null) continue;
-            var overlay = UnitOverlay.Create(overlayLayer, Skin);
-            overlay.Bind(lob, friendly: !string.IsNullOrEmpty(sideOfPlayer) && lob.side == sideOfPlayer);
-            overlays[lob.lobsterId] = overlay;
+            bound++;
             if (ids.Length > 0) ids.Append(',');
             ids.Append(lob.lobsterId);
         }
@@ -353,10 +327,7 @@ public class BattleHud : MonoBehaviour
         // which is also where the gear now lives.
         string playerSide = init?.playerSide ?? "";
         Options.SetAvailable(playerSide == "A" || playerSide == "B");
-        lastHitEnemyId = "";
         targetedId = "";
-        lastFieldBarDesc = "";
-        RefreshFieldBars();
 
         activeId = "";
         Teams.ClearMarks();
@@ -368,7 +339,7 @@ public class BattleHud : MonoBehaviour
         Banner.Hide();
         Marker.Hide();
         Bar.Apply(null);
-        Debug.Log($"[BattleHud] bind n={overlays.Count} ids={ids}");
+        Debug.Log($"[BattleHud] bind n={bound} ids={ids}");
     }
 
     // ─── Manager events ───
@@ -376,7 +347,6 @@ public class BattleHud : MonoBehaviour
     private void OnTurnStarted(TurnStartData data, int fallbackRemainingMs)
     {
         activeId = data.lobsterId ?? "";
-        RefreshFieldBars();
         // The bar belongs to the player's own turn; React re-sends the real state right after.
         if (!data.isPlayer) Bar.Apply(null);
         var lob = manager.GetLobster(activeId);
@@ -457,15 +427,6 @@ public class BattleHud : MonoBehaviour
         string text = "-" + amount + (isCrit ? "!" : "");
         SpawnFloatFor(target, text, c, isCrit ? 24 : 16);   // Silkscreen sits on an 8 px grid: 16 / 24, never 22
         Debug.Log($"[BattleHud] float {target.lobsterId} {text} {kind}");
-        // LOKR: the enemy the player's team hit last keeps a tight bar until another is hit.
-        bool primary = kind == "attack" || kind == "special";
-        var actor = manager.GetLobster(activeId);
-        bool byPlayer = actor != null && (string.IsNullOrEmpty(sideOfPlayer) || actor.side == sideOfPlayer);
-        if (primary && byPlayer && target.side != actor.side)
-        {
-            lastHitEnemyId = target.lobsterId;
-            RefreshFieldBars();
-        }
     }
 
     private void OnHealApplied(LobsterController target, int amount)
@@ -474,16 +435,8 @@ public class BattleHud : MonoBehaviour
         Debug.Log($"[BattleHud] float {target.lobsterId} +{amount} heal");
     }
 
-    private void OnStatusChanged(LobsterController target, string status, bool applied, int turns)
-    {
-        if (overlays.TryGetValue(target.lobsterId, out var o)) o.Refresh();
-    }
-
     private void OnDied(LobsterController lob)
     {
-        if (overlays.TryGetValue(lob.lobsterId, out var o)) o.Refresh();
-        if (lob.lobsterId == lastHitEnemyId) lastHitEnemyId = "";
-        RefreshFieldBars();
         Teams.SetTurn(activeId, manager.upcoming);   // the dead lose their number and outline
         Teams.Refresh();
         if (lob.lobsterId == activeId) Marker.Hide();
@@ -500,7 +453,6 @@ public class BattleHud : MonoBehaviour
         SetClock(0);
         Marker.Hide();
         Bar.Apply(null);
-        foreach (var o in overlays.Values) o.SetActive(false);
         ShowBanner(data.winner, data.playerWon, data.reason, manager.PlayerSide);
     }
 
@@ -562,7 +514,6 @@ public class BattleHud : MonoBehaviour
 
     public void Refresh()
     {
-        foreach (var o in overlays.Values) o.Refresh();
         Teams.Refresh();
     }
 
@@ -592,16 +543,7 @@ public class BattleHud : MonoBehaviour
 
     void LateUpdate()
     {
-        if (overlays.Count == 0) return;
-        foreach (var kv in overlays)
-        {
-            var o = kv.Value;
-            var lob = o.Lobster;
-            if (lob == null) { if (o.gameObject.activeSelf) o.gameObject.SetActive(false); continue; } // its rig was despawned
-            if (!o.Shown) continue;
-            o.Rect.anchoredPosition = CanvasPointFor(lob.transform.position + Vector3.up * Skin.overlayWorldYOffset);
-            o.Refresh();
-        }
+        if (Teams == null) return;
         Teams.Refresh();
         if (targetBadge != null && targetBadge.gameObject.activeSelf)
         {
