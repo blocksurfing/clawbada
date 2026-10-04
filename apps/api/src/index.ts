@@ -377,6 +377,9 @@ export default {
         // so the moment a client joins — not at the next 20 s re-broadcast.
         const alert = battleSessions.alertFor(battleId);
         if (alert) battleWS.sendTo(ws, 'settlement_alert', battleId, alert);
+        // D-14: a standing reveal-failure report is delivered the same way, so the accused
+        // player hears it the moment they connect, not at the next re-push.
+        for (const report of battleSessions.revealAlertsFor(battleId)) battleWS.sendTo(ws, 'reveal_failure_reported', battleId, report);
       }
       // Address-room subscription (queue lifecycle): always join if we have
       // an authenticated address. Cheap to maintain alongside the battle room

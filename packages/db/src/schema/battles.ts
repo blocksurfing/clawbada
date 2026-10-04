@@ -23,6 +23,13 @@ export const battles = pgTable('battles', {
   // revealed team's salt is not retained. teamId is already captured in teamA/teamB.
   revealSaltA: text('reveal_salt_a'),
   revealSaltB: text('reveal_salt_b'),
+  /** Review 2026-10-03: why this side's POST /reveal-team was REFUSED by the server (D-17: no
+   *  queued team on record, or a team other than the queued one). Such a side holds no usable
+   *  salt through no failure of its own client, so the engine's reveal watcher must not report
+   *  it (an accusation costs 5% if the player never opens the commit): the window lapses into
+   *  the no-fault mutual cancel instead. Cleared by a reveal the server accepts. */
+  revealRefusedA: text('reveal_refused_a'),
+  revealRefusedB: text('reveal_refused_b'),
   /** PR-A (X1+X2 foundation): orthogonal to `phase` (which mirrors the
    *  contract enum). Tracks the operator-worker lifecycle so the frontend
    *  can distinguish "matchmaker decided, awaiting on-chain createBattle"

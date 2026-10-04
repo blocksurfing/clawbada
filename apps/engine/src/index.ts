@@ -23,6 +23,7 @@ import { engineEnvProblems } from './env-check';
  */
 import { log } from './logger';
 import { MiningTimer } from './mining/timer';
+import { RepegJob } from './mining/repeg';
 import { SeasonManager } from './seasons/manager';
 import { DrandClient } from './vrf/drand';
 import { OperatorWorker } from './operator/worker';
@@ -132,10 +133,19 @@ async function main() {
 
   // The battle watchdog: replays every settled result during its review window and freezes
   // (GUARDIAN key) any it cannot reproduce; pays out clean ones once the window closes
-  // (permissionless finalizeBattle); pages on frozen battles and expires them after 72 h.
+  // (permissionless finalizeBattle); pages on frozen battles and expires them after 72 h;
+  // times out lapsed deposits / reveals / Active battles (permissionless handleTimeout).
+  // Reads the chain's own BattleProposed / BattleFrozen logs next to the indexer mirror, logs
+  // `watchdog_heartbeat` every tick and preflights the guardian key (role + gas) hourly.
   // Chain-time based, so it works on a warped local chain.
   const finalizeWatcher = FinalizeWatcher.fromEnv();
   finalizeWatcher.start();
+
+  // TOK-G1 / D-19: MiningPool re-pegs baseReward lazily, on the first expedition of each hourly
+  // epoch. When nobody mines the rate — and RepairShop prices, basis points of it — go stale;
+  // this calls the permissionless repeg() once per epoch with the operator key.
+  const repegJob = RepegJob.fromEnv();
+  repegJob.start();
 
   // D-21: mints the offspring of every breed request a few seconds after its target block.
   // Without it a request lapses after 256 blocks and the breeder loses the fee and both slots.
@@ -182,6 +192,7 @@ async function main() {
     boostEpochs.stop();
     revealWatcher.stop();
     finalizeWatcher.stop();
+    repegJob.stop();
     breedFinalizeWatcher.stop();
     faucetFinalizeWatcher.stop();
     mining.stopAll();

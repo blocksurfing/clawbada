@@ -28,11 +28,29 @@ export const SESSION_EVENTS = [
    *  did not come from this server. Payload: SettlementAlertPayload. Informational: the
    *  watchdog freezes such a result for review; players have nothing to do. */
   'settlement_alert',
+  /** D-14: the resolver reported a player's team commit unopenable (TeamReveal phase). Payload:
+   *  RevealFailurePayload. The accused player must open their own commit within the grace or
+   *  forfeit their 5% anti-grief deposit when the window lapses. Sent to the battle room and
+   *  re-sent to any client that joins while it stands. */
+  'reveal_failure_reported',
   'turn_ack',
   'error',
   'pong',
 ] as const;
 export type SessionEventName = (typeof SESSION_EVENTS)[number];
+
+/** D-14: pushed while a reveal-failure report stands against a player of a battle in TeamReveal. */
+export interface RevealFailurePayload {
+  battleId: string;
+  /** Lowercase wallet of the reported player. */
+  accused: string;
+  side: Side;
+  /** Unix seconds: the end of the reveal grace (BattleArena.phaseDeadline). */
+  graceDeadline: string;
+  /** What the accused player must do. */
+  instruction: 'open your commit';
+  message: string;
+}
 
 /** One lobster as shipped to clients (Unity InitBattle + HUD). */
 export interface RosterEntry {
