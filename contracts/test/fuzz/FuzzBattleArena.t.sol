@@ -446,7 +446,14 @@ contract FuzzBattleArena is BaseSetup {
 
     /// For every accuse/open combination, a reveal timeout slashes exactly the accused players
     /// who did not open their own commit, and refunds everything else.
-    function testFuzz_revealFailureAttribution(bool accA, bool accB, bool openA, bool openB, uint256 lateBy) public {
+    function testFuzz_revealFailureAttribution(
+        bool accA,
+        bool accB,
+        bool openA,
+        bool openB,
+        uint256 lateBy,
+        bool unplayableA
+    ) public {
         (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
         lateBy = bound(lateBy, 1, 30 days);
 
@@ -459,8 +466,17 @@ contract FuzzBattleArena is BaseSetup {
             battleArena.accuseRevealFailure(battleId, bob);
         }
         if (accA && openA) {
-            vm.prank(alice);
-            battleArena.openOwnCommit(battleId, teamA, _saltA(battleId));
+            if (unplayableA) {
+                // D-A: the hash opens, the team does not — alice disbanded it after depositing.
+                vm.prank(alice);
+                teamMgr.disbandTeam(teamA);
+                vm.prank(alice);
+                vm.expectRevert(abi.encodeWithSelector(BattleArena.TeamNotOwned.selector, teamA));
+                battleArena.openOwnCommit(battleId, teamA, _saltA(battleId));
+            } else {
+                vm.prank(alice);
+                battleArena.openOwnCommit(battleId, teamA, _saltA(battleId));
+            }
         } else if (openA) {
             vm.prank(alice);
             vm.expectRevert(abi.encodeWithSelector(BattleArena.NotAccused.selector, battleId));
@@ -476,7 +492,7 @@ contract FuzzBattleArena is BaseSetup {
         vm.warp(b.phaseDeadline + lateBy);
         battleArena.handleTimeout(battleId);
 
-        bool faultA = accA && !openA;
+        bool faultA = accA && !(openA && !unplayableA);
         bool faultB = accB && !openB;
         uint256 ag = _ag(LOW_STAKE);
         assertEq(claw.balanceOf(alice) - s.alice, LOW_STAKE + (faultA ? 0 : ag), "alice refund");
@@ -565,15 +581,16 @@ contract FuzzBattleArena is BaseSetup {
         TeamManager.Team memory tB = teamMgr.getTeam(teamB);
         for (uint256 i = 0; i < 3; i++) {
             vm.prank(admin);
-            nft.setDamage(tA.lobsterIds[i], 60);
+            nft.setDamage(tA.lobsterIds[i], 79); // the most a lobster can carry into a battle
             vm.prank(admin);
-            nft.setDamage(tB.lobsterIds[i], 60);
+            nft.setDamage(tB.lobsterIds[i], 79);
         }
         _reveal(battleId, teamA, teamB);
 
+        // 79 + 40 (the per-battle maximum, D-F) = 119 -> capped at 100.
         vm.prank(admin);
         battleArena.settle(
-            battleId, alice, HASH_STATE, HASH_LOG, [uint8(200), 200, 200], [uint8(200), 200, 200], SEED_SECRET, address(0)
+            battleId, alice, HASH_STATE, HASH_LOG, [uint8(40), 40, 40], [uint8(40), 40, 40], SEED_SECRET, address(0)
         );
         for (uint256 i = 0; i < 3; i++) {
             assertEq(nft.getDamage(tA.lobsterIds[i]), 100, "winner lobster capped at 100");
@@ -721,6 +738,10 @@ contract FuzzBattleArena is BaseSetup {
     {
         (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
         pre = uint8(bound(pre, 0, 79));
+        for (uint256 i = 0; i < 3; i++) {
+            dmgA[i] = uint8(bound(dmgA[i], 0, battleArena.MAX_BATTLE_DAMAGE()));
+            dmgB[i] = uint8(bound(dmgB[i], 0, battleArena.MAX_BATTLE_DAMAGE()));
+        }
         TeamManager.Team memory tA = teamMgr.getTeam(teamA);
         TeamManager.Team memory tB = teamMgr.getTeam(teamB);
         for (uint256 i = 0; i < 3; i++) {
@@ -742,6 +763,22 @@ contract FuzzBattleArena is BaseSetup {
             assertEq(nft.getDamage(tA.lobsterIds[i]), expA, "A slot damage");
             assertEq(nft.getDamage(tB.lobsterIds[i]), expB, "B slot damage");
         }
+    }
+
+    /// D-F: any slot above MAX_BATTLE_DAMAGE is refused, on either side, before anything is applied.
+    function testFuzz_settle_damageAbove40Reverts(uint8 slot, uint8 excess, bool sideA) public {
+        slot = uint8(bound(slot, 0, 2));
+        uint8 value = uint8(bound(excess, battleArena.MAX_BATTLE_DAMAGE() + 1, 255));
+        (uint256 battleId, uint256 teamA,) = _setupSettleableBattle();
+        uint8[3] memory dmgA = [uint8(5), 5, 5];
+        uint8[3] memory dmgB = [uint8(20), 20, 20];
+        if (sideA) dmgA[slot] = value;
+        else dmgB[slot] = value;
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.DamageTooHigh.selector, battleId, slot, value));
+        battleArena.settle(battleId, alice, HASH_STATE, HASH_LOG, dmgA, dmgB, SEED_SECRET, address(0));
+        assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Active));
+        assertTrue(battleArena.teamInBattle(teamA), "nothing applied, nothing released");
     }
 
     // ─────────────────────── freeze ───────────────────────
@@ -835,13 +872,21 @@ contract FuzzBattleArena is BaseSetup {
 
     /// The Safe settles a frozen battle: refundBoth returns stake + 5% each with no fee; otherwise
     /// it pays the corrected (valid) result exactly like finalize, and rejects an invalid one.
-    function testFuzz_resolveFrozen(uint8 bracket, uint8 winnerSel, uint8 forfeiterSel, bool refundBoth, uint8 proposed)
-        public
-    {
+    function testFuzz_resolveFrozen(
+        uint8 bracket,
+        uint8 winnerSel,
+        uint8 forfeiterSel,
+        bool refundBoth,
+        uint8 proposed,
+        bool proposedForfeit
+    ) public {
         bracket = uint8(bound(bracket, 0, 2));
         uint256 stake = battleArena.STAKE_BRACKETS(bracket);
         (uint256 battleId,,) = _setupActiveAt(stake);
-        _settleProposing(battleId, proposed % 2 == 0 ? alice : address(0));
+        // The proposal and the Safe's result are drawn independently (review T2): what the
+        // proposal said about a forfeit must play no part in what is paid.
+        address proposedWinner = proposed % 2 == 0 ? alice : address(0);
+        _settle(battleId, proposedWinner, proposedWinner != address(0) && proposedForfeit ? bob : address(0));
         vm.prank(guardian);
         battleArena.freeze(battleId);
 

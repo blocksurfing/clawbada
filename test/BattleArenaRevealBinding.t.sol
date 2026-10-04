@@ -289,4 +289,26 @@ contract BattleArenaRevealBindingTest is Test {
         _reveal(battleId, teamA, teamB);
         assertFalse(arena.teamInBattle(teamB));
     }
+
+    // ──────────── Review 2026-10-03 T1: a player cannot bind a team they do not own ────────────
+
+    function test_D31_reveal_rejects_a_team_the_player_does_not_own() public {
+        uint256 teamC = _evolved(carol);
+        uint256 teamB = _evolved(bob);
+        uint256 battleId = _create(alice, bob, 3, 3);
+        _depositAndCommit(battleId, alice, teamC, bob, teamB); // alice commits carol's team
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.TeamNotOwned.selector, teamC));
+        _reveal(battleId, teamC, teamB);
+        _assertNothingBound(battleId, teamC, teamB);
+        assertFalse(tm.isTeamActive(teamC), "carol's team untouched");
+
+        // The mirror on side B: bob commits alice's own team. Both validations run before any lock.
+        uint256 teamA = _evolved(alice);
+        uint256 battle2 = _create(alice, bob, 3, 3);
+        _depositAndCommit(battle2, alice, teamA, bob, teamA);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.TeamNotOwned.selector, teamA));
+        _reveal(battle2, teamA, teamA);
+        _assertNothingBound(battle2, teamA, teamA);
+        assertFalse(tm.isTeamActive(teamA), "alice's team not locked by the failed reveal");
+    }
 }

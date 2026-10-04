@@ -154,6 +154,19 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_BATTLE_DAMAGE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_DAMAGE_FOR_BATTLE",
     "inputs": [],
     "outputs": [
@@ -1772,6 +1785,27 @@ export const BattleArenaAbi = [
       },
       {
         "name": "opponentPower",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "DamageTooHigh",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "damage",
         "type": "uint8",
         "internalType": "uint8"
       }

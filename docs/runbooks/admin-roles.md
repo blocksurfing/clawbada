@@ -247,6 +247,8 @@ This sequence closes C-06 (deployer-as-admin without timelock) at deploy time.
 
 ## Incident response
 
+**Never `Treasury.setAuthorized(BattleArena, false)` while battles are live.** Every decided payout routes its fee through the Treasury; once a result's review window has closed it can no longer be frozen, so de-authorising the arena strands those battles in review until it is re-authorised (review 2026-10-03 L1). `VerifyDeployment configured()` / `finalized()` assert the authorisation.
+
 If you suspect a privileged key is compromised:
 
 1. **Hot service keys (RESOLVER/MATCHMAKER/GUARDIAN/OPERATOR/ELIGIBILITY/BOOST_ADMIN)**: rotate immediately via the multisig. For GUARDIAN, also review every battle it froze and `resolveFrozen` the honest ones before the 72 h expiry. No paging required — bounded blast radius. For BOOST_ADMIN, also re-post the current epoch's table from the new key if the compromised key amended it.
