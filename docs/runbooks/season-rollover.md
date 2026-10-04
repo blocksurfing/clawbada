@@ -32,8 +32,9 @@ Each alarm carries `safeTx`:
   - Season 7 is 7.05M.
   - From Season 8 it's whatever is left of the 705M allocation.
   - The prepared value is already clamped to the allocation left (`MINING_ALLOCATION − lifetimeMinted`, read from chain). The contract applies the same clamp anyway (D-20).
-- **Base reward** is a governance choice. The plan proposes the current season's launch reward, and the hourly glide (TOK-G1) re-pegs it down as needed but never above it. You may change it before signing. If so, rebuild the calldata (`cast calldata "startSeason(uint256,uint256)" <emission> <baseReward>`).
+- **Base reward** is a governance choice. The plan proposes `min(2 × the closing rate, 1,250)` (D-B), and the hourly glide (TOK-G1) re-pegs from there — never above it. You may change it before signing. If so, rebuild the calldata (`cast calldata "startSeason(uint256,uint256)" <emission> <baseReward>`).
+- **The contract refuses the two classic typos (D-D, 2026-10-03).** `startSeason` reverts `SeasonBudgetTooSmall` when the budget cannot pay even one Base expedition (a missing `e18`), and `BaseRewardTooHigh` when the launch reward is more than 3× the previous season's launch (an extra zero). `setBaseReward` (the emergency override) reverts `BaseRewardTooHigh` above 3× the season's launch or above what the budget can still pay. These are backstops, not a substitute for decoding the calldata before signing.
 
 Code: `apps/engine/src/seasons/manager.ts`.
 
-> **Note.** `getSeasonEmission` / `SEASON_EMISSIONS` in `packages/game-logic/src/constants.ts` is a stale pre-TOK-M1 schedule: it starts at 387.5M, has a 7.75M floor, and its numbers carry no token decimals. The engine no longer uses it. The old automatic rollover would have passed it to `startSeason` as wei and started Season 2 with a near-zero budget. Don't use it for anything on-chain.
+> **Note.** `legacyGetSeasonEmission` / `LEGACY_SEASON_EMISSIONS` in `packages/game-logic/src/constants.ts` is the stale pre-TOK-M1 schedule (renamed and deprecated 2026-10-03; nothing reads it): it starts at 387.5M, has a 7.75M floor, and its numbers carry no token decimals. The engine no longer uses it. The old automatic rollover would have passed it to `startSeason` as wei and started Season 2 with a near-zero budget. Don't use it for anything on-chain.

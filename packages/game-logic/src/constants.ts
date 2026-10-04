@@ -154,7 +154,13 @@ export const BASE_STATS: readonly [bigint, bigint, bigint, bigint, bigint][] = [
 
 // ──────────── Season Schedule ────────────
 export const SEASON_DURATION_DAYS = 60;
-export const SEASON_EMISSIONS = [
+/**
+ * @deprecated The pre-TOK-M1 schedule (387.5M first season, a perpetual 7.75M floor). The season
+ * budgets the engine proposes live in `apps/engine/src/seasons/manager.ts` (`scheduledEmission`:
+ * 352.5M halving under the 705M lifetime cap). Kept only so old call sites keep compiling; nothing
+ * in the monorepo reads it. Remove with the next constants clean-up.
+ */
+export const LEGACY_SEASON_EMISSIONS = [
   387_500_000n,
   193_750_000n,
   96_875_000n,
@@ -164,9 +170,9 @@ export const SEASON_EMISSIONS = [
   7_750_000n, // Floor — S7+
 ] as const;
 
-/** Get emission budget for a given season number (1-indexed). S7+ returns the floor. */
-export function getSeasonEmission(season: number): bigint {
+/** @deprecated See LEGACY_SEASON_EMISSIONS. */
+export function legacyGetSeasonEmission(season: number): bigint {
   if (season < 1) throw new Error('Season must be >= 1');
-  const idx = Math.min(season - 1, SEASON_EMISSIONS.length - 1);
-  return SEASON_EMISSIONS[idx];
+  const idx = Math.min(season - 1, LEGACY_SEASON_EMISSIONS.length - 1);
+  return LEGACY_SEASON_EMISSIONS[idx];
 }

@@ -6,7 +6,7 @@ import {
   BREED_MULTIPLIERS,
   REPAIR_RATES,
   SPECIAL_BASE_POWERS,
-  SEASON_EMISSIONS,
+  LEGACY_SEASON_EMISSIONS,
   STAKE_BRACKETS,
   DAMAGE_THRESHOLD,
   NUM_CLASSES,
@@ -124,15 +124,15 @@ describe('SPECIAL_BASE_POWERS', () => {
   });
 });
 
-describe('SEASON_EMISSIONS', () => {
+describe('LEGACY_SEASON_EMISSIONS', () => {
   test('has exactly 7 entries', () => {
-    expect(SEASON_EMISSIONS).toHaveLength(7);
+    expect(LEGACY_SEASON_EMISSIONS).toHaveLength(7);
   });
 
   test('each season is roughly half the previous (except the floor)', () => {
     // Seasons 1-6: each is approximately half the previous
     for (let i = 1; i < 6; i++) {
-      const ratio = Number(SEASON_EMISSIONS[i - 1]) / Number(SEASON_EMISSIONS[i]);
+      const ratio = Number(LEGACY_SEASON_EMISSIONS[i - 1]) / Number(LEGACY_SEASON_EMISSIONS[i]);
       // Should be approximately 2.0 (allow some tolerance for integer rounding)
       expect(ratio).toBeGreaterThan(1.9);
       expect(ratio).toBeLessThan(2.1);
@@ -140,11 +140,11 @@ describe('SEASON_EMISSIONS', () => {
   });
 
   test('season 7 (floor) is less than season 6', () => {
-    expect(SEASON_EMISSIONS[6]).toBeLessThan(SEASON_EMISSIONS[5]);
+    expect(LEGACY_SEASON_EMISSIONS[6]).toBeLessThan(LEGACY_SEASON_EMISSIONS[5]);
   });
 
   test('all entries are positive', () => {
-    for (const e of SEASON_EMISSIONS) {
+    for (const e of LEGACY_SEASON_EMISSIONS) {
       expect(e).toBeGreaterThan(0n);
     }
   });

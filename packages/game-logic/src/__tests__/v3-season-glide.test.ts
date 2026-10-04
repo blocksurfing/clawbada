@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  WEI, ONCHAIN, LEGACY_DAILY, S1_EMISSION_WEI, S1_LAUNCH_WEI, MINING_ALLOCATION_WEI,
-  newGlideState, repegIfNeeded, runGlideSeason, D19_SCENARIOS,
+  WEI, ONCHAIN, D19_SINGLE_EPOCH, LEGACY_DAILY, S1_EMISSION_WEI, S1_LAUNCH_WEI, MINING_ALLOCATION_WEI,
+  newGlideState, repegIfNeeded, runGlideSeason, D19_SCENARIOS, SHAPE_SCENARIOS,
 } from '../v3/season-glide';
 
 const BASE = 1_250n * WEI;
@@ -17,7 +17,30 @@ describe('repegIfNeeded reproduces the contract', () => {
     s.servedBps = 6n * 10_000n;
     repegIfNeeded(s, 4, EPOCHS, ONCHAIN);
     expect(s.base).toBe((BASE * 7_000n) / 10_000n);
-    expect(s.trailing).toBe(6n);
+    // D-C: the six units sit in a window of four closed epochs (three of them quiet): the published
+    // average floors to 1, the target uses the sum (4 × left / (1,436 × 6) ≈ 55 → clamp) — same step.
+    expect(s.trailing).toBe(1n);
+    const single = newGlideState(BASE * 100n, BASE);
+    single.minted = 6n * BASE; single.lifetimeMinted = 6n * BASE; single.servedBps = 6n * 10_000n;
+    repegIfNeeded(single, 1, EPOCHS, ONCHAIN);
+    expect(single.trailing).toBe(6n); // one closed epoch: the window is that epoch
+  });
+
+  test('D-C lazy gaps: a gap inside the window reads the skipped epochs as quiet; a longer one has no signal', () => {
+    const inside = newGlideState(S1_EMISSION_WEI, BASE);
+    inside.base = 700n * WEI; inside.minted = 200_000n * WEI; inside.lifetimeMinted = inside.minted; inside.servedBps = 200n * 10_000n;
+    inside.lastEpoch = 1;
+    repegIfNeeded(inside, 3, EPOCHS, ONCHAIN); // epochs 1 (200 units) and 2 (quiet) closed since the last touch
+    expect(inside.ring).toEqual([0n, 200n, 0n, 0n]);
+    expect(inside.trailing).toBe(66n); // 200 / 3 closed epochs
+    expect(inside.base).toBe(910n * WEI); // target far above: +30 %
+    const longer = newGlideState(S1_EMISSION_WEI, BASE);
+    longer.base = 700n * WEI; longer.minted = 200_000n * WEI; longer.lifetimeMinted = longer.minted; longer.servedBps = 200n * 10_000n;
+    longer.lastEpoch = 1;
+    repegIfNeeded(longer, 6, EPOCHS, ONCHAIN); // five epochs: the burst is older than the window
+    expect(longer.ring).toEqual([0n, 0n, 0n, 0n]);
+    expect(longer.trailing).toBe(0n);
+    expect(longer.base).toBe(700n * WEI); // hold
   });
 
   // test_D18_epochCountIncludesThisOne — the target lands in band: 1,000 per unit over the 1,439 epochs left.
@@ -60,7 +83,7 @@ describe('repegIfNeeded reproduces the contract', () => {
   test('D-19(c): an exhausted budget AND a dust remainder hold the last rate; the last epoch paces over 1; dust floor', () => {
     const s = newGlideState(1_000n * WEI, BASE);
     s.base = 700n * WEI; s.minted = 1_000n * WEI; s.lifetimeMinted = s.minted; s.servedBps = 10_000n;
-    repegIfNeeded(s, 5, EPOCHS, ONCHAIN);
+    repegIfNeeded(s, 1, EPOCHS, ONCHAIN);
     expect(s.base).toBe(700n * WEI);
     // test_D19_dustRemainderHoldsTheRate: half a reward left used to keep decaying 30 % a step.
     const dustLeft = newGlideState(BASE * 6n + BASE / 2n, BASE);
@@ -70,6 +93,7 @@ describe('repegIfNeeded reproduces the contract', () => {
     // Less than one Base reward left (100 < 1,250) in the last epoch: hold, whatever the epoch count says.
     const last = newGlideState(S1_EMISSION_WEI, BASE);
     last.minted = S1_EMISSION_WEI - 100n * WEI; last.lifetimeMinted = last.minted; last.servedBps = 10_000n;
+    last.lastEpoch = EPOCHS - 2;
     repegIfNeeded(last, EPOCHS - 1, EPOCHS, ONCHAIN);
     expect(last.base).toBe(BASE);
   });
@@ -78,8 +102,10 @@ describe('repegIfNeeded reproduces the contract', () => {
     const last = newGlideState(S1_EMISSION_WEI, BASE);
     last.base = 100n * WEI; // the rate has glided down to 100
     last.minted = S1_EMISSION_WEI - 120n * WEI; last.lifetimeMinted = last.minted; last.servedBps = 10_000n;
+    last.lastEpoch = EPOCHS - 2; // the epoch before was touched; the window already holds one unit an epoch
+    last.ring = [1n, 1n, 1n, 1n];
     repegIfNeeded(last, EPOCHS - 1, EPOCHS, ONCHAIN);
-    expect(last.base).toBe(120n * WEI); // target 120 / (1 × 1) = 120, inside [70, 130]
+    expect(last.base).toBe(120n * WEI); // target 120 × 4 / (1 epoch × 4 units) = 120, inside [70, 130]
     const dust = newGlideState(S1_EMISSION_WEI, BASE);
     dust.base = 1n; dust.minted = S1_EMISSION_WEI - 1n; dust.lifetimeMinted = dust.minted; dust.servedBps = 10_000n * 10_000n;
     repegIfNeeded(dust, 2, EPOCHS, ONCHAIN);
@@ -102,12 +128,16 @@ describe('repegIfNeeded reproduces the contract', () => {
       s.minted = BigInt(Math.floor(rnd() * 352_500_000)) * WEI;
       s.lifetimeMinted = s.minted;
       s.servedBps = BigInt(Math.floor(1 + rnd() * 200_000)) * 10_000n;
-      const epoch = 1 + Math.floor(rnd() * (EPOCHS - 1));
+      const epoch = 1 + Math.floor(rnd() * (rnd() < 0.8 ? 4 : EPOCHS - 1)); // mostly inside the window
       const old = s.base;
       const left = s.emission - s.minted;
+      const served = s.servedBps / 10_000n;
       repegIfNeeded(s, epoch, EPOCHS, ONCHAIN);
+      if (epoch > 4) { expect(s.base).toBe(old); continue; } // lastEpoch 0: a gap longer than the window holds
       if (left < old) { expect(s.base).toBe(old); continue; }
-      const target = left / (BigInt(EPOCHS - epoch) * s.trailing);
+      const filled = BigInt(Math.min(4, epoch));
+      expect(s.trailing).toBe(served / filled);
+      const target = (left * filled) / (BigInt(EPOCHS - epoch) * served);
       const lo = (old * 7_000n) / 10_000n, hi = (old * 13_000n) / 10_000n;
       expect(s.base >= lo || s.base === 1n).toBe(true);
       expect(s.base <= hi || s.base === S1_LAUNCH_WEI).toBe(true);
@@ -151,17 +181,40 @@ describe('runGlideSeason', () => {
       // Against the ideal's week-one share, not the fair share: at the design rate the rate sits
       // on the launch cap and both controllers rightly spend under it.
       expect(Math.abs(r.mintedShareByDay[6] - ideal.mintedShareByDay[6])).toBeLessThan(0.01);
-      expect(r.maxDayOverspendX).toBeLessThan(1.5);
+      // D-C: the 4-hour window lags a day-one surge by up to three hours, so the surge cases'
+      // worst day moves from 1.40× / 1.47× (single-epoch) to 1.45× / 1.51× (20K / 30K teams) —
+      // inside the 2× hourly ceiling, and the only surge cost of the window.
+      expect(r.maxDayOverspendX).toBeLessThan(1.6);
       // The day-60 reward lands within 5 % of the ideal controller's (same population).
       expect(Math.abs(r.rewardByDay[59] / ideal.rewardByDay[59] - 1)).toBeLessThan(0.05);
     }
   }, 120_000); // 18 full seasons at hourly resolution, up to 30,000 teams each: ~5 s alone, far more under suite load
 
-  test('the per-epoch spend ceiling bounds any single day to its multiple of the fair share, whatever the epoch', () => {
+  test('the per-epoch spend ceiling bounds any single day to its multiple of the fair share of what is left, whatever the epoch', () => {
     for (const scenario of D19_SCENARIOS) {
       const r = runGlideSeason({ scenario, mode: 'onchain', params: { ...LEGACY_DAILY, epochSpendCapX: 2 } });
-      expect(r.maxDayOverspendX).toBeLessThanOrEqual(2.001);
-      expect(r.zeroIncomeDays).toBe(0);
+      // Refused starts retry later, so a day after an under-spent one may mint more than 2× the
+      // NOMINAL fair day; what the ceiling bounds is each epoch's own cap (2× of what is left,
+      // floored at one Apex expedition) — a day never mints more than the sum of its epochs' caps.
+      expect(r.maxDayVsCapX).toBeLessThanOrEqual(1.001);
+      // With one epoch per day, the second-to-last epoch's cap is 2 × left / 2 = everything left, so a
+      // crowd with a backlog can drain the budget one epoch early and the last one gets nothing.
+      // One epoch out of 1,440 on-chain; here one day out of 60.
+      expect(r.zeroIncomeDays).toBeLessThanOrEqual(1);
     }
   });
+
+  test('D-C: a demand window reads a phase-locked population as the same demand as a smooth one', () => {
+    const smooth = runGlideSeason({ scenario: SHAPE_SCENARIOS[0], mode: 'onchain', params: { ...ONCHAIN, estimatorWindow: 24 } });
+    const locked = runGlideSeason({ scenario: SHAPE_SCENARIOS[4], mode: 'onchain', params: { ...ONCHAIN, estimatorWindow: 24 } });
+    const deployed = runGlideSeason({ scenario: SHAPE_SCENARIOS[4], mode: 'onchain', params: D19_SINGLE_EPOCH });
+    expect(Math.abs(locked.rewardByDay[29] / smooth.rewardByDay[29] - 1)).toBeLessThan(0.05);
+    expect(deployed.unspentClaw).toBeGreaterThan(50_000_000); // the deployed estimator strands the budget
+    expect(locked.unspentClaw).toBeLessThan(1_000_000);
+    // And a daily rhythm pays peak-hour and off-peak starters alike under the window, not under the deployed rule.
+    const rhythmWindow = runGlideSeason({ scenario: SHAPE_SCENARIOS[5], mode: 'onchain', params: { ...ONCHAIN, estimatorWindow: 24 } });
+    const rhythmDeployed = runGlideSeason({ scenario: SHAPE_SCENARIOS[5], mode: 'onchain', params: D19_SINGLE_EPOCH });
+    expect(Math.abs(rhythmWindow.cohortPerUnit.ratio - 1)).toBeLessThan(0.05);
+    expect(rhythmDeployed.cohortPerUnit.ratio).toBeLessThan(0.7);
+  }, 120_000);
 });
