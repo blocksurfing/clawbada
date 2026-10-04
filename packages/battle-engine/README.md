@@ -242,6 +242,26 @@ left at full size. The in-canvas action bar no longer prints a prompt line ("Tap
 attack") — the armed plate, the lit hexes and the target rings say it, and React still shows
 "Sending…" under the canvas.
 
+Evolved seagulls (2026-10-04, Nzib's bird drop): the ambient flock is a `BirdFlock` component on the
+`Birds` child of `ArenaArt_Evolved.prefab`, so every battle's arena instance brings its own gulls
+and loses them when the arena is swapped — nothing in `BattleScene` or `BattleManager`. The
+designer's rules as implemented (`Assets/Scripts/Battle/BirdFlock.cs`): a flock of 3 (up to 5)
+flies in from off-screen with the entry sides balanced (2 from one edge, 1 from the other), each
+bird lands on a free rock with the Landing clip, idles at random (Idle_1/2/3, or Walk along the
+rock's flat crest), and after 18–35 s they leave one after another — Jump, then Fly out to one
+edge — with the next flock 20–45 s later. The Bird animator has no parameters or transitions:
+`BirdFlock` drives it with `Animator.Play` to state names and times the one-shots (Jump, Landing)
+by clip length, all on scaled time so `SetSpeed` speeds the birds up with the sea. The plan is
+deterministic per battle (`BirdFlockPlanner`, pure C#, seeded with the battle id). **Perches are
+designer-owned**: the arena-local feet positions on the rocks live in the component's `perches`
+list (select the `Birds` child in the prefab stage; gizmos draw each perch box and walk span);
+`RightFar` ships disabled. `BirdFlockInstaller.Install` (menu *Clawbada ▸ Arena ▸ Install Evolved
+Bird Flock*, headless `-executeMethod BirdFlockInstaller.Install`) adds the child and validates the
+bird asset; it is idempotent and never overwrites tuned perches (the "reset perches" variant does).
+`BirdFlockSmokeTest.Run` checks the planner's guarantees and the installed prefab; the browser
+probe is `scripts/harness/bird-probe.ts` (grep lines `[BirdFlock] flock N: …`, `… landed …`,
+`… departed …`).
+
 Board on demand (2026-09-10, LOKR-style): the hex grid is invisible at rest. `HexGrid` no longer
 pre-paints the plain tile on every open cell and `ClearHighlights` clears cells instead of
 restoring it, so between turns the arena reads as painted ground and hexes appear only while a
