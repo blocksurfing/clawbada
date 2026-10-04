@@ -561,6 +561,7 @@ contract BoundaryTests is Test {
         (uint256 battleId,,) = _setupActiveBattle();
 
         uint256 bobBalBefore = claw.balanceOf(bob);
+        uint256 aliceBalBefore = claw.balanceOf(alice);
         uint256 antiGrief = STAKE_LOW * 500 / 10_000;
         uint256 combinedPot = STAKE_LOW * 2;
         uint256 protocolFee = combinedPot * 1000 / 10_000;
@@ -573,6 +574,7 @@ contract BoundaryTests is Test {
         arena.finalizeBattle(battleId);
 
         assertEq(claw.balanceOf(bob), bobBalBefore + winnerPayout + antiGrief);
+        assertEq(claw.balanceOf(alice), aliceBalBefore + antiGrief, "the loser gets only the 5% back");
         assertEq(arena.getBattle(battleId).winner, bob);
     }
 

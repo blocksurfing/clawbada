@@ -29,7 +29,8 @@ import {BattleVRF} from "./BattleVRF.sol";
 ///    lobster. Only the money waits, for a per-bracket review window (`reviewWindows`).
 /// 2. During the review window a watchdog replays the battle from its log. If it cannot
 ///    reproduce the result it calls `freeze()` (GUARDIAN_ROLE or the Safe). A guardian key can
-///    only pause a payout; it cannot move money.
+///    only pause a payout; it cannot direct money anywhere. (A freeze the Safe never resolves
+///    ends, after `FREEZE_LONG_STOP`, in refund-both at the protocol's cost — see 4.)
 /// 3. Unfrozen: after the window anyone calls `finalizeBattle()` and the proposed result pays.
 /// 4. Frozen: the Safe calls `resolveFrozen()` with the corrected result, or refunds both
 ///    players. If the Safe has not acted within `FREEZE_LONG_STOP` (72 h), anyone calls
@@ -42,8 +43,9 @@ import {BattleVRF} from "./BattleVRF.sol";
 /// cancels with full refunds, so a server failure never costs a stake.
 ///
 /// ANTI-GRIEF DEPOSIT (5% of stake, D-13/14/15): forfeited by a player who (a) resigns or times
-/// out three times in a row (`settle`'s `forfeiter`), or (b) committed a team the resolver could
-/// not open and did not open it themselves within `REVEAL_GRACE` (`accuseRevealFailure`).
+/// out three times in a row (`settle`'s `forfeiter`), or (b) was reported by the resolver
+/// (`accuseRevealFailure`) and did not open a PLAYABLE commit themselves within `REVEAL_GRACE` —
+/// a commit that does not open, or opens onto a team its owner has since made unrevealable.
 ///
 /// DRAWS (D-03): each side pays half the normal protocol fee (10% of its own stake), so a draw
 /// is never cheaper than a decided battle; repair damage applies as usual.
@@ -79,6 +81,9 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     uint256 public constant FREEZE_LONG_STOP = 72 hours;
     uint8 public constant MIN_EVOLUTION_TIER = 1; // Evolved+
     uint8 public constant MAX_DAMAGE_FOR_BATTLE = 79; // <80 to enter
+    /// @dev Review 2026-10-03 D-F: the most repair damage one battle can inflict on one lobster
+    ///      (game-logic LOSER_DAMAGE_MAX). Bounds what a stolen resolver key can charge in repairs.
+    uint8 public constant MAX_BATTLE_DAMAGE = 40;
     // F-04: power score = sum of evolution tier values across the 3 lobsters on a team.
     uint8 public constant MIN_TEAM_POWER = 3;
     uint8 public constant MAX_TEAM_POWER = 9;
@@ -101,7 +106,8 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         Cancelled,
         Frozen // the watchdog (or the Safe) froze the result for review
     }
-    enum CancelReason { DepositTimeout, ForfeitA, ForfeitB, MutualTimeout, StaleBattle }
+    // `ForfeitBoth` is appended (review 2026-10-03 I1) so the earlier values keep their numbers.
+    enum CancelReason { DepositTimeout, ForfeitA, ForfeitB, MutualTimeout, StaleBattle, ForfeitBoth }
 
     struct Battle {
         address playerA;
@@ -214,6 +220,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     error PlayerCannotBeSelf();
     error InvalidWinner(uint256 battleId);
     error InvalidForfeiter(uint256 battleId);
+    error DamageTooHigh(uint256 battleId, uint8 slot, uint8 damage);
     error InvalidSettlementHash(uint256 battleId);
     error InvalidSeedCommit(uint256 battleId);
     error InvalidSeedReveal(uint256 battleId);
@@ -398,9 +405,14 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     }
 
     /// @notice D-14: the resolver reports that `player`'s commit does not open with the salt they
-    ///         handed over. The player then has `REVEAL_GRACE` to open it themselves with
-    ///         `openOwnCommit`; if they do not, the battle cancels and they forfeit their 5%.
-    /// @dev A false report cannot cost an honest player anything: opening the commit clears them.
+    ///         handed over (or opens onto a team that cannot be revealed). The player then has
+    ///         `REVEAL_GRACE` to open it themselves with `openOwnCommit`; if they do not, the
+    ///         battle cancels and they forfeit their 5%.
+    /// @dev A false report costs an honest player nothing PROVIDED they answer it: opening a
+    ///      playable commit within the grace clears them. A player who is not watching the chain
+    ///      (or whose client cannot send a transaction in time) does lose the 5% — to the
+    ///      Treasury's burn/dev split, never to the resolver — so the engine must push
+    ///      accusations to players and the agent kit must answer them automatically.
     function accuseRevealFailure(uint256 battleId, address player) external onlyRole(RESOLVER_ROLE) {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.TeamReveal);
@@ -419,6 +431,11 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     /// @notice D-14: an accused player opens their own commit. The opened (teamId, salt) is emitted
     ///         so the resolver can reveal both teams atomically as usual before the grace ends.
+    /// @dev Review 2026-10-03 D-A: opening proves the team is PLAYABLE, not just that the hash
+    ///      matches. Before, a commit to a team its owner had since disbanded, sent mining, bound
+    ///      to another battle or re-tiered opened fine, cleared the player, and the lapse was a
+    ///      no-fault mutual cancel — a free way to walk out of a matched battle. Only the owner
+    ///      can make their own team unplayable, so a failed validation here is their fault.
     function openOwnCommit(uint256 battleId, uint256 teamId, bytes32 salt) external {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.TeamReveal);
@@ -428,6 +445,9 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         if (isA ? !b.accusedA : !b.accusedB) revert NotAccused(battleId);
         bytes32 commit = isA ? b.teamCommitA : b.teamCommitB;
         if (keccak256(abi.encodePacked(battleId, msg.sender, teamId, salt)) != commit) revert InvalidCommitHash(battleId);
+        uint8 expectedPower = isA ? b.powerA : b.powerB;
+        uint8 power = _validateTeamForBattle(teamId, msg.sender);
+        if (power != expectedPower) revert TeamPowerChanged(teamId, expectedPower, power);
         if (isA) b.openedA = true;
         else b.openedB = true;
         emit CommitOpened(battleId, msg.sender, teamId, salt);
@@ -455,6 +475,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         _requirePhase(battleId, BattlePhase.Active);
         if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId);
         _requireValidResult(b, battleId, winner, forfeiter);
+        // D-F: no battle inflicts more than MAX_BATTLE_DAMAGE on a lobster. A compromised resolver
+        // can still submit a wrong result (the watchdog freezes it), but not bar every lobster in
+        // every live battle and charge a season of repairs on the way.
+        for (uint8 i = 0; i < 3; i++) {
+            if (damageA[i] > MAX_BATTLE_DAMAGE) revert DamageTooHigh(battleId, i, damageA[i]);
+            if (damageB[i] > MAX_BATTLE_DAMAGE) revert DamageTooHigh(battleId, i, damageB[i]);
+        }
         if (finalStateHash == bytes32(0) || turnLogHash == bytes32(0)) revert InvalidSettlementHash(battleId);
         if (keccak256(abi.encodePacked(battleId, seedSecret)) != b.seedCommit) revert InvalidSeedReveal(battleId);
         b.seedSecret = seedSecret;
@@ -801,9 +828,9 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         Battle storage b = _battles[battleId];
         bool faultA = b.accusedA && !b.openedA;
         bool faultB = b.accusedB && !b.openedB;
-        CancelReason reason = faultA && !faultB
-            ? CancelReason.ForfeitA
-            : faultB && !faultA ? CancelReason.ForfeitB : CancelReason.MutualTimeout;
+        CancelReason reason = faultA && faultB
+            ? CancelReason.ForfeitBoth
+            : faultA ? CancelReason.ForfeitA : faultB ? CancelReason.ForfeitB : CancelReason.MutualTimeout;
         _cancelWithSlash(battleId, faultA, faultB, reason);
     }
 }
