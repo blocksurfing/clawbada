@@ -242,6 +242,11 @@ export interface ChainSeasonConfig {
   baseReward: bigint;
   startTime: bigint;
   totalMinted: bigint;
+  /** TOK-G1 glide state (undefined only on a pre-glide mock): the season's launch reward, the index of
+   *  the last hourly epoch the glide re-pegged in, and the demand estimate it paced against. */
+  launchBaseReward?: bigint;
+  lastRepegEpoch?: bigint;
+  trailingWeightServed?: bigint;
 }
 
 export async function readSeasonConfig(season: bigint): Promise<ChainSeasonConfig> {
@@ -254,7 +259,49 @@ export async function readSeasonConfig(season: bigint): Promise<ChainSeasonConfi
     baseReward: data.baseReward,
     startTime: data.startTime,
     totalMinted: data.totalMinted,
+    launchBaseReward: data.launchBaseReward,
+    lastRepegEpoch: data.lastRepegEpoch,
+    trailingWeightServed: data.trailingWeightServed,
   };
+}
+
+/** The battle-rank boost MiningPool would apply to this team right now (bps, 0..5,000), bound to the
+ *  team's Power (the sum of its lobsters' tiers) exactly as startExpedition computes it. */
+export async function readTeamBoostBps(teamId: bigint, power: number): Promise<number> {
+  const pool = getMiningPool(client());
+  return Number(await pool.read.teamBoostBps([teamId, power]));
+}
+
+export type StartSimulation =
+  /** The chain accepts the call (`simulated: false` when the RPC could not run the dry run at all). */
+  | { ok: true; simulated: boolean; note?: string }
+  /** The chain would revert, with the decoded custom error. */
+  | { ok: false; errorName: string; args: unknown[] };
+
+/** L5 (review 2026-10-03): dry-run startExpedition as the caller so the API hands out only
+ *  transactions the chain accepts, and names the exact revert otherwise. A transport failure is
+ *  not a revert: the quote still goes out, flagged unsimulated. */
+export async function simulateStartExpedition(teamId: bigint, mineTier: number, account: string): Promise<StartSimulation> {
+  const pool = getMiningPool(client());
+  try {
+    await pool.simulate.startExpedition([teamId, mineTier], { account: account as `0x${string}` });
+    return { ok: true, simulated: true };
+  } catch (err) {
+    const revert = decodeRevert(err);
+    if (revert) return { ok: false, errorName: revert.name, args: revert.args };
+    return { ok: true, simulated: false, note: `dry run unavailable: ${String((err as Error)?.message ?? err).slice(0, 160)}` };
+  }
+}
+
+/** viem wraps a custom-error revert in a cause chain whose data carries `errorName` + `args`. */
+function decodeRevert(err: unknown): { name: string; args: unknown[] } | null {
+  let e: any = err;
+  for (let depth = 0; e && depth < 8; depth++) {
+    const data = e.data;
+    if (data && typeof data.errorName === 'string') return { name: data.errorName, args: Array.isArray(data.args) ? data.args : [] };
+    e = e.cause;
+  }
+  return null;
 }
 
 export async function readCurrentSeason(): Promise<bigint> {

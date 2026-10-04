@@ -10,6 +10,7 @@ mock.module('@clawbada/db', () => ({
   db,
   expeditions: tables.expeditions,
   seasons: tables.seasons,
+  miningEpochs: tables.miningEpochs,
   onChainEvents: tables.onChainEvents,
   indexerState: tables.indexerState,
 }));
@@ -112,6 +113,30 @@ describe('MiningWatcher ExpeditionStarted', () => {
     expect(mockGetBlock).not.toHaveBeenCalled();
     expect(typeof argOf(chainCalls(db.insert, 0), 'values').startTime).toBe('bigint');
     expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MiningWatcher EpochRolled (I11 hourly ledger)', () => {
+  beforeEach(resetAll);
+
+  test('writes one row per (season, epoch) with the demand estimate, the ceiling and the block time; replays are no-ops', async () => {
+    const log = makeEventLog('EpochRolled', { season: 1n, epoch: 37n, trailingWeight: 180n, cap: 489_583_000_000_000_000_000_000n }, 456n);
+    (log as any).transactionHash = '0xabc';
+    await new MiningWatcher().handleEvent(log);
+
+    expect(mockGetBlock).toHaveBeenCalledWith({ blockNumber: 456n });
+    expect(db.insert).toHaveBeenCalledWith(tables.miningEpochs);
+    const calls = chainCalls(db.insert, 0);
+    expect(argOf(calls, 'values')).toEqual({
+      season: 1,
+      epoch: 37,
+      trailingWeight: '180',
+      cap: '489583000000000000000000',
+      blockNumber: 456n,
+      txHash: '0xabc',
+      rolledAt: new Date(1_700_000_000 * 1000),
+    });
+    expect(calls.some((c) => c.method === 'onConflictDoNothing')).toBe(true);
   });
 });
 
