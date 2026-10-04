@@ -17,6 +17,7 @@ MonoBehaviour:
   hexFrame96: {fileID: 21300000, guid: 4076596abfa414a9fa2c4ce1cebf4a4f, type: 3}
   hexMask96: {fileID: 21300000, guid: efc0077ad744849f8b90d5015dbb9b03, type: 3}
   hexButton64: {fileID: 21300000, guid: 368d2f2bb32c94d94b008813bc79473e, type: 3}
+  hexDest: {fileID: 21300000, guid: f6fbb2833c4ca4844a179db7f0377bf9, type: 3}
   barBg: {fileID: 21300000, guid: 30baf266c203b43529b2c35430914f64, type: 3}
   barFill: {fileID: 21300000, guid: 06933283859d74864a3681e5c12e89b6, type: 3}
   panelBg: {fileID: 21300000, guid: baaaa8c55d9084cd485654366d798c67, type: 3}

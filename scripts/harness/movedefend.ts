@@ -4,6 +4,8 @@ const PRESET = process.env.PRESET ?? 'trio_ember';
 const TURNS = Number(process.env.TURNS ?? '6');
 /** Own-turn index (1-based) on which the socket is cut before the Defend press; 0 = never. */
 const OFFLINE_TURN = Number(process.env.OFFLINE_TURN ?? '0');
+/** Web origin under test (a worktree's dev server can run on another port). */
+const BASE = process.env.BASE ?? 'http://127.0.0.1:3000';
 
 async function rectClick(b: Browser, selector: string, text?: string) {
   const r = await b.eval(`(() => { const els = Array.from(document.querySelectorAll(${JSON.stringify(selector)})); const el = ${text ? `els.find(e => (e.textContent || '').trim().includes(${JSON.stringify(text)}))` : 'els[0]'}; if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
@@ -34,13 +36,13 @@ const sel = (b: Browser) => b.eval(`window.__clawbada_selection ? JSON.parse(JSO
 export default async function (b: Browser) {
   const fails: string[] = [];
   const expect = (ok: boolean, what: string) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails.push(what); };
-  await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
+  await b.send('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
   // Keep a handle on every WebSocket the page opens so the outage can be a real close() —
   // DevTools "offline" emulation leaves an already-open socket alive.
   await b.send('Page.enable');
   await b.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__sockets = []; const W = window.WebSocket; window.WebSocket = function (...a) { const s = new W(...a); window.__sockets.push(s); return s; }; window.WebSocket.prototype = W.prototype; Object.assign(window.WebSocket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });` });
   // SPEED (0.25-4) slows Unity's playback, e.g. to catch a 0.33 s effect in screenshots.
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${PRESET}${process.env.SPEED ? `&speed=${process.env.SPEED}` : ''}`);
+  await b.goto(`${BASE}/game/battle?preset=${PRESET}${process.env.SPEED ? `&speed=${process.env.SPEED}` : ''}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);
@@ -90,6 +92,13 @@ export default async function (b: Browser) {
         await b.clickAt(p.x, p.y); await b.sleep(400);
         const picked = await sel(b);
         expect(!!picked?.pendingMove && !picked?.moveTo, `turn ${turnBefore}: the first tap only picks the hex (pending=${JSON.stringify(picked?.pendingMove)} moveTo=${JSON.stringify(picked?.moveTo)})`);
+        // Move-target overlay (2026-10-04): Unity paints the picked hex with a white outline + light-green glow and says so.
+        const destLine = grab(b, /\[HexGrid\] selection .*dest=\(/).slice(-1)[0] ?? '';
+        expect(new RegExp(`dest=\\(${mv.col},${mv.row}\\) .*overlay=True`).test(destLine), `turn ${turnBefore}: Unity painted the dest overlay on (${mv.col},${mv.row}) (${destLine.slice(0, 110) || 'no [HexGrid] selection line'})`);
+        if (process.env.DEST_SHOTS && played === 0) {
+          await b.screenshot(`${S}/dest-pick-1.png`); await b.sleep(300); await b.screenshot(`${S}/dest-pick-2.png`);
+          console.log(`[movedefend] dest frames for (${mv.col},${mv.row}) at canvas px (${c.x},${c.y}) → out/dest-pick-{1,2}.png`);
+        }
         await b.clickAt(p.x, p.y); moved = true;
         if (process.env.ARRIVAL_SHOTS && played === 0) {
           // Frame burst through the walk and its arrival ring (FRAMES of the committed move, ~120 ms apart).

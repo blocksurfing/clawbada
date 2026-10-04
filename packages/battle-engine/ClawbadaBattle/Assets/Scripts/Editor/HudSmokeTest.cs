@@ -38,6 +38,15 @@ public static class HudSmokeTest
             Check(hud != null, "BattleHud attached");
             manager.Initialize(init);
 
+            // Move-target overlay (user 2026-10-04): the picked hex gets a white outline + light-green glow on its own layer.
+            Check(skin.hexDest != null && skin.hexDest.rect.width == HexDestArt.OutW && skin.hexDest.rect.height == HexDestArt.OutH,
+                $"skin.hexDest is the generated {HexDestArt.OutW}x{HexDestArt.OutH} move-target sprite (got {(skin.hexDest != null ? skin.hexDest.rect.size.ToString() : "none")})");
+            hexGrid.ShowSelection("{\"originCol\":0,\"originRow\":1,\"rangeHexes\":[{\"col\":1,\"row\":1},{\"col\":1,\"row\":2}],\"enemyTargets\":[],\"allyTargets\":[],\"targetCol\":-1,\"targetRow\":-1,\"destCol\":1,\"destRow\":1}");
+            Check(hexGrid.HasDestOverlay(1, 1), "the picked move hex carries the dest overlay");
+            Check(!hexGrid.HasDestOverlay(1, 2) && !hexGrid.HasDestOverlay(0, 1), "the other range hex and the origin do not");
+            hexGrid.ClearHighlights();
+            Check(!hexGrid.HasDestOverlay(1, 1), "ClearHighlights drops the dest overlay");
+
             Check(hud.Overlays.Count == 6, $"6 unit overlays (got {hud.Overlays.Count})");
             Check(hud.Options != null && hud.Options.gameObject.activeSelf && !hud.Options.IsOpen, "options gear shown (closed) for a participant");
             manager.StartTurn(new TurnStartData { turn = 3, lobsterId = "A1", side = "A", deadlineMs = 0, isPlayer = true });

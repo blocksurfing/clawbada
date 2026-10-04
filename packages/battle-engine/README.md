@@ -153,7 +153,15 @@ pointer ray live on the flattened z = 0 plane, so `HexGrid.WorldToHex` maps a cl
 the nearest visible cell centre (not `Tilemap.WorldToCell`, which drifts by a row away
 from the pivot). `-executeMethod HexInputSmokeTest.Run` round-trips every cell of a 6×5
 board on all three tiers. Range highlights are tinted per kind (teal reachable, coral
-enemy, green ally, gold actor) so they stand out on the dark Apex arena.
+enemy, green ally, gold actor) so they stand out on the dark Apex arena. The picked move
+destination (touch-move's first tap, 2026-10-04) gets its own overlay: a white hex outline with
+a light-green glow — `Art/HexTiles/Sprites/hex_dest.png`, built from the designer's
+`hex_move_select` frame by *Clawbada ▸ Arena ▸ Generate Move-Target Hex* (`HexDestArt.Generate`,
+also run by the HUD art generator) and seeded into `HudSkin.hexDest`. `HexGrid` paints it on a
+second Tilemap one sorting step above the board (built at runtime, never saved), so the outline
+stays white whatever tint sits beneath; the overlay breathes its alpha at the target-pulse rate.
+`HudSmokeTest` checks the sprite and the overlay; `movedefend.ts` asserts the `[HexGrid] selection …
+dest=(c,r)` line and, with `DEST_SHOTS=1`, keeps two frames of the picked hex.
 
 Animation timing (2026-09-08): `BattleManager.attackDuration` / `hitDuration` are floors —
 `LobsterController.PlayAttack` and `PlayHit` stretch to the rig's own clip length
