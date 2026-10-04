@@ -258,7 +258,8 @@ list (select the `Birds` child in the prefab stage; gizmos draw each perch box a
 `RightFar` ships disabled. `BirdFlockInstaller.Install` (menu *Clawbada ▸ Arena ▸ Install Evolved
 Bird Flock*, headless `-executeMethod BirdFlockInstaller.Install`) adds the child and validates the
 bird asset; it is idempotent and never overwrites tuned perches (the "reset perches" variant does).
-`BirdFlockSmokeTest.Run` checks the planner's guarantees and the installed prefab; the browser
+`BirdFlockSmokeTest.Run` checks the planner's guarantees, that every enabled perch's feet (and walk
+ends) sit within 2 px of the painted surface of `BG_4.png`, and the installed prefab; the browser
 probe is `scripts/harness/bird-probe.ts` (grep lines `[BirdFlock] flock N: …`, `… landed …`,
 `… departed …`).
 
