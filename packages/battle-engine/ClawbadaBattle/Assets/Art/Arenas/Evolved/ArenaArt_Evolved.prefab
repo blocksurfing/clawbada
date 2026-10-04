@@ -890,7 +890,7 @@ MonoBehaviour:
     x: -3.65
     y: 2
     walkHalfWidth: 0
-    disabled: 0
+    disabled: 1
   config:
     minBirds: 3
     maxBirds: 3
