@@ -563,17 +563,19 @@ contract InvariantProtocol is Test {
         handler.handler_claim(0);
         assertEq(handler.ghostExpeditionsClaimed(), 0, "not claimable before 4h");
 
-        handler.handler_warp(uint32(1 days));
-        handler.handler_claim(0);
-        assertEq(handler.ghostExpeditionsClaimed(), 1, "handler_claim must actually claim");
-        assertEq(handler.ghostRewardsClaimed(), 1_250e18, "Base mine pays the launch reward");
-
-        // A day on (epoch 24): trailing demand 1, 48,750 left over 1,416 hourly epochs ->
-        // target ~34, clamped to -30% = 875 in this one lazy step. The repair price moves with
-        // it: 40 bps of 875 = 3.5 CLAW per point.
+        // An hour on (epoch 1): one unit of demand in the one closed epoch, 48,750 left over
+        // 1,439 hourly epochs -> target ~34, clamped to -30% = 875 in this one lazy step. The
+        // repair price moves with it: 40 bps of 875 = 3.5 CLAW per point. (D-C: a day on, the
+        // start would have left the 4-epoch demand window and the rate would simply hold.)
+        handler.handler_warp(uint32(1 hours));
         handler.handler_repeg();
         assertEq(handler.getMiningPool().currentBaseReward(), 875e18, "the glide stepped down by the 30% clamp");
         assertEq(handler.getRepairShop().repairRate(1), 3.5e18, "the Evolved repair price followed the glide");
+
+        handler.handler_warp(uint32(1 days));
+        handler.handler_claim(0);
+        assertEq(handler.ghostExpeditionsClaimed(), 1, "handler_claim must actually claim");
+        assertEq(handler.ghostRewardsClaimed(), 1_250e18, "Base mine pays the launch reward it was locked at");
         assertEq(handler.violation(), "", "no accounting mismatch");
     }
 

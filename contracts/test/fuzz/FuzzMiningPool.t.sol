@@ -490,7 +490,9 @@ contract FuzzMiningPool is BaseSetup {
     // setBaseReward doesn't affect in-flight expeditions even when
     // fuzz-sweeping a wide range of new reward values.
     function testFuzz_setBaseReward_doesNotAffectInflight(uint256 newReward) public {
-        newReward = bound(newReward, 1, 100_000e18);
+        // D-D: an override is bounded by 3x the season's launch reward (and by the budget left,
+        // which is far larger here).
+        newReward = bound(newReward, 1, 3 * BASE_REWARD);
 
         uint256[3] memory ids = _mint3(alice);
         vm.prank(alice);
