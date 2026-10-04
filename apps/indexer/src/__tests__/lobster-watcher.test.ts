@@ -41,6 +41,27 @@ function resetAll() {
   for (const level of ['info', 'warn', 'error']) logger[level].mockClear();
 }
 
+describe('LobsterWatcher LobsterMinted', () => {
+  beforeEach(() => { db.reset(); });
+
+  test("writes the recipient from the event's `to` (it is not `owner`; every mint used to throw)", async () => {
+    const TO = '0xAbCdEf0000000000000000000000000000000002';
+    await new LobsterWatcher().handleEvent(makeEventLog('LobsterMinted', { tokenId: 5n, to: TO, dna: 0n, generation: 2n, soulbound: true }));
+    expect(db.insert).toHaveBeenCalledWith(tables.lobsters);
+    const values = argOf(chainCalls(db.insert, 0), 'values');
+    expect(values.tokenId).toBe(5n);
+    expect(values.owner).toBe(TO.toLowerCase());
+    expect(values.generation).toBe(2);
+    expect(values.soulbound).toBe(true);
+    expect(values.evolutionTier).toBe(0);
+  });
+
+  test('an event with no recipient at all is an error, not a row with an undefined owner', async () => {
+    await expect(new LobsterWatcher().handleEvent(makeEventLog('LobsterMinted', { tokenId: 6n, dna: 0n }))).rejects.toThrow(/no recipient/);
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+});
+
 describe('LobsterWatcher LobsterEvolved', () => {
   beforeEach(resetAll);
 
