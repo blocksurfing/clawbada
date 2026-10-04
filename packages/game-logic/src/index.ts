@@ -1,5 +1,6 @@
 export * from './types';
 export * from './constants';
+export * from './stakes';
 export * from './dna';
 export * from './battle-resolver';
 export * from './breeding';

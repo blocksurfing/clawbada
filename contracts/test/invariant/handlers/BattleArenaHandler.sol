@@ -305,7 +305,7 @@ contract BattleArenaHandler is BaseSetup {
     /// @dev Create a new battle and deposit both sides (each deposit commits its pool team).
     function handler_createAndDeposit(uint8 stakeIdx, uint256 teamSeed) external {
         stakeIdx = uint8(stakeIdx % 3);
-        uint256 stake = battleArena.STAKE_BRACKETS(stakeIdx);
+        uint256 stake = battleArena.stakeFor(stakeIdx);
 
         // D-31: pick each side's team FIRST and record its Power truthfully at match time.
         uint256 teamA = _poolTeam(aliceH, true, teamSeed);
@@ -313,7 +313,7 @@ contract BattleArenaHandler is BaseSetup {
         uint8 pA = teamPower(teamA);
         uint8 pB = teamPower(teamB);
 
-        try battleArena.createBattle(aliceH, bobH, stake, pA, pB) returns (uint256 battleId) {
+        try battleArena.createBattle(aliceH, bobH, stakeIdx, pA, pB) returns (uint256 battleId) {
             battleIds.push(battleId);
             teamIdsA[battleId] = teamA;
             teamIdsB[battleId] = teamB;
@@ -360,11 +360,12 @@ contract BattleArenaHandler is BaseSetup {
 
     /// @dev D-08: a deposit whose consent does not match must revert and move nothing.
     function handler_depositMismatch(uint8 stakeIdx, uint256 seed) external {
-        uint256 stake = battleArena.STAKE_BRACKETS(stakeIdx % 3);
+        stakeIdx = uint8(stakeIdx % 3);
+        uint256 stake = battleArena.stakeFor(stakeIdx);
         uint256 teamA = _poolTeam(aliceH, true, seed);
         uint256 teamB = _poolTeam(bobH, false, seed >> 8);
         uint8 pB = teamPower(teamB);
-        try battleArena.createBattle(aliceH, bobH, stake, teamPower(teamA), pB) returns (uint256 battleId) {
+        try battleArena.createBattle(aliceH, bobH, stakeIdx, teamPower(teamA), pB) returns (uint256 battleId) {
             battleIds.push(battleId);
             teamIdsA[battleId] = teamA;
             teamIdsB[battleId] = teamB;

@@ -141,7 +141,7 @@ abstract contract BaseSetup is Test {
         repairShop  = new RepairShop(address(claw), address(nft), address(treasury), address(miningPool));
         battleVRF   = new BattleVRF(admin);
         battleArena = new BattleArena(
-            admin, address(claw), address(nft), address(teamMgr), address(treasury), address(battleVRF)
+            admin, address(claw), address(nft), address(teamMgr), address(treasury), address(battleVRF), address(miningPool)
         );
         faucet = new Faucet(admin, address(nft), address(claw), block.timestamp + 7 days);
 

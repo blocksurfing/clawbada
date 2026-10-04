@@ -51,7 +51,8 @@ export async function rogueSettlementDrill(stack: Stack, players: Players, flags
   const { chain, db, anvil } = stack;
   const { a, b } = players;
   const arena = stack.deployment.contracts.BattleArena;
-  const stake = BigInt(flags.stake) * WEI;
+  // D-E: the bracket's current quote; every battle below is checked to have bound exactly this.
+  const stake = BigInt((await a.agent.stakeQuote()).brackets[flags.bracket].stakeWei);
   const antiGrief = stake / 20n;
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const logOf = (name: string) => readFileSync(join(stack.runDir, `${name}.log`), 'utf8');
@@ -70,11 +71,12 @@ export async function rogueSettlementDrill(stack: Stack, players: Players, flags
 
   /** Match → deposits (each carrying its commit) → revealed → the API is running the session. */
   async function liveBattle(label: string, beforeDeposit?: (battleId: string) => Promise<void>) {
-    await a.agent.joinQueue(a.teamId, flags.stake);
-    const qb = await b.agent.joinQueue(b.teamId, flags.stake);
+    await a.agent.joinQueue(a.teamId, flags.bracket);
+    const qb = await b.agent.joinQueue(b.teamId, flags.bracket);
     const battleId = qb.battleId ?? (await a.agent.waitMatched());
     const id = BigInt(battleId);
     await waitFor(async () => { const r = await a.agent.battle(battleId); return r.db?.status === 1 && Number(r.chain?.phase) === PHASE.Deposit ? r : null; }, { timeoutMs: 60_000, label: `${label}: createBattle on-chain` });
+    checks.eq(BigInt((await chain.getBattle(id)).stakeAmount), stake, `${label}: the chain bound the bracket's quoted stake`);
     if (beforeDeposit) await beforeDeposit(battleId);
     await a.agent.deposit(battleId);
     await b.agent.deposit(battleId);
@@ -244,8 +246,8 @@ export async function rogueSettlementDrill(stack: Stack, players: Players, flags
   // ═══ 5. D-A: a commit to a team that cannot play → accused at once → never opened → swept + slashed ═══
   {
     const L = 'unplayable';
-    await a.agent.joinQueue(a.teamId, flags.stake);
-    const qb = await b.agent.joinQueue(b.teamId, flags.stake);
+    await a.agent.joinQueue(a.teamId, flags.bracket);
+    const qb = await b.agent.joinQueue(b.teamId, flags.bracket);
     const battleId = qb.battleId ?? (await a.agent.waitMatched());
     const id = BigInt(battleId);
     await waitFor(async () => { const r = await a.agent.battle(battleId); return r.db?.status === 1 && Number(r.chain?.phase) === PHASE.Deposit ? r : null; }, { timeoutMs: 60_000, label: `${L}: createBattle on-chain` });

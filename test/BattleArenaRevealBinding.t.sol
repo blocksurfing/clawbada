@@ -8,6 +8,7 @@ import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {ClawToken} from "../contracts/ClawToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
+import {MiningPool} from "../contracts/MiningPool.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 /// @title BattleArenaRevealBindingTest
@@ -49,7 +50,11 @@ contract BattleArenaRevealBindingTest is Test {
         tm = new TeamManager(admin, address(nft));
         treasury = new Treasury(admin, makeAddr("dev"));
         BattleVRF vrf = new BattleVRF(admin);
-        arena = new BattleArena(admin, address(claw), address(nft), address(tm), address(treasury), address(vrf));
+        // D-E: the arena pegs its stakes to MiningPool; a real (season-less) pool keeps the launch amounts.
+        MiningPool pool = new MiningPool(admin, address(claw), address(nft), address(tm));
+        arena = new BattleArena(
+            admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+        );
 
         nft.grantRole(nft.MINTER_ROLE(), admin);
         nft.grantRole(nft.LOCKER_ROLE(), address(tm));
@@ -97,7 +102,7 @@ contract BattleArenaRevealBindingTest is Test {
 
     function _create(address a, address b, uint8 powerA, uint8 powerB) internal returns (uint256 battleId) {
         vm.prank(matchmaker);
-        battleId = arena.createBattle(a, b, STAKE_LOW, powerA, powerB);
+        battleId = arena.createBattle(a, b, 0, powerA, powerB);
     }
 
     function _depositAndCommit(uint256 battleId, address a, uint256 teamA, address b, uint256 teamB) internal {
@@ -127,13 +132,13 @@ contract BattleArenaRevealBindingTest is Test {
     function test_D31_createBattle_rejects_power_outside_3_to_9() public {
         vm.startPrank(matchmaker);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidPowerScore.selector, uint8(2)));
-        arena.createBattle(alice, bob, STAKE_LOW, 2, 3);
+        arena.createBattle(alice, bob, 0, 2, 3);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidPowerScore.selector, uint8(10)));
-        arena.createBattle(alice, bob, STAKE_LOW, 3, 10);
+        arena.createBattle(alice, bob, 0, 3, 10);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidPowerScore.selector, uint8(0)));
-        arena.createBattle(alice, bob, STAKE_LOW, 0, 9);
+        arena.createBattle(alice, bob, 0, 0, 9);
         // the bounds themselves are valid
-        arena.createBattle(alice, bob, STAKE_LOW, 3, 9);
+        arena.createBattle(alice, bob, 0, 3, 9);
         vm.stopPrank();
     }
 

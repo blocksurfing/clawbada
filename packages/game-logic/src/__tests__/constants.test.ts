@@ -7,7 +7,9 @@ import {
   REPAIR_RATES,
   SPECIAL_BASE_POWERS,
   LEGACY_SEASON_EMISSIONS,
-  STAKE_BRACKETS,
+  LAUNCH_STAKES,
+  STAKE_MULTIPLIERS,
+  GENESIS_BASE_REWARD_WEI,
   DAMAGE_THRESHOLD,
   NUM_CLASSES,
 } from '../constants';
@@ -150,20 +152,20 @@ describe('LEGACY_SEASON_EMISSIONS', () => {
   });
 });
 
-describe('STAKE_BRACKETS', () => {
-  test('has exactly 3 entries', () => {
-    expect(STAKE_BRACKETS).toHaveLength(3);
-  });
-
-  test('brackets are in ascending order', () => {
-    for (let i = 1; i < STAKE_BRACKETS.length; i++) {
-      expect(STAKE_BRACKETS[i]).toBeGreaterThan(STAKE_BRACKETS[i - 1]);
+describe('LAUNCH_STAKES (D-E: the launch peg, not an amount to transact)', () => {
+  test('has exactly 3 entries, ascending, positive', () => {
+    expect(LAUNCH_STAKES).toHaveLength(3);
+    for (let i = 1; i < LAUNCH_STAKES.length; i++) {
+      expect(LAUNCH_STAKES[i]).toBeGreaterThan(LAUNCH_STAKES[i - 1]);
+    }
+    for (const b of LAUNCH_STAKES) {
+      expect(b).toBeGreaterThan(0n);
     }
   });
 
-  test('all entries are positive', () => {
-    for (const b of STAKE_BRACKETS) {
-      expect(b).toBeGreaterThan(0n);
+  test('equals multiplier × genesis', () => {
+    for (let i = 0; i < 3; i++) {
+      expect(LAUNCH_STAKES[i] * 10n ** 18n).toBe(STAKE_MULTIPLIERS[i] * GENESIS_BASE_REWARD_WEI);
     }
   });
 });

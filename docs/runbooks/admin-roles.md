@@ -8,7 +8,7 @@ The contracts are intentionally non-upgradeable. The only governance lever is th
 
 | Role | Holder type (mainnet) | Rotation cadence | Critical action SLA |
 |------|----------------------|------------------|---------------------|
-| `DEFAULT_ADMIN_ROLE` (every contract) | **Multisig** (3-of-5 minimum) | Immutable; rotate signers | `resolveFrozen`: within 72 h of the freeze (target 24 h) |
+| `DEFAULT_ADMIN_ROLE` (every contract) | **Multisig** (3-of-5 minimum) | Immutable; rotate signers | `resolveFrozen`: within 72 h of the freeze (target 24 h). Tuning (`proposeReviewWindow` / `enactReviewWindow`, D-E `proposeStakeFixedBps` / `enactStakeFixedBps`): 24 h timelock, announce before proposing |
 | `SEASON_ADMIN_ROLE` (MiningPool) | **Multisig** | Immutable | Mid-season action: explicit proposal + delay |
 | `BOOST_ADMIN_ROLE` (MiningPool) | **Hot service wallet** | Quarterly + on suspicion | Weekly boost post: before the 10-day epoch TTL lapses |
 | `RESOLVER_ROLE` (BattleArena) | **Hot service wallet** | Quarterly + on suspicion | Settle: <60s |

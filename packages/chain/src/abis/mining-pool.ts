@@ -105,6 +105,19 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "EPOCHS_PER_DAY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "EPOCH_SPEND_CAP_BPS",
     "inputs": [],
     "outputs": [
@@ -841,6 +854,19 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "stakeReference",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "startExpedition",
     "inputs": [
       {
@@ -1247,6 +1273,37 @@ export const MiningPoolAbi = [
       },
       {
         "name": "startTime",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StakeReferenceUpdated",
+    "inputs": [
+      {
+        "name": "season",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "oldReference",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newReference",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
