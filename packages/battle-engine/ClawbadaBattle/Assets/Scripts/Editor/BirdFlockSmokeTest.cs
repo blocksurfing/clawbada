@@ -20,9 +20,10 @@ public static class BirdFlockSmokeTest
         var perches = BirdFlock.DefaultPerches();
         int plans = CheckPlanner(perches);
         CheckPerchTable(perches);
+        CheckPerchesOnTheRock(perches);
         CheckClamp(perches);
         CheckInstalledPrefab();
-        string msg = $"[BirdFlockSmokeTest] OK — {plans} plans over n=3..5, perch table sane, prefab installed and idempotent.";
+        string msg = $"[BirdFlockSmokeTest] OK — {plans} plans over n=3..5, perch table sane, every perch on the painted rock, prefab installed and idempotent.";
         Debug.Log(msg);
         if (Application.isBatchMode) Console.WriteLine(msg);
     }
@@ -117,6 +118,43 @@ public static class BirdFlockSmokeTest
                 if (gap < 0.45f) throw new Exception($"perches {p.id} and {q.id} too close ({gap:F2} < 0.45 after walk spans)");
             }
         }
+    }
+
+    private const string RocksLayerPath = "Assets/Art/Arenas/Evolved/BG_4.png";
+
+    /// <summary>Every enabled perch's feet must sit on the painted rock: the topmost opaque pixel of BG_4
+    /// under the feet column is within 2 px of perch.y, and so is the surface at both ends of the walk
+    /// span. A perch on a rock's rounded shoulder puts a walking gull in the air (Nzib, 2026-10-04).</summary>
+    private static void CheckPerchesOnTheRock(List<BirdPerch> perches)
+    {
+        var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        if (!tex.LoadImage(File.ReadAllBytes(RocksLayerPath))) throw new Exception($"could not read {RocksLayerPath}");
+        try
+        {
+            if (tex.width != 640 || tex.height != 360) throw new Exception($"{RocksLayerPath} is {tex.width}x{tex.height}, expected the 640x360 arena canvas");
+            foreach (var p in perches)
+            {
+                if (p.disabled) continue;
+                foreach (float x in new[] { p.x - p.walkHalfWidth, p.x, p.x + p.walkHalfWidth })
+                {
+                    float surface = SurfaceY(tex, x);
+                    if (float.IsNaN(surface)) throw new Exception($"perch {p.id}: nothing painted under x={x:F3}");
+                    float gapPx = (p.y - surface) * 64f; // + feet above the rock (air), - feet sunk into it
+                    if (Mathf.Abs(gapPx) > 2f) throw new Exception($"perch {p.id} at x={x:F3}: feet y={p.y:F4} but the painted surface is y={surface:F4} ({gapPx:+0.0;-0.0} px)");
+                }
+            }
+        }
+        finally { UnityEngine.Object.DestroyImmediate(tex); }
+    }
+
+    /// <summary>Arena-local y of the topmost opaque pixel in the column under arena-local x (NaN if none).
+    /// The layer is the 640x360 canvas at 64 PPU, pivot at the centre; LoadImage rows run bottom-up.</summary>
+    private static float SurfaceY(Texture2D tex, float x)
+    {
+        int px = Mathf.Clamp(Mathf.FloorToInt(x * 64f + 320f), 0, tex.width - 1);
+        for (int row = tex.height - 1; row >= 0; row--)
+            if (tex.GetPixel(px, row).a >= 8f / 255f) return (row + 1 - 180f) / 64f;
+        return float.NaN;
     }
 
     /// <summary>With only two perches usable, a flock of three shrinks to two; with none, to zero.</summary>

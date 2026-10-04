@@ -98,11 +98,15 @@ public class BirdFlock : MonoBehaviour
         // Nzib's own example bird (ArenaAuthoring.unity): the crest of the big right rock. Off by default:
         // in battle the opponent team panels (top-right HUD) sit exactly over it, so a gull there is hidden.
         new BirdPerch { id = "RightBig", x = 3.21875f, y = 2.046875f, walkHalfWidth = 0.2f, disabled = true },
-        new BirdPerch { id = "RightSmall", x = 2.1875f, y = 1.6875f, walkHalfWidth = 0.1f },
+        // Measured from BG_4's pixels (2026-10-04): the small rock's top is flat at y 1.703 for x 2.11..2.27.
+        new BirdPerch { id = "RightSmall", x = 2.1875f, y = 1.703125f, walkHalfWidth = 0.08f },
         // Steep, at the frame edge and probably under the HUD: off until the designer says otherwise.
         new BirdPerch { id = "RightFar", x = 4.4f, y = 2.1875f, walkHalfWidth = 0f, disabled = true },
-        new BirdPerch { id = "LeftA", x = -2.5f, y = 1.9375f, walkHalfWidth = 0.1f },
-        new BirdPerch { id = "LeftB", x = -3.1f, y = 1.9375f, walkHalfWidth = 0f },
+        // The left crest is a dome: flat at y 2.0 for x -2.99..-2.74, 1.97 at -3.12 and -2.62, and it drops
+        // away past -2.55 — a perch at -2.5 put a gull on the shoulder, walking on air (Nzib, 2026-10-04).
+        // Two birds exactly fill the crest; no walking here.
+        new BirdPerch { id = "LeftA", x = -2.6f, y = 1.96875f, walkHalfWidth = 0f },
+        new BirdPerch { id = "LeftB", x = -3.1f, y = 1.96875f, walkHalfWidth = 0f },
         // Off by default: the top-left HUD (timer / settings hexes) sits over the wreck's bow in battle.
         new BirdPerch { id = "BoatBow", x = -3.65f, y = 2.0f, walkHalfWidth = 0f, disabled = true },
     };
