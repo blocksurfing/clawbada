@@ -25,7 +25,10 @@ const mockReadCurrentSeason = mock<any>();
 const mockReadSeasonConfig = mock<any>();
 const mockReadCurrentBaseReward = mock<any>();
 const mockReadEpochBudget = mock<any>();
+const mockReadChainNow = mock<any>();
 const WEI = 10n ** 18n;
+const DAY = 24n * 60n * 60n;
+const nowSec = () => BigInt(Math.floor(Date.now() / 1000));
 
 // ── Local serializeBigInts ──
 function _serializeBigInts(obj: any): any {
@@ -41,7 +44,7 @@ function _serializeBigInts(obj: any): any {
 }
 
 mock.module('../../lib/chain', () => ({
-  readChainNow: mock(async () => BigInt(Math.floor(Date.now() / 1000))),
+  readChainNow: mockReadChainNow,
   readTeamsByOwner: mockReadTeamsByOwner,
   readTeam: mockReadTeam,
   readLobster: mockReadLobster,
@@ -75,8 +78,13 @@ describe('mining routes', () => {
     mockReadLobster.mockReset();
     mockReadExpedition.mockReset();
     mockReadActiveExpedition.mockReset();
+    // Chain time = wall clock; season 1 started 10 days ago, so it is active for 50 more (C-L3).
+    mockReadChainNow.mockReset();
+    mockReadChainNow.mockImplementation(async () => nowSec());
     mockReadCurrentSeason.mockReset();
+    mockReadCurrentSeason.mockResolvedValue(1n);
     mockReadSeasonConfig.mockReset();
+    mockReadSeasonConfig.mockResolvedValue({ totalEmission: 352_500_000n * WEI, baseReward: 1_250n * WEI, startTime: nowSec() - 10n * DAY, totalMinted: 0n });
     // The live glide rate and an hour with room: S1 hour 0 (2 x 352.5M / 1,440), nothing minted yet.
     mockReadCurrentBaseReward.mockReset();
     mockReadCurrentBaseReward.mockResolvedValue(1_250n * WEI);
@@ -140,6 +148,45 @@ describe('mining routes', () => {
       const res = await app.request('/mining/budget');
       expect(res.status).toBe(200);
       expect(mockReadExpedition).not.toHaveBeenCalled();
+    });
+
+    test('says when the season ends (unix seconds + ISO) — startExpedition reverts from that second (C-L3)', async () => {
+      const startTime = 1_900_000_000n;
+      mockReadSeasonConfig.mockResolvedValue({ totalEmission: 352_500_000n * WEI, baseReward: 1_250n * WEI, startTime, totalMinted: 0n });
+      mockReadChainNow.mockResolvedValue(startTime + 30n * DAY);
+
+      const res = await app.request('/mining/budget');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.season).toBe('1');
+      expect(body.seasonEndsAt).toBe((startTime + 60n * DAY).toString());
+      expect(body.seasonEndsAtIso).toBe(new Date(Number(startTime + 60n * DAY) * 1000).toISOString());
+      expect(mockReadSeasonConfig).toHaveBeenCalledWith(1n);
+    });
+
+    test('returns 409 SEASON_GAP once the 60 days are up and the Safe has not started the next season', async () => {
+      const startTime = 1_900_000_000n;
+      mockReadSeasonConfig.mockResolvedValue({ totalEmission: 352_500_000n * WEI, baseReward: 1_250n * WEI, startTime, totalMinted: 0n });
+      mockReadChainNow.mockResolvedValue(startTime + 60n * DAY); // the first second of the gap
+
+      const res = await app.request('/mining/budget');
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toBe('SEASON_GAP');
+      expect(body.message).toContain(`seasonEndedAt=${startTime + 60n * DAY}`);
+      expect(body.message).toContain('the Safe has not started the next season');
+      expect(mockReadEpochBudget).not.toHaveBeenCalled();
+    });
+
+    test('returns 409 SEASON_GAP before season 1 has been started', async () => {
+      mockReadCurrentSeason.mockResolvedValue(0n);
+
+      const res = await app.request('/mining/budget');
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toBe('SEASON_GAP');
+      expect(body.message).toContain('season 1');
+      expect(mockReadSeasonConfig).not.toHaveBeenCalled();
     });
   });
 
@@ -228,6 +275,64 @@ describe('mining routes', () => {
       expect(body.error).toBe('MINE_FULL');
       expect(body.message).toContain(new Date(Number(opensAt) * 1000).toISOString());
       expect(body.steps).toBeUndefined();
+    });
+
+    test('returns 409 SEASON_GAP, not calldata, when the season has ended and no new one started (C-L3)', async () => {
+      mockReadTeam.mockResolvedValue(mockTeam());
+      mockReadActiveExpedition.mockResolvedValue(0n);
+      mockReadLobster.mockImplementation((id: bigint) =>
+        Promise.resolve(mockLobster({ tokenId: id, evolutionTier: 1 })),
+      );
+      const startTime = 1_900_000_000n;
+      mockReadCurrentSeason.mockResolvedValue(3n);
+      mockReadSeasonConfig.mockResolvedValue({ totalEmission: 88_125_000n * WEI, baseReward: 400n * WEI, startTime, totalMinted: 0n });
+      mockReadChainNow.mockResolvedValue(startTime + 60n * DAY + 3_600n); // an hour into the gap
+
+      const res = await app.request('/mining/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ teamId: '1', mineTier: 1 }),
+      });
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toBe('SEASON_GAP');
+      expect(body.message).toContain('Season 3 ended at');
+      expect(body.message).toContain(`seasonEndedAt=${startTime + 60n * DAY}`);
+      expect(body.message).toContain('the Safe has not started the next season');
+      expect(body.steps).toBeUndefined();
+      expect(mockReadSeasonConfig).toHaveBeenCalledWith(3n);
+    });
+
+    test('still returns calldata in the last second of the season', async () => {
+      mockReadTeam.mockResolvedValue(mockTeam());
+      mockReadActiveExpedition.mockResolvedValue(0n);
+      mockReadLobster.mockImplementation((id: bigint) =>
+        Promise.resolve(mockLobster({ tokenId: id, evolutionTier: 1 })),
+      );
+      const startTime = 1_900_000_000n;
+      mockReadSeasonConfig.mockResolvedValue({ totalEmission: 352_500_000n * WEI, baseReward: 1_250n * WEI, startTime, totalMinted: 0n });
+      mockReadChainNow.mockResolvedValue(startTime + 60n * DAY - 1n);
+
+      const res = await app.request('/mining/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ teamId: '1', mineTier: 0 }),
+      });
+      expect(res.status).toBe(200);
+    });
+
+    test('returns 409 SEASON_GAP before season 1 has been started', async () => {
+      mockReadCurrentSeason.mockResolvedValue(0n);
+
+      const res = await app.request('/mining/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ teamId: '1', mineTier: 0 }),
+      });
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toBe('SEASON_GAP');
+      expect(mockReadTeam).not.toHaveBeenCalled();
     });
 
     test('returns 400 when teamId missing', async () => {
