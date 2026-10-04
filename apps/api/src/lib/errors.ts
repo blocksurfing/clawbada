@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'LOBSTER_LOCKED'
   | 'BATTLE_PHASE_ERROR'
   | 'MINE_FULL'
+  | 'SEASON_GAP'
   | 'INTERNAL_ERROR';
 
 const STATUS_MAP: Record<ErrorCode, number> = {
@@ -24,6 +25,7 @@ const STATUS_MAP: Record<ErrorCode, number> = {
   LOBSTER_LOCKED: 409,
   BATTLE_PHASE_ERROR: 409,
   MINE_FULL: 409,
+  SEASON_GAP: 409,
   INTERNAL_ERROR: 500,
 };
 

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { MiningPoolAbi, addresses } from '@clawbada/chain';
-import { TIER_WEIGHTS, EXPEDITION_DURATION_SECONDS, EvolutionTier } from '@clawbada/game-logic';
+import { TIER_WEIGHTS, EXPEDITION_DURATION_SECONDS, SEASON_DURATION_DAYS, EvolutionTier } from '@clawbada/game-logic';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
 import {
@@ -17,6 +17,41 @@ import {
 import { buildCalldata, singleStep } from '../../lib/calldata';
 
 export const miningRoutes = new Hono();
+
+const SEASON_DURATION_SECONDS = BigInt(SEASON_DURATION_DAYS * 24 * 60 * 60);
+
+interface SeasonWindow {
+  season: bigint;
+  startTime: bigint;
+  /** Unix seconds: startTime + 60 days. MiningPool treats the season as over from this second. */
+  endsAt: bigint;
+  /** Chain time the window was judged at. */
+  now: bigint;
+}
+
+/**
+ * C-L3: MiningPool gates startExpedition (and repeg) on an active season — `currentSeason() > 0`
+ * and `block.timestamp < startTime + SEASON_DURATION`. Outside one (season 1 never started, or
+ * the 60 days are up and the Safe has not started the next season) say so with 409 SEASON_GAP
+ * instead of handing back a transaction that reverts SeasonNotActive. In-flight expeditions are
+ * unaffected: claimExpedition pays regardless of the season.
+ */
+async function requireActiveSeason(): Promise<SeasonWindow> {
+  const [season, now] = await Promise.all([readCurrentSeason(), readChainNow()]);
+  if (season === 0n) {
+    throw new ApiError('SEASON_GAP', 'No mining season has started: the Safe has not started season 1, so expeditions cannot start yet');
+  }
+  const config = await readSeasonConfig(season);
+  const endsAt = config.startTime + SEASON_DURATION_SECONDS;
+  if (now >= endsAt) {
+    const endedIso = new Date(Number(endsAt) * 1000).toISOString();
+    throw new ApiError(
+      'SEASON_GAP',
+      `Season ${season} ended at ${endedIso} (seasonEndedAt=${endsAt}) and the Safe has not started the next season; expeditions cannot start until it does (claims still pay)`,
+    );
+  }
+  return { season, startTime: config.startTime, endsAt, now };
+}
 
 // GET /api/game/mining — list active expeditions for a wallet
 miningRoutes.get(
@@ -50,12 +85,18 @@ miningRoutes.get(
 // GET /api/game/mining/budget — D-19: this hour's spend ceiling and when the next hour opens.
 // No hour may mint more than twice its fair share of the season budget left; in a rush the
 // last expeditions to arrive wait for the next hour. Registered before /:expeditionId.
+// 409 SEASON_GAP outside a season (C-L3): there is no hourly budget to report then.
 miningRoutes.get(
   '/budget',
   catchErrors(async (c) => {
+    const window = await requireActiveSeason();
     const [budget, baseReward] = await Promise.all([readEpochBudget(), readCurrentBaseReward()]);
     const remaining = budget.cap > budget.minted ? budget.cap - budget.minted : 0n;
     return c.json(serializeBigInts({
+      season: window.season,
+      // When MiningPool stops accepting expeditions unless the Safe has started the next season by then.
+      seasonEndsAt: window.endsAt,
+      seasonEndsAtIso: new Date(Number(window.endsAt) * 1000).toISOString(),
       baseReward,
       cap: budget.cap,
       minted: budget.minted,
@@ -105,6 +146,9 @@ miningRoutes.post(
     if (mineTier < 0 || mineTier > 3) {
       throw new ApiError('INVALID_INPUT', 'mineTier must be 0-3 (Base/Evolved/Elite/Apex)');
     }
+
+    // C-L3: nothing can start outside a season, whatever the team looks like.
+    await requireActiveSeason();
 
     // Validate team ownership
     const team = await readTeam(teamId);

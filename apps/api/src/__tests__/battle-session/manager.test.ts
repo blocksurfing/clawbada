@@ -62,6 +62,9 @@ class FakeStore {
     return [...this.rows.values()].find((r) => r.kind === 'practice' && r.playerA === owner && r.status === 'active') ?? null;
   }
   async pendingRealBattles(): Promise<PendingRealBattle[]> { return this.pending.filter((p) => !this.rows.has(p.battleId.toString())); }
+  /** D-14: battles the (fake) indexer shows in TeamReveal. */
+  inReveal: { battleId: string; playerA: string; playerB: string }[] = [];
+  async inTeamReveal(): Promise<{ battleId: string; playerA: string; playerB: string }[]> { return this.inReveal; }
 }
 
 function chainWith(teams: Record<string, { owner: string; lobsterIds: bigint[] }>, lobsters: Record<string, { owner: string; cls: LobsterClass; tier: number }>, phase = 4) {
@@ -376,6 +379,45 @@ describe('real battles', () => {
     const started = events.find((e) => e.id === '601' && e.event === 'turn_started')!;
     expect(started.data.turn).toBe(5);
   });
+
+  // C-L4 (review 2026-10-03): a deadline that passed during the outage is not the player's timeout.
+  describe('resume shot clock', () => {
+    function seeded(id: string) {
+      const seedState = v3.createBattle({ battleId: id, vrfSeed: 5n, tier: 'evolved',
+        teamA: [LobsterClass.Kraken, LobsterClass.Reaver, LobsterClass.Ember].map((c, i) => ({ id: `${i + 1}`, class: c, tier: EvolutionTier.Evolved, purity: 0 })),
+        teamB: [LobsterClass.Bulwark, LobsterClass.Abyss, LobsterClass.Tempest].map((c, i) => ({ id: `${i + 4}`, class: c, tier: EvolutionTier.Evolved, purity: 0 })) });
+      v3.runBattle(seedState, { A: v3.BOTS.balanced, B: v3.BOTS.balanced }, 4);
+      const roster = seedState.lobsters.map((l) => ({ id: l.id, side: l.team, slot: l.slot, classId: l.class, tier: l.tier, purity: l.purity, legend: false, owner: l.team === 'A' ? ALICE : BOB }));
+      return { seedState, base: { kind: 'real' as const, playerA: ALICE, playerB: BOB, bot: null, tier: 'evolved', vrfRound: 1, roster, turn: 4, timeouts: { A: 1, B: 0 }, status: 'active' as const } };
+    }
+    async function resumeWithDeadline(id: string, offsetMs: number) {
+      const store = new FakeStore();
+      const made = make(store);
+      const { seedState, base } = seeded(id);
+      await store.insertSession({ ...base, id, stateJson: v3.serializeState(seedState), deadline: new Date(made.fake.now() + offsetMs) });
+      expect(await made.mgr.resume()).toBe(1);
+      const started = made.events.find((e) => e.id === id && e.event === 'turn_started')!;
+      return { ...made, started };
+    }
+
+    test('a deadline that already passed: a fresh full shot clock, and the pending timeouts are kept', async () => {
+      const { fake, started, mgr } = await resumeWithDeadline('611', -1_000);
+      expect(started.data.deadline - fake.now()).toBe(60_000);
+      expect(mgr.get('611')!.timeouts.timeouts).toEqual({ A: 1, B: 0 });
+    });
+
+    test('a deadline exactly now: also a fresh full shot clock', async () => {
+      const { fake, started } = await resumeWithDeadline('612', 0);
+      expect(started.data.deadline - fake.now()).toBe(60_000);
+    });
+
+    test('a deadline still ahead keeps its remaining time, floored at RESUME_MIN_CLOCK_MS', async () => {
+      const a = await resumeWithDeadline('613', 20_000);
+      expect(a.started.data.deadline - a.fake.now()).toBe(20_000);
+      const b = await resumeWithDeadline('614', 1_500);
+      expect(b.started.data.deadline - b.fake.now()).toBe(5_000);
+    });
+  });
 });
 
 describe('arenaTierFor', () => {
@@ -481,5 +523,66 @@ describe('settlement_alert (D-06)', () => {
     store.proposed.push('606');
     await mgr.pollOnce();
     expect(alerts(events)).toHaveLength(0);
+  });
+});
+
+// ── D-14: the resolver reported a player's commit unopenable (review 2026-10-03) ──
+describe('reveal_failure_reported (D-14)', () => {
+  type Status = { phase: number; accusedA: boolean; accusedB: boolean; openedA: boolean; openedB: boolean; phaseDeadline: bigint };
+  function inReveal(status: Status | ((id: bigint) => Status)) {
+    const store = new FakeStore();
+    store.inReveal.push({ battleId: '701', playerA: ALICE, playerB: BOB });
+    const readRevealStatus = async (id: bigint) => (typeof status === 'function' ? status(id) : status);
+    const made = make(store, { chain: { ...chainWith({}, {}), readRevealStatus } });
+    return { store, ...made };
+  }
+  const reports = (events: { id: string; event: string; data: any }[]) => events.filter((e) => e.event === 'reveal_failure_reported');
+
+  test('nobody accused: nothing is pushed', async () => {
+    const { mgr, events } = inReveal({ phase: 3, accusedA: false, accusedB: false, openedA: false, openedB: false, phaseDeadline: 1_300n });
+    await mgr.pollOnce();
+    expect(reports(events)).toHaveLength(0);
+    expect(mgr.revealAlertsFor('701')).toEqual([]);
+  });
+
+  test('B accused: the battle room is told who, until when, and what to do; the report stands for late joiners', async () => {
+    const { mgr, events } = inReveal({ phase: 3, accusedA: false, accusedB: true, openedA: false, openedB: false, phaseDeadline: 1_420n });
+    await mgr.pollOnce();
+    const r = reports(events);
+    expect(r).toHaveLength(1);
+    expect(r[0].id).toBe('701');
+    expect(r[0].data).toMatchObject({ battleId: '701', accused: BOB.toLowerCase(), side: 'B', graceDeadline: '1420', instruction: 'open your commit' });
+    expect(mgr.revealAlertsFor('701')).toEqual([r[0].data]);
+    // Re-pushed only after REVEAL_ALERT_REPEAT_MS, not on every poll.
+    await mgr.pollOnce();
+    expect(reports(events)).toHaveLength(1);
+  });
+
+  test('the accused player opened their commit: the report is withdrawn', async () => {
+    let opened = false;
+    const { mgr, events } = inReveal(() => ({ phase: 3, accusedA: true, accusedB: false, openedA: opened, openedB: false, phaseDeadline: 1_420n }));
+    await mgr.pollOnce();
+    expect(reports(events)).toHaveLength(1);
+    expect(reports(events)[0].data.accused).toBe(ALICE.toLowerCase());
+    opened = true;
+    await mgr.pollOnce();
+    expect(mgr.revealAlertsFor('701')).toEqual([]);
+  });
+
+  test('the battle left TeamReveal (revealed or cancelled): the report is dropped', async () => {
+    const { mgr, store } = inReveal({ phase: 3, accusedA: true, accusedB: false, openedA: false, openedB: false, phaseDeadline: 1_420n });
+    await mgr.pollOnce();
+    expect(mgr.revealAlertsFor('701')).toHaveLength(1);
+    store.inReveal.length = 0;
+    await mgr.pollOnce();
+    expect(mgr.revealAlertsFor('701')).toEqual([]);
+  });
+
+  test('without readRevealStatus (practice-only deployments) nothing is read or pushed', async () => {
+    const store = new FakeStore();
+    store.inReveal.push({ battleId: '701', playerA: ALICE, playerB: BOB });
+    const { mgr, events } = make(store);
+    await mgr.pollOnce();
+    expect(reports(events)).toHaveLength(0);
   });
 });
