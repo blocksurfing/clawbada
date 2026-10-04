@@ -1161,6 +1161,7 @@ contract BattleArenaTest is Test {
     function test_resolveFrozenWithForfeiterSlashes() public {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, alice);
+        uint256 aliceBefore = claw.balanceOf(alice);
         uint256 bobBefore = claw.balanceOf(bob);
         uint256 devBefore = claw.balanceOf(devWallet);
         uint256 supplyBefore = claw.totalSupply();
@@ -1170,6 +1171,7 @@ contract BattleArenaTest is Test {
         vm.prank(admin);
         arena.resolveFrozen(battleId, alice, bob, false);
 
+        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18, "winner: pot minus fee, plus own 5%");
         assertEq(claw.balanceOf(bob), bobBefore);
         _assertTreasuryReceived(devBefore, supplyBefore, 625e18);
         _assertConservation();
@@ -1180,11 +1182,13 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, address(0));
         uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 bobBefore = claw.balanceOf(bob);
 
         vm.prank(admin);
         arena.resolveFrozen(battleId, alice, address(0), false);
 
         assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
+        assertEq(claw.balanceOf(bob), bobBefore + 125e18, "loser: only the 5% back");
         assertEq(arena.getBattle(battleId).winner, alice);
         _assertConservation();
     }
@@ -1376,10 +1380,14 @@ contract BattleArenaTest is Test {
         _settleAndFreeze(battleId, bob);
         vm.warp(uint256(arena.getBattle(battleId).frozenAt) + 72 hours + 1);
         uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 bobBefore = claw.balanceOf(bob);
 
         arena.expireFrozen(battleId);
 
         assertEq(claw.totalSupply(), supplyBefore);
+        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW + 125e18, "held stake returned, no burn");
+        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW + 125e18, "held stake returned, no burn");
         assertEq(claw.balanceOf(address(arena)), 0);
         _assertConservation();
     }
@@ -1864,13 +1872,331 @@ contract BattleArenaTest is Test {
         vm.expectEmit(true, true, false, true);
         emit BattleArena.AntiGriefSlashed(battleId, bob, _ag(STAKE_LOW));
         vm.expectEmit(true, false, false, true);
-        emit BattleArena.BattleCancelled(battleId, BattleArena.CancelReason.MutualTimeout);
+        emit BattleArena.BattleCancelled(battleId, BattleArena.CancelReason.ForfeitBoth); // review I1: not "mutual"
         arena.handleTimeout(battleId);
 
         assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW);
         assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW);
         _assertTreasuryReceived(devBefore, supplyBefore, 2 * _ag(STAKE_LOW));
         _assertConservation();
+    }
+
+    // ──────────── Review 2026-10-03: D-F damage cap ────────────
+
+    function test_settleDamageAbove40Reverts() public {
+        (uint256 battleId,,) = _setupActiveBattle();
+        assertEq(arena.MAX_BATTLE_DAMAGE(), 40);
+        vm.prank(resolver);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.DamageTooHigh.selector, battleId, uint8(1), uint8(41)));
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 41, 8], [uint8(30), 25, 35], SEED_SECRET, address(0));
+        vm.prank(resolver);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.DamageTooHigh.selector, battleId, uint8(2), uint8(100)));
+        arena.settle(battleId, alice, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 100], SEED_SECRET, address(0));
+        // Exactly the cap is a legal battle.
+        _settleAndFinalize(battleId, alice, [uint8(40), 40, 40], [uint8(40), 40, 40]);
+        _expectPhase(battleId, BattleArena.BattlePhase.Settled);
+    }
+
+    // ──────────── Review 2026-10-03 T2: the Safe's result, not the proposal, decides the forfeit ────────────
+
+    function test_resolveFrozenClearsProposedForfeit() public {
+        (uint256 battleId,,) = _setupActiveBattle();
+        _settle(battleId, alice, bob); // proposed: alice won, bob forfeited
+        vm.prank(guardian);
+        arena.freeze(battleId);
+        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 devBefore = claw.balanceOf(devWallet);
+        uint256 supplyBefore = claw.totalSupply();
+
+        vm.prank(admin);
+        arena.resolveFrozen(battleId, alice, address(0), false); // the Safe: alice won, nobody forfeited
+
+        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18, "winner: pot minus fee, plus own 5%");
+        assertEq(claw.balanceOf(bob), bobBefore + 125e18, "loser keeps the 5%: the proposed forfeit was overridden");
+        _assertTreasuryReceived(devBefore, supplyBefore, 500e18);
+        _assertConservation();
+    }
+
+    function test_resolveFrozenFlipsWinnerAndForfeit() public {
+        (uint256 battleId,,) = _setupActiveBattle();
+        _settle(battleId, alice, bob);
+        vm.prank(guardian);
+        arena.freeze(battleId);
+        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 devBefore = claw.balanceOf(devWallet);
+        uint256 supplyBefore = claw.totalSupply();
+
+        vm.expectEmit(true, true, false, true);
+        emit BattleArena.AntiGriefSlashed(battleId, alice, 125e18);
+        vm.prank(admin);
+        arena.resolveFrozen(battleId, bob, alice, false); // the Safe: bob won, alice forfeited
+
+        assertEq(claw.balanceOf(bob), bobBefore + 4_500e18 + 125e18);
+        assertEq(claw.balanceOf(alice), aliceBefore, "alice: stake lost and the 5% slashed");
+        _assertTreasuryReceived(devBefore, supplyBefore, 625e18);
+        _assertConservation();
+    }
+
+    // ──────────── Review 2026-10-03 D-A: opening a commit proves the team is playable ────────────
+
+    function test_openOwnCommitRejectsDisbandedTeam() public {
+        (uint256 battleId, uint256 teamIdA,) = _setupRevealPhase();
+        vm.prank(resolver);
+        arena.accuseRevealFailure(battleId, alice);
+        vm.prank(alice);
+        tm.disbandTeam(teamIdA);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.TeamNotOwned.selector, teamIdA));
+        arena.openOwnCommit(battleId, teamIdA, SALT_A);
+        assertFalse(arena.getBattle(battleId).openedA);
+    }
+
+    function test_openOwnCommitRejectsTeamSentMining() public {
+        (uint256 battleId, uint256 teamIdA,) = _setupRevealPhase();
+        vm.prank(resolver);
+        arena.accuseRevealFailure(battleId, alice);
+        // The committed team starts mining (MiningPool holds ACTIVITY_ROLE in production).
+        vm.startPrank(admin);
+        tm.grantRole(tm.ACTIVITY_ROLE(), admin);
+        tm.setTeamActive(teamIdA, true);
+        vm.stopPrank();
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.TeamAlreadyInBattle.selector, teamIdA));
+        arena.openOwnCommit(battleId, teamIdA, SALT_A);
+    }
+
+    function test_openOwnCommitRejectsPowerChange() public {
+        (uint256 battleId, uint256 teamIdA,) = _setupRevealPhase();
+        vm.prank(resolver);
+        arena.accuseRevealFailure(battleId, alice);
+        TeamManager.Team memory t = tm.getTeam(teamIdA);
+        vm.prank(admin);
+        nft.setEvolutionTier(t.lobsterIds[0], 2); // Power 3 -> 4
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.TeamPowerChanged.selector, teamIdA, uint8(3), uint8(4)));
+        arena.openOwnCommit(battleId, teamIdA, SALT_A);
+    }
+
+    /// @dev The review's free cancel, closed: a depositor who makes their own team unrevealable
+    ///      can no longer clear themselves by opening the hash — the lapse slashes them.
+    function test_accusedWithUnplayableTeamIsSlashedAtLapse() public {
+        (uint256 battleId, uint256 teamIdA, uint256 teamIdB) = _setupRevealPhase();
+        vm.prank(alice);
+        tm.disbandTeam(teamIdA);
+        vm.prank(resolver);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.TeamNotOwned.selector, teamIdA));
+        arena.revealTeams(battleId, teamIdA, SALT_A, teamIdB, SALT_B, _seedCommit(battleId));
+        vm.prank(resolver);
+        arena.accuseRevealFailure(battleId, alice);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.TeamNotOwned.selector, teamIdA));
+        arena.openOwnCommit(battleId, teamIdA, SALT_A);
+
+        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 devBefore = claw.balanceOf(devWallet);
+        uint256 supplyBefore = claw.totalSupply();
+        vm.warp(arena.getBattle(battleId).phaseDeadline + 1);
+        vm.expectEmit(true, false, false, true);
+        emit BattleArena.BattleCancelled(battleId, BattleArena.CancelReason.ForfeitA);
+        arena.handleTimeout(battleId);
+        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW, "alice: stake back, 5% gone");
+        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW), "bob: full refund");
+        _assertTreasuryReceived(devBefore, supplyBefore, _ag(STAKE_LOW));
+        _assertConservation();
+    }
+
+    // ──────────── Review 2026-10-03: previously untested reverts and boundary seconds ────────────
+
+    function test_createBattleNonMatchmakerReverts() public {
+        address[3] memory callers = [resolver, guardian, alice];
+        bytes32 role = arena.MATCHMAKER_ROLE(); // read BEFORE the prank (a view call would consume it)
+        for (uint256 i = 0; i < 3; i++) {
+            vm.prank(callers[i]);
+            vm.expectRevert(
+                abi.encodeWithSelector(bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")), callers[i], role)
+            );
+            arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
+        }
+    }
+
+    function test_createBattleZeroAddressPlayerReverts() public {
+        vm.prank(matchmaker);
+        vm.expectRevert(BattleArena.ZeroAddress.selector);
+        arena.createBattle(address(0), bob, STAKE_LOW, 3, 3);
+        vm.prank(matchmaker);
+        vm.expectRevert(BattleArena.ZeroAddress.selector);
+        arena.createBattle(alice, address(0), STAKE_LOW, 3, 3);
+    }
+
+    function test_depositAlreadyDepositedReverts_sideB() public {
+        uint256 battleId = _createBattle();
+        _deposit(battleId, bob, bytes32("b1"));
+        uint256 held = claw.balanceOf(address(arena));
+        vm.prank(bob);
+        claw.approve(address(arena), STAKE_LOW + _ag(STAKE_LOW));
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.AlreadyDeposited.selector, battleId));
+        arena.deposit(battleId, STAKE_LOW, 9, bytes32("b2"));
+        assertEq(claw.balanceOf(address(arena)), held, "one escrow, not two");
+        assertEq(arena.getBattle(battleId).teamCommitB, bytes32("b1"), "commit not swapped");
+    }
+
+    function test_finalizeBeforeSettleReverts() public {
+        _expectFinalizeRejected(_createBattle(), BattleArena.BattlePhase.Deposit);
+        (uint256 inReveal,,) = _setupRevealPhase();
+        _expectFinalizeRejected(inReveal, BattleArena.BattlePhase.TeamReveal);
+        (uint256 active,,) = _setupActiveBattle();
+        _expectFinalizeRejected(active, BattleArena.BattlePhase.Active);
+    }
+
+    function _expectFinalizeRejected(uint256 battleId, BattleArena.BattlePhase actual) internal {
+        uint256 held = claw.balanceOf(address(arena));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BattleArena.InvalidBattlePhase.selector, battleId, BattleArena.BattlePhase.AwaitingFinalize, actual
+            )
+        );
+        arena.finalizeBattle(battleId);
+        assertEq(claw.balanceOf(address(arena)), held, "nothing moved");
+    }
+
+    function test_revealTeamsWrongPhaseReverts() public {
+        uint256 teamA = _createEvolvedTeam(alice);
+        uint256 teamB = _createEvolvedTeam(bob);
+        uint256 battleId = _createBattle();
+        _deposit(battleId, alice, _commitHash(battleId, alice, teamA, SALT_A)); // one deposit: still Deposit
+        vm.prank(resolver);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BattleArena.InvalidBattlePhase.selector, battleId, BattleArena.BattlePhase.TeamReveal, BattleArena.BattlePhase.Deposit
+            )
+        );
+        arena.revealTeams(battleId, teamA, SALT_A, teamB, SALT_B, _seedCommit(battleId));
+
+        (uint256 active, uint256 a2, uint256 b2) = _setupActiveBattle();
+        vm.prank(resolver);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BattleArena.InvalidBattlePhase.selector, active, BattleArena.BattlePhase.TeamReveal, BattleArena.BattlePhase.Active
+            )
+        );
+        arena.revealTeams(active, a2, SALT_A, b2, SALT_B, _seedCommit(active));
+        _settle(active, alice, address(0));
+        vm.prank(resolver);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BattleArena.InvalidBattlePhase.selector, active, BattleArena.BattlePhase.TeamReveal, BattleArena.BattlePhase.AwaitingFinalize
+            )
+        );
+        arena.revealTeams(active, a2, SALT_A, b2, SALT_B, _seedCommit(active));
+    }
+
+    function test_accuseAfterRevealReverts() public {
+        (uint256 battleId,,) = _setupActiveBattle();
+        vm.prank(resolver);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BattleArena.InvalidBattlePhase.selector, battleId, BattleArena.BattlePhase.TeamReveal, BattleArena.BattlePhase.Active
+            )
+        );
+        arena.accuseRevealFailure(battleId, alice);
+    }
+
+    function test_secondAccusationInsideGraceExtendsAgain() public {
+        (uint256 battleId,,) = _setupRevealPhase();
+        vm.prank(resolver);
+        arena.accuseRevealFailure(battleId, alice);
+        uint256 firstGrace = arena.getBattle(battleId).phaseDeadline;
+        vm.warp(block.timestamp + 30 seconds); // past the original 20 s window, inside the first grace
+        vm.prank(resolver);
+        arena.accuseRevealFailure(battleId, bob);
+        assertEq(arena.getBattle(battleId).phaseDeadline, block.timestamp + arena.REVEAL_GRACE());
+        assertGt(arena.getBattle(battleId).phaseDeadline, firstGrace);
+    }
+
+    function test_resolveFrozenStillAllowedAfterLongStop() public {
+        (uint256 battleId,,) = _setupActiveBattle();
+        _settleAndFreeze(battleId, alice);
+        vm.warp(uint256(arena.getBattle(battleId).frozenAt) + 72 hours + 1);
+        uint256 aliceBefore = claw.balanceOf(alice);
+        vm.prank(admin);
+        arena.resolveFrozen(battleId, alice, address(0), false);
+        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BattleArena.InvalidBattlePhase.selector, battleId, BattleArena.BattlePhase.Frozen, BattleArena.BattlePhase.Settled
+            )
+        );
+        arena.expireFrozen(battleId);
+    }
+
+    function test_terminalBattlesRejectEveryAction() public {
+        (uint256 settled,,) = _setupActiveBattle();
+        _settleAndFinalize(settled, alice, [uint8(5), 5, 5], [uint8(20), 20, 20]);
+        uint256 cancelled = _createBattle();
+        vm.warp(block.timestamp + arena.DEPOSIT_WINDOW() + 1);
+        arena.handleTimeout(cancelled);
+        uint256[2] memory ids = [settled, cancelled];
+        for (uint256 i = 0; i < 2; i++) {
+            uint256 id = ids[i];
+            BattleArena.BattlePhase p = arena.getBattle(id).phase;
+            vm.prank(resolver);
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidBattlePhase.selector, id, BattleArena.BattlePhase.Active, p));
+            arena.settle(id, alice, HASH_STATE, HASH_LOG, [uint8(5), 5, 5], [uint8(20), 20, 20], SEED_SECRET, address(0));
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidBattlePhase.selector, id, BattleArena.BattlePhase.AwaitingFinalize, p));
+            arena.finalizeBattle(id);
+            vm.prank(guardian);
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidBattlePhase.selector, id, BattleArena.BattlePhase.AwaitingFinalize, p));
+            arena.freeze(id);
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidBattlePhase.selector, id, BattleArena.BattlePhase.Frozen, p));
+            arena.expireFrozen(id);
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.BattleDoesNotExist.selector, id));
+            arena.handleTimeout(id);
+            vm.prank(alice);
+            vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidBattlePhase.selector, id, BattleArena.BattlePhase.Deposit, p));
+            arena.deposit(id, STAKE_LOW, 9, bytes32("x"));
+        }
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.BattleDoesNotExist.selector, uint256(99)));
+        arena.getBattle(99);
+    }
+
+    function test_depositAtExactDeadlineAccepted() public {
+        uint256 battleId = _createBattle();
+        vm.warp(arena.getBattle(battleId).phaseDeadline); // == deadline: still open
+        _deposit(battleId, alice, bytes32("c"));
+        assertTrue(arena.getBattle(battleId).depositA);
+    }
+
+    function test_openOwnCommitAtExactGraceDeadlineAccepted() public {
+        (uint256 battleId, uint256 teamIdA,) = _setupRevealPhase();
+        vm.prank(resolver);
+        arena.accuseRevealFailure(battleId, alice);
+        vm.warp(arena.getBattle(battleId).phaseDeadline);
+        vm.prank(alice);
+        arena.openOwnCommit(battleId, teamIdA, SALT_A);
+        assertTrue(arena.getBattle(battleId).openedA);
+    }
+
+    function test_emergencyWithdrawAtExactAvailableAtAccepted() public {
+        (uint256 battleId,,) = _setupActiveBattle();
+        vm.warp(arena.getBattle(battleId).lastProgressAt + 24 hours);
+        vm.prank(alice);
+        arena.emergencyWithdraw(battleId);
+        _expectPhase(battleId, BattleArena.BattlePhase.Cancelled);
+    }
+
+    function test_constructorZeroAddressRevertsRemainingArgs() public {
+        vm.startPrank(admin);
+        vm.expectRevert(BattleArena.ZeroAddress.selector);
+        new BattleArena(admin, address(claw), address(nft), address(0), address(treasury), address(vrf));
+        vm.expectRevert(BattleArena.ZeroAddress.selector);
+        new BattleArena(admin, address(claw), address(nft), address(tm), address(0), address(vrf));
+        vm.expectRevert(BattleArena.ZeroAddress.selector);
+        new BattleArena(admin, address(claw), address(nft), address(tm), address(treasury), address(0));
+        vm.stopPrank();
     }
 
     // ──────────── review-window tuning (T-02 timelock) ────────────
