@@ -227,11 +227,15 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
    The resolver opens BOTH teams in a single atomic transaction (`revealTeams`) — neither
    team's identity reaches the chain until both are bound together (F5-01). Prevents
    counter-picking AND closes the matchup-dodge vector: nothing is revealed by a one-sided action.
-   D-14: if a player's salt does not open their commit (or never arrives), the resolver reports
-   it (`accuseRevealFailure`); that player then has 2 minutes to open their own commit
-   (`openOwnCommit`), after which the resolver reveals as usual. An accused player who never
-   opens it forfeits their 5% when the window lapses; otherwise a lapse mutually cancels with
-   full refunds (a dropped connection never costs an honest player anything).
+   D-14: if a player's salt does not open their commit (or never arrives), or opens onto a team
+   that cannot be revealed (disbanded, sent mining, bound elsewhere, Power moved — review 2026-10-03
+   D-A), the resolver reports it (`accuseRevealFailure`); that player then has 2 minutes to open
+   their own commit (`openOwnCommit`), which must prove the team is PLAYABLE, after which the
+   resolver reveals as usual. An accused player who never opens a playable commit forfeits their
+   5% when the window lapses (`ForfeitA` / `ForfeitB`, or `ForfeitBoth`); otherwise a lapse
+   mutually cancels with full refunds. A dropped connection costs an honest player nothing as long
+   as their client answers the accusation — the engine pushes it over WebSocket and the agent kit
+   answers automatically.
 
 4. BATTLE SEED (commit on-chain, derive off-chain)
    seed = keccak(drand round R, per-battle server secret, battleId)
@@ -259,6 +263,8 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
    forfeiter) to BattleArena.settle()
    forfeiter = the player who resigned or timed out 3 turns in a row (address(0) otherwise; a draw
    never has one) — they lose their 5% anti-grief deposit at payout
+   Every damage value is ≤ MAX_BATTLE_DAMAGE = 40 (DamageTooHigh otherwise; review D-F) — a stolen
+   resolver key cannot bar every lobster and charge a season of repairs
    Repair damage is applied and BOTH teams are released right here: lobsters never wait for money
    No signature argument: the RESOLVER_ROLE tx signature is the authentication
    Active phase has a 3h ACTIVE_WINDOW; past it, handleTimeout() cancels with full refunds
@@ -268,7 +274,8 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
    Window per bracket: 5 min (Low) / 30 min (Mid) / 1 hour (High), configurable (24 h timelock)
    The engine's watchdog replays every battle from its own log and checks winner, forfeiter,
    both damage arrays and both hashes. Anything it cannot reproduce → freeze(battleId) with the
-   GUARDIAN key before the window ends (a guardian can only hold a payout; it moves no money)
+   GUARDIAN key before the window ends (a guardian can only hold a payout; it cannot direct money —
+   a freeze the Safe never resolves ends in refund-both at the protocol's cost, see below)
    Clean → after the window anyone calls finalizeBattle(): winner gets 2·stake − 10% fee + own 5%
    Draw → each side pays half the normal fee (10% of its own stake) and gets the rest + 5% back
    Frozen → the Safe calls resolveFrozen() (pay the corrected result, or refund both) within 72 h;
@@ -518,7 +525,7 @@ Battle rank pays in mining advantage — stakes stay fully zero-sum. Battle ELO 
 - **Economics** (`bun run boost`): breakeven base boost 7.0 / 7.2 / 10.0% (Evolved/Elite/Apex at 14 battles/wk; halves at 7/wk); population-proof — identical outcomes at 50 / 500 / 5,000 teams
 
 #### Anti-Griefing
-- **5% anti-grief deposit** (D-13/14/15): lost by a player who resigns or times out 3 turns in a row (`settle`'s `forfeiter`), or whose team commit the resolver could not open and who did not open it themselves within the 2-minute grace; returned otherwise
+- **5% anti-grief deposit** (D-13/14/15): lost by a player who resigns or times out 3 turns in a row (`settle`'s `forfeiter`), or who was reported by the resolver and did not open a *playable* commit themselves within the 2-minute grace — a commit that does not open, or opens onto a team its owner has since made unrevealable (review 2026-10-03 D-A); returned otherwise. Making your own team unplayable after depositing is therefore no longer a free exit
 - **Auto-forfeit**: after 3 consecutive per-turn timeouts by the same player, forfeit awarded and anti-grief deposit slashed
 - **60-second per-turn shot clock**: generous for humans on hex grid; agents submit in <1s, turn proceeds immediately on commit (auto-Defend on timeout)
 - **Commit in the deposit**: no separate commit clock that the opponent starts; deposit also binds the player's consent (stake + max opponent Power)
