@@ -27,7 +27,7 @@ import {
   addresses,
   teamCommitHash,
 } from '@clawbada/chain';
-import { ANTI_GRIEF_DEPOSIT_BPS, BattlePhase, STAKE_BRACKETS } from '@clawbada/game-logic';
+import { ANTI_GRIEF_DEPOSIT_BPS, BattlePhase, LAUNCH_STAKES, STAKE_BRACKET_LABELS } from '@clawbada/game-logic';
 import { db, battles } from '@clawbada/db';
 import { log as baseLog } from '../../../logger';
 import { walletAuth } from '../../../middleware/auth';
@@ -42,11 +42,14 @@ const log = baseLog.child({ module: 'combat:writes' });
 
 export const battleWriteRoutes = new Hono();
 
-/** D-08: null when the on-chain battle is exactly the match this server made for `address`;
- *  otherwise what differs. Pure, so every branch is unit-tested. */
+/** D-08 / D-E: null when the on-chain battle is exactly the match this server made for `address`;
+ *  otherwise what differs. The stake is a damped peg the contract computes at createBattle, so
+ *  the check is on the BRACKET the player queued for (the matchmaker key names it and cannot
+ *  inflate it) plus a ceiling: no bracket's stake ever exceeds its launch value. Pure, so every
+ *  branch is unit-tested. */
 export function depositConsentMismatch(
   address: string,
-  onChain: { playerA: string; playerB: string; stakeAmount: bigint; powerA?: number | bigint; powerB?: number | bigint },
+  onChain: { playerA: string; playerB: string; stakeAmount: bigint; bracket?: number | bigint; powerA?: number | bigint; powerB?: number | bigint },
   row: { playerA: string; playerB: string; stakeBracket: number; powerA: number | null; powerB: number | null; fromMatchmaker?: boolean | null } | undefined,
 ): string | null {
   if (!row) return 'no match on record';
@@ -55,32 +58,41 @@ export function depositConsentMismatch(
   const b = onChain.playerB.toLowerCase();
   if (address !== a && address !== b) return 'you are not a participant';
   if (row.playerA.toLowerCase() !== a || row.playerB.toLowerCase() !== b) return 'the players differ from the match on record';
-  const expectedStake = STAKE_BRACKETS[row.stakeBracket];
-  if (expectedStake === undefined || onChain.stakeAmount !== expectedStake * 10n ** 18n) {
-    return `the stake differs from the bracket you queued for (on-chain ${onChain.stakeAmount / 10n ** 18n} CLAW)`;
+  const launch = LAUNCH_STAKES[row.stakeBracket];
+  if (launch === undefined) return 'the match record names no valid bracket';
+  const label = STAKE_BRACKET_LABELS[row.stakeBracket];
+  if (onChain.bracket !== undefined && Number(onChain.bracket) !== row.stakeBracket) {
+    return `the bracket differs from the one you queued for (on-chain bracket ${Number(onChain.bracket)} at ${onChain.stakeAmount / 10n ** 18n} CLAW, you queued ${label})`;
   }
+  if (onChain.stakeAmount > launch * 10n ** 18n) {
+    return `the stake differs from the bracket you queued for (on-chain ${onChain.stakeAmount / 10n ** 18n} CLAW, above the ${label} bracket's launch value of ${launch} CLAW)`;
+  }
+  if (onChain.stakeAmount <= 0n) return 'the stake on-chain is zero';
   if (row.powerA !== null && onChain.powerA !== undefined && Number(onChain.powerA) !== row.powerA) return 'Team Power A differs from the match on record';
   if (row.powerB !== null && onChain.powerB !== undefined && Number(onChain.powerB) !== row.powerB) return 'Team Power B differs from the match on record';
   return null;
 }
 
-/** D-08: what the player consents to in `deposit(battleId, expectedStake, maxOpponentPower, commit)`:
- *  the stake of the bracket they queued for and the opponent Team Power they were shown when
- *  matched — both from THIS server's match record, never from the chain. The contract reverts
- *  `ConsentMismatch` if the on-chain battle differs, so a misbehaving matchmaker key cannot
- *  spring a bigger stake or a stronger opponent on a depositor. Null if the record is incomplete. */
+/** D-08 / D-E: what the player consents to in `deposit(battleId, expectedStake, maxOpponentPower, commit)`:
+ *  the stake the contract bound for the bracket they queued for — read from the battle, AFTER
+ *  `depositConsentMismatch` has checked that the battle is the match on record (same players,
+ *  same bracket, at or below the bracket's launch value) — and the opponent Team Power they were
+ *  shown when matched, from THIS server's record. The contract reverts `ConsentMismatch` if the
+ *  on-chain battle differs, so a misbehaving matchmaker key cannot spring a bigger stake or a
+ *  stronger opponent on a depositor. Null if the record is incomplete. */
 export function depositConsent(
   address: string,
+  onChain: { stakeAmount: bigint },
   row: { playerA: string; playerB: string; stakeBracket: number; powerA: number | null; powerB: number | null },
 ): { expectedStake: bigint; maxOpponentPower: number } | null {
-  const stake = STAKE_BRACKETS[row.stakeBracket];
-  if (stake === undefined) return null;
+  if (LAUNCH_STAKES[row.stakeBracket] === undefined) return null;
+  if (onChain.stakeAmount <= 0n) return null;
   const isA = row.playerA.toLowerCase() === address;
   const isB = row.playerB.toLowerCase() === address;
   if (!isA && !isB) return null;
   const opponentPower = isA ? row.powerB : row.powerA;
   if (opponentPower === null || opponentPower === undefined) return null;
-  return { expectedStake: stake * 10n ** 18n, maxOpponentPower: opponentPower };
+  return { expectedStake: onChain.stakeAmount, maxOpponentPower: opponentPower };
 }
 
 battleWriteRoutes.post(
@@ -102,8 +114,8 @@ battleWriteRoutes.post(
     }
 
     // D-08 (audit 2026-09): calldata is only built when the battle on-chain IS the match this
-    // server made for the caller — same two players, the stake of the bracket they queued for,
-    // the Powers the matchmaker recorded. The contract now also binds consent itself (the
+    // server made for the caller — same two players, the bracket they queued for (D-E: the
+    // amount is the peg's, bound by the contract), the Powers the matchmaker recorded. The contract now also binds consent itself (the
     // expected stake + max opponent Power ride in the deposit), so this is defence in depth and
     // a clear error message instead of a ConsentMismatch revert.
     const row = await db.query.battles.findFirst({ where: eq(battles.battleId, id) });
@@ -115,7 +127,7 @@ battleWriteRoutes.post(
         `This on-chain battle is not the match this server made for you (${mismatch}). Do not deposit. If you did not expect this, report it.`,
       );
     }
-    const consent = depositConsent(address, row!);
+    const consent = depositConsent(address, battle, row!);
     if (!consent) {
       throw new ApiError('BATTLE_PHASE_ERROR', 'The match record is missing the stake or opponent Power you agreed to, so no deposit can be built.');
     }

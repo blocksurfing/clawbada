@@ -8,7 +8,8 @@ import {Script, console2} from "forge-std/Script.sol";
 ///      from it whenever a frozen battle reaches its 72 h long-stop unresolved, so a
 ///      guardian freeze that governance ignores costs the protocol, not the players.
 ///      Checked by VerifyDeployment --sig "reserveFunded()". 2M CLAW = 20 frozen High
-///      (50,000) battles expiring before governance tops it up.
+///      (50,000 at launch; D-E: High follows the peg, never above its launch value) battles
+///      expiring before governance tops it up.
 uint256 constant REFUND_RESERVE_TARGET = 2_000_000e18;
 
 /// @title DeployHelpers

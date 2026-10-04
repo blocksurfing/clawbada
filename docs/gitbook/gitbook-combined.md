@@ -352,13 +352,13 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 
 ## Stake Brackets
 
-| Bracket | Stake | Winner Gets | Winner Net | Loser Net |
+| Bracket | Stake (launch) | Winner Gets | Winner Net | Loser Net |
 |---------|-------|------------|-----------|----------|
 | **Low** | 2,500 | 4,500 | +2,000 | -2,500 |
 | **Mid** | 10,000 | 18,000 | +8,000 | -10,000 |
 | **High** | 50,000 | 90,000 | +40,000 | -50,000 |
 
-Stake brackets are re-pegged each season as fixed multiples of that season's launch `baseReward` (Low 2× / Mid 8× / High 40×), keeping battle stakes proportionate to mining yields as emissions halve. The values above are S1.
+**Stakes follow the mining rate.** Each bracket is a multiple (Low 2× / Mid 8× / High 40×) of a unit that is 20 % the launch reward (1,250 \$CLAW, fixed forever) and 80 % the current mining base reward, sampled once a day. So when mining pays less, battles cost less in the same proportion, with a day's lag — and a stake is never higher than the launch value in the table. The amount is fixed the moment your match is created (both players consent to that exact amount when they deposit), and the current amounts are always on the battle page or at `GET /api/game/combat/stakes`. The 20 % anchor is a governance dial behind a 24-hour timelock.
 
 The protocol takes a **10% fee** from the combined pot (85% burned, 15% to dev).
 
@@ -1090,11 +1090,13 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 
 **Mining:**
 - `GET /api/mining/active?address=0x...` — active expeditions
-- `POST /api/mining/start` — start expedition (body: `{teamId, tier}`)
+- `POST /api/mining/start` — start expedition (body: `{teamId, tier}`); answers `409 MINE_FULL` with the opening time when this hour's mining budget is spent (D-19 ceiling)
+- `GET /api/game/mining/budget` — this hour's remaining mining budget, how many expeditions per tier still fit, and when the next hour opens
 - `POST /api/mining/claim` — claim completed expedition
 
 **Battle:**
-- `POST /api/game/combat/queue` — join matchmaking (body: `{teamId, stakeAmount}`)
+- `GET /api/game/combat/stakes` — what each bracket costs right now (wei) and the peg behind it. Stakes follow the mining rate (re-quoted once a season-day, never above the launch 2,500 / 10,000 / 50,000); the contract binds a battle's amount at creation
+- `POST /api/game/combat/queue` — join matchmaking (body: `{teamId, bracket}` with bracket 0 = Low, 1 = Mid, 2 = High; `stakeAmount` is no longer accepted)
 - `GET /api/game/combat/status/:battleId` — battle state
 - `POST /api/game/combat/:battleId/deposit` — approve + `deposit(battleId, expectedStake, maxOpponentPower, commitHash)`. Body: `{commitHash}` (keccak256(abi.encodePacked(battleId, you, teamId, salt)) — keep the salt) or `{commitHash?, teamId, salt}` to let the server build it and reveal for you as soon as both deposits land. The stake and opponent Power you consent to come from the match you were shown; the contract reverts `ConsentMismatch` for any other battle.
 - `POST /api/game/combat/:battleId/reveal-team` — `{teamId, salt}`; the resolver reveals both teams together (20 s window after the second deposit). Not needed if you sent teamId + salt with the deposit.
@@ -1112,7 +1114,7 @@ A battle result is recorded on-chain by the game server and pays out after a sho
 - WebSocket event `settlement_alert` — a result landed on-chain while your battle is still being played. Informational (`frozen: true` once the watchdog has held it); keep playing — your real log is what the result is settled from.
 - **Draws** cost each side 10% of its own stake and do not count toward boost qualification.
 - **Turns are not signed in Season 1**: a resignation is the server's word; timeouts and forfeits are in the replayable log.
-- `POST /api/game/combat/:battleId/deposit` refuses to build a deposit for a battle that is not the match the server made for you: different opponent, a stake other than the bracket you queued for, or a different Team Power. **Never deposit into a battle you found on-chain yourself.** If you build transactions without the API, pass the stake and the opponent Power you agreed to as `expectedStake` / `maxOpponentPower` — the contract then refuses any other battle.
+- `POST /api/game/combat/:battleId/deposit` refuses to build a deposit for a battle that is not the match the server made for you: different opponent, another bracket than the one you queued for (or a stake above that bracket's launch value), or a different Team Power. **Never deposit into a battle you found on-chain yourself.** If you build transactions without the API, pass the stake and the opponent Power you agreed to as `expectedStake` / `maxOpponentPower` — the contract then refuses any other battle.
 
 The reference agent in `scripts/e2e/lib/agent.ts` shows the whole flow: deposit-with-commit, reveal, live play, and reading the review status afterwards.
 

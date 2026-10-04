@@ -222,7 +222,7 @@ describe('BattleWatcher BattleSettled', () => {
   test('BattleCreated for an unknown battle: fallback insert is phase Deposit with status created', async () => {
     db.queue('select', []); // no matchmaker row for this battle
     await new BattleWatcher().handleEvent(
-      makeEventLog('BattleCreated', { battleId: 77n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: 2500n * WEI, powerA: 3, powerB: 4 }),
+      makeEventLog('BattleCreated', { battleId: 77n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: 2500n * WEI, powerA: 3, powerB: 4, bracket: 0 }),
     );
     expect(db.insert).toHaveBeenCalledTimes(1);
     const values = argOf(chainCalls(db.insert, 0), 'values');
@@ -230,25 +230,39 @@ describe('BattleWatcher BattleSettled', () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 
+  test('D-E: BattleCreated for a KNOWN (matchmaker) battle mirrors the bound amount and bracket onto the row', async () => {
+    db.queue('select', [battleRow({ phase: 1, stakeBracket: 1, stakeAmount: '10000' })]); // the matchmaker's quote
+    await new BattleWatcher().handleEvent(
+      makeEventLog('BattleCreated', { battleId: 5n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: 6_000n * WEI, powerA: 3, powerB: 3, bracket: 1n }),
+    );
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(argOf(chainCalls(db.update, 0), 'set')).toEqual({ stakeAmount: '6000', stakeBracket: 1 });
+  });
+
   // ── D-08: a battle with no matchmaker row behind it is labelled truthfully ──
 
   test('D-08: the fallback row is marked as NOT from the matchmaker', async () => {
     db.queue('select', []);
     await new BattleWatcher().handleEvent(
-      makeEventLog('BattleCreated', { battleId: 78n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: 2500n * WEI, powerA: 3, powerB: 3 }),
+      makeEventLog('BattleCreated', { battleId: 78n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: 2500n * WEI, powerA: 3, powerB: 3, bracket: 0 }),
     );
     expect(argOf(chainCalls(db.insert, 0), 'values')).toMatchObject({ fromMatchmaker: false, stakeBracket: 0 });
   });
 
-  test('D-08: the bracket comes from the on-chain stake — a 50,000 battle is never labelled Low', async () => {
-    const cases: Array<[bigint, number]> = [[2_500n, 0], [10_000n, 1], [50_000n, 2], [33_333n, 2]]; // unknown stake -> High
-    for (const [stake, bracket] of cases) {
+  test('D-08 / D-E: the bracket comes from the EVENT, not the amount — a pegged 6,000 Mid battle is Mid; no bracket is never labelled Low', async () => {
+    // [stake, event bracket (undefined = a log without the field), expected label]
+    const cases: Array<[bigint, bigint | number | undefined, number]> = [
+      [2_500n, 0n, 0], [6_000n, 1, 1], [15_216n, 2n, 2], [50_000n, 2n, 2],
+      [33_333n, undefined, 2], // missing -> High (the alarming direction)
+      [2_500n, 7n, 2], // out of range -> High
+    ];
+    for (const [stake, bracket, want] of cases) {
       db.reset();
       db.queue('select', []);
       await new BattleWatcher().handleEvent(
-        makeEventLog('BattleCreated', { battleId: 79n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: stake * WEI, powerA: 3, powerB: 9 }),
+        makeEventLog('BattleCreated', { battleId: 79n, playerA: PLAYER_A, playerB: PLAYER_B, stakeAmount: stake * WEI, powerA: 3, powerB: 9, ...(bracket === undefined ? {} : { bracket }) }),
       );
-      expect(argOf(chainCalls(db.insert, 0), 'values')).toMatchObject({ stakeBracket: bracket, stakeAmount: stake.toString() });
+      expect(argOf(chainCalls(db.insert, 0), 'values')).toMatchObject({ stakeBracket: want, stakeAmount: stake.toString() });
     }
   });
 

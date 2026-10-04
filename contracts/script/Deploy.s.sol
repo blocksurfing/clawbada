@@ -97,7 +97,7 @@ contract Deploy is DeployHelpers {
         // ── Tier 2 — Depends on Tiers 0 + 1 ──
 
         d.battleArena = address(
-            new BattleArena(deployer, d.clawToken, d.lobsterNFT, d.teamManager, d.treasury, d.battleVRF)
+            new BattleArena(deployer, d.clawToken, d.lobsterNFT, d.teamManager, d.treasury, d.battleVRF, d.miningPool)
         );
         console2.log("BattleArena:", d.battleArena);
     }

@@ -10,6 +10,13 @@ import {TeamManager} from "./TeamManager.sol";
 import {Treasury, IClawBurnable} from "./Treasury.sol";
 import {BattleVRF} from "./BattleVRF.sol";
 
+/// @dev D-E: what BattleArena needs from MiningPool — the daily stake reference (0 before any season)
+///      and the live rate as its fallback.
+interface IStakeReference {
+    function stakeReference() external view returns (uint256);
+    function currentBaseReward() external view returns (uint256);
+}
+
 /// @title BattleArena — Battle lifecycle state machine for Clawbada
 /// @notice Manages the full battle lifecycle: stake escrow (with the team commit and the
 ///         player's consent bound into the deposit), the atomic team reveal, settlement of
@@ -89,8 +96,17 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     uint8 public constant MAX_TEAM_POWER = 9;
     uint256 public constant NUM_STAKE_BRACKETS = 3;
     uint256 public constant EMERGENCY_WITHDRAW_DELAY = 24 hours;
-    // T-02: on-chain timelock for admin tuning of the review windows
+    // T-02: on-chain timelock for admin tuning of the review windows (and, D-E, the stake share)
     uint256 public constant MIN_TUNING_DELAY = 24 hours;
+
+    // ──────────── D-E: stakes as a damped live peg (owner decision 2026-10-03) ────────────
+    /// @notice Season 1's launch reward: the anchor of the fixed part of every stake, forever.
+    uint256 public constant GENESIS_BASE_REWARD = 1_250e18;
+    /// @notice Share of the pegged unit anchored to GENESIS_BASE_REWARD (bps); the rest follows the daily
+    ///         reference. 20 % PROVISIONAL (D-E), revisited by the token-flow model; a timelocked dial.
+    uint256 public stakeFixedBps = 2_000;
+    uint256 public pendingStakeFixedBps;
+    uint64 public pendingStakeFixedBpsAt;
 
     // ──────────── Types ────────────
     // Values are part of the off-chain contract (indexer, API, agents read the phase number);
@@ -119,6 +135,9 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         // F-04: power-binding snapshot recorded at createBattle time.
         uint8 powerA;
         uint8 powerB;
+        /// @dev D-E: the bracket (0 Low / 1 Mid / 2 High) this battle was created in; stakeAmount is what
+        ///      stakeFor(bracket) returned at that moment and never moves afterwards.
+        uint8 bracket;
         uint256 phaseDeadline;
         uint256 lastProgressAt; // last meaningful state advance (for emergency withdraw)
         address winner; // address(0) until settled; stays address(0) for a draw (phase disambiguates)
@@ -155,12 +174,11 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     TeamManager public teamManager;
     Treasury public treasury;
     BattleVRF public battleVRF;
+    IStakeReference public miningPool; // D-E: the stake peg's source (MiningPool)
 
     uint256 public nextBattleId = 1;
     mapping(uint256 => Battle) private _battles;
     mapping(uint256 => bool) public teamInBattle; // teamId → in a battle that is still being played
-
-    uint256[3] public STAKE_BRACKETS;
 
     /// @notice Per-bracket review window (seconds) between settle() and payout.
     uint256[3] public reviewWindows;
@@ -172,7 +190,9 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     uint256 public refundReserve;
 
     // ──────────── Events ────────────
-    event BattleCreated(uint256 indexed battleId, address indexed playerA, address indexed playerB, uint256 stakeAmount, uint8 powerA, uint8 powerB);
+    event BattleCreated(uint256 indexed battleId, address indexed playerA, address indexed playerB, uint256 stakeAmount, uint8 powerA, uint8 powerB, uint8 bracket);
+    event StakeFixedBpsProposed(uint256 newBps, uint256 enactableAt);
+    event StakeFixedBpsSet(uint256 oldBps, uint256 newBps);
     event StakeDeposited(uint256 indexed battleId, address indexed player);
     event TeamCommitted(uint256 indexed battleId, address indexed player);
     event TeamRevealed(uint256 indexed battleId, address indexed player, uint256 teamId);
@@ -201,7 +221,6 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     // ──────────── Errors ────────────
     error ZeroAddress();
-    error InvalidStakeAmount(uint256 amount);
     error BattleDoesNotExist(uint256 battleId);
     error InvalidBattlePhase(uint256 battleId, BattlePhase expected, BattlePhase actual);
     error NotBattleParticipant(uint256 battleId);
@@ -235,6 +254,10 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     error InvalidReviewWindow(uint256 newWindow);
     error NoPendingChange(uint256 bracketIndex);
     error TuningDelayNotElapsed(uint256 bracketIndex, uint256 enactableAt);
+    /// @dev D-E: the fixed share must be a share (0..10,000 bps).
+    error InvalidStakeShare(uint256 bps);
+    error NoPendingStakeShare();
+    error StakeShareDelayNotElapsed(uint256 enactableAt);
 
     // ──────────── Constructor ────────────
 
@@ -244,11 +267,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         address lobsterNFT_,
         address teamManager_,
         address treasury_,
-        address battleVRF_
+        address battleVRF_,
+        address miningPool_
     ) {
         if (
             admin == address(0) || clawToken_ == address(0) || lobsterNFT_ == address(0)
                 || teamManager_ == address(0) || treasury_ == address(0) || battleVRF_ == address(0)
+                || miningPool_ == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -260,10 +285,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         teamManager = TeamManager(teamManager_);
         treasury = Treasury(treasury_);
         battleVRF = BattleVRF(battleVRF_);
-
-        STAKE_BRACKETS[0] = 2_500e18;
-        STAKE_BRACKETS[1] = 10_000e18;
-        STAKE_BRACKETS[2] = 50_000e18;
+        miningPool = IStakeReference(miningPool_);
 
         // Review windows: long enough for the watchdog to replay the battle and freeze it.
         reviewWindows[0] = 5 minutes;
@@ -274,10 +296,14 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     // ──────────── Matchmaker ────────────
 
     /// @notice Create a new battle between two players. Called by the off-chain matchmaker.
+    /// @dev D-E: the matchmaker names a BRACKET; the stake is the bracket's amount at this moment
+    ///      (`stakeFor`), bound into the battle for good. Both players then consent to that exact
+    ///      amount in deposit(), so a reference that moves between match and deposit cannot
+    ///      change what anyone agreed to.
     function createBattle(
         address playerA,
         address playerB,
-        uint256 stakeAmount,
+        uint8 bracket,
         uint8 powerA,
         uint8 powerB
     )
@@ -287,9 +313,9 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     {
         if (playerA == playerB) revert PlayerCannotBeSelf();
         if (playerA == address(0) || playerB == address(0)) revert ZeroAddress();
-        if (!_isValidStake(stakeAmount)) revert InvalidStakeAmount(stakeAmount);
         if (powerA < MIN_TEAM_POWER || powerA > MAX_TEAM_POWER) revert InvalidPowerScore(powerA);
         if (powerB < MIN_TEAM_POWER || powerB > MAX_TEAM_POWER) revert InvalidPowerScore(powerB);
+        uint256 stakeAmount = stakeFor(bracket); // reverts InvalidStakeBracket
 
         battleId = nextBattleId++;
 
@@ -299,10 +325,80 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         b.stakeAmount = stakeAmount;
         b.powerA = powerA;
         b.powerB = powerB;
+        b.bracket = bracket;
         b.phase = BattlePhase.Deposit;
         b.phaseDeadline = block.timestamp + DEPOSIT_WINDOW;
 
-        emit BattleCreated(battleId, playerA, playerB, stakeAmount, powerA, powerB);
+        emit BattleCreated(battleId, playerA, playerB, stakeAmount, powerA, powerB, bracket);
+    }
+
+    // ──────────── D-E: stake peg ────────────
+
+    /// @notice The stake a battle created now in `bracket` would bind, in CLAW wei.
+    /// @dev stake = multiplier × unit, where
+    ///      unit = (GENESIS × fixedBps + reference × (10,000 − fixedBps)) / 10,000 and
+    ///      reference = MiningPool.stakeReference (the base reward sampled once per season-day),
+    ///      falling back to the live base reward before the first sample and to GENESIS when
+    ///      the pool has no rate at all (before the first season) — so pre-season stakes are
+    ///      exactly 2,500 / 10,000 / 50,000. The reference is capped at GENESIS: the glide
+    ///      never exceeds the launch reward, and a stake never exceeds its launch value.
+    ///      Computed with ONE division (multiplier × unit × 10,000 / 10,000), then rounded DOWN
+    ///      to a whole CLAW so quoted amounts are readable.
+    function stakeFor(uint8 bracket) public view returns (uint256) {
+        if (bracket >= NUM_STAKE_BRACKETS) revert InvalidStakeBracket(bracket);
+        return _stakeFor(bracket, _stakeReference());
+    }
+
+    /// @dev The peg's reference after the fallbacks and the genesis cap (see `stakeFor`).
+    function _stakeReference() internal view returns (uint256 ref) {
+        ref = miningPool.stakeReference();
+        if (ref == 0) ref = miningPool.currentBaseReward();
+        if (ref == 0 || ref > GENESIS_BASE_REWARD) ref = GENESIS_BASE_REWARD;
+    }
+
+    /// @dev multiplier × (GENESIS × fixed + ref × (10,000 − fixed)) / 10,000, floored to a whole CLAW.
+    function _stakeFor(uint8 bracket, uint256 ref) internal view returns (uint256) {
+        uint256 unitBps = GENESIS_BASE_REWARD * stakeFixedBps + ref * (BPS_DENOMINATOR - stakeFixedBps);
+        uint256 stake = (stakeMultiplier(bracket) * unitBps) / BPS_DENOMINATOR;
+        return stake - (stake % 1e18);
+    }
+
+    /// @notice Low / Mid / High = 2× / 8× / 40× of the pegged unit (the S1 2,500 / 10,000 / 50,000 at launch).
+    function stakeMultiplier(uint8 bracket) public pure returns (uint256) {
+        if (bracket == 0) return 2;
+        if (bracket == 1) return 8;
+        if (bracket == 2) return 40;
+        revert InvalidStakeBracket(bracket);
+    }
+
+    /// @notice The three bracket stakes as they stand now (Low, Mid, High), in CLAW wei.
+    function currentStakes() external view returns (uint256[3] memory stakes) {
+        uint256 ref = _stakeReference();
+        for (uint8 i = 0; i < NUM_STAKE_BRACKETS; i++) {
+            stakes[i] = _stakeFor(i, ref);
+        }
+    }
+
+    /// @notice Propose a new fixed share (bps of the pegged unit anchored to GENESIS); enactable
+    ///         after MIN_TUNING_DELAY. 10,000 = stakes fixed at launch values; 0 = a pure peg.
+    function proposeStakeFixedBps(uint256 newBps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newBps > BPS_DENOMINATOR) revert InvalidStakeShare(newBps);
+        pendingStakeFixedBps = newBps;
+        pendingStakeFixedBpsAt = uint64(block.timestamp);
+        emit StakeFixedBpsProposed(newBps, block.timestamp + MIN_TUNING_DELAY);
+    }
+
+    /// @notice Enact the proposed fixed share. Battles already created keep their bound stake.
+    function enactStakeFixedBps() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 proposedAt = uint256(pendingStakeFixedBpsAt);
+        if (proposedAt == 0) revert NoPendingStakeShare();
+        uint256 enactableAt = proposedAt + MIN_TUNING_DELAY;
+        if (block.timestamp < enactableAt) revert StakeShareDelayNotElapsed(enactableAt);
+        uint256 old = stakeFixedBps;
+        stakeFixedBps = pendingStakeFixedBps;
+        pendingStakeFixedBps = 0;
+        pendingStakeFixedBpsAt = 0;
+        emit StakeFixedBpsSet(old, stakeFixedBps);
     }
 
     // ──────────── Player Actions ────────────
@@ -494,7 +590,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         b.proposedDamageB = damageB;
         b.finalStateHash = finalStateHash;
         b.turnLogHash = turnLogHash;
-        b.payoutDeadline = block.timestamp + reviewWindows[_stakeBracket(b.stakeAmount)];
+        b.payoutDeadline = block.timestamp + reviewWindows[b.bracket];
         emit BattleProposed(battleId, winner, b.payoutDeadline, finalStateHash, turnLogHash);
 
         // The battle is over: lobsters take their damage and go free immediately. Only money waits.
@@ -680,20 +776,6 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     function _antiGrief(Battle storage b) internal view returns (uint256) {
         return b.stakeAmount * ANTI_GRIEF_BPS / BPS_DENOMINATOR;
-    }
-
-    function _isValidStake(uint256 amount) internal view returns (bool) {
-        for (uint256 i = 0; i < NUM_STAKE_BRACKETS; i++) {
-            if (amount == STAKE_BRACKETS[i]) return true;
-        }
-        return false;
-    }
-
-    function _stakeBracket(uint256 amount) internal view returns (uint256) {
-        for (uint256 i = 0; i < NUM_STAKE_BRACKETS; i++) {
-            if (amount == STAKE_BRACKETS[i]) return i;
-        }
-        revert InvalidStakeAmount(amount);
     }
 
     /// @dev F-04: returns the team's current power score (sum of evolution tier values).

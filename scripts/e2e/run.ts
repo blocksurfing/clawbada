@@ -5,7 +5,7 @@
  *
  *   bun run e2e                          # from the repo root
  *   bun run e2e -- --keep --verbose      # leave everything running for inspection
- *   bun run e2e -- --stake 10000         # Mid bracket (30 min review window, warped)
+ *   bun run e2e -- --bracket mid         # Mid bracket (30 min review window, warped); --stake 10000 still works
  *   bun run e2e -- --live-drand          # real api.drand.sh instead of the stub
  *
  * Exit codes: 0 pass · 1 assertions failed · 2 infra/setup failure · 3 phase timeout.
@@ -22,21 +22,26 @@ import { breedingPhase } from './phases/35-breeding';
 import { assertPhase } from './phases/40-assert';
 import { rogueSettlementDrill } from './phases/50-rogue-settlement';
 
-export interface Flags { keep: boolean; liveDrand: boolean; verbose: boolean; stake: '2500' | '10000' | '50000'; anvilPort: number; apiPort: number }
+/** D-E: the battle is queued by BRACKET; the stake is whatever the chain quotes for it (the launch amount in this harness). */
+export interface Flags { keep: boolean; liveDrand: boolean; verbose: boolean; bracket: 0 | 1 | 2; anvilPort: number; apiPort: number }
 
 function parseFlags(argv: string[]): Flags {
-  const f: Flags = { keep: false, liveDrand: false, verbose: false, stake: '2500', anvilPort: 8545, apiPort: 3001 };
+  const f: Flags = { keep: false, liveDrand: false, verbose: false, bracket: 0, anvilPort: 8545, apiPort: 3001 };
+  const BRACKETS: Record<string, 0 | 1 | 2> = { low: 0, mid: 1, high: 2, '0': 0, '1': 1, '2': 2, '2500': 0, '10000': 1, '50000': 2 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--keep') f.keep = true;
     else if (a === '--live-drand') f.liveDrand = true;
     else if (a === '--verbose') f.verbose = true;
-    else if (a === '--stake') f.stake = argv[++i] as Flags['stake'];
+    else if (a === '--bracket' || a === '--stake') {
+      const v = String(argv[++i] ?? '').toLowerCase();
+      if (!(v in BRACKETS)) { console.error('--bracket must be low, mid or high (or --stake 2500, 10000 or 50000)'); process.exit(2); }
+      f.bracket = BRACKETS[v];
+    }
     else if (a === '--anvil-port') f.anvilPort = Number(argv[++i]);
     else if (a === '--api-port') f.apiPort = Number(argv[++i]);
     else if (a !== '--') { console.error(`unknown flag ${a}`); process.exit(2); }
   }
-  if (!['2500', '10000', '50000'].includes(f.stake)) { console.error('--stake must be 2500, 10000 or 50000'); process.exit(2); }
   return f;
 }
 

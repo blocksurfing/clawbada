@@ -306,6 +306,20 @@ export interface PowerRadiusPayload {
   halfWidth?: RadiusHalfWidth;
 }
 
+/** D-E: what each bracket costs right now (wei strings) and the peg behind it. Stakes are a
+ *  damped live peg on the mining rate; the contract binds each battle's stake at createBattle. */
+export interface StakeQuoteResponse {
+  brackets: Array<{ bracket: 0 | 1 | 2; label: 'Low' | 'Mid' | 'High'; stakeWei: string; launchStakeWei: string }>;
+  peg: {
+    stakeReferenceWei: string;
+    liveBaseRewardWei: string;
+    effectiveReferenceWei: string;
+    genesisBaseRewardWei: string;
+    fixedBps: string;
+  };
+  note: string;
+}
+
 /** V3 S1 queue join response. Two flavors discriminated by `status`. */
 export interface QueueResponse {
   status: 'matched' | 'queued';
@@ -557,8 +571,11 @@ const auth = {
 };
 
 const combat = {
-  joinQueue: (teamId: string, stakeAmount: string, auth: AuthHeaders) =>
-    post<QueueResponse>('/api/game/combat/queue', { teamId, stakeAmount }, auth),
+  /** D-E: queue by BRACKET (0 = Low, 1 = Mid, 2 = High); the amount is the chain's quote. */
+  joinQueue: (teamId: string, bracket: number, auth: AuthHeaders) =>
+    post<QueueResponse>('/api/game/combat/queue', { teamId, bracket }, auth),
+  /** D-E: the current bracket stakes (public). */
+  stakes: () => get<StakeQuoteResponse>('/api/game/combat/stakes'),
   queueStatus: (auth: AuthHeaders) => get<QueueStatus>('/api/game/combat/queue/status', auth),
   leaveQueue: (auth: AuthHeaders) => del<LeaveQueueResponse>('/api/game/combat/queue', auth),
   /** Returns active queue counts per (stake, power) sub-pool. With both query

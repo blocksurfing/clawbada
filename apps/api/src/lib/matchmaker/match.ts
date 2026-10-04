@@ -36,7 +36,6 @@ import {
 } from '@clawbada/chain';
 import {
   BattlePhase,
-  STAKE_BRACKETS,
   computeTeamPower,
   EvolutionTier,
 } from '@clawbada/game-logic';
@@ -161,8 +160,6 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
   const client = getPublicClient(isTestnet) as any;
   const arena = getBattleArena(client);
   const matchmakerAddress = process.env.MATCHMAKER_ADDRESS as `0x${string}`;
-  const stakeAmountFor = (bracketIdx: number) =>
-    STAKE_BRACKETS[bracketIdx] * (10n ** 18n);
 
   // F-3R: capture the locked queue rows in closure-accessible refs so the
   // outer catch block can write rich `aborted_chain_failure` telemetry
@@ -319,11 +316,15 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(${BATTLE_PREDICTION_LOCK_KEY})`,
       );
+      // D-E: the matchmaker names the BRACKET; the contract binds the amount at createBattle.
+      // The quote is for the row (display) and the match-found HUD; the engine replaces it with
+      // the amount the chain actually bound once the create tx lands.
+      const stakeQuoteWei = (await arena.read.stakeFor([me.stakeBracket])) as bigint;
       const sim = await arena.simulate.createBattle(
         [
           me.address as `0x${string}`,
           opp.address as `0x${string}`,
-          stakeAmountFor(me.stakeBracket),
+          me.stakeBracket,
           me.powerScore,
           opp.powerScore,
         ],
@@ -358,7 +359,7 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
         queuedTeamA: me.teamId,
         queuedTeamB: opp.teamId,
         stakeBracket: me.stakeBracket,
-        stakeAmount: STAKE_BRACKETS[me.stakeBracket].toString(),
+        stakeAmount: (stakeQuoteWei / 10n ** 18n).toString(), // D-E: the quote; the engine writes the bound amount
         phase: BattlePhase.Deposit,
         powerA: me.powerScore,
         powerB: opp.powerScore,
@@ -385,8 +386,8 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
           predictedBattleId: battleId.toString(),
           playerA: me.address,
           playerB: opp.address,
-          stakeWei: stakeAmountFor(me.stakeBracket).toString(),
           stakeBracket: me.stakeBracket,
+          stakeQuoteWei: stakeQuoteWei.toString(),
           powerA: me.powerScore,
           powerB: opp.powerScore,
           enqueuedAtMsA: me.enqueuedAt.getTime(),

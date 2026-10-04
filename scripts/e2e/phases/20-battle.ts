@@ -17,20 +17,32 @@ export interface BattleOutcome {
 export async function battlePhase(stack: Stack, players: Players, flags: Flags, checks: Checks): Promise<BattleOutcome> {
   const { chain, db, anvil } = stack;
   const { a, b } = players;
-  const stake = BigInt(flags.stake) * WEI;
+  // D-E: the stake is the chain's quote for the bracket — at the launch peg (reference 1,250) the
+  // launch amount. The battle binds it at createBattle; everything below reads it from the chain.
+  const LAUNCH = [2_500n, 10_000n, 50_000n] as const;
+  const quote = await a.agent.stakeQuote();
+  const quotedStake = BigInt(quote.brackets[flags.bracket].stakeWei);
+  checks.eq(quotedStake, LAUNCH[flags.bracket] * WEI, `D-E quote: ${quote.brackets[flags.bracket].label} bracket quotes its launch amount at the launch peg`);
+  checks.eq(BigInt(quote.peg.effectiveReferenceWei), 1_250n * WEI, 'D-E quote: the peg reference is the S1 launch reward');
 
   const balancesBefore = { a: await chain.balance(a.agent.address), b: await chain.balance(b.agent.address), dev: await chain.balance(KEYS.devWallet.address), supply: await chain.totalSupply() };
 
   // 1. Queue: A waits, B pairs (same power 3, baseline rating) — synchronous match on join.
-  const qa = await a.agent.joinQueue(a.teamId, flags.stake);
+  const qa = await a.agent.joinQueue(a.teamId, flags.bracket);
   checks.eq(qa.status, 'queued', 'A queued');
-  const qb = await b.agent.joinQueue(b.teamId, flags.stake);
+  const qb = await b.agent.joinQueue(b.teamId, flags.bracket);
   const battleId = qb.battleId ?? (await a.agent.waitMatched());
   checks.check(!!battleId, `matched → battle #${battleId}`, qb.status);
 
   // 2. Engine create_battle → DB status 1, chain phase Deposit.
   await waitFor(async () => { const r = await a.agent.battle(battleId); return r.db?.status === 1 && Number(r.chain?.phase) === PHASE.Deposit ? r : null; }, { timeoutMs: 60_000, label: 'createBattle on-chain (status 1, phase Deposit)' });
   checks.check(true, 'createBattle submitted by the engine (status=1, phase=Deposit)');
+  const created = await chain.getBattle(BigInt(battleId));
+  const stake = BigInt(created.stakeAmount);
+  checks.eq(Number(created.bracket), flags.bracket, 'D-E: the chain bound the bracket queued for');
+  checks.eq(stake, quotedStake, 'D-E: the chain bound the quoted amount');
+  const dbRow = await a.agent.battle(battleId);
+  checks.eq(String(dbRow.db?.stakeAmount), (stake / WEI).toString(), 'D-E: the battles row carries the bound amount (display units)');
 
   // 3. Deposits: approve + deposit(battleId, expectedStake, maxOpponentPower, commitHash). The
   //    commit rides in the deposit (D-13) and the consent is bound on-chain (D-08). A also hands

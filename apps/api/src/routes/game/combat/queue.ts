@@ -14,7 +14,8 @@
 import { Hono } from 'hono';
 import { and, desc, eq, or, sql, count } from 'drizzle-orm';
 import {
-  STAKE_BRACKETS,
+  NUM_STAKE_BRACKETS,
+  STAKE_BRACKET_LABELS,
   EvolutionTier,
   DAMAGE_THRESHOLD,
   BattlePhase,
@@ -29,7 +30,7 @@ import {
 } from '@clawbada/db';
 import { walletAuth } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
-import { readTeam, readLobster, serializeBigInts } from '../../../lib/chain';
+import { readTeam, readLobster, readStakeQuote, serializeBigInts } from '../../../lib/chain';
 import { battleWS } from '../../../lib/ws';
 import {
   computePowerForTeam,
@@ -47,6 +48,25 @@ import {
 
 export const queueRoutes = new Hono();
 
+// ──────────── GET /stakes ────────────
+// D-E (owner decision 2026-10-03): what each bracket costs right now. Stakes are a damped live
+// peg on the mining rate — 20 % anchored to the 1,250 launch reward, 80 % following the base
+// reward sampled once per season-day — floored to whole CLAW and never above the launch value.
+// Public, no auth. This is a QUOTE: the contract binds each battle's stake at createBattle.
+queueRoutes.get(
+  '/stakes',
+  catchErrors(async (c) => {
+    const quote = await readStakeQuote();
+    return c.json(
+      serializeBigInts({
+        ...quote,
+        note:
+          'Quote. The contract binds each battle\'s stake at createBattle; the amount you consent to in deposit() is the one on the battle (GET /api/game/combat/:battleId → chain.stakeAmount). The quote moves at most once a season-day.',
+      }),
+    );
+  }),
+);
+
 // ──────────── POST /queue ────────────
 
 queueRoutes.post(
@@ -54,23 +74,37 @@ queueRoutes.post(
   walletAuth,
   catchErrors(async (c) => {
     const address = (c.get('address') as string).toLowerCase();
-    const body = await c.req.json<{ teamId: string; stakeAmount: string }>();
+    const body = await c.req.json<{ teamId: string; bracket?: number | string; stakeAmount?: string }>();
 
-    if (!body.teamId || !body.stakeAmount) {
-      throw new ApiError('INVALID_INPUT', 'teamId and stakeAmount required');
+    if (!body.teamId) {
+      throw new ApiError('INVALID_INPUT', 'teamId and bracket required');
+    }
+
+    // D-E: the queue is by BRACKET (0 = Low, 1 = Mid, 2 = High). The amounts are a quote that
+    // follows the mining rate (GET /stakes); the contract binds the real one at createBattle.
+    if (body.bracket === undefined || body.bracket === null || body.bracket === '') {
+      throw new ApiError(
+        'INVALID_INPUT',
+        body.stakeAmount !== undefined
+          ? 'stakeAmount is no longer accepted: send bracket (0 = Low, 1 = Mid, 2 = High). Stakes are pegged to the mining rate — GET /api/game/combat/stakes quotes them'
+          : 'teamId and bracket required (0 = Low, 1 = Mid, 2 = High; GET /api/game/combat/stakes quotes the amounts)',
+      );
+    }
+    const bracketIndex =
+      typeof body.bracket === 'string' && /^\d+$/.test(body.bracket) ? Number(body.bracket) : body.bracket;
+    if (
+      typeof bracketIndex !== 'number' ||
+      !Number.isInteger(bracketIndex) ||
+      bracketIndex < 0 ||
+      bracketIndex >= NUM_STAKE_BRACKETS
+    ) {
+      throw new ApiError(
+        'INVALID_INPUT',
+        `bracket must be 0 (${STAKE_BRACKET_LABELS[0]}), 1 (${STAKE_BRACKET_LABELS[1]}) or 2 (${STAKE_BRACKET_LABELS[2]})`,
+      );
     }
 
     const teamId = BigInt(body.teamId);
-    const stakeAmount = BigInt(body.stakeAmount);
-
-    // Resolve stake bracket index.
-    const bracketIndex = STAKE_BRACKETS.findIndex((b) => b === stakeAmount);
-    if (bracketIndex === -1) {
-      throw new ApiError(
-        'INVALID_INPUT',
-        `stakeAmount must be one of: ${STAKE_BRACKETS.map(String).join(', ')}`,
-      );
-    }
 
     // Validate team ownership.
     const team = await readTeam(teamId);

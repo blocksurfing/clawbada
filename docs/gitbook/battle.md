@@ -12,13 +12,13 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 
 ## Stake Brackets
 
-| Bracket | Stake | Winner Gets | Winner Net | Loser Net |
+| Bracket | Stake (launch) | Winner Gets | Winner Net | Loser Net |
 |---------|-------|------------|-----------|----------|
 | **Low** | 2,500 | 4,500 | +2,000 | -2,500 |
 | **Mid** | 10,000 | 18,000 | +8,000 | -10,000 |
 | **High** | 50,000 | 90,000 | +40,000 | -50,000 |
 
-Stake brackets are re-pegged each season as fixed multiples of that season's launch `baseReward` (Low 2× / Mid 8× / High 40×), keeping battle stakes proportionate to mining yields as emissions halve. The values above are S1.
+**Stakes follow the mining rate.** Each bracket is a multiple (Low 2× / Mid 8× / High 40×) of a unit that is 20 % the launch reward (1,250 $CLAW, fixed forever) and 80 % the current mining base reward, sampled once a day. So when mining pays less, battles cost less in the same proportion, with a day's lag — and a stake is never higher than the launch value in the table. The amount is fixed the moment your match is created (both players consent to that exact amount when they deposit), and the current amounts are always on the battle page or at `GET /api/game/combat/stakes`. The 20 % anchor is a governance dial behind a 24-hour timelock.
 
 The protocol takes a **10% fee** from the combined pot (85% burned, 15% to dev).
 

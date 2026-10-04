@@ -60,8 +60,8 @@ export interface CreateBattlePayload {
   predictedBattleId: string;       // serialized bigint, also embedded in idempotency_key
   playerA: string;                 // lowercased
   playerB: string;                 // lowercased
-  stakeWei: string;                // serialized bigint (wei, not display)
-  stakeBracket: number;            // 0=Low, 1=Mid, 2=High
+  stakeBracket: number;            // 0=Low, 1=Mid, 2=High — D-E: the contract binds the amount
+  stakeQuoteWei?: string;          // the matchmaker's quote at match time (display only)
   powerA: number;                  // matchmaker M-02 re-read
   powerB: number;
   // WS notification metadata — mirrors the previous inline matchmaker emit.
@@ -77,7 +77,6 @@ export async function createBattleHandler(
 ): Promise<JobResult> {
   const payload = rawPayload as CreateBattlePayload;
   const predictedBattleId = BigInt(payload.predictedBattleId);
-  const stakeWei = BigInt(payload.stakeWei);
 
   try {
     const publicClient = getPublicClient(isTestnet);
@@ -149,7 +148,7 @@ export async function createBattleHandler(
       [
         payload.playerA as `0x${string}`,
         payload.playerB as `0x${string}`,
-        stakeWei,
+        payload.stakeBracket,
         payload.powerA,
         payload.powerB,
       ],
@@ -221,9 +220,24 @@ async function finalizeFromReceipt(
     return { ok: false, retry: 'dead', error: 'battleid_drift' };
   }
 
+  // D-E: the contract bound the stake for the bracket the matchmaker named. The row carried the
+  // matchmaker's quote; replace it with the amount the chain actually bound (display units).
+  const boundBracket = created.bracket === undefined ? undefined : Number(created.bracket);
+  if (boundBracket !== undefined && boundBracket !== payload.stakeBracket) {
+    log.fatal(
+      { jobId: ctx.jobId.toString(), battleId: predictedBattleId.toString(), expected: payload.stakeBracket, actual: boundBracket },
+      'createBattle bracket drift — the chain bound another bracket than the one matched',
+    );
+    await markCreateFailed(payload, 'bracket_drift', `expected bracket ${payload.stakeBracket} got ${boundBracket}`);
+    return { ok: false, retry: 'dead', error: 'bracket_drift' };
+  }
+  const boundStakeWei = created.stakeAmount === undefined ? undefined : BigInt(created.stakeAmount);
   await db
     .update(battles)
-    .set({ status: STATUS_CREATED })
+    .set({
+      status: STATUS_CREATED,
+      ...(boundStakeWei !== undefined ? { stakeAmount: (boundStakeWei / 10n ** 18n).toString() } : {}),
+    })
     .where(eq(battles.battleId, predictedBattleId));
 
   // X10 (deferred): WS `match_found` would fire here in a future PR with
@@ -276,7 +290,7 @@ async function markCreateFailed(
  *  shape — we filter by address first and swallow the rest. */
 function findBattleCreatedEvent(
   logs: readonly { address: string; data: string; topics: readonly string[] }[],
-): { battleId: bigint; playerA: string; playerB: string } | null {
+): { battleId: bigint; playerA: string; playerB: string; stakeAmount?: bigint; bracket?: number | bigint } | null {
   for (const lg of logs) {
     if (lg.address.toLowerCase() !== addresses.battleArena.toLowerCase()) continue;
     try {
@@ -284,7 +298,7 @@ function findBattleCreatedEvent(
         abi: BattleArenaAbi as any,
         data: lg.data as `0x${string}`,
         topics: lg.topics as [`0x${string}`, ...`0x${string}`[]],
-      }) as { eventName: string; args: { battleId: bigint; playerA: string; playerB: string } };
+      }) as { eventName: string; args: { battleId: bigint; playerA: string; playerB: string; stakeAmount?: bigint; bracket?: number | bigint } };
       if (decoded.eventName === 'BattleCreated') {
         return decoded.args;
       }

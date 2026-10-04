@@ -8,6 +8,7 @@ import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {ClawToken} from "../contracts/ClawToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
+import {MiningPool} from "../contracts/MiningPool.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
@@ -28,6 +29,7 @@ contract BattleArenaTest is Test {
 
     BattleArena arena;
     BattleVRF vrf;
+    MiningPool pool; // D-E: the stake peg's source (no season is ever started here → launch amounts)
     TeamManager tm;
     LobsterNFT nft;
     ClawToken claw;
@@ -61,8 +63,11 @@ contract BattleArenaTest is Test {
         tm = new TeamManager(admin, address(nft));
         treasury = new Treasury(admin, devWallet);
         vrf = new BattleVRF(admin);
+        pool = new MiningPool(admin, address(claw), address(nft), address(tm));
 
-        arena = new BattleArena(admin, address(claw), address(nft), address(tm), address(treasury), address(vrf));
+        arena = new BattleArena(
+            admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+        );
 
         nft.grantRole(nft.MINTER_ROLE(), admin);
         nft.grantRole(nft.LOCKER_ROLE(), address(tm));
@@ -124,9 +129,19 @@ contract BattleArenaTest is Test {
         teamId = tm.createTeam([id1, id2, id3]);
     }
 
+    /// @dev D-E: battles are created by BRACKET; these tests keep thinking in amounts. With no season
+    ///      running the peg falls back to GENESIS, so the launch amounts map 1:1 onto the brackets.
+    function _bracketOf(uint256 stake) internal view returns (uint8) {
+        for (uint8 i = 0; i < 3; i++) {
+            if (arena.stakeFor(i) == stake) return i;
+        }
+        revert("unknown stake");
+    }
+
     function _createBattleAt(uint256 stake, uint8 powerA, uint8 powerB) internal returns (uint256 battleId) {
+        uint8 bracket = _bracketOf(stake); // before the prank: the lookup is an external call
         vm.prank(matchmaker);
-        battleId = arena.createBattle(alice, bob, stake, powerA, powerB);
+        battleId = arena.createBattle(alice, bob, bracket, powerA, powerB);
     }
 
     function _createBattle() internal returns (uint256) {
@@ -259,20 +274,31 @@ contract BattleArenaTest is Test {
     function test_constructorZeroAddressReverts() public {
         vm.startPrank(admin);
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(address(0), address(claw), address(nft), address(tm), address(treasury), address(vrf));
+        new BattleArena(address(0), address(claw), address(nft), address(tm), address(treasury), address(vrf), address(pool));
 
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(0), address(nft), address(tm), address(treasury), address(vrf));
+        new BattleArena(admin, address(0), address(nft), address(tm), address(treasury), address(vrf), address(pool));
 
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(claw), address(0), address(tm), address(treasury), address(vrf));
+        new BattleArena(admin, address(claw), address(0), address(tm), address(treasury), address(vrf), address(pool));
         vm.stopPrank();
     }
 
     function test_stakeBracketsSet() public view {
-        assertEq(arena.STAKE_BRACKETS(0), STAKE_LOW);
-        assertEq(arena.STAKE_BRACKETS(1), STAKE_MID);
-        assertEq(arena.STAKE_BRACKETS(2), STAKE_HIGH);
+        // D-E: before any season the peg falls back to GENESIS → the S1 launch amounts.
+        assertEq(arena.stakeFor(0), STAKE_LOW);
+        assertEq(arena.stakeFor(1), STAKE_MID);
+        assertEq(arena.stakeFor(2), STAKE_HIGH);
+        uint256[3] memory stakes = arena.currentStakes();
+        assertEq(stakes[0], STAKE_LOW);
+        assertEq(stakes[1], STAKE_MID);
+        assertEq(stakes[2], STAKE_HIGH);
+        assertEq(arena.stakeMultiplier(0), 2);
+        assertEq(arena.stakeMultiplier(1), 8);
+        assertEq(arena.stakeMultiplier(2), 40);
+        assertEq(arena.GENESIS_BASE_REWARD(), 1_250e18);
+        assertEq(arena.stakeFixedBps(), 2_000);
+        assertEq(address(arena.miningPool()), address(pool));
     }
 
     function test_reviewWindowsDefaultPerBracket() public view {
@@ -296,7 +322,7 @@ contract BattleArenaTest is Test {
 
     function test_createBattleHappyPath() public {
         vm.prank(matchmaker);
-        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
+        uint256 battleId = arena.createBattle(alice, bob, 0, 3, 3);
 
         assertEq(battleId, 1);
         BattleArena.Battle memory b = arena.getBattle(battleId);
@@ -310,22 +336,26 @@ contract BattleArenaTest is Test {
 
     function test_createBattleEmitsEvent() public {
         vm.expectEmit(true, true, true, true);
-        emit BattleArena.BattleCreated(1, alice, bob, STAKE_MID, 3, 3);
+        emit BattleArena.BattleCreated(1, alice, bob, STAKE_MID, 3, 3, 1);
 
         vm.prank(matchmaker);
-        arena.createBattle(alice, bob, STAKE_MID, 3, 3);
+        arena.createBattle(alice, bob, 1, 3, 3);
+        assertEq(arena.getBattle(1).bracket, 1, "bracket stored");
+        assertEq(arena.getBattle(1).stakeAmount, STAKE_MID, "amount bound at creation");
     }
 
-    function test_createBattleInvalidStakeReverts() public {
+    function test_createBattleInvalidBracketReverts() public {
         vm.prank(matchmaker);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeAmount.selector, 999e18));
-        arena.createBattle(alice, bob, 999e18, 3, 3);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeBracket.selector, uint256(3)));
+        arena.createBattle(alice, bob, 3, 3, 3);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeBracket.selector, uint256(255)));
+        arena.stakeFor(255);
     }
 
     function test_createBattleSamePlayerReverts() public {
         vm.prank(matchmaker);
         vm.expectRevert(BattleArena.PlayerCannotBeSelf.selector);
-        arena.createBattle(alice, alice, STAKE_LOW, 3, 3);
+        arena.createBattle(alice, alice, 0, 3, 3);
     }
 
     // ──────────── deposit (stake + anti-grief + team commit + consent) ────────────
@@ -2018,17 +2048,17 @@ contract BattleArenaTest is Test {
             vm.expectRevert(
                 abi.encodeWithSelector(bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")), callers[i], role)
             );
-            arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
+            arena.createBattle(alice, bob, 0, 3, 3);
         }
     }
 
     function test_createBattleZeroAddressPlayerReverts() public {
         vm.prank(matchmaker);
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        arena.createBattle(address(0), bob, STAKE_LOW, 3, 3);
+        arena.createBattle(address(0), bob, 0, 3, 3);
         vm.prank(matchmaker);
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        arena.createBattle(alice, address(0), STAKE_LOW, 3, 3);
+        arena.createBattle(alice, address(0), 0, 3, 3);
     }
 
     function test_depositAlreadyDepositedReverts_sideB() public {
@@ -2191,11 +2221,13 @@ contract BattleArenaTest is Test {
     function test_constructorZeroAddressRevertsRemainingArgs() public {
         vm.startPrank(admin);
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(claw), address(nft), address(0), address(treasury), address(vrf));
+        new BattleArena(admin, address(claw), address(nft), address(0), address(treasury), address(vrf), address(pool));
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(claw), address(nft), address(tm), address(0), address(vrf));
+        new BattleArena(admin, address(claw), address(nft), address(tm), address(0), address(vrf), address(pool));
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(claw), address(nft), address(tm), address(treasury), address(0));
+        new BattleArena(admin, address(claw), address(nft), address(tm), address(treasury), address(0), address(pool));
+        vm.expectRevert(BattleArena.ZeroAddress.selector);
+        new BattleArena(admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(0));
         vm.stopPrank();
     }
 
