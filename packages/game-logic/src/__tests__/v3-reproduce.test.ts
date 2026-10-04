@@ -72,6 +72,75 @@ describe('reproduceSession', () => {
     expect(v3.reproduceSession(stored(s)).ok).toBe(false);
   });
 
+  // M2 (review 2026-10-03): a lobster that dies to bleed at the start of a timed-out turn is
+  // logged as a 'skip' with timeout = true (applyTurn never resolves the auto-Defend). The audit
+  // used to reject every timed-out entry that was not a plain Defend, so an honest result with
+  // that one entry could not be reproduced — and the watchdog froze it.
+  describe('a bleed death during a timed-out turn (M2)', () => {
+    /** B's turns time out from the moment a bleeding B lobster reaches its turn with hp <= the
+     *  bleed tick; everyone else plays the aggressive bot. Seed 4 produces it at turn 24. */
+    function playBleedTimeout(seed = 4n) {
+      const state = v3.createBattle({ battleId: '9', vrfSeed: seed, tier: 'evolved', teamA: inputs('A'), teamB: inputs('B') });
+      let clock: v3.SessionClock = { timeouts: { A: 0, B: 0 } };
+      let dyingTurn: number | null = null;
+      while (!state.finished) {
+        const actor = v3.nextActor(state)!;
+        const stunned = actor.statuses.some((s) => s.type === 'stun');
+        const bleed = actor.statuses.find((s) => s.type === 'bleed');
+        let ev: v3.SessionEvent;
+        if (stunned) ev = { type: 'stun_skip' };
+        else if (dyingTurn === null && actor.team === 'B' && bleed && actor.hp <= bleed.value) { dyingTurn = state.turn + 1; ev = { type: 'timeout' }; }
+        else if (dyingTurn !== null && actor.team === 'B') ev = { type: 'timeout' };
+        else ev = { type: 'command', cmd: v3.BOTS.aggressive(state, actor) };
+        clock = v3.reduceSession(state, clock, ev).clock;
+      }
+      return { state, dyingTurn };
+    }
+
+    test('the log carries a timed-out skip, and the stored session reproduces with its forfeiter', () => {
+      const { state, dyingTurn } = playBleedTimeout();
+      expect(dyingTurn).not.toBeNull();
+      const entry = state.log.find((e) => e.turn === dyingTurn)!;
+      expect(entry).toMatchObject({ action: 'skip', timeout: true });
+      expect(entry.lobsterId).toMatch(/^B/);
+      expect(state.lobsters.find((l) => l.id === entry.lobsterId)!.alive).toBe(false);
+      // B timed out three times in a row starting with that skip, so the forfeit only replays
+      // if the skip counted toward the streak.
+      expect(state.log.filter((e) => e.timeout).length).toBe(3);
+      expect(v3.forfeitedSide(state)).toBe('B');
+      const r = v3.reproduceSession(stored(state));
+      expect(r).toMatchObject({ ok: true, winner: 'A', forfeiter: 'B' });
+      if (!r.ok) return;
+      expect(r.finalStateHash).toBe(v3.hashState(state));
+      expect(r.turnLogHash).toBe(v3.turnLogHash(state, [...inputs('A'), ...inputs('B')]));
+    });
+
+    test('a timed-out entry that is neither a plain Defend nor a death-skip still does not replay', () => {
+      const s = play('wipeout');
+      const wire = JSON.parse(v3.serializeState(s));
+      const i = wire.log.findIndex((e: { action: string }) => e.action === 'attack');
+      expect(i).toBeGreaterThan(-1);
+      wire.log[i] = { ...wire.log[i], timeout: true };
+      const r = v3.reproduceSession({ ...stored(s), stateJson: JSON.stringify(wire) });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.reason).toContain('a timed-out turn must be a plain Defend');
+    });
+
+    test('a timed-out skip by a stunned lobster still does not replay', () => {
+      const { state } = playBleedTimeout();
+      const wire = JSON.parse(v3.serializeState(state));
+      // Pretend a stun skip was a timeout: the first non-timed-out skip, if any, is a stun skip.
+      const i = wire.log.findIndex((e: { action: string; timeout?: boolean }) => e.action === 'skip' && !e.timeout);
+      if (i === -1) return; // no stun skip in this battle; nothing to corrupt
+      wire.log[i] = { ...wire.log[i], timeout: true };
+      const r = v3.reproduceSession({ ...stored(state), stateJson: JSON.stringify(wire) });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.reason).toContain('a stunned lobster cannot time out');
+    });
+  });
+
   test('a swapped roster, another battle id, or an unfinished battle does not reproduce', () => {
     const s = play('wipeout');
     const swapped = roster.map((r) => (r.id === 'A0' ? { ...r, classId: LobsterClass.Mantis } : r));
