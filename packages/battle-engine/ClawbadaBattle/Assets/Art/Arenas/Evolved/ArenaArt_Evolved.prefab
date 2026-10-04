@@ -127,6 +127,7 @@ Transform:
   - {fileID: 3795370088936507439}
   - {fileID: 3607255681786086475}
   - {fileID: 2720167105987713835}
+  - {fileID: 6843561142604415304}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1647117612609740894
@@ -813,6 +814,115 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!1 &7626696984391185350
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6843561142604415304}
+  - component: {fileID: 7339956191123255290}
+  m_Layer: 0
+  m_Name: Birds
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6843561142604415304
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7626696984391185350}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3623155446229297478}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7339956191123255290
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7626696984391185350}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6fb5f137721734566ae54c17d867d4a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BirdFlock
+  birdPrefab: {fileID: 4039821668446155451, guid: e8b5a19da626c404ba34a06cfd56ff5d, type: 3}
+  artFacesRight: 1
+  perches:
+  - id: RightBig
+    x: 3.21875
+    y: 2.046875
+    walkHalfWidth: 0.2
+    disabled: 1
+  - id: RightSmall
+    x: 2.1875
+    y: 1.6875
+    walkHalfWidth: 0.1
+    disabled: 0
+  - id: RightFar
+    x: 4.4
+    y: 2.1875
+    walkHalfWidth: 0
+    disabled: 1
+  - id: LeftA
+    x: -2.5
+    y: 1.9375
+    walkHalfWidth: 0.1
+    disabled: 0
+  - id: LeftB
+    x: -3.1
+    y: 1.9375
+    walkHalfWidth: 0
+    disabled: 0
+  - id: BoatBow
+    x: -3.65
+    y: 2
+    walkHalfWidth: 0
+    disabled: 0
+  config:
+    minBirds: 3
+    maxBirds: 3
+    arrivalGapMin: 0.6
+    arrivalGapMax: 1.4
+    dwellMin: 18
+    dwellMax: 35
+    departGapMin: 0.8
+    departGapMax: 1.6
+    cruiseLiftMin: 0.3
+    cruiseLiftMax: 0.5
+    cruiseMaxY: 2.4
+    exitNearestEdge: 0
+  firstFlockDelayMin: 6
+  firstFlockDelayMax: 12
+  flockGapMin: 20
+  flockGapMax: 45
+  flySpeed: 2.2
+  descentSeconds: 1
+  landingLead: 0.3
+  climbSeconds: 0.8
+  walkSpeed: 0.25
+  offscreenMargin: 0.6
+  idle1Weight: 4
+  idle2Weight: 2.5
+  idle3Weight: 2
+  walkWeight: 1.5
+  idleCyclesMin: 1
+  idleCyclesMax: 3
+  turnChance: 0.2
+  seedOverride: 
+  verbose: 0
 --- !u!1 &8257666742137668130
 GameObject:
   m_ObjectHideFlags: 0
