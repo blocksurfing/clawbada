@@ -77,6 +77,7 @@ public static class HudArtGenerator
         SetBorder(made["card_header"], new Vector4(2, 2, 2, 2));
         SetBorder(made["seg_bg"], new Vector4(2, 2, 2, 2));
         AssetDatabase.SaveAssets();
+        HexDestArt.Generate(); // the move-target overlay sprite + HudSkin.hexDest (2026-10-04)
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
         SeedSkin(made);

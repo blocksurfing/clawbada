@@ -39,7 +39,8 @@ export interface HexListData {
   /** The SELECTED (not yet confirmed) target's hex, -1 for none — painted as the pulsing target. */
   targetCol?: number;
   targetRow?: number;
-  /** The picked-but-uncommitted move destination (touch-move), -1 for none — painted pulsing teal. */
+  /** The picked-but-uncommitted move destination (touch-move), -1 for none — painted with a white hex outline
+   *  and a light-green glow on Unity's overlay layer (the range tile stays teal beneath). */
   destCol?: number;
   destRow?: number;
 }
