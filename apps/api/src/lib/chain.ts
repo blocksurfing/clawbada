@@ -21,6 +21,7 @@ import {
   LegendStatus,
 } from '@clawbada/game-logic';
 import { ApiError } from './errors';
+import { LAUNCH_STAKES, STAKE_BRACKET_LABELS, stakeReferenceWei } from '@clawbada/game-logic';
 
 const isTestnet = process.env.CHAIN_ENV !== 'mainnet';
 
@@ -383,6 +384,9 @@ export interface ChainBattle {
   teamIdA: bigint;
   teamIdB: bigint;
   stakeAmount: bigint;
+  /** D-E: the bracket the matchmaker named (0 Low / 1 Mid / 2 High). `stakeAmount` is what the
+   *  peg bound at createBattle — read it from here, never from a constant. */
+  bracket: number;
   phase: number;
   winner: string;
   depositA: boolean;
@@ -436,6 +440,7 @@ export async function readBattle(battleId: bigint): Promise<ChainBattle> {
       teamIdA: data.teamIdA,
       teamIdB: data.teamIdB,
       stakeAmount: data.stakeAmount,
+      bracket: Number(data.bracket),
       phase: data.phase,
       winner: data.winner as string,
       depositA: data.depositA,
@@ -474,6 +479,59 @@ export async function readChainTime(): Promise<bigint> {
     return (await client().getBlock({ blockTag: 'latest' })).timestamp as bigint;
   } catch {
     throw new ApiError('CHAIN_ERROR', 'Could not read the latest block');
+  }
+}
+
+// ──────────── D-E: stake quote ────────────
+
+/** D-E: the three bracket stakes as the chain quotes them right now, with the peg's inputs. The
+ *  amount a battle binds is whatever `createBattle` computes when the engine submits it — the
+ *  quote moves at a season-day boundary (the reference re-samples) or when the Safe enacts a new
+ *  fixed share. Everything is wei. */
+export interface StakeQuote {
+  brackets: Array<{ bracket: 0 | 1 | 2; label: 'Low' | 'Mid' | 'High'; stakeWei: bigint; launchStakeWei: bigint }>;
+  peg: {
+    /** MiningPool.stakeReference — the base reward sampled once per season-day (0 before the first season). */
+    stakeReferenceWei: bigint;
+    /** MiningPool.currentBaseReward — the live rate (the fallback before the first sample). */
+    liveBaseRewardWei: bigint;
+    /** The reference the peg actually used, after the fallbacks and the genesis cap. */
+    effectiveReferenceWei: bigint;
+    genesisBaseRewardWei: bigint;
+    /** Share of each stake anchored to genesis, in bps; the rest follows the reference. */
+    fixedBps: bigint;
+  };
+}
+
+export async function readStakeQuote(): Promise<StakeQuote> {
+  const c = client();
+  const arena = getBattleArena(c);
+  const pool = getMiningPool(c);
+  try {
+    const [stakes, fixedBps, genesis, stakeReference, live] = (await Promise.all([
+      arena.read.currentStakes(),
+      arena.read.stakeFixedBps(),
+      arena.read.GENESIS_BASE_REWARD(),
+      pool.read.stakeReference(),
+      pool.read.currentBaseReward(),
+    ])) as [readonly bigint[], bigint, bigint, bigint, bigint];
+    return {
+      brackets: ([0, 1, 2] as const).map((b) => ({
+        bracket: b,
+        label: STAKE_BRACKET_LABELS[b],
+        stakeWei: stakes[b],
+        launchStakeWei: LAUNCH_STAKES[b] * 10n ** 18n,
+      })),
+      peg: {
+        stakeReferenceWei: stakeReference,
+        liveBaseRewardWei: live,
+        effectiveReferenceWei: stakeReferenceWei(stakeReference, live),
+        genesisBaseRewardWei: genesis,
+        fixedBps,
+      },
+    };
+  } catch {
+    throw new ApiError('CHAIN_ERROR', 'Could not read the stake brackets from the chain');
   }
 }
 

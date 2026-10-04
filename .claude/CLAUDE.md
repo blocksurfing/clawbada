@@ -153,7 +153,7 @@ Active PvP where two players wager $CLAW in hex-grid tactical combat. Zero-sum: 
 
 **Protocol fee**: 10% of combined pot (routed through Treasury.sol: 85% burned / 15% dev).
 
-**S1 stake brackets** (per-season config: 2× / 8× / 40× of the season's launch baseReward; matchmaking pairs within each bracket):
+**Stake brackets — a damped live peg (D-E, owner decision 2026-10-03)**: `stake = multiplier × unit`, multiplier 2× / 8× / 40× (Low / Mid / High), `unit = 20 % × 1,250 (the genesis launch reward, fixed forever) + 80 % × the mining base reward sampled once per season-day` (`MiningPool.stakeReference`, re-sampled at the first re-peg after each 24-epoch boundary, continuous across seasons; fallbacks: the live rate, then genesis), capped at the genesis value and floored to whole CLAW — so a stake never exceeds its launch amount and follows the glide with a day's lag. The 20 % fixed share is `BattleArena.stakeFixedBps`, a Safe dial behind the 24 h timelock (`proposeStakeFixedBps` / `enactStakeFixedBps`; provisional, revisited by the token-flow model). The matchmaker names a **bracket**; `createBattle(playerA, playerB, bracket, powerA, powerB)` binds the amount (`stakeFor(bracket)`) into the battle and the event; both players consent to that exact amount in `deposit()`. `GET /api/game/combat/stakes` quotes the three amounts; the queue is joined by bracket (`{teamId, bracket}`). The table shows the launch peg (reference 1,250) — matchmaking pairs within each bracket:
 
 | Bracket | Stake | Combined Pot | Protocol Fee | Winner Gets | Winner Net | Loser Net |
 |---------|-------|-------------|-------------|------------|-----------|----------|
@@ -478,7 +478,7 @@ enhanced_chance = 5% + (5% × purity_score)
 - **Duplicate classes allowed**: mono-class teams are valid but generally suboptimal due to shared weaknesses and movement limitations
 
 #### Battle Brackets & Matchmaking
-**Three stake brackets** (Low 2,500 / Mid 10,000 / High 50,000 $CLAW) define the economic tier. **Team Power buckets** (3–9, integer sum of tier weights: Evolved=1 / Elite=2 / Apex=3) define the competitive tier. Players are matched within (power × stake) sub-pools — up to 21 sub-pools total — and, from S1, within **ELO rating bands** inside each sub-pool (adaptive radius expansion, as with Power buckets). Banded matchmaking is load-bearing for the battle-rank mining boost.
+**Three stake brackets** (Low 2,500 / Mid 10,000 / High 50,000 $CLAW at the launch peg; the amounts follow the mining rate — see Stake brackets) define the economic tier. **Team Power buckets** (3–9, integer sum of tier weights: Evolved=1 / Elite=2 / Apex=3) define the competitive tier. Players are matched within (power × stake) sub-pools — up to 21 sub-pools total — and, from S1, within **ELO rating bands** inside each sub-pool (adaptive radius expansion, as with Power buckets). Banded matchmaking is load-bearing for the battle-rank mining boost.
 
 **Adaptive radius expansion** prevents thin-pool starvation at launch:
 - 0–30 s: exact power match

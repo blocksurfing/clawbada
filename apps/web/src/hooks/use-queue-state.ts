@@ -423,7 +423,7 @@ const INITIAL: QueueState = { kind: 'idle' };
 export interface UseQueueStateResult {
   state: QueueState;
   /** Submit a queue request. Idempotent if already queued (rejects with error). */
-  joinQueue: (teamId: string, stakeAmount: string) => Promise<void>;
+  joinQueue: (teamId: string, bracket: number) => Promise<void>;
   /** Cancel an in-flight queue. No-op if not queued. */
   leaveQueue: () => Promise<void>;
   /** Reset to idle (e.g., after navigating away from a `cancelled` / `errored` toast). */
@@ -468,7 +468,7 @@ export function useQueueState(): UseQueueStateResult {
   // event can recover the queue session if the POST /queue HTTP response
   // was lost (e.g., transport timeout AFTER the server inserted the
   // row + emitted the event). Cleared on join success/error/cancel.
-  const pendingJoinRef = useRef<{ teamId: string; stakeAmount: string } | null>(null);
+  const pendingJoinRef = useRef<{ teamId: string; bracket: number } | null>(null);
 
   // Subscribe to address-room WS events. Only opens when state is non-idle —
   // matches the lazy-open decision from the scoping pass.
@@ -805,7 +805,7 @@ export function useQueueState(): UseQueueStateResult {
   // Imperative API ─────────────────────────────────────
 
   const joinQueue = useCallback(
-    async (teamId: string, stakeAmount: string) => {
+    async (teamId: string, bracket: number) => {
       // B-03 re-entry guard: silently drop concurrent calls (e.g. double-click).
       if (inFlightRef.current) return;
       if (!auth?.isConnected) {
@@ -823,7 +823,7 @@ export function useQueueState(): UseQueueStateResult {
       // F-Y4: stash join params BEFORE the await so a late WS `queue_joined`
       // event arriving for THIS join can recover the queue session if the
       // POST response is lost (transport timeout after server-side success).
-      pendingJoinRef.current = { teamId, stakeAmount };
+      pendingJoinRef.current = { teamId, bracket };
       dispatch({ type: 'join_start' });
       // F-16-a: `since` is preferentially populated from the server's
       // `enqueuedAtMs` (set after the API call). The client-side `Date.now()`
@@ -836,7 +836,7 @@ export function useQueueState(): UseQueueStateResult {
       let headers: Awaited<ReturnType<typeof auth.getAuthHeaders>> | null = null;
       try {
         headers = await auth.getAuthHeaders();
-        const res = await api.combat.joinQueue(teamId, stakeAmount, headers);
+        const res = await api.combat.joinQueue(teamId, bracket, headers);
 
         // B-04 fix: if the user clicked cancel mid-join, fire a compensating
         // leaveQueue so we don't sit phantom-queued server-side. The reducer
@@ -1163,7 +1163,7 @@ function handleWsEvent(
   // can recover the queue session when the POST /queue HTTP response was
   // lost. `null` in the ref means no in-flight join — `queue_joined`
   // becomes a no-op (the REST path will have populated state already).
-  pendingJoinRef: React.MutableRefObject<{ teamId: string; stakeAmount: string } | null>,
+  pendingJoinRef: React.MutableRefObject<{ teamId: string; bracket: number } | null>,
 ): void {
   switch (evt.event) {
     case 'queue_joined': {

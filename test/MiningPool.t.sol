@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, stdStorage, StdStorage} from "forge-std/Test.sol";
+import {Test, Vm, stdStorage, StdStorage} from "forge-std/Test.sol";
 import {MiningPool} from "../contracts/MiningPool.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
@@ -1917,5 +1917,109 @@ contract MiningPoolTest is Test {
         uint256 reward = pool.getExpedition(eid).reward;
         assertEq(reward % 25, 0, "boost applied to base before the tier multiply");
         assertEq(reward, _boosted(BASE_REWARD, 3_333) * 25);
+    }
+
+    // ── D-E (owner decision 2026-10-03): the stake reference the arena pegs its brackets to ──
+
+    function test_DE_firstSeasonSeedsTheStakeReference() public {
+        assertEq(pool.stakeReference(), 0, "nothing before the first season");
+        assertEq(pool.EPOCHS_PER_DAY(), 24);
+        vm.prank(seasonAdmin);
+        vm.expectEmit(true, false, false, true);
+        emit MiningPool.StakeReferenceUpdated(1, 0, 0, BASE_REWARD);
+        pool.startSeason(S1_EMISSION, BASE_REWARD);
+        assertEq(pool.stakeReference(), BASE_REWARD);
+    }
+
+    function test_DE_referenceResamplesOnlyAtTheDayBoundary() public {
+        _startSeason();
+        vm.prank(seasonAdmin);
+        pool.setBaseReward(1_000e18); // the rate moves at hour 0
+        vm.warp(block.timestamp + 1 hours);
+        pool.repeg();
+        assertEq(pool.stakeReference(), BASE_REWARD, "hour 1: same day");
+        vm.warp(block.timestamp + 22 hours);
+        pool.repeg();
+        assertEq(pool.stakeReference(), BASE_REWARD, "hour 23: same day");
+        vm.warp(block.timestamp + 1 hours);
+        vm.expectEmit(true, false, false, true);
+        emit MiningPool.StakeReferenceUpdated(1, 24, BASE_REWARD, 1_000e18);
+        pool.repeg();
+        assertEq(pool.stakeReference(), 1_000e18, "hour 24: the day's first touch samples");
+        vm.prank(seasonAdmin);
+        pool.setBaseReward(900e18);
+        vm.warp(block.timestamp + 23 hours);
+        pool.repeg();
+        assertEq(pool.stakeReference(), 1_000e18, "hour 47: still day 2's sample");
+        vm.warp(block.timestamp + 1 hours);
+        pool.repeg();
+        assertEq(pool.stakeReference(), 900e18, "hour 48: day 3's sample");
+    }
+
+    function test_DE_noEventWhenTheRateIsUnchangedAtTheBoundary() public {
+        _startSeason();
+        vm.warp(block.timestamp + 24 hours);
+        vm.recordLogs();
+        pool.repeg();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != MiningPool.StakeReferenceUpdated.selector, "no update when equal");
+        }
+        assertEq(pool.stakeReference(), BASE_REWARD);
+    }
+
+    /// @dev The sample is taken AFTER the glide step of the boundary epoch: the day's stakes follow
+    ///      the rate the day's first expedition pays.
+    function test_DE_sampleTakesTheRateAfterTheBoundaryStep() public {
+        _startSeasonWith(BASE_REWARD * 100, BASE_REWARD); // tight budget: demand pushes the rate down
+        vm.warp(block.timestamp + 23 hours);
+        pool.repeg(); // touch epoch 23 so its demand is inside the window at the boundary
+        _sixBaseExpeditionsInThisEpoch();
+        vm.warp(block.timestamp + 1 hours);
+        vm.expectEmit(true, false, false, true);
+        emit MiningPool.StakeReferenceUpdated(1, 24, BASE_REWARD, (BASE_REWARD * 7_000) / 10_000);
+        pool.repeg();
+        assertEq(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000, "stepped down by the clamp");
+        assertEq(pool.stakeReference(), (BASE_REWARD * 7_000) / 10_000, "sampled after the step");
+    }
+
+    function test_DE_longGapSamplesOnceAtTheFirstTouch() public {
+        _startSeason();
+        vm.prank(seasonAdmin);
+        pool.setBaseReward(1_000e18);
+        vm.warp(block.timestamp + 5 days + 30 minutes);
+        vm.expectEmit(true, false, false, true);
+        emit MiningPool.StakeReferenceUpdated(1, 120, BASE_REWARD, 1_000e18);
+        pool.repeg();
+        assertEq(pool.stakeReference(), 1_000e18);
+    }
+
+    /// @dev Continuity across seasons: a new season's launch reward must not jump the stakes on
+    ///      day one; the previous day's sample carries until the new season's first day boundary.
+    function test_DE_referenceIsContinuousAcrossSeasons() public {
+        _startSeason();
+        vm.prank(seasonAdmin);
+        pool.setBaseReward(1_000e18);
+        vm.warp(block.timestamp + 24 hours);
+        pool.repeg();
+        assertEq(pool.stakeReference(), 1_000e18);
+
+        vm.warp(block.timestamp + 60 days);
+        vm.recordLogs();
+        vm.prank(seasonAdmin);
+        pool.startSeason(S1_EMISSION / 2, BASE_REWARD);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != MiningPool.StakeReferenceUpdated.selector, "no re-seed");
+        }
+        assertEq(pool.stakeReference(), 1_000e18, "yesterday's sample carries into S2");
+        assertEq(pool.currentBaseReward(), BASE_REWARD, "S2 launched at 1,250");
+
+        // S2's first day boundary samples S2's rate.
+        vm.warp(block.timestamp + 24 hours);
+        vm.expectEmit(true, false, false, true);
+        emit MiningPool.StakeReferenceUpdated(2, 24, 1_000e18, BASE_REWARD);
+        pool.repeg();
+        assertEq(pool.stakeReference(), BASE_REWARD);
     }
 }

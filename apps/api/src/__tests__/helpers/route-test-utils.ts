@@ -144,6 +144,7 @@ export function mockBattle(overrides: Record<string, any> = {}) {
     teamIdA: 1n,
     teamIdB: 2n,
     stakeAmount: 2500n,
+    bracket: 0, // D-E: the bracket the contract bound
     phase: 0,
     winner: '0x0000000000000000000000000000000000000000',
     depositA: false,
