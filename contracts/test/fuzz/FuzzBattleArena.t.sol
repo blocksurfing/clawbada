@@ -56,10 +56,20 @@ contract FuzzBattleArena is BaseSetup {
         return keccak256(abi.encodePacked("salt-B", battleId));
     }
 
+    /// @dev D-E: battles are created by BRACKET; the fuzz keeps thinking in amounts. BaseSetup never
+    ///      starts a season, so the peg falls back to GENESIS and the launch amounts map 1:1.
+    function _bracketOf(uint256 stake) internal view returns (uint8) {
+        for (uint8 i = 0; i < 3; i++) {
+            if (battleArena.stakeFor(i) == stake) return i;
+        }
+        revert("unknown stake");
+    }
+
     function _createBattleAt(uint256 stake) internal returns (uint256 battleId) {
+        uint8 bracket = _bracketOf(stake); // before the prank: the lookup is an external call
         vm.prank(admin);
         // Power 3 == three Evolved lobsters (the standard _createEvolvedTeam composition).
-        battleId = battleArena.createBattle(alice, bob, stake, 3, 3);
+        battleId = battleArena.createBattle(alice, bob, bracket, 3, 3);
     }
 
     function _createBattle() internal returns (uint256) {
@@ -227,20 +237,32 @@ contract FuzzBattleArena is BaseSetup {
 
     // ─────────────────────── creation / phases ───────────────────────
 
-    function testFuzz_invalid_stake_reverts(uint256 amount) public {
-        vm.assume(amount != 2_500e18 && amount != 10_000e18 && amount != 50_000e18);
-        amount = bound(amount, 1, type(uint128).max);
-        vm.assume(amount != 2_500e18 && amount != 10_000e18 && amount != 50_000e18);
+    function testFuzz_invalid_bracket_reverts(uint8 bracket) public {
+        bracket = uint8(bound(bracket, 3, 255));
 
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeAmount.selector, amount));
-        battleArena.createBattle(alice, bob, amount, 3, 3);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidStakeBracket.selector, uint256(bracket)));
+        battleArena.createBattle(alice, bob, bracket, 3, 3);
+    }
+
+    /// D-E: the bound amount is exactly what the peg quoted for the bracket at creation.
+    function testFuzz_bound_stake_is_the_bracket_quote(uint8 bracket, uint8 powerA, uint8 powerB) public {
+        bracket = uint8(bound(bracket, 0, 2));
+        powerA = uint8(bound(powerA, 3, 9));
+        powerB = uint8(bound(powerB, 3, 9));
+        uint256 quoted = battleArena.stakeFor(bracket);
+        vm.prank(admin);
+        uint256 battleId = battleArena.createBattle(alice, bob, bracket, powerA, powerB);
+        BattleArena.Battle memory b = battleArena.getBattle(battleId);
+        assertEq(b.stakeAmount, quoted, "amount bound = quote");
+        assertEq(b.bracket, bracket, "bracket stored");
+        assertEq(b.stakeAmount % 1e18, 0, "whole CLAW");
     }
 
     function test_same_player_reverts() public {
         vm.prank(admin);
         vm.expectRevert(BattleArena.PlayerCannotBeSelf.selector);
-        battleArena.createBattle(alice, alice, LOW_STAKE, 3, 3);
+        battleArena.createBattle(alice, alice, 0, 3, 3);
     }
 
     /// D-13: the commit rides in the deposit; both deposits go straight to TeamReveal.
@@ -353,13 +375,14 @@ contract FuzzBattleArena is BaseSetup {
         uint256 wrongStake,
         uint8 maxOpponentPower
     ) public {
-        uint256 stake = battleArena.STAKE_BRACKETS(bound(bracket, 0, 2));
+        bracket = uint8(bound(bracket, 0, 2));
+        uint256 stake = battleArena.stakeFor(bracket);
         powerA = uint8(bound(powerA, 3, 9));
         powerB = uint8(bound(powerB, 3, 9));
         uint256 expectedStake = stakeMatches ? stake : wrongStake;
 
         vm.prank(admin);
-        uint256 battleId = battleArena.createBattle(alice, bob, stake, powerA, powerB);
+        uint256 battleId = battleArena.createBattle(alice, bob, bracket, powerA, powerB);
 
         address player = depositorIsA ? alice : bob;
         uint8 opponentPower = depositorIsA ? powerB : powerA;
@@ -675,7 +698,7 @@ contract FuzzBattleArena is BaseSetup {
         public
     {
         bracket = uint8(bound(bracket, 0, 2));
-        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        uint256 stake = battleArena.stakeFor(bracket);
         (uint256 battleId,,) = _setupActiveAt(stake);
         reserve = bound(reserve, 0, 500_000e18);
         if (reserve > 0) _fundReserve(reserve);
@@ -711,7 +734,7 @@ contract FuzzBattleArena is BaseSetup {
     /// D-03: a draw pays exactly the normal protocol fee, split half per side, at every bracket.
     function testFuzz_drawFee_exact(uint8 bracket) public {
         bracket = uint8(bound(bracket, 0, 2));
-        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        uint256 stake = battleArena.stakeFor(bracket);
         (uint256 battleId,,) = _setupActiveAt(stake);
         _settleProposing(battleId, address(0));
         Snap memory s = _snap();
@@ -787,7 +810,7 @@ contract FuzzBattleArena is BaseSetup {
     /// be finalized and no longer frozen.
     function testFuzz_freezeTimingBoundary(uint8 bracket, uint256 t, bool byAdmin) public {
         bracket = uint8(bound(bracket, 0, 2));
-        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        uint256 stake = battleArena.stakeFor(bracket);
         (uint256 battleId,,) = _setupActiveAt(stake);
         uint256 settledAt = block.timestamp;
         _settleProposing(battleId, alice);
@@ -881,7 +904,7 @@ contract FuzzBattleArena is BaseSetup {
         bool proposedForfeit
     ) public {
         bracket = uint8(bound(bracket, 0, 2));
-        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        uint256 stake = battleArena.stakeFor(bracket);
         (uint256 battleId,,) = _setupActiveAt(stake);
         // The proposal and the Safe's result are drawn independently (review T2): what the
         // proposal said about a forfeit must play no part in what is paid.
@@ -956,7 +979,7 @@ contract FuzzBattleArena is BaseSetup {
         public
     {
         bracket = uint8(bound(bracket, 0, 2));
-        uint256 stake = battleArena.STAKE_BRACKETS(bracket);
+        uint256 stake = battleArena.stakeFor(bracket);
         (uint256 battleId,,) = _setupActiveAt(stake);
         // Bias toward the boundary: half the runs land within ±2 wei of 2·stake.
         if (reserve % 2 == 0) reserve = 2 * stake - 2 + (reserve >> 1) % 5;
@@ -999,14 +1022,14 @@ contract FuzzBattleArena is BaseSetup {
                 mstore(ops, 12)
             }
         }
-        (uint256 idReview,,) = _setupActiveAt(battleArena.STAKE_BRACKETS(1));
+        (uint256 idReview,,) = _setupActiveAt(battleArena.stakeFor(1));
         _settleProposing(idReview, bob);
         (uint256 idActive,,) = _setupActiveAt(LOW_STAKE);
         if (freezeOne) {
             vm.prank(guardian);
             battleArena.freeze(idReview);
         }
-        uint256 escrow = 2 * (battleArena.STAKE_BRACKETS(1) + _ag(battleArena.STAKE_BRACKETS(1)))
+        uint256 escrow = 2 * (battleArena.stakeFor(1) + _ag(battleArena.stakeFor(1)))
             + 2 * (LOW_STAKE + _ag(LOW_STAKE));
         assertEq(claw.balanceOf(address(battleArena)), escrow);
 
@@ -1109,7 +1132,7 @@ contract FuzzBattleArena is BaseSetup {
     function test_perBracket_reviewWindows() public {
         uint256[3] memory expected = [uint256(5 minutes), 30 minutes, 1 hours];
         for (uint256 i = 0; i < 3; i++) {
-            (uint256 battleId,,) = _setupActiveAt(battleArena.STAKE_BRACKETS(i));
+            (uint256 battleId,,) = _setupActiveAt(battleArena.stakeFor(uint8(i)));
             uint256 settleAt = block.timestamp;
             _settleProposing(battleId, alice);
             assertEq(battleArena.getBattle(battleId).payoutDeadline, settleAt + expected[i], "bracket window");

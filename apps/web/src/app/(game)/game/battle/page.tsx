@@ -47,10 +47,14 @@ const PRESETS = [
 // Pick a random arena scene on page load (Evolved tier default for queue view)
 const arenaScene = getArenaBackground(1);
 
+// D-E: stakes are a damped live peg on the mining rate (20 % anchored to the 1,250 launch
+// reward, 80 % following the base reward sampled once per season-day), never above the launch
+// value. The amounts come from GET /api/game/combat/stakes; the chain binds each battle's stake
+// at createBattle. Indices are the contract's brackets (0 = Low, 1 = Mid, 2 = High).
 const STAKE_BRACKETS = [
-  { label: 'Low', value: '2500', color: 'bg-teal/15 text-teal' },
-  { label: 'Mid', value: '10000', color: 'bg-ocean/15 text-ocean' },
-  { label: 'High', value: '50000', color: 'bg-claw-gold/15 text-claw-gold' },
+  { label: 'Low', launch: '2500', color: 'bg-teal/15 text-teal' },
+  { label: 'Mid', launch: '10000', color: 'bg-ocean/15 text-ocean' },
+  { label: 'High', launch: '50000', color: 'bg-claw-gold/15 text-claw-gold' },
 ] as const;
 
 // B-36: per-bracket auto-skip durations on the match-found HUD. Higher stakes
@@ -211,7 +215,28 @@ function QueueView({
   onMatchFound: (battleId: string) => void;
 }) {
   const [selectedTeam, setSelectedTeam] = useState('');
-  const [selectedBracket, setSelectedBracket] = useState('2500');
+  const [selectedBracket, setSelectedBracket] = useState(0);
+
+  // D-E: the live bracket amounts. They move at most once a season-day (and when the Safe enacts
+  // a new fixed share), so a minute's refetch is plenty; '…' while the first quote is loading.
+  const { data: stakeQuote } = useQuery({
+    queryKey: ['combat', 'stakes'],
+    queryFn: () => api.combat.stakes(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const stakeWeiFor = (idx: number): bigint | null => {
+    const w = stakeQuote?.brackets[idx]?.stakeWei;
+    return w ? BigInt(w) : null;
+  };
+  const stakeLabel = (idx: number) => {
+    const w = stakeWeiFor(idx);
+    return w === null ? '…' : formatClawWei(w);
+  };
+  const winLabel = (idx: number) => {
+    const w = stakeWeiFor(idx);
+    return w === null ? '…' : formatClawWei((w * 18n) / 10n); // 2 × stake − 10 % fee
+  };
 
   // V3 S1: queue lifecycle is owned by the state machine in `useQueueState`.
   const { state: queueState, joinQueue, leaveQueue, reset } = useQueueState();
@@ -238,7 +263,7 @@ function QueueView({
   // Pool-depth snapshot for the typical-wait hint under each stake bracket.
   const { data: poolDepths } = useAllPoolDepths();
 
-  const bracketIndex = STAKE_BRACKETS.findIndex((b) => b.value === selectedBracket);
+  const bracketIndex = selectedBracket;
 
   // B-07: the MatchFoundHud now owns the matched→active-battle transition
   // timing. It auto-fires onApprove (== onMatchFound here) after a 3-second
@@ -304,7 +329,7 @@ function QueueView({
 
         <div className="flex items-center justify-between pt-3 border-t border-[rgba(255,210,128,0.1)]">
           <span className="text-xs text-text-secondary">
-            Bracket: {STAKE_BRACKETS[queueState.bracket]?.label} · stake {formatClaw(STAKE_BRACKETS[queueState.bracket]?.value ?? '0')}
+            Bracket: {STAKE_BRACKETS[queueState.bracket]?.label} · stake {stakeLabel(queueState.bracket)}
           </span>
           <button
             onClick={() => leaveQueue()}
@@ -405,18 +430,18 @@ function QueueView({
               : null;
           return (
             <button
-              key={b.value}
-              onClick={() => setSelectedBracket(b.value)}
+              key={b.label}
+              onClick={() => setSelectedBracket(idx)}
               className={`p-3 rounded-lg text-center transition-all ${
-                selectedBracket === b.value
+                selectedBracket === idx
                   ? 'frosted-panel-highlight'
                   : 'frosted-panel hover:border-[rgba(255,210,128,0.3)]'
               }`}
             >
               <span className="font-pixel text-[10px] text-text-secondary block">{b.label}</span>
-              <span className="font-mono text-sm text-foreground block mt-1">{formatClaw(b.value)}</span>
+              <span className="font-mono text-sm text-foreground block mt-1">{stakeLabel(idx)}</span>
               <Badge className={`${b.color} border-0 text-[9px] mt-1.5`}>
-                Win {formatClaw(Number(b.value) * 2 * 0.9)}
+                Win {winLabel(idx)}
               </Badge>
               {depth !== null && (
                 <span className="block text-[9px] text-text-secondary mt-1 tabular-nums">
@@ -427,6 +452,9 @@ function QueueView({
           );
         })}
       </div>
+      <p className="text-[10px] text-text-secondary">
+        Stakes follow the mining rate: re-quoted once a day, never above the launch values (2,500 / 10,000 / 50,000). The amount is fixed when your match is created.
+      </p>
 
       <div className="space-y-2">
         <label className="text-sm text-text-secondary">Select Team</label>
@@ -459,7 +487,7 @@ function QueueView({
 
       <div className="flex items-center justify-between pt-3 border-t border-[rgba(255,210,128,0.1)]">
         <span className="text-sm text-text-secondary">
-          Stake: <span className="text-foreground font-mono">{formatClaw(selectedBracket)}</span>
+          Stake: <span className="text-foreground font-mono">{stakeLabel(selectedBracket)}</span>
         </span>
         <button
           onClick={handleJoinQueue}

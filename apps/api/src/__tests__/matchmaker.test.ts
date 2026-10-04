@@ -137,7 +137,8 @@ const simulateCreateBattle = mock(async () => ({ result: 777n }));
 mock.module('@clawbada/chain', () => ({
   addresses: {},
   getPublicClient: () => ({}),
-  getBattleArena: () => ({ simulate: { createBattle: simulateCreateBattle } }),
+  // D-E: the matchmaker quotes the bracket's stake for the row; the contract binds the amount.
+  getBattleArena: () => ({ simulate: { createBattle: simulateCreateBattle }, read: { stakeFor: async () => 2_500n * 10n ** 18n } }),
 }));
 
 // ── Mock ../lib/chain: per-team rosters so computePowerForTeam reproduces the

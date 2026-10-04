@@ -44,18 +44,24 @@ import {
   voidParticipation,
   type BattleOutcomeResult,
 } from '@clawbada/db';
-import { calculateNewElo, STAKE_BRACKETS } from '@clawbada/game-logic';
+import { calculateNewElo, NUM_STAKE_BRACKETS } from '@clawbada/game-logic';
 import { judgeProposal, isRogueVerdict } from '@clawbada/db/src/queries/proposal-verdict';
 import { EventWatcher, type WatcherConfig } from '../lib/event-processor';
 // Aliased to `pinoLog` because `handleEvent(log: Log)` parameter shadows the
 // module-scope name. Pino logger calls below use `pinoLog.warn(...)`.
 import { log as pinoLog } from '../logger';
 
-/** D-08: Low / Mid / High by the DISPLAY stake (whole $CLAW). An unknown stake is reported
- *  as High, never as Low: if a label is wrong it must be wrong in the alarming direction. */
-export function bracketForStake(stakeDisplay: bigint): 0 | 1 | 2 {
-  if (stakeDisplay === STAKE_BRACKETS[0]) return 0;
-  if (stakeDisplay === STAKE_BRACKETS[1]) return 1;
+/** D-08 / D-E: the bracket is what the contract bound (`BattleCreated.bracket`); the stake is a
+ *  peg that follows the mining rate, so it can no longer be inferred from the amount. A missing
+ *  or out-of-range value is reported as High, never as Low: if a label is wrong it must be wrong
+ *  in the alarming direction. */
+export function bracketFromEvent(raw: unknown, battleId?: bigint): 0 | 1 | 2 {
+  const b = typeof raw === 'bigint' ? Number(raw) : typeof raw === 'number' ? raw : NaN;
+  if (Number.isInteger(b) && b >= 0 && b < NUM_STAKE_BRACKETS) return b as 0 | 1 | 2;
+  pinoLog.warn(
+    { battleId: battleId?.toString(), bracket: String(raw), module: 'battle-watcher', op: 'BattleCreated' },
+    'BattleCreated without a valid bracket — labelled High',
+  );
   return 2;
 }
 
@@ -163,8 +169,21 @@ export class BattleWatcher extends EventWatcher {
           .from(battles)
           .where(eq(battles.battleId, battleId))
           .limit(1);
+        // F-12: contract emits stakeAmount in wei (1e18 units). Persist as DISPLAY value
+        // (divide by 1e18) so the `battles.stakeAmount` column stays semantically aligned with
+        // what the matchmaker writes and what frontend `formatClaw` consumers expect.
+        const stakeWei = BigInt(args.stakeAmount);
+        const stakeDisplay = stakeWei / (10n ** 18n);
 
-        if (existing.length === 0) {
+        if (existing.length > 0) {
+          // D-E: the chain bound the stake for the bracket the matchmaker named; the row carried
+          // the matchmaker's quote (the engine also writes the bound amount on its receipt).
+          // Mirror what the event says, whichever process wrote the row first.
+          await db
+            .update(battles)
+            .set({ stakeAmount: stakeDisplay.toString(), stakeBracket: bracketFromEvent(args.bracket, battleId) })
+            .where(eq(battles.battleId, battleId));
+        } else {
           // A2-FU-01: this is the fallback insert path — reached when
           // `BattleCreated` fires for a battle whose matchmaker DB row never
           // landed (e.g., matchmaker tx aborted between createBattle simulation
@@ -177,21 +196,15 @@ export class BattleWatcher extends EventWatcher {
             { battleId: battleId.toString(), playerA: args.playerA, playerB: args.playerB, module: 'battle-watcher', op: 'BattleCreated' },
             'BattleCreated for unknown battle — fallback insert without queued team IDs (ops repair needed)',
           );
-          // F-12: contract emits stakeAmount in wei (1e18 units). Persist as
-          // DISPLAY value (divide by 1e18) so the `battles.stakeAmount`
-          // column stays semantically aligned with what the matchmaker
-          // writes and what frontend `formatClaw` consumers expect.
-          const stakeWei = BigInt(args.stakeAmount);
-          const stakeDisplay = stakeWei / (10n ** 18n);
           await db.insert(battles).values({
             battleId,
             playerA: (args.playerA as string).toLowerCase(),
             playerB: (args.playerB as string).toLowerCase(),
             teamA: 0n,
             teamB: 0n,
-            // D-08: the bracket is read from the stake the chain recorded. It used to be
+            // D-08 / D-E: the bracket is the one the chain bound (the event's). It used to be
             // hard-coded 0, so a rogue 50,000-stake battle reached the victim labelled "Low".
-            stakeBracket: bracketForStake(stakeDisplay),
+            stakeBracket: bracketFromEvent(args.bracket, battleId),
             stakeAmount: stakeDisplay.toString(),
             // D-08: nobody queued for this battle through this server. The API refuses to
             // present such a row as the caller's match, or to build deposit calldata for it.

@@ -140,8 +140,14 @@ export class PlayerAgent {
   }
 
   // ── queue → battle ──
-  async joinQueue(teamId: bigint, stake: string): Promise<{ status: 'queued' | 'matched'; battleId?: string }> {
-    const r = await this.post('/api/game/combat/queue', { teamId: teamId.toString(), stakeAmount: stake });
+  /** D-E: the current bracket stakes (wei strings) and the peg behind them — a quote; the chain
+   *  binds each battle's stake at createBattle. */
+  async stakeQuote(): Promise<{ brackets: Array<{ bracket: 0 | 1 | 2; label: string; stakeWei: string; launchStakeWei: string }>; peg: Record<string, string>; note: string }> {
+    return this.get('/api/game/combat/stakes');
+  }
+  /** D-E: queue by BRACKET (0 = Low, 1 = Mid, 2 = High), never by amount. */
+  async joinQueue(teamId: bigint, bracket: 0 | 1 | 2): Promise<{ status: 'queued' | 'matched'; battleId?: string }> {
+    const r = await this.post('/api/game/combat/queue', { teamId: teamId.toString(), bracket });
     this.say(`queue: ${r.status}${r.battleId ? ` battle #${r.battleId}` : ''}`);
     return { status: r.status, battleId: r.battleId ? String(r.battleId) : undefined };
   }

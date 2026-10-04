@@ -26,7 +26,9 @@ mock.module('@clawbada/chain', () => ({
 // Partial on purpose: bun keeps the real export for every key not listed
 // (computeTeamPower, getCurrentRadius, getCurrentRatingRadius stay real).
 mock.module('@clawbada/game-logic', () => ({
-  STAKE_BRACKETS: [2500n, 10000n, 50000n],
+  LAUNCH_STAKES: [2500n, 10000n, 50000n],
+  STAKE_BRACKET_LABELS: ['Low', 'Mid', 'High'],
+  NUM_STAKE_BRACKETS: 3,
   ANTI_GRIEF_DEPOSIT_BPS: 500n,
   DAMAGE_THRESHOLD: 80,
   EvolutionTier: { 0: 'Base', 1: 'Evolved', 2: 'Elite', 3: 'Apex', Base: 0, Evolved: 1, Elite: 2, Apex: 3 },
@@ -141,6 +143,7 @@ mock.module('../../lib/matchmaker/match', () => ({
 const mockReadTeam = mock<any>();
 const mockReadLobster = mock<any>();
 const mockReadBattle = mock<any>();
+const mockReadStakeQuote = mock<any>();
 
 // ── Local serializeBigInts ──
 function _serializeBigInts(obj: any): any {
@@ -160,6 +163,7 @@ mock.module('../../lib/chain', () => ({
   readTeam: mockReadTeam,
   readLobster: mockReadLobster,
   readBattle: mockReadBattle,
+  readStakeQuote: mockReadStakeQuote,
   readChainTime: mockReadChainTime,
   serializeBigInts: _serializeBigInts,
 }));
@@ -208,7 +212,7 @@ describe('combat routes', () => {
       const res = await app.request('/combat/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ stakeAmount: '2500' }),
+        body: JSON.stringify({ bracket: 0 }),
       });
       expect(res.status).toBe(400);
     });
@@ -222,11 +226,38 @@ describe('combat routes', () => {
       const res = await app.request('/combat/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ teamId: '1', stakeAmount: '999' }),
+        body: JSON.stringify({ teamId: '1', bracket: 9 }),
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.message).toContain('stakeAmount');
+      expect(body.message).toContain('bracket must be');
+    });
+
+    test('D-E: the old stakeAmount body is refused with a pointer to the quote endpoint', async () => {
+      mockReadTeam.mockResolvedValue(mockTeam());
+      const res = await app.request('/combat/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ teamId: '1', stakeAmount: '2500' }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.message).toContain('send bracket');
+      expect(body.message).toContain('/api/game/combat/stakes');
+    });
+
+    test('D-E: a decimal-string bracket is accepted', async () => {
+      mockReadTeam.mockResolvedValue(mockTeam({ active: false }));
+      mockReadLobster.mockImplementation((id: bigint) =>
+        Promise.resolve(mockLobster({ tokenId: id, evolutionTier: 1 })),
+      );
+      const res = await app.request('/combat/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ teamId: '1', bracket: '1' }),
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()).bracket).toBe(1);
     });
 
     test('returns 400 when not team owner', async () => {
@@ -235,7 +266,7 @@ describe('combat routes', () => {
       const res = await app.request('/combat/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ teamId: '1', stakeAmount: '2500' }),
+        body: JSON.stringify({ teamId: '1', bracket: 0 }),
       });
       expect(res.status).toBe(400);
       const body = await res.json();
@@ -246,7 +277,7 @@ describe('combat routes', () => {
       const res = await app.request('/combat/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId: '1', stakeAmount: '2500' }),
+        body: JSON.stringify({ teamId: '1', bracket: 0 }),
       });
       expect(res.status).toBe(401);
     });
@@ -261,7 +292,7 @@ describe('combat routes', () => {
       const res = await app.request('/combat/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ teamId: '1', stakeAmount: '2500' }),
+        body: JSON.stringify({ teamId: '1', bracket: 0 }),
       });
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -312,7 +343,7 @@ describe('combat routes', () => {
       const res = await app.request('/combat/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ teamId: '1', stakeAmount: '2500' }),
+        body: JSON.stringify({ teamId: '1', bracket: 0 }),
       });
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -401,7 +432,7 @@ describe('combat routes', () => {
     const WEI = 10n ** 18n;
     // The match this server made for TEST_ADDRESS: Low bracket, Power 3 v 4.
     const matchRow = (over: Record<string, unknown> = {}) => ({ playerA: TEST_ADDRESS, playerB: OTHER_ADDRESS, stakeBracket: 0, powerA: 3, powerB: 4, queuedTeamA: 1n, queuedTeamB: 2n, fromMatchmaker: true, ...over });
-    const onChain = (over: Record<string, unknown> = {}) => mockBattle({ phase: 1, stakeAmount: 2_500n * WEI, powerA: 3, powerB: 4, ...over });
+    const onChain = (over: Record<string, unknown> = {}) => mockBattle({ phase: 1, stakeAmount: 2_500n * WEI, bracket: 0, powerA: 3, powerB: 4, ...over });
     const COMMIT = '0x' + 'c0'.repeat(32);
     const SALT = '0x' + 'ab'.repeat(32);
     const deposit = (body: unknown, headers = authHeaders()) =>
@@ -587,7 +618,7 @@ describe('combat routes', () => {
   describe('POST /combat/:battleId/deposit — consent binding (D-08)', () => {
     const WEI = 10n ** 18n;
     const matchRow = (over: Record<string, unknown> = {}) => ({ playerA: TEST_ADDRESS, playerB: OTHER_ADDRESS, stakeBracket: 0, powerA: 3, powerB: 3, fromMatchmaker: true, ...over });
-    const onChain = (over: Record<string, unknown> = {}) => mockBattle({ phase: 1, stakeAmount: 2_500n * WEI, powerA: 3, powerB: 3, ...over });
+    const onChain = (over: Record<string, unknown> = {}) => mockBattle({ phase: 1, stakeAmount: 2_500n * WEI, bracket: 0, powerA: 3, powerB: 3, ...over });
     const deposit = (headers = authHeaders()) =>
       app.request('/combat/1/deposit', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ commitHash: '0x' + 'c0'.repeat(32) }) });
 
@@ -600,6 +631,24 @@ describe('combat routes', () => {
       expect(body.message).toContain('the stake differs');
       expect(body.message).toContain('50000 CLAW');
       expect(body.steps).toBeUndefined();
+    });
+
+    test('D-E: a battle in another bracket than the one queued for is refused', async () => {
+      mockReadBattle.mockResolvedValue(onChain({ bracket: 2, stakeAmount: 50_000n * WEI }));
+      mockFindFirst.mockResolvedValue(matchRow());
+      const res = await deposit();
+      expect(res.status).toBe(409);
+      expect((await res.json()).message).toContain('the bracket differs');
+    });
+
+    test('D-E: a pegged Low stake below the launch value is accepted; the consent is the amount the chain bound', async () => {
+      mockReadBattle.mockResolvedValue(onChain({ stakeAmount: 1_500n * WEI }));
+      mockFindFirst.mockResolvedValue(matchRow());
+      const res = await deposit();
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.preview.consent.expectedStake).toBe((1_500n * WEI).toString());
+      expect(body.preview.totalDeposit).toBe((1_575n * WEI).toString());
     });
 
     test('a different opponent than the match on record is refused', async () => {
@@ -641,11 +690,34 @@ describe('combat routes', () => {
     });
 
     test('player B of an honest Mid match gets calldata for 10,500', async () => {
-      mockReadBattle.mockResolvedValue(onChain({ stakeAmount: 10_000n * WEI, powerA: 5, powerB: 6 }));
+      mockReadBattle.mockResolvedValue(onChain({ stakeAmount: 10_000n * WEI, bracket: 1, powerA: 5, powerB: 6 }));
       mockFindFirst.mockResolvedValue(matchRow({ stakeBracket: 1, powerA: 5, powerB: 6 }));
       const res = await deposit(authHeaders(OTHER_ADDRESS));
       expect(res.status).toBe(200);
       expect((await res.json()).preview.totalDeposit).toBe((10_500n * WEI).toString());
+    });
+  });
+
+  // ── D-E: the stake quote ──
+
+  describe('GET /combat/stakes (D-E quote)', () => {
+    test('returns the chain quote, serialized, without auth', async () => {
+      const WEI = 10n ** 18n;
+      mockReadStakeQuote.mockResolvedValue({
+        brackets: [
+          { bracket: 0, label: 'Low', stakeWei: 1_500n * WEI, launchStakeWei: 2_500n * WEI },
+          { bracket: 1, label: 'Mid', stakeWei: 6_000n * WEI, launchStakeWei: 10_000n * WEI },
+          { bracket: 2, label: 'High', stakeWei: 30_000n * WEI, launchStakeWei: 50_000n * WEI },
+        ],
+        peg: { stakeReferenceWei: 625n * WEI, liveBaseRewardWei: 600n * WEI, effectiveReferenceWei: 625n * WEI, genesisBaseRewardWei: 1_250n * WEI, fixedBps: 2_000n },
+      });
+      const res = await app.request('/combat/stakes');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.brackets).toHaveLength(3);
+      expect(body.brackets[0]).toMatchObject({ bracket: 0, label: 'Low', stakeWei: (1_500n * WEI).toString(), launchStakeWei: (2_500n * WEI).toString() });
+      expect(body.peg.fixedBps).toBe('2000');
+      expect(body.note).toContain('createBattle');
     });
   });
 

@@ -177,7 +177,7 @@ contract BoundaryTests is Test {
         repair = new RepairShop(address(claw), address(nft), address(treasury), address(pool));
         market = new Marketplace(address(claw), address(nft), address(treasury));
         arena = new BattleArena(
-            admin, address(claw), address(nft), address(tm), address(treasury), address(vrf)
+            admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(pool)
         );
 
         // Faucet with 7-day window
@@ -503,7 +503,7 @@ contract BoundaryTests is Test {
         uint256 teamIdB = _createTeam(bob, 1);
 
         vm.prank(matchmaker);
-        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
+        uint256 battleId = arena.createBattle(alice, bob, 0, 3, 3);
 
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
@@ -538,7 +538,7 @@ contract BoundaryTests is Test {
         uint256 teamIdB = _createTeam(bob, 1);
 
         vm.prank(matchmaker);
-        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
+        uint256 battleId = arena.createBattle(alice, bob, 0, 3, 3);
 
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
@@ -555,11 +555,12 @@ contract BoundaryTests is Test {
     }
 
     function test_boundary_allThreeStakeBracketsCreateBattle() public {
-        // Verify all three stake brackets are valid for battle creation
+        // Verify all three stake brackets are valid for battle creation (D-E: no season running,
+        // so the peg falls back to the launch amounts)
         vm.startPrank(matchmaker);
-        uint256 b1 = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
-        uint256 b2 = arena.createBattle(alice, bob, STAKE_MID, 3, 3);
-        uint256 b3 = arena.createBattle(alice, bob, STAKE_HIGH, 3, 3);
+        uint256 b1 = arena.createBattle(alice, bob, 0, 3, 3);
+        uint256 b2 = arena.createBattle(alice, bob, 1, 3, 3);
+        uint256 b3 = arena.createBattle(alice, bob, 2, 3, 3);
         vm.stopPrank();
 
         assertEq(arena.getBattle(b1).stakeAmount, STAKE_LOW);
@@ -1263,7 +1264,7 @@ contract BoundaryTests is Test {
         uint256 teamIdB = _createTeam(bob, 1);
 
         vm.prank(matchmaker);
-        uint256 battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
+        uint256 battleId = arena.createBattle(alice, bob, 0, 3, 3);
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
         bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));
@@ -1373,7 +1374,7 @@ contract BoundaryTests is Test {
         teamIdB = _createTeam(bob, 1);
 
         vm.prank(matchmaker);
-        battleId = arena.createBattle(alice, bob, STAKE_LOW, 3, 3);
+        battleId = arena.createBattle(alice, bob, 0, 3, 3);
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
         bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));

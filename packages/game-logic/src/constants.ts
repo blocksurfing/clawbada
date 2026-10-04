@@ -78,7 +78,18 @@ export const BREED_MULTIPLIERS = [1_000n, 1_500n, 2_500n, 4_000n, 8_000n] as con
 export const GENERATION_COST_MULT = 1_500n; // 1.5× per generation (×1000)
 
 // ──────────── Battle ────────────
-export const STAKE_BRACKETS = [2_500n, 10_000n, 50_000n] as const; // Low, Mid, High
+// D-E (owner decision 2026-10-03): stake brackets are a DAMPED LIVE PEG on the mining rate —
+// see `stakeFor` in ./stakes.ts. The chain binds the amount at createBattle; nothing off-chain
+// may treat these launch figures as the amount to put in a transaction.
+/** The S1 LAUNCH stakes in whole CLAW (reference 1,250): labels, and the peg's upper bound. */
+export const LAUNCH_STAKES = [2_500n, 10_000n, 50_000n] as const; // Low, Mid, High
+export const STAKE_BRACKET_LABELS = ['Low', 'Mid', 'High'] as const;
+/** Low / Mid / High = 2× / 8× / 40× of the pegged unit (BattleArena.stakeMultiplier). */
+export const STAKE_MULTIPLIERS = [2n, 8n, 40n] as const;
+/** Season 1's launch reward in CLAW wei: the anchor of the fixed part of every stake, forever. */
+export const GENESIS_BASE_REWARD_WEI = 1_250n * 10n ** 18n;
+/** The provisional fixed share of the pegged unit (bps); a timelocked dial on BattleArena. */
+export const STAKE_FIXED_BPS_DEFAULT = 2_000n;
 export const BATTLE_PROTOCOL_FEE_BPS = 1000n; // 10%
 export const ANTI_GRIEF_DEPOSIT_BPS = 500n; // 5%
 export const COMMIT_TIMEOUT_SECONDS = 60; // per phase (positioning + combat)

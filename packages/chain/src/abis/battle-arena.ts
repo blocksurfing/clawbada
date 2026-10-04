@@ -31,6 +31,11 @@ export const BattleArenaAbi = [
         "name": "battleVRF_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "miningPool_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -116,6 +121,19 @@ export const BattleArenaAbi = [
   {
     "type": "function",
     "name": "FREEZE_LONG_STOP",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "GENESIS_BASE_REWARD",
     "inputs": [],
     "outputs": [
       {
@@ -297,25 +315,6 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
-    "name": "STAKE_BRACKETS",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "TEAM_REVEAL_WINDOW",
     "inputs": [],
     "outputs": [
@@ -386,9 +385,9 @@ export const BattleArenaAbi = [
         "internalType": "address"
       },
       {
-        "name": "stakeAmount",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "bracket",
+        "type": "uint8",
+        "internalType": "uint8"
       },
       {
         "name": "powerA",
@@ -409,6 +408,19 @@ export const BattleArenaAbi = [
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "currentStakes",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "stakes",
+        "type": "uint256[3]",
+        "internalType": "uint256[3]"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -461,6 +473,13 @@ export const BattleArenaAbi = [
         "internalType": "uint256"
       }
     ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "enactStakeFixedBps",
+    "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -569,6 +588,11 @@ export const BattleArenaAbi = [
           },
           {
             "name": "powerB",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "bracket",
             "type": "uint8",
             "internalType": "uint8"
           },
@@ -786,6 +810,19 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
+    "name": "miningPool",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IStakeReference"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "nextBattleId",
     "inputs": [],
     "outputs": [
@@ -860,6 +897,32 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
+    "name": "pendingStakeFixedBps",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingStakeFixedBpsAt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "proposeReviewWindow",
     "inputs": [
       {
@@ -869,6 +932,19 @@ export const BattleArenaAbi = [
       },
       {
         "name": "newWindow",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "proposeStakeFixedBps",
+    "inputs": [
+      {
+        "name": "newBps",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1060,6 +1136,57 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
+    "name": "stakeFixedBps",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "stakeFor",
+    "inputs": [
+      {
+        "name": "bracket",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "stakeMultiplier",
+    "inputs": [
+      {
+        "name": "bracket",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
     "name": "supportsInterface",
     "inputs": [
       {
@@ -1220,6 +1347,12 @@ export const BattleArenaAbi = [
       },
       {
         "name": "powerB",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "bracket",
         "type": "uint8",
         "indexed": false,
         "internalType": "uint8"
@@ -1673,6 +1806,44 @@ export const BattleArenaAbi = [
   },
   {
     "type": "event",
+    "name": "StakeFixedBpsProposed",
+    "inputs": [
+      {
+        "name": "newBps",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "enactableAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StakeFixedBpsSet",
+    "inputs": [
+      {
+        "name": "oldBps",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newBps",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "TeamCommitted",
     "inputs": [
       {
@@ -1943,10 +2114,10 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
-    "name": "InvalidStakeAmount",
+    "name": "InvalidStakeBracket",
     "inputs": [
       {
-        "name": "amount",
+        "name": "bracketIndex",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1954,10 +2125,10 @@ export const BattleArenaAbi = [
   },
   {
     "type": "error",
-    "name": "InvalidStakeBracket",
+    "name": "InvalidStakeShare",
     "inputs": [
       {
-        "name": "bracketIndex",
+        "name": "bps",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -2037,6 +2208,11 @@ export const BattleArenaAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NoPendingStakeShare",
+    "inputs": []
   },
   {
     "type": "error",
@@ -2132,6 +2308,17 @@ export const BattleArenaAbi = [
         "name": "token",
         "type": "address",
         "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StakeShareDelayNotElapsed",
+    "inputs": [
+      {
+        "name": "enactableAt",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

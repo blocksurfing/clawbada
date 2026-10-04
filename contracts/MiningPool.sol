@@ -104,6 +104,8 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     ///         a day-long window tracked a surge too slowly. Epochs nobody touched count as quiet.
     ///         Modelled in packages/game-logic/src/v3/season-glide.ts, section 4 of the D-19 report.
     uint256 public constant DEMAND_WINDOW = 4;
+    /// @notice D-E: hourly epochs per season-day — the stake reference is re-sampled when `epoch / 24` changes.
+    uint256 public constant EPOCHS_PER_DAY = 24;
     /// @notice D-D: a new season's launch reward may not exceed this multiple of the previous
     ///         season's, and an emergency override may not exceed it of the current season's —
     ///         a mistyped startSeason / setBaseReward (a missing e18, an extra zero) reverts instead
@@ -147,6 +149,12 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     // season.totalMinted's semantics — admin-released/burned rewards stay counted, so
     // the cap is a hard ceiling on gross mining mint, never exceeding 705M.
     uint256 public lifetimeMinted;
+    /// @notice D-E (review 2026-10-03): the battle-stake reference rate — this season's base reward
+    ///         sampled once per season-day (at the first re-peg after a day boundary), continuous
+    ///         across seasons. BattleArena.stakeFor() pegs the stake brackets to it, damped by a
+    ///         fixed share anchored to the genesis reward, so stakes follow the mining economy day by
+    ///         day without the hourly jitter and without ever collapsing. 0 until a season starts.
+    uint256 public stakeReference;
 
     uint256 public nextExpeditionId = 1;
     mapping(uint256 => Expedition) private _expeditions;
@@ -184,6 +192,8 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     /// @notice I11: every epoch roll — the demand estimate the new epoch paces against and its
     ///         spend ceiling (hourly at most, ≤ 1,440 a season).
     event EpochRolled(uint256 indexed season, uint256 epoch, uint256 trailingWeight, uint256 cap);
+    /// @notice D-E: the daily stake reference was re-sampled (a season start, or the first re-peg of a new season-day).
+    event StakeReferenceUpdated(uint256 indexed season, uint256 epoch, uint256 oldReference, uint256 newReference);
 
     // ──────────── Errors ────────────
     error ZeroAddress();
@@ -276,6 +286,12 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         });
 
         emit SeasonStarted(currentSeason, totalEmission, baseReward, block.timestamp);
+        // D-E: the very first season seeds the stake reference; later seasons keep yesterday's sample
+        // (continuity — a new season's launch reward must not jump the stakes on day one).
+        if (stakeReference == 0) {
+            emit StakeReferenceUpdated(currentSeason, 0, 0, baseReward);
+            stakeReference = baseReward;
+        }
     }
 
     /// @notice Emergency admin override of the glide-pegged base reward. Only affects future
@@ -632,6 +648,13 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         season.trailingWeightServed = trailing;
         if (windowSum > 0) _glideStep(season, epoch, windowSum, filled, trailing);
         emit EpochRolled(currentSeason, epoch, trailing, _epochSpendCapFrom(season, epoch, 0));
+        // D-E: crossing a season-day boundary (24 hourly epochs) re-samples the stake reference from
+        // the rate this hour opened at — after the step, so a day's stakes follow the rate the day's
+        // first expedition pays. Lazy like the glide itself: the sample lands on the day's first touch.
+        if (epoch / EPOCHS_PER_DAY != last / EPOCHS_PER_DAY && season.baseReward != stakeReference) {
+            emit StakeReferenceUpdated(currentSeason, epoch, stakeReference, season.baseReward);
+            stakeReference = season.baseReward;
+        }
     }
 
     /// @dev One glide step for the epoch just opened. `windowSum` units over `filled` epochs is the
