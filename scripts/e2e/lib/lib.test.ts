@@ -5,6 +5,7 @@ import { waitFor, TimeoutError } from './wait';
 import { addressEnv, apiEnv, engineEnv, indexerEnv, KEYS } from './env';
 import { dna } from './chain';
 import type { Deployment } from './forge';
+import { PlayerAgent } from './agent';
 
 const deployment: Deployment = {
   network: 'base-sepolia', chainId: 84532, deployer: KEYS.deployer.address,
@@ -61,5 +62,52 @@ describe('dna()', () => {
       expect(v < 2n ** 256n).toBe(true);
       expect(Number(v >> 252n)).toBe(seed % 10);
     }
+  });
+});
+
+
+// ── Review 2026-10-03: one reveal salt per battle, and what to do when the resolver reports us ──
+describe('PlayerAgent reveal salt', () => {
+  const BOB = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  function stubbed() {
+    const agent = new PlayerAgent({ key: KEYS.deployer.key, api: 'http://api', ws: 'ws://api', chain: {} as any, forwardedFor: '10.0.0.1', label: 't', log: () => {} });
+    const posts: { path: string; body: any }[] = [];
+    let battle: any = { chain: { phase: 3, playerA: agent.address, playerB: BOB, accusedA: false, accusedB: false, openedA: false, openedB: false } };
+    let revealStatus = 'waiting_for_opponent';
+    agent.get = async (path: string) => (path.endsWith('/my-team') ? { myTeamId: '7' } : battle);
+    agent.post = async (path: string, body: unknown = {}) => { posts.push({ path, body }); return path.endsWith('/reveal-team') ? { status: revealStatus } : { steps: [], preview: {} }; };
+    agent.executeSteps = async () => [];
+    return { agent, posts, setAccused: (v: boolean) => { battle = { chain: { ...battle.chain, accusedA: v } }; }, setRevealStatus: (s: string) => { revealStatus = s; } };
+  }
+
+  test('deposit mints the salt once per battle and reuses it on a retry; commitFor returns it', async () => {
+    const { agent, posts } = stubbed();
+    const first = await agent.deposit('42');
+    const again = await agent.deposit('42');
+    expect(again.salt).toBe(first.salt);
+    expect(again.teamId).toBe(7n);
+    expect(agent.commitFor('42')).toEqual({ teamId: 7n, salt: first.salt });
+    expect(posts.filter((p) => p.path.endsWith('/deposit')).map((p) => p.body.salt)).toEqual([first.salt, first.salt]);
+    // Another battle gets its own salt.
+    expect((await agent.deposit('43')).salt).not.toBe(first.salt);
+  });
+
+  test('onRevealFailureAccused: re-sends the salt for free first, then opens the commit on-chain only while still reported', async () => {
+    const { agent, posts, setAccused } = stubbed();
+    await agent.deposit('42');
+    posts.length = 0;
+    expect(await agent.onRevealFailureAccused('42')).toBe('not_accused');
+    expect(posts).toHaveLength(0);
+    setAccused(true);
+    expect(await agent.onRevealFailureAccused('42')).toBe('opened');
+    expect(posts.map((p) => p.path)).toEqual(['/api/game/combat/42/reveal-team', '/api/game/combat/42/open-commit']);
+    expect(posts[1].body).toEqual({ teamId: '7', salt: agent.commitFor('42')!.salt });
+  });
+
+  test('onRevealFailureAccused without a salt for the battle does nothing on-chain', async () => {
+    const { agent, posts, setAccused } = stubbed();
+    setAccused(true);
+    expect(await agent.onRevealFailureAccused('42')).toBe('no_salt');
+    expect(posts).toHaveLength(0);
   });
 });

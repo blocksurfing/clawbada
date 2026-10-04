@@ -15,7 +15,13 @@
  *   3. drained  the Safe withdraws the reserve → rogue win → frozen → 72 h → expire returns the held
  *               stakes, nothing is burned
  *   4. draw     rogue draw → frozen → the Safe resolves it AS a draw: each side pays 10% of its own
- *               stake (the normal fee in total); the indexer mirrors the fee; never counted played
+ *               stake (the normal fee in total); the indexer mirrors the fee; never counted played.
+ *               Run with the guardian's role REVOKED first: the freeze fails LOUDLY
+ *               (`battle_freeze_failed`, M3) every tick until the Safe restores the role, then lands
+ *   5. unplayable a player deposits a commit to a team that can no longer play (disbanded after the
+ *               deposit) → the resolver's dry run of revealTeams names that team → that side is
+ *               accused at once (D-A) → never opens → the WATCHDOG sweeps the lapsed reveal
+ *               (`handleTimeout`, L3): ForfeitB, the 5% anti-grief slashed, the opponent refunded
  *
  * ASSUMED from the deploy scripts (another change): Configure grants BattleArena.GUARDIAN_ROLE to
  * GUARDIAN_ADDRESS (anvil key 4 here) and funds the refund reserve on a test chain; the deployer
@@ -28,7 +34,7 @@ import { join } from 'node:path';
 import type { Hex } from 'viem';
 import { deriveSeedSecret } from '@clawbada/chain';
 import { waitFor } from '../lib/wait';
-import { WEI, PHASE, FREEZE_LONG_STOP_SEC, BattleArenaAbi, ClawTokenAbi } from '../lib/chain';
+import { WEI, PHASE, FREEZE_LONG_STOP_SEC, BattleArenaAbi, ClawTokenAbi, TeamManagerAbi } from '../lib/chain';
 import { KEYS } from '../lib/env';
 import type { Checks } from '../lib/checks';
 import type { Stack } from './00-infra';
@@ -211,8 +217,16 @@ export async function rogueSettlementDrill(stack: Stack, players: Players, flags
   {
     const L = 'draw';
     const { battleId, id, active } = await liveBattle(L);
+    // M3 (review 2026-10-03): with the guardian's role gone, the watchdog must NOT fail silently.
+    await chain.tx(KEYS.deployer.key, arena, BattleArenaAbi, 'revokeRole', [guardianRole, KEYS.guardian.address]);
+    const failedBefore = logOf('engine').split('battle_freeze_failed').length - 1;
     await rogueSettle(id, ZERO, active);
-    await awaitFrozen(L, id);
+    await waitFor(async () => (logOf('engine').split('battle_freeze_failed').length - 1 > failedBefore ? true : null), { timeoutMs: 20_000, everyMs: 500, label: `${L}: engine raises battle_freeze_failed (guardian role revoked)` });
+    checks.check(true, `${L}: freeze failed LOUDLY while the guardian had no role (battle_freeze_failed)`);
+    checks.eq(Number((await chain.getBattle(id)).phase), PHASE.AwaitingFinalize, `${L}: the rogue result is still in review, not frozen, while the guardian cannot act`);
+    await chain.tx(KEYS.deployer.key, arena, BattleArenaAbi, 'grantRole', [guardianRole, KEYS.guardian.address]);
+    await awaitFrozen(L, id); // the next tick retries and lands
+    checks.check(true, `${L}: the freeze landed on the first tick after the Safe restored the role`);
     await playAndReadHonestJob(L, battleId);
     const before = { a: await chain.balance(a.agent.address), b: await chain.balance(b.agent.address) };
     const { receipt } = await chain.tx(KEYS.deployer.key, arena, BattleArenaAbi, 'resolveFrozen', [id, ZERO, ZERO, false]);
@@ -225,5 +239,46 @@ export async function rogueSettlementDrill(stack: Stack, players: Players, flags
     checks.eq(String(row.protocol_fee), ((2n * sideFee) / WEI).toString(), `${L}: indexer mirrors the draw fee`);
     checks.check(row.winner == null, `${L}: no winner recorded`);
     checks.eq(await participation(battleId), 0, `${L}: the draw never counted as played for the boost`);
+  }
+
+  // ═══ 5. D-A: a commit to a team that cannot play → accused at once → never opened → swept + slashed ═══
+  {
+    const L = 'unplayable';
+    await a.agent.joinQueue(a.teamId, flags.stake);
+    const qb = await b.agent.joinQueue(b.teamId, flags.stake);
+    const battleId = qb.battleId ?? (await a.agent.waitMatched());
+    const id = BigInt(battleId);
+    await waitFor(async () => { const r = await a.agent.battle(battleId); return r.db?.status === 1 && Number(r.chain?.phase) === PHASE.Deposit ? r : null; }, { timeoutMs: 60_000, label: `${L}: createBattle on-chain` });
+    const before = { a: await chain.balance(a.agent.address), b: await chain.balance(b.agent.address) };
+    // The queue decides who is on-chain player A; the drill's "B" may be either side.
+    const bIsSideA = String((await chain.getBattle(id)).playerA).toLowerCase() === b.agent.address.toLowerCase();
+    const accusedB = (x: any) => Boolean(bIsSideA ? x.accusedA : x.accusedB);
+    const accusedA = (x: any) => Boolean(bIsSideA ? x.accusedB : x.accusedA);
+    // B deposits (commit + salt handed to the server), then disbands the committed team: the arena
+    // only locks a team at reveal, so the chain allows it — and B's commit now names a team B does
+    // not own. (The kit never does this by itself; this is the walk-away griefer.)
+    await b.agent.deposit(battleId);
+    const disband = await b.agent.post(`/api/game/teams/${b.teamId}/disband`);
+    await b.agent.executeSteps(disband.steps);
+    checks.check(!(await chain.read<boolean>(chain.teams, TeamManagerAbi, 'teamExists', [b.teamId])), `${L}: B disbanded its committed team after depositing`);
+    await a.agent.deposit(battleId); // → TeamReveal; the resolver dry-runs revealTeams and the chain names B's team
+    const accused = await waitFor(async () => { const x = await chain.getBattle(id); return accusedB(x) ? x : null; }, { timeoutMs: 40_000, everyMs: 300, label: `${L}: the resolver accuses B` });
+    checks.check(!accusedA(accused), `${L}: A, whose team can play, is not accused`);
+    checks.eq(Number(accused.phase), PHASE.TeamReveal, `${L}: still TeamReveal — B has REVEAL_GRACE to open a commit that can play`);
+    await waitFor(async () => (logOf('engine').includes('team not playable') ? true : null), { timeoutMs: 10_000, everyMs: 500, label: `${L}: engine logs the reason` });
+    checks.check(true, `${L}: engine logged reveal_failure_reported with "team not playable"`);
+    // B walks away. Past the grace the WATCHDOG sweeps the battle (L3) — nobody has to wait for B.
+    const fromBlock = await chain.pub.getBlockNumber();
+    const now = await chain.latestTimestamp();
+    await anvil.increaseTime(Number(BigInt(accused.phaseDeadline) - now) + 30);
+    await waitFor(async () => { const x = await chain.getBattle(id); return Number(x.phase) === PHASE.Cancelled ? x : null; }, { timeoutMs: 60_000, label: `${L}: the watchdog sweeps the lapsed reveal (handleTimeout)` });
+    checks.check(logOf('engine').includes('battle_timed_out_by_watchdog'), `${L}: engine logged battle_timed_out_by_watchdog`);
+    const evs = await chain.pub.getContractEvents({ address: arena, abi: BattleArenaAbi as any, eventName: 'BattleCancelled', args: { battleId: id }, fromBlock: fromBlock > 50n ? fromBlock - 50n : 0n });
+    checks.eq(Number((evs.at(-1) as any)?.args?.reason), bIsSideA ? 1 : 2, `${L}: cancelled as Forfeit${bIsSideA ? 'A' : 'B'} (the accused side that never opened)`);
+    const after = { a: await chain.balance(a.agent.address), b: await chain.balance(b.agent.address) };
+    checks.eq(after.a, before.a, `${L}: A got stake + anti-grief back in full`);
+    checks.eq(before.b - after.b, antiGrief, `${L}: B lost exactly its 5% anti-grief deposit`);
+    checks.check(!(await chain.teamInBattle(a.teamId)), `${L}: A's team is free again`);
+    await waitFor(async () => ((await dbPhase(battleId)) === PHASE.Cancelled ? true : null), { timeoutMs: 30_000, label: `${L}: indexer mirrors Cancelled` });
   }
 }

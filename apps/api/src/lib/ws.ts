@@ -40,6 +40,8 @@ export type BattleEvent =
   | 'battle_ended'
   // D-06: a settlement proposed on-chain while the battle is still live on this server.
   | 'settlement_alert'
+  // D-14: the resolver reported a player's team commit unopenable; they must open it themselves.
+  | 'reveal_failure_reported'
   | 'turn_ack'
   | 'error'
   | 'pong';
