@@ -1,12 +1,12 @@
 /**
  * Watches MiningPool events and syncs expedition/season state to DB.
  *
- * Events: SeasonStarted, ExpeditionStarted, ExpeditionClaimed, BaseRewardUpdated
+ * Events: SeasonStarted, ExpeditionStarted, ExpeditionClaimed, BaseRewardUpdated, EpochRolled
  */
 import type { Log } from 'viem';
 import { desc, eq } from 'drizzle-orm';
 import { MiningPoolAbi, addresses, getPublicClient } from '@clawbada/chain';
-import { db, expeditions, seasons } from '@clawbada/db';
+import { db, expeditions, seasons, miningEpochs } from '@clawbada/db';
 import { EventWatcher, type WatcherConfig } from '../lib/event-processor';
 // Aliased: `handleEvent(log: Log)` shadows the module-scope name.
 import { log as pinoLog } from '../logger';
@@ -62,7 +62,7 @@ export class MiningWatcher extends EventWatcher {
     contractName: 'MiningPool',
     abi: MiningPoolAbi as any,
     address: addresses.miningPool,
-    events: ['SeasonStarted', 'ExpeditionStarted', 'ExpeditionClaimed', 'BaseRewardUpdated'],
+    events: ['SeasonStarted', 'ExpeditionStarted', 'ExpeditionClaimed', 'BaseRewardUpdated', 'EpochRolled'],
   };
 
   async handleEvent(log: Log): Promise<void> {
@@ -144,6 +144,27 @@ export class MiningWatcher extends EventWatcher {
           .update(seasons)
           .set({ baseReward: newBaseReward.toString() })
           .where(eq(seasons.season, season));
+        break;
+      }
+
+      case 'EpochRolled': {
+        // I11: the hourly ledger — (season, epoch, trailingWeight, cap). Keyed by (season, epoch);
+        // a replayed or reorged log is a no-op.
+        const season = Number(args.season);
+        const epoch = Number(args.epoch);
+        const rolledAt = await readBlockTimestamp(log.blockNumber, BigInt(epoch));
+        await db
+          .insert(miningEpochs)
+          .values({
+            season,
+            epoch,
+            trailingWeight: BigInt(args.trailingWeight).toString(),
+            cap: BigInt(args.cap).toString(),
+            blockNumber: log.blockNumber ?? null,
+            txHash: log.transactionHash ?? null,
+            rolledAt: new Date(Number(rolledAt) * 1000),
+          })
+          .onConflictDoNothing();
         break;
       }
     }

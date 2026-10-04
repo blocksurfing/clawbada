@@ -5,6 +5,7 @@ export * from './battles';
 export * from './marketplace';
 export * from './breeding';
 export * from './seasons';
+export * from './mining-epochs';
 export * from './agents';
 export * from './indexer';
 export * from './events';

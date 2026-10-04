@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'BATTLE_PHASE_ERROR'
   | 'MINE_FULL'
   | 'SEASON_GAP'
+  | 'CHAIN_REVERT'
   | 'INTERNAL_ERROR';
 
 const STATUS_MAP: Record<ErrorCode, number> = {
@@ -26,6 +27,7 @@ const STATUS_MAP: Record<ErrorCode, number> = {
   BATTLE_PHASE_ERROR: 409,
   MINE_FULL: 409,
   SEASON_GAP: 409,
+  CHAIN_REVERT: 409,
   INTERNAL_ERROR: 500,
 };
 

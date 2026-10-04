@@ -96,6 +96,7 @@ export const tables = {
   matchmakingQueue: table('matchmaking_queue', ['id', 'address', 'teamId']),
   expeditions: table('expeditions', ['expeditionId', 'teamId', 'owner', 'season', 'mineTier', 'startTime', 'reward', 'boostBps', 'claimed', 'claimedAt']),
   seasons: table('seasons', ['season', 'totalEmission', 'baseReward', 'totalMinted', 'startTime']),
+  miningEpochs: table('mining_epochs', ['season', 'epoch', 'trailingWeight', 'cap', 'blockNumber', 'txHash', 'rolledAt']),
   onChainEvents: table('on_chain_events', ['contractName', 'eventName']),
   indexerState: table('indexer_state', ['contractName', 'lastProcessedBlock']),
 };
