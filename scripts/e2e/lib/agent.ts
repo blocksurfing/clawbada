@@ -22,6 +22,11 @@ export class PlayerAgent {
   readonly account;
   readonly address: string;
   private authCache: { ts: number; sig: string; nonce: string } | null = null;
+  /** Review 2026-10-03: the team commit (teamId + salt) of every battle this agent deposited
+   *  in, kept for the battle's whole life. `deposit()` used to mint a fresh salt per call, so a
+   *  retry re-sent a salt that did not open the commit already on-chain — and the resolver
+   *  reported the agent for it. One salt per battle, reused on retries, reveals and opening. */
+  private readonly commits = new Map<string, { teamId: bigint; salt: Hex }>();
   constructor(readonly o: AgentOpts) {
     this.account = privateKeyToAccount(o.key as Hex);
     this.address = this.account.address;
@@ -160,13 +165,21 @@ export class PlayerAgent {
   async deposit(battleId: string, opts: { prepareReveal?: boolean } = {}): Promise<{ teamId: bigint; salt: Hex; consent: { expectedStake: string; maxOpponentPower: number } }> {
     const mine = await this.get(`/api/game/combat/${battleId}/my-team`);
     const teamId = BigInt(mine.myTeamId);
-    const salt = keccak256(toHex(`${battleId}:${this.address}:${Date.now()}:${Math.random()}`)) as Hex;
+    // One salt per battle: a retry must re-send the commit that is (or will be) on-chain.
+    const salt = this.commits.get(battleId)?.salt ?? (keccak256(toHex(`${battleId}:${this.address}:${Date.now()}:${Math.random()}`)) as Hex);
+    this.commits.set(battleId, { teamId, salt });
     const commitHash = teamCommitHash(BigInt(battleId), this.address as Hex, teamId, salt);
     const body = opts.prepareReveal === false ? { commitHash } : { commitHash, teamId: teamId.toString(), salt };
     const r = await this.post(`/api/game/combat/${battleId}/deposit`, body);
     await this.executeSteps(r.steps);
     this.say(`deposited + committed team #${teamId} for battle #${battleId} (consent: stake ${r.preview?.consent?.expectedStake}, opponent Power ≤ ${r.preview?.consent?.maxOpponentPower})`);
+    if (r.preview?.revealNote) this.say(`deposit: ${r.preview.revealNote}`);
     return { teamId, salt, consent: r.preview?.consent };
+  }
+
+  /** The team commit this agent deposited with for `battleId`, if it deposited through this instance. */
+  commitFor(battleId: string): { teamId: bigint; salt: Hex } | undefined {
+    return this.commits.get(battleId);
   }
 
   /** D-14: the resolver reported this player's commit unopenable — open it on-chain ourselves. */
@@ -174,6 +187,63 @@ export class PlayerAgent {
     const r = await this.post(`/api/game/combat/${battleId}/open-commit`, { teamId: teamId.toString(), salt });
     await this.executeSteps(r.steps);
     this.say(`opened own commit for battle #${battleId}`);
+  }
+
+  /** This agent's side of a battle as the API reports it, or null when it is not a participant. */
+  private mySide(b: any): 'A' | 'B' | null {
+    const me = this.address.toLowerCase();
+    if (String(b?.chain?.playerA ?? '').toLowerCase() === me) return 'A';
+    if (String(b?.chain?.playerB ?? '').toLowerCase() === me) return 'B';
+    return null;
+  }
+
+  /**
+   * D-14 (review 2026-10-03): the resolver reported THIS agent's commit unopenable (a
+   * `reveal_failure_reported` event, or `accusedA/B` on GET /combat/:id). The usual cause is a
+   * salt the server never got or lost, so the salt is re-sent first — that is free, and an
+   * accepted reveal makes the report moot. Only if the report still stands afterwards is the
+   * commit opened on-chain (`openOwnCommit`, gas), which clears the report and keeps the 5%
+   * anti-grief deposit safe whatever happens to the battle. Returns what was done.
+   */
+  async onRevealFailureAccused(battleId: string): Promise<'revealed' | 'opened' | 'no_salt' | 'not_accused'> {
+    const commit = this.commits.get(battleId);
+    if (!commit) { this.say(`reported for battle #${battleId} but this instance holds no salt for it — cannot open the commit`); return 'no_salt'; }
+    const stillAccused = async () => {
+      const b = await this.get(`/api/game/combat/${battleId}`);
+      const side = this.mySide(b);
+      if (!side || Number(b.chain?.phase) !== 3) return false;
+      return Boolean(side === 'A' ? b.chain.accusedA && !b.chain.openedA : b.chain.accusedB && !b.chain.openedB);
+    };
+    if (!(await stillAccused())) return 'not_accused';
+    const resent = await this.reveal(battleId, commit.teamId, commit.salt).catch((err) => { this.say(`re-sending the salt failed: ${String(err).slice(0, 160)}`); return null; });
+    if (resent === 'both_revealed') {
+      // The resolver reveals within a couple of seconds; give it that before paying gas.
+      await sleep(3_000);
+      if (!(await stillAccused())) return 'revealed';
+    }
+    await this.openCommit(battleId, commit.teamId, commit.salt);
+    return 'opened';
+  }
+
+  /**
+   * Watch the reveal phase of a battle this agent deposited in: until the teams are revealed
+   * (phase Active) or the battle cancels, react to a reveal-failure report against this agent
+   * with `onRevealFailureAccused`. Call it right after `deposit()` (and `reveal()` if you sent
+   * only the hash). Resolves with the phase it stopped at.
+   */
+  async guardReveal(battleId: string, opts: { timeoutMs?: number; everyMs?: number } = {}): Promise<{ phase: number; handled: Array<'revealed' | 'opened' | 'no_salt' | 'not_accused'> }> {
+    const handled: Array<'revealed' | 'opened' | 'no_salt' | 'not_accused'> = [];
+    let acted = false;
+    const phase = await waitFor(async () => {
+      const b = await this.get(`/api/game/combat/${battleId}`);
+      const phase = Number(b.chain?.phase ?? 0);
+      if (phase >= 4) return phase; // Active or later: revealed (or cancelled = 7)
+      const side = this.mySide(b);
+      const accused = side === 'A' ? b.chain?.accusedA && !b.chain?.openedA : side === 'B' ? b.chain?.accusedB && !b.chain?.openedB : false;
+      if (accused && !acted) { acted = true; handled.push(await this.onRevealFailureAccused(battleId)); }
+      return null;
+    }, { timeoutMs: opts.timeoutMs ?? 180_000, everyMs: opts.everyMs ?? 1_000, label: `${this.o.label}: reveal of battle #${battleId}` });
+    return { phase, handled };
   }
 
   async reveal(battleId: string, teamId: bigint, salt: Hex): Promise<string> {
@@ -246,6 +316,14 @@ export class PlayerAgent {
               // freezes it and the Safe settles the battle from this (real) log. Keep playing.
               this.say(`SETTLEMENT ALERT battle #${battleId}: on-chain winner ${d.proposedWinner} (${d.frozen ? 'frozen' : 'held for review'})`);
               alerted = true;
+              break;
+            case 'reveal_failure_reported':
+              // D-14: only reachable here if this socket was opened during TeamReveal; the
+              // pre-battle path is guardReveal(). Act only on a report against us.
+              if (String(d.accused ?? '').toLowerCase() === me) {
+                this.say(`REVEAL FAILURE REPORTED against us for battle #${battleId} (grace until ${d.graceDeadline})`);
+                this.onRevealFailureAccused(battleId).catch((err) => this.say(`opening the commit failed: ${String(err).slice(0, 160)}`));
+              }
               break;
             case 'error':
               this.say(`ws error: ${JSON.stringify(d)}`);

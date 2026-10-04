@@ -18,7 +18,7 @@ import { randomUUID, getRandomValues } from 'node:crypto';
 import { v3, BattlePhase, deriveRandom, randomDNA, randomDNAWithPurity, calculatePurity, type EvolutionTier, type LobsterClass } from '@clawbada/game-logic';
 import { battleSeed, deriveSeedSecret, seedCommitment, seedRoundFor } from '@clawbada/chain';
 import { ShotClock } from './clock';
-import type { BattleSnapshot, RosterEntry, SessionEventName, SettlementAlertPayload, Side } from './protocol';
+import type { BattleSnapshot, RevealFailurePayload, RosterEntry, SessionEventName, SettlementAlertPayload, Side } from './protocol';
 import { BattleSession, endReason, type SessionRecord } from './session';
 import type { SessionRow, SessionStore, SettleJobPayload } from './store';
 
@@ -31,6 +31,10 @@ export interface ManagerChain {
    *  manager without chain access (practice-only, tests) simply never alerts. `phase` tells an
    *  in-review result (5) from one the watchdog already froze (8). */
   readProposal?(battleId: bigint): Promise<{ proposedWinner: string; payoutDeadline: bigint; phase: number }>;
+  /** D-14: who the resolver reported for an unopenable commit, and whether they opened it since;
+   *  `phaseDeadline` is the end of the grace. Optional like `readProposal`: without it, no
+   *  reveal_failure_reported is ever pushed. */
+  readRevealStatus?(battleId: bigint): Promise<{ phase: number; accusedA: boolean; accusedB: boolean; openedA: boolean; openedB: boolean; phaseDeadline: bigint }>;
   /** D-01: what revealTeams pinned on-chain — the seed-secret commitment and the block
    *  timestamp that fixes which drand round this battle must use. */
   readBattleSeed(battleId: bigint): Promise<{ seedCommit: string; revealedAt: number }>;
@@ -127,6 +131,8 @@ function randomSeed(): bigint {
 
 /** D-06: how often a live battle's settlement_alert is re-pushed. */
 const ALERT_REPEAT_MS = 20_000;
+/** D-14: how often a standing reveal_failure_reported is re-pushed (the grace is 2 minutes). */
+const REVEAL_ALERT_REPEAT_MS = 5_000;
 
 export class BattleSessionManager {
   private readonly sessions = new Map<string, BattleSession>();
@@ -143,6 +149,9 @@ export class BattleSessionManager {
   private readonly alertedAt = new Map<string, number>();
   /** D-06: the alert currently standing for a live battle, replayed to any client that joins. */
   private readonly standingAlert = new Map<string, SettlementAlertPayload>();
+  /** D-14: battleId -> the reveal-failure reports standing against its players (keyed by side)
+   *  and when each was last pushed. Replayed to any client that joins the battle room. */
+  private readonly revealAlerts = new Map<string, Map<Side, { payload: RevealFailurePayload; pushedAt: number }>>();
 
   constructor(private readonly deps: ManagerDeps) {
     this.clock = deps.clock ?? new ShotClock();
@@ -287,12 +296,68 @@ export class BattleSessionManager {
         }
       }
       await this.watchForRogueProposals();
+      await this.watchForRevealFailures();
     } catch (err) {
       this.deps.log.error({ err }, 'battle_session_poll_failed');
     } finally {
       this.inFlight = false;
     }
     return started;
+  }
+
+  /** D-14: the reveal-failure reports standing for a battle in TeamReveal, if any — sent to a
+   *  client that joins the battle room, so an accused player who connects late is told at once. */
+  revealAlertsFor(battleId: string): RevealFailurePayload[] {
+    return [...(this.revealAlerts.get(battleId)?.values() ?? [])].map((a) => a.payload);
+  }
+
+  /**
+   * D-14 (review 2026-10-03). The engine's reveal watcher reports a player whose commit it
+   * cannot open with `accuseRevealFailure`; the player then has REVEAL_GRACE to open it
+   * themselves or they forfeit their 5% when the window lapses. The report lives on-chain and
+   * nothing used to tell the player: this pushes `reveal_failure_reported` to the battle's room
+   * the same way the settlement alert is pushed — the indexer's phase says which battles are in
+   * TeamReveal, the chain says who is reported — and keeps pushing it every
+   * REVEAL_ALERT_REPEAT_MS while the report stands and the player has not opened, for a client
+   * that connects late. The payload names the accused, the grace deadline and what to do.
+   */
+  async watchForRevealFailures(): Promise<void> {
+    const readRevealStatus = this.deps.chain.readRevealStatus;
+    if (!readRevealStatus) return;
+    const inReveal = await this.deps.store.inTeamReveal();
+    const ids = new Set(inReveal.map((b) => b.battleId));
+    for (const id of [...this.revealAlerts.keys()]) if (!ids.has(id)) this.revealAlerts.delete(id);
+    const now = Date.now();
+    for (const b of inReveal) {
+      try {
+        const s = await readRevealStatus(BigInt(b.battleId));
+        if (s.phase !== BattlePhase.TeamReveal) { this.revealAlerts.delete(b.battleId); continue; }
+        const standing = this.revealAlerts.get(b.battleId) ?? new Map<Side, { payload: RevealFailurePayload; pushedAt: number }>();
+        for (const side of ['A', 'B'] as const) {
+          const accused = side === 'A' ? s.accusedA : s.accusedB;
+          const opened = side === 'A' ? s.openedA : s.openedB;
+          if (!accused || opened) { standing.delete(side); continue; }
+          const last = standing.get(side);
+          if (last && now - last.pushedAt < REVEAL_ALERT_REPEAT_MS) continue;
+          const payload: RevealFailurePayload = {
+            battleId: b.battleId,
+            accused: (side === 'A' ? b.playerA : b.playerB).toLowerCase(),
+            side,
+            graceDeadline: s.phaseDeadline.toString(),
+            instruction: 'open your commit',
+            message: 'The game server could not open your team commit with the salt it holds. Open your commit yourself (POST /open-commit with your teamId + salt, then send the transaction) ' +
+              'before the grace deadline, or you forfeit your 5% anti-grief deposit when the reveal window ends. If you still hold the salt, re-sending it to /reveal-team first is free.',
+          };
+          if (!last) this.deps.log.warn({ battleId: b.battleId, accused: payload.accused, side, graceDeadline: payload.graceDeadline }, 'reveal_failure_reported_pushed');
+          this.deps.emit(b.battleId, 'reveal_failure_reported', payload);
+          standing.set(side, { payload, pushedAt: now });
+        }
+        if (standing.size > 0) this.revealAlerts.set(b.battleId, standing);
+        else this.revealAlerts.delete(b.battleId);
+      } catch (err) {
+        this.deps.log.error({ err, battleId: b.battleId }, 'reveal_failure_alert_failed');
+      }
+    }
   }
 
   /**
@@ -438,7 +503,12 @@ export class BattleSessionManager {
         const timeouts = (row.timeouts as Record<Side, number>) ?? { A: 0, B: 0 };
         const remaining = row.deadline ? row.deadline.getTime() - this.clock.now() : null;
         const bot = row.kind === 'practice' && row.bot && v3.isBotName(row.bot) ? { botSide: 'B' as Side, botPolicy: v3.botPolicy(row.bot) } : { botSide: null, botPolicy: null };
-        this.launch(record, state, bot, { timeouts, firstTurnClockMs: remaining === null ? undefined : Math.max(remaining, RESUME_MIN_CLOCK_MS) });
+        // C-L4 (review 2026-10-03): a turn whose deadline passed while the server was down gets a
+        // fresh full shot clock — the player was never given the chance to act on it, so its
+        // timeout must not be the outage's. A deadline still ahead keeps its remaining time,
+        // floored at RESUME_MIN_CLOCK_MS.
+        const firstTurnClockMs = remaining === null ? undefined : remaining <= 0 ? this.shotClockMs : Math.max(remaining, RESUME_MIN_CLOCK_MS);
+        this.launch(record, state, bot, { timeouts, firstTurnClockMs });
         n++;
       } catch (err) {
         this.deps.log.error({ err, sessionId: row.id }, 'battle_session_resume_failed');

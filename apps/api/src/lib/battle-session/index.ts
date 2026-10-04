@@ -56,6 +56,8 @@ export const battleSessions = new BattleSessionManager({
     readBattleSeed: async (battleId) => { const b = await readBattle(battleId); return { seedCommit: b.seedCommit, revealedAt: b.revealedAt }; },
     // D-06: feeds the settlement_alert pushed to players of a battle that is still live here.
     readProposal: async (battleId) => { const b = await readBattle(battleId); return { proposedWinner: b.proposedWinner, payoutDeadline: b.payoutDeadline, phase: Number(b.phase) }; },
+    // D-14: feeds the reveal_failure_reported pushed to a player the resolver reported.
+    readRevealStatus: async (battleId) => { const b = await readBattle(battleId); return { phase: Number(b.phase), accusedA: b.accusedA, accusedB: b.accusedB, openedA: b.openedA, openedB: b.openedB, phaseDeadline: b.phaseDeadline }; },
   },
   drand: new DrandBeaconClient(),
   seedMasterSecret,
