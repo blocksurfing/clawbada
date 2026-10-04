@@ -57,6 +57,22 @@ Reading it:
 
 **How it was verified.** `test/MiningPool.t.sol` (hourly vectors for the clamp, D-18 over 1,439 epochs, the last epoch of a 1,440-hour season, both D-19(c) holds, the ceiling binding then opening, its floor, its last-epoch behaviour, the allocation clamp, the view), the fuzz reference model `FuzzMiningGlide.t.sol` (now models the ceiling, the rollback of a refused call, the hourly epoch and the wider hold, against the real contract over random multi-day scenarios), the invariant suites, seven mutation checks (each change undone one at a time makes the suites fail), Slither, the TypeScript model re-pinned to the new contract vectors, the API route tests and the end-to-end harness.
 
+## D-C (review 2026-10-03): what the glide measures demand with
+
+**What was wrong.** The glide paced against *the last epoch that had any demand*. Agents run a 4-hour expedition cycle, and a population that happens to start everything in one hour of four — which is what a fleet of identical scripts does — showed the controller one busy hour and three it never saw. Pacing on the busy hour reads the population as four times its size; carrying it over the quiet hours means the rate never corrects. The table in appendix 4 has the numbers: at 100 % phase-locking the single-epoch rule stranded **65M CLAW** of the season (81.5 % spent) while paying 12–20 CLAW a unit instead of 49, and at 25–90 % it paid the bunched cohort 14–21 % more per unit than everyone else (ratio 1.14–1.21).
+
+**What was tried.** Three estimators on the same four demand shapes (smooth; phase-locked at 25 / 50 / 90 / 100 %; a whale that idles then bursts; a daily rhythm with 60 % or 80 % of starts in a third of the day), 20,000 teams from day 1, refused starts retrying the next hour, scored on budget spent, CLAW per unit by cohort, refused starts, worst day against the fair share:
+
+| Estimator | Phase-locked (any %) | Surge day 1 (20K / 30K) | Daily rhythm | Cost |
+|---|---|---|---|---|
+| last epoch with demand (D-19 as first shipped) | strands up to 65M, pays the bunch +14–21 % | tracks the ideal within 1 % | pays off-peak starters ~2× peak (ratio 0.47–0.54) | — |
+| **last 4 epochs — one expedition cycle** | **spends 100 %, ratio 1.00–1.01** | **tracks the ideal within 1 %** (week 1: 12.3 / 12.4 % vs 11.7 % fair; worst day 1.45× / 1.51× against 1.40× / 1.47× single-epoch, inside the 2× hourly ceiling) | ratio 0.58–0.59 (unchanged) | +0.04 on the surge worst-day multiple; ~0.5 pt more refused starts |
+| last 24 epochs — a day | spends 100 %, ratio 1.00–1.01 | week 1 ~1.5–2 pts over the ideal share; day 1 pays 70 then dips to 48; worst day 1.98× the fair share; slower recovery after an exodus | ratio 1.02 (fair) | 12–26 % refused starts on day 1 |
+
+**What shipped.** `DEMAND_WINDOW = 4`: the demand estimate is the average over the last four closed epochs. Epochs nobody touched are quiet ones — a lazy re-peg after a gap inside the window zeroes the skipped slots; after a gap *longer* than the window nothing recent is left and the rate holds (as it does before the first expedition). The published `trailingWeightServed` is that average; the target uses the window *sum* over the epochs counted, so a small population still moves the rate. Every roll emits `EpochRolled(season, epoch, trailing, cap)`. The day-window's fairness under a daily rhythm was the one thing given up: it costs the surge cases, which are the cases the glide exists for, and the human play rhythm it would serve is a fraction of an agent-first population. Revisit if telemetry shows a strong daily rhythm (the window is one constant).
+
+**Also in the same change (D-D).** `startSeason` reverts `SeasonBudgetTooSmall` when the budget cannot pay one Base expedition (a missing `e18`) and `BaseRewardTooHigh` when a season's launch reward is more than 3× the previous season's; `setBaseReward` reverts `BaseRewardTooHigh` above 3× the season's launch or above what the budget can still pay. `epochBudget()` is all-zero once the season's 60 days are over. The pre-TOK-M1 schedule in `constants.ts` is renamed `LEGACY_*` and deprecated.
+
 ## A second finding: the "exhausted budget holds the rate" fix (#99) has a gap
 
 D-19(c) said that after an exhaustion the glide should not keep walking the reward down 30% a day (repair prices are a percentage of the reward, so they would become nearly free). The fix holds the rate when `remaining == 0` — **exactly** zero. Expeditions are discrete, so an exhausted season normally keeps a remainder smaller than one reward, and with it the decay continues. Reproduced on the contract itself (probe test, not committed): a 6.5-reward season, six expeditions, half a reward left → the rate goes 1,250 → 875 → 612 → 429 on consecutive days and 300 after a quiet stretch, and once it has fallen below the remainder an expedition can start again at the depressed rate.
@@ -71,30 +87,30 @@ With the ceiling, a mid-season exhaustion cannot happen, so this only matters at
 
 ## Appendix — full tables (`bun run season:glide`, after the fix)
 
-S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 expeditions a day per team, tier weights 1/3/10/25, 50% of income retained toward upgrades (12k/60k/300k effective), boost on the same budget (+15% expected on Evolved+). "Ideal" is the daily exact re-peg the design was validated with (season.ts): no clamp, no lag, no blind first day. "On-chain" is `MiningPool` as it deploys after D-19 (2026-10-02): re-peg once an HOUR from the previous hour's demand, at most ±30% an hour, nothing in hour 0, and no hour minting more than twice its fair share of what is left. Section 2 keeps the controller this replaced ("before D-19") and the alternatives weighed.
+Regenerated 2026-10-04 after D-C: "on-chain" rows and the "ON-CHAIN since D-C" controller are the 4-epoch window; "D-19 as first shipped" is the single-epoch rule it replaced.
 
 ### 1. Ideal glide vs the contract (D-19 controller), same populations
 
 | Scenario · mode | Budget dry on day | Zero-income days | Spent by day 7 (fair: 11.7%) | Worst day vs fair share | Reward d1 / d2 / d3 / d7 / d30 / d60 | Day-1 team earnings | Unspent | Elite breakeven boost at d60 |
 |---|---|---|---|---|---|---|---|---|
 | Design rate: 800 teams, 7-day ramp · ideal | — | 0 | 7.7% | 1.0× | 1,250 / 1,250 / 1,250 / 624 / 159 / 111 | 667,499 | 0.0M | 59% |
-| Design rate: 800 teams, 7-day ramp · on-chain | — | 0 | 7.7% | 1.1× | 1,250 / 1,250 / 1,250 / 624 / 159 / 111 | 668,026 | 0.0M | 59% |
+| Design rate: 800 teams, 7-day ramp · on-chain | — | 0 | 7.8% | 1.1× | 1,250 / 1,250 / 1,250 / 623 / 158 / 110 | 665,337 | 0.0M | 59% |
 | Faucet scale: 6,000 teams, 7-day ramp · ideal | — | 0 | 11.7% | 1.0× | 1,143 / 571 / 381 / 163 / 80 / 47 | 95,674 | 0.0M | 136% |
-| Faucet scale: 6,000 teams, 7-day ramp · on-chain | — | 0 | 11.9% | 1.1× | 1,144 / 571 / 381 / 163 / 79 / 47 | 95,867 | 0.0M | 137% |
+| Faucet scale: 6,000 teams, 7-day ramp · on-chain | — | 0 | 12.0% | 1.1× | 1,144 / 571 / 380 / 163 / 79 / 47 | 97,739 | 0.0M | 137% |
 | 15,000 teams, 7-day ramp · ideal | — | 0 | 11.7% | 1.0× | 457 / 228 / 152 / 65 / 65 / 48 | 33,350 | 0.0M | 133% |
-| 15,000 teams, 7-day ramp · on-chain | 60 | 0 | 12.0% | 1.1× | 457 / 228 / 152 / 65 / 65 / 48 | 34,227 | 0.0M | 134% |
+| 15,000 teams, 7-day ramp · on-chain | 60 | 0 | 12.2% | 1.1× | 457 / 228 / 152 / 65 / 65 / 48 | 34,204 | 0.0M | 134% |
 | 20,000 teams, 7-day ramp · ideal | — | 0 | 11.7% | 1.0× | 343 / 171 / 114 / 49 / 49 / 49 | 20,900 | 0.0M | 131% |
-| 20,000 teams, 7-day ramp · on-chain | — | 0 | 12.0% | 1.1× | 342 / 171 / 114 / 49 / 49 / 49 | 21,173 | 0.0M | 132% |
+| 20,000 teams, 7-day ramp · on-chain | — | 0 | 12.2% | 1.1× | 342 / 171 / 114 / 49 / 49 / 49 | 21,065 | 0.0M | 132% |
 | 30,000 teams, 7-day ramp · ideal | — | 0 | 11.7% | 1.0× | 228 / 114 / 76 / 33 / 33 / 33 | 13,933 | 0.0M | 196% |
-| 30,000 teams, 7-day ramp · on-chain | — | 0 | 12.1% | 1.2× | 228 / 114 / 76 / 32 / 32 / 32 | 14,170 | 0.0M | 197% |
+| 30,000 teams, 7-day ramp · on-chain | — | 0 | 12.3% | 1.2× | 228 / 114 / 76 / 32 / 32 / 32 | 13,943 | 0.0M | 198% |
 | Surge: 20,000 teams all on day 1 · ideal | — | 0 | 11.7% | 1.0× | 49 / 49 / 49 / 49 / 49 / 49 | 17,625 | 0.0M | 131% |
-| Surge: 20,000 teams all on day 1 · on-chain | — | 0 | 12.2% | 1.3× | 49 / 49 / 49 / 49 / 49 / 49 | 17,625 | 0.0M | 132% |
+| Surge: 20,000 teams all on day 1 · on-chain | — | 0 | 12.3% | 1.5× | 49 / 49 / 49 / 49 / 49 / 49 | 17,396 | 0.0M | 132% |
 | Surge: 30,000 teams all on day 1 · ideal | — | 0 | 11.7% | 1.0× | 33 / 33 / 33 / 33 / 33 / 33 | 11,750 | 0.0M | 196% |
-| Surge: 30,000 teams all on day 1 · on-chain | — | 0 | 12.3% | 1.4× | 32 / 32 / 32 / 32 / 32 / 32 | 11,750 | 0.0M | 197% |
+| Surge: 30,000 teams all on day 1 · on-chain | — | 0 | 12.4% | 1.5× | 32 / 32 / 32 / 32 / 32 / 32 | 11,570 | 0.0M | 198% |
 | Step: 5,000 teams, then 20,000 more join on day 20 · ideal | — | 0 | 11.5% | 1.0× | 1,250 / 686 / 458 / 196 / 34 / 31 | 79,142 | 0.0M | 209% |
-| Step: 5,000 teams, then 20,000 more join on day 20 · on-chain | 60 | 0 | 11.7% | 1.1× | 1,250 / 686 / 458 / 196 / 34 / 30 | 79,332 | 0.0M | 210% |
+| Step: 5,000 teams, then 20,000 more join on day 20 · on-chain | 60 | 0 | 11.9% | 1.2× | 1,250 / 686 / 457 / 195 / 34 / 30 | 78,959 | 0.0M | 211% |
 | Exodus: 20,000 teams, 70 % leave on day 30 · ideal | — | 0 | 11.7% | 1.0× | 343 / 171 / 114 / 49 / 163 / 47 | 11,794 | 0.0M | 136% |
-| Exodus: 20,000 teams, 70 % leave on day 30 · on-chain | — | 0 | 12.0% | 1.1× | 342 / 171 / 114 / 49 / 163 / 47 | 12,105 | 0.0M | 137% |
+| Exodus: 20,000 teams, 70 % leave on day 30 · on-chain | — | 0 | 12.2% | 1.2× | 342 / 171 / 114 / 49 / 163 / 47 | 12,017 | 0.0M | 138% |
 
 ### 2. The controller before D-19, the alternatives weighed, and the one shipped — on the hard cases
 
@@ -108,10 +124,12 @@ S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 exped
 | 4 h epoch, ±30 % | — | 0 | 13.7% | 1.9× | 338 / 168 / 112 / 48 / 48 / 48 | 22,624 | 0.0M | 134% |
 | 1 h epoch, ±30 % | — | 0 | 12.2% | 1.2× | 342 / 171 / 114 / 49 / 49 / 49 | 21,330 | 0.0M | 132% |
 | 24 h epoch, down 50 % / up 30 % | 60 | 0 | 25.0% | 3.6× | 1,250 / 625 / 313 / 49 / 42 / 30 | 34,983 | 0.0M | 212% |
-| 24 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 42 / 42 | 24,078 | 0.0M | 154% |
-| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 13.9% | 1.8× | 429 / 168 / 112 / 48 / 48 / 48 | 22,542 | 0.0M | 135% |
-| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.7% | 1.3× | 341 / 170 / 113 / 48 / 48 / 48 | 21,590 | 0.0M | 133% |
-| ON-CHAIN since D-19: 1 h epoch, ±30 %, 2× ceiling | — | 0 | 12.0% | 1.1× | 342 / 171 / 114 / 49 / 49 / 49 | 21,173 | 0.0M | 132% |
+| 24 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 40 / 40 | 20,285 | 0.0M | 159% |
+| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 14.1% | 2.0× | 429 / 168 / 112 / 48 / 48 / 48 | 21,776 | 0.0M | 135% |
+| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.8% | 1.3× | 341 / 170 / 113 / 48 / 48 / 48 | 21,297 | 0.0M | 133% |
+| D-19 as first shipped: 1 h epoch, ±30 %, 2× ceiling, last epoch with demand | — | 0 | 12.1% | 1.2× | 342 / 171 / 114 / 49 / 49 / 49 | 21,047 | 0.0M | 132% |
+| ON-CHAIN since D-C: D-19 + 4-epoch demand window | — | 0 | 12.2% | 1.1× | 342 / 171 / 114 / 49 / 49 / 49 | 21,065 | 0.0M | 132% |
+| D-19 + 24-epoch demand window (D-C runner-up) | — | 0 | 13.6% | 1.4× | 342 / 173 / 114 / 48 / 48 / 48 | 21,424 | 0.0M | 134% |
 
 #### 30,000 teams, 7-day ramp
 
@@ -123,10 +141,12 @@ S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 exped
 | 4 h epoch, ±30 % | — | 0 | 14.9% | 2.7× | 222 / 111 / 74 / 31 / 31 / 31 | 16,033 | 0.0M | 204% |
 | 1 h epoch, ±30 % | — | 0 | 12.5% | 1.4× | 227 / 113 / 76 / 32 / 32 / 32 | 14,455 | 0.0M | 198% |
 | 24 h epoch, down 50 % / up 30 % | — | 0 | 35.6% | 5.5× | 1,250 / 625 / 313 / 28 / 24 / 24 | 22,498 | 0.0M | 268% |
-| 24 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 27 / 27 | 16,052 | 0.0M | 236% |
-| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 14.5% | 2.0× | 429 / 111 / 74 / 32 / 32 / 32 | 15,357 | 0.0M | 203% |
-| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.9% | 1.4× | 227 / 113 / 75 / 32 / 32 / 32 | 14,497 | 0.0M | 199% |
-| ON-CHAIN since D-19: 1 h epoch, ±30 %, 2× ceiling | — | 0 | 12.1% | 1.2× | 228 / 114 / 76 / 32 / 32 / 32 | 14,170 | 0.0M | 197% |
+| 24 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 26 / 26 | 12,787 | 0.0M | 243% |
+| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 14.8% | 2.0× | 429 / 103 / 74 / 31 / 31 / 31 | 13,966 | 0.0M | 203% |
+| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.9% | 1.4× | 203 / 113 / 75 / 32 / 32 / 32 | 14,073 | 0.0M | 199% |
+| D-19 as first shipped: 1 h epoch, ±30 %, 2× ceiling, last epoch with demand | — | 0 | 12.2% | 1.2× | 228 / 114 / 76 / 32 / 32 / 32 | 13,938 | 0.0M | 197% |
+| ON-CHAIN since D-C: D-19 + 4-epoch demand window | — | 0 | 12.3% | 1.2× | 228 / 114 / 76 / 32 / 32 / 32 | 13,943 | 0.0M | 198% |
+| D-19 + 24-epoch demand window (D-C runner-up) | — | 0 | 13.7% | 1.4× | 228 / 115 / 76 / 32 / 32 / 32 | 14,204 | 0.0M | 201% |
 
 #### Surge: 20,000 teams all on day 1
 
@@ -138,10 +158,12 @@ S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 exped
 | 4 h epoch, ±30 % | — | 0 | 30.0% | 12.5× | 210 / 39 / 39 / 39 / 39 / 39 | 17,625 | 0.0M | 165% |
 | 1 h epoch, ±30 % | — | 0 | 16.2% | 4.0× | 46 / 46 / 46 / 46 / 46 / 46 | 17,625 | 0.0M | 138% |
 | 24 h epoch, down 50 % / up 30 % | — | 0 | 84.4% | 25.5× | 1,250 / 625 / 313 / 20 / 9 / 9 | 17,625 | 0.0M | 738% |
-| 24 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 42 / 42 | 17,625 | 0.0M | 154% |
-| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 14.8% | 2.0× | 429 / 103 / 47 / 47 / 47 / 47 | 17,625 | 0.0M | 136% |
-| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.8% | 1.8× | 48 / 48 / 48 / 48 / 48 / 48 | 17,625 | 0.0M | 133% |
-| ON-CHAIN since D-19: 1 h epoch, ±30 %, 2× ceiling | — | 0 | 12.2% | 1.3× | 49 / 49 / 49 / 49 / 49 / 49 | 17,625 | 0.0M | 132% |
+| 24 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 40 / 40 | 13,151 | 0.0M | 161% |
+| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 15.4% | 2.0× | 429 / 103 / 25 / 47 / 47 / 47 | 16,461 | 0.0M | 137% |
+| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.8% | 2.0× | 39 / 48 / 48 / 48 / 48 / 48 | 17,284 | 0.0M | 133% |
+| D-19 as first shipped: 1 h epoch, ±30 %, 2× ceiling, last epoch with demand | — | 0 | 12.3% | 1.4× | 49 / 49 / 49 / 49 / 49 / 49 | 17,429 | 0.0M | 132% |
+| ON-CHAIN since D-C: D-19 + 4-epoch demand window | — | 0 | 12.3% | 1.5× | 49 / 49 / 49 / 49 / 49 / 49 | 17,396 | 0.0M | 132% |
+| D-19 + 24-epoch demand window (D-C runner-up) | — | 0 | 13.3% | 2.0× | 70 / 37 / 48 / 48 / 48 / 48 | 17,013 | 0.0M | 134% |
 
 #### Surge: 30,000 teams all on day 1
 
@@ -153,10 +175,12 @@ S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 exped
 | 4 h epoch, ±30 % | — | 0 | 40.6% | 18.8× | 210 / 25 / 22 / 22 / 22 / 22 | 11,750 | 0.0M | 291% |
 | 1 h epoch, ±30 % | — | 0 | 18.7% | 5.7× | 30 / 30 / 30 / 30 / 30 / 30 | 11,750 | 0.0M | 213% |
 | 24 h epoch, down 50 % / up 30 % | 3 | 57 | 100.0% | 38.3× | 1,250 / 625 / 313 / 313 / 313 / 313 | 11,750 | 0.0M | 22% |
-| 24 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 27 / 27 | 11,750 | 0.0M | 236% |
-| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 15.3% | 2.0× | 429 / 103 / 31 / 31 / 31 / 31 | 11,750 | 0.0M | 204% |
-| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.9% | 1.9× | 39 / 32 / 32 / 32 / 32 / 32 | 11,750 | 0.0M | 199% |
-| ON-CHAIN since D-19: 1 h epoch, ±30 %, 2× ceiling | — | 0 | 12.3% | 1.4× | 32 / 32 / 32 / 32 / 32 / 32 | 11,750 | 0.0M | 197% |
+| 24 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 26 / 26 | 8,298 | 0.0M | 243% |
+| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 16.0% | 2.0× | 429 / 103 / 25 / 31 / 31 / 31 | 10,841 | 0.0M | 206% |
+| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.9% | 2.0× | 39 / 28 / 32 / 32 / 32 / 32 | 11,479 | 0.0M | 199% |
+| D-19 as first shipped: 1 h epoch, ±30 %, 2× ceiling, last epoch with demand | — | 0 | 12.4% | 1.5× | 32 / 32 / 32 / 32 / 32 / 32 | 11,597 | 0.0M | 198% |
+| ON-CHAIN since D-C: D-19 + 4-epoch demand window | — | 0 | 12.4% | 1.5× | 32 / 32 / 32 / 32 / 32 / 32 | 11,570 | 0.0M | 198% |
+| D-19 + 24-epoch demand window (D-C runner-up) | — | 0 | 13.7% | 2.0× | 70 / 21 / 32 / 32 / 32 / 32 | 11,195 | 0.0M | 201% |
 
 #### Step: 5,000 teams, then 20,000 more join on day 20
 
@@ -168,10 +192,12 @@ S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 exped
 | 4 h epoch, ±30 % | 60 | 0 | 12.2% | 1.7× | 1,250 / 684 / 455 / 195 / 33 / 30 | 81,383 | 0.0M | 215% |
 | 1 h epoch, ±30 % | 60 | 0 | 11.7% | 1.3× | 1,250 / 686 / 458 / 196 / 34 / 30 | 79,337 | 0.0M | 211% |
 | 24 h epoch, down 50 % / up 30 % | 60 | 0 | 15.7% | 3.2× | 1,250 / 1,250 / 677 / 220 / 30 / 25 | 87,944 | 0.0M | 254% |
-| 24 h epoch, ±30 %, 2× epoch spend ceiling | 60 | 0 | 18.8% | 1.9× | 1,250 / 1,250 / 875 / 210 / 27 / 25 | 90,922 | 0.0M | 251% |
-| 6 h epoch, ±30 %, 2× epoch spend ceiling | 60 | 0 | 12.5% | 1.7× | 1,250 / 683 / 454 / 194 / 33 / 30 | 81,238 | 0.0M | 216% |
-| 4 h epoch, down 50 % / up 30 %, 2× ceiling | 60 | 0 | 12.1% | 1.3× | 1,250 / 685 / 456 / 195 / 34 / 30 | 79,293 | 0.0M | 212% |
-| ON-CHAIN since D-19: 1 h epoch, ±30 %, 2× ceiling | 60 | 0 | 11.7% | 1.1× | 1,250 / 686 / 458 / 196 / 34 / 30 | 79,332 | 0.0M | 210% |
+| 24 h epoch, ±30 %, 2× epoch spend ceiling | 60 | 0 | 18.8% | 1.9× | 1,250 / 1,250 / 875 / 210 / 27 / 25 | 89,891 | 0.0M | 257% |
+| 6 h epoch, ±30 %, 2× epoch spend ceiling | 60 | 0 | 12.5% | 1.9× | 1,250 / 683 / 454 / 194 / 33 / 29 | 80,982 | 0.0M | 217% |
+| 4 h epoch, down 50 % / up 30 %, 2× ceiling | 60 | 0 | 12.1% | 1.3× | 1,250 / 685 / 456 / 195 / 34 / 30 | 79,205 | 0.0M | 213% |
+| D-19 as first shipped: 1 h epoch, ±30 %, 2× ceiling, last epoch with demand | 60 | 0 | 11.7% | 1.2× | 1,250 / 686 / 458 / 196 / 34 / 30 | 79,283 | 0.0M | 210% |
+| ON-CHAIN since D-C: D-19 + 4-epoch demand window | 60 | 0 | 11.9% | 1.2× | 1,250 / 686 / 457 / 195 / 34 / 30 | 78,959 | 0.0M | 211% |
+| D-19 + 24-epoch demand window (D-C runner-up) | 60 | 0 | 13.2% | 1.8× | 1,250 / 697 / 460 / 194 / 33 / 29 | 82,705 | 0.0M | 220% |
 
 #### Exodus: 20,000 teams, 70 % leave on day 30
 
@@ -183,10 +209,12 @@ S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 exped
 | 4 h epoch, ±30 % | — | 0 | 13.7% | 1.9× | 338 / 168 / 112 / 48 / 161 / 45 | 13,727 | 0.0M | 142% |
 | 1 h epoch, ±30 % | — | 0 | 12.2% | 1.2× | 342 / 171 / 114 / 49 / 163 / 46 | 12,276 | 0.0M | 138% |
 | 24 h epoch, down 50 % / up 30 % | — | 0 | 25.0% | 3.6× | 1,250 / 625 / 313 / 49 / 42 / 22 | 20,660 | 0.0M | 286% |
-| 24 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 42 / 21 | 16,347 | 0.0M | 310% |
-| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 13.9% | 1.8× | 429 / 168 / 112 / 48 / 105 / 44 | 13,665 | 0.0M | 145% |
-| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.7% | 1.3× | 341 / 170 / 113 / 48 / 163 / 46 | 12,595 | 0.0M | 139% |
-| ON-CHAIN since D-19: 1 h epoch, ±30 %, 2× ceiling | — | 0 | 12.0% | 1.1× | 342 / 171 / 114 / 49 / 163 / 47 | 12,105 | 0.0M | 137% |
+| 24 h epoch, ±30 %, 2× epoch spend ceiling | 58 | 1 | 22.1% | 2.0× | 1,250 / 875 / 613 / 147 / 40 / 25 | 12,801 | 0.0M | 260% |
+| 6 h epoch, ±30 %, 2× epoch spend ceiling | — | 0 | 14.1% | 2.0× | 429 / 168 / 112 / 48 / 105 / 44 | 12,920 | 0.0M | 147% |
+| 4 h epoch, down 50 % / up 30 %, 2× ceiling | — | 0 | 12.8% | 1.3× | 341 / 170 / 113 / 48 / 163 / 46 | 12,304 | 0.0M | 139% |
+| D-19 as first shipped: 1 h epoch, ±30 %, 2× ceiling, last epoch with demand | — | 0 | 12.1% | 1.2× | 342 / 171 / 114 / 49 / 163 / 47 | 11,984 | 0.0M | 138% |
+| ON-CHAIN since D-C: D-19 + 4-epoch demand window | — | 0 | 12.2% | 1.2× | 342 / 171 / 114 / 49 / 163 / 47 | 12,017 | 0.0M | 138% |
+| D-19 + 24-epoch demand window (D-C runner-up) | — | 0 | 13.6% | 1.5× | 342 / 173 / 114 / 48 / 148 / 44 | 12,515 | 0.0M | 145% |
 
 ### 3. Recovery after the exodus (D-19 a): on-chain reward as a share of the ideal, by day
 
@@ -197,7 +225,37 @@ S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 exped
 | 4 h epoch, ±30 % | 98.9% | 98.9% | 98.9% | 98.9% | 98.9% | 98.9% | 98.9% | 95.5% | 0 |
 | 1 h epoch, ±30 % | 99.7% | 99.7% | 99.7% | 99.7% | 99.7% | 99.7% | 99.7% | 98.2% | 0 |
 | 24 h epoch, down 50 % / up 30 % | 25.5% | 33.1% | 43.0% | 55.9% | 92.3% | 92.3% | 92.3% | 47.2% | 10 |
-| 24 h epoch, ±30 %, 2× epoch spend ceiling | 25.5% | 33.1% | 43.0% | 56.0% | 92.4% | 92.4% | 92.4% | 43.4% | 9 |
-| 6 h epoch, ±30 %, 2× epoch spend ceiling | 64.2% | 99.3% | 99.3% | 99.3% | 99.3% | 99.3% | 99.3% | 93.4% | 0 |
-| 4 h epoch, down 50 % / up 30 %, 2× ceiling | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 97.8% | 0 |
-| ON-CHAIN since D-19: 1 h epoch, ±30 %, 2× ceiling | 99.9% | 99.9% | 99.9% | 99.9% | 99.9% | 99.9% | 99.9% | 99.0% | 0 |
+| 24 h epoch, ±30 %, 2× epoch spend ceiling | 24.7% | 32.1% | 41.7% | 54.2% | 89.4% | 89.4% | 89.4% | 51.8% | 19 |
+| 6 h epoch, ±30 %, 2× epoch spend ceiling | 64.1% | 99.1% | 99.1% | 99.1% | 99.1% | 99.1% | 99.1% | 92.2% | 0 |
+| 4 h epoch, down 50 % / up 30 %, 2× ceiling | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 97.7% | 0 |
+| D-19 as first shipped: 1 h epoch, ±30 %, 2× ceiling, last epoch with demand | 99.8% | 99.8% | 99.8% | 99.8% | 99.8% | 99.8% | 99.8% | 98.8% | 0 |
+| ON-CHAIN since D-C: D-19 + 4-epoch demand window | 99.7% | 99.7% | 99.7% | 99.7% | 99.7% | 99.7% | 99.7% | 98.4% | 0 |
+| D-19 + 24-epoch demand window (D-C runner-up) | 90.6% | 99.4% | 99.4% | 99.4% | 99.4% | 99.4% | 99.4% | 93.7% | 0 |
+
+### 4. Demand shape × demand estimator (review 2026-10-03 D-C): 20,000 teams from day 1
+
+"Locked / spread" = CLAW earned per unit demanded by the bunched cohort vs the smooth one (phase-locked: the cohort starting on one hour in four; daily rhythm: peak-hour vs off-peak starts). Ratio 1.00 = fair. Refused starts retry next hour.
+
+| Shape · estimator | Spent | Reward d1 / d7 / d30 / d60 | Locked / spread per unit | Ratio | Refused starts | Worst day | Unspent |
+|---|---|---|---|---|---|---|---|
+| smooth · last epoch with demand (D-19 as first shipped) | 100.0% | 49 / 49 / 49 / 49 | 0.0 / 49.0 | 1.00 | 2.6% | 1.40× | 0.0M |
+| smooth · last 4 epochs (one expedition cycle) — ON-CHAIN since D-C | 100.0% | 49 / 49 / 49 / 49 | 0.0 / 49.0 | 1.00 | 3.3% | 1.45× | 0.0M |
+| smooth · last 24 epochs (a day) | 100.0% | 70 / 48 / 48 / 48 | 0.0 / 49.0 | 1.00 | 12.3% | 1.98× | 0.0M |
+| phase-locked 25 % (one hour in four) · last epoch with demand (D-19 as first shipped) | 100.0% | 63 / 62 / 57 / 14 | 53.8 / 47.3 | 1.14 | 9.1% | 1.41× | 0.0M |
+| phase-locked 25 % (one hour in four) · last 4 epochs (one expedition cycle) — ON-CHAIN since D-C | 100.0% | 49 / 49 / 49 / 55 | 49.2 / 48.9 | 1.01 | 3.7% | 1.44× | 0.1M |
+| phase-locked 25 % (one hour in four) · last 24 epochs (a day) | 100.0% | 70 / 48 / 48 / 55 | 49.2 / 48.9 | 1.01 | 13.2% | 1.98× | 0.1M |
+| phase-locked 50 % · last epoch with demand (D-19 as first shipped) | 100.0% | 42 / 42 / 42 / 39 | 53.6 / 44.3 | 1.21 | 25.1% | 1.36× | 0.0M |
+| phase-locked 50 % · last 4 epochs (one expedition cycle) — ON-CHAIN since D-C | 100.0% | 49 / 49 / 49 / 46 | 49.1 / 48.8 | 1.01 | 16.3% | 1.43× | 0.2M |
+| phase-locked 50 % · last 24 epochs (a day) | 100.0% | 70 / 48 / 48 / 46 | 49.1 / 48.8 | 1.01 | 26.0% | 1.98× | 0.1M |
+| phase-locked 90 % · last epoch with demand (D-19 as first shipped) | 99.8% | 39 / 40 / 44 / 97 | 49.6 / 42.0 | 1.18 | 44.4% | 1.84× | 0.8M |
+| phase-locked 90 % · last 4 epochs (one expedition cycle) — ON-CHAIN since D-C | 100.0% | 49 / 49 / 49 / 36 | 49.0 / 48.7 | 1.01 | 46.5% | 1.43× | 0.2M |
+| phase-locked 90 % · last 24 epochs (a day) | 100.0% | 70 / 48 / 48 / 35 | 49.0 / 48.6 | 1.01 | 56.6% | 1.98× | 0.2M |
+| phase-locked 100 % · last epoch with demand (D-19 as first shipped) | 81.5% | 12 / 13 / 20 / 1,250 | 39.9 / 0.0 | 1.00 | 3.9% | 10.49× | 65.1M |
+| phase-locked 100 % · last 4 epochs (one expedition cycle) — ON-CHAIN since D-C | 100.0% | 49 / 49 / 49 / 34 | 48.9 / 0.0 | 1.00 | 54.1% | 1.43× | 0.2M |
+| phase-locked 100 % · last 24 epochs (a day) | 100.0% | 70 / 48 / 48 / 34 | 48.9 / 0.0 | 1.00 | 64.3% | 1.98× | 0.2M |
+| daily rhythm: 60 % of starts in 8 of 24 h · last epoch with demand (D-19 as first shipped) | 100.0% | 81 / 81 / 79 / 71 | 36.5 / 67.7 | 0.54 | 11.6% | 1.33× | 0.0M |
+| daily rhythm: 60 % of starts in 8 of 24 h · last 4 epochs (one expedition cycle) — ON-CHAIN since D-C | 100.0% | 81 / 81 / 78 / 67 | 38.0 / 65.4 | 0.58 | 16.4% | 1.41× | 0.0M |
+| daily rhythm: 60 % of starts in 8 of 24 h · last 24 epochs (a day) | 99.9% | 70 / 48 / 48 / 121 | 49.3 / 48.4 | 1.02 | 20.1% | 1.98× | 0.3M |
+| daily rhythm: 80 % of starts in 6 of 24 h · last epoch with demand (D-19 as first shipped) | 99.8% | 167 / 183 / 183 / 300 | 39.9 / 84.8 | 0.47 | 214.0% | 1.26× | 0.7M |
+| daily rhythm: 80 % of starts in 6 of 24 h · last 4 epochs (one expedition cycle) — ON-CHAIN since D-C | 99.9% | 94 / 181 / 175 / 246 | 42.9 / 72.7 | 0.59 | 275.9% | 1.32× | 0.5M |
+| daily rhythm: 80 % of starts in 6 of 24 h · last 24 epochs (a day) | 99.7% | 70 / 48 / 48 / 172 | 49.0 / 48.2 | 1.02 | 176.3% | 1.98× | 1.0M |

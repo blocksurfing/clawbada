@@ -92,6 +92,19 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "DEMAND_WINDOW",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "EPOCH_SPEND_CAP_BPS",
     "inputs": [],
     "outputs": [
@@ -106,6 +119,19 @@ export const MiningPoolAbi = [
   {
     "type": "function",
     "name": "EXPEDITION_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_BASE_REWARD_STEP_X",
     "inputs": [],
     "outputs": [
       {
@@ -994,6 +1020,37 @@ export const MiningPoolAbi = [
   },
   {
     "type": "event",
+    "name": "EpochRolled",
+    "inputs": [
+      {
+        "name": "season",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "trailingWeight",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cap",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ExpeditionAdminReleased",
     "inputs": [
       {
@@ -1267,6 +1324,22 @@ export const MiningPoolAbi = [
   },
   {
     "type": "error",
+    "name": "BaseRewardTooHigh",
+    "inputs": [
+      {
+        "name": "baseReward",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "limit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "BatchTooLarge",
     "inputs": [
       {
@@ -1415,6 +1488,22 @@ export const MiningPoolAbi = [
     "type": "error",
     "name": "SeasonBudgetExhausted",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeasonBudgetTooSmall",
+    "inputs": [
+      {
+        "name": "totalEmission",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "baseReward",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",

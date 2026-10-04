@@ -4,7 +4,7 @@
  * the design was validated with, and versus candidate contract changes.
  * Usage: bun run season:glide [--out file.md]
  */
-import { D19_SCENARIOS, CANDIDATES, ONCHAIN, runGlideSeason, type GlideScenario, type GlideParams, type GlideRunResult } from '../src/v3/season-glide';
+import { D19_SCENARIOS, CANDIDATES, ONCHAIN, SHAPE_SCENARIOS, ESTIMATORS, runGlideSeason, type GlideScenario, type GlideParams, type GlideRunResult } from '../src/v3/season-glide';
 
 const lines: string[] = [];
 const say = (s = '') => { lines.push(s); console.log(s); };
@@ -24,7 +24,7 @@ const header = (first: string) => {
 
 say('# D-19 — the mining-reward glide as the contract runs it');
 say();
-say('S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 expeditions a day per team, tier weights 1/3/10/25, 50% of income retained toward upgrades (12k/60k/300k effective), boost on the same budget (+15% expected on Evolved+). "Ideal" is the daily exact re-peg the design was validated with (season.ts): no clamp, no lag, no blind first day. "On-chain" is `MiningPool` as it deploys after D-19 (2026-10-02): re-peg once an HOUR from the previous hour\'s demand, at most ±30% an hour, nothing in hour 0, and no hour minting more than twice its fair share of what is left. Section 2 keeps the controller this replaced ("before D-19") and the alternatives weighed.');
+say('S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 expeditions a day per team, tier weights 1/3/10/25, 50% of income retained toward upgrades (12k/60k/300k effective), boost on the same budget (+15% expected on Evolved+). "Ideal" is the daily exact re-peg the design was validated with (season.ts): no clamp, no lag, no blind first day. "On-chain" is `MiningPool` as it deploys after D-19 (2026-10-02): re-peg once an HOUR from the average demand of the last four hours (D-C, 2026-10-03; "D-19 as first shipped" in section 2 is the same controller pacing on the previous hour alone), at most ±30% an hour, nothing in hour 0, and no hour minting more than twice its fair share of what is left. Section 2 keeps the controller this replaced ("before D-19") and the alternatives weighed.');
 say();
 
 say('## 1. Ideal glide vs the contract (D-19 controller), same populations');
@@ -60,6 +60,21 @@ for (const c of CANDIDATES) {
   let below = 0;
   for (let d = 31; d <= 60; d++) if (ratio(d) < 0.9) below++;
   say(`| ${c.name} | ${[30, 31, 32, 33, 35, 40, 45, 60].map((d) => pct(ratio(d))).join(' | ')} | ${below} |`);
+}
+say();
+
+say('## 4. Demand shape × demand estimator (review 2026-10-03 D-C): 20,000 teams from day 1');
+say();
+say('"Locked / spread" = CLAW earned per unit demanded by the bunched cohort vs the smooth one (phase-locked: the cohort starting on one hour in four; daily rhythm: peak-hour vs off-peak starts). Ratio 1.00 = fair. Refused starts retry next hour.');
+say();
+say('| Shape · estimator | Spent | Reward d1 / d7 / d30 / d60 | Locked / spread per unit | Ratio | Refused starts | Worst day | Unspent |');
+say('|---|---|---|---|---|---|---|---|');
+for (const scenario of SHAPE_SCENARIOS) {
+  for (const est of ESTIMATORS) {
+    const r = runGlideSeason({ scenario, mode: 'onchain', params: est.params });
+    const rd = (d: number) => f0(r.rewardByDay[d - 1]);
+    say(`| ${scenario.name} · ${est.name} | ${pct(r.mintedShareByDay[59])} | ${rd(1)} / ${rd(7)} / ${rd(30)} / ${rd(60)} | ${r.cohortPerUnit.locked.toFixed(1)} / ${r.cohortPerUnit.spread.toFixed(1)} | ${r.cohortPerUnit.ratio.toFixed(2)} | ${pct(r.refusedShare)} | ${r.maxDayOverspendX.toFixed(2)}× | ${fM(r.unspentClaw)} |`);
+  }
 }
 say();
 

@@ -12,10 +12,11 @@ import {TeamManager} from "./TeamManager.sol";
 /// @title MiningPool — Glide-pegged per-expedition rewards with seasonal budget cap for Clawbada
 /// @notice Manages expeditions across Base/Evolved/Elite/Apex mines. Each expedition earns
 ///         a fixed reward = baseReward × tierWeight, locked at start. Season has a total
-///         emission cap. TOK-G1: baseReward auto-glides daily —
-///         target = remainingBudget / (remainingDays × trailing epoch demand), clamped to
-///         ±30% per epoch and capped at the season's launch reward — so crowding compresses
-///         per-team yield smoothly instead of exhausting the budget mid-season. Demand is
+///         emission cap. TOK-G1: baseReward auto-glides every hourly epoch —
+///         target = remainingBudget / (remainingEpochs × demand per epoch), where demand is the
+///         average of the last DEMAND_WINDOW epochs (D-C), clamped to ±30% per epoch and capped at
+///         the season's launch reward — so crowding compresses per-team yield smoothly instead of
+///         exhausting the budget mid-season. Demand is
 ///         measured on-chain as tier-weight units served per epoch. setBaseReward remains as
 ///         an emergency admin override on top of the glide.
 ///         Battle-rank mining boost (S1, locked 2026-09-02): a team's weekly battle-ladder
@@ -58,7 +59,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         uint256 launchBaseReward; // TOK-G1: glide cap — reward never re-pegs above this
         uint256 lastRepegEpoch; // epoch index of the last glide re-peg
         uint256 epochWeightServed; // tier-weight units × BPS_DENOMINATOR served this epoch (boost-scaled)
-        uint256 trailingWeightServed; // tier-weight units served in the last completed epoch with demand
+        uint256 trailingWeightServed; // D-C: average tier-weight units per epoch over the last DEMAND_WINDOW closed epochs
         uint256 epochMinted; // $CLAW minted this epoch (reset at the re-peg) — the spend ceiling's counter
     }
 
@@ -96,6 +97,18 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     // within 1-2% in every scenario, including 30,000 teams arriving in one day.
     uint256 public constant REPEG_EPOCH = 1 hours;
     uint256 public constant REPEG_MAX_STEP_BPS = 3_000;
+    /// @notice D-C (review 2026-10-03): the demand the glide paces against is the average of the
+    ///         last DEMAND_WINDOW epochs — one expedition cycle (4 h) — not the last epoch that had
+    ///         any. The single-epoch rule read a population that starts everything in one hour of
+    ///         four as four times its size (and nothing between), so the rate under-paid and sawed;
+    ///         a day-long window tracked a surge too slowly. Epochs nobody touched count as quiet.
+    ///         Modelled in packages/game-logic/src/v3/season-glide.ts, section 4 of the D-19 report.
+    uint256 public constant DEMAND_WINDOW = 4;
+    /// @notice D-D: a new season's launch reward may not exceed this multiple of the previous
+    ///         season's, and an emergency override may not exceed it of the current season's —
+    ///         a mistyped startSeason / setBaseReward (a missing e18, an extra zero) reverts instead
+    ///         of paying a season out in hours.
+    uint256 public constant MAX_BASE_REWARD_STEP_X = 3;
     /// @notice An epoch may mint at most this share (bps) of its fair slice of the budget left:
     ///         20,000 = twice `left / epochsLeft`.
     uint256 public constant EPOCH_SPEND_CAP_BPS = 20_000;
@@ -125,6 +138,10 @@ contract MiningPool is AccessControl, ReentrancyGuard {
 
     uint256 public currentSeason;
     mapping(uint256 => SeasonConfig) private _seasons;
+    /// @dev D-C: per season, tier-weight units served in each of the last DEMAND_WINDOW closed
+    ///      epochs (slot = epoch % DEMAND_WINDOW). `trailingWeightServed` publishes the average.
+    // slither-disable-next-line uninitialized-state — a mapping has no initializer; it is written through the `ring` storage pointer in _repegIfNeeded, and an all-zero ring is the correct "no demand seen yet" state.
+    mapping(uint256 => uint256[DEMAND_WINDOW]) private _servedRing;
 
     // TOK-M1: cumulative mining emissions across ALL seasons (gross minted). Mirrors
     // season.totalMinted's semantics — admin-released/burned rewards stay counted, so
@@ -164,12 +181,20 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         uint256 indexed season, uint256 epoch, uint256 oldBaseReward, uint256 newBaseReward, uint256 trailingWeight
     );
 
+    /// @notice I11: every epoch roll — the demand estimate the new epoch paces against and its
+    ///         spend ceiling (hourly at most, ≤ 1,440 a season).
+    event EpochRolled(uint256 indexed season, uint256 epoch, uint256 trailingWeight, uint256 cap);
+
     // ──────────── Errors ────────────
     error ZeroAddress();
     error SeasonNotActive();
     error SeasonStillActive();
     error ZeroEmission();
     error ZeroBaseReward();
+    /// @dev D-D: the season's budget could not pay even one Base expedition (a missing e18?).
+    error SeasonBudgetTooSmall(uint256 totalEmission, uint256 baseReward);
+    /// @dev D-D: the base reward exceeds what the budget left or the step limit allows.
+    error BaseRewardTooHigh(uint256 baseReward, uint256 limit);
     error SeasonBudgetExhausted();
     error MiningAllocationExhausted();
     /// @dev D-19: this epoch has minted its ceiling; the expedition can start at `nextEpochAt`.
@@ -229,7 +254,13 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         if (currentSeason > 0) {
             SeasonConfig storage current = _seasons[currentSeason];
             if (block.timestamp < current.startTime + SEASON_DURATION) revert SeasonStillActive();
+            // D-D: a launch reward more than MAX_BASE_REWARD_STEP_X the previous season's is a typo,
+            // not a decision (the engine proposes min(2 × closing rate, genesis)).
+            uint256 stepLimit = current.launchBaseReward * MAX_BASE_REWARD_STEP_X;
+            if (baseReward > stepLimit) revert BaseRewardTooHigh(baseReward, stepLimit);
         }
+        // D-D: a budget that cannot pay one Base expedition is a mistyped amount, not a season.
+        if (totalEmission < baseReward) revert SeasonBudgetTooSmall(totalEmission, baseReward);
 
         currentSeason++;
         _seasons[currentSeason] = SeasonConfig({
@@ -248,14 +279,19 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     }
 
     /// @notice Emergency admin override of the glide-pegged base reward. Only affects future
-    ///         expeditions; the daily glide keeps re-pegging from the new value (still capped
-    ///         at the season's launch reward).
+    ///         expeditions; the hourly glide keeps re-pegging from the new value (still capped
+    ///         at the season's launch reward). D-D: bounded by what the budget can still pay and
+    ///         by MAX_BASE_REWARD_STEP_X the season's launch reward.
     /// @param newBaseReward New $CLAW per Base expedition
     function setBaseReward(uint256 newBaseReward) external onlyRole(SEASON_ADMIN_ROLE) {
         if (newBaseReward == 0) revert ZeroBaseReward();
         _requireActiveSeason();
 
         SeasonConfig storage season = _seasons[currentSeason];
+        uint256 limit = season.launchBaseReward * MAX_BASE_REWARD_STEP_X;
+        uint256 left = _budgetLeft(season);
+        if (left < limit) limit = left;
+        if (newBaseReward > limit) revert BaseRewardTooHigh(newBaseReward, limit);
         uint256 oldBaseReward = season.baseReward;
         season.baseReward = newBaseReward;
 
@@ -502,7 +538,8 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     ///         sending a transaction that reverts `EpochBudgetFull`.
     function epochBudget() external view returns (uint256 cap, uint256 minted, uint256 nextEpochAt) {
         SeasonConfig storage season = _seasons[currentSeason];
-        if (currentSeason == 0) return (0, 0, 0);
+        // L4: nothing can start without a season, or once the season's 60 days are over.
+        if (currentSeason == 0 || block.timestamp >= season.startTime + SEASON_DURATION) return (0, 0, 0);
         uint256 epoch = (block.timestamp - season.startTime) / REPEG_EPOCH;
         // The counter is reset lazily at the first touch of an epoch: until then it still holds the
         // last touched epoch's figure, which no longer applies. (Epochs only move forward, so
@@ -560,23 +597,50 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     }
 
     /// @dev TOK-G1 glide: once per epoch, re-peg baseReward toward
-    ///      remaining / (remainingDays × trailingWeightServed), clamped to ±30% per step and
+    ///      remaining / (remainingEpochs × demand per epoch), clamped to ±30% per step and
     ///      capped at launchBaseReward. Lazy single-step per touched epoch: after quiet gaps
-    ///      the reward converges over subsequent epochs rather than jumping. No demand signal
-    ///      yet (trailing == 0) → hold the current reward.
-    // slither-disable-next-line divide-before-multiply,incorrect-equality — remainingDays is an integer day count by design (the glide is a daily re-peg, so pacing over whole days is the intended semantics); the strict equalities compare integer epoch indices and unit counters (never balances), where exact equality is the correct test.
+    ///      the reward converges over subsequent epochs rather than jumping.
+    ///      D-C: the demand estimate is the average over the last DEMAND_WINDOW closed epochs.
+    ///      Untouched epochs are quiet ones: a gap inside the window zeroes their slots (at most
+    ///      DEMAND_WINDOW − 1 of them), a gap longer than the window leaves nothing recent at all —
+    ///      no demand signal → hold the current reward, as before the first expedition.
+    // slither-disable-next-line divide-before-multiply,incorrect-equality — remainingEpochs is an integer epoch count by design (the glide paces over whole hourly epochs); the strict equalities compare integer epoch indices and unit counters (never balances), where exact equality is the correct test.
     function _repegIfNeeded(SeasonConfig storage season) internal {
         uint256 epoch = (block.timestamp - season.startTime) / REPEG_EPOCH;
-        if (epoch == season.lastRepegEpoch) return;
-        // epochWeightServed is boost-scaled (units × BPS_DENOMINATOR); trailing stays in
-        // plain tier-weight units so the target formula and the event keep their semantics.
-        if (season.epochWeightServed > 0) season.trailingWeightServed = season.epochWeightServed / BPS_DENOMINATOR;
+        uint256 last = season.lastRepegEpoch;
+        if (epoch == last) return;
+
+        uint256[DEMAND_WINDOW] storage ring = _servedRing[currentSeason];
+        if (epoch - last > DEMAND_WINDOW) {
+            // Every slot is older than the window: the whole ring is stale.
+            for (uint256 i = 0; i < DEMAND_WINDOW; i++) ring[i] = 0;
+        } else {
+            // epochWeightServed is boost-scaled (units × BPS_DENOMINATOR); the ring keeps plain
+            // tier-weight units so the target formula and the events keep their semantics.
+            ring[last % DEMAND_WINDOW] = season.epochWeightServed / BPS_DENOMINATOR;
+            for (uint256 e = last + 1; e < epoch; e++) ring[e % DEMAND_WINDOW] = 0; // skipped = quiet
+        }
         season.epochWeightServed = 0;
         season.epochMinted = 0; // D-19: the spend ceiling counts per epoch
         season.lastRepegEpoch = epoch;
-        uint256 trailing = season.trailingWeightServed;
-        if (trailing == 0) return;
 
+        uint256 windowSum = 0;
+        for (uint256 i = 0; i < DEMAND_WINDOW; i++) windowSum += ring[i];
+        // The season's first epochs: average over the epochs that have closed so far.
+        uint256 filled = epoch < DEMAND_WINDOW ? epoch : DEMAND_WINDOW;
+        uint256 trailing = windowSum / filled;
+        season.trailingWeightServed = trailing;
+        if (windowSum > 0) _glideStep(season, epoch, windowSum, filled, trailing);
+        emit EpochRolled(currentSeason, epoch, trailing, _epochSpendCapFrom(season, epoch, 0));
+    }
+
+    /// @dev One glide step for the epoch just opened. `windowSum` units over `filled` epochs is the
+    ///      demand estimate; the target uses the sum (not the floored average) so a small
+    ///      population still moves the rate.
+    // slither-disable-next-line divide-before-multiply
+    function _glideStep(SeasonConfig storage season, uint256 epoch, uint256 windowSum, uint256 filled, uint256 trailing)
+        internal
+    {
         // D-18: count this epoch. This runs on the first touch of epoch k, with (total - k) epochs
         // still to pay for INCLUDING this one. The old `(SEASON_DURATION - elapsed) / epoch` floored
         // one short, so a crowded season was paced over one epoch too few, ran dry early and nobody
@@ -594,7 +658,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         // smaller than one reward (the #99 fix held only at exactly zero): hold the last real rate
         // whenever less than one Base expedition is left, since nothing can be started anyway.
         if (remaining < season.baseReward) return;
-        uint256 target = remaining / (remainingEpochs * trailing);
+        uint256 target = (remaining * filled) / (remainingEpochs * windowSum);
 
         uint256 old = season.baseReward;
         uint256 lo = (old * (10_000 - REPEG_MAX_STEP_BPS)) / 10_000;

@@ -229,9 +229,9 @@ contract MiningPoolTest is Test {
         MiningPool.Expedition memory exp = pool.getExpedition(expId);
         assertEq(exp.reward, BASE_REWARD); // 1,250 × 1
 
-        // Change baseReward
+        // Change baseReward (D-D: at most 3x the launch reward)
         vm.prank(seasonAdmin);
-        pool.setBaseReward(5_000e18);
+        pool.setBaseReward(3_000e18);
 
         // In-flight expedition still has old reward
         MiningPool.Expedition memory expAfter = pool.getExpedition(expId);
@@ -243,7 +243,7 @@ contract MiningPoolTest is Test {
         uint256 expId2 = pool.startExpedition(team2, 0);
 
         MiningPool.Expedition memory exp2 = pool.getExpedition(expId2);
-        assertEq(exp2.reward, 5_000e18);
+        assertEq(exp2.reward, 3_000e18);
     }
 
     // ──────────── startExpedition ────────────
@@ -1337,6 +1337,219 @@ contract MiningPoolTest is Test {
         assertEq(nextEpochAt, 0);
     }
 
+    // ── D-C (review 2026-10-03): the demand window ──
+
+    function test_DC_windowConstants() public view {
+        assertEq(pool.DEMAND_WINDOW(), 4, "one expedition cycle of hourly epochs");
+        assertEq(pool.MAX_BASE_REWARD_STEP_X(), 3, "D-D: a launch or override may not exceed 3x");
+    }
+
+    /// @dev A population that starts everything in one hour of four (the 4 h cadence) is paced as
+    ///      the average over those hours. The single-epoch rule read six units in hour 0 as six
+    ///      units EVERY hour and pinned the rate at 1,000 for good; the window averages them.
+    function test_DC_phaseLockedPopulationIsPacedAsItsAverage() public {
+        uint256 remaining = 1_000e18 * 1_439 * 6; // the D-18 vector: 6 units an hour is the design rate
+        _startSeasonWith(remaining + 6 * BASE_REWARD, BASE_REWARD);
+        _sixBaseExpeditionsInThisEpoch(); // hour 0 only
+        vm.warp(block.timestamp + 1 hours + 5 minutes);
+        pool.repeg();
+        assertEq(pool.currentBaseReward(), 1_000e18, "hour 1: one closed epoch of six units, paced as the design rate");
+        assertEq(pool.getSeasonConfig(1).trailingWeightServed, 6);
+        for (uint256 h = 2; h <= 4; h++) {
+            vm.warp(block.timestamp + 1 hours);
+            pool.repeg();
+            assertEq(pool.getSeasonConfig(1).trailingWeightServed, 6 / h, "six units over h closed epochs");
+        }
+        // Six units over four epochs is a quarter of the design demand: the target is far above
+        // launch, so the rate climbs +30% a step and sits at the launch cap.
+        assertEq(pool.currentBaseReward(), BASE_REWARD, "a quarter of the design demand: the launch cap");
+    }
+
+    /// @dev The same vector touched three hours later instead of one: the two skipped epochs were
+    ///      quiet, and the lazy re-peg reads them that way (one step, from the window's average).
+    function test_DC_lazyGapInsideTheWindowCountsSkippedEpochsAsQuiet() public {
+        uint256 remaining = 1_000e18 * 1_439 * 6;
+        _startSeasonWith(remaining + 6 * BASE_REWARD, BASE_REWARD);
+        _sixBaseExpeditionsInThisEpoch();
+        vm.warp(block.timestamp + 3 hours + 5 minutes); // epoch 3: epochs 1 and 2 untouched
+        pool.repeg();
+        assertEq(pool.getSeasonConfig(1).trailingWeightServed, 2, "six units over three closed epochs");
+        // target = left x 3 / (1,437 x 6) = 3,004: above the +30% bound and above launch -> launch
+        assertEq(pool.currentBaseReward(), BASE_REWARD);
+    }
+
+    /// @dev The epoch just closed is exactly the window's age after a gap of DEMAND_WINDOW
+    ///      epochs: it is still inside the window and still counts (a gap of one more clears it).
+    function test_DC_gapOfExactlyTheWindowKeepsTheClosedEpoch() public {
+        _startSeasonWith(BASE_REWARD * 100, BASE_REWARD);
+        _sixBaseExpeditionsInThisEpoch();
+        vm.warp(block.timestamp + 4 hours + 5 minutes); // epoch 4: epochs 1-3 quiet, epoch 0 is the window's oldest slot
+        pool.repeg();
+        assertEq(pool.getSeasonConfig(1).trailingWeightServed, 1, "six units over four closed epochs, floored");
+        // target = 117,500 x 4 / (1,436 x 6) = 54: far below -> the clamp. A hold would be 1,250.
+        assertEq(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000, "the burst still paces the rate");
+    }
+
+    /// @dev A gap longer than the window leaves nothing recent: the rate holds (no demand
+    ///      signal), it does not keep stepping on a five-hour-old burst.
+    function test_DC_gapLongerThanTheWindowHoldsTheRate() public {
+        _startSeasonWith(BASE_REWARD * 100, BASE_REWARD);
+        _sixBaseExpeditionsInThisEpoch();
+        vm.warp(block.timestamp + 1 hours + 5 minutes);
+        pool.repeg();
+        uint256 glided = (BASE_REWARD * 7_000) / 10_000;
+        assertEq(pool.currentBaseReward(), glided, "hour 1: the clamp");
+        vm.warp(block.timestamp + 5 hours); // epoch 6: five untouched epochs, longer than the window
+        pool.repeg();
+        assertEq(pool.currentBaseReward(), glided, "no recent demand: hold");
+        assertEq(pool.getSeasonConfig(1).trailingWeightServed, 0, "nothing in the window");
+    }
+
+    /// @dev I11: every epoch roll is an event — the estimate and the ceiling the new epoch opens
+    ///      with — including a quiet roll that moved nothing.
+    function test_I11_epochRolledEmittedOnEveryRoll() public {
+        _startSeason();
+        uint256 team = _createTeam(alice, 0);
+        vm.prank(alice);
+        pool.startExpedition(team, 0); // one unit in epoch 0
+        uint256 cap = ((S1_EMISSION - BASE_REWARD) * 20_000) / (10_000 * 1_439);
+        vm.warp(block.timestamp + 1 hours);
+        vm.expectEmit(true, false, false, true);
+        emit MiningPool.EpochRolled(1, 1, 1, cap);
+        pool.repeg();
+        uint256 cap2 = ((S1_EMISSION - BASE_REWARD) * 20_000) / (10_000 * 1_438);
+        vm.warp(block.timestamp + 1 hours);
+        vm.expectEmit(true, false, false, true);
+        emit MiningPool.EpochRolled(1, 2, 0, cap2); // one unit over two closed epochs floors to 0
+        pool.repeg();
+    }
+
+    // ── D-D (review 2026-10-03): guards against a mistyped season or override ──
+
+    function test_DD_startSeasonBudgetBelowOneRewardReverts() public {
+        vm.prank(seasonAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.SeasonBudgetTooSmall.selector, 352_500_000, BASE_REWARD));
+        pool.startSeason(352_500_000, BASE_REWARD); // the missing-e18 typo
+    }
+
+    function test_DD_startSeasonExactlyOneRewardIsAllowed() public {
+        vm.prank(seasonAdmin);
+        pool.startSeason(BASE_REWARD, BASE_REWARD);
+        assertEq(pool.currentSeason(), 1);
+    }
+
+    function test_DD_nextSeasonLaunchAboveThreeTimesPreviousReverts() public {
+        _startSeason();
+        vm.warp(block.timestamp + 60 days);
+        vm.prank(seasonAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.BaseRewardTooHigh.selector, BASE_REWARD * 3 + 1, BASE_REWARD * 3));
+        pool.startSeason(S1_EMISSION / 2, BASE_REWARD * 3 + 1);
+        vm.prank(seasonAdmin);
+        pool.startSeason(S1_EMISSION / 2, BASE_REWARD * 3); // exactly 3x is allowed
+        assertEq(pool.getSeasonConfig(2).launchBaseReward, BASE_REWARD * 3);
+    }
+
+    /// @dev The limit follows the previous season's LAUNCH reward, not its glided closing rate:
+    ///      a season that glided down to 875 may still launch the next at up to 3 x 1,250 (the
+    ///      engine proposes min(2 x closing, 1,250) — well inside).
+    function test_DD_nextSeasonLimitFollowsThePreviousLaunchNotItsGlidedRate() public {
+        _startSeasonWith(BASE_REWARD * 100, BASE_REWARD);
+        _sixBaseExpeditionsInThisEpoch();
+        vm.warp(block.timestamp + 1 hours + 5 minutes);
+        pool.repeg();
+        assertEq(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000);
+        vm.warp(block.timestamp + 60 days);
+        vm.prank(seasonAdmin);
+        pool.startSeason(BASE_REWARD * 100, BASE_REWARD * 3);
+        assertEq(pool.currentSeason(), 2);
+    }
+
+    function test_DD_setBaseRewardAboveThreeTimesLaunchReverts() public {
+        _startSeason();
+        vm.prank(seasonAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.BaseRewardTooHigh.selector, BASE_REWARD * 3 + 1, BASE_REWARD * 3));
+        pool.setBaseReward(BASE_REWARD * 3 + 1);
+        vm.prank(seasonAdmin);
+        pool.setBaseReward(BASE_REWARD * 3);
+        assertEq(pool.currentBaseReward(), BASE_REWARD * 3);
+    }
+
+    function test_DD_setBaseRewardAboveBudgetLeftReverts() public {
+        _startSeasonWith(BASE_REWARD * 7, BASE_REWARD);
+        _sixBaseExpeditionsInThisEpoch(); // one Base reward left
+        vm.prank(seasonAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.BaseRewardTooHigh.selector, BASE_REWARD + 1, BASE_REWARD));
+        pool.setBaseReward(BASE_REWARD + 1);
+        vm.prank(seasonAdmin);
+        pool.setBaseReward(BASE_REWARD); // exactly what is left is allowed
+        assertEq(pool.currentBaseReward(), BASE_REWARD);
+    }
+
+    // ── L4 / D-19 gaps (review 2026-10-03) ──
+
+    function test_L4_epochBudgetViewIsZeroAfterTheSeasonEnds() public {
+        _startSeason();
+        vm.warp(block.timestamp + 60 days);
+        (uint256 cap, uint256 minted, uint256 nextEpochAt) = pool.epochBudget();
+        assertEq(cap, 0);
+        assertEq(minted, 0);
+        assertEq(nextEpochAt, 0);
+    }
+
+    /// @dev The hold is for LESS than one reward left; exactly one is still a demand signal.
+    function test_D19_remainingEqualToOneRewardStillRepegs() public {
+        _startSeasonWith(BASE_REWARD * 7, BASE_REWARD);
+        _sixBaseExpeditionsInThisEpoch();
+        assertEq(pool.getSeasonUnspent(1), BASE_REWARD);
+        vm.warp(block.timestamp + 1 hours + 5 minutes);
+        pool.repeg();
+        assertEq(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000, "exactly one reward left still re-pegs");
+    }
+
+    /// @dev Boosted expeditions count against the ceiling at their BOOSTED amount. 365M: the
+    ///      hour-0 ceiling is 506,944; ten +50% Apex expeditions (468,750) fit, an eleventh
+    ///      (515,625) does not — where an unboosted one (500,000) still would.
+    function test_D19_boostedRewardCountsAgainstTheCeilingAtItsBoostedAmount() public {
+        uint256 emission = 365_000_000e18;
+        _startSeasonWith(emission, BASE_REWARD);
+        uint256 cap = (emission * 20_000) / (10_000 * 1_440);
+        uint256[] memory teams = new uint256[](11);
+        for (uint256 i = 0; i < 11; i++) teams[i] = _createTeam(alice, 3);
+        _postAndActivateAll(teams, 5_000);
+        uint256 boosted = _boosted(BASE_REWARD, 5_000) * 25;
+        for (uint256 i = 0; i < 10; i++) {
+            vm.prank(alice);
+            pool.startExpedition(teams[i], 3);
+        }
+        (, uint256 minted,) = pool.epochBudget();
+        assertEq(minted, 10 * boosted, "the boosted amounts are what count");
+        assertGt(minted + boosted, cap, "an eleventh boosted one crosses");
+        assertLe(minted + BASE_REWARD * 25, cap, "where an unboosted one would still fit");
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.EpochBudgetFull.selector, block.timestamp + 1 hours));
+        pool.startExpedition(teams[10], 3);
+    }
+
+    /// @dev An override mid-epoch moves the ceiling's floor with the rate; the epoch's counter
+    ///      stays. (An override above what is left now reverts: test_DD_setBaseRewardAboveBudgetLeftReverts.)
+    function test_D19_overrideMovesTheCeilingFloorMidEpoch() public {
+        _startSeasonWith(BASE_REWARD * 100, BASE_REWARD); // tiny: the floor IS the ceiling
+        uint256[] memory pair = new uint256[](2);
+        pair[0] = _createTeam(alice, 3);
+        pair[1] = _createTeam(alice, 3);
+        _postAndActivateAll(pair, 5_000);
+        vm.prank(alice);
+        pool.startExpedition(pair[0], 3); // 46,875: the whole floor at 1,250
+        vm.prank(seasonAdmin);
+        pool.setBaseReward(2_000e18); // within 3x launch and within what is left
+        (uint256 cap, uint256 minted,) = pool.epochBudget();
+        assertEq(cap, _boosted(2_000e18, 5_000) * 25, "the floor follows the rate: 75,000");
+        assertEq(minted, _boosted(BASE_REWARD, 5_000) * 25, "the counter does not");
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.EpochBudgetFull.selector, block.timestamp + 1 hours));
+        pool.startExpedition(pair[1], 3); // 46,875 + 75,000 > 75,000: next epoch
+    }
+
     function test_repegIsPermissionless() public {
         _runSixThenCrossEpoch();
         address nobody = makeAddr("nobody");
@@ -1665,9 +1878,11 @@ contract MiningPoolTest is Test {
     }
 
     function test_unboostedControlCountsPlainGlideDemand() public {
-        _runSixThenCrossEpoch();
+        _runSixThenCrossEpoch(); // six units in epoch 0, now in epoch 4
         pool.repeg();
-        assertEq(pool.getSeasonConfig(1).trailingWeightServed, 6);
+        // D-C: six units over the four closed epochs of the window, floored (the boosted test
+        // above crosses one hour later, where the window is that one epoch: 9 units).
+        assertEq(pool.getSeasonConfig(1).trailingWeightServed, 1);
     }
 
     /// @dev Budget and lifetime caps bind on the BOOSTED amount: a reward that fits unboosted
