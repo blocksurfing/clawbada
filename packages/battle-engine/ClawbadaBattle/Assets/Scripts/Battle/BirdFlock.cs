@@ -103,7 +103,8 @@ public class BirdFlock : MonoBehaviour
         new BirdPerch { id = "RightFar", x = 4.4f, y = 2.1875f, walkHalfWidth = 0f, disabled = true },
         new BirdPerch { id = "LeftA", x = -2.5f, y = 1.9375f, walkHalfWidth = 0.1f },
         new BirdPerch { id = "LeftB", x = -3.1f, y = 1.9375f, walkHalfWidth = 0f },
-        new BirdPerch { id = "BoatBow", x = -3.65f, y = 2.0f, walkHalfWidth = 0f },
+        // Off by default: the top-left HUD (timer / settings hexes) sits over the wreck's bow in battle.
+        new BirdPerch { id = "BoatBow", x = -3.65f, y = 2.0f, walkHalfWidth = 0f, disabled = true },
     };
 
     private void Start()
