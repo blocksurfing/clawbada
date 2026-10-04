@@ -218,6 +218,15 @@ wrong for anything tall.
 Backdrop and ground (Background / Default sorting layers) are never scaled or re-sorted —
 the hex board is aligned to them.
 
+**Seagulls (Evolved).** Your Bird prefab is driven by the engine's `BirdFlock` component on the
+`Birds` child of `ArenaArt_Evolved.prefab`: flocks of three fly in from off-screen (sides
+balanced), land on the rocks, idle or walk, then Jump and Fly off one after another. The landing
+spots are yours to tune: select the `Birds` child in the prefab stage and edit the `perches` list
+(arena-local feet positions — the sheets are pivoted at the feet — plus how far a bird may walk
+along that crest; untick `disabled` to open the far-right rock). The gizmos show each perch box.
+Keep the seven state names (Idle_1/2/3, Jump, Fly, Landing, Walk) and the one-shot flags on Jump
+and Landing; the installer refuses anything else.
+
 ## 3d. HUD and UI art — the contract when you get to it
 
 The action buttons, the gear and the glyphs currently in the build are **placeholder art we
