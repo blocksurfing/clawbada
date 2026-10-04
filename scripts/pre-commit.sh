@@ -10,6 +10,17 @@ export PATH="$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 staged=$(git diff --cached --name-only --diff-filter=ACMR)
 [ -z "$staged" ] && exit 0
 
+# 0. The Foundry libraries are git submodules (mode 160000). A worktree that replaced them with
+#    symlinks for a local build must never commit that: PR #179 did, and main's contracts could not
+#    build until #183 restored them. Refuse any staged lib/ entry that is not a submodule.
+bad=$(git ls-files -s -- lib/ | awk '$1 != "160000" {print $4}' || true)
+if [ -n "$bad" ]; then
+  echo "pre-commit: lib/ entries must stay submodules (mode 160000); staged as something else:"
+  echo "$bad" | sed 's/^/  /'
+  echo "pre-commit: restore them with: git rm --cached <path>; git update-index --add --cacheinfo 160000,<sha>,<path>"
+  exit 1
+fi
+
 # 1. Solidity: compile + keep the checked-in ABIs in sync with the contracts.
 if grep -qE '^contracts/[^/]+\.sol$|^contracts/libraries/' <<<"$staged"; then
   echo "pre-commit: contracts changed -> forge build + extract-abis"
