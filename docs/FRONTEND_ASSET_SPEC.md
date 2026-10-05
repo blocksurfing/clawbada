@@ -226,7 +226,7 @@ Files per set: `{prefix}default.png`, `hover.png`, `pressed.png`, `disabled.png`
 |----------|------|-------------|
 | `bubbles-sheet.png` | 8 frames, 16x16 | Rising bubbles, various sizes. Ambient bg animation. |
 | `sparkle-sheet.png` | 6 frames, 16x16 | Rotating/twinkling star. For legend cards. |
-| `coin-sheet.png` | 8 frames, 16x16 | $CLAW coin rotation. For reward animations. |
+| `coin-sheet.png` | 8 frames, 16x16 | $GOLD coin rotation. For reward animations. |
 | `crack-sheet.png` | 4 frames, 32x32 | Progressive cracking. For damage bar visual. |
 | `wave-sheet.png` | 4 frames, 256x16 | Animated water line. For section dividers. |
 

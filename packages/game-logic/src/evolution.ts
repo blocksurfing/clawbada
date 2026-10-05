@@ -2,9 +2,9 @@
  * Evolution requirement checks and stat preview.
  *
  * Evolution transforms lobsters into more powerful versions:
- *   Base → Evolved (2 Base fuel + 2,000 $CLAW)
- *   Evolved → Elite (2 Evolved fuel + 10,000 $CLAW)
- *   Elite → Apex (2 Elite fuel + 50,000 $CLAW)
+ *   Base → Evolved (2 Base fuel + 2,000 $GOLD)
+ *   Evolved → Elite (2 Evolved fuel + 10,000 $GOLD)
+ *   Elite → Apex (2 Elite fuel + 50,000 $GOLD)
  *
  * Fuel lobsters are burned permanently. Evolution gates mining tiers and battle access.
  */
@@ -17,7 +17,7 @@ import { EvolutionTier, LegendStatus } from './types';
 export interface EvolutionRequirements {
   fuelCount: number;
   fuelTier: EvolutionTier;
-  clawCost: bigint;
+  goldCost: bigint;
 }
 
 /**
@@ -33,7 +33,7 @@ export function evolutionRequirements(currentTier: EvolutionTier): EvolutionRequ
   return {
     fuelCount: EVOLUTION_FUEL_COUNT,
     fuelTier: currentTier as EvolutionTier,
-    clawCost: EVOLUTION_COSTS[nextTier],
+    goldCost: EVOLUTION_COSTS[nextTier],
   };
 }
 

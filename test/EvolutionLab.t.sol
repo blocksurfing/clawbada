@@ -4,14 +4,14 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {EvolutionLab} from "../contracts/EvolutionLab.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 contract EvolutionLabTest is Test {
     EvolutionLab lab;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
     Treasury treasury;
 
     address admin = makeAddr("admin");
@@ -28,10 +28,10 @@ contract EvolutionLabTest is Test {
         // Deploy contracts
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
         treasury = new Treasury(admin, devWallet);
-        claw = new ClawToken(admin, lpAddress, address(treasury));
-        treasury.setClawToken(address(claw));
+        gold = new GoldToken(admin, lpAddress, address(treasury));
+        treasury.setGoldToken(address(gold));
 
-        lab = new EvolutionLab(address(claw), address(nft), address(treasury));
+        lab = new EvolutionLab(address(gold), address(nft), address(treasury));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -67,37 +67,37 @@ contract EvolutionLabTest is Test {
         return id;
     }
 
-    function _giveClaw(address to, uint256 amount) internal {
+    function _giveGold(address to, uint256 amount) internal {
         vm.prank(lpAddress);
-        claw.transfer(to, amount);
+        gold.transfer(to, amount);
     }
 
-    function _approveClaw(address owner, uint256 amount) internal {
+    function _approveGold(address owner, uint256 amount) internal {
         vm.prank(owner);
-        claw.approve(address(lab), amount);
+        gold.approve(address(lab), amount);
     }
 
     // ──────────── Constructor ────────────
 
     function test_constructorSetsState() public view {
-        assertEq(address(lab.clawToken()), address(claw));
+        assertEq(address(lab.goldToken()), address(gold));
         assertEq(address(lab.lobsterNFT()), address(nft));
         assertEq(address(lab.treasury()), address(treasury));
     }
 
-    function test_constructorZeroClawReverts() public {
+    function test_constructorZeroGoldReverts() public {
         vm.expectRevert(EvolutionLab.ZeroAddress.selector);
         new EvolutionLab(address(0), address(nft), address(treasury));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(EvolutionLab.ZeroAddress.selector);
-        new EvolutionLab(address(claw), address(0), address(treasury));
+        new EvolutionLab(address(gold), address(0), address(treasury));
     }
 
     function test_constructorZeroTreasuryReverts() public {
         vm.expectRevert(EvolutionLab.ZeroAddress.selector);
-        new EvolutionLab(address(claw), address(nft), address(0));
+        new EvolutionLab(address(gold), address(nft), address(0));
     }
 
     // ──────────── evolve() — Happy Paths ────────────
@@ -107,8 +107,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobster(alice, false);
         uint256 fuel2 = _mintLobster(alice, false);
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         lab.evolve(target, fuel1, fuel2);
@@ -121,8 +121,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobsterAtTier(alice, 1);
         uint256 fuel2 = _mintLobsterAtTier(alice, 1);
 
-        _giveClaw(alice, 10_000e18);
-        _approveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
+        _approveGold(alice, 10_000e18);
 
         vm.prank(alice);
         lab.evolve(target, fuel1, fuel2);
@@ -135,8 +135,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobsterAtTier(alice, 2);
         uint256 fuel2 = _mintLobsterAtTier(alice, 2);
 
-        _giveClaw(alice, 50_000e18);
-        _approveClaw(alice, 50_000e18);
+        _giveGold(alice, 50_000e18);
+        _approveGold(alice, 50_000e18);
 
         vm.prank(alice);
         lab.evolve(target, fuel1, fuel2);
@@ -149,8 +149,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobster(alice, false);
         uint256 fuel2 = _mintLobster(alice, false);
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         vm.expectEmit(true, false, false, true);
@@ -165,8 +165,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobsterAtTier(alice, 3);
         uint256 fuel2 = _mintLobsterAtTier(alice, 3);
 
-        _giveClaw(alice, 50_000e18);
-        _approveClaw(alice, 50_000e18);
+        _giveGold(alice, 50_000e18);
+        _approveGold(alice, 50_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.AlreadyMaxTier.selector, target));
@@ -194,8 +194,8 @@ contract EvolutionLabTest is Test {
         nft.setLocked(target, true);
         vm.stopPrank();
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.LobsterIsLocked.selector, target));
@@ -207,8 +207,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobster(alice, false); // Base (wrong tier)
         uint256 fuel2 = _mintLobsterAtTier(alice, 1); // Evolved
 
-        _giveClaw(alice, 10_000e18);
-        _approveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
+        _approveGold(alice, 10_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.InvalidFuelTier.selector, fuel1, 1, 0));
@@ -226,8 +226,8 @@ contract EvolutionLabTest is Test {
         nft.setLocked(fuel1, true);
         vm.stopPrank();
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.LobsterIsLocked.selector, fuel1));
@@ -239,8 +239,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobster(bob, false); // owned by bob
         uint256 fuel2 = _mintLobster(alice, false);
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.NotLobsterOwner.selector, fuel1));
@@ -251,8 +251,8 @@ contract EvolutionLabTest is Test {
         uint256 target = _mintLobster(alice, false);
         uint256 fuel1 = _mintLobster(alice, false);
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.DuplicateId.selector, fuel1));
@@ -263,8 +263,8 @@ contract EvolutionLabTest is Test {
         uint256 target = _mintLobster(alice, false);
         uint256 fuel2 = _mintLobster(alice, false);
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.DuplicateId.selector, target));
@@ -278,8 +278,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobster(alice, true); // soulbound
         uint256 fuel2 = _mintLobster(alice, true); // soulbound
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         lab.evolve(target, fuel1, fuel2);
@@ -292,8 +292,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobster(alice, false);
         uint256 fuel2 = _mintLobster(alice, false);
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         lab.evolve(target, fuel1, fuel2);
@@ -308,8 +308,8 @@ contract EvolutionLabTest is Test {
         uint256 fuel1 = _mintLobster(alice, false);
         uint256 fuel2 = _mintLobster(alice, false);
 
-        _giveClaw(alice, 2_000e18);
-        _approveClaw(alice, 2_000e18);
+        _giveGold(alice, 2_000e18);
+        _approveGold(alice, 2_000e18);
 
         vm.prank(alice);
         lab.evolve(target, fuel1, fuel2);
@@ -321,32 +321,32 @@ contract EvolutionLabTest is Test {
         assertTrue(nft.exists(target));
     }
 
-    function test_evolveDeductsCorrectClaw() public {
+    function test_evolveDeductsCorrectGold() public {
         uint256 target = _mintLobster(alice, false);
         uint256 fuel1 = _mintLobster(alice, false);
         uint256 fuel2 = _mintLobster(alice, false);
 
         uint256 initialAmount = 10_000e18;
-        _giveClaw(alice, initialAmount);
-        _approveClaw(alice, initialAmount);
+        _giveGold(alice, initialAmount);
+        _approveGold(alice, initialAmount);
 
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
 
         vm.prank(alice);
         lab.evolve(target, fuel1, fuel2);
 
-        uint256 balAfter = claw.balanceOf(alice);
+        uint256 balAfter = gold.balanceOf(alice);
         assertEq(balBefore - balAfter, 2_000e18);
     }
 
-    function test_evolveInsufficientClawReverts() public {
+    function test_evolveInsufficientGoldReverts() public {
         uint256 target = _mintLobster(alice, false);
         uint256 fuel1 = _mintLobster(alice, false);
         uint256 fuel2 = _mintLobster(alice, false);
 
         // Give less than required
-        _giveClaw(alice, 1_999e18);
-        _approveClaw(alice, 1_999e18);
+        _giveGold(alice, 1_999e18);
+        _approveGold(alice, 1_999e18);
 
         vm.prank(alice);
         vm.expectRevert(); // ERC20 insufficient balance
@@ -365,15 +365,15 @@ contract EvolutionLabTest is Test {
         uint256[3] memory costs = [uint256(2_000e18), 10_000e18, 50_000e18];
         uint256 expectedCost = costs[tier];
 
-        _giveClaw(alice, expectedCost);
-        _approveClaw(alice, expectedCost);
+        _giveGold(alice, expectedCost);
+        _approveGold(alice, expectedCost);
 
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
 
         vm.prank(alice);
         lab.evolve(target, fuel1, fuel2);
 
-        assertEq(balBefore - claw.balanceOf(alice), expectedCost);
+        assertEq(balBefore - gold.balanceOf(alice), expectedCost);
         assertEq(nft.getEvolutionTier(target), tier + 1);
     }
 }

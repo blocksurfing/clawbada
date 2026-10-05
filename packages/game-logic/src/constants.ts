@@ -66,7 +66,7 @@ export const S1_BASE_REWARD = 1_250n;
 export const TIER_WEIGHTS = [1n, 3n, 10n, 25n] as const; // Base, Evolved, Elite, Apex
 export const S1_TOTAL_EMISSION = 387_500_000n;
 
-// ──────────── Evolution Costs ($CLAW) ────────────
+// ──────────── Evolution Costs ($GOLD) ────────────
 export const EVOLUTION_COSTS = [0n, 2_000n, 10_000n, 50_000n] as const; // Base→Evolved, Evolved→Elite, Elite→Apex
 export const EVOLUTION_FUEL_COUNT = 2; // 2 fuel lobsters burned per evolution
 
@@ -81,12 +81,12 @@ export const GENERATION_COST_MULT = 1_500n; // 1.5× per generation (×1000)
 // D-E (owner decision 2026-10-03): stake brackets are a DAMPED LIVE PEG on the mining rate —
 // see `stakeFor` in ./stakes.ts. The chain binds the amount at createBattle; nothing off-chain
 // may treat these launch figures as the amount to put in a transaction.
-/** The S1 LAUNCH stakes in whole CLAW (reference 1,250): labels, and the peg's upper bound. */
+/** The S1 LAUNCH stakes in whole GOLD (reference 1,250): labels, and the peg's upper bound. */
 export const LAUNCH_STAKES = [2_500n, 10_000n, 50_000n] as const; // Low, Mid, High
 export const STAKE_BRACKET_LABELS = ['Low', 'Mid', 'High'] as const;
 /** Low / Mid / High = 2× / 8× / 40× of the pegged unit (BattleArena.stakeMultiplier). */
 export const STAKE_MULTIPLIERS = [2n, 8n, 40n] as const;
-/** Season 1's launch reward in CLAW wei: the anchor of the fixed part of every stake, forever. */
+/** Season 1's launch reward in GOLD wei: the anchor of the fixed part of every stake, forever. */
 export const GENESIS_BASE_REWARD_WEI = 1_250n * 10n ** 18n;
 /** The provisional fixed share of the pegged unit (bps); a timelocked dial on BattleArena. */
 export const STAKE_FIXED_BPS_DEFAULT = 2_000n;
@@ -111,7 +111,7 @@ export const MOVE_RANGES = [1, 3, 1, 3, 3, 2, 2, 2, 2, 3] as const;
 export const ATTACK_DISTANCE_MODIFIERS = [0, 1.0, 0.75, 0.50] as const;
 export const ATTACK_MAX_RANGE = 3;
 
-// ──────────── Repair Rates ($CLAW per damage point) ────────────
+// ──────────── Repair Rates ($GOLD per damage point) ────────────
 export const REPAIR_RATES = [0n, 5n, 15n, 40n] as const; // Base, Evolved, Elite, Apex
 
 // ──────────── Winner/Loser Damage Ranges ────────────
@@ -126,7 +126,7 @@ export const DEV_SHARE_BPS = 1500n; // 15%
 
 // ──────────── Faucet ────────────
 export const FAUCET_LOBSTER_COUNT = 5;
-export const FAUCET_CLAW_DRIP = 7_000n;
+export const FAUCET_GOLD_DRIP = 7_000n;
 export const FAUCET_MIN_ETH = 1_000_000_000_000_000n; // 0.001 ETH in wei
 export const FAUCET_WALLET_AGE_DAYS = 7;
 export const FAUCET_MIN_TX_COUNT = 3;

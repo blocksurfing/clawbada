@@ -20,7 +20,7 @@ function lazyAddresses() {
       if (cache[prop] !== undefined) return cache[prop];
 
       const envMap: Record<string, string> = {
-        clawToken: 'CLAW_TOKEN_ADDRESS',
+        goldToken: 'GOLD_TOKEN_ADDRESS',
         lobsterNFT: 'LOBSTER_NFT_ADDRESS',
         teamManager: 'TEAM_MANAGER_ADDRESS',
         breedingLab: 'BREEDING_LAB_ADDRESS',
@@ -45,7 +45,7 @@ function lazyAddresses() {
 }
 
 export const addresses = lazyAddresses() as {
-  readonly clawToken: Address;
+  readonly goldToken: Address;
   readonly lobsterNFT: Address;
   readonly teamManager: Address;
   readonly breedingLab: Address;

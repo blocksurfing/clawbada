@@ -7,7 +7,7 @@ import { BREED_BASE_COST, BREED_MULTIPLIERS, GENERATION_COST_MULT, MULT_DENOM } 
  *
  * @param breedIndex 0-based index of this parent's next breed (0 = 1st breed)
  * @param generation Parent's generation (0 for faucet/original)
- * @returns Cost in $CLAW (bigint)
+ * @returns Cost in $GOLD (bigint)
  */
 export function breedCostPerParent(breedIndex: number, generation: number): bigint {
   if (breedIndex < 0 || breedIndex >= BREED_MULTIPLIERS.length) {
@@ -32,7 +32,7 @@ export function breedCostPerParent(breedIndex: number, generation: number): bigi
  * @param parentAGeneration Parent A's generation
  * @param parentBBreedIndex Parent B's 0-based breed index
  * @param parentBGeneration Parent B's generation
- * @returns Total cost in $CLAW (bigint)
+ * @returns Total cost in $GOLD (bigint)
  */
 export function totalBreedCost(
   parentABreedIndex: number,

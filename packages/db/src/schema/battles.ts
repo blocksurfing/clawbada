@@ -15,7 +15,7 @@ export const battles = pgTable('battles', {
   queuedTeamA: bigint('queued_team_a', { mode: 'bigint' }),
   queuedTeamB: bigint('queued_team_b', { mode: 'bigint' }),
   stakeBracket: smallint('stake_bracket').notNull(), // 0=Low, 1=Mid, 2=High
-  stakeAmount: text('stake_amount').notNull(), // $CLAW
+  stakeAmount: text('stake_amount').notNull(), // $GOLD
   phase: smallint('phase').notNull().default(0), // BattlePhase enum
   // F5-01: server-custodied team-reveal salts. In the atomic-reveal flow players send their
   // salt to the server (they do NOT reveal on-chain); the engine submits revealTeams for both

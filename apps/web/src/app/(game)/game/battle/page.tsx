@@ -18,7 +18,7 @@ import { useAllPoolDepths, poolDepthFor } from '@/hooks/use-pool-depth';
 import { TeamPowerBadge } from '@/components/game/team-power-badge';
 import { QueueRadiusBar } from '@/components/game/queue-radius-bar';
 import { MatchFoundHud } from '@/components/game/match-found-hud';
-import { formatClaw, formatClawWei, formatAddress } from '@/lib/format';
+import { formatGold, formatGoldWei, formatAddress } from '@/lib/format';
 import { getArenaBackground } from '@/lib/assets';
 import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { Swords, Loader2, Bot } from 'lucide-react';
@@ -138,7 +138,7 @@ export default function BattlePage() {
             <img src="/assets/icons/Battle.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
             <h1 className="font-pixel text-xl text-foreground">Battle Arena</h1>
           </div>
-          <p className="text-sm text-text-secondary mt-1">PvP combat — wager $CLAW, winner takes the pot</p>
+          <p className="text-sm text-text-secondary mt-1">PvP combat — wager $GOLD, winner takes the pot</p>
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -231,11 +231,11 @@ function QueueView({
   };
   const stakeLabel = (idx: number) => {
     const w = stakeWeiFor(idx);
-    return w === null ? '…' : formatClawWei(w);
+    return w === null ? '…' : formatGoldWei(w);
   };
   const winLabel = (idx: number) => {
     const w = stakeWeiFor(idx);
-    return w === null ? '…' : formatClawWei((w * 18n) / 10n); // 2 × stake − 10 % fee
+    return w === null ? '…' : formatGoldWei((w * 18n) / 10n); // 2 × stake − 10 % fee
   };
 
   // V3 S1: queue lifecycle is owned by the state machine in `useQueueState`.
@@ -658,7 +658,7 @@ function ActiveBattleView({
           <div>
             <span className="text-text-secondary">Stake: </span>
             {/* chain.stakeAmount is wei (chain read); use the wei-aware formatter. */}
-            <span className="font-mono text-text-accent">{formatClawWei(battleData.chain.stakeAmount)}</span>
+            <span className="font-mono text-text-accent">{formatGoldWei(battleData.chain.stakeAmount)}</span>
           </div>
           <div>
             <span className="text-text-secondary">Opponent: </span>
@@ -721,7 +721,7 @@ function BattleHistoryView({ battles }: { battles: BattleHistoryItem[] }) {
             </span>
           </div>
           <span className={`text-sm font-mono font-medium ${battle.result === 'win' ? 'text-teal' : 'text-destructive'}`}>
-            {battle.result === 'win' ? '+' : '-'}{formatClaw(battle.payout ?? '0')}
+            {battle.result === 'win' ? '+' : '-'}{formatGold(battle.payout ?? '0')}
           </span>
         </FrostedPanel>
       ))}

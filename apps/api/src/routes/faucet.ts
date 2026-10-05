@@ -19,7 +19,7 @@ faucetRoutes.get(
       ...status,
       canClaimLobsters: status.isOpen && status.isEligible && !status.hasClaimedLobsters,
       // D-10: the drip is for wallets that HOLD their lobsters — the claim must be finalized.
-      canClaimClaw: status.isOpen && status.isEligible && status.hasClaimedLobsters && !status.lobsterClaimPending && !status.hasClaimedClaw,
+      canClaimGold: status.isOpen && status.isEligible && status.hasClaimedLobsters && !status.lobsterClaimPending && !status.hasClaimedGold,
       canFinalizeLobsters: status.lobsterClaimPending,
     }));
   }),
@@ -60,9 +60,9 @@ faucetRoutes.post(
   }),
 );
 
-// POST /api/faucet/claim-claw — claim 7,000 $CLAW drip
+// POST /api/faucet/claim-gold — claim 7,000 $GOLD drip
 faucetRoutes.post(
-  '/claim-claw',
+  '/claim-gold',
   walletAuth,
   catchErrors(async (c) => {
     const address = c.get('address') as string;
@@ -80,17 +80,17 @@ faucetRoutes.post(
     if (status.lobsterClaimPending) {
       throw new ApiError('INVALID_INPUT', 'Your lobsters have not been minted yet — wait a few seconds, or call /api/faucet/finalize-lobsters');
     }
-    if (status.hasClaimedClaw) {
-      throw new ApiError('INVALID_INPUT', '$CLAW already claimed');
+    if (status.hasClaimedGold) {
+      throw new ApiError('INVALID_INPUT', '$GOLD already claimed');
     }
 
     const calldata = buildCalldata(
       addresses.faucet,
       FaucetAbi as any,
-      'claimClaw',
+      'claimGold',
     );
 
-    return c.json(singleStep('Claim 7,000 $CLAW from faucet', calldata));
+    return c.json(singleStep('Claim 7,000 $GOLD from faucet', calldata));
   }),
 );
 

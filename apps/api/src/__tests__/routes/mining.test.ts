@@ -261,7 +261,7 @@ describe('mining routes', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(mockReadTeamBoostBps).toHaveBeenCalledWith(1n, 3);
-      // 1,250 × 1.25 = 1,562.5 per unit × 3 (Evolved) = 4,687.5 CLAW
+      // 1,250 × 1.25 = 1,562.5 per unit × 3 (Evolved) = 4,687.5 GOLD
       expect(body.preview.expectedRewardWei).toBe((4_687n * WEI + WEI / 2n).toString());
       expect(body.preview.expectedReward).toBe(4687);
       expect(body.preview.boostBps).toBe(2500);
@@ -357,7 +357,7 @@ describe('mining routes', () => {
         Promise.resolve(mockLobster({ tokenId: id, evolutionTier: 1 })),
       );
       const opensAt = 1_900_000_000n;
-      // 1,000 CLAW of room left; an Evolved expedition at 1,250 x 3 does not fit.
+      // 1,000 GOLD of room left; an Evolved expedition at 1,250 x 3 does not fit.
       mockReadEpochBudget.mockResolvedValue({ cap: 489_583n * WEI, minted: 488_583n * WEI, nextEpochAt: opensAt });
 
       const res = await app.request('/mining/start', {

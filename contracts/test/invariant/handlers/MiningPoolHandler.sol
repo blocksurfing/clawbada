@@ -24,9 +24,9 @@ contract MiningPoolHandler is BaseSetup {
     uint256 public ghostExpeditionsStarted;
     uint256 public ghostExpeditionsClaimed;
     uint256 public ghostExpeditionsAdminReleased;
-    uint256 public ghostMintedSum;         // CLAW minted into escrow across all starts
-    uint256 public ghostTransferredSum;    // CLAW paid out to claimers
-    uint256 public ghostBurnedSum;         // CLAW burned by admin release
+    uint256 public ghostMintedSum;         // GOLD minted into escrow across all starts
+    uint256 public ghostTransferredSum;    // GOLD paid out to claimers
+    uint256 public ghostBurnedSum;         // GOLD burned by admin release
     uint256 public ghostMaxBaseRewardAtStart; // highest baseReward in force at any successful start
 
     // D-30: the glide's step bound, observed across every call that can re-peg. fail_on_revert
@@ -44,7 +44,7 @@ contract MiningPoolHandler is BaseSetup {
 
     // ─────────── Public accessors ───────────
     function getMiningPool()  external view returns (MiningPool)  { return miningPool; }
-    function getClaw()        external view returns (ClawToken)   { return claw; }
+    function getGold()        external view returns (GoldToken)   { return gold; }
     function getTeamManager() external view returns (TeamManager) { return teamMgr; }
     function teamIdsLength()       external view returns (uint256) { return teamIds.length; }
     function expeditionIdsLength() external view returns (uint256) { return expeditionIds.length; }
@@ -112,7 +112,7 @@ contract MiningPoolHandler is BaseSetup {
         mineTier = uint8(mineTier % 4);
 
         address owner = _ownerOf(teamId);
-        uint256 balBefore = claw.balanceOf(address(miningPool));
+        uint256 balBefore = gold.balanceOf(address(miningPool));
 
         uint256 seasonBefore = miningPool.currentSeason();
         uint256 baseBefore = miningPool.currentBaseReward();
@@ -123,7 +123,7 @@ contract MiningPoolHandler is BaseSetup {
             _checkGlideStep(seasonBefore, baseBefore);
             expeditionIds.push(expId);
             ghostExpeditionsStarted++;
-            ghostMintedSum += claw.balanceOf(address(miningPool)) - balBefore;
+            ghostMintedSum += gold.balanceOf(address(miningPool)) - balBefore;
             // The lazy re-peg inside startExpedition has run by now, so this is the exact
             // base the reward was locked at.
             uint256 base = miningPool.currentBaseReward();
@@ -179,7 +179,7 @@ contract MiningPoolHandler is BaseSetup {
     function handler_claimExpedition(uint256 expSeed) external {
         if (expeditionIds.length == 0) return;
         uint256 expId = expeditionIds[expSeed % expeditionIds.length];
-        uint256 balBefore = claw.balanceOf(address(miningPool));
+        uint256 balBefore = gold.balanceOf(address(miningPool));
 
         MiningPool.Expedition memory exp;
         try miningPool.getExpedition(expId) returns (MiningPool.Expedition memory e) {
@@ -189,19 +189,19 @@ contract MiningPoolHandler is BaseSetup {
         vm.prank(exp.owner);
         try miningPool.claimExpedition(expId) {
             ghostExpeditionsClaimed++;
-            ghostTransferredSum += balBefore - claw.balanceOf(address(miningPool));
+            ghostTransferredSum += balBefore - gold.balanceOf(address(miningPool));
         } catch {}
     }
 
     function handler_adminReleaseExpedition(uint256 expSeed) external {
         if (expeditionIds.length == 0) return;
         uint256 expId = expeditionIds[expSeed % expeditionIds.length];
-        uint256 balBefore = claw.balanceOf(address(miningPool));
+        uint256 balBefore = gold.balanceOf(address(miningPool));
 
         vm.prank(admin);
         try miningPool.adminReleaseExpedition(expId) {
             ghostExpeditionsAdminReleased++;
-            ghostBurnedSum += balBefore - claw.balanceOf(address(miningPool));
+            ghostBurnedSum += balBefore - gold.balanceOf(address(miningPool));
         } catch {}
     }
 

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {RepairShop} from "../contracts/RepairShop.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
@@ -25,7 +25,7 @@ contract RepairShopTest is Test {
     RepairShop shop;
     MockRewardPeg peg;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
     Treasury treasury;
 
     address admin = makeAddr("admin");
@@ -41,11 +41,11 @@ contract RepairShopTest is Test {
 
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
         treasury = new Treasury(admin, devWallet);
-        claw = new ClawToken(admin, lpAddress, address(treasury));
-        treasury.setClawToken(address(claw));
+        gold = new GoldToken(admin, lpAddress, address(treasury));
+        treasury.setGoldToken(address(gold));
 
         peg = new MockRewardPeg();
-        shop = new RepairShop(address(claw), address(nft), address(treasury), address(peg));
+        shop = new RepairShop(address(gold), address(nft), address(treasury), address(peg));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -81,42 +81,42 @@ contract RepairShopTest is Test {
         nft.setDamage(lobsterId, damage);
     }
 
-    function _giveClaw(address to, uint256 amount) internal {
+    function _giveGold(address to, uint256 amount) internal {
         vm.prank(lpAddress);
-        claw.transfer(to, amount);
+        gold.transfer(to, amount);
     }
 
-    function _approveClaw(address owner, uint256 amount) internal {
+    function _approveGold(address owner, uint256 amount) internal {
         vm.prank(owner);
-        claw.approve(address(shop), amount);
+        gold.approve(address(shop), amount);
     }
 
     // ──────────── Constructor ────────────
 
     function test_constructorSetsState() public view {
-        assertEq(address(shop.clawToken()), address(claw));
+        assertEq(address(shop.goldToken()), address(gold));
         assertEq(address(shop.lobsterNFT()), address(nft));
         assertEq(address(shop.treasury()), address(treasury));
     }
 
-    function test_constructorZeroClawReverts() public {
+    function test_constructorZeroGoldReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
         new RepairShop(address(0), address(nft), address(treasury), address(peg));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(claw), address(0), address(treasury), address(peg));
+        new RepairShop(address(gold), address(0), address(treasury), address(peg));
     }
 
     function test_constructorZeroTreasuryReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(claw), address(nft), address(0), address(peg));
+        new RepairShop(address(gold), address(nft), address(0), address(peg));
     }
 
     function test_constructorZeroMiningPoolReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(claw), address(nft), address(treasury), address(0));
+        new RepairShop(address(gold), address(nft), address(treasury), address(0));
     }
 
     // ──────────── repair() — Happy Paths ────────────
@@ -125,9 +125,9 @@ contract RepairShopTest is Test {
         uint256 id = _mintLobsterAtTier(alice, 1); // Evolved
         _setDamage(id, 20);
 
-        uint256 cost = 20 * 5e18; // 100 $CLAW
-        _giveClaw(alice, cost);
-        _approveClaw(alice, cost);
+        uint256 cost = 20 * 5e18; // 100 $GOLD
+        _giveGold(alice, cost);
+        _approveGold(alice, cost);
 
         vm.prank(alice);
         shop.repair(id, 20);
@@ -139,9 +139,9 @@ contract RepairShopTest is Test {
         uint256 id = _mintLobsterAtTier(alice, 2); // Elite
         _setDamage(id, 30);
 
-        uint256 cost = 30 * 15e18; // 450 $CLAW
-        _giveClaw(alice, cost);
-        _approveClaw(alice, cost);
+        uint256 cost = 30 * 15e18; // 450 $GOLD
+        _giveGold(alice, cost);
+        _approveGold(alice, cost);
 
         vm.prank(alice);
         shop.repair(id, 30);
@@ -153,9 +153,9 @@ contract RepairShopTest is Test {
         uint256 id = _mintLobsterAtTier(alice, 3); // Apex
         _setDamage(id, 10);
 
-        uint256 cost = 10 * 40e18; // 400 $CLAW
-        _giveClaw(alice, cost);
-        _approveClaw(alice, cost);
+        uint256 cost = 10 * 40e18; // 400 $GOLD
+        _giveGold(alice, cost);
+        _approveGold(alice, cost);
 
         vm.prank(alice);
         shop.repair(id, 10);
@@ -168,8 +168,8 @@ contract RepairShopTest is Test {
         _setDamage(id, 50);
 
         uint256 cost = 10 * 5e18; // repair only 10 points
-        _giveClaw(alice, cost);
-        _approveClaw(alice, cost);
+        _giveGold(alice, cost);
+        _approveGold(alice, cost);
 
         vm.prank(alice);
         shop.repair(id, 10);
@@ -182,8 +182,8 @@ contract RepairShopTest is Test {
         _setDamage(id, 80);
 
         uint256 cost = 80 * 5e18;
-        _giveClaw(alice, cost);
-        _approveClaw(alice, cost);
+        _giveGold(alice, cost);
+        _approveGold(alice, cost);
 
         vm.prank(alice);
         shop.repair(id, 80);
@@ -195,9 +195,9 @@ contract RepairShopTest is Test {
         uint256 id = _mintLobsterAtTier(alice, 1);
         _setDamage(id, 30);
 
-        uint256 cost = 15 * 5e18; // 75 $CLAW for 15 points
-        _giveClaw(alice, cost);
-        _approveClaw(alice, cost);
+        uint256 cost = 15 * 5e18; // 75 $GOLD for 15 points
+        _giveGold(alice, cost);
+        _approveGold(alice, cost);
 
         vm.prank(alice);
         vm.expectEmit(true, false, false, true);
@@ -211,8 +211,8 @@ contract RepairShopTest is Test {
         uint256 id = _mintLobsterAtTier(alice, 0); // Base
         _setDamage(id, 10);
 
-        _giveClaw(alice, 1_000e18);
-        _approveClaw(alice, 1_000e18);
+        _giveGold(alice, 1_000e18);
+        _approveGold(alice, 1_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(RepairShop.CannotRepairBaseTier.selector, id));
@@ -232,8 +232,8 @@ contract RepairShopTest is Test {
         uint256 id = _mintLobsterAtTier(alice, 1);
         _setDamage(id, 20);
 
-        _giveClaw(alice, 1_000e18);
-        _approveClaw(alice, 1_000e18);
+        _giveGold(alice, 1_000e18);
+        _approveGold(alice, 1_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(RepairShop.ExceedsCurrentDamage.selector, id, 21, 20));
@@ -249,29 +249,29 @@ contract RepairShopTest is Test {
         shop.repair(id, 10);
     }
 
-    function test_repairDeductsCorrectClaw() public {
-        uint256 id = _mintLobsterAtTier(alice, 2); // Elite, 15 $CLAW per point
+    function test_repairDeductsCorrectGold() public {
+        uint256 id = _mintLobsterAtTier(alice, 2); // Elite, 15 $GOLD per point
         _setDamage(id, 10);
 
         uint256 expectedCost = 10 * 15e18;
-        _giveClaw(alice, 1_000e18);
-        _approveClaw(alice, 1_000e18);
+        _giveGold(alice, 1_000e18);
+        _approveGold(alice, 1_000e18);
 
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
 
         vm.prank(alice);
         shop.repair(id, 10);
 
-        assertEq(balBefore - claw.balanceOf(alice), expectedCost);
+        assertEq(balBefore - gold.balanceOf(alice), expectedCost);
     }
 
-    function test_repairInsufficientClawReverts() public {
+    function test_repairInsufficientGoldReverts() public {
         uint256 id = _mintLobsterAtTier(alice, 1);
         _setDamage(id, 10);
 
-        uint256 cost = 10 * 5e18; // 50 $CLAW needed
-        _giveClaw(alice, cost - 1); // 1 wei short
-        _approveClaw(alice, cost);
+        uint256 cost = 10 * 5e18; // 50 $GOLD needed
+        _giveGold(alice, cost - 1); // 1 wei short
+        _approveGold(alice, cost);
 
         vm.prank(alice);
         vm.expectRevert(); // ERC20 insufficient balance
@@ -294,12 +294,12 @@ contract RepairShopTest is Test {
         _setDamage(id, 20);
         peg.set(625e18); // glide halves the base reward -> rate halves to 2.5/point
         uint256 cost = 20 * 25e17;
-        _giveClaw(alice, cost);
-        _approveClaw(alice, cost);
-        uint256 balBefore = claw.balanceOf(alice);
+        _giveGold(alice, cost);
+        _approveGold(alice, cost);
+        uint256 balBefore = gold.balanceOf(alice);
         vm.prank(alice);
         shop.repair(id, 20);
-        assertEq(balBefore - claw.balanceOf(alice), cost);
+        assertEq(balBefore - gold.balanceOf(alice), cost);
     }
 
     function test_repairRevertsWhenPegUnset() public {
@@ -323,15 +323,15 @@ contract RepairShopTest is Test {
         uint256[4] memory rates = [uint256(0), 5e18, 15e18, 40e18];
         uint256 expectedCost = uint256(points) * rates[tier];
 
-        _giveClaw(alice, expectedCost);
-        _approveClaw(alice, expectedCost);
+        _giveGold(alice, expectedCost);
+        _approveGold(alice, expectedCost);
 
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
 
         vm.prank(alice);
         shop.repair(id, points);
 
-        assertEq(balBefore - claw.balanceOf(alice), expectedCost);
+        assertEq(balBefore - gold.balanceOf(alice), expectedCost);
         assertEq(nft.getDamage(id), 0);
     }
 }

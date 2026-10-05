@@ -8,7 +8,7 @@ import type { Stack } from './00-infra';
 export interface Player { agent: PlayerAgent; teamId: bigint; teamLobsters: bigint[]; faucetLobsters: bigint[] }
 export interface Players { a: Player; b: Player }
 
-/** Faucet claims for real, then fuel + CLAW from the deployer, three evolutions via the API, a team. */
+/** Faucet claims for real, then fuel + GOLD from the deployer, three evolutions via the API, a team. */
 export async function onboardingPhase(stack: Stack, checks: Checks): Promise<Players> {
   const { chain } = stack;
   const mk = (key: string, label: string, xff: string) => new PlayerAgent({ key, api: stack.apiUrl, ws: stack.wsUrl, chain, forwardedFor: xff, label });
@@ -23,14 +23,14 @@ export async function onboardingPhase(stack: Stack, checks: Checks): Promise<Pla
     // D-10: the claim commits; the engine's keeper mints the lobsters once the target block (two
     // blocks on) has a hash. Anvil only mines on demand, so mine while we wait.
     const { lobsterIds } = await p.claimFaucet({ tick: () => stack.anvil.mine() });
-    const claw = await chain.balance(p.address);
-    checks.eq(claw, 7_000n * WEI, `${p.o.label}: 7,000 CLAW from the faucet`);
+    const gold = await chain.balance(p.address);
+    checks.eq(gold, 7_000n * WEI, `${p.o.label}: 7,000 GOLD from the faucet`);
     checks.eq(lobsterIds.length, 5, `${p.o.label}: 5 faucet lobsters`);
 
     // Fuel: 6 plain Base lobsters from the deployer; top-up so 3 evolutions (6,000) + a Low
     // deposit (2,625) fit. The faucet's 5 soulbound lobsters are the evolution targets.
     const fuel = await chain.mintBaseLobsters(KEYS.deployer.key, p.address, 6);
-    await chain.transferClaw(KEYS.deployer.key, p.address, 10_000n * WEI);
+    await chain.transferGold(KEYS.deployer.key, p.address, 10_000n * WEI);
     const targets = lobsterIds.slice(0, 3);
     for (let i = 0; i < 3; i++) await p.evolve(targets[i], fuel[2 * i], fuel[2 * i + 1]);
     for (const id of targets) {

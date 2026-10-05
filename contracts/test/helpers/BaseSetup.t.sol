@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {ClawToken} from "../../ClawToken.sol";
+import {GoldToken} from "../../GoldToken.sol";
 import {Treasury} from "../../Treasury.sol";
 import {LobsterNFT} from "../../LobsterNFT.sol";
 import {TeamManager} from "../../TeamManager.sol";
@@ -26,7 +26,7 @@ abstract contract BaseSetup is Test {
     address internal reserveWallet; // TOK-H1: holds the 100M genesis reserve (mirrors production: NOT the splitter)
 
     // ── Contracts ──────────────────────────────────────────────────
-    ClawToken      internal claw;
+    GoldToken      internal gold;
     Treasury       internal treasury;
     LobsterNFT     internal nft;
     TeamManager    internal teamMgr;
@@ -105,10 +105,10 @@ abstract contract BaseSetup is Test {
 
     // ── Token helpers ──────────────────────────────────────────────
 
-    /// @dev Give `to` an amount of CLAW from LP wallet.
-    function _giveClaw(address to, uint256 amount) internal {
+    /// @dev Give `to` an amount of GOLD from LP wallet.
+    function _giveGold(address to, uint256 amount) internal {
         vm.prank(lpWallet);
-        claw.transfer(to, amount);
+        gold.transfer(to, amount);
     }
 
     // ── setUp ──────────────────────────────────────────────────────
@@ -124,26 +124,26 @@ abstract contract BaseSetup is Test {
         // 1. Treasury (no token yet)
         treasury = new Treasury(admin, devWallet);
 
-        // 2. ClawToken — mints 125M to lpWallet, 100M reserve to reserveWallet.
+        // 2. GoldToken — mints 125M to lpWallet, 100M reserve to reserveWallet.
         //    TOK-H1: the reserve must NOT go to the Treasury fee-splitter (no withdrawal path).
-        claw = new ClawToken(admin, lpWallet, reserveWallet);
+        gold = new GoldToken(admin, lpWallet, reserveWallet);
 
-        // 3. Set claw token on treasury
-        treasury.setClawToken(address(claw));
+        // 3. Set gold token on treasury
+        treasury.setGoldToken(address(gold));
 
         // 4. NFT + game contracts
         nft       = new LobsterNFT(admin, "https://api.clawbada.xyz/lobster/");
         teamMgr   = new TeamManager(admin, address(nft));
-        miningPool = new MiningPool(admin, address(claw), address(nft), address(teamMgr));
-        marketplace = new Marketplace(address(claw), address(nft), address(treasury));
-        breedingLab = new BreedingLab(address(claw), address(nft), address(treasury));
-        evolutionLab = new EvolutionLab(address(claw), address(nft), address(treasury));
-        repairShop  = new RepairShop(address(claw), address(nft), address(treasury), address(miningPool));
+        miningPool = new MiningPool(admin, address(gold), address(nft), address(teamMgr));
+        marketplace = new Marketplace(address(gold), address(nft), address(treasury));
+        breedingLab = new BreedingLab(address(gold), address(nft), address(treasury));
+        evolutionLab = new EvolutionLab(address(gold), address(nft), address(treasury));
+        repairShop  = new RepairShop(address(gold), address(nft), address(treasury), address(miningPool));
         battleVRF   = new BattleVRF(admin);
         battleArena = new BattleArena(
-            admin, address(claw), address(nft), address(teamMgr), address(treasury), address(battleVRF), address(miningPool)
+            admin, address(gold), address(nft), address(teamMgr), address(treasury), address(battleVRF), address(miningPool)
         );
-        faucet = new Faucet(admin, address(nft), address(claw), block.timestamp + 7 days);
+        faucet = new Faucet(admin, address(nft), address(gold), block.timestamp + 7 days);
 
         // 5. Grant roles — LobsterNFT
         nft.grantRole(nft.MINTER_ROLE(),  address(faucet));
@@ -160,9 +160,9 @@ abstract contract BaseSetup is Test {
         nft.grantRole(nft.BURNER_ROLE(),  admin); // for test convenience
         nft.grantRole(nft.BREED_ROLE(),   address(breedingLab));
 
-        // 6. Grant roles — ClawToken
-        claw.grantRole(claw.MINTER_ROLE(), address(miningPool));
-        claw.grantRole(claw.MINTER_ROLE(), address(faucet));
+        // 6. Grant roles — GoldToken
+        gold.grantRole(gold.MINTER_ROLE(), address(miningPool));
+        gold.grantRole(gold.MINTER_ROLE(), address(faucet));
 
         // 7. Grant roles — TeamManager
         teamMgr.grantRole(teamMgr.ACTIVITY_ROLE(), address(miningPool));

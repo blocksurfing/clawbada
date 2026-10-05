@@ -13,7 +13,7 @@ import { DNAViewer } from '@/components/game/dna-viewer';
 import { TransactionButton } from '@/components/game/transaction-button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
-import { formatClaw, tierLabel } from '@/lib/format';
+import { formatGold, tierLabel } from '@/lib/format';
 import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { Sparkles, Link as LinkIcon, Lock, ChevronLeft, ArrowUpCircle, Wrench } from 'lucide-react';
 
@@ -200,7 +200,7 @@ function EvolutionSection({
   onSuccess,
 }: {
   lobsterId: string;
-  evolutionCost: { nextTierName: string; clawCost: string; fuelCount: number; fuelTierName: string };
+  evolutionCost: { nextTierName: string; goldCost: string; fuelCount: number; fuelTierName: string };
   fuelLobsters: LobsterData[];
   onSuccess: () => void;
 }) {
@@ -216,7 +216,7 @@ function EvolutionSection({
         <h3 className="font-pixel text-xs text-foreground">Evolve to {evolutionCost.nextTierName}</h3>
       </div>
       <div className="text-sm text-text-secondary">
-        Cost: <span className="text-foreground font-mono">{formatClaw(evolutionCost.clawCost)}</span>
+        Cost: <span className="text-foreground font-mono">{formatGold(evolutionCost.goldCost)}</span>
         {' + '}{evolutionCost.fuelCount} {evolutionCost.fuelTierName} lobsters (burned)
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -274,7 +274,7 @@ function RepairSection({
           Damage: <span className={repairCost.battleBlocked ? 'text-destructive font-medium' : 'text-foreground'}>{repairCost.currentDamage}/100</span>
         </div>
         <div className="text-text-secondary">
-          Rate: <span className="text-foreground font-mono">{formatClaw(repairCost.ratePerPoint)}</span>/point
+          Rate: <span className="text-foreground font-mono">{formatGold(repairCost.ratePerPoint)}</span>/point
         </div>
       </div>
       <div className="space-y-1">
@@ -287,7 +287,7 @@ function RepairSection({
           onChange={(e) => setPoints(Number(e.target.value))}
           className="w-full accent-coral"
         />
-        <div className="text-sm font-mono text-foreground">Cost: {formatClaw(cost)}</div>
+        <div className="text-sm font-mono text-foreground">Cost: {formatGold(cost)}</div>
       </div>
       <TransactionButton
         label={`Repair ${points} pts`}

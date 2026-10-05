@@ -34,8 +34,8 @@ Clawbada is an **agent-first idle game on Base** (Coinbase's Ethereum L2). The d
 
 Players assemble teams of three **lobster NFTs** (ERC-1155) and compete in two parallel economies:
 
-- **Idle Mining** — inflationary, low-risk, passive. Deploys a team for a 4-hour expedition; earns a fixed $CLAW reward.
-- **Battle Mode** — zero-sum, active, hex-grid tactical PvP with ATB initiative-bar combat. Players wager $CLAW; winner takes the pot minus a 10% protocol fee.
+- **Idle Mining** — inflationary, low-risk, passive. Deploys a team for a 4-hour expedition; earns a fixed $GOLD reward.
+- **Battle Mode** — zero-sum, active, hex-grid tactical PvP with ATB initiative-bar combat. Players wager $GOLD; winner takes the pot minus a 10% protocol fee.
 
 At a ~63-65% battle win rate the two modes have roughly equal EV; above 65%, battle dominates. Mining emissions halve each 60-day season, so the game's center of gravity shifts toward battle as the seasons progress.
 
@@ -75,7 +75,7 @@ Integration touchpoints (status):
 - **OpenClaw skill package**: Publish a Clawbada skill to `BankrBot/openclaw-skills`. **Not started.**
 - **Bankr.bot wallets**: Agents interact with @bankrbot on X to fund their game wallet. **No bespoke integration required; agents arrive with funded wallets.**
 - **Moltbook presence**: Game events/results posted to Moltbook. **Not started.**
-- **x402 micropayments**: Entry fees, breeding costs, tournament stakes. **Not started; on-chain $CLAW transfers used today, x402 wrapping is post-launch.**
+- **x402 micropayments**: Entry fees, breeding costs, tournament stakes. **Not started; on-chain $GOLD transfers used today, x402 wrapping is post-launch.**
 
 ### 1.5 Competitive positioning
 
@@ -198,17 +198,17 @@ Range per class table above. Defend halves Special damage; doesn't counter.
 
 | Mine Tier | Requirement | Weight | Reward at baseReward=1250 |
 |---|---|---|---|
-| Base | All 3 lobsters ≥ Base | 1× | 1,250 $CLAW |
-| Evolved | All 3 lobsters ≥ Evolved | 3× | 3,750 $CLAW |
-| Elite | All 3 lobsters ≥ Elite | 10× | 12,500 $CLAW |
-| Apex | All 3 lobsters ≥ Apex | 25× | 31,250 $CLAW |
+| Base | All 3 lobsters ≥ Base | 1× | 1,250 $GOLD |
+| Evolved | All 3 lobsters ≥ Evolved | 3× | 3,750 $GOLD |
+| Elite | All 3 lobsters ≥ Elite | 10× | 12,500 $GOLD |
+| Apex | All 3 lobsters ≥ Apex | 25× | 31,250 $GOLD |
 
 - **Fixed per-expedition rewards**: `baseReward × tierWeight`, locked at expedition start. No pro-rata.
 - **Season budget cap**: enforced via `SeasonBudgetExhausted` revert when a new expedition would exceed `totalEmission`.
 - **Admin-tunable `baseReward`** mid-season via `setBaseReward()` (SEASON_ADMIN_ROLE).
 - 4-hour expeditions across all tiers (6/day per team).
 - No diminishing returns per wallet (flat reward regardless of fleet size).
-- $CLAW stake required for expeditions, except the first one for faucet lobsters.
+- $GOLD stake required for expeditions, except the first one for faucet lobsters.
 
 #### 2.5.2 Battle Mode (active)
 
@@ -254,7 +254,7 @@ None=0 → Deposit=1 → TeamCommit=2 → TeamReveal=3 → Active=4 → Awaiting
 7. **Dispute window** (on-chain, optional) — loser may `disputeBattle(battleId, evidence)` with a 10% bond. Windows per bracket: 5 min / 30 min / 1 h. Rate-limited to 5/24h per address.
    - **S1**: `adminResolveDispute()` — DEFAULT_ADMIN_ROLE multisig, 24h SLA.
    - **S2** (roadmap): `BattleResolver.replay()` — on-chain deterministic re-execution from `{initial state + VRF beacon + ordered turn submissions}`.
-8. **Repair** (on-chain) — both players call `RepairShop.repair(lobsterId, points)`. $CLAW burned. Lobsters ≥80 damage blocked from battle until repaired.
+8. **Repair** (on-chain) — both players call `RepairShop.repair(lobsterId, points)`. $GOLD burned. Lobsters ≥80 damage blocked from battle until repaired.
 
 #### 2.5.5 Repair system
 
@@ -263,14 +263,14 @@ None=0 → Deposit=1 → TeamCommit=2 → TeamReveal=3 → Active=4 → Awaiting
 | Winner | 5–15 (VRF) |
 | Loser | 20–40 (VRF) |
 
-| Tier | Cost ($CLAW per damage point) |
+| Tier | Cost ($GOLD per damage point) |
 |---|---|
 | Evolved | 5 |
 | Elite | 15 |
 | Apex | 40 |
 
 - Instant repair (no cooldown), partial repairs allowed.
-- All repair costs are $CLAW burns through Treasury.sol (85/15 split).
+- All repair costs are $GOLD burns through Treasury.sol (85/15 split).
 - Damaged lobsters can still mine — damage only gates battle entry.
 
 ### 2.6 Breeding
@@ -300,15 +300,15 @@ Result: ~3–4 generations of selective breeding to reach 5–6 purity.
 
 ### 2.7 Evolution
 
-| Tier Up | Fuel | $CLAW Cost | Unlocks | Stat Boost |
+| Tier Up | Fuel | $GOLD Cost | Unlocks | Stat Boost |
 |---|---|---|---|---|
 | Base → Evolved | 2 Base | 2,000 | Evolved mine + Battle Mode | +20% |
 | Evolved → Elite | 2 Evolved | 10,000 | Elite mine | +40% |
 | Elite → Apex | 2 Elite | 50,000 | Apex mine | +60% |
 
 - Fuel lobsters are **burned** (NFT sink).
-- $CLAW cost is burned through Treasury.sol.
-- Cost to reach Apex: 26 Base-tier lobsters burned + ~62K $CLAW per Apex.
+- $GOLD cost is burned through Treasury.sol.
+- Cost to reach Apex: 26 Base-tier lobsters burned + ~62K $GOLD per Apex.
 
 ### 2.8 Legends
 
@@ -323,7 +323,7 @@ Result: ~3–4 generations of selective breeding to reach 5–6 purity.
 Two faucets, both **closing 6 days 23 hours after launch**:
 
 - **Lobster Faucet** — 5 random lowest-class lobsters, soulbound.
-- **$CLAW Faucet** — 7,000 $CLAW (requires holding 5 soulbound lobsters).
+- **$GOLD Faucet** — 7,000 $GOLD (requires holding 5 soulbound lobsters).
 
 **Wallet eligibility:**
 
@@ -332,21 +332,21 @@ Two faucets, both **closing 6 days 23 hours after launch**:
 - ≥ 3 prior transactions on Base before the 7-day mark.
 - 1 claim per wallet per faucet.
 
-Sybil defense relies on the chained dependency (lobster → $CLAW), wallet age + tx history, soulbound preventing consolidation, and the hard ~7-day window.
+Sybil defense relies on the chained dependency (lobster → $GOLD), wallet age + tx history, soulbound preventing consolidation, and the hard ~7-day window.
 
 ---
 
-## Part 3 — Tokenomics — $CLAW
+## Part 3 — Tokenomics — $GOLD
 
 ### 3.1 Supply and distribution
 
-- **Fixed max supply: 1,000,000,000 $CLAW** (1B).
+- **Fixed max supply: 1,000,000,000 $GOLD** (1B).
 - **100% fair launch — no team/VC allocation.** Dev funded through the 15% protocol-fee share.
 
 | Allocation | % | Amount | Purpose |
 |---|---|---|---|
 | Mining emissions | 70.5% | 705M | Core distribution (gameplay earned) |
-| DEX liquidity | 12.5% | 125M | Self-deployed Uniswap V3 ($CLAW/ETH, 0.3% fee tier) |
+| DEX liquidity | 12.5% | 125M | Self-deployed Uniswap V3 ($GOLD/ETH, 0.3% fee tier) |
 | Treasury | 10.0% | 100M | Protocol reserves, bug bounties, future game modes |
 | Faucet pre-mint | 7.0% | 70M | ~10K wallets × 7K drip |
 
@@ -355,7 +355,7 @@ No airdrop. Self-deployed LP — no Clanker (1% fee considered too extractive fo
 ### 3.2 Emission schedule
 
 ```
-Season 1  (days   1–60):   352.5 M $CLAW   ← gold rush
+Season 1  (days   1–60):   352.5 M $GOLD   ← gold rush
 Season 2  (days  61–120):  176.25 M
 Season 3  (days 121–180):   88.125 M
 Season 4  (days 181–240):   44.06 M
@@ -371,8 +371,8 @@ Season 7+ (day  361+):       7.05 M / season    ← floor (perpetual)
 
 ### 3.3 DEX liquidity — self-deployed Uniswap V3
 
-- Pair: $CLAW/ETH on Uniswap V3 (Base), 0.3% fee tier.
-- Seed: **125M $CLAW + 6 ETH** → ~$0.0001/$CLAW, ~$100K FDV at $2,100/ETH.
+- Pair: $GOLD/ETH on Uniswap V3 (Base), 0.3% fee tier.
+- Seed: **125M $GOLD + 6 ETH** → ~$0.0001/$GOLD, ~$100K FDV at $2,100/ETH.
 - Wide V3 range: ~5× downside (~$20K FDV) to ~5× upside (~$500K FDV).
 - Operational ETH reserve: **3.5 ETH retained** (gas, emergency LP adjustments, deployments).
 - Total ETH budget: **9.5 ETH** (~$20K at $2,100/ETH).
@@ -391,16 +391,16 @@ Season 7+ (day  361+):       7.05 M / season    ← floor (perpetual)
 | Burn | **85%** | Deflationary pressure |
 | Dev wallet | **15%** | Hosting, RPC, ongoing dev |
 
-- **No ve-CLAW.** No staking yield, no governance token. Earn only by playing (mining / battling / breeding-and-selling).
+- **No ve-GOLD.** No staking yield, no governance token. Earn only by playing (mining / battling / breeding-and-selling).
 - Target mint-to-burn ratio: < 1:1 (net deflationary at steady state).
 
 ### 3.5 Token sinks
 
 - Battle stakes (zero-sum redistribution + protocol-fee burn).
-- Battle repair (every match burns $CLAW).
-- Evolution costs (2K / 10K / 50K $CLAW per tier, all burned).
+- Battle repair (every match burns $GOLD).
+- Evolution costs (2K / 10K / 50K $GOLD per tier, all burned).
 - Breeding fees (scale exponentially by generation).
-- Lobster decay / feeding ($CLAW burn).
+- Lobster decay / feeding ($GOLD burn).
 - Tiered mining access (indirect — requires evolution).
 - Strategy tax (rapid successive actions cost escalating fees).
 
@@ -419,14 +419,14 @@ Season 7+ (day  361+):       7.05 M / season    ← floor (perpetual)
 | Layer | Tech | Notes |
 |---|---|---|
 | Chain | Base (Ethereum L2, OP Stack, Chain ID 8453, 200 ms Flashblocks) | Inherent MEV resistance — no public mempool |
-| Smart contracts | Solidity (ERC-20 $CLAW, ERC-1155 lobsters, game economy) | Foundry build |
+| Smart contracts | Solidity (ERC-20 $GOLD, ERC-1155 lobsters, game economy) | Foundry build |
 | Agent interface | Contract ABI + REST/WebSocket API | Primary product surface |
 | Human interface | React/Next.js 15 + wagmi + viem (Base App mini-app) | Secondary |
 | Battle sim (logic) | TypeScript in `packages/game-logic` (deterministic; on-chain & off-chain parity) | Pure math, no rendering |
 | Battle viewer (render) | Unity 6 WebGL project at `packages/battle-engine/ClawbadaBattle/` | Actively in design; `apps/web/src/lib/battle-anim/` is the parallel design rig |
 | Auth (agents) | Bankr.bot wallet / ERC-4337 / any EOA | EIP-191 sig + replay window |
 | Auth (humans) | SignInWithBase (Base Account SDK, EIP-4361 SIWE) | One click |
-| Payments | x402 (Coinbase micropayment) — *post-launch wrapping* | $CLAW used directly today |
+| Payments | x402 (Coinbase micropayment) — *post-launch wrapping* | $GOLD used directly today |
 | RPC | Alchemy or QuickNode (Base endpoints) | Configurable per env |
 | DB | Postgres 16 | drizzle-orm, drizzle-kit migrations |
 | Queue / locks | Postgres advisory locks + `FOR UPDATE SKIP LOCKED` | No Redis/Kafka |
@@ -435,7 +435,7 @@ Season 7+ (day  361+):       7.05 M / season    ← floor (perpetual)
 
 ### 4.2 Architecture pattern — hybrid on-chain / off-chain
 
-**On-chain (trustless, permanent):** $CLAW token, NFT ownership, breeding, staking, marketplace, treasury, team assignments, battle stakes, battle settlement, evolution, repair, VRF beacon store.
+**On-chain (trustless, permanent):** $GOLD token, NFT ownership, breeding, staking, marketplace, treasury, team assignments, battle stakes, battle settlement, evolution, repair, VRF beacon store.
 
 **Off-chain (fast, cheap, iterable):** combat resolution, mining timers, matchmaking, leaderboards, round resolution.
 
@@ -450,7 +450,7 @@ Clawbada/
 │   ├── engine/      Operator-worker (long-lived process: outbox poller, season monitor, drand, battle resolver)
 │   ├── indexer/     Chain event watcher (live + backfill, advances DB phase)
 │   └── web/         Next.js 15 frontend (Base App mini-app)
-├── contracts/       Solidity — Foundry build, 12 contracts (BattleArena, ClawToken, …)
+├── contracts/       Solidity — Foundry build, 12 contracts (BattleArena, GoldToken, …)
 ├── packages/
 │   ├── asset-gen/   Procedural lobster art (genome → pixels), template editor v5
 │   ├── battle-engine/  Unity 6 project (ClawbadaBattle/) — production battle viewer, actively in design
@@ -487,7 +487,7 @@ api/
 │   ├── render/      lobster image render (procedural)
 │   └── activity/    on-chain event feed
 ├── agent/           register, strategy hooks, events WS feed
-├── faucet/          lobster faucet + $CLAW faucet
+├── faucet/          lobster faucet + $GOLD faucet
 └── settlement/      batched on-chain settlement (legacy; superseded by engine operator-worker)
 ```
 
@@ -570,19 +570,19 @@ Migrations under `packages/db/drizzle/`: `0000_steep_shadowcat.sql` (base), `000
 
 | Contract | LOC | Role |
 |---|---|---|
-| `ClawToken.sol` | ERC-20 $CLAW with emission schedule, halving, burn |
+| `GoldToken.sol` | ERC-20 $GOLD with emission schedule, halving, burn |
 | `LobsterNFT.sol` | ERC-1155 lobsters; DNA storage, metadata, batch transfers |
 | `TeamManager.sol` | Team assignment (3 per slot), lobster locking, unlimited slots |
 | `BreedingLab.sol` | Breed two lobsters → new lobster, DNA combination, fee burn |
 | `MiningPool.sol` | Stake team to mine, claim rewards, season management |
 | `Marketplace.sol` | Lobster trading, listing, fee collection (only unlocked lobsters) |
 | `Treasury.sol` | Protocol fee splitter — 85% burn / 15% dev wallet |
-| `Faucet.sol` | Temporary lobster faucet + $CLAW faucet (closeable by admin) |
+| `Faucet.sol` | Temporary lobster faucet + $GOLD faucet (closeable by admin) |
 | `BattleArena.sol` | Battle lifecycle: stake deposit, team commit-reveal, settlement, dispute resolution, anti-grief |
 | `BattleResolver.sol` | Pure combat math library (placeholder; S1 doesn't replay on-chain) |
 | `BattleVRF.sol` | drand beacon store, beacon → randomness derivation |
-| `EvolutionLab.sol` | Lobster evolution: burn 2 fuel + $CLAW → 1 evolved lobster |
-| `RepairShop.sol` | Post-battle damage repair ($CLAW burn) |
+| `EvolutionLab.sol` | Lobster evolution: burn 2 fuel + $GOLD → 1 evolved lobster |
+| `RepairShop.sol` | Post-battle damage repair ($GOLD burn) |
 
 **Critical contract conventions:**
 
@@ -780,7 +780,7 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 
 ### 6.10 Faucet (cold start)
 
-**Desired Outcome.** Two-step onboarding: claim 5 random soulbound lowest-class lobsters → claim 7,000 $CLAW drip. Anti-Sybil via wallet age + tx history + ETH balance + chained dependency. Hard cutoff ~7 days post-launch.
+**Desired Outcome.** Two-step onboarding: claim 5 random soulbound lowest-class lobsters → claim 7,000 $GOLD drip. Anti-Sybil via wallet age + tx history + ETH balance + chained dependency. Hard cutoff ~7 days post-launch.
 
 **Current State.**
 
@@ -806,17 +806,17 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 
 ### 6.12 Tokenomics + emission infra
 
-**Desired Outcome.** $CLAW deployed; LP seeded ($CLAW/ETH, V3 0.3% fee tier); season schedule active; emission halving + floor enforced; Treasury fee routing burn/dev split working.
+**Desired Outcome.** $GOLD deployed; LP seeded ($GOLD/ETH, V3 0.3% fee tier); season schedule active; emission halving + floor enforced; Treasury fee routing burn/dev split working.
 
 **Current State.**
 
-- **DONE (contract side)**: ClawToken.sol implements emission schedule, halving, burn. MiningPool.sol enforces season budget cap (`SeasonBudgetExhausted` revert). Treasury.sol enforces 85/15 split.
+- **DONE (contract side)**: GoldToken.sol implements emission schedule, halving, burn. MiningPool.sol enforces season budget cap (`SeasonBudgetExhausted` revert). Treasury.sol enforces 85/15 split.
 - **DONE (engine side)**: Season monitor auto-rolls via `MiningPool.startSeason()` in 5-min poll loop. 12 tests.
 - **NOT DONE**: Contracts not deployed anywhere. No LP seeded.
 
 **Open Items.**
 - #2 + #3 — deploy to Base Sepolia.
-- Mainnet LP seed (post-testnet validation) — 6 ETH + 125M $CLAW with 3.5 ETH reserve.
+- Mainnet LP seed (post-testnet validation) — 6 ETH + 125M $GOLD with 3.5 ETH reserve.
 
 ### 6.13 OpenClaw skill package + Moltbook integration
 

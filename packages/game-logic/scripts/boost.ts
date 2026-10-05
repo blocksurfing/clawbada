@@ -88,7 +88,7 @@ for (const [n, t] of [[10, EVOLVED_LOW], [10, ELITE_MID], [10, APEX_HIGH]] as [n
 say();
 
 say('## Wallet-internal win-trading (full 500-team pool; pessimistic upper bound)');
-say('Feeder throws q of its battles to a flagship at the same skill. Gain in $CLAW/epoch for the pair vs honest play. Win-rate-score ranking (pessimistic; real ELO pays ~nothing for farming a collapsed feeder).');
+say('Feeder throws q of its battles to a flagship at the same skill. Gain in $GOLD/epoch for the pair vs honest play. Win-rate-score ranking (pessimistic; real ELO pays ~nothing for farming a collapsed feeder).');
 say('| Schedule | Pair position | q=25% | q=50% |');
 say('|---|---|---|---|');
 for (const [name, sched, pos] of [

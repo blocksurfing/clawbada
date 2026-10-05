@@ -51,7 +51,7 @@ export const queueRoutes = new Hono();
 // ──────────── GET /stakes ────────────
 // D-E (owner decision 2026-10-03): what each bracket costs right now. Stakes are a damped live
 // peg on the mining rate — 20 % anchored to the 1,250 launch reward, 80 % following the base
-// reward sampled once per season-day — floored to whole CLAW and never above the launch value.
+// reward sampled once per season-day — floored to whole GOLD and never above the launch value.
 // Public, no auth. This is a QUOTE: the contract binds each battle's stake at createBattle.
 queueRoutes.get(
   '/stakes',

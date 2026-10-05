@@ -14,7 +14,7 @@ import { isPracticeId } from '@/lib/battle-protocol';
 import { Badge } from '@/components/ui/badge';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
-import { formatAddress, formatClaw } from '@/lib/format';
+import { formatAddress, formatGold } from '@/lib/format';
 import { BattleMoves } from '@/components/game/battle-moves';
 import { LiveBattle } from '@/components/battle/LiveBattle';
 import { Swords, Loader2, ExternalLink } from 'lucide-react';
@@ -113,8 +113,8 @@ export default function BattlePage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <InfoCard label="Player A" value={formatAddress(chain.playerA)} accent={!!winner && winner.toLowerCase() === chain.playerA.toLowerCase()} />
             <InfoCard label="Player B" value={formatAddress(chain.playerB)} accent={!!winner && winner.toLowerCase() === chain.playerB.toLowerCase()} />
-            <InfoCard label="Stake" value={formatClaw(chain.stakeAmount)} />
-            {db?.winnerPayout ? <InfoCard label="Payout" value={formatClaw(db.winnerPayout)} accent /> : <InfoCard label="Phase" value={PHASE_LABEL[phase] ?? String(phase)} />}
+            <InfoCard label="Stake" value={formatGold(chain.stakeAmount)} />
+            {db?.winnerPayout ? <InfoCard label="Payout" value={formatGold(db.winnerPayout)} accent /> : <InfoCard label="Phase" value={PHASE_LABEL[phase] ?? String(phase)} />}
           </div>
         )}
 

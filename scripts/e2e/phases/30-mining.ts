@@ -19,7 +19,7 @@ export async function miningPhase(stack: Stack, players: Players, battle: Battle
 
   const balanceBefore = await chain.balance(player.agent.address);
   const { expeditionId, reward } = await player.agent.startExpedition(player.teamId, 1);
-  checks.check(reward > 0n, `expedition #${expeditionId} reward locked at start`, `${reward / 10n ** 18n} CLAW`);
+  checks.check(reward > 0n, `expedition #${expeditionId} reward locked at start`, `${reward / 10n ** 18n} GOLD`);
 
   // Not claimable yet (API reads chain time).
   let early = false;
@@ -31,7 +31,7 @@ export async function miningPhase(stack: Stack, players: Players, battle: Battle
   const exp = await chain.getExpedition(expeditionId);
   checks.eq(Boolean(exp.claimed), true, 'expedition claimed after the 4 h warp');
   const balanceAfter = await chain.balance(player.agent.address);
-  checks.eq(balanceAfter - balanceBefore, reward, 'CLAW reward minted to the miner');
+  checks.eq(balanceAfter - balanceBefore, reward, 'GOLD reward minted to the miner');
   await waitFor(async () => (await db.sql`select claimed from expeditions where expedition_id = ${expeditionId.toString()}`)[0]?.claimed === true, { timeoutMs: 30_000, label: 'indexer mirrors the claim' }).then(() => checks.check(true, 'indexer mirrors the claimed expedition')).catch((e) => checks.check(false, 'indexer mirrors the claimed expedition', String(e.message)));
 
   return { player, expeditionId, reward, balanceBefore };

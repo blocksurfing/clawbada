@@ -236,7 +236,7 @@ describe('D-01: battle randomness is the raw public drand beacon', () => {
     const evHonest = (seerLosses * 2000 - seerWins * 2500) / games;
     const z = (seerWins - (seerWins + seerLosses) / 2) / Math.sqrt((seerWins + seerLosses) / 4);
     console.log(`[D-01] win-rate: exploiter ${seerWins}W / ${seerLosses}L / ${draws}D over ${games} mirror games = ${(rate * 100).toFixed(1)}% (z=${z.toFixed(1)} vs 50%); ` +
-      `Low-bracket EV per battle: exploiter ${evSeer.toFixed(0)} CLAW, honest opponent ${evHonest.toFixed(0)} CLAW (fair game: -250 each)`);
+      `Low-bracket EV per battle: exploiter ${evSeer.toFixed(0)} GOLD, honest opponent ${evHonest.toFixed(0)} GOLD (fair game: -250 each)`);
     expect(z).toBeGreaterThan(3); // not noise
     expect(rate).toBeGreaterThan(0.6); // clears the documented ~58% breakeven from a 50% baseline
     expect(evSeer).toBeGreaterThan(0); // the staked zero-sum game is now +EV for the exploiter...

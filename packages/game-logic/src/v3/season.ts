@@ -6,7 +6,7 @@
  * Deterministic day-by-day simulation. Teams arrive on an adoption ramp
  * (faucet window concentrates arrivals), mine full-time, retain a share of
  * income, and upgrade tiers when retained earnings cover the effective
- * upgrade cost (evolution $CLAW + market cost of fuel lobsters — stated
+ * upgrade cost (evolution $GOLD + market cost of fuel lobsters — stated
  * assumption, not contract data). Boost: Evolved+ teams participate at 50%
  * with +30% average -> expected +15% income for tier>=1 teams.
  *
@@ -24,7 +24,7 @@
 
 export const TIER_WEIGHTS = [1, 3, 10, 25]; // Base, Evolved, Elite, Apex
 export const EXPEDITIONS_PER_DAY = 6;
-/** Effective $CLAW cost to take a 3-lobster team up one tier (evolution fees + market fuel). Assumption. */
+/** Effective $GOLD cost to take a 3-lobster team up one tier (evolution fees + market fuel). Assumption. */
 export const UPGRADE_COST = [12_000, 60_000, 300_000];
 const BOOST_FACTOR = 1.15; // 50% participation x +30% average, Evolved+ only
 

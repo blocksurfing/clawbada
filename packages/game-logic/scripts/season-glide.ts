@@ -15,7 +15,7 @@ const reward = (r: GlideRunResult) => [1, 2, 3, 7, 30, 60].map((d) => f0(r.rewar
 const be = (r: GlideRunResult) => r.finalEliteBreakevenBps === Infinity ? 'battle dead' : `${(r.finalEliteBreakevenBps / 100).toFixed(0)}%`;
 
 function row(name: string, r: GlideRunResult) {
-  say(`| ${name} | ${r.exhaustionDay ?? '—'} | ${r.zeroIncomeDays} | ${pct(r.mintedShareByDay[6])} | ${r.maxDayOverspendX.toFixed(1)}× | ${reward(r)} | ${f0(r.day1TeamEarnings)} | ${fM(r.unspentClaw)} | ${be(r)} |`);
+  say(`| ${name} | ${r.exhaustionDay ?? '—'} | ${r.zeroIncomeDays} | ${pct(r.mintedShareByDay[6])} | ${r.maxDayOverspendX.toFixed(1)}× | ${reward(r)} | ${f0(r.day1TeamEarnings)} | ${fM(r.unspentGold)} | ${be(r)} |`);
 }
 const header = (first: string) => {
   say(`| ${first} | Budget dry on day | Zero-income days | Spent by day 7 (fair: 11.7%) | Worst day vs fair share | Reward d1 / d2 / d3 / d7 / d30 / d60 | Day-1 team earnings | Unspent | Elite breakeven boost at d60 |`);
@@ -24,7 +24,7 @@ const header = (first: string) => {
 
 say('# D-19 — the mining-reward glide as the contract runs it');
 say();
-say('S1 budget 352.5M CLAW, 60 days, launch reward 1,250 per Base expedition, 6 expeditions a day per team, tier weights 1/3/10/25, 50% of income retained toward upgrades (12k/60k/300k effective), boost on the same budget (+15% expected on Evolved+). "Ideal" is the daily exact re-peg the design was validated with (season.ts): no clamp, no lag, no blind first day. "On-chain" is `MiningPool` as it deploys after D-19 (2026-10-02): re-peg once an HOUR from the average demand of the last four hours (D-C, 2026-10-03; "D-19 as first shipped" in section 2 is the same controller pacing on the previous hour alone), at most ±30% an hour, nothing in hour 0, and no hour minting more than twice its fair share of what is left. Section 2 keeps the controller this replaced ("before D-19") and the alternatives weighed.');
+say('S1 budget 352.5M GOLD, 60 days, launch reward 1,250 per Base expedition, 6 expeditions a day per team, tier weights 1/3/10/25, 50% of income retained toward upgrades (12k/60k/300k effective), boost on the same budget (+15% expected on Evolved+). "Ideal" is the daily exact re-peg the design was validated with (season.ts): no clamp, no lag, no blind first day. "On-chain" is `MiningPool` as it deploys after D-19 (2026-10-02): re-peg once an HOUR from the average demand of the last four hours (D-C, 2026-10-03; "D-19 as first shipped" in section 2 is the same controller pacing on the previous hour alone), at most ±30% an hour, nothing in hour 0, and no hour minting more than twice its fair share of what is left. Section 2 keeps the controller this replaced ("before D-19") and the alternatives weighed.');
 say();
 
 say('## 1. Ideal glide vs the contract (D-19 controller), same populations');
@@ -65,7 +65,7 @@ say();
 
 say('## 4. Demand shape × demand estimator (review 2026-10-03 D-C): 20,000 teams from day 1');
 say();
-say('"Locked / spread" = CLAW earned per unit demanded by the bunched cohort vs the smooth one (phase-locked: the cohort starting on one hour in four; daily rhythm: peak-hour vs off-peak starts). Ratio 1.00 = fair. Refused starts retry next hour.');
+say('"Locked / spread" = GOLD earned per unit demanded by the bunched cohort vs the smooth one (phase-locked: the cohort starting on one hour in four; daily rhythm: peak-hour vs off-peak starts). Ratio 1.00 = fair. Refused starts retry next hour.');
 say();
 say('| Shape · estimator | Spent | Reward d1 / d7 / d30 / d60 | Locked / spread per unit | Ratio | Refused starts | Worst day | Unspent |');
 say('|---|---|---|---|---|---|---|---|');
@@ -73,7 +73,7 @@ for (const scenario of SHAPE_SCENARIOS) {
   for (const est of ESTIMATORS) {
     const r = runGlideSeason({ scenario, mode: 'onchain', params: est.params });
     const rd = (d: number) => f0(r.rewardByDay[d - 1]);
-    say(`| ${scenario.name} · ${est.name} | ${pct(r.mintedShareByDay[59])} | ${rd(1)} / ${rd(7)} / ${rd(30)} / ${rd(60)} | ${r.cohortPerUnit.locked.toFixed(1)} / ${r.cohortPerUnit.spread.toFixed(1)} | ${r.cohortPerUnit.ratio.toFixed(2)} | ${pct(r.refusedShare)} | ${r.maxDayOverspendX.toFixed(2)}× | ${fM(r.unspentClaw)} |`);
+    say(`| ${scenario.name} · ${est.name} | ${pct(r.mintedShareByDay[59])} | ${rd(1)} / ${rd(7)} / ${rd(30)} / ${rd(60)} | ${r.cohortPerUnit.locked.toFixed(1)} / ${r.cohortPerUnit.spread.toFixed(1)} | ${r.cohortPerUnit.ratio.toFixed(2)} | ${pct(r.refusedShare)} | ${r.maxDayOverspendX.toFixed(2)}× | ${fM(r.unspentGold)} |`);
   }
 }
 say();

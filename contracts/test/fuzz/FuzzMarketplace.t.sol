@@ -34,31 +34,31 @@ contract FuzzMarketplace is BaseSetup {
         price = bound(price, 400_000, 1_000_000e18);
 
         uint256 lobsterId = _mintLobster(alice, 0);
-        _giveClaw(bob, price);
+        _giveGold(bob, price);
 
         uint256 listingId = _list(alice, lobsterId, price);
 
         // Escrow: NFT is now in marketplace
         assertEq(nft.ownerOf(lobsterId), address(marketplace));
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore   = claw.balanceOf(bob);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore   = gold.balanceOf(bob);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.startPrank(bob);
-        claw.approve(address(marketplace), price);
+        gold.approve(address(marketplace), price);
         marketplace.buyLobster(listingId, type(uint256).max);
         vm.stopPrank();
 
         uint256 fee           = (price * marketplace.FEE_BPS()) / marketplace.BPS_DENOMINATOR();
         uint256 sellerProceeds = price - fee;
 
-        assertEq(claw.balanceOf(alice) - aliceBefore, sellerProceeds, "seller receives proceeds");
-        assertEq(bobBefore - claw.balanceOf(bob), price, "buyer pays full price");
+        assertEq(gold.balanceOf(alice) - aliceBefore, sellerProceeds, "seller receives proceeds");
+        assertEq(bobBefore - gold.balanceOf(bob), price, "buyer pays full price");
         assertEq(nft.ownerOf(lobsterId), bob, "buyer owns NFT");
 
         // Protocol fee was burned (85% of fee)
-        uint256 burned = supplyBefore - claw.totalSupply();
+        uint256 burned = supplyBefore - gold.totalSupply();
         uint256 burnedFee = (fee * treasury.BURN_BPS()) / treasury.BPS_DENOMINATOR();
         assertEq(burned, burnedFee, "burned portion of fee");
     }
@@ -67,7 +67,7 @@ contract FuzzMarketplace is BaseSetup {
 
     function test_soulbound_cannot_be_listed() public {
         uint256 lobsterId = _mintSoulbound(alice, 0);
-        _giveClaw(alice, 1);
+        _giveGold(alice, 1);
 
         vm.startPrank(alice);
         nft.setApprovalForAll(address(marketplace), true);
@@ -149,13 +149,13 @@ contract FuzzMarketplace is BaseSetup {
     function test_buy_cancelled_reverts() public {
         uint256 lobsterId = _mintLobster(alice, 0);
         uint256 listingId = _list(alice, lobsterId, 100e18);
-        _giveClaw(bob, 100e18);
+        _giveGold(bob, 100e18);
 
         vm.prank(alice);
         marketplace.cancelListing(listingId);
 
         vm.startPrank(bob);
-        claw.approve(address(marketplace), 100e18);
+        gold.approve(address(marketplace), 100e18);
         vm.expectRevert(abi.encodeWithSelector(Marketplace.ListingNotActive.selector, listingId));
         marketplace.buyLobster(listingId, type(uint256).max);
         vm.stopPrank();
@@ -203,12 +203,12 @@ contract FuzzMarketplace is BaseSetup {
     function test_lobster_to_listing_cleared_after_sale() public {
         uint256 lobsterId = _mintLobster(alice, 0);
         uint256 listingId = _list(alice, lobsterId, 100e18);
-        _giveClaw(bob, 100e18);
+        _giveGold(bob, 100e18);
 
         assertEq(marketplace.lobsterToListing(lobsterId), listingId);
 
         vm.startPrank(bob);
-        claw.approve(address(marketplace), 100e18);
+        gold.approve(address(marketplace), 100e18);
         marketplace.buyLobster(listingId, type(uint256).max);
         vm.stopPrank();
 
@@ -276,10 +276,10 @@ contract FuzzMarketplace is BaseSetup {
         uint256 lobsterId = _mintLobster(alice, 0);
         uint256 price = 500_000e18;
         uint256 listingId = _list(alice, lobsterId, price);
-        _giveClaw(bob, price);
+        _giveGold(bob, price);
 
         vm.startPrank(bob);
-        claw.approve(address(marketplace), price);
+        gold.approve(address(marketplace), price);
         marketplace.buyLobster(listingId, type(uint256).max);
         vm.stopPrank();
 
@@ -316,17 +316,17 @@ contract FuzzMarketplace is BaseSetup {
         uint256 lobsterId = _mintLobster(alice, 0);
         uint256 price = 500_000e18;
         uint256 listingId = _list(alice, lobsterId, price);
-        _giveClaw(bob, price);
+        _giveGold(bob, price);
 
         // Bob approves less than price
         vm.startPrank(bob);
-        claw.approve(address(marketplace), price - 1);
+        gold.approve(address(marketplace), price - 1);
         vm.expectRevert();
         marketplace.buyLobster(listingId, type(uint256).max);
         vm.stopPrank();
     }
 
-    // M-04: seller front-run with updatePrice cannot extract more CLAW from
+    // M-04: seller front-run with updatePrice cannot extract more GOLD from
     // a buyer holding a standing allowance. buyLobster now requires a
     // maxPrice parameter; if the listing's current price exceeds maxPrice
     // at execution time, the tx reverts PriceExceedsMaximum.
@@ -335,11 +335,11 @@ contract FuzzMarketplace is BaseSetup {
         uint256 initialPrice = 500_000e18;
         uint256 listingId = _list(alice, lobsterId, initialPrice);
 
-        // Bob holds a standing infinite allowance + enough CLAW to cover a
+        // Bob holds a standing infinite allowance + enough GOLD to cover a
         // raised price. He submits buyLobster with maxPrice = initialPrice.
-        _giveClaw(bob, 2_000_000e18);
+        _giveGold(bob, 2_000_000e18);
         vm.prank(bob);
-        claw.approve(address(marketplace), type(uint256).max);
+        gold.approve(address(marketplace), type(uint256).max);
 
         // Seller front-runs with updatePrice to a higher value.
         uint256 raisedPrice = 1_500_000e18;
@@ -353,10 +353,10 @@ contract FuzzMarketplace is BaseSetup {
         );
         marketplace.buyLobster(listingId, initialPrice);
 
-        // NFT still escrowed, listing still active — Bob's CLAW not spent.
+        // NFT still escrowed, listing still active — Bob's GOLD not spent.
         assertEq(nft.ownerOf(lobsterId), address(marketplace));
         assertTrue(marketplace.getListing(listingId).active);
-        assertEq(claw.balanceOf(bob), 2_000_000e18, "buyer CLAW untouched");
+        assertEq(gold.balanceOf(bob), 2_000_000e18, "buyer GOLD untouched");
     }
 
     // M-04: passing type(uint256).max as maxPrice opts out of slippage
@@ -371,9 +371,9 @@ contract FuzzMarketplace is BaseSetup {
         vm.prank(alice);
         marketplace.updatePrice(listingId, 2_000_000e18);
 
-        _giveClaw(bob, 2_000_000e18);
+        _giveGold(bob, 2_000_000e18);
         vm.startPrank(bob);
-        claw.approve(address(marketplace), type(uint256).max);
+        gold.approve(address(marketplace), type(uint256).max);
         marketplace.buyLobster(listingId, type(uint256).max);
         vm.stopPrank();
 
@@ -386,9 +386,9 @@ contract FuzzMarketplace is BaseSetup {
         uint256 price = 500_000e18;
         uint256 listingId = _list(alice, lobsterId, price);
 
-        _giveClaw(bob, price);
+        _giveGold(bob, price);
         vm.startPrank(bob);
-        claw.approve(address(marketplace), price);
+        gold.approve(address(marketplace), price);
         marketplace.buyLobster(listingId, price);
         vm.stopPrank();
 
@@ -455,8 +455,8 @@ contract FuzzMarketplace is BaseSetup {
         uint256 price = 500_000e18;
         uint256 listingId = _list(alice, lobsterId, price);
 
-        _giveClaw(address(evilBuyer), price);
-        evilBuyer.approve(claw, address(marketplace), price);
+        _giveGold(address(evilBuyer), price);
+        evilBuyer.approve(gold, address(marketplace), price);
 
         vm.expectRevert();
         evilBuyer.buy(marketplace, listingId);
@@ -474,10 +474,10 @@ contract FuzzMarketplace is BaseSetup {
         uint256 price = 500_000e18;
         uint256 listingId = _list(alice, lobsterId, price);
 
-        _giveClaw(alice, price);
+        _giveGold(alice, price);
 
         vm.startPrank(alice);
-        claw.approve(address(marketplace), price);
+        gold.approve(address(marketplace), price);
         vm.expectRevert(abi.encodeWithSelector(Marketplace.SelfPurchase.selector, alice));
         marketplace.buyLobster(listingId, price);
         vm.stopPrank();
@@ -495,9 +495,9 @@ contract FuzzMarketplace is BaseSetup {
         uint256 price = 500_000e18;
         uint256 listingId = _list(alice, lobsterId, price);
 
-        _giveClaw(bob, price);
+        _giveGold(bob, price);
         vm.startPrank(bob);
-        claw.approve(address(marketplace), price);
+        gold.approve(address(marketplace), price);
         marketplace.buyLobster(listingId, price);
         vm.stopPrank();
 
@@ -508,8 +508,8 @@ contract FuzzMarketplace is BaseSetup {
 /// @dev Contract buyer that rejects ERC-1155 receipts — used to verify
 ///      Marketplace's buy path reverts atomically on hook rejection.
 contract RejectingReceiver {
-    function approve(ClawToken claw, address spender, uint256 amount) external {
-        claw.approve(spender, amount);
+    function approve(GoldToken gold, address spender, uint256 amount) external {
+        gold.approve(spender, amount);
     }
 
     function buy(Marketplace market, uint256 listingId) external {

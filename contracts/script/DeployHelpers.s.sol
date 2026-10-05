@@ -7,7 +7,7 @@ import {Script, console2} from "forge-std/Script.sol";
 ///      the treasury allocation (BattleArena.fundReserve). expireFrozen() burns 2 x stake
 ///      from it whenever a frozen battle reaches its 72 h long-stop unresolved, so a
 ///      guardian freeze that governance ignores costs the protocol, not the players.
-///      Checked by VerifyDeployment --sig "reserveFunded()". 2M CLAW = 20 frozen High
+///      Checked by VerifyDeployment --sig "reserveFunded()". 2M GOLD = 20 frozen High
 ///      (50,000 at launch; D-E: High follows the peg, never above its launch value) battles
 ///      expiring before governance tops it up.
 uint256 constant REFUND_RESERVE_TARGET = 2_000_000e18;
@@ -17,7 +17,7 @@ uint256 constant REFUND_RESERVE_TARGET = 2_000_000e18;
 abstract contract DeployHelpers is Script {
     // ── Deployed address bundle ──
     struct Deployment {
-        address clawToken;
+        address goldToken;
         address lobsterNFT;
         address treasury;
         address battleVRF;
@@ -54,8 +54,8 @@ abstract contract DeployHelpers is Script {
     uint256 internal constant S1_EMISSION = 352_500_000e18;
     uint256 internal constant S1_BASE_REWARD = 1_250e18;
 
-    // Faucet: pre-minted allocation (covers ~10K wallets × 7,000 $CLAW)
-    uint256 internal constant FAUCET_CLAW_ALLOCATION = 70_000_000e18;
+    // Faucet: pre-minted allocation (covers ~10K wallets × 7,000 $GOLD)
+    uint256 internal constant FAUCET_GOLD_ALLOCATION = 70_000_000e18;
 
     // ── JSON serialization key ──
     string internal constant JSON_KEY = "deployment";
@@ -204,7 +204,7 @@ abstract contract DeployHelpers is Script {
 
         // Serialize contract addresses
         string memory contracts = "contracts";
-        vm.serializeAddress(contracts, "ClawToken", d.clawToken);
+        vm.serializeAddress(contracts, "GoldToken", d.goldToken);
         vm.serializeAddress(contracts, "LobsterNFT", d.lobsterNFT);
         vm.serializeAddress(contracts, "Treasury", d.treasury);
         vm.serializeAddress(contracts, "BattleVRF", d.battleVRF);
@@ -229,7 +229,7 @@ abstract contract DeployHelpers is Script {
         string memory path = string.concat("deployments/", network, ".json");
         string memory json = vm.readFile(path);
 
-        d.clawToken = vm.parseJsonAddress(json, ".contracts.ClawToken");
+        d.goldToken = vm.parseJsonAddress(json, ".contracts.GoldToken");
         d.lobsterNFT = vm.parseJsonAddress(json, ".contracts.LobsterNFT");
         d.treasury = vm.parseJsonAddress(json, ".contracts.Treasury");
         d.battleVRF = vm.parseJsonAddress(json, ".contracts.BattleVRF");
@@ -248,7 +248,7 @@ abstract contract DeployHelpers is Script {
     ///      Ownable2Step, handled separately.)
     function _adminContracts(Deployment memory d) internal pure returns (address[] memory a) {
         a = new address[](7);
-        a[0] = d.clawToken;
+        a[0] = d.goldToken;
         a[1] = d.lobsterNFT;
         a[2] = d.teamManager;
         a[3] = d.miningPool;

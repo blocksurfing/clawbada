@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { BreedingLabAbi, ClawTokenAbi, addresses } from '@clawbada/chain';
+import { BreedingLabAbi, GoldTokenAbi, addresses } from '@clawbada/chain';
 import {
   totalBreedCost,
   breedCostPerParent,
@@ -145,8 +145,8 @@ breedingRoutes.post(
     const costWei = await readBreedCost(parentA, parentB);
 
     const approveCalldata = buildCalldata(
-      addresses.clawToken,
-      ClawTokenAbi as any,
+      addresses.goldToken,
+      GoldTokenAbi as any,
       'approve',
       [addresses.breedingLab, costWei],
     );
@@ -165,7 +165,7 @@ breedingRoutes.post(
 
     return c.json({
       ...multiStep(
-        { description: `Approve ${cost} $CLAW for breeding`, calldata: approveCalldata },
+        { description: `Approve ${cost} $GOLD for breeding`, calldata: approveCalldata },
         { description: 'Request the breed (fee and breed slots are committed now)', calldata: breedCalldata },
       ),
       preview: serializeBigInts({ totalCost: cost, totalCostWei: costWei, parentA: parentAId, parentB: parentBId }),

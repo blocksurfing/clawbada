@@ -17,7 +17,7 @@ contract ProtocolHandler is BaseSetup {
     uint256[] public mintedIds;
     uint256   public totalExpeditionsStarted;
 
-    // Ghost variable: total $CLAW ever minted to players
+    // Ghost variable: total $GOLD ever minted to players
     uint256 public ghostMinted;
 
     // D-29: mining + repair are exercised for real. Ghosts prove it (a handler that
@@ -28,7 +28,7 @@ contract ProtocolHandler is BaseSetup {
     uint256 public ghostRewardsLocked;   // sum of rewards minted into MiningPool escrow
     uint256 public ghostRewardsClaimed;  // sum of rewards paid out of it
     uint256 public ghostRepairs;         // successful RepairShop.repair calls
-    uint256 public ghostRepairPaid;      // $CLAW those repairs cost
+    uint256 public ghostRepairPaid;      // $GOLD those repairs cost
     /// @dev First cross-contract accounting mismatch seen inside a handler. fail_on_revert
     ///      is false, so an assert here would be swallowed; invariant_no_handler_violation
     ///      reads this instead.
@@ -46,7 +46,7 @@ contract ProtocolHandler is BaseSetup {
     uint256 internal constant S1_BASE_REWARD = 1_250e18;
 
     // ── Public accessors for invariant contract ───────────────────
-    function getClaw()       external view returns (ClawToken)    { return claw; }
+    function getGold()       external view returns (GoldToken)    { return gold; }
     function getNft()        external view returns (LobsterNFT)   { return nft; }
     function getTeamMgr()    external view returns (TeamManager)  { return teamMgr; }
     function getTreasury()   external view returns (Treasury)     { return treasury; }
@@ -73,9 +73,9 @@ contract ProtocolHandler is BaseSetup {
             actors.push(makeAddr(string(abi.encodePacked("actor", i))));
         }
 
-        // Give each actor some CLAW and pre-mine some NFTs
+        // Give each actor some GOLD and pre-mine some NFTs
         for (uint256 i = 0; i < actors.length; i++) {
-            _giveClaw(actors[i], 1_000_000e18);
+            _giveGold(actors[i], 1_000_000e18);
             for (uint256 j = 0; j < 5; j++) {
                 uint256 id = _mintLobster(actors[i], uint8(j % 10));
                 mintedIds.push(id);
@@ -161,7 +161,7 @@ contract ProtocolHandler is BaseSetup {
         if (foundA == 0 || foundB == 0) return;
 
         vm.startPrank(actor);
-        claw.approve(address(breedingLab), type(uint256).max);
+        gold.approve(address(breedingLab), type(uint256).max);
         try breedingLab.requestBreed(parentA, parentB) returns (uint256 requestId) {
             vm.stopPrank();
             vm.roll(block.number + breedingLab.FINALIZE_MIN_BLOCKS() + 1);
@@ -207,7 +207,7 @@ contract ProtocolHandler is BaseSetup {
         if (!foundTarget || !foundFuel1 || !foundFuel2) return;
 
         vm.startPrank(actor);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         try evolutionLab.evolve(target, fuel1, fuel2) {} catch {}
         vm.stopPrank();
     }
@@ -231,24 +231,24 @@ contract ProtocolHandler is BaseSetup {
 
             // Snapshot everything a repair is supposed to move, across four contracts.
             uint256 cost = uint256(repairPts) * repairShop.repairRate(tier);
-            uint256 actorBefore = claw.balanceOf(actor);
-            uint256 devBefore = claw.balanceOf(devWallet);
-            uint256 supplyBefore = claw.totalSupply();
+            uint256 actorBefore = gold.balanceOf(actor);
+            uint256 devBefore = gold.balanceOf(devWallet);
+            uint256 supplyBefore = gold.totalSupply();
 
             vm.startPrank(actor);
-            claw.approve(address(repairShop), type(uint256).max);
+            gold.approve(address(repairShop), type(uint256).max);
             try repairShop.repair(id, repairPts) {
                 vm.stopPrank();
                 ghostRepairs++;
                 ghostRepairPaid += cost;
-                uint256 burned = supplyBefore - claw.totalSupply();
-                uint256 toDev = claw.balanceOf(devWallet) - devBefore;
+                uint256 burned = supplyBefore - gold.totalSupply();
+                uint256 toDev = gold.balanceOf(devWallet) - devBefore;
                 if (nft.getDamage(id) != damage - repairPts) _flag("repair: damage not reduced by exactly the points paid for");
-                if (actorBefore - claw.balanceOf(actor) != cost) _flag("repair: payer not charged points x repairRate");
+                if (actorBefore - gold.balanceOf(actor) != cost) _flag("repair: payer not charged points x repairRate");
                 if (burned + toDev != cost) _flag("repair: burn + dev share != cost");
                 if (burned != (cost * 8_500) / 10_000) _flag("repair: burn leg is not 85%");
-                if (claw.balanceOf(address(repairShop)) != 0) _flag("repair: CLAW stranded in RepairShop");
-                if (claw.balanceOf(address(treasury)) != 0) _flag("repair: CLAW stranded in Treasury");
+                if (gold.balanceOf(address(repairShop)) != 0) _flag("repair: GOLD stranded in RepairShop");
+                if (gold.balanceOf(address(treasury)) != 0) _flag("repair: GOLD stranded in Treasury");
             } catch {
                 vm.stopPrank();
             }
@@ -281,7 +281,7 @@ contract ProtocolHandler is BaseSetup {
         }
         uint8 mineTier = uint8(tierSeed % (uint256(minTier) + 1));
 
-        uint256 escrowBefore = claw.balanceOf(address(miningPool));
+        uint256 escrowBefore = gold.balanceOf(address(miningPool));
         vm.prank(actor);
         try miningPool.startExpedition(teamId, mineTier) returns (uint256 expeditionId) {
             expeditionIds.push(expeditionId);
@@ -289,7 +289,7 @@ contract ProtocolHandler is BaseSetup {
             ghostExpeditionsStarted++;
             uint256 reward = miningPool.getExpedition(expeditionId).reward;
             ghostRewardsLocked += reward;
-            if (claw.balanceOf(address(miningPool)) - escrowBefore != reward) {
+            if (gold.balanceOf(address(miningPool)) - escrowBefore != reward) {
                 _flag("startExpedition: escrow did not grow by the locked reward");
             }
             if (!teamMgr.isTeamActive(teamId)) _flag("startExpedition: team not marked active");
@@ -305,12 +305,12 @@ contract ProtocolHandler is BaseSetup {
         if (e.claimed) return;
         if (block.timestamp < e.startTime + miningPool.EXPEDITION_DURATION()) return;
 
-        uint256 ownerBefore = claw.balanceOf(e.owner);
+        uint256 ownerBefore = gold.balanceOf(e.owner);
         vm.prank(e.owner);
         try miningPool.claimExpedition(expeditionId) {
             ghostExpeditionsClaimed++;
             ghostRewardsClaimed += e.reward;
-            if (claw.balanceOf(e.owner) - ownerBefore != e.reward) _flag("claim: owner not paid the locked reward");
+            if (gold.balanceOf(e.owner) - ownerBefore != e.reward) _flag("claim: owner not paid the locked reward");
             if (teamMgr.isTeamActive(e.teamId)) _flag("claim: team still active after claim");
         } catch {}
     }
@@ -400,19 +400,19 @@ contract InvariantProtocol is Test {
     // ── Invariant: token supply never exceeds MAX_SUPPLY ─────────
 
     function invariant_token_supply_within_cap() public view {
-        ClawToken claw = handler.getClaw();
+        GoldToken gold = handler.getGold();
         assertLe(
-            claw.totalSupply(),
-            claw.MAX_SUPPLY(),
+            gold.totalSupply(),
+            gold.MAX_SUPPLY(),
             "totalSupply must never exceed MAX_SUPPLY"
         );
     }
 
     function invariant_supply_plus_remaining_equals_max() public view {
-        ClawToken claw = handler.getClaw();
+        GoldToken gold = handler.getGold();
         assertEq(
-            claw.totalSupply() + claw.remainingMintable(),
-            claw.MAX_SUPPLY(),
+            gold.totalSupply() + gold.remainingMintable(),
+            gold.MAX_SUPPLY(),
             "totalSupply + remainingMintable must equal MAX_SUPPLY"
         );
     }
@@ -493,7 +493,7 @@ contract InvariantProtocol is Test {
 
     function invariant_mining_escrow_matches_unclaimed_rewards() public view {
         assertEq(
-            handler.getClaw().balanceOf(address(handler.getMiningPool())),
+            handler.getGold().balanceOf(address(handler.getMiningPool())),
             handler.ghostRewardsLocked() - handler.ghostRewardsClaimed(),
             "MiningPool escrow must equal locked minus claimed rewards"
         );
@@ -521,12 +521,12 @@ contract InvariantProtocol is Test {
         assertEq(handler.violation(), "", "handler saw a cross-contract accounting mismatch");
     }
 
-    // ── Invariant: fee-routing contracts never strand $CLAW ───────
+    // ── Invariant: fee-routing contracts never strand $GOLD ───────
 
     function invariant_no_claw_stranded_in_fee_path() public view {
-        ClawToken claw = handler.getClaw();
-        assertEq(claw.balanceOf(address(handler.getRepairShop())), 0, "RepairShop holds no CLAW at rest");
-        assertEq(claw.balanceOf(address(handler.getTreasury())), 0, "Treasury fee-splitter holds no CLAW at rest");
+        GoldToken gold = handler.getGold();
+        assertEq(gold.balanceOf(address(handler.getRepairShop())), 0, "RepairShop holds no GOLD at rest");
+        assertEq(gold.balanceOf(address(handler.getTreasury())), 0, "Treasury fee-splitter holds no GOLD at rest");
     }
 
     // ── Reachability (D-29) ───────────────────────────────────────
@@ -551,7 +551,7 @@ contract InvariantProtocol is Test {
         handler.handler_repair(0, 10);
         assertEq(handler.ghostRepairs(), 1, "handler_repair must actually repair (it reverted RewardPegUnset before D-29)");
         assertEq(nft.getDamage(ids[evolved]), 20, "10 points repaired");
-        assertEq(handler.ghostRepairPaid(), 10 * ((1_250e18 * 40) / 10_000), "10 points at the Evolved launch rate (5 CLAW)");
+        assertEq(handler.ghostRepairPaid(), 10 * ((1_250e18 * 40) / 10_000), "10 points at the Evolved launch rate (5 GOLD)");
         assertEq(handler.violation(), "", "no accounting mismatch");
     }
 
@@ -565,7 +565,7 @@ contract InvariantProtocol is Test {
 
         // An hour on (epoch 1): one unit of demand in the one closed epoch, 48,750 left over
         // 1,439 hourly epochs -> target ~34, clamped to -30% = 875 in this one lazy step. The
-        // repair price moves with it: 40 bps of 875 = 3.5 CLAW per point. (D-C: a day on, the
+        // repair price moves with it: 40 bps of 875 = 3.5 GOLD per point. (D-C: a day on, the
         // start would have left the 4-epoch demand window and the rate would simply hold.)
         handler.handler_warp(uint32(1 hours));
         handler.handler_repeg();

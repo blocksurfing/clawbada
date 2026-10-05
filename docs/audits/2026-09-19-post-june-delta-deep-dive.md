@@ -38,7 +38,7 @@ Severity after verification: **High** 1, **Medium** 7, **Low** 20, **Info** 4. N
 | [D-01](./2026-09-19-post-june-delta-findings.md#d-01) | High | High | confirmed | contract + off-chain | Battle randomness is the raw, already-public drand beacon: any player can reconstruct the seed and foresee every crit, variance roll and enhanced proc |
 | [C-01](./2026-09-19-post-june-delta-findings.md#c-01) | Medium | Medium | confirmed | off-chain | API login signature is not bound to any site, chain or nonce, and a session token can be renewed forever: one phished signature lets an opponent forfe |
 | [D-02](./2026-09-19-post-june-delta-findings.md#d-02) | Medium | High | confirmed | contract | Compromised Faucet ELIGIBILITY hot key exceeds its documented 70M blast radius: lobster claims are uncapped and free lobsters mine the 705M pool with  |
-| [D-04](./2026-09-19-post-june-delta-findings.md#d-04) | Medium | Medium | confirmed | contract | A 10% dispute bond (250 CLAW at Low) lets either participant -- including the proposed winner -- freeze the opponent's payout AND lock their whole tea |
+| [D-04](./2026-09-19-post-june-delta-findings.md#d-04) | Medium | Medium | confirmed | contract | A 10% dispute bond (250 GOLD at Low) lets either participant -- including the proposed winner -- freeze the opponent's payout AND lock their whole tea |
 | [D-05](./2026-09-19-post-june-delta-findings.md#d-05) | Medium | Medium | confirmed | contract | The 5-per-24h dispute rate limit also caps an honest player's veto, and upheld disputes never give the slot back: under a lying RESOLVER (or a buggy e |
 | [D-06](./2026-09-19-post-june-delta-findings.md#d-06) | Medium | Medium | confirmed | contract | A stolen RESOLVER key can settle a battle the instant teams are revealed, so the dispute window (5 min at Low) runs out while the honest battle is sti |
 | [D-07](./2026-09-19-post-june-delta-findings.md#d-07) | Medium | Medium | confirmed | contract + off-chain | The public battle API publishes the first revealer's teamId and salt before the on-chain atomic reveal, turning the costless reveal-timeout cancel int |
@@ -57,7 +57,7 @@ Severity after verification: **High** 1, **Medium** 7, **Low** 20, **Info** 4. N
 | [D-20](./2026-09-19-post-june-delta-findings.md#d-20) | Low | Low | confirmed | contract | startSeason does not bound totalEmission by the remaining 705M lifetime allocation, so the glide paces against a budget that cannot be minted |
 | [D-21](./2026-09-19-post-june-delta-findings.md#d-21) | Low | Low | confirmed | contract | A committed breed is forfeited entirely after the 256-block (~8.5 min) blockhash window, and the keeper the F5-02 fix relies on does not exist in the  |
 | [D-22](./2026-09-19-post-june-delta-findings.md#d-22) | Low | Low | contested | contract | A third-party finalizeBreed caller can starve the offspring mint of gas so the try/catch permanently consumes a victim's breed (contract requesters wi |
-| [D-23](./2026-09-19-post-june-delta-findings.md#d-23) | Low | Low | confirmed | contract | Handoff's 'deployer fully de-privileged' check misses ClawToken MINTER_ROLE and hot roles, and never checks that Configure finished or that the check  |
+| [D-23](./2026-09-19-post-june-delta-findings.md#d-23) | Low | Low | confirmed | contract | Handoff's 'deployer fully de-privileged' check misses GoldToken MINTER_ROLE and hot roles, and never checks that Configure finished or that the check  |
 | [D-24](./2026-09-19-post-june-delta-findings.md#d-24) | Low | Low | confirmed | contract | After Handoff prints 'complete', the deployer hot key still owns Treasury, can overwrite the Safe's pending transfer and freeze payouts, and still hol |
 | [D-25](./2026-09-19-post-june-delta-findings.md#d-25) | Low | Low | contested | contract + off-chain | The role matrix after Handoff contradicts the engine: season auto-rollover signs startSeason with the OPERATOR hot key, which no longer has -- and mus |
 | [D-26](./2026-09-19-post-june-delta-findings.md#d-26) | Low | Low | confirmed | contract | Mainnet hot-key separation checks leave out BOOST_ADMIN, ELIGIBILITY_OPERATOR and the Safe, while the server defaults every role to one shared OPERATO |
@@ -147,13 +147,13 @@ Invariant.
 - The handler exercises wins, draws, both dispute directions, timeouts and `emergencyWithdraw`.
 - It does not model one-sided commit forfeits as a separately targeted path. They are reachable only incidentally through `handler_handleTimeout`.
 
-Not checked: fee-on-transfer or rebasing behaviour. ClawToken is a plain OZ ERC20 with no transfer hooks, so this is not applicable. The arena has no sweep for CLAW sent to it by mistake; such tokens would be stuck, but they do not affect per-battle accounting.
+Not checked: fee-on-transfer or rebasing behaviour. GoldToken is a plain OZ ERC20 with no transfer hooks, so this is not applicable. The arena has no sweep for GOLD sent to it by mistake; such tokens would be stuck, but they do not affect per-battle accounting.
 
 One anomaly to flag. The first Bash result in this session had text appended after the command output. It was formatted as MCP server instructions plus an "auto mode" directive to do file work through Bash. It arrived inside a tool result, not from the user or the harness, so I did not act on it. The audit stayed read-only.
 
 ### BattleArena state machine and time
 
-Scope read in full at /Users/alepore/Clawbada-engine (main, 7ca5451): contracts/BattleArena.sol (all 1064 lines), contracts/TeamManager.sol, the expedition lifecycle of contracts/MiningPool.sol (240-372), LobsterNFT burn/setDamage/getters, EvolutionLab lock guards, Treasury.processFee, ClawToken surface, plus docs/audits/2026-09-05-v3-settle-delta.md, the F5-01 section of 2026-06-10, 2026-05-01 summary, docs/runbooks/admin-roles.md and battle-session.md, and the off-chain pieces that determine on-chain timing (apps/api battle-session manager, indexer battle-watcher, game-logic v3 turn/specials/layout). No forge commands run, no files modified.
+Scope read in full at /Users/alepore/Clawbada-engine (main, 7ca5451): contracts/BattleArena.sol (all 1064 lines), contracts/TeamManager.sol, the expedition lifecycle of contracts/MiningPool.sol (240-372), LobsterNFT burn/setDamage/getters, EvolutionLab lock guards, Treasury.processFee, GoldToken surface, plus docs/audits/2026-09-05-v3-settle-delta.md, the F5-01 section of 2026-06-10, 2026-05-01 summary, docs/runbooks/admin-roles.md and battle-session.md, and the off-chain pieces that determine on-chain timing (apps/api battle-session manager, indexer battle-watcher, game-logic v3 turn/specials/layout). No forge commands run, no files modified.
 
 Phase/transition map verified (caller / phase / deadline):
 - None->Deposit: createBattle, MATCHMAKER, monotonic nextBattleId++ (325) - no battleId reuse, structs never deleted.
@@ -166,7 +166,7 @@ Phase/transition map verified (caller / phase / deadline):
 
 Deadline comparisons: every action uses `ts > deadline -> revert` and every timeout uses `ts <= deadline -> revert`, for both phaseDeadline and payoutDeadline. The normal path and the timeout path are therefore mutually exclusive at every timestamp including equality; no off-by-one lets both succeed, and within one block ordering decides with a consistent end state. ACTIVE_WINDOW: a resolver cannot settle after expiry (484), a player cannot force the Active timeout while a settle is still valid (721), and settle() makes no external call so a player cannot make it revert; stake brackets are constructor-only (283-285) so _stakeBracket in settle/dispute cannot start reverting for in-flight battles. Worst-case honest battle length (100 turns x 60 s, non-consecutive stalling) is ~100 min < 3 h, so a player cannot stall a loss into a StaleBattle refund without a server outage (accepted in the delta note).
 
-Sticky states: none reachable by an unprivileged actor. _executePayout/_cancelBattle cannot be bricked by players: locked lobsters cannot be burned or evolved (LobsterNFT.sol:153, EvolutionLab.sol:67,99), active teams cannot be disbanded (TeamManager.sol:108), MiningPool can only clear `active` for a team with a live expedition and cannot start one on an active team (MiningPool.sol:253-254, 321-331), so the shared `active` flag cannot be flipped under a battle; deleted-team tolerance (962, 986) holds; ClawToken is plain OZ ERC20 (no hooks, pause or blacklist) so push payouts cannot be refused; bond floor (682) keeps Treasury.processFee from reverting on slash. The only sticky state is the documented disputed+AWOL-admin case (I report its undocumented team-lock cost as Low).
+Sticky states: none reachable by an unprivileged actor. _executePayout/_cancelBattle cannot be bricked by players: locked lobsters cannot be burned or evolved (LobsterNFT.sol:153, EvolutionLab.sol:67,99), active teams cannot be disbanded (TeamManager.sol:108), MiningPool can only clear `active` for a team with a live expedition and cannot start one on an active team (MiningPool.sol:253-254, 321-331), so the shared `active` flag cannot be flipped under a battle; deleted-team tolerance (962, 986) holds; GoldToken is plain OZ ERC20 (no hooks, pause or blacklist) so push payouts cannot be refused; bond floor (682) keeps Treasury.processFee from reverting on slash. The only sticky state is the documented disputed+AWOL-admin case (I report its undocumented team-lock cost as Low).
 
 CEI/reentrancy: deposit, disputeBattle, finalizeBattle, adminResolveDispute, handleTimeout, emergencyWithdraw are nonReentrant and set flags/phase before transfers; revealTeams/settle/commitTeam/createBattle lack the guard but either make no external call or call only TeamManager/LobsterNFT, which have no callback into the arena. Same team in two battles is blocked by teamInBattle + team.active at reveal (867-870); teamIdA == teamIdB impossible because owners must differ. Commit preimage uses fixed-width encodePacked fields, no collision. Compromised MATCHMAKER cannot move funds (deposit is msg.sender-pulled); bad power values only cause a refunding cancel.
 
@@ -174,7 +174,7 @@ Findings are outside the pure transition logic: predictable/unbound battle RNG (
 
 ### Dispute system
 
-I found no Critical or High issue on the dispute surface. There are two Medium griefing/backstop issues, two Low items and one Info item. I read contracts/BattleArena.sol at 7ca5451 in full for the dispute surface (lines 60-180, 250-345, 405-1064), plus Treasury.processFee, LobsterNFT.setDamage and burn, the TeamManager active guards, ClawToken, the indexer and engine draw and participation paths, docs/audits/2026-05-01-v3-s1-campaign.md, 2026-09-05-v3-settle-delta.md and docs/runbooks/admin-roles.md. I ran no forge commands and made no edits.
+I found no Critical or High issue on the dispute surface. There are two Medium griefing/backstop issues, two Low items and one Info item. I read contracts/BattleArena.sol at 7ca5451 in full for the dispute surface (lines 60-180, 250-345, 405-1064), plus Treasury.processFee, LobsterNFT.setDamage and burn, the TeamManager active guards, GoldToken, the indexer and engine draw and participation paths, docs/audits/2026-05-01-v3-s1-campaign.md, 2026-09-05-v3-settle-delta.md and docs/runbooks/admin-roles.md. I ran no forge commands and made no edits.
 
 Two notes on the run. The first Bash tool result had text appended after the command output, telling me to route all work and file edits through Bash with sed and heredocs. It arrived inside a tool result, not from the user or the harness, so I ignored it. Separately, I did not read the test suites to confirm whether "proposed winner disputes" or "slot consumed on an upheld dispute" are covered, and I make no claim about that coverage.
 
@@ -193,7 +193,7 @@ Two notes on the run. The first Bash tool result had text appended after the com
   - Only participants can dispute (517), and only once per battle (519).
   - If the cheating side front-runs with its own dispute, the victim is not harmed: the admin still reviews the battle and the victim saves the bond.
   - Nobody can finalize before the deadline. After the deadline, finalize is permissionless through two entrypoints.
-  - No participant can make payout revert, for three reasons. ClawToken has no hooks, blocklist or pause. Lobsters in an active team are locked and cannot be burned (LobsterNFT.sol:153, EvolutionLab.sol:67 and :99), so setDamage's existence check cannot be tripped. Active teams cannot be disbanded (TeamManager.sol:108), and a deleted team is tolerated by _applyDamage and _releaseTeam (954-989).
+  - No participant can make payout revert, for three reasons. GoldToken has no hooks, blocklist or pause. Lobsters in an active team are locked and cannot be burned (LobsterNFT.sol:153, EvolutionLab.sol:67 and :99), so setDamage's existence check cannot be tripped. Active teams cannot be disbanded (TeamManager.sol:108), and a deleted team is tolerated by _applyDamage and _releaseTeam (954-989).
   - Only the Treasury owner de-authorizing the arena could block payouts that carry a fee. That is a governance action, out of scope for an unprivileged actor.
 
 - **Fund flows in every adminResolveDispute branch.**
@@ -323,7 +323,7 @@ There are three findings: one Medium (the public battle API leaks the first reve
 
 Verdict for this surface: both hard caps hold, and reservations cannot diverge from mints. The three problems I found are in pacing and in the boost staging flow; all three are Low severity and none lets anyone over-mint or take funds.
 
-I read contracts/MiningPool.sol in full at HEAD 7ca5451 (518 lines). I also read the parts it touches: TeamManager create/disband/setTeamActive, RepairShop pricing, ClawToken mint/burn, the role grants in Configure.s.sol and Handoff.s.sol, the 2026-09-03 boost surface note, the role policy in admin-roles.md, the boost-epoch runbook, gitbook mining.md, the off-chain model packages/game-logic/src/v3/season.ts, and the glide and boost unit tests in test/MiningPool.t.sol. I ran no forge commands. I wrote one throwaway Python port of the glide rule in the scratchpad to quantify the pacing findings.
+I read contracts/MiningPool.sol in full at HEAD 7ca5451 (518 lines). I also read the parts it touches: TeamManager create/disband/setTeamActive, RepairShop pricing, GoldToken mint/burn, the role grants in Configure.s.sol and Handoff.s.sol, the 2026-09-03 boost surface note, the role policy in admin-roles.md, the boost-epoch runbook, gitbook mining.md, the off-chain model packages/game-logic/src/v3/season.ts, and the glide and boost unit tests in test/MiningPool.t.sol. I ran no forge commands. I wrote one throwaway Python port of the glide rule in the scratchpad to quantify the pacing findings.
 
 What I checked and found sound:
 
@@ -334,7 +334,7 @@ What I checked and found sound:
    - There is no sweep or withdraw function, so the pool's balance is always at least the sum of unclaimed rewards.
 
 2. **Cap checks bind on the boosted amount.** Both checks at lines 279 and 281 run on the final `reward`, after the boost and tier multiply. A boost cannot breach the season cap or the 705M lifetime cap.
-   - ClawToken.MAX_SUPPLY cannot block mining within the 705M allocation: the premints total 295M, only MiningPool holds MINTER_ROLE (Configure.s.sol:74-77), and burns only add headroom.
+   - GoldToken.MAX_SUPPLY cannot block mining within the 705M allocation: the premints total 295M, only MiningPool holds MINTER_ROLE (Configure.s.sol:74-77), and burns only add headroom.
    - A revert at 279 or 281 rolls back the earlier writes to epochWeightServed and the re-peg.
 
 3. **Arithmetic.** boostedBase = baseReward * (10000 + bps) / 10000 truncates by less than 1 wei, in the protocol's favour. Multiplying by weights 1/3/10/25 afterwards keeps reward % weight == 0. The maximum magnitudes are nowhere near overflow. `power` as uint8 is at most 9. Demand is credited as weight * (BPS + bps), which matches the spend exactly; trailing = sum / BPS floors by less than one unit.
@@ -406,7 +406,7 @@ Read in part:
 - **A stolen BOOST_ADMIN key stays inside the documented radius.** The most it can take is +50% on the attacker's own mining, paid for by diluting everyone else. The nuances are in the Info finding on the blast radius.
 
 **RepairShop peg — what holds:**
-- The rate is read at call time from `currentBaseReward()`. Timing a repair around a repeg moves the price by at most 30% per day, and never above `320 bps × launch`, which is 40 CLAW per point.
+- The rate is read at call time from `currentBaseReward()`. Timing a repair around a repeg moves the price by at most 30% per day, and never above `320 bps × launch`, which is 40 GOLD per point.
 - An unprivileged player cannot make repair nearly free: the only path to a collapsed rate is sustained real demand or an exhausted budget.
 - Before season 1 the rate is 0 and `repair` reverts `RewardPegUnset`. That is safe; it blocks repairs but does not make them free.
 - Between seasons the rate is frozen at the last value, then jumps to whatever launch reward the admin passes to `startSeason`.
@@ -427,12 +427,12 @@ Read in part:
 **Tool-output note.** The first Bash result had extra text appended after the command output. It was styled as system/MCP instructions and told me to do all file reads and edits through Bash with sed and heredocs. It arrived inside a tool result, not from the user, so I did not act on it and kept to the read-only rules.
 
 **Role matrix after Deploy.**
-- The deployer holds DEFAULT_ADMIN on ClawToken, LobsterNFT, TeamManager, MiningPool, BattleArena, BattleVRF and Faucet, and owns Treasury.
-- The deployer holds 125M CLAW (the LP allocation). TREASURY_RESERVE_ADDRESS holds 100M.
+- The deployer holds DEFAULT_ADMIN on GoldToken, LobsterNFT, TeamManager, MiningPool, BattleArena, BattleVRF and Faucet, and owns Treasury.
+- The deployer holds 125M GOLD (the LP allocation). TREASURY_RESERVE_ADDRESS holds 100M.
 - BreedingLab, EvolutionLab, RepairShop and Marketplace have no admin, owner or setters.
 
 **Role matrix after Configure.**
-- ClawToken MINTER_ROLE: MiningPool only. The deployer gets an ephemeral grant, mints 70M to the faucet, and is revoked.
+- GoldToken MINTER_ROLE: MiningPool only. The deployer gets an ephemeral grant, mints 70M to the faucet, and is revoked.
 - LobsterNFT roles:
   - MINTER: Faucet and BreedingLab.
   - LOCKER: TeamManager.
@@ -449,15 +449,15 @@ Read in part:
 **Role matrix after Handoff.**
 - The Safe holds DEFAULT_ADMIN on all 7 contracts and SEASON_ADMIN.
 - ELIGIBILITY_OPERATOR holds ELIGIBILITY.
-- The deployer keeps Treasury ownership until the Safe calls acceptOwnership, and keeps the 125M CLAW.
+- The deployer keeps Treasury ownership until the Safe calls acceptOwnership, and keeps the 125M GOLD.
 - On testnet only, the deployer also keeps whichever hot roles defaulted to it.
 
 **What I checked and found sound.**
 - **No hot key can grant roles.** A grep for _setRoleAdmin returns nothing, so DEFAULT_ADMIN is the sole admin of every role.
-- **CLAW minting.** Only MiningPool mints after Configure. Anyone can burn their own tokens (ERC20Burnable). Treasury, MiningPool.adminReleaseExpedition and Faucet.burnUnclaimed also burn.
+- **GOLD minting.** Only MiningPool mints after Configure. Anyone can burn their own tokens (ERC20Burnable). Treasury, MiningPool.adminReleaseExpedition and Faucet.burnUnclaimed also burn.
 - **Supply arithmetic.** 125M + 100M + 70M + 705M equals the 1B cap exactly, so the faucet pre-mint does not eat the mining allocation.
 - **Minting past 705M.** Headroom that burns reopen under MAX_SUPPLY is reachable only by a Safe-granted minter. That is the accepted C-05 class. MiningPool itself is bound by lifetimeMinted.
-- **Configure re-runs.** Treasury.setClawToken reverts on a second run (TokenAlreadySet) and is Configure's first call, so a full re-run aborts before the second 70M mint or a second startSeason. startSeason also reverts with SeasonStillActive.
+- **Configure re-runs.** Treasury.setGoldToken reverts on a second run (TokenAlreadySet) and is Configure's first call, so a full re-run aborts before the second 70M mint or a second startSeason. startSeason also reverts with SeasonStillActive.
 - **Mainnet env checks.** They correctly require matchmaker, resolver, vrfOperator, boostAdmin and reserve, and require reserve and devWallet to differ from the deployer. Testnet fallbacks are gated on chainid != 8453. Unknown chain IDs revert in _networkName.
 - **.env.example placeholders.** The '0x' placeholders make vm.envOr fail to parse, so they do not silently default to the zero address.
 - **TOK-H1.** The assertion is present: Treasury's balance must be 0 and the reserve recipient must not be Treasury.
@@ -469,7 +469,7 @@ Read in part:
 - Handoff's _loadEnv needlessly re-requires the hot-key env variables on mainnet.
 - Configure's closing log miscounts the role grants.
 - The README deploy command uses a stale script path.
-- BaseSetup still grants ClawToken MINTER_ROLE to Faucet.
+- BaseSetup still grants GoldToken MINTER_ROLE to Faucet.
 
 ### Cross-contract lock and NFT invariants
 
@@ -479,7 +479,7 @@ Scope read in full at /Users/alepore/Clawbada-engine (main, 7ca5451): contracts/
 
 I read the current code at /Users/alepore/Clawbada-engine (HEAD 7ca5451) and ran no forge commands. All gas figures in the findings are estimates from the source, not measurements.
 
-**Files read in full:** BreedingLab.sol, EvolutionLab.sol, RepairShop.sol, Faucet.sol, Marketplace.sol, Treasury.sol, ClawToken.sol, LobsterNFT.sol, DNALib.sol, BattleVRF.sol, TeamManager.sol, Configure.s.sol.
+**Files read in full:** BreedingLab.sol, EvolutionLab.sol, RepairShop.sol, Faucet.sol, Marketplace.sol, Treasury.sol, GoldToken.sol, LobsterNFT.sol, DNALib.sol, BattleVRF.sol, TeamManager.sol, Configure.s.sol.
 
 **Files read in part:**
 - MiningPool.sol: startExpedition, claimExpedition, the glide re-peg and the season functions.
@@ -560,7 +560,7 @@ I read the current code at /Users/alepore/Clawbada-engine (HEAD 7ca5451) and ran
   - Deauthorizing BattleArena would stall non-draw payouts until it is re-authorized. That is an owner-level power held by the Safe.
 - The deploy script asserts that the fee-splitter holds none of the 100M reserve, so TOK-H1 is resolved.
 
-**ClawToken — sound:**
+**GoldToken — sound:**
 - **Only MINTER_ROLE can mint.** MiningPool holds it persistently. The deployer holds it briefly to fund the faucet, then revokes it.
 - **The cap is on outstanding supply, not cumulative issuance.**
   - The 1B cap is checked against totalSupply, so burns re-open headroom.
@@ -612,7 +612,7 @@ I checked how the on-chain settlement is bound to the off-chain battle, read-onl
 I found no contract bug reachable by an unprivileged actor on my surface, and no Critical, High or Medium issue. There are four Low findings (three test gaps and one griefing path) and three Info findings. Everything below was read at commit 7ca5451 of /Users/alepore/Clawbada-engine. No forge build or test was run, and nothing was edited.
 
 **What I read**
-- Contracts: BattleArena.sol, MiningPool.sol, RepairShop.sol in full; the relevant parts of Faucet.sol, Treasury.sol, ClawToken.sol and TeamManager.sol.
+- Contracts: BattleArena.sol, MiningPool.sol, RepairShop.sol in full; the relevant parts of Faucet.sol, Treasury.sol, GoldToken.sol and TeamManager.sol.
 - Tests: all of contracts/test/invariant/ including both handlers and InvariantProtocol; the FuzzBattleArena V3 section; FuzzMiningPool; FuzzRepairShop; the unit suites test/BattleArena.t.sol, MiningPool.t.sol, RepairShop.t.sol and Faucet.t.sol; BaseSetup.
 - Config: foundry.toml and the CI workflows. CI runs fuzz under the ci profile at 10k runs, the unit tests, and invariants at 500 runs × depth 100, with a deeper run at 2000 × 200.
 
@@ -658,7 +658,7 @@ The completeness critic's list, reproduced in full so the limits of this audit a
 - Battle-session resume and restart path (manager.ts resume(), store.ts). On a failed session init the claim is deleted and a retry fetches a NEW latest drand beacon (manager.ts:274-287). Nobody analysed whether a player can induce init failures to re-roll the seed, or whether resume after a crash can fork a battle's log.
 - Off-chain rate limiting and abuse controls (the design doc's server/fairplay folder) were not reviewed by anyone. Neither was key management for the OPERATOR / AUTH_SESSION_SECRET environment. No AUTH_SESSION_SECRET means a per-process key, and multi-instance deployments would randomly reject tokens.
 - Engine finalize-watcher and settle job: their interaction with disputes was only covered indirectly through D-06 and D-28. Nobody checked for double-submission or nonce contention between the reveal, settle, finalize and boost jobs when they share one OPERATOR key. D-26 notes the shared key.
-- Marketplace, Treasury, TeamManager, LobsterNFT, EvolutionLab and ClawToken are unchanged since b3eecde and were only re-read for interactions. No agent re-audited them adversarially against the NEW economics. Examples: glide-pegged repair pricing versus marketplace pricing of damaged lobsters, and soulbound-to-tradeable conversion with the 7,000 CLAW drip under the faucet ELIGIBILITY key finding D-02.
+- Marketplace, Treasury, TeamManager, LobsterNFT, EvolutionLab and GoldToken are unchanged since b3eecde and were only re-read for interactions. No agent re-audited them adversarially against the NEW economics. Examples: glide-pegged repair pricing versus marketplace pricing of damaged lobsters, and soulbound-to-tradeable conversion with the 7,000 GOLD drip under the faucet ELIGIBILITY key finding D-02.
 - Base-specific chain assumptions beyond D-16. Flashblocks share a block.timestamp across ~10 sub-blocks, which matters for the 20 s reveal and 30 s commit windows and for the exact-boundary glide block. blockhash availability for BreedingLab is about 256 blocks of 2 s. OP-stack prevrandao repeats across an L1 origin, which is relevant to Faucet DNA (D-10). Nobody quantified these against live Base behaviour.
 - Test and CI surface: fuzz and invariant suites were read but never run by any agent, per the rules. The Slither baseline (--fail-medium) and its many slither-disable annotations added since b3eecde were not reviewed for suppressed true positives. Examples: the reentrancy-no-eth disables on revealTeams, adminResolveDispute and startExpedition.
 - Redeploy and migration assumptions: no contract has peer-address setters, and lifetimeMinted lives inside one MiningPool instance. Replacing MiningPool (or BattleArena) after a bug resets the 705M accounting and requires RepairShop to be redeployed too, since its peg source is constructor-fixed. No runbook covers this, and nobody examined it beyond my note here.

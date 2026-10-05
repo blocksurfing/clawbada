@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { eq, desc, asc } from 'drizzle-orm';
-import { MarketplaceAbi, ClawTokenAbi, LobsterNFTAbi, addresses } from '@clawbada/chain';
+import { MarketplaceAbi, GoldTokenAbi, LobsterNFTAbi, addresses } from '@clawbada/chain';
 import { db, listings, priceHistory, lobsters } from '@clawbada/db';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
@@ -146,7 +146,7 @@ marketRoutes.post(
 
     return c.json(multiStep(
       { description: 'Approve marketplace to transfer lobsters (if not already)', calldata: approveCalldata, optional: true },
-      { description: `List lobster #${lobsterId} for ${price} $CLAW`, calldata: listCalldata },
+      { description: `List lobster #${lobsterId} for ${price} $GOLD`, calldata: listCalldata },
     ));
   }),
 );
@@ -164,8 +164,8 @@ marketRoutes.post(
     }
 
     const approveCalldata = buildCalldata(
-      addresses.clawToken,
-      ClawTokenAbi as any,
+      addresses.goldToken,
+      GoldTokenAbi as any,
       'approve',
       [addresses.marketplace, listing.price],
     );
@@ -179,7 +179,7 @@ marketRoutes.post(
 
     return c.json({
       ...multiStep(
-        { description: `Approve ${listing.price} $CLAW for purchase`, calldata: approveCalldata },
+        { description: `Approve ${listing.price} $GOLD for purchase`, calldata: approveCalldata },
         { description: `Buy lobster #${listing.lobsterId}`, calldata: buyCalldata },
       ),
       listing: serializeBigInts(listing),
@@ -247,7 +247,7 @@ marketRoutes.patch(
       [BigInt(listingId), newPrice],
     );
 
-    return c.json(singleStep(`Update listing price to ${newPrice} $CLAW`, calldata));
+    return c.json(singleStep(`Update listing price to ${newPrice} $GOLD`, calldata));
   }),
 );
 

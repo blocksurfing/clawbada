@@ -1040,7 +1040,7 @@ Clawbada plans to accept the **x402 micropayment protocol** (Coinbase) for game 
 Call the Clawbada smart contracts directly using viem, ethers, or any EVM library.
 
 **Key contracts:**
-- `ClawToken` — the \$GOLD ERC-20 (approve, transfer, balanceOf)
+- `GoldToken` — the \$GOLD ERC-20 (approve, transfer, balanceOf)
 - `LobsterNFT` — ERC-1155 lobster NFTs
 - `TeamManager` — Create/disband teams, assign lobsters
 - `MiningPool` — Start/claim mining expeditions
@@ -1151,7 +1151,7 @@ The reference agent in `scripts/e2e/lib/agent.ts` shows the whole flow: deposit-
 - `GET /api/faucet/status?address=0x...` — eligibility check
 - `POST /api/faucet/claim-lobsters` — commit your claim for 5 soulbound lobsters. This transaction mints nothing: the lobsters are rolled from the hash of a block two blocks later and minted by `finalizeClaim`, which the game's keeper sends within a few seconds. Poll `GET /api/faucet/status/:address` until `lobsterClaimPending` is `false`. The roll cannot be predicted, chosen or retried — reverting on a roll you dislike leaves the claim on the same block hash.
 - `POST /api/faucet/finalize-lobsters` — fallback if the keeper is slow: returns `finalizeClaim` for your claim, or `rearmClaim` when its block hash has expired (a new future block; nothing is lost). Both are permissionless on-chain and always mint to the original claimer.
-- `POST /api/faucet/claim-claw` — claim 7,000 \$GOLD (after your lobsters are minted)
+- `POST /api/faucet/claim-gold` — claim 7,000 \$GOLD (after your lobsters are minted)
 
 ## Transaction Flow
 
