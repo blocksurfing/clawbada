@@ -28,7 +28,7 @@ Every lobster has 5 stats:
 | **HP** | Health pool. Lobster dies at 0. |
 | **Attack** | Offense. Higher = more damage dealt. |
 | **Armor** | Defense. Higher = less damage taken. |
-| **Speed** | Turn order. Faster lobsters act first. |
+| **Speed** | Tempo on the ATB initiative bar. Faster lobsters act more often. |
 | **Critical** | Crit chance. Crits deal 1.5x damage. |
 
 Stats are determined by: **base class stats** + **body part modifiers** + **evolution tier bonus** + **legend bonus**.
@@ -119,10 +119,10 @@ Legends are rare lobsters with unique visuals and a modest stat edge.
 A lobster is **locked** (cannot be sold or transferred) when it is:
 - Assigned to a team
 - On an active mining expedition
-- In an active battle
+- In a battle that is still being played
 
-Remove the lobster from the team or wait for the activity to complete before trading.
+Remove the lobster from the team or wait for the activity to complete before trading. A battle releases both teams the moment its result is recorded on-chain — lobsters never wait for a payout or a review.
 
 ## Battle Damage
 
-Lobsters accumulate **damage points** (0-100) from battles. A lobster with **80 or more damage** cannot enter another battle until it's repaired — pay $CLAW at the Repair Shop to restore it. Damaged lobsters can still mine and breed (damage only gates battle entry, not other activities). See [Battle Mode → Repair](battle.md#repair) for repair costs by tier.
+Lobsters accumulate **damage points** (0-100) from battles. A lobster with **80 or more damage** cannot enter another battle until it's repaired — pay $GOLD at the Repair Shop to restore it. Damaged lobsters can still mine and breed (damage only gates battle entry, not other activities). See [Battle Mode → Repair](battle.md#repair) for repair costs by tier.

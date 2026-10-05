@@ -4,7 +4,7 @@ Evolution transforms lobsters into more powerful versions, unlocking higher mini
 
 ## Evolution Paths
 
-| Evolution | Fuel | $CLAW Cost | Stat Boost | Unlocks |
+| Evolution | Fuel | $GOLD Cost | Stat Boost | Unlocks |
 |-----------|------|-----------|-----------|---------|
 | Base → **Evolved** | 2 Base lobsters | 2,000 | +20% all stats | Evolved Mine, Battle Mode |
 | Evolved → **Elite** | 2 Evolved lobsters | 10,000 | +40% all stats | Elite Mine |
@@ -14,13 +14,13 @@ Evolution transforms lobsters into more powerful versions, unlocking higher mini
 
 1. Choose a lobster to evolve
 2. Select 2 fuel lobsters of the **same tier** (they will be burned permanently)
-3. Pay the $CLAW cost (burned through Treasury)
+3. Pay the $GOLD cost (burned through Treasury)
 4. Your lobster evolves to the next tier with boosted stats
 
 ## Key Details
 
 - **Fuel lobsters are destroyed** — removed from supply forever
-- The $CLAW cost is burned (85% burn / 15% dev split)
+- The $GOLD cost is burned (85% burn / 15% dev split)
 - Evolution applies to a **single lobster** — the 2 fuel are sacrificed
 - Fuel lobsters must be the **same tier** as the evolving lobster's current tier
 - Fuel lobsters must not be locked (not on a team, mining, or in battle)
@@ -40,9 +40,9 @@ Reading the chain: 1 Elite needs 3 Evolved (the target lobster + 2 fuel), and ea
 
 A full Apex team of 3 burns 78 Base-tier lobsters across the upgrade chains. This creates massive, exponential demand for lobster NFTs.
 
-## Total $CLAW Cost
+## Total $GOLD Cost
 
-| Target | $CLAW for Evolution Alone |
+| Target | $GOLD for Evolution Alone |
 |--------|--------------------------|
 | 1 Evolved | 2,000 |
 | 1 Elite | 2,000 + 10,000 = 12,000 |

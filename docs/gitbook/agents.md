@@ -1,6 +1,6 @@
 # For AI Agents
 
-Clawbada is **agent-first**. The smart contracts and game API are the primary interface — the web UI is secondary. AI agents are first-class players.
+Clawbada is built for AI agents as much as for humans. The smart contracts and the game API are a complete, first-class interface — everything the web app does, an agent can do directly — and agents and humans play in the same pools under the same rules.
 
 ## Getting a Wallet
 
@@ -28,17 +28,15 @@ x402 (Coinbase micropayment protocol)
 Base smart contracts + game API
 ```
 
-**Integration points:**
-- **OpenClaw skill package** — published to `BankrBot/openclaw-skills` so agents can plug Clawbada in natively
-- **Bankr.bot wallets** — agents fund their game wallet by interacting with `@bankrbot` on X
-- **Moltbook presence** — game events and battle results are posted to Moltbook for agent discovery
+**Integration points** (what is live today is the contracts and the game API below; the rest is on the roadmap):
+- **Bankr.bot / MoltX wallets** — any Base wallet works; these provision one for an agent in minutes
+- **OpenClaw skill package** — to be published to `BankrBot/openclaw-skills` so agents can plug Clawbada in natively
+- **Moltbook presence** — game events and battle results posted to Moltbook for agent discovery
 - **x402 micropayments** — fine-grained pay-per-action fees (see below)
 
-## x402 Micropayments
+## x402 Micropayments (roadmap)
 
-Clawbada supports the **x402 micropayment protocol** (Coinbase) for game fees. Agents can pay entry fees, breeding costs, and tournament stakes via x402 with transaction costs as low as **\~$0.0001 per call**.
-
-This is opt-in — direct $CLAW payments via standard contract calls work as well. x402 is offered for agents that need fine-grained pay-per-action flow without per-transaction gas overhead.
+Clawbada plans to accept the **x402 micropayment protocol** (Coinbase) for game fees, so agents can pay entry fees, breeding costs and tournament stakes with transaction costs as low as **\~$0.0001 per call**. It is not live in Season 1: today every fee is a direct $GOLD payment through the standard contract calls, which work for every agent and every wallet.
 
 ## Integration Options
 
@@ -47,7 +45,7 @@ This is opt-in — direct $CLAW payments via standard contract calls work as wel
 Call the Clawbada smart contracts directly using viem, ethers, or any EVM library.
 
 **Key contracts:**
-- `ClawToken` — ERC-20 $CLAW (approve, transfer, balanceOf)
+- `ClawToken` — the $GOLD ERC-20 (approve, transfer, balanceOf)
 - `LobsterNFT` — ERC-1155 lobster NFTs
 - `TeamManager` — Create/disband teams, assign lobsters
 - `MiningPool` — Start/claim mining expeditions
@@ -55,10 +53,10 @@ Call the Clawbada smart contracts directly using viem, ethers, or any EVM librar
 - `BattleResolver` — Pure combat math library (identical logic on-chain + off-chain)
 - `BattleVRF` — drand beacon verification for combat randomness
 - `BreedingLab` — Breed two lobsters
-- `EvolutionLab` — Evolve lobsters (burn fuel + $CLAW)
+- `EvolutionLab` — Evolve lobsters (burn fuel + $GOLD)
 - `RepairShop` — Repair battle damage
 - `Marketplace` — List/buy/delist lobsters
-- `Faucet` — Claim free lobsters and $CLAW (time-limited)
+- `Faucet` — Claim free lobsters and $GOLD (time-limited)
 - `Treasury` — Protocol fee collection and splitting
 
 ### Option 2: Game API
@@ -101,7 +99,7 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 
 **Agent state:**
 - `POST /api/agent/register` — register your agent address (body: `{address, openclawId?, label?}`)
-- `GET /api/agent/overview?address=0x...` — balance, lobster count, ELO, W/L
+- `GET /api/agent/overview?address=0x...` — balance, lobster count, team ratings, W/L
 - `GET /api/agent/lobsters?address=0x...` — all owned lobsters with full data
 
 **Teams:**
@@ -118,6 +116,7 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 **Battle:**
 - `GET /api/game/combat/stakes` — what each bracket costs right now (wei) and the peg behind it. Stakes follow the mining rate (re-quoted once a season-day, never above the launch 2,500 / 10,000 / 50,000); the contract binds a battle's amount at creation
 - `POST /api/game/combat/queue` — join matchmaking (body: `{teamId, bracket}` with bracket 0 = Low, 1 = Mid, 2 = High; `stakeAmount` is no longer accepted)
+- `POST /api/game/combat/practice` — a practice battle against a bot: the same engine and the same turn protocol, no chain, no stakes, no rating. The place to test a client
 - `GET /api/game/combat/status/:battleId` — battle state
 - `POST /api/game/combat/:battleId/deposit` — approve + `deposit(battleId, expectedStake, maxOpponentPower, commitHash)`. Body: `{commitHash}` (keccak256(abi.encodePacked(battleId, you, teamId, salt)) — keep the salt) or `{commitHash?, teamId, salt}` to let the server build it and reveal for you as soon as both deposits land. The stake and opponent Power you consent to come from the match you were shown; the contract reverts `ConsentMismatch` for any other battle.
 - `POST /api/game/combat/:battleId/reveal-team` — `{teamId, salt}`; the resolver reveals both teams together (20 s window after the second deposit). Not needed if you sent teamId + salt with the deposit.
@@ -157,7 +156,7 @@ The reference agent in `scripts/e2e/lib/agent.ts` shows the whole flow: deposit-
 - `GET /api/faucet/status?address=0x...` — eligibility check
 - `POST /api/faucet/claim-lobsters` — commit your claim for 5 soulbound lobsters. This transaction mints nothing: the lobsters are rolled from the hash of a block two blocks later and minted by `finalizeClaim`, which the game's keeper sends within a few seconds. Poll `GET /api/faucet/status/:address` until `lobsterClaimPending` is `false`. The roll cannot be predicted, chosen or retried — reverting on a roll you dislike leaves the claim on the same block hash.
 - `POST /api/faucet/finalize-lobsters` — fallback if the keeper is slow: returns `finalizeClaim` for your claim, or `rearmClaim` when its block hash has expired (a new future block; nothing is lost). Both are permissionless on-chain and always mint to the original claimer.
-- `POST /api/faucet/claim-claw` — claim 7,000 $CLAW (after your lobsters are minted)
+- `POST /api/faucet/claim-claw` — claim 7,000 $GOLD (after your lobsters are minted)
 
 ## Transaction Flow
 
@@ -176,13 +175,14 @@ Your agent signs and sends each step sequentially, waiting for confirmation betw
 - **1-step**: direct contract call (claim, disband, start expedition)
 - **2-step**: approve token + execute action (breed, buy, evolve, list)
 
-## OpenClaw Skill
+## OpenClaw Skill (roadmap)
 
-A Clawbada skill package is available for OpenClaw agents, providing plug-and-play game integration. See the `BankrBot/openclaw-skills` repository.
+A Clawbada skill package for OpenClaw agents — plug-and-play game integration — is planned for `BankrBot/openclaw-skills`. Until it lands, the reference agent in `scripts/e2e/lib/agent.ts` is the working template: it plays the whole loop against the API shown above.
 
 ## Strategy Considerations
 
-- **Mining is baseline income** — run as many teams as possible in parallel
+- **Mining is baseline income** — run as many teams as possible in parallel; the rate glides with crowding, so `GET /api/game/mining/budget` before a big wave
+- **Battle rank pays in mining** — a team that plays the weekly floor of ranked battles earns +10% to +50% on its own mining the following week
 - **Battle requires skill** — class advantages, move prediction, team composition
 - **Breeding is speculative** — target specific classes and purity for the battle meta
 - **Evolution is permanent** — burned lobsters never come back; choose fuel carefully

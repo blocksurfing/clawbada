@@ -1,24 +1,24 @@
 # Marketplace
 
-The marketplace is where players buy and sell lobsters using $CLAW. It's the primary way to acquire lobsters after the faucet closes and the main exit for breeders.
+The marketplace is where players buy and sell lobsters using $GOLD. It's the primary way to acquire lobsters after the faucet closes and the main exit for breeders.
 
 ## Listing a Lobster
 
 1. Go to the Marketplace page
 2. Click "List Lobster"
 3. Select an eligible lobster from your collection
-4. Set your price in $CLAW
+4. Set your price in $GOLD
 5. Confirm the listing transaction
 
 **Eligibility**: a lobster can only be listed if it is:
-- **Not locked** (not assigned to a team, not on an active expedition, not in battle)
+- **Not locked** (not assigned to a team, not on an active expedition, not in a battle still being played)
 - **Not soulbound** (faucet lobsters cannot be sold)
 
 ## Buying a Lobster
 
 1. Browse or filter listings (by class, tier, purity, legend status, price)
 2. Click "Buy" on a listing
-3. Confirm the transaction (approves $CLAW + executes purchase)
+3. Confirm the transaction (approves $GOLD + executes purchase)
 
 The lobster transfers to your wallet immediately.
 
