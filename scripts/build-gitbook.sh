@@ -7,7 +7,7 @@
 #
 # Section order matches docs/gitbook/SUMMARY.md. During concat we:
 #   - Escape literal "$" to "\$" so pandoc's tex_math_dollars doesn't treat
-#     $CLAW etc. as inline math mode.
+#     $GOLD etc. as inline math mode.
 #   - Replace "→" with "$\to$" because Helvetica Neue's xelatex mapping doesn't
 #     ship a glyph for U+2192; LaTeX math mode has one built in.
 #

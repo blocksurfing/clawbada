@@ -8,7 +8,7 @@ export const BattleArenaAbi = [
         "internalType": "address"
       },
       {
-        "name": "clawToken_",
+        "name": "goldToken_",
         "type": "address",
         "internalType": "address"
       },
@@ -353,19 +353,6 @@ export const BattleArenaAbi = [
         "name": "",
         "type": "address",
         "internalType": "contract BattleVRF"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "clawToken",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IERC20"
       }
     ],
     "stateMutability": "view"
@@ -736,6 +723,19 @@ export const BattleArenaAbi = [
         "name": "",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "goldToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
       }
     ],
     "stateMutability": "view"

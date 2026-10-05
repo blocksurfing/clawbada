@@ -6,7 +6,7 @@ import {BattleArena} from "../contracts/BattleArena.sol";
 import {BattleVRF} from "../contracts/BattleVRF.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {MiningPool} from "../contracts/MiningPool.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
@@ -29,7 +29,7 @@ contract BattleArenaRevealBindingTest is Test {
     BattleArena arena;
     TeamManager tm;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
     Treasury treasury;
 
     address admin = makeAddr("admin");
@@ -46,14 +46,14 @@ contract BattleArenaRevealBindingTest is Test {
     function setUp() public {
         vm.startPrank(admin);
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
-        claw = new ClawToken(admin, lp, makeAddr("reserve"));
+        gold = new GoldToken(admin, lp, makeAddr("reserve"));
         tm = new TeamManager(admin, address(nft));
         treasury = new Treasury(admin, makeAddr("dev"));
         BattleVRF vrf = new BattleVRF(admin);
         // D-E: the arena pegs its stakes to MiningPool; a real (season-less) pool keeps the launch amounts.
-        MiningPool pool = new MiningPool(admin, address(claw), address(nft), address(tm));
+        MiningPool pool = new MiningPool(admin, address(gold), address(nft), address(tm));
         arena = new BattleArena(
-            admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool)
         );
 
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -64,7 +64,7 @@ contract BattleArenaRevealBindingTest is Test {
         tm.grantRole(tm.ACTIVITY_ROLE(), miningPool);
         arena.grantRole(arena.MATCHMAKER_ROLE(), matchmaker);
         arena.grantRole(arena.RESOLVER_ROLE(), resolver);
-        treasury.setClawToken(address(claw));
+        treasury.setGoldToken(address(gold));
         treasury.setAuthorized(address(arena), true);
         vm.stopPrank();
 
@@ -75,9 +75,9 @@ contract BattleArenaRevealBindingTest is Test {
         for (uint256 i = 0; i < 3; i++) {
             address p = i == 0 ? alice : i == 1 ? bob : carol;
             vm.prank(lp);
-            claw.transfer(p, 200_000e18);
+            gold.transfer(p, 200_000e18);
             vm.prank(p);
-            claw.approve(address(arena), type(uint256).max);
+            gold.approve(address(arena), type(uint256).max);
         }
     }
 
@@ -228,15 +228,15 @@ contract BattleArenaRevealBindingTest is Test {
 
         // The second battle is not stuck: past the reveal window anyone cancels it, and both
         // players get stake + anti-grief back (an unopenable reveal is a no-fault cancel).
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 carolBefore = claw.balanceOf(carol);
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 carolBefore = gold.balanceOf(carol);
         vm.warp(block.timestamp + arena.TEAM_REVEAL_WINDOW() + 1);
         arena.handleTimeout(second);
 
         uint256 refund = STAKE_LOW + (STAKE_LOW * 500) / 10_000;
         assertEq(uint8(arena.getBattle(second).phase), uint8(BattleArena.BattlePhase.Cancelled));
-        assertEq(claw.balanceOf(alice) - aliceBefore, refund, "alice refunded in full");
-        assertEq(claw.balanceOf(carol) - carolBefore, refund, "carol refunded in full");
+        assertEq(gold.balanceOf(alice) - aliceBefore, refund, "alice refunded in full");
+        assertEq(gold.balanceOf(carol) - carolBefore, refund, "carol refunded in full");
         // ...and the FIRST battle is untouched.
         assertEq(uint8(arena.getBattle(first).phase), uint8(BattleArena.BattlePhase.Active));
         assertTrue(arena.teamInBattle(teamA), "team A still bound to the first battle");

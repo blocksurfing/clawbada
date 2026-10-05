@@ -13,11 +13,11 @@ interface IMiningPoolPeg {
 }
 
 /// @title RepairShop — Post-battle damage repair for Clawbada
-/// @notice Burns $CLAW to reduce battle damage on a lobster. Repair is instant.
+/// @notice Burns $GOLD to reduce battle damage on a lobster. Repair is instant.
 ///         Fees routed through Treasury.sol (85% burn / 15% dev).
 /// @dev TOK-G1: repair rates peg to MiningPool's glide-pegged baseReward — bps per damage
 ///      point by evolution tier (Evolved 40 / Elite 120 / Apex 320 bps, reproducing the
-///      spec's 5/15/40 $CLAW at the S1 launch reward of 1,250). As mining yields glide with
+///      spec's 5/15/40 $GOLD at the S1 launch reward of 1,250). As mining yields glide with
 ///      crowding, repair costs track them, keeping battle economics rational season-round.
 ///      Base tier lobsters cannot accumulate battle damage and have a rate of 0.
 /// @custom:security-contact security@clawbada.com
@@ -29,7 +29,7 @@ contract RepairShop is ReentrancyGuard {
     uint256[4] public REPAIR_RATE_BPS = [0, 40, 120, 320];
 
     // ──────────── State ────────────
-    IERC20 public clawToken;
+    IERC20 public goldToken;
     LobsterNFT public lobsterNFT;
     Treasury public treasury;
     IMiningPoolPeg public miningPool;
@@ -48,18 +48,18 @@ contract RepairShop is ReentrancyGuard {
 
     // ──────────── Constructor ────────────
 
-    /// @param clawToken_ The $CLAW ERC-20 token
+    /// @param goldToken_ The $GOLD ERC-20 token
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param treasury_ The Treasury fee splitter
     /// @param miningPool_ The MiningPool whose glide-pegged baseReward anchors repair rates
-    constructor(address clawToken_, address lobsterNFT_, address treasury_, address miningPool_) {
+    constructor(address goldToken_, address lobsterNFT_, address treasury_, address miningPool_) {
         if (
-            clawToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)
+            goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)
                 || miningPool_ == address(0)
         ) {
             revert ZeroAddress();
         }
-        clawToken = IERC20(clawToken_);
+        goldToken = IERC20(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         treasury = Treasury(treasury_);
         miningPool = IMiningPoolPeg(miningPool_);
@@ -67,7 +67,7 @@ contract RepairShop is ReentrancyGuard {
 
     // ──────────── Views ────────────
 
-    /// @notice Current $CLAW-per-damage-point repair rate for an evolution tier (TOK-G1 peg).
+    /// @notice Current $GOLD-per-damage-point repair rate for an evolution tier (TOK-G1 peg).
     function repairRate(uint8 tier) public view returns (uint256) {
         return (miningPool.currentBaseReward() * REPAIR_RATE_BPS[tier]) / 10_000;
     }
@@ -97,11 +97,11 @@ contract RepairShop is ReentrancyGuard {
         // Calculate cost
         uint256 cost = uint256(pointsToRepair) * rate;
 
-        // Pull $CLAW from user (I-04 SafeERC20)
-        clawToken.safeTransferFrom(msg.sender, address(this), cost);
+        // Pull $GOLD from user (I-04 SafeERC20)
+        goldToken.safeTransferFrom(msg.sender, address(this), cost);
 
         // Route fee through Treasury (I-03 forceApprove)
-        clawToken.forceApprove(address(treasury), cost);
+        goldToken.forceApprove(address(treasury), cost);
         treasury.processFee(cost);
 
         // Set new damage

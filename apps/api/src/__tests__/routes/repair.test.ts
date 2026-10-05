@@ -10,8 +10,8 @@ mock.module('@clawbada/chain', () => ({
   getAddress: mockGetAddress,
   encodeFunctionData: mockEncodeFunctionData,
   RepairShopAbi: [],
-  ClawTokenAbi: [],
-  addresses: { repairShop: '0xREPAIR', clawToken: '0xCLAW' },
+  GoldTokenAbi: [],
+  addresses: { repairShop: '0xREPAIR', goldToken: '0xGOLD' },
   base: { id: 8453 },
   baseSepolia: { id: 84532 },
 }));

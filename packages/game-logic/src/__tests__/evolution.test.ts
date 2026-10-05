@@ -35,28 +35,28 @@ function makeLobster(overrides: Partial<Lobster> = {}): Lobster {
 // ──────────── evolutionRequirements ────────────
 
 describe('evolutionRequirements', () => {
-  test('Base tier returns fuel=2 Base fuel + 2000 CLAW', () => {
+  test('Base tier returns fuel=2 Base fuel + 2000 GOLD', () => {
     const reqs = evolutionRequirements(EvolutionTier.Base);
     expect(reqs).not.toBeNull();
     expect(reqs!.fuelCount).toBe(2);
     expect(reqs!.fuelTier).toBe(EvolutionTier.Base);
-    expect(reqs!.clawCost).toBe(2_000n);
+    expect(reqs!.goldCost).toBe(2_000n);
   });
 
-  test('Evolved tier returns fuel=2 Evolved fuel + 10000 CLAW', () => {
+  test('Evolved tier returns fuel=2 Evolved fuel + 10000 GOLD', () => {
     const reqs = evolutionRequirements(EvolutionTier.Evolved);
     expect(reqs).not.toBeNull();
     expect(reqs!.fuelCount).toBe(2);
     expect(reqs!.fuelTier).toBe(EvolutionTier.Evolved);
-    expect(reqs!.clawCost).toBe(10_000n);
+    expect(reqs!.goldCost).toBe(10_000n);
   });
 
-  test('Elite tier returns fuel=2 Elite fuel + 50000 CLAW', () => {
+  test('Elite tier returns fuel=2 Elite fuel + 50000 GOLD', () => {
     const reqs = evolutionRequirements(EvolutionTier.Elite);
     expect(reqs).not.toBeNull();
     expect(reqs!.fuelCount).toBe(2);
     expect(reqs!.fuelTier).toBe(EvolutionTier.Elite);
-    expect(reqs!.clawCost).toBe(50_000n);
+    expect(reqs!.goldCost).toBe(50_000n);
   });
 
   test('Apex tier returns null (already max)', () => {
@@ -71,10 +71,10 @@ describe('evolutionRequirements', () => {
     }
   });
 
-  test('CLAW costs match EVOLUTION_COSTS constants', () => {
-    expect(evolutionRequirements(EvolutionTier.Base)!.clawCost).toBe(EVOLUTION_COSTS[1]);
-    expect(evolutionRequirements(EvolutionTier.Evolved)!.clawCost).toBe(EVOLUTION_COSTS[2]);
-    expect(evolutionRequirements(EvolutionTier.Elite)!.clawCost).toBe(EVOLUTION_COSTS[3]);
+  test('GOLD costs match EVOLUTION_COSTS constants', () => {
+    expect(evolutionRequirements(EvolutionTier.Base)!.goldCost).toBe(EVOLUTION_COSTS[1]);
+    expect(evolutionRequirements(EvolutionTier.Evolved)!.goldCost).toBe(EVOLUTION_COSTS[2]);
+    expect(evolutionRequirements(EvolutionTier.Elite)!.goldCost).toBe(EVOLUTION_COSTS[3]);
   });
 });
 

@@ -171,7 +171,7 @@ function describeEvent(event: ActivityEvent): {
         description: winner && loser
           ? `${formatAddress(winner)} defeated ${formatAddress(loser)}`
           : 'Battle resolved',
-        meta: payout ? `Payout: ${Number(payout).toLocaleString()} $CLAW` : null,
+        meta: payout ? `Payout: ${Number(payout).toLocaleString()} $GOLD` : null,
       };
     }
     case 'lobster_bred': {
@@ -213,7 +213,7 @@ function describeEvent(event: ActivityEvent): {
         description: buyer && seller
           ? `${formatAddress(buyer)} bought lobster${tokenId ? ` #${tokenId}` : ''} from ${formatAddress(seller)}`
           : 'Lobster sold on marketplace',
-        meta: price ? `Price: ${Number(price).toLocaleString()} $CLAW` : null,
+        meta: price ? `Price: ${Number(price).toLocaleString()} $GOLD` : null,
       };
     }
     case 'listing_created': {
@@ -227,7 +227,7 @@ function describeEvent(event: ActivityEvent): {
         description: seller
           ? `${formatAddress(seller)} listed lobster${tokenId ? ` #${tokenId}` : ''}`
           : 'New marketplace listing',
-        meta: price ? `Price: ${Number(price).toLocaleString()} $CLAW` : null,
+        meta: price ? `Price: ${Number(price).toLocaleString()} $GOLD` : null,
       };
     }
     case 'expedition_claimed': {
@@ -240,7 +240,7 @@ function describeEvent(event: ActivityEvent): {
         description: owner
           ? `${formatAddress(owner)} claimed a mining expedition`
           : 'Mining expedition claimed',
-        meta: reward ? `Reward: ${Number(reward).toLocaleString()} $CLAW` : null,
+        meta: reward ? `Reward: ${Number(reward).toLocaleString()} $GOLD` : null,
       };
     }
     case 'lobster_minted': {

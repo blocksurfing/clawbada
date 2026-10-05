@@ -3,7 +3,7 @@
  *
  * Each team-hour can either mine (guaranteed emission income) or battle
  * (zero-sum stakes minus fee and repairs — negative-sum for the average
- * player). An agent battles only while their expected $CLAW/hour in the
+ * player). An agent battles only while their expected $GOLD/hour in the
  * CURRENT battle pool beats mining. But win rates are relative: when weak
  * players exit, mid players become the new bottom — the pool "unravels" from
  * below until the marginal battler is indifferent. This module computes that
@@ -66,7 +66,7 @@ export interface ParticipationResult {
 
 /**
  * Unravel from below: repeatedly remove the weakest battler whose expected
- * $CLAW/hour in the current pool is below mining, until the weakest remaining
+ * $GOLD/hour in the current pool is below mining, until the weakest remaining
  * is indifferent-or-better (or fewer than 2 battlers remain).
  */
 export function participationEquilibrium(cfg: ParticipationConfig): ParticipationResult {

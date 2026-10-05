@@ -6,11 +6,11 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
-import {ClawToken} from "./ClawToken.sol";
+import {GoldToken} from "./GoldToken.sol";
 import {DNALib} from "./libraries/DNALib.sol";
 
 /// @title Faucet — Temporary onboarding for Clawbada
-/// @notice Gives eligible wallets 5 soulbound lobsters + 7,000 $CLAW. Closes ~7 days after launch.
+/// @notice Gives eligible wallets 5 soulbound lobsters + 7,000 $GOLD. Closes ~7 days after launch.
 /// @dev Eligibility is set by admin (off-chain verification of wallet age/txs). ETH balance checked on-chain.
 /// @custom:security-contact security@clawbada.com
 contract Faucet is AccessControl, ReentrancyGuard {
@@ -21,11 +21,11 @@ contract Faucet is AccessControl, ReentrancyGuard {
 
     // ──────────── Constants ────────────
     uint256 public constant LOBSTERS_PER_CLAIM = 5;
-    uint256 public constant CLAW_DRIP_AMOUNT = 7_000e18;
+    uint256 public constant GOLD_DRIP_AMOUNT = 7_000e18;
     uint256 public constant MIN_ETH_BALANCE = 0.001 ether;
     uint256 public constant MAX_BATCH_SIZE = 500;
     /// @dev D-02: lifetime cap on faucet lobsters — 10,000 wallets x 5, the same population the
-    ///      70M CLAW pre-mint is sized for (10,000 x 7,000). The CLAW drip is bounded by the
+    ///      70M GOLD pre-mint is sized for (10,000 x 7,000). The GOLD drip is bounded by the
     ///      faucet's balance; lobsters were bounded by nothing, and a faucet lobster mines the
     ///      705M pool with no stake. Without this, the ELIGIBILITY key (a hot, always-online
     ///      service key) could mint an unlimited sybil mining fleet that outlives its rotation.
@@ -39,14 +39,14 @@ contract Faucet is AccessControl, ReentrancyGuard {
 
     // ──────────── State ────────────
     LobsterNFT public lobsterNFT;
-    ClawToken public clawToken;
+    GoldToken public goldToken;
     uint256 public closeTime;
 
     mapping(address => bool) public hasClaimedLobsters;
-    mapping(address => bool) public hasClaimedClaw;
+    mapping(address => bool) public hasClaimedGold;
     mapping(address => bool) public isEligible;
     uint256 public totalLobstersClaimed;
-    uint256 public totalClawClaimed;
+    uint256 public totalGoldClaimed;
 
     /// @dev D-10: one lobster claim. Sequential ids so a keeper can walk them with a cursor.
     struct LobsterClaim {
@@ -67,7 +67,7 @@ contract Faucet is AccessControl, ReentrancyGuard {
     event LobstersClaimed(address indexed claimer, uint256[5] tokenIds);
     /// @dev The target block's hash was no longer available; a new target was set.
     event LobsterClaimRearmed(uint256 indexed claimId, uint256 newTargetBlock);
-    event ClawClaimed(address indexed claimer, uint256 amount);
+    event GoldClaimed(address indexed claimer, uint256 amount);
     event EligibilitySet(address indexed account, bool eligible);
     event UnclaimedBurned(uint256 amount);
 
@@ -76,7 +76,7 @@ contract Faucet is AccessControl, ReentrancyGuard {
     error NotEligible();
     error InsufficientETHBalance();
     error LobstersAlreadyClaimed();
-    error ClawAlreadyClaimed();
+    error GoldAlreadyClaimed();
     error LobstersNotClaimed();
     error ZeroAddress();
     error InsufficientFaucetBalance();
@@ -96,15 +96,15 @@ contract Faucet is AccessControl, ReentrancyGuard {
 
     /// @param admin The DEFAULT_ADMIN_ROLE holder
     /// @param lobsterNFT_ The LobsterNFT contract
-    /// @param clawToken_ The ClawToken contract
+    /// @param goldToken_ The GoldToken contract
     /// @param closeTime_ Timestamp when faucet closes (~7 days after launch)
-    constructor(address admin, address lobsterNFT_, address clawToken_, uint256 closeTime_) {
-        if (admin == address(0) || lobsterNFT_ == address(0) || clawToken_ == address(0)) {
+    constructor(address admin, address lobsterNFT_, address goldToken_, uint256 closeTime_) {
+        if (admin == address(0) || lobsterNFT_ == address(0) || goldToken_ == address(0)) {
             revert ZeroAddress();
         }
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         lobsterNFT = LobsterNFT(lobsterNFT_);
-        clawToken = ClawToken(clawToken_);
+        goldToken = GoldToken(goldToken_);
         closeTime = closeTime_;
     }
 
@@ -215,12 +215,12 @@ contract Faucet is AccessControl, ReentrancyGuard {
         return _claims[claimId];
     }
 
-    /// @notice Claim 7,000 $CLAW. Must have claimed lobsters first.
-    /// @dev L-05: `nonReentrant`. ClawToken has no callbacks today, so no
+    /// @notice Claim 7,000 $GOLD. Must have claimed lobsters first.
+    /// @dev L-05: `nonReentrant`. GoldToken has no callbacks today, so no
     ///      active re-entry vector, but the guard matches the defence-in-
     ///      depth posture of the rest of the protocol and future-proofs
     ///      against any token-side hooks.
-    function claimClaw() external nonReentrant {
+    function claimGold() external nonReentrant {
         if (block.timestamp >= closeTime) revert FaucetIsClosed();
         if (!isEligible[msg.sender]) revert NotEligible();
         if (msg.sender.balance < MIN_ETH_BALANCE) revert InsufficientETHBalance();
@@ -228,23 +228,23 @@ contract Faucet is AccessControl, ReentrancyGuard {
         // D-10: the drip is for wallets that HOLD their faucet lobsters, so the claim must be
         // finalized, not merely requested.
         if (!_claims[claimIdOf[msg.sender]].finalized) revert LobsterClaimPending();
-        if (hasClaimedClaw[msg.sender]) revert ClawAlreadyClaimed();
+        if (hasClaimedGold[msg.sender]) revert GoldAlreadyClaimed();
 
-        hasClaimedClaw[msg.sender] = true;
-        totalClawClaimed += CLAW_DRIP_AMOUNT;
+        hasClaimedGold[msg.sender] = true;
+        totalGoldClaimed += GOLD_DRIP_AMOUNT;
 
-        if (clawToken.balanceOf(address(this)) < CLAW_DRIP_AMOUNT) revert InsufficientFaucetBalance();
-        // I-04 SafeERC20: clawToken is typed as ClawToken for the constructor
+        if (goldToken.balanceOf(address(this)) < GOLD_DRIP_AMOUNT) revert InsufficientFaucetBalance();
+        // I-04 SafeERC20: goldToken is typed as GoldToken for the constructor
         // contract reference; cast at the boundary for safeTransfer.
-        IERC20(address(clawToken)).safeTransfer(msg.sender, CLAW_DRIP_AMOUNT);
-        emit ClawClaimed(msg.sender, CLAW_DRIP_AMOUNT);
+        IERC20(address(goldToken)).safeTransfer(msg.sender, GOLD_DRIP_AMOUNT);
+        emit GoldClaimed(msg.sender, GOLD_DRIP_AMOUNT);
     }
 
     // ──────────── Admin recovery ────────────
 
-    /// @notice FAU-M1: burn the unclaimed $CLAW pre-mint after the faucet closes.
+    /// @notice FAU-M1: burn the unclaimed $GOLD pre-mint after the faucet closes.
     /// @dev The 70M pre-mint is realistically under-claimed; without this the residual
-    ///      (potentially tens of millions of $CLAW) would be permanently locked in the
+    ///      (potentially tens of millions of $GOLD) would be permanently locked in the
     ///      faucet — the same lock class as the Treasury reserve (TOK-H1). Gated to
     ///      `block.timestamp >= closeTime` so it can NEVER fire mid-window or front-run
     ///      a legitimate claim (claims revert FaucetIsClosed at the same boundary).
@@ -254,8 +254,8 @@ contract Faucet is AccessControl, ReentrancyGuard {
     ///      faucet window knowing nobody (dev included) benefits from unclaimed funds.
     function burnUnclaimed() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (block.timestamp < closeTime) revert FaucetStillOpen();
-        uint256 balance = clawToken.balanceOf(address(this));
-        clawToken.burn(balance);
+        uint256 balance = goldToken.balanceOf(address(this));
+        goldToken.burn(balance);
         emit UnclaimedBurned(balance);
     }
 

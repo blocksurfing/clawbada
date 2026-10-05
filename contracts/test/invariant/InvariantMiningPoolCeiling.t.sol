@@ -7,7 +7,7 @@ import {MiningPoolHandler} from "./handlers/MiningPoolHandler.sol";
 import {MiningPool} from "../../MiningPool.sol";
 
 /// @dev D-19 (review 2026-10-03 F-7): the per-epoch spend ceiling, on a budget where it BINDS.
-///      20M CLAW: hour 0's fair-share ceiling is 27,777 CLAW, under one Apex expedition (31,250),
+///      20M GOLD: hour 0's fair-share ceiling is 27,777 GOLD, under one Apex expedition (31,250),
 ///      so the one-expedition floor is the ceiling and a second Apex start in the same hour is
 ///      refused. The general harness (InvariantMiningPool, S1 budget) never gets near it.
 contract InvariantMiningPoolCeiling is Test {

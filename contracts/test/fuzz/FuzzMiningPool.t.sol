@@ -196,13 +196,13 @@ contract FuzzMiningPool is BaseSetup {
         vm.prank(alice);
         uint256 expId = miningPool.startExpedition(teamId, 0);
 
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
 
         vm.warp(block.timestamp + 4 hours + 1);
         vm.prank(alice);
         miningPool.claimExpedition(expId);
 
-        assertEq(claw.balanceOf(alice) - balBefore, BASE_REWARD, "should receive base reward");
+        assertEq(gold.balanceOf(alice) - balBefore, BASE_REWARD, "should receive base reward");
     }
 
     // ── Team already mining reverts ───────────────────────────────
@@ -249,8 +249,8 @@ contract FuzzMiningPool is BaseSetup {
         vm.prank(alice);
         uint256 expId = miningPool.startExpedition(teamId, 0);
 
-        uint256 supplyBefore = claw.totalSupply();
-        uint256 escrowBefore = claw.balanceOf(address(miningPool));
+        uint256 supplyBefore = gold.totalSupply();
+        uint256 escrowBefore = gold.balanceOf(address(miningPool));
 
         // Warp past expedition + grace period
         vm.warp(block.timestamp + 4 hours + 7 days + 1);
@@ -258,8 +258,8 @@ contract FuzzMiningPool is BaseSetup {
         miningPool.adminReleaseExpedition(expId);
 
         // Reward burned (not sent to admin, not sent to user)
-        assertEq(claw.totalSupply(), supplyBefore - BASE_REWARD, "reward burned from supply");
-        assertEq(claw.balanceOf(address(miningPool)), escrowBefore - BASE_REWARD, "escrow drained");
+        assertEq(gold.totalSupply(), supplyBefore - BASE_REWARD, "reward burned from supply");
+        assertEq(gold.balanceOf(address(miningPool)), escrowBefore - BASE_REWARD, "escrow drained");
 
         // Expedition marked claimed, team unlocked
         MiningPool.Expedition memory exp = miningPool.getExpedition(expId);
@@ -372,10 +372,10 @@ contract FuzzMiningPool is BaseSetup {
         assertEq(miningPool.currentSeason(), 2);
 
         // Unclaimed season-1 expedition should still be claimable
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
         vm.prank(alice);
         miningPool.claimExpedition(expId);
-        assertEq(claw.balanceOf(alice) - balBefore, BASE_REWARD, "rolled-over expedition still claims full reward");
+        assertEq(gold.balanceOf(alice) - balBefore, BASE_REWARD, "rolled-over expedition still claims full reward");
     }
 
     // Each season's totalMinted starts at 0 — no leakage from prior season.
@@ -445,11 +445,11 @@ contract FuzzMiningPool is BaseSetup {
 
         // Normal claim path must still terminate after expedition completes.
         vm.warp(block.timestamp + 4 hours + 1);
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
         vm.prank(alice);
         miningPool.claimExpedition(expId);
 
-        assertEq(claw.balanceOf(alice) - balBefore, BASE_REWARD, "reward delivered despite deleted team");
+        assertEq(gold.balanceOf(alice) - balBefore, BASE_REWARD, "reward delivered despite deleted team");
         MiningPool.Expedition memory exp = miningPool.getExpedition(expId);
         assertTrue(exp.claimed, "expedition marked claimed");
         assertEq(miningPool.getActiveExpedition(teamId), 0, "team-expedition link cleared");
@@ -475,13 +475,13 @@ contract FuzzMiningPool is BaseSetup {
         teamMgr.disbandTeam(teamId);
 
         vm.warp(block.timestamp + 4 hours + 7 days + 1);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.prank(admin);
         miningPool.adminReleaseExpedition(expId);
 
         // Reward burned, expedition terminal.
-        assertEq(claw.totalSupply(), supplyBefore - BASE_REWARD, "reward burned despite deleted team");
+        assertEq(gold.totalSupply(), supplyBefore - BASE_REWARD, "reward burned despite deleted team");
         MiningPool.Expedition memory exp = miningPool.getExpedition(expId);
         assertTrue(exp.claimed, "expedition terminated");
         assertEq(miningPool.getActiveExpedition(teamId), 0, "team-expedition link cleared");
@@ -507,10 +507,10 @@ contract FuzzMiningPool is BaseSetup {
         assertEq(miningPool.getExpedition(expId).reward, originalReward, "in-flight reward locked");
 
         vm.warp(block.timestamp + 4 hours + 1);
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
         vm.prank(alice);
         miningPool.claimExpedition(expId);
-        assertEq(claw.balanceOf(alice) - balBefore, originalReward, "claim pays locked reward");
+        assertEq(gold.balanceOf(alice) - balBefore, originalReward, "claim pays locked reward");
     }
 
     // ── setBaseReward changes future expeditions only ─────────────

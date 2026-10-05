@@ -6,7 +6,7 @@ import {BattleArena} from "../contracts/BattleArena.sol";
 import {BattleVRF} from "../contracts/BattleVRF.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {MiningPool} from "../contracts/MiningPool.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
@@ -26,7 +26,7 @@ contract StakeReferenceMock {
 /// @notice D-E (owner decision 2026-10-03): stake brackets are a DAMPED LIVE PEG on the mining
 ///         rate. stake = multiplier × unit, unit = GENESIS × fixed + ref × (1 − fixed),
 ///         ref = MiningPool's daily sample (fallbacks: live rate, then GENESIS), capped at
-///         GENESIS, floored to a whole CLAW. The amount is bound into the battle at creation and
+///         GENESIS, floored to a whole GOLD. The amount is bound into the battle at creation and
 ///         the review window keys off the STORED bracket, never the amount.
 contract BattleArenaStakePegTest is Test {
     bytes32 internal constant SEED_SECRET = keccak256("clawbada-test-seed-secret");
@@ -42,7 +42,7 @@ contract BattleArenaStakePegTest is Test {
     BattleVRF vrf;
     TeamManager tm;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
     Treasury treasury;
     StakeReferenceMock peg;
 
@@ -61,13 +61,13 @@ contract BattleArenaStakePegTest is Test {
     function setUp() public {
         vm.startPrank(admin);
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
-        claw = new ClawToken(admin, lpAddress, treasuryAddress);
+        gold = new GoldToken(admin, lpAddress, treasuryAddress);
         tm = new TeamManager(admin, address(nft));
         treasury = new Treasury(admin, devWallet);
         vrf = new BattleVRF(admin);
         peg = new StakeReferenceMock();
         arena = new BattleArena(
-            admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(peg)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(peg)
         );
 
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -77,7 +77,7 @@ contract BattleArenaStakePegTest is Test {
         tm.grantRole(tm.ACTIVITY_ROLE(), address(arena));
         arena.grantRole(arena.MATCHMAKER_ROLE(), matchmaker);
         arena.grantRole(arena.RESOLVER_ROLE(), resolver);
-        treasury.setClawToken(address(claw));
+        treasury.setGoldToken(address(gold));
         treasury.setAuthorized(address(arena), true);
         vrf.grantRole(vrf.OPERATOR_ROLE(), admin);
         vm.stopPrank();
@@ -89,9 +89,9 @@ contract BattleArenaStakePegTest is Test {
         validDNA = DNALib.encode(3, 0, 5, alleles);
 
         vm.prank(lpAddress);
-        claw.transfer(alice, 200_000e18);
+        gold.transfer(alice, 200_000e18);
         vm.prank(lpAddress);
-        claw.transfer(bob, 200_000e18);
+        gold.transfer(bob, 200_000e18);
     }
 
     // ──────────── Helpers ────────────
@@ -139,7 +139,7 @@ contract BattleArenaStakePegTest is Test {
     function _deposit(uint256 battleId, address player, uint256 expectedStake, bytes32 commit) internal {
         uint256 stake = arena.getBattle(battleId).stakeAmount;
         vm.prank(player);
-        claw.approve(address(arena), stake + stake * 500 / BPS);
+        gold.approve(address(arena), stake + stake * 500 / BPS);
         vm.prank(player);
         arena.deposit(battleId, expectedStake, 9, commit);
     }
@@ -159,7 +159,7 @@ contract BattleArenaStakePegTest is Test {
 
     /// @dev Hand-computed vectors at the provisional 20 % fixed share (the human check).
     function test_DE_vectorsAtTwentyPercentFixed() public {
-        // ref → (Low, Mid, High) in whole CLAW
+        // ref → (Low, Mid, High) in whole GOLD
         uint256[7] memory refs = [uint256(1_250e18), 625e18, 163e18, 80e18, 49e18, 25e18, 0];
         uint256[3][7] memory want = [
             [uint256(2_500e18), 10_000e18, 50_000e18], // launch: unit 1,250
@@ -220,7 +220,7 @@ contract BattleArenaStakePegTest is Test {
         arena.stakeMultiplier(3);
     }
 
-    /// @dev Whole CLAW, never above the launch value, never below the fixed part, monotone in the
+    /// @dev Whole GOLD, never above the launch value, never below the fixed part, monotone in the
     ///      ref and in the fixed share's anchoring — for any ref and any dial setting.
     function testFuzz_DE_stakeBounds(uint256 ref, uint256 ref2, uint256 fixedBps, uint8 bracket) public {
         ref = bound(ref, 0, 3 * GENESIS);
@@ -233,7 +233,7 @@ contract BattleArenaStakePegTest is Test {
         peg.set(ref, 0);
         uint256 stake = arena.stakeFor(bracket);
         assertEq(stake, _expected(ref, fixedBps, mult), "formula");
-        assertEq(stake % 1e18, 0, "whole CLAW");
+        assertEq(stake % 1e18, 0, "whole GOLD");
         assertLe(stake, mult * GENESIS, "never above launch");
         assertGe(stake + 1e18, mult * GENESIS * fixedBps / BPS, "never below the fixed part (floor)");
 
@@ -334,14 +334,14 @@ contract BattleArenaStakePegTest is Test {
         // Consent is to the amount the player was shown: the new quote is a mismatch (the error
         // reports the battle's bound stake and the opponent's Power)…
         vm.prank(alice);
-        claw.approve(address(arena), 10_000e18);
+        gold.approve(address(arena), 10_000e18);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.ConsentMismatch.selector, battleId, 2_500e18, 3));
         arena.deposit(battleId, 1_500e18, 9, _commit(battleId, alice, teamA, SALT_A));
         // …and the bound amount escrows exactly stake + 5 %.
-        uint256 before = claw.balanceOf(alice);
+        uint256 before = gold.balanceOf(alice);
         _deposit(battleId, alice, 2_500e18, _commit(battleId, alice, teamA, SALT_A));
-        assertEq(before - claw.balanceOf(alice), 2_500e18 + 125e18);
+        assertEq(before - gold.balanceOf(alice), 2_500e18 + 125e18);
 
         // A battle matched now binds the new quote.
         uint256 later = _create(0);
@@ -362,7 +362,7 @@ contract BattleArenaStakePegTest is Test {
     ///      nothing in particular waits the Low window.
     function test_DE_reviewWindowFollowsTheStoredBracket() public {
         peg.set(625e18, 0);
-        uint256 mid = _setupActive(1); // 6,000 CLAW
+        uint256 mid = _setupActive(1); // 6,000 GOLD
         assertEq(arena.getBattle(mid).stakeAmount, 6_000e18);
         uint256 settledAt = block.timestamp;
         vm.prank(resolver);
@@ -370,17 +370,17 @@ contract BattleArenaStakePegTest is Test {
         assertEq(arena.getBattle(mid).payoutDeadline, settledAt + 30 minutes, "Mid window");
 
         peg.set(163e18, 0);
-        uint256 low = _setupActive(0); // 760 CLAW
+        uint256 low = _setupActive(0); // 760 GOLD
         settledAt = block.timestamp;
         vm.prank(resolver);
         arena.settle(low, bob, HASH_STATE, HASH_LOG, [uint8(10), 5, 8], [uint8(30), 25, 35], SEED_SECRET, address(0));
         assertEq(arena.getBattle(low).payoutDeadline, settledAt + 5 minutes, "Low window");
 
         // And the payout maths use the bound amount: winner gets 2·stake − 10 % + own 5 %.
-        uint256 beforeAlice = claw.balanceOf(alice);
+        uint256 beforeAlice = gold.balanceOf(alice);
         vm.warp(arena.getBattle(mid).payoutDeadline + 1);
         arena.finalizeBattle(mid);
-        assertEq(claw.balanceOf(alice) - beforeAlice, 12_000e18 - 1_200e18 + 300e18);
+        assertEq(gold.balanceOf(alice) - beforeAlice, 12_000e18 - 1_200e18 + 300e18);
     }
 }
 
@@ -390,7 +390,7 @@ contract BattleArenaStakePegIntegrationTest is Test {
     BattleArena arena;
     MiningPool pool;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
     TeamManager tm;
     Treasury treasury;
     BattleVRF vrf;
@@ -407,13 +407,13 @@ contract BattleArenaStakePegIntegrationTest is Test {
     function setUp() public {
         vm.startPrank(admin);
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
-        claw = new ClawToken(admin, makeAddr("lp"), makeAddr("reserve"));
+        gold = new GoldToken(admin, makeAddr("lp"), makeAddr("reserve"));
         tm = new TeamManager(admin, address(nft));
         treasury = new Treasury(admin, makeAddr("dev"));
         vrf = new BattleVRF(admin);
-        pool = new MiningPool(admin, address(claw), address(nft), address(tm));
+        pool = new MiningPool(admin, address(gold), address(nft), address(tm));
         arena = new BattleArena(
-            admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool)
         );
         pool.grantRole(pool.SEASON_ADMIN_ROLE(), seasonAdmin);
         arena.grantRole(arena.MATCHMAKER_ROLE(), matchmaker);

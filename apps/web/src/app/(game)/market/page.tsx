@@ -18,7 +18,7 @@ import { DNAViewer } from '@/components/game/dna-viewer';
 import { TransactionButton } from '@/components/game/transaction-button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
-import { formatClaw, formatAddress, tierLabel } from '@/lib/format';
+import { formatGold, formatAddress, tierLabel } from '@/lib/format';
 import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { MOCK_LISTINGS, classImagePath, marketLobsterImage, CLASS_CARD_COLORS, type MockListing } from '@/lib/mock-data';
 import { Store, SlidersHorizontal, X, Sparkles, ExternalLink, ChevronLeft, Egg, Clock } from 'lucide-react';
@@ -592,7 +592,7 @@ function MarketCard({
           <div className="flex items-center justify-between">
             <span className="text-lg font-bold text-claw-gold font-mono">
               {Number(listing.price).toLocaleString()}
-              <span className="text-xs text-claw-gold/70 ml-1">$CLAW</span>
+              <span className="text-xs text-claw-gold/70 ml-1">$GOLD</span>
             </span>
           </div>
         </div>
@@ -677,7 +677,7 @@ function MarketCard({
         <div className="flex items-center justify-between">
           <span className="text-lg font-bold text-claw-gold font-mono">
             {Number(listing.price).toLocaleString()}
-            <span className="text-xs text-claw-gold/70 ml-1">$CLAW</span>
+            <span className="text-xs text-claw-gold/70 ml-1">$GOLD</span>
           </span>
         </div>
       </div>
@@ -926,7 +926,7 @@ function ExpandedView({
                   <span className="text-xl sm:text-2xl font-bold text-claw-gold font-mono leading-none">
                     {Number(listing.price).toLocaleString()}
                   </span>
-                  <span className="text-xs sm:text-sm text-claw-gold/60 font-mono">$CLAW</span>
+                  <span className="text-xs sm:text-sm text-claw-gold/60 font-mono">$GOLD</span>
                 </div>
                 <span className="text-[11px] sm:text-xs text-text-secondary truncate">
                   Seller <span className="font-mono">{formatAddress(listing.seller)}</span>
@@ -1026,7 +1026,7 @@ function ListLobsterDialog({ lobsters, onSuccess }: { lobsters: LobsterData[]; o
               <span className="text-foreground font-mono">Listing #{selected}</span>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="price" className="text-text-secondary">Price ($CLAW)</Label>
+              <Label htmlFor="price" className="text-text-secondary">Price ($GOLD)</Label>
               <Input
                 id="price"
                 type="number"

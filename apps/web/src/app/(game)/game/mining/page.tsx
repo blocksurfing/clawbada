@@ -9,7 +9,7 @@ import { TransactionButton } from '@/components/game/transaction-button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
 import { MineTierCard } from '@/components/game/mine-tier-card';
-import { formatClaw, formatCountdown, tierLabel } from '@/lib/format';
+import { formatGold, formatCountdown, tierLabel } from '@/lib/format';
 import { MINE_BACKGROUNDS } from '@/lib/assets';
 import { Pickaxe, Clock } from 'lucide-react';
 
@@ -65,7 +65,7 @@ export default function MiningPage() {
             <img src="/assets/icons/Mining.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
             <h1 className="font-pixel text-xl text-foreground">Mining</h1>
           </div>
-          <p className="text-sm text-text-secondary mt-1">Send teams on 4-hour expeditions to earn $CLAW</p>
+          <p className="text-sm text-text-secondary mt-1">Send teams on 4-hour expeditions to earn $GOLD</p>
         </div>
 
         {/* Active expeditions */}
@@ -101,7 +101,7 @@ export default function MiningPage() {
           <FrostedPanel variant="highlight" className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-pixel text-sm text-text-accent">
-                {tierLabel(selectedTier)} Mine — {formatClaw(BASE_REWARD * TIER_WEIGHTS[selectedTier])}
+                {tierLabel(selectedTier)} Mine — {formatGold(BASE_REWARD * TIER_WEIGHTS[selectedTier])}
               </h3>
               <button
                 onClick={() => setSelectedTier(null)}
@@ -175,7 +175,7 @@ function ActiveExpeditionCard({
           <span className="font-pixel text-[10px] text-text-accent">{tierLabel(expedition.mineTier)} Mine</span>
           <span className="text-xs text-text-secondary">Team #{expedition.teamId}</span>
         </div>
-        <div className="text-sm font-medium text-text-accent font-mono">{formatClaw(expedition.reward)}</div>
+        <div className="text-sm font-medium text-text-accent font-mono">{formatGold(expedition.reward)}</div>
       </div>
       {isComplete ? (
         <TransactionButton

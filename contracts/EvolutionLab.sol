@@ -8,9 +8,9 @@ import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
 
 /// @title EvolutionLab — Lobster evolution for Clawbada
-/// @notice Evolves a single lobster by burning 2 fuel lobsters of the same tier + $CLAW fee.
+/// @notice Evolves a single lobster by burning 2 fuel lobsters of the same tier + $GOLD fee.
 ///         Fees routed through Treasury.sol (85% burn / 15% dev).
-/// @dev Base→Evolved (2K $CLAW), Evolved→Elite (10K), Elite→Apex (50K).
+/// @dev Base→Evolved (2K $GOLD), Evolved→Elite (10K), Elite→Apex (50K).
 ///      Fuel lobsters are permanently burned. Soulbound lobsters can be evolved and used as fuel.
 /// @custom:security-contact security@clawbada.com
 contract EvolutionLab is ReentrancyGuard {
@@ -20,7 +20,7 @@ contract EvolutionLab is ReentrancyGuard {
     uint256[3] public EVOLUTION_COSTS = [2_000e18, 10_000e18, 50_000e18];
 
     // ──────────── State ────────────
-    IERC20 public clawToken;
+    IERC20 public goldToken;
     LobsterNFT public lobsterNFT;
     Treasury public treasury;
 
@@ -39,21 +39,21 @@ contract EvolutionLab is ReentrancyGuard {
 
     // ──────────── Constructor ────────────
 
-    /// @param clawToken_ The $CLAW ERC-20 token
+    /// @param goldToken_ The $GOLD ERC-20 token
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param treasury_ The Treasury fee splitter
-    constructor(address clawToken_, address lobsterNFT_, address treasury_) {
-        if (clawToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)) {
+    constructor(address goldToken_, address lobsterNFT_, address treasury_) {
+        if (goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)) {
             revert ZeroAddress();
         }
-        clawToken = IERC20(clawToken_);
+        goldToken = IERC20(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         treasury = Treasury(treasury_);
     }
 
     // ──────────── Core ────────────
 
-    /// @notice Evolve a lobster to the next tier by burning 2 fuel lobsters + $CLAW fee.
+    /// @notice Evolve a lobster to the next tier by burning 2 fuel lobsters + $GOLD fee.
     /// @param lobsterId The lobster to evolve
     /// @param fuelId1 First fuel lobster (burned)
     /// @param fuelId2 Second fuel lobster (burned)
@@ -73,12 +73,12 @@ contract EvolutionLab is ReentrancyGuard {
         _validateFuel(fuelId1, currentTier);
         _validateFuel(fuelId2, currentTier);
 
-        // Pull $CLAW from user (I-04 SafeERC20)
+        // Pull $GOLD from user (I-04 SafeERC20)
         uint256 cost = EVOLUTION_COSTS[currentTier];
-        clawToken.safeTransferFrom(msg.sender, address(this), cost);
+        goldToken.safeTransferFrom(msg.sender, address(this), cost);
 
         // Route fee through Treasury (I-03 forceApprove)
-        clawToken.forceApprove(address(treasury), cost);
+        goldToken.forceApprove(address(treasury), cost);
         treasury.processFee(cost);
 
         // Burn fuel lobsters

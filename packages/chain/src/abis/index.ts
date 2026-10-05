@@ -1,4 +1,4 @@
-export { ClawTokenAbi } from './claw-token';
+export { GoldTokenAbi } from './gold-token';
 export { LobsterNFTAbi } from './lobster-nft';
 export { TeamManagerAbi } from './team-manager';
 export { BreedingLabAbi } from './breeding-lab';

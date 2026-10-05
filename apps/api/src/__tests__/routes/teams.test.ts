@@ -12,7 +12,7 @@ mock.module('@clawbada/chain', () => ({
   TeamManagerAbi: [],
   addresses: {
     teamManager: '0xTEAM',
-    clawToken: '0xCLAW',
+    goldToken: '0xGOLD',
   },
   base: { id: 8453 },
   baseSepolia: { id: 84532 },

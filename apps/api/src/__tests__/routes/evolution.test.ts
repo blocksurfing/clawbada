@@ -10,8 +10,8 @@ mock.module('@clawbada/chain', () => ({
   getAddress: mockGetAddress,
   encodeFunctionData: mockEncodeFunctionData,
   EvolutionLabAbi: [],
-  ClawTokenAbi: [],
-  addresses: { evolutionLab: '0xEVO', clawToken: '0xCLAW' },
+  GoldTokenAbi: [],
+  addresses: { evolutionLab: '0xEVO', goldToken: '0xGOLD' },
   base: { id: 8453 },
   baseSepolia: { id: 84532 },
 }));
@@ -21,9 +21,9 @@ mock.module('@clawbada/game-logic', () => ({
   evolutionRequirements: (tier: number) => {
     if (tier >= 3) return null; // Apex
     const costs: Record<number, any> = {
-      0: { fuelCount: 2, fuelTier: 0, clawCost: 2000n },
-      1: { fuelCount: 2, fuelTier: 1, clawCost: 10000n },
-      2: { fuelCount: 2, fuelTier: 2, clawCost: 50000n },
+      0: { fuelCount: 2, fuelTier: 0, goldCost: 2000n },
+      1: { fuelCount: 2, fuelTier: 1, goldCost: 10000n },
+      2: { fuelCount: 2, fuelTier: 2, goldCost: 50000n },
     };
     return costs[tier];
   },
@@ -120,9 +120,9 @@ describe('evolution routes', () => {
       expect(body.steps).toHaveLength(2);
       expect(body.steps[0].description).toContain('Approve');
       expect(body.steps[1].description).toContain('Evolve');
-      // The approve step carries the contract's wei cost (2,000 $CLAW), not the display number.
-      expect(body.preview.clawCost).toBe('2000');
-      expect(body.preview.clawCostWei).toBe((2000n * 10n ** 18n).toString());
+      // The approve step carries the contract's wei cost (2,000 $GOLD), not the display number.
+      expect(body.preview.goldCost).toBe('2000');
+      expect(body.preview.goldCostWei).toBe((2000n * 10n ** 18n).toString());
       const approve = (mockEncodeFunctionData.mock.calls as unknown as any[][]).find((c) => c[0]?.functionName === 'approve');
       expect(approve?.[0]?.args?.[1]).toBe(2000n * 10n ** 18n);
       expect(body.preview).toBeDefined();

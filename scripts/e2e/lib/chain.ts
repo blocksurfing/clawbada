@@ -1,5 +1,5 @@
 /**
- * Direct chain access for the harness: deployer-side setup (eligibility, fuel mints, CLAW
+ * Direct chain access for the harness: deployer-side setup (eligibility, fuel mints, GOLD
  * top-ups) and read-side assertions. Players never use this — they go through the API's
  * calldata steps like a real client.
  */
@@ -7,7 +7,7 @@ import { createPublicClient, createWalletClient, http, parseEventLogs, type Abi,
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import {
-  BattleArenaAbi, ClawTokenAbi, LobsterNFTAbi, TeamManagerAbi, MiningPoolAbi, FaucetAbi, EvolutionLabAbi,
+  BattleArenaAbi, GoldTokenAbi, LobsterNFTAbi, TeamManagerAbi, MiningPoolAbi, FaucetAbi, EvolutionLabAbi,
 } from '@clawbada/chain';
 import type { Deployment } from './forge';
 
@@ -58,15 +58,15 @@ export class Chain {
 
   // ── contracts ──
   get arena() { return this.d.contracts.BattleArena; }
-  get claw() { return this.d.contracts.ClawToken; }
+  get gold() { return this.d.contracts.GoldToken; }
   get nft() { return this.d.contracts.LobsterNFT; }
   get teams() { return this.d.contracts.TeamManager; }
   get pool() { return this.d.contracts.MiningPool; }
   get faucet() { return this.d.contracts.Faucet; }
   get evolution() { return this.d.contracts.EvolutionLab; }
 
-  balance(addr: string) { return this.read<bigint>(this.claw, ClawTokenAbi, 'balanceOf', [addr]); }
-  totalSupply() { return this.read<bigint>(this.claw, ClawTokenAbi, 'totalSupply'); }
+  balance(addr: string) { return this.read<bigint>(this.gold, GoldTokenAbi, 'balanceOf', [addr]); }
+  totalSupply() { return this.read<bigint>(this.gold, GoldTokenAbi, 'totalSupply'); }
   getBattle(id: bigint) { return this.read<any>(this.arena, BattleArenaAbi, 'getBattle', [id]); }
   teamInBattle(teamId: bigint) { return this.read<boolean>(this.arena, BattleArenaAbi, 'teamInBattle', [teamId]); }
   refundReserve() { return this.read<bigint>(this.arena, BattleArenaAbi, 'refundReserve'); }
@@ -94,8 +94,8 @@ export class Chain {
     }
     return ids;
   }
-  async transferClaw(fromKey: string, to: string, amountWei: bigint) {
-    await this.tx(fromKey, this.claw, ClawTokenAbi, 'transfer', [to, amountWei]);
+  async transferGold(fromKey: string, to: string, amountWei: bigint) {
+    await this.tx(fromKey, this.gold, GoldTokenAbi, 'transfer', [to, amountWei]);
   }
 }
 
@@ -111,4 +111,4 @@ export function dna(seed: number): bigint {
   return v;
 }
 
-export { BattleArenaAbi, ClawTokenAbi, LobsterNFTAbi, TeamManagerAbi, MiningPoolAbi, FaucetAbi, EvolutionLabAbi };
+export { BattleArenaAbi, GoldTokenAbi, LobsterNFTAbi, TeamManagerAbi, MiningPoolAbi, FaucetAbi, EvolutionLabAbi };

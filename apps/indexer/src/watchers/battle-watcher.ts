@@ -171,7 +171,7 @@ export class BattleWatcher extends EventWatcher {
           .limit(1);
         // F-12: contract emits stakeAmount in wei (1e18 units). Persist as DISPLAY value
         // (divide by 1e18) so the `battles.stakeAmount` column stays semantically aligned with
-        // what the matchmaker writes and what frontend `formatClaw` consumers expect.
+        // what the matchmaker writes and what frontend `formatGold` consumers expect.
         const stakeWei = BigInt(args.stakeAmount);
         const stakeDisplay = stakeWei / (10n ** 18n);
 

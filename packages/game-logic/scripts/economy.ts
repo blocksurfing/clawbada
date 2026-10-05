@@ -49,8 +49,8 @@ for (const cap of [0, 2500, 5000, 7500]) {
   const evs = eq.classBestEV;
   const viable = evs.filter(e => e > 0).length;
   say(`\n## Rebate cap ${cap / 100}% of the protocol fee`);
-  say(`Effective comps in the economic meta: ${eq.effectiveComps.toFixed(1)} · classes with positive best-comp EV: ${viable}/10 · class EV spread (best−worst): ${(Math.max(...evs) - Math.min(...evs)).toFixed(0)} $CLAW`);
-  say('| Class | Pick share | Best-comp EV ($CLAW/battle) |'); say('|---|---|---|');
+  say(`Effective comps in the economic meta: ${eq.effectiveComps.toFixed(1)} · classes with positive best-comp EV: ${viable}/10 · class EV spread (best−worst): ${(Math.max(...evs) - Math.min(...evs)).toFixed(0)} $GOLD`);
+  say('| Class | Pick share | Best-comp EV ($GOLD/battle) |'); say('|---|---|---|');
   for (const c of [...Array(10).keys()].sort((a, b) => evs[b] - evs[a]))
     say(`| ${NAMES[c]} | ${(100 * eq.classShares[c]).toFixed(1)}% | ${evs[c].toFixed(0)} |`);
 }

@@ -5,7 +5,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {DeployHelpers, REFUND_RESERVE_TARGET} from "./DeployHelpers.s.sol";
-import {ClawToken} from "../ClawToken.sol";
+import {GoldToken} from "../GoldToken.sol";
 import {LobsterNFT} from "../LobsterNFT.sol";
 import {TeamManager} from "../TeamManager.sol";
 import {MiningPool} from "../MiningPool.sol";
@@ -26,7 +26,7 @@ interface ISafeView {
 /// @dev Audit 2026-09 findings D-11 / D-23 / D-24. The previous handoff asserted only that
 ///      the deployer had LOST three roles. It never asserted that a live, controlled
 ///      account had GAINED them, that Configure had finished (its last transaction is the
-///      one that takes ClawToken MINTER_ROLE back off the deploy key), or that Treasury
+///      one that takes GoldToken MINTER_ROLE back off the deploy key), or that Treasury
 ///      ownership had actually moved. Every check here reverts with a message naming the
 ///      one thing that is wrong.
 ///
@@ -51,18 +51,18 @@ library DeploymentChecks {
     /// @notice Configure.s.sol ran to completion and left the deploy key holding no mint
     ///         power and no role it was not explicitly given.
     function requireConfigured(DeployHelpers.Deployment memory d, address deployer, HotKeys memory k) internal view {
-        // ── ClawToken: the most dangerous temporary power the deployer ever holds ──
-        ClawToken claw = ClawToken(d.clawToken);
-        bytes32 clawMinter = claw.MINTER_ROLE();
+        // ── GoldToken: the most dangerous temporary power the deployer ever holds ──
+        GoldToken gold = GoldToken(d.goldToken);
+        bytes32 goldMinter = gold.MINTER_ROLE();
         require(
-            !claw.hasRole(clawMinter, deployer),
-            "verify: deployer still holds ClawToken MINTER_ROLE (Configure's final revoke did not land)"
+            !gold.hasRole(goldMinter, deployer),
+            "verify: deployer still holds GoldToken MINTER_ROLE (Configure's final revoke did not land)"
         );
-        require(claw.hasRole(clawMinter, d.miningPool), "verify: MiningPool lacks ClawToken MINTER_ROLE");
+        require(gold.hasRole(goldMinter, d.miningPool), "verify: MiningPool lacks GoldToken MINTER_ROLE");
 
         // ── Treasury wiring ──
         Treasury treasury = Treasury(d.treasury);
-        require(address(treasury.clawToken()) == d.clawToken, "verify: Treasury.clawToken not set");
+        require(address(treasury.goldToken()) == d.goldToken, "verify: Treasury.goldToken not set");
         require(treasury.devWallet() == k.devWallet, "verify: Treasury.devWallet is not DEV_WALLET");
         require(treasury.authorized(d.breedingLab), "verify: Treasury has not authorized BreedingLab");
         require(treasury.authorized(d.marketplace), "verify: Treasury has not authorized Marketplace");
@@ -113,7 +113,7 @@ library DeploymentChecks {
         Faucet faucet = Faucet(d.faucet);
         if (block.timestamp < faucet.closeTime()) {
             require(
-                IERC20(d.clawToken).balanceOf(d.faucet) + faucet.totalClawClaimed() >= 70_000_000e18,
+                IERC20(d.goldToken).balanceOf(d.faucet) + faucet.totalGoldClaimed() >= 70_000_000e18,
                 "verify: Faucet does not hold its 70M pre-mint"
             );
         }
@@ -202,7 +202,7 @@ library DeploymentChecks {
             "verify: safe lacks BattleArena DEFAULT_ADMIN_ROLE (it alone can resolveFrozen)"
         );
         require(
-            deployerHoldsNoGovernance(adminContracts, d.miningPool, d.faucet, d.clawToken, deployer),
+            deployerHoldsNoGovernance(adminContracts, d.miningPool, d.faucet, d.goldToken, deployer),
             "verify: deployer still holds a governance or mint role"
         );
         if (guardian != deployer) {
@@ -222,18 +222,18 @@ library DeploymentChecks {
     function requireReserveFunded(DeployHelpers.Deployment memory d) internal view {
         require(
             BattleArena(d.battleArena).refundReserve() >= REFUND_RESERVE_TARGET,
-            "verify: BattleArena refund reserve is below 2,000,000 CLAW - the Safe must approve + fundReserve"
+            "verify: BattleArena refund reserve is below 2,000,000 GOLD - the Safe must approve + fundReserve"
         );
     }
 
     /// @notice True iff `deployer` holds none of: DEFAULT_ADMIN on any AccessControl contract,
-    ///         MiningPool SEASON_ADMIN, Faucet ELIGIBILITY, ClawToken MINTER.
+    ///         MiningPool SEASON_ADMIN, Faucet ELIGIBILITY, GoldToken MINTER.
     /// @dev Treasury is Ownable2Step, not AccessControl — requireFinalized checks its owner.
     function deployerHoldsNoGovernance(
         address[] memory adminContracts,
         address miningPool,
         address faucet,
-        address clawToken,
+        address goldToken,
         address deployer
     ) internal view returns (bool) {
         for (uint256 i = 0; i < adminContracts.length; i++) {
@@ -241,7 +241,7 @@ library DeploymentChecks {
         }
         if (IAccessControl(miningPool).hasRole(MiningPool(miningPool).SEASON_ADMIN_ROLE(), deployer)) return false;
         if (IAccessControl(faucet).hasRole(Faucet(faucet).ELIGIBILITY_ROLE(), deployer)) return false;
-        if (IAccessControl(clawToken).hasRole(ClawToken(clawToken).MINTER_ROLE(), deployer)) return false;
+        if (IAccessControl(goldToken).hasRole(GoldToken(goldToken).MINTER_ROLE(), deployer)) return false;
         return true;
     }
 

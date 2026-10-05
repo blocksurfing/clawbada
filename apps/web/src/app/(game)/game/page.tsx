@@ -11,7 +11,7 @@ import { FrostedSkeletonCard } from '@/components/ui/frosted-skeleton';
 import { PageBackground } from '@/components/ui/page-background';
 import { PixelIcon } from '@/components/ui/pixel-icon';
 import { ICONS, BACKGROUNDS } from '@/lib/assets';
-import { formatClaw, formatCountdown, tierLabel } from '@/lib/format';
+import { formatGold, formatCountdown, tierLabel } from '@/lib/format';
 import {
   Pickaxe,
   Swords,
@@ -186,7 +186,7 @@ function ExpeditionCard({ expedition }: { expedition: { expeditionId: string; re
         <div className="flex items-center gap-2 mb-0.5">
           <span className="font-pixel text-[10px] text-text-accent">{tierLabel(expedition.mineTier)} Mine</span>
         </div>
-        <div className="text-sm font-medium text-text-accent font-mono">{formatClaw(expedition.reward)}</div>
+        <div className="text-sm font-medium text-text-accent font-mono">{formatGold(expedition.reward)}</div>
       </div>
       {isComplete ? (
         <Badge className="bg-coral text-white font-pixel text-[10px]">Ready to claim</Badge>

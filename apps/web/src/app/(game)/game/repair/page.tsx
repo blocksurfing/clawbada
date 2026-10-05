@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { TransactionButton } from '@/components/game/transaction-button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
-import { formatClaw, tierLabel } from '@/lib/format';
+import { formatGold, tierLabel } from '@/lib/format';
 import { BACKGROUNDS } from '@/lib/assets';
 import { Wrench, AlertTriangle } from 'lucide-react';
 
@@ -146,11 +146,11 @@ export default function RepairPage() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-xs text-text-secondary">Repair Cost</p>
-                <p className="font-mono text-coral">{formatClaw(costData.cost)}</p>
+                <p className="font-mono text-coral">{formatGold(costData.cost)}</p>
               </div>
               <div>
                 <p className="text-xs text-text-secondary">Rate</p>
-                <p className="font-mono text-foreground">{costData.ratePerPoint} $CLAW/point ({costData.tierName})</p>
+                <p className="font-mono text-foreground">{costData.ratePerPoint} $GOLD/point ({costData.tierName})</p>
               </div>
             </div>
 
@@ -162,7 +162,7 @@ export default function RepairPage() {
             </div>
 
             <TransactionButton
-              label={`Repair for ${formatClaw(costData.cost)}`}
+              label={`Repair for ${formatGold(costData.cost)}`}
               fetchSteps={(auth) => api.repair.repair(selectedLobster, repairPoints, auth)}
               onSuccess={invalidate}
             />

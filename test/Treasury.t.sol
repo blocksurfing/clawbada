@@ -2,12 +2,12 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {Treasury, IClawBurnable} from "../contracts/Treasury.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {Treasury, IGoldBurnable} from "../contracts/Treasury.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 
 contract TreasuryTest is Test {
     Treasury treasury;
-    ClawToken claw;
+    GoldToken gold;
 
     address admin = makeAddr("admin");
     address devWallet = makeAddr("devWallet");
@@ -19,15 +19,15 @@ contract TreasuryTest is Test {
         vm.startPrank(admin);
 
         treasury = new Treasury(admin, devWallet);
-        claw = new ClawToken(admin, lpAddress, address(treasury));
-        treasury.setClawToken(address(claw));
+        gold = new GoldToken(admin, lpAddress, address(treasury));
+        treasury.setGoldToken(address(gold));
         treasury.setAuthorized(authorizedCaller, true);
 
         vm.stopPrank();
 
-        // Give the authorized caller some CLAW to pay fees with
+        // Give the authorized caller some GOLD to pay fees with
         vm.prank(lpAddress);
-        claw.transfer(authorizedCaller, 1_000_000e18);
+        gold.transfer(authorizedCaller, 1_000_000e18);
     }
 
     // ──────────── Constructor ────────────
@@ -42,30 +42,30 @@ contract TreasuryTest is Test {
         new Treasury(admin, address(0));
     }
 
-    // ──────────── setClawToken ────────────
+    // ──────────── setGoldToken ────────────
 
-    function test_setClawTokenOnce() public view {
-        assertEq(address(treasury.clawToken()), address(claw));
+    function test_setGoldTokenOnce() public view {
+        assertEq(address(treasury.goldToken()), address(gold));
     }
 
-    function test_setClawTokenTwiceReverts() public {
+    function test_setGoldTokenTwiceReverts() public {
         vm.prank(admin);
         vm.expectRevert(Treasury.TokenAlreadySet.selector);
-        treasury.setClawToken(address(claw));
+        treasury.setGoldToken(address(gold));
     }
 
-    function test_setClawTokenNonOwnerReverts() public {
+    function test_setGoldTokenNonOwnerReverts() public {
         Treasury newTreasury = new Treasury(admin, devWallet);
         vm.prank(unauthorized);
         vm.expectRevert();
-        newTreasury.setClawToken(address(claw));
+        newTreasury.setGoldToken(address(gold));
     }
 
-    function test_setClawTokenZeroAddressReverts() public {
+    function test_setGoldTokenZeroAddressReverts() public {
         Treasury newTreasury = new Treasury(admin, devWallet);
         vm.prank(admin);
         vm.expectRevert(Treasury.ZeroAddress.selector);
-        newTreasury.setClawToken(address(0));
+        newTreasury.setGoldToken(address(0));
     }
 
     // ──────────── setDevWallet ────────────
@@ -121,21 +121,21 @@ contract TreasuryTest is Test {
         uint256 expectedBurn = (feeAmount * 8500) / 10_000;
         uint256 expectedDev = feeAmount - expectedBurn;
 
-        uint256 totalSupplyBefore = claw.totalSupply();
-        uint256 devBalBefore = claw.balanceOf(devWallet);
-        uint256 treasuryBalBefore = claw.balanceOf(address(treasury));
+        uint256 totalSupplyBefore = gold.totalSupply();
+        uint256 devBalBefore = gold.balanceOf(devWallet);
+        uint256 treasuryBalBefore = gold.balanceOf(address(treasury));
 
         vm.startPrank(authorizedCaller);
-        claw.approve(address(treasury), feeAmount);
+        gold.approve(address(treasury), feeAmount);
         treasury.processFee(feeAmount);
         vm.stopPrank();
 
         // 85% burned
-        assertEq(claw.totalSupply(), totalSupplyBefore - expectedBurn);
+        assertEq(gold.totalSupply(), totalSupplyBefore - expectedBurn);
         // 15% to dev
-        assertEq(claw.balanceOf(devWallet), devBalBefore + expectedDev);
+        assertEq(gold.balanceOf(devWallet), devBalBefore + expectedDev);
         // Treasury balance unchanged (fees pass through, don't accumulate)
-        assertEq(claw.balanceOf(address(treasury)), treasuryBalBefore);
+        assertEq(gold.balanceOf(address(treasury)), treasuryBalBefore);
     }
 
     function test_processFeeSmallAmount_reverts() public {
@@ -146,7 +146,7 @@ contract TreasuryTest is Test {
         uint256 feeAmount = 1;
 
         vm.startPrank(authorizedCaller);
-        claw.approve(address(treasury), feeAmount);
+        gold.approve(address(treasury), feeAmount);
         vm.expectRevert(
             abi.encodeWithSelector(Treasury.AmountBelowMinimum.selector, feeAmount, treasury.BPS_DENOMINATOR())
         );
@@ -179,7 +179,7 @@ contract TreasuryTest is Test {
         uint256 expectedDev = feeAmount - expectedBurn;
 
         vm.startPrank(authorizedCaller);
-        claw.approve(address(treasury), feeAmount);
+        gold.approve(address(treasury), feeAmount);
 
         vm.expectEmit(true, false, false, true);
         emit Treasury.FeeProcessed(authorizedCaller, feeAmount, expectedBurn, expectedDev);
@@ -189,7 +189,7 @@ contract TreasuryTest is Test {
 
     function test_processFeeMultipleCalls() public {
         vm.startPrank(authorizedCaller);
-        claw.approve(address(treasury), 100_000e18);
+        gold.approve(address(treasury), 100_000e18);
 
         treasury.processFee(10_000e18);
         treasury.processFee(20_000e18);
@@ -198,7 +198,7 @@ contract TreasuryTest is Test {
 
         uint256 totalFees = 60_000e18;
         uint256 expectedDev = totalFees - (totalFees * 8500) / 10_000;
-        assertEq(claw.balanceOf(devWallet), expectedDev);
+        assertEq(gold.balanceOf(devWallet), expectedDev);
     }
 
     // ──────────── Ownership ────────────
@@ -223,18 +223,18 @@ contract TreasuryTest is Test {
 
         // Ensure caller has enough
         vm.prank(lpAddress);
-        claw.transfer(authorizedCaller, amount);
+        gold.transfer(authorizedCaller, amount);
 
-        uint256 totalSupplyBefore = claw.totalSupply();
-        uint256 devBalBefore = claw.balanceOf(devWallet);
+        uint256 totalSupplyBefore = gold.totalSupply();
+        uint256 devBalBefore = gold.balanceOf(devWallet);
 
         vm.startPrank(authorizedCaller);
-        claw.approve(address(treasury), amount);
+        gold.approve(address(treasury), amount);
         treasury.processFee(amount);
         vm.stopPrank();
 
-        uint256 burned = totalSupplyBefore - claw.totalSupply();
-        uint256 devReceived = claw.balanceOf(devWallet) - devBalBefore;
+        uint256 burned = totalSupplyBefore - gold.totalSupply();
+        uint256 devReceived = gold.balanceOf(devWallet) - devBalBefore;
 
         // burned + devReceived must equal the fee amount exactly
         assertEq(burned + devReceived, amount);

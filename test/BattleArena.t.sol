@@ -6,7 +6,7 @@ import {BattleArena} from "../contracts/BattleArena.sol";
 import {BattleVRF} from "../contracts/BattleVRF.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {MiningPool} from "../contracts/MiningPool.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
@@ -32,7 +32,7 @@ contract BattleArenaTest is Test {
     MiningPool pool; // D-E: the stake peg's source (no season is ever started here → launch amounts)
     TeamManager tm;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
     Treasury treasury;
 
     address admin = makeAddr("admin");
@@ -59,14 +59,14 @@ contract BattleArenaTest is Test {
         vm.startPrank(admin);
 
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
-        claw = new ClawToken(admin, lpAddress, treasuryAddress);
+        gold = new GoldToken(admin, lpAddress, treasuryAddress);
         tm = new TeamManager(admin, address(nft));
         treasury = new Treasury(admin, devWallet);
         vrf = new BattleVRF(admin);
-        pool = new MiningPool(admin, address(claw), address(nft), address(tm));
+        pool = new MiningPool(admin, address(gold), address(nft), address(tm));
 
         arena = new BattleArena(
-            admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool)
         );
 
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -77,7 +77,7 @@ contract BattleArenaTest is Test {
         arena.grantRole(arena.MATCHMAKER_ROLE(), matchmaker);
         arena.grantRole(arena.RESOLVER_ROLE(), resolver);
         arena.grantRole(arena.GUARDIAN_ROLE(), guardian);
-        treasury.setClawToken(address(claw));
+        treasury.setGoldToken(address(gold));
         treasury.setAuthorized(address(arena), true);
         vrf.grantRole(vrf.OPERATOR_ROLE(), admin);
 
@@ -98,7 +98,7 @@ contract BattleArenaTest is Test {
 
     function _fundPlayer(address player, uint256 amount) internal {
         vm.prank(lpAddress);
-        claw.transfer(player, amount);
+        gold.transfer(player, amount);
     }
 
     function _ag(uint256 stake) internal pure returns (uint256) {
@@ -153,7 +153,7 @@ contract BattleArenaTest is Test {
     function _deposit(uint256 battleId, address player, bytes32 commit) internal {
         uint256 stake = arena.getBattle(battleId).stakeAmount;
         vm.prank(player);
-        claw.approve(address(arena), stake + _ag(stake));
+        gold.approve(address(arena), stake + _ag(stake));
         vm.prank(player);
         arena.deposit(battleId, stake, 9, commit);
     }
@@ -215,12 +215,12 @@ contract BattleArenaTest is Test {
 
     function _fundReserve(uint256 amount) internal {
         vm.prank(funder);
-        claw.approve(address(arena), amount);
+        gold.approve(address(arena), amount);
         vm.prank(funder);
         arena.fundReserve(amount);
     }
 
-    /// @dev CLAW the arena should be holding for players, derived from every battle's phase.
+    /// @dev GOLD the arena should be holding for players, derived from every battle's phase.
     function _escrowHeld() internal view returns (uint256 total) {
         uint256 n = arena.nextBattleId();
         for (uint256 id = 1; id < n; id++) {
@@ -239,15 +239,15 @@ contract BattleArenaTest is Test {
 
     /// @dev Token conservation: the arena holds exactly the open escrow plus the refund reserve.
     function _assertConservation() internal view {
-        assertEq(claw.balanceOf(address(arena)), _escrowHeld() + arena.refundReserve(), "arena == escrow + reserve");
-        assertEq(claw.balanceOf(address(treasury)), 0, "treasury holds nothing (burns + forwards)");
+        assertEq(gold.balanceOf(address(arena)), _escrowHeld() + arena.refundReserve(), "arena == escrow + reserve");
+        assertEq(gold.balanceOf(address(treasury)), 0, "treasury holds nothing (burns + forwards)");
     }
 
     /// @dev Treasury.processFee(amount): 85% burned, 15% to the dev wallet.
     function _assertTreasuryReceived(uint256 devBefore, uint256 supplyBefore, uint256 amount) internal view {
         uint256 burned = amount * 8500 / 10_000;
-        assertEq(claw.balanceOf(devWallet), devBefore + amount - burned, "dev got 15%");
-        assertEq(claw.totalSupply(), supplyBefore - burned, "85% burned");
+        assertEq(gold.balanceOf(devWallet), devBefore + amount - burned, "dev got 15%");
+        assertEq(gold.totalSupply(), supplyBefore - burned, "85% burned");
     }
 
     function _expectPhase(uint256 battleId, BattleArena.BattlePhase expected) internal view {
@@ -257,7 +257,7 @@ contract BattleArenaTest is Test {
     // ──────────── Constructor ────────────
 
     function test_constructorSetsState() public view {
-        assertEq(address(arena.clawToken()), address(claw));
+        assertEq(address(arena.goldToken()), address(gold));
         assertEq(address(arena.lobsterNFT()), address(nft));
         assertEq(address(arena.teamManager()), address(tm));
         assertEq(address(arena.treasury()), address(treasury));
@@ -274,13 +274,13 @@ contract BattleArenaTest is Test {
     function test_constructorZeroAddressReverts() public {
         vm.startPrank(admin);
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(address(0), address(claw), address(nft), address(tm), address(treasury), address(vrf), address(pool));
+        new BattleArena(address(0), address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool));
 
         vm.expectRevert(BattleArena.ZeroAddress.selector);
         new BattleArena(admin, address(0), address(nft), address(tm), address(treasury), address(vrf), address(pool));
 
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(claw), address(0), address(tm), address(treasury), address(vrf), address(pool));
+        new BattleArena(admin, address(gold), address(0), address(tm), address(treasury), address(vrf), address(pool));
         vm.stopPrank();
     }
 
@@ -363,11 +363,11 @@ contract BattleArenaTest is Test {
     function test_depositPlayerA() public {
         uint256 battleId = _createBattle();
         uint256 total = STAKE_LOW + _ag(STAKE_LOW);
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
         bytes32 commitA = _commitHash(battleId, alice, 1, SALT_A);
 
         vm.prank(alice);
-        claw.approve(address(arena), total);
+        gold.approve(address(arena), total);
         vm.expectEmit(true, true, false, true);
         emit BattleArena.StakeDeposited(battleId, alice);
         vm.expectEmit(true, true, false, true);
@@ -375,7 +375,7 @@ contract BattleArenaTest is Test {
         vm.prank(alice);
         arena.deposit(battleId, STAKE_LOW, 9, commitA);
 
-        assertEq(claw.balanceOf(alice), balBefore - total);
+        assertEq(gold.balanceOf(alice), balBefore - total);
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertTrue(b.depositA);
         assertFalse(b.depositB);
@@ -408,7 +408,7 @@ contract BattleArenaTest is Test {
         uint256 total = STAKE_LOW + _ag(STAKE_LOW);
 
         vm.prank(alice);
-        claw.approve(address(arena), total * 2);
+        gold.approve(address(arena), total * 2);
         vm.prank(alice);
         arena.deposit(battleId, STAKE_LOW, 3, bytes32("c1"));
 
@@ -422,7 +422,7 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupRevealPhase();
 
         vm.prank(alice);
-        claw.approve(address(arena), STAKE_LOW + _ag(STAKE_LOW));
+        gold.approve(address(arena), STAKE_LOW + _ag(STAKE_LOW));
         vm.expectRevert(
             abi.encodeWithSelector(
                 BattleArena.InvalidBattlePhase.selector,
@@ -446,7 +446,7 @@ contract BattleArenaTest is Test {
         uint256 battleId = _createBattle();
         vm.warp(block.timestamp + arena.DEPOSIT_WINDOW() + 1);
         vm.prank(alice);
-        claw.approve(address(arena), STAKE_LOW + _ag(STAKE_LOW));
+        gold.approve(address(arena), STAKE_LOW + _ag(STAKE_LOW));
         vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId));
         vm.prank(alice);
         arena.deposit(battleId, STAKE_LOW, 3, bytes32("c"));
@@ -455,7 +455,7 @@ contract BattleArenaTest is Test {
     function test_depositZeroCommitReverts() public {
         uint256 battleId = _createBattle();
         vm.prank(alice);
-        claw.approve(address(arena), STAKE_LOW + _ag(STAKE_LOW));
+        gold.approve(address(arena), STAKE_LOW + _ag(STAKE_LOW));
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
         vm.prank(alice);
         arena.deposit(battleId, STAKE_LOW, 9, bytes32(0));
@@ -465,7 +465,7 @@ contract BattleArenaTest is Test {
     function test_depositConsentStakeMismatchReverts() public {
         uint256 battleId = _createBattle();
         vm.prank(alice);
-        claw.approve(address(arena), type(uint256).max);
+        gold.approve(address(arena), type(uint256).max);
 
         vm.expectRevert(abi.encodeWithSelector(BattleArena.ConsentMismatch.selector, battleId, STAKE_LOW, uint8(3)));
         vm.prank(alice);
@@ -476,14 +476,14 @@ contract BattleArenaTest is Test {
         arena.deposit(battleId, STAKE_LOW - 1, 9, bytes32("c"));
 
         assertFalse(arena.getBattle(battleId).depositA);
-        assertEq(claw.balanceOf(address(arena)), 0, "nothing escrowed on a refused deposit");
+        assertEq(gold.balanceOf(address(arena)), 0, "nothing escrowed on a refused deposit");
     }
 
     /// @dev D-08: each side is checked against the OTHER side's power snapshot.
     function test_depositConsentOpponentPowerTooHighReverts_sideA() public {
         uint256 battleId = _createBattleAt(STAKE_LOW, 3, 5); // A=3, B=5
         vm.prank(alice);
-        claw.approve(address(arena), type(uint256).max);
+        gold.approve(address(arena), type(uint256).max);
 
         vm.expectRevert(abi.encodeWithSelector(BattleArena.ConsentMismatch.selector, battleId, STAKE_LOW, uint8(5)));
         vm.prank(alice);
@@ -498,7 +498,7 @@ contract BattleArenaTest is Test {
     function test_depositConsentOpponentPowerTooHighReverts_sideB() public {
         uint256 battleId = _createBattleAt(STAKE_LOW, 6, 3); // A=6, B=3
         vm.prank(bob);
-        claw.approve(address(arena), type(uint256).max);
+        gold.approve(address(arena), type(uint256).max);
 
         // Bob's own power (3) is irrelevant: his opponent is Power 6.
         vm.expectRevert(abi.encodeWithSelector(BattleArena.ConsentMismatch.selector, battleId, STAKE_LOW, uint8(6)));
@@ -514,10 +514,10 @@ contract BattleArenaTest is Test {
     function test_depositConsentWeakerOpponentAccepted() public {
         uint256 battleId = _createBattleAt(STAKE_MID, 3, 3);
         vm.prank(alice);
-        claw.approve(address(arena), STAKE_MID + _ag(STAKE_MID));
+        gold.approve(address(arena), STAKE_MID + _ag(STAKE_MID));
         vm.prank(alice);
         arena.deposit(battleId, STAKE_MID, 9, bytes32("c"));
-        assertEq(claw.balanceOf(address(arena)), STAKE_MID + _ag(STAKE_MID));
+        assertEq(gold.balanceOf(address(arena)), STAKE_MID + _ag(STAKE_MID));
     }
 
     // ──────────── revealTeams ────────────
@@ -586,13 +586,13 @@ contract BattleArenaTest is Test {
 
     function test_settleAppliesDamageAndReleasesTeamsImmediately() public {
         (uint256 battleId, uint256 teamIdA, uint256 teamIdB) = _setupActiveBattle();
-        uint256 arenaBefore = claw.balanceOf(address(arena));
+        uint256 arenaBefore = gold.balanceOf(address(arena));
 
         _settle(battleId, alice, address(0));
 
         // Phase is "in review" — money waits, lobsters do not.
         _expectPhase(battleId, BattleArena.BattlePhase.AwaitingFinalize);
-        assertEq(claw.balanceOf(address(arena)), arenaBefore, "no money moves at settle");
+        assertEq(gold.balanceOf(address(arena)), arenaBefore, "no money moves at settle");
 
         TeamManager.Team memory teamA = tm.getTeam(teamIdA);
         TeamManager.Team memory teamB = tm.getTeam(teamIdB);
@@ -883,16 +883,16 @@ contract BattleArenaTest is Test {
 
     function test_finalizeWinnerPayoutAndFeeSplit() public {
         (uint256 battleId,,) = _setupActiveBattle();
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         _settleAndFinalize(battleId, alice, [uint8(10), 5, 8], [uint8(30), 25, 35]);
 
         // pot 5,000; fee 500 (425 burned, 75 dev); winner 4,500 + own 125; loser own 125.
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
-        assertEq(claw.balanceOf(bob), bobBefore + 125e18);
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
+        assertEq(gold.balanceOf(bob), bobBefore + 125e18);
         _assertTreasuryReceived(devBefore, supplyBefore, 500e18);
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
@@ -937,10 +937,10 @@ contract BattleArenaTest is Test {
     /// @dev D-15: the forfeiting loser's 5% goes to the Treasury with the fee.
     function test_forfeiterLosesAntiGriefToTreasury() public {
         (uint256 battleId,,) = _setupActiveBattle();
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         _settle(battleId, alice, bob);
         vm.warp(arena.getBattle(battleId).payoutDeadline + 1);
@@ -951,8 +951,8 @@ contract BattleArenaTest is Test {
         emit BattleArena.BattleSettled(battleId, alice, 4_500e18, 500e18);
         arena.finalizeBattle(battleId);
 
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18, "winner unaffected by the forfeit");
-        assertEq(claw.balanceOf(bob), bobBefore, "forfeiter gets nothing back");
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_500e18 + 125e18, "winner unaffected by the forfeit");
+        assertEq(gold.balanceOf(bob), bobBefore, "forfeiter gets nothing back");
         _assertTreasuryReceived(devBefore, supplyBefore, 500e18 + 125e18);
         _assertConservation();
     }
@@ -960,18 +960,18 @@ contract BattleArenaTest is Test {
     /// @dev Mirror: player A as the forfeiting loser.
     function test_forfeiterSideA() public {
         (uint256 battleId,,) = _setupActiveBattleAt(STAKE_MID);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         _settle(battleId, bob, alice);
         vm.warp(arena.getBattle(battleId).payoutDeadline + 1);
         arena.finalizeBattle(battleId);
 
         // pot 20,000; fee 2,000; slash 500.
-        assertEq(claw.balanceOf(bob), bobBefore + 18_000e18 + 500e18);
-        assertEq(claw.balanceOf(alice), aliceBefore);
+        assertEq(gold.balanceOf(bob), bobBefore + 18_000e18 + 500e18);
+        assertEq(gold.balanceOf(alice), aliceBefore);
         _assertTreasuryReceived(devBefore, supplyBefore, 2_000e18 + 500e18);
         _assertConservation();
     }
@@ -981,10 +981,10 @@ contract BattleArenaTest is Test {
     /// @dev A draw now pays the normal fee, split: each side pays 10% of its own stake.
     function test_settleDrawChargesEachSideTenPercent() public {
         (uint256 battleId, uint256 teamIdA, uint256 teamIdB) = _setupActiveBattle();
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         uint256 sideFee = STAKE_LOW * 1000 / 10_000; // 250
         uint256 drawFee = 2 * sideFee; // 500 == the fee of a decided battle
@@ -1003,8 +1003,8 @@ contract BattleArenaTest is Test {
         assertEq(b.proposedWinner, address(0));
 
         // Each side: stake − 10% + own 5% = 2,375.
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW - sideFee + _ag(STAKE_LOW));
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW - sideFee + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW - sideFee + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW - sideFee + _ag(STAKE_LOW));
         _assertTreasuryReceived(devBefore, supplyBefore, drawFee);
 
         // Repair damage still applies to both teams, keyed by slot; teams released.
@@ -1034,11 +1034,11 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
         _settle(battleId, alice, address(0));
 
-        uint256 arenaBefore = claw.balanceOf(address(arena));
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 arenaBefore = gold.balanceOf(address(arena));
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.warp(block.timestamp + 60);
         vm.expectEmit(true, true, false, true);
@@ -1049,11 +1049,11 @@ contract BattleArenaTest is Test {
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Frozen));
         assertEq(uint256(b.frozenAt), block.timestamp);
-        assertEq(claw.balanceOf(address(arena)), arenaBefore);
-        assertEq(claw.balanceOf(alice), aliceBefore);
-        assertEq(claw.balanceOf(bob), bobBefore);
-        assertEq(claw.balanceOf(devWallet), devBefore);
-        assertEq(claw.totalSupply(), supplyBefore);
+        assertEq(gold.balanceOf(address(arena)), arenaBefore);
+        assertEq(gold.balanceOf(alice), aliceBefore);
+        assertEq(gold.balanceOf(bob), bobBefore);
+        assertEq(gold.balanceOf(devWallet), devBefore);
+        assertEq(gold.totalSupply(), supplyBefore);
         _assertConservation();
 
         // Frozen money cannot be paid by finalize any more.
@@ -1152,10 +1152,10 @@ contract BattleArenaTest is Test {
     function test_resolveFrozenCorrectedWinner() public {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, alice); // proposed alice; the Safe finds bob won
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.expectEmit(true, true, false, true);
         emit BattleArena.FrozenResolved(battleId, bob, false);
@@ -1164,8 +1164,8 @@ contract BattleArenaTest is Test {
         vm.prank(admin);
         arena.resolveFrozen(battleId, bob, address(0), false);
 
-        assertEq(claw.balanceOf(bob), bobBefore + 4_500e18 + 125e18);
-        assertEq(claw.balanceOf(alice), aliceBefore + 125e18);
+        assertEq(gold.balanceOf(bob), bobBefore + 4_500e18 + 125e18);
+        assertEq(gold.balanceOf(alice), aliceBefore + 125e18);
         _assertTreasuryReceived(devBefore, supplyBefore, 500e18);
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
@@ -1177,32 +1177,32 @@ contract BattleArenaTest is Test {
     function test_resolveFrozenSameResultPaysLikeFinalize() public {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, alice);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
 
         vm.prank(admin);
         arena.resolveFrozen(battleId, alice, address(0), false);
 
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
-        assertEq(claw.balanceOf(bob), bobBefore + 125e18);
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
+        assertEq(gold.balanceOf(bob), bobBefore + 125e18);
         _assertConservation();
     }
 
     function test_resolveFrozenWithForfeiterSlashes() public {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, alice);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.expectEmit(true, true, false, true);
         emit BattleArena.AntiGriefSlashed(battleId, bob, 125e18);
         vm.prank(admin);
         arena.resolveFrozen(battleId, alice, bob, false);
 
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18, "winner: pot minus fee, plus own 5%");
-        assertEq(claw.balanceOf(bob), bobBefore);
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_500e18 + 125e18, "winner: pot minus fee, plus own 5%");
+        assertEq(gold.balanceOf(bob), bobBefore);
         _assertTreasuryReceived(devBefore, supplyBefore, 625e18);
         _assertConservation();
     }
@@ -1211,14 +1211,14 @@ contract BattleArenaTest is Test {
     function test_resolveFrozenDrawToWinner() public {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, address(0));
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
 
         vm.prank(admin);
         arena.resolveFrozen(battleId, alice, address(0), false);
 
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
-        assertEq(claw.balanceOf(bob), bobBefore + 125e18, "loser: only the 5% back");
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
+        assertEq(gold.balanceOf(bob), bobBefore + 125e18, "loser: only the 5% back");
         assertEq(arena.getBattle(battleId).winner, alice);
         _assertConservation();
     }
@@ -1227,18 +1227,18 @@ contract BattleArenaTest is Test {
     function test_resolveFrozenToDraw() public {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, alice);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.expectEmit(true, true, false, true);
         emit BattleArena.FrozenResolved(battleId, address(0), false);
         vm.prank(admin);
         arena.resolveFrozen(battleId, address(0), address(0), false);
 
-        assertEq(claw.balanceOf(alice), aliceBefore + 2_375e18);
-        assertEq(claw.balanceOf(bob), bobBefore + 2_375e18);
+        assertEq(gold.balanceOf(alice), aliceBefore + 2_375e18);
+        assertEq(gold.balanceOf(bob), bobBefore + 2_375e18);
         _assertTreasuryReceived(devBefore, supplyBefore, 500e18);
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
@@ -1249,10 +1249,10 @@ contract BattleArenaTest is Test {
     function test_resolveFrozenRefundBoth() public {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, alice);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.expectEmit(true, true, false, true);
         emit BattleArena.FrozenResolved(battleId, address(0), true);
@@ -1262,10 +1262,10 @@ contract BattleArenaTest is Test {
         // winner/forfeiter are ignored on a refund, even if they would be invalid
         arena.resolveFrozen(battleId, nobody, nobody, true);
 
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW));
-        assertEq(claw.balanceOf(devWallet), devBefore, "no fee on a refund");
-        assertEq(claw.totalSupply(), supplyBefore, "nothing burned on a refund");
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(devWallet), devBefore, "no fee on a refund");
+        assertEq(gold.totalSupply(), supplyBefore, "nothing burned on a refund");
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
         assertEq(b.winner, address(0));
@@ -1345,26 +1345,26 @@ contract BattleArenaTest is Test {
         _settleAndFreeze(battleId, alice);
         vm.warp(uint256(arena.getBattle(battleId).frozenAt) + 72 hours + 1);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.expectEmit(true, false, false, true);
         emit BattleArena.FrozenExpired(battleId, 2 * STAKE_LOW, 2 * STAKE_LOW);
         vm.prank(nobody); // permissionless
         arena.expireFrozen(battleId);
 
-        assertEq(claw.totalSupply(), supplyBefore - 2 * STAKE_LOW, "exactly 2 stakes burned");
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW));
-        assertEq(claw.balanceOf(devWallet), devBefore, "no fee on expiry");
+        assertEq(gold.totalSupply(), supplyBefore - 2 * STAKE_LOW, "exactly 2 stakes burned");
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(devWallet), devBefore, "no fee on expiry");
         assertEq(arena.refundReserve(), STAKE_LOW, "reserve paid 2 stakes");
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
         assertEq(b.winner, address(0));
         _assertConservation();
-        assertEq(claw.balanceOf(address(arena)), STAKE_LOW, "only the reserve remains");
+        assertEq(gold.balanceOf(address(arena)), STAKE_LOW, "only the reserve remains");
     }
 
     /// @dev Boundary: a reserve of exactly 2 stakes is enough.
@@ -1373,13 +1373,13 @@ contract BattleArenaTest is Test {
         _fundReserve(2 * STAKE_LOW);
         _settleAndFreeze(battleId, alice);
         vm.warp(uint256(arena.getBattle(battleId).frozenAt) + 72 hours + 1);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 supplyBefore = gold.totalSupply();
 
         arena.expireFrozen(battleId);
 
-        assertEq(claw.totalSupply(), supplyBefore - 2 * STAKE_LOW);
+        assertEq(gold.totalSupply(), supplyBefore - 2 * STAKE_LOW);
         assertEq(arena.refundReserve(), 0);
-        assertEq(claw.balanceOf(address(arena)), 0);
+        assertEq(gold.balanceOf(address(arena)), 0);
         _assertConservation();
     }
 
@@ -1390,18 +1390,18 @@ contract BattleArenaTest is Test {
         _settleAndFreeze(battleId, alice);
         vm.warp(uint256(arena.getBattle(battleId).frozenAt) + 72 hours + 1);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.expectEmit(true, false, false, true);
         emit BattleArena.FrozenExpired(battleId, 0, 0);
         arena.expireFrozen(battleId);
 
-        assertEq(claw.totalSupply(), supplyBefore, "no burn");
+        assertEq(gold.totalSupply(), supplyBefore, "no burn");
         assertEq(arena.refundReserve(), 2 * STAKE_LOW - 1, "reserve untouched");
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW));
         _assertConservation();
     }
 
@@ -1409,16 +1409,16 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, bob);
         vm.warp(uint256(arena.getBattle(battleId).frozenAt) + 72 hours + 1);
-        uint256 supplyBefore = claw.totalSupply();
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 supplyBefore = gold.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
 
         arena.expireFrozen(battleId);
 
-        assertEq(claw.totalSupply(), supplyBefore);
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW + 125e18, "held stake returned, no burn");
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW + 125e18, "held stake returned, no burn");
-        assertEq(claw.balanceOf(address(arena)), 0);
+        assertEq(gold.totalSupply(), supplyBefore);
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW + 125e18, "held stake returned, no burn");
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW + 125e18, "held stake returned, no burn");
+        assertEq(gold.balanceOf(address(arena)), 0);
         _assertConservation();
     }
 
@@ -1458,14 +1458,14 @@ contract BattleArenaTest is Test {
 
     function test_fundReserveByAnyone() public {
         vm.prank(funder);
-        claw.approve(address(arena), 1_000e18);
+        gold.approve(address(arena), 1_000e18);
         vm.expectEmit(true, false, false, true);
         emit BattleArena.ReserveFunded(funder, 1_000e18);
         vm.prank(funder);
         arena.fundReserve(1_000e18);
 
         assertEq(arena.refundReserve(), 1_000e18);
-        assertEq(claw.balanceOf(address(arena)), 1_000e18);
+        assertEq(gold.balanceOf(address(arena)), 1_000e18);
         _assertConservation();
     }
 
@@ -1485,7 +1485,7 @@ contract BattleArenaTest is Test {
         vm.prank(admin);
         arena.withdrawReserve(safeDest, 2_000e18);
 
-        assertEq(claw.balanceOf(safeDest), 2_000e18);
+        assertEq(gold.balanceOf(safeDest), 2_000e18);
         assertEq(arena.refundReserve(), 3_000e18);
         _assertConservation();
     }
@@ -1517,7 +1517,7 @@ contract BattleArenaTest is Test {
     function test_withdrawReserveCannotTouchEscrow() public {
         (uint256 battleId,,) = _setupActiveBattle();
         _fundReserve(100e18);
-        assertGt(claw.balanceOf(address(arena)), 100e18 + 1);
+        assertGt(gold.balanceOf(address(arena)), 100e18 + 1);
 
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InsufficientReserve.selector, 100e18 + 1, 100e18));
         vm.prank(admin);
@@ -1525,14 +1525,14 @@ contract BattleArenaTest is Test {
 
         vm.prank(admin);
         arena.withdrawReserve(admin, 100e18);
-        assertEq(claw.balanceOf(address(arena)), 2 * (STAKE_LOW + _ag(STAKE_LOW)), "escrow intact");
+        assertEq(gold.balanceOf(address(arena)), 2 * (STAKE_LOW + _ag(STAKE_LOW)), "escrow intact");
         _assertConservation();
 
         // The battle still pays out in full.
-        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 aliceBefore = gold.balanceOf(alice);
         _settleAndFinalize(battleId, alice, [uint8(1), 1, 1], [uint8(1), 1, 1]);
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_625e18);
-        assertEq(claw.balanceOf(address(arena)), 0);
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_625e18);
+        assertEq(gold.balanceOf(address(arena)), 0);
     }
 
     /// @dev A normal payout never dips into the reserve.
@@ -1541,7 +1541,7 @@ contract BattleArenaTest is Test {
         _fundReserve(7_777e18);
         _settleAndFinalize(battleId, alice, [uint8(1), 1, 1], [uint8(1), 1, 1]);
         assertEq(arena.refundReserve(), 7_777e18);
-        assertEq(claw.balanceOf(address(arena)), 7_777e18);
+        assertEq(gold.balanceOf(address(arena)), 7_777e18);
         _assertConservation();
     }
 
@@ -1551,8 +1551,8 @@ contract BattleArenaTest is Test {
         uint256 battleId = _createBattle();
         _deposit(battleId, alice, bytes32("c"));
         uint256 total = STAKE_LOW + _ag(STAKE_LOW);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
 
         vm.warp(block.timestamp + arena.DEPOSIT_WINDOW() + 1);
         vm.expectEmit(true, false, false, true);
@@ -1560,8 +1560,8 @@ contract BattleArenaTest is Test {
         arena.handleTimeout(battleId);
 
         _expectPhase(battleId, BattleArena.BattlePhase.Cancelled);
-        assertEq(claw.balanceOf(alice), aliceBefore + total);
-        assertEq(claw.balanceOf(bob), bobBefore, "bob never deposited");
+        assertEq(gold.balanceOf(alice), aliceBefore + total);
+        assertEq(gold.balanceOf(bob), bobBefore, "bob never deposited");
         _assertConservation();
     }
 
@@ -1569,8 +1569,8 @@ contract BattleArenaTest is Test {
     function test_handleTimeoutRevealMutualCancel() public {
         (uint256 battleId,,) = _setupRevealPhase();
         uint256 total = STAKE_LOW + _ag(STAKE_LOW);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
 
         vm.warp(block.timestamp + arena.TEAM_REVEAL_WINDOW() + 1);
         vm.expectEmit(true, false, false, true);
@@ -1578,8 +1578,8 @@ contract BattleArenaTest is Test {
         arena.handleTimeout(battleId);
 
         _expectPhase(battleId, BattleArena.BattlePhase.Cancelled);
-        assertEq(claw.balanceOf(alice), aliceBefore + total);
-        assertEq(claw.balanceOf(bob), bobBefore + total);
+        assertEq(gold.balanceOf(alice), aliceBefore + total);
+        assertEq(gold.balanceOf(bob), bobBefore + total);
         _assertConservation();
     }
 
@@ -1610,9 +1610,9 @@ contract BattleArenaTest is Test {
     function test_handleTimeoutActiveAfterWindowCancelsWithFullRefunds() public {
         (uint256 battleId, uint256 teamIdA, uint256 teamIdB) = _setupActiveBattle();
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 supplyBefore = gold.totalSupply();
         uint256 total = STAKE_LOW + _ag(STAKE_LOW);
 
         vm.warp(block.timestamp + arena.ACTIVE_WINDOW() + 1);
@@ -1623,10 +1623,10 @@ contract BattleArenaTest is Test {
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertTrue(b.phase == BattleArena.BattlePhase.Cancelled);
         assertEq(b.winner, address(0));
-        assertEq(claw.balanceOf(alice), aliceBefore + total);
-        assertEq(claw.balanceOf(bob), bobBefore + total);
-        assertEq(claw.totalSupply(), supplyBefore);
-        assertEq(claw.balanceOf(address(arena)), 0);
+        assertEq(gold.balanceOf(alice), aliceBefore + total);
+        assertEq(gold.balanceOf(bob), bobBefore + total);
+        assertEq(gold.totalSupply(), supplyBefore);
+        assertEq(gold.balanceOf(address(arena)), 0);
         assertFalse(arena.teamInBattle(teamIdA));
         assertFalse(arena.teamInBattle(teamIdB));
         assertFalse(tm.isTeamActive(teamIdA));
@@ -1643,18 +1643,18 @@ contract BattleArenaTest is Test {
         vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseNotTimedOut.selector, battleId));
         arena.handleTimeout(battleId);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
         vm.warp(deadline + 1);
         arena.handleTimeout(battleId);
 
         BattleArena.Battle memory b = arena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
         assertEq(b.winner, alice);
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_625e18);
-        assertEq(claw.balanceOf(bob), bobBefore);
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_625e18);
+        assertEq(gold.balanceOf(bob), bobBefore);
         _assertTreasuryReceived(devBefore, supplyBefore, 625e18);
         _assertConservation();
     }
@@ -1674,15 +1674,15 @@ contract BattleArenaTest is Test {
         vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseNotTimedOut.selector, battleId));
         arena.handleTimeout(battleId);
 
-        uint256 supplyBefore = claw.totalSupply();
-        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 supplyBefore = gold.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
         vm.warp(availableAt + 1);
         vm.expectEmit(true, false, false, true);
         emit BattleArena.FrozenExpired(battleId, 2 * STAKE_LOW, 2 * STAKE_LOW);
         arena.handleTimeout(battleId);
 
-        assertEq(claw.totalSupply(), supplyBefore - 2 * STAKE_LOW);
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.totalSupply(), supplyBefore - 2 * STAKE_LOW);
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
         assertEq(arena.refundReserve(), 0);
         _expectPhase(battleId, BattleArena.BattlePhase.Settled);
         _assertConservation();
@@ -1821,15 +1821,15 @@ contract BattleArenaTest is Test {
         vm.prank(alice);
         arena.openOwnCommit(battleId, teamIdA, SALT_A);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 devBefore = claw.balanceOf(devWallet);
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 devBefore = gold.balanceOf(devWallet);
         vm.warp(block.timestamp + 2 minutes + 1);
         vm.expectEmit(true, false, false, true);
         emit BattleArena.BattleCancelled(battleId, BattleArena.CancelReason.MutualTimeout);
         arena.handleTimeout(battleId);
 
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
-        assertEq(claw.balanceOf(devWallet), devBefore);
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(devWallet), devBefore);
         _assertConservation();
     }
 
@@ -1840,10 +1840,10 @@ contract BattleArenaTest is Test {
         vm.prank(resolver);
         arena.accuseRevealFailure(battleId, alice);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.warp(block.timestamp + 2 minutes + 1);
         vm.expectEmit(true, true, false, true);
@@ -1853,8 +1853,8 @@ contract BattleArenaTest is Test {
         arena.handleTimeout(battleId);
 
         _expectPhase(battleId, BattleArena.BattlePhase.Cancelled);
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW, "stake back, 5% slashed");
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW), "innocent side in full");
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW, "stake back, 5% slashed");
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW), "innocent side in full");
         _assertTreasuryReceived(devBefore, supplyBefore, _ag(STAKE_LOW));
         _assertConservation();
     }
@@ -1868,18 +1868,18 @@ contract BattleArenaTest is Test {
         vm.prank(alice); // alice clears herself; bob stays silent
         arena.openOwnCommit(battleId, teamIdA, SALT_A);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.warp(block.timestamp + 2 minutes + 1);
         vm.expectEmit(true, false, false, true);
         emit BattleArena.BattleCancelled(battleId, BattleArena.CancelReason.ForfeitB);
         arena.handleTimeout(battleId);
 
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW);
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW);
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
         _assertTreasuryReceived(devBefore, supplyBefore, _ag(STAKE_LOW));
         _assertConservation();
     }
@@ -1891,10 +1891,10 @@ contract BattleArenaTest is Test {
         arena.accuseRevealFailure(battleId, bob);
         vm.stopPrank();
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.warp(block.timestamp + 2 minutes + 1);
         vm.expectEmit(true, true, false, true);
@@ -1905,8 +1905,8 @@ contract BattleArenaTest is Test {
         emit BattleArena.BattleCancelled(battleId, BattleArena.CancelReason.ForfeitBoth); // review I1: not "mutual"
         arena.handleTimeout(battleId);
 
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW);
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW);
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW);
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW);
         _assertTreasuryReceived(devBefore, supplyBefore, 2 * _ag(STAKE_LOW));
         _assertConservation();
     }
@@ -1934,16 +1934,16 @@ contract BattleArenaTest is Test {
         _settle(battleId, alice, bob); // proposed: alice won, bob forfeited
         vm.prank(guardian);
         arena.freeze(battleId);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.prank(admin);
         arena.resolveFrozen(battleId, alice, address(0), false); // the Safe: alice won, nobody forfeited
 
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18, "winner: pot minus fee, plus own 5%");
-        assertEq(claw.balanceOf(bob), bobBefore + 125e18, "loser keeps the 5%: the proposed forfeit was overridden");
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_500e18 + 125e18, "winner: pot minus fee, plus own 5%");
+        assertEq(gold.balanceOf(bob), bobBefore + 125e18, "loser keeps the 5%: the proposed forfeit was overridden");
         _assertTreasuryReceived(devBefore, supplyBefore, 500e18);
         _assertConservation();
     }
@@ -1953,18 +1953,18 @@ contract BattleArenaTest is Test {
         _settle(battleId, alice, bob);
         vm.prank(guardian);
         arena.freeze(battleId);
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.expectEmit(true, true, false, true);
         emit BattleArena.AntiGriefSlashed(battleId, alice, 125e18);
         vm.prank(admin);
         arena.resolveFrozen(battleId, bob, alice, false); // the Safe: bob won, alice forfeited
 
-        assertEq(claw.balanceOf(bob), bobBefore + 4_500e18 + 125e18);
-        assertEq(claw.balanceOf(alice), aliceBefore, "alice: stake lost and the 5% slashed");
+        assertEq(gold.balanceOf(bob), bobBefore + 4_500e18 + 125e18);
+        assertEq(gold.balanceOf(alice), aliceBefore, "alice: stake lost and the 5% slashed");
         _assertTreasuryReceived(devBefore, supplyBefore, 625e18);
         _assertConservation();
     }
@@ -2024,16 +2024,16 @@ contract BattleArenaTest is Test {
         vm.expectRevert(abi.encodeWithSelector(BattleArena.TeamNotOwned.selector, teamIdA));
         arena.openOwnCommit(battleId, teamIdA, SALT_A);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
         vm.warp(arena.getBattle(battleId).phaseDeadline + 1);
         vm.expectEmit(true, false, false, true);
         emit BattleArena.BattleCancelled(battleId, BattleArena.CancelReason.ForfeitA);
         arena.handleTimeout(battleId);
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW, "alice: stake back, 5% gone");
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW), "bob: full refund");
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW, "alice: stake back, 5% gone");
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW), "bob: full refund");
         _assertTreasuryReceived(devBefore, supplyBefore, _ag(STAKE_LOW));
         _assertConservation();
     }
@@ -2064,13 +2064,13 @@ contract BattleArenaTest is Test {
     function test_depositAlreadyDepositedReverts_sideB() public {
         uint256 battleId = _createBattle();
         _deposit(battleId, bob, bytes32("b1"));
-        uint256 held = claw.balanceOf(address(arena));
+        uint256 held = gold.balanceOf(address(arena));
         vm.prank(bob);
-        claw.approve(address(arena), STAKE_LOW + _ag(STAKE_LOW));
+        gold.approve(address(arena), STAKE_LOW + _ag(STAKE_LOW));
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.AlreadyDeposited.selector, battleId));
         arena.deposit(battleId, STAKE_LOW, 9, bytes32("b2"));
-        assertEq(claw.balanceOf(address(arena)), held, "one escrow, not two");
+        assertEq(gold.balanceOf(address(arena)), held, "one escrow, not two");
         assertEq(arena.getBattle(battleId).teamCommitB, bytes32("b1"), "commit not swapped");
     }
 
@@ -2083,14 +2083,14 @@ contract BattleArenaTest is Test {
     }
 
     function _expectFinalizeRejected(uint256 battleId, BattleArena.BattlePhase actual) internal {
-        uint256 held = claw.balanceOf(address(arena));
+        uint256 held = gold.balanceOf(address(arena));
         vm.expectRevert(
             abi.encodeWithSelector(
                 BattleArena.InvalidBattlePhase.selector, battleId, BattleArena.BattlePhase.AwaitingFinalize, actual
             )
         );
         arena.finalizeBattle(battleId);
-        assertEq(claw.balanceOf(address(arena)), held, "nothing moved");
+        assertEq(gold.balanceOf(address(arena)), held, "nothing moved");
     }
 
     function test_revealTeamsWrongPhaseReverts() public {
@@ -2151,10 +2151,10 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
         _settleAndFreeze(battleId, alice);
         vm.warp(uint256(arena.getBattle(battleId).frozenAt) + 72 hours + 1);
-        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 aliceBefore = gold.balanceOf(alice);
         vm.prank(admin);
         arena.resolveFrozen(battleId, alice, address(0), false);
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
         vm.expectRevert(
             abi.encodeWithSelector(
                 BattleArena.InvalidBattlePhase.selector, battleId, BattleArena.BattlePhase.Frozen, BattleArena.BattlePhase.Settled
@@ -2221,13 +2221,13 @@ contract BattleArenaTest is Test {
     function test_constructorZeroAddressRevertsRemainingArgs() public {
         vm.startPrank(admin);
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(claw), address(nft), address(0), address(treasury), address(vrf), address(pool));
+        new BattleArena(admin, address(gold), address(nft), address(0), address(treasury), address(vrf), address(pool));
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(claw), address(nft), address(tm), address(0), address(vrf), address(pool));
+        new BattleArena(admin, address(gold), address(nft), address(tm), address(0), address(vrf), address(pool));
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(claw), address(nft), address(tm), address(treasury), address(0), address(pool));
+        new BattleArena(admin, address(gold), address(nft), address(tm), address(treasury), address(0), address(pool));
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(0));
+        new BattleArena(admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(0));
         vm.stopPrank();
     }
 
@@ -2346,16 +2346,16 @@ contract BattleArenaTest is Test {
         assertTrue(b.phase == BattleArena.BattlePhase.Active);
         assertEq(b.phaseDeadline, block.timestamp + arena.ACTIVE_WINDOW());
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
 
         _settleAndFinalize(battleId, alice, [uint8(10), 5, 8], [uint8(30), 25, 35]);
 
         b = arena.getBattle(battleId);
         assertTrue(b.phase == BattleArena.BattlePhase.Settled);
         assertEq(b.winner, alice);
-        assertEq(claw.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
-        assertEq(claw.balanceOf(bob), bobBefore + 125e18);
+        assertEq(gold.balanceOf(alice), aliceBefore + 4_500e18 + 125e18);
+        assertEq(gold.balanceOf(bob), bobBefore + 125e18);
         _assertConservation();
     }
 
@@ -2365,14 +2365,14 @@ contract BattleArenaTest is Test {
         (uint256 battleId,,) = _setupActiveBattle();
         vm.warp(block.timestamp + 24 hours + 1);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
-        uint256 bobBefore = claw.balanceOf(bob);
+        uint256 aliceBefore = gold.balanceOf(alice);
+        uint256 bobBefore = gold.balanceOf(bob);
 
         vm.prank(alice);
         arena.emergencyWithdraw(battleId);
 
-        assertEq(claw.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
-        assertEq(claw.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(alice), aliceBefore + STAKE_LOW + _ag(STAKE_LOW));
+        assertEq(gold.balanceOf(bob), bobBefore + STAKE_LOW + _ag(STAKE_LOW));
         _expectPhase(battleId, BattleArena.BattlePhase.Cancelled);
         _assertConservation();
     }

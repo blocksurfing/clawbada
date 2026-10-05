@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { formatClaw, tierLabel } from '@/lib/format';
+import { formatGold, tierLabel } from '@/lib/format';
 import { Pickaxe } from 'lucide-react';
 import { MINE_BACKGROUNDS } from '@/lib/assets';
 
@@ -47,7 +47,7 @@ export function MineTierCard({ tier, reward, available, onSelect }: MineTierCard
           <Pickaxe className={cn('size-4', TIER_ACCENTS[tier])} />
         </div>
         <div>
-          <p className="text-lg font-pixel text-text-accent">{formatClaw(reward)}</p>
+          <p className="text-lg font-pixel text-text-accent">{formatGold(reward)}</p>
           <p className="text-[10px] text-text-secondary">per expedition</p>
         </div>
         <div className="flex items-center justify-between text-xs text-text-secondary">

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test, stdStorage, StdStorage} from "forge-std/Test.sol";
 import {Faucet} from "../contracts/Faucet.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 contract FaucetTest is Test {
@@ -12,7 +12,7 @@ contract FaucetTest is Test {
 
     Faucet faucet;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
 
     address admin = makeAddr("admin");
     address eligibilityAdmin = makeAddr("eligibilityAdmin");
@@ -28,17 +28,17 @@ contract FaucetTest is Test {
 
         vm.startPrank(admin);
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
-        claw = new ClawToken(admin, lpAddress, treasuryAddress);
-        faucet = new Faucet(admin, address(nft), address(claw), closeTime);
+        gold = new GoldToken(admin, lpAddress, treasuryAddress);
+        faucet = new Faucet(admin, address(nft), address(gold), closeTime);
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), address(faucet));
         faucet.grantRole(faucet.ELIGIBILITY_ROLE(), eligibilityAdmin);
 
-        // Pre-fund faucet with $CLAW (replaces MINTER_ROLE grant — S-01 fix)
-        claw.grantRole(claw.MINTER_ROLE(), admin);
-        claw.mint(address(faucet), 70_000_000e18);
-        claw.revokeRole(claw.MINTER_ROLE(), admin);
+        // Pre-fund faucet with $GOLD (replaces MINTER_ROLE grant — S-01 fix)
+        gold.grantRole(gold.MINTER_ROLE(), admin);
+        gold.mint(address(faucet), 70_000_000e18);
+        gold.revokeRole(gold.MINTER_ROLE(), admin);
         vm.stopPrank();
 
         // Give alice and bob some ETH
@@ -72,22 +72,22 @@ contract FaucetTest is Test {
 
     function test_constructorSetsState() public view {
         assertEq(address(faucet.lobsterNFT()), address(nft));
-        assertEq(address(faucet.clawToken()), address(claw));
+        assertEq(address(faucet.goldToken()), address(gold));
         assertEq(faucet.closeTime(), closeTime);
         assertTrue(faucet.hasRole(faucet.DEFAULT_ADMIN_ROLE(), admin));
     }
 
     function test_constructorZeroAdminReverts() public {
         vm.expectRevert(Faucet.ZeroAddress.selector);
-        new Faucet(address(0), address(nft), address(claw), closeTime);
+        new Faucet(address(0), address(nft), address(gold), closeTime);
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(Faucet.ZeroAddress.selector);
-        new Faucet(admin, address(0), address(claw), closeTime);
+        new Faucet(admin, address(0), address(gold), closeTime);
     }
 
-    function test_constructorZeroClawReverts() public {
+    function test_constructorZeroGoldReverts() public {
         vm.expectRevert(Faucet.ZeroAddress.selector);
         new Faucet(admin, address(nft), address(0), closeTime);
     }
@@ -237,10 +237,10 @@ contract FaucetTest is Test {
 
     // ── D-02: lifetime lobster cap ──
 
-    /// @dev The cap is the population the 70M CLAW pre-mint is sized for: 10,000 wallets x 5.
+    /// @dev The cap is the population the 70M GOLD pre-mint is sized for: 10,000 wallets x 5.
     function test_D02_capMatchesTheDripPopulation() public view {
         assertEq(faucet.MAX_FAUCET_LOBSTERS(), 50_000);
-        assertEq(faucet.MAX_FAUCET_LOBSTERS() / faucet.LOBSTERS_PER_CLAIM(), 70_000_000e18 / faucet.CLAW_DRIP_AMOUNT());
+        assertEq(faucet.MAX_FAUCET_LOBSTERS() / faucet.LOBSTERS_PER_CLAIM(), 70_000_000e18 / faucet.GOLD_DRIP_AMOUNT());
     }
 
     function test_D02_lastClaimUnderTheCapSucceedsAndTheNextReverts() public {
@@ -284,60 +284,60 @@ contract FaucetTest is Test {
         faucet.finalizeClaim(claimId);
     }
 
-    // ──────────── claimClaw ────────────
+    // ──────────── claimGold ────────────
 
-    function test_claimClaw() public {
+    function test_claimGold() public {
         _claimLobsters(alice);
 
         vm.prank(alice);
-        faucet.claimClaw();
+        faucet.claimGold();
 
-        assertEq(claw.balanceOf(alice), 7_000e18);
-        assertTrue(faucet.hasClaimedClaw(alice));
-        assertEq(faucet.totalClawClaimed(), 7_000e18);
+        assertEq(gold.balanceOf(alice), 7_000e18);
+        assertTrue(faucet.hasClaimedGold(alice));
+        assertEq(faucet.totalGoldClaimed(), 7_000e18);
     }
 
-    function test_claimClawFaucetClosedReverts() public {
+    function test_claimGoldFaucetClosedReverts() public {
         _claimLobsters(alice);
         vm.warp(closeTime);
 
         vm.prank(alice);
         vm.expectRevert(Faucet.FaucetIsClosed.selector);
-        faucet.claimClaw();
+        faucet.claimGold();
     }
 
-    function test_claimClawNotEligibleReverts() public {
+    function test_claimGoldNotEligibleReverts() public {
         // Manually set lobsters claimed without being eligible
-        // Can't do this naturally, so test the flow: eligible→claim lobsters→remove eligibility→try claim claw
+        // Can't do this naturally, so test the flow: eligible→claim lobsters→remove eligibility→try claim gold
         _claimLobsters(alice);
         vm.prank(eligibilityAdmin);
         faucet.setEligible(alice, false);
 
         vm.prank(alice);
         vm.expectRevert(Faucet.NotEligible.selector);
-        faucet.claimClaw();
+        faucet.claimGold();
     }
 
-    function test_claimClawWithoutLobstersReverts() public {
+    function test_claimGoldWithoutLobstersReverts() public {
         _makeEligible(alice);
 
         vm.prank(alice);
         vm.expectRevert(Faucet.LobstersNotClaimed.selector);
-        faucet.claimClaw();
+        faucet.claimGold();
     }
 
-    function test_claimClawDoubleClaimReverts() public {
+    function test_claimGoldDoubleClaimReverts() public {
         _claimLobsters(alice);
 
         vm.prank(alice);
-        faucet.claimClaw();
+        faucet.claimGold();
 
         vm.prank(alice);
-        vm.expectRevert(Faucet.ClawAlreadyClaimed.selector);
-        faucet.claimClaw();
+        vm.expectRevert(Faucet.GoldAlreadyClaimed.selector);
+        faucet.claimGold();
     }
 
-    function test_claimClawInsufficientETHReverts() public {
+    function test_claimGoldInsufficientETHReverts() public {
         address poor = makeAddr("poor");
         vm.deal(poor, 1 ether);
         _makeEligible(poor);
@@ -349,16 +349,16 @@ contract FaucetTest is Test {
 
         vm.prank(poor);
         vm.expectRevert(Faucet.InsufficientETHBalance.selector);
-        faucet.claimClaw();
+        faucet.claimGold();
     }
 
-    function test_claimClawEmitsEvent() public {
+    function test_claimGoldEmitsEvent() public {
         _claimLobsters(alice);
 
         vm.prank(alice);
         vm.expectEmit(true, false, false, true);
-        emit Faucet.ClawClaimed(alice, 7_000e18);
-        faucet.claimClaw();
+        emit Faucet.GoldClaimed(alice, 7_000e18);
+        faucet.claimGold();
     }
 
     // ──────────── isFaucetOpen ────────────
@@ -378,40 +378,40 @@ contract FaucetTest is Test {
     function test_statsAccumulate() public {
         _claimLobsters(alice);
         vm.prank(alice);
-        faucet.claimClaw();
+        faucet.claimGold();
 
         _claimLobsters(bob);
         vm.prank(bob);
-        faucet.claimClaw();
+        faucet.claimGold();
 
         assertEq(faucet.totalLobstersClaimed(), 10);
-        assertEq(faucet.totalClawClaimed(), 14_000e18);
+        assertEq(faucet.totalGoldClaimed(), 14_000e18);
     }
 
     // ──────────── Fuzz ────────────
 
     // ──────────── S-01: Pre-funded faucet (no mint) ────────────
 
-    function test_claimClawTransfersFromFaucetBalance() public {
-        uint256 faucetBalanceBefore = claw.balanceOf(address(faucet));
-        uint256 totalSupplyBefore = claw.totalSupply();
+    function test_claimGoldTransfersFromFaucetBalance() public {
+        uint256 faucetBalanceBefore = gold.balanceOf(address(faucet));
+        uint256 totalSupplyBefore = gold.totalSupply();
 
         _claimLobsters(alice);
         vm.prank(alice);
-        faucet.claimClaw();
+        faucet.claimGold();
 
         // Faucet balance decreased by drip amount
-        assertEq(claw.balanceOf(address(faucet)), faucetBalanceBefore - 7_000e18);
+        assertEq(gold.balanceOf(address(faucet)), faucetBalanceBefore - 7_000e18);
         // Total supply unchanged — no new minting occurred
-        assertEq(claw.totalSupply(), totalSupplyBefore);
+        assertEq(gold.totalSupply(), totalSupplyBefore);
         // Alice received the drip
-        assertEq(claw.balanceOf(alice), 7_000e18);
+        assertEq(gold.balanceOf(alice), 7_000e18);
     }
 
-    function test_claimClawRevertsWhenFaucetBalanceInsufficient() public {
+    function test_claimGoldRevertsWhenFaucetBalanceInsufficient() public {
         // Deploy a faucet with no pre-funded balance
         vm.startPrank(admin);
-        Faucet emptyFaucet = new Faucet(admin, address(nft), address(claw), closeTime);
+        Faucet emptyFaucet = new Faucet(admin, address(nft), address(gold), closeTime);
         nft.grantRole(nft.MINTER_ROLE(), address(emptyFaucet));
         emptyFaucet.grantRole(emptyFaucet.ELIGIBILITY_ROLE(), eligibilityAdmin);
         vm.stopPrank();
@@ -426,19 +426,19 @@ contract FaucetTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(Faucet.InsufficientFaucetBalance.selector);
-        emptyFaucet.claimClaw();
+        emptyFaucet.claimGold();
     }
 
     function test_faucetClaimDoesNotAffectMiningSupply() public {
         // Record remaining mintable before faucet claim
-        uint256 remainableBefore = claw.remainingMintable();
+        uint256 remainableBefore = gold.remainingMintable();
 
         _claimLobsters(alice);
         vm.prank(alice);
-        faucet.claimClaw();
+        faucet.claimGold();
 
         // Remaining mintable unchanged — faucet claim is a transfer, not a mint
-        assertEq(claw.remainingMintable(), remainableBefore);
+        assertEq(gold.remainingMintable(), remainableBefore);
     }
 
     // ──────────── Fuzz ────────────
@@ -470,28 +470,28 @@ contract FaucetTest is Test {
     // The ERC-1155 mints inside claimLobsters invoke onERC1155Received on
     // contract claimers; a malicious contract could try to re-enter.
     // Pre-fix, the hasClaimedLobsters flag was set before mints so
-    // claimLobsters re-entry was blocked by the flag — but claimClaw
+    // claimLobsters re-entry was blocked by the flag — but claimGold
     // could still be re-entered. Post-fix, nonReentrant on both
     // entrypoints blocks same-tx re-entry uniformly.
-    function test_L05_nonReentrant_blocksReentryIntoClaimClaw() public {
+    function test_L05_nonReentrant_blocksReentryIntoClaimGold() public {
         ReentrantClaimer attacker = new ReentrantClaimer(faucet);
         vm.deal(address(attacker), 1 ether);
 
         vm.prank(eligibilityAdmin);
         faucet.setEligible(address(attacker), true);
 
-        // Attacker's onERC1155Received re-enters claimClaw during the
-        // first mint. Pre-fix (no guard): re-entry into claimClaw would
-        // succeed, granting CLAW before claimLobsters even finished.
+        // Attacker's onERC1155Received re-enters claimGold during the
+        // first mint. Pre-fix (no guard): re-entry into claimGold would
+        // succeed, granting GOLD before claimLobsters even finished.
         // Post-fix: ReentrancyGuard in claimLobsters reverts the re-enter.
         // D-10: the mints (and with them the callback) moved to finalizeClaim, which carries the
         // same guard. The request itself makes no external call.
         vm.prank(address(attacker));
         uint256 claimId = attacker.attack();
         vm.roll(block.number + 3);
-        vm.expectRevert(); // ReentrancyGuardReentrantCall, from claimClaw inside the mint callback
+        vm.expectRevert(); // ReentrancyGuardReentrantCall, from claimGold inside the mint callback
         faucet.finalizeClaim(claimId);
-        assertFalse(faucet.hasClaimedClaw(address(attacker)));
+        assertFalse(faucet.hasClaimedGold(address(attacker)));
     }
 
     // ──────────── D-10: the roll cannot be known, chosen or retried ────────────
@@ -677,11 +677,11 @@ contract FaucetTest is Test {
         uint256 claimId = _request(alice);
         vm.prank(alice);
         vm.expectRevert(Faucet.LobsterClaimPending.selector);
-        faucet.claimClaw(); // requested, but she does not hold her lobsters yet
+        faucet.claimGold(); // requested, but she does not hold her lobsters yet
         _finalize(claimId);
         vm.prank(alice);
-        faucet.claimClaw();
-        assertEq(claw.balanceOf(alice), 7_000e18);
+        faucet.claimGold();
+        assertEq(gold.balanceOf(alice), 7_000e18);
     }
 
     function test_D10_aClaimMadeInTheLastMinuteFinalizesAfterClose() public {
@@ -727,29 +727,29 @@ contract FaucetTest is Test {
     }
 
     function test_burnUnclaimed_afterClose_burnsResidual() public {
-        // Alice claims her 7,000 $CLAW drip while the faucet is open.
+        // Alice claims her 7,000 $GOLD drip while the faucet is open.
         _claimLobsters(alice);
         vm.prank(alice);
-        faucet.claimClaw();
+        faucet.claimGold();
 
-        uint256 residual = claw.balanceOf(address(faucet));
+        uint256 residual = gold.balanceOf(address(faucet));
         assertEq(residual, 70_000_000e18 - 7_000e18, "residual = premint minus one drip");
 
         // After close, the residual can only be BURNED — no recipient parameter exists.
         vm.warp(closeTime);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.expectEmit(false, false, false, true, address(faucet));
         emit Faucet.UnclaimedBurned(residual);
         vm.prank(admin);
         faucet.burnUnclaimed();
 
-        assertEq(claw.balanceOf(address(faucet)), 0, "faucet fully drained");
-        assertEq(supplyBefore - claw.totalSupply(), residual, "residual destroyed from total supply");
+        assertEq(gold.balanceOf(address(faucet)), 0, "faucet fully drained");
+        assertEq(supplyBefore - gold.totalSupply(), residual, "residual destroyed from total supply");
     }
 }
 
-/// @dev Contract claimer that re-enters claimClaw during the ERC-1155
+/// @dev Contract claimer that re-enters claimGold during the ERC-1155
 ///      mint callback. Used to verify L-05 nonReentrant guard blocks
 ///      reentry in the faucet claim flow.
 contract ReentrantClaimer {
@@ -767,11 +767,11 @@ contract ReentrantClaimer {
         external
         returns (bytes4)
     {
-        // Attempt to re-enter claimClaw during the mint callback. Under the
+        // Attempt to re-enter claimGold during the mint callback. Under the
         // L-05 nonReentrant guard on claimLobsters, this MUST revert — and
         // the revert propagates up, reverting the acceptance check, the
         // mint, and the outer claimLobsters call.
-        faucet.claimClaw();
+        faucet.claimGold();
         return this.onERC1155Received.selector;
     }
 

@@ -9,7 +9,7 @@ import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
 
 /// @title Marketplace — Escrow-based lobster marketplace for Clawbada
-/// @notice Sellers list lobsters (NFT escrowed in contract), buyers pay in $CLAW.
+/// @notice Sellers list lobsters (NFT escrowed in contract), buyers pay in $GOLD.
 ///         2.5% protocol fee on each sale routed through Treasury (85% burn / 15% dev).
 /// @dev Escrow model: NFT transferred to contract on listing, returned on cancel.
 ///      LobsterNFT._update() automatically rejects soulbound and locked transfers.
@@ -31,7 +31,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     //   price >= Treasury.BPS_DENOMINATOR * BPS_DENOMINATOR / FEE_BPS
     //   price >= 10_000 * 10_000 / 250 = 400_000 wei
     //
-    // At 18-decimal CLAW this is 4 × 10^-13 CLAW — well below any realistic
+    // At 18-decimal GOLD this is 4 × 10^-13 GOLD — well below any realistic
     // listing, so in practice no honest flow is affected.
     uint256 public constant MIN_LISTING_PRICE = 400_000;
 
@@ -39,12 +39,12 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     struct Listing {
         address seller;
         uint256 lobsterId;
-        uint256 price; // in $CLAW (full price buyer pays)
+        uint256 price; // in $GOLD (full price buyer pays)
         bool active;
     }
 
     // ──────────── State ────────────
-    IERC20 public clawToken;
+    IERC20 public goldToken;
     LobsterNFT public lobsterNFT;
     Treasury public treasury;
 
@@ -75,20 +75,20 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     error NotLobsterOwner(uint256 lobsterId);
     /// @notice The listing's current price exceeds the buyer's `maxPrice`.
     ///         M-04: prevents a seller from front-running a buyer's `buyLobster`
-    ///         with `updatePrice` to extract more CLAW than the buyer intended.
+    ///         with `updatePrice` to extract more GOLD than the buyer intended.
     error PriceExceedsMaximum(uint256 currentPrice, uint256 maxPrice);
     error SelfPurchase(address seller);
 
     // ──────────── Constructor ────────────
 
-    /// @param clawToken_ The $CLAW ERC-20 token
+    /// @param goldToken_ The $GOLD ERC-20 token
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param treasury_ The Treasury fee splitter
-    constructor(address clawToken_, address lobsterNFT_, address treasury_) {
-        if (clawToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)) {
+    constructor(address goldToken_, address lobsterNFT_, address treasury_) {
+        if (goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)) {
             revert ZeroAddress();
         }
-        clawToken = IERC20(clawToken_);
+        goldToken = IERC20(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         treasury = Treasury(treasury_);
     }
@@ -99,7 +99,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     /// @dev Caller must have called nft.setApprovalForAll(marketplace, true) first.
     ///      LobsterNFT._update() rejects soulbound and locked lobsters automatically.
     /// @param lobsterId The lobster to list
-    /// @param price The sale price in $CLAW (full amount buyer pays)
+    /// @param price The sale price in $GOLD (full amount buyer pays)
     /// @return listingId The newly created listing ID
     // slither-disable-next-line reentrancy-no-eth — nonReentrant; safeTransferFrom is to the trusted LobsterNFT and the listing write follows escrow receipt.
     function listLobster(uint256 lobsterId, uint256 price) external nonReentrant returns (uint256 listingId) {
@@ -133,7 +133,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
         emit ListingCancelled(listingId);
     }
 
-    /// @notice Buy a listed lobster. Pays full price in $CLAW; 2.5% fee to Treasury.
+    /// @notice Buy a listed lobster. Pays full price in $GOLD; 2.5% fee to Treasury.
     /// @dev CEI pattern: state changes before external calls.
     /// @param listingId The listing to buy
     /// @param maxPrice The maximum price the buyer is willing to pay. M-04 slippage
@@ -159,17 +159,17 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
         uint256 sellerProceeds = price - fee;
 
         // Pull full price from buyer (I-04 SafeERC20)
-        clawToken.safeTransferFrom(msg.sender, address(this), price);
+        goldToken.safeTransferFrom(msg.sender, address(this), price);
 
         // Route fee through Treasury (I-03 forceApprove). Skip if fee rounds
         // to zero (T-03 minimum is 10_000 wei; below that processFee reverts).
         if (fee > 0) {
-            clawToken.forceApprove(address(treasury), fee);
+            goldToken.forceApprove(address(treasury), fee);
             treasury.processFee(fee);
         }
 
         // Pay seller
-        clawToken.safeTransfer(seller, sellerProceeds);
+        goldToken.safeTransfer(seller, sellerProceeds);
 
         // Transfer NFT to buyer
         lobsterNFT.safeTransferFrom(address(this), msg.sender, lobsterId, 1, "");
@@ -179,7 +179,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
 
     /// @notice Update the price of an active listing.
     /// @param listingId The listing to update
-    /// @param newPrice The new price in $CLAW
+    /// @param newPrice The new price in $GOLD
     function updatePrice(uint256 listingId, uint256 newPrice) external {
         if (newPrice == 0) revert ZeroPrice();
         if (newPrice < MIN_LISTING_PRICE) revert PriceBelowMinimum(newPrice, MIN_LISTING_PRICE);

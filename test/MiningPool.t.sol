@@ -5,7 +5,7 @@ import {Test, Vm, stdStorage, StdStorage} from "forge-std/Test.sol";
 import {MiningPool} from "../contracts/MiningPool.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 contract MiningPoolTest is Test {
@@ -14,7 +14,7 @@ contract MiningPoolTest is Test {
     MiningPool pool;
     TeamManager tm;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
 
     address admin = makeAddr("admin");
     address seasonAdmin = makeAddr("seasonAdmin");
@@ -31,16 +31,16 @@ contract MiningPoolTest is Test {
     function setUp() public {
         vm.startPrank(admin);
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
-        claw = new ClawToken(admin, lpAddress, treasuryAddress);
+        gold = new GoldToken(admin, lpAddress, treasuryAddress);
         tm = new TeamManager(admin, address(nft));
-        pool = new MiningPool(admin, address(claw), address(nft), address(tm));
+        pool = new MiningPool(admin, address(gold), address(nft), address(tm));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
         nft.grantRole(nft.LOCKER_ROLE(), address(tm));
         nft.grantRole(nft.EVOLVER_ROLE(), admin);
         tm.grantRole(tm.ACTIVITY_ROLE(), address(pool));
-        claw.grantRole(claw.MINTER_ROLE(), address(pool));
+        gold.grantRole(gold.MINTER_ROLE(), address(pool));
         pool.grantRole(pool.SEASON_ADMIN_ROLE(), seasonAdmin);
         pool.grantRole(pool.BOOST_ADMIN_ROLE(), boostAdmin);
         vm.stopPrank();
@@ -90,7 +90,7 @@ contract MiningPoolTest is Test {
     // ──────────── Constructor ────────────
 
     function test_constructorSetsState() public view {
-        assertEq(address(pool.clawToken()), address(claw));
+        assertEq(address(pool.goldToken()), address(gold));
         assertEq(address(pool.lobsterNFT()), address(nft));
         assertEq(address(pool.teamManager()), address(tm));
         assertTrue(pool.hasRole(pool.DEFAULT_ADMIN_ROLE(), admin));
@@ -100,22 +100,22 @@ contract MiningPoolTest is Test {
 
     function test_constructorZeroAdminReverts() public {
         vm.expectRevert(MiningPool.ZeroAddress.selector);
-        new MiningPool(address(0), address(claw), address(nft), address(tm));
+        new MiningPool(address(0), address(gold), address(nft), address(tm));
     }
 
-    function test_constructorZeroClawReverts() public {
+    function test_constructorZeroGoldReverts() public {
         vm.expectRevert(MiningPool.ZeroAddress.selector);
         new MiningPool(admin, address(0), address(nft), address(tm));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(MiningPool.ZeroAddress.selector);
-        new MiningPool(admin, address(claw), address(0), address(tm));
+        new MiningPool(admin, address(gold), address(0), address(tm));
     }
 
     function test_constructorZeroTMReverts() public {
         vm.expectRevert(MiningPool.ZeroAddress.selector);
-        new MiningPool(admin, address(claw), address(nft), address(0));
+        new MiningPool(admin, address(gold), address(nft), address(0));
     }
 
     // ──────────── Season Management ────────────
@@ -293,7 +293,7 @@ contract MiningPoolTest is Test {
         _startSeason();
 
         assertEq(pool.getSeasonMinted(1), 0);
-        uint256 poolBalBefore = claw.balanceOf(address(pool));
+        uint256 poolBalBefore = gold.balanceOf(address(pool));
 
         vm.prank(alice);
         pool.startExpedition(teamId, 0);
@@ -301,7 +301,7 @@ contract MiningPoolTest is Test {
         assertEq(pool.getSeasonMinted(1), BASE_REWARD);
         assertEq(pool.getSeasonUnspent(1), S1_EMISSION - BASE_REWARD);
         // Reward minted into pool escrow at expedition start
-        assertEq(claw.balanceOf(address(pool)), poolBalBefore + BASE_REWARD);
+        assertEq(gold.balanceOf(address(pool)), poolBalBefore + BASE_REWARD);
     }
 
     function test_startExpeditionEmitsEvent() public {
@@ -474,7 +474,7 @@ contract MiningPoolTest is Test {
         pool.claimExpedition(expId);
 
         // Should have received exact locked reward
-        assertEq(claw.balanceOf(alice), BASE_REWARD);
+        assertEq(gold.balanceOf(alice), BASE_REWARD);
 
         // Team deactivated
         assertFalse(tm.isTeamActive(teamId));
@@ -493,7 +493,7 @@ contract MiningPoolTest is Test {
         vm.prank(alice);
         pool.claimExpedition(expId);
 
-        assertEq(claw.balanceOf(alice), BASE_REWARD * 3);
+        assertEq(gold.balanceOf(alice), BASE_REWARD * 3);
     }
 
     function test_claimExpeditionEmitsEvent() public {
@@ -586,8 +586,8 @@ contract MiningPoolTest is Test {
         pool.claimExpedition(exp3);
 
         // Alice got 2 × BASE_REWARD, Bob got 1 × BASE_REWARD
-        assertEq(claw.balanceOf(alice), BASE_REWARD * 2);
-        assertEq(claw.balanceOf(bob), BASE_REWARD);
+        assertEq(gold.balanceOf(alice), BASE_REWARD * 2);
+        assertEq(gold.balanceOf(bob), BASE_REWARD);
     }
 
     function test_flatRewardAcrossMultipleTeams() public {
@@ -703,8 +703,8 @@ contract MiningPoolTest is Test {
         assertFalse(tm.isTeamActive(evolvedTeam));
 
         // Alice got BASE_REWARD (1,250), Bob got 3x (3,750)
-        assertEq(claw.balanceOf(alice), BASE_REWARD);
-        assertEq(claw.balanceOf(bob), BASE_REWARD * 3);
+        assertEq(gold.balanceOf(alice), BASE_REWARD);
+        assertEq(gold.balanceOf(bob), BASE_REWARD * 3);
 
         // Can start new expeditions
         vm.prank(alice);
@@ -738,7 +738,7 @@ contract MiningPoolTest is Test {
         pool.claimExpedition(exp2);
 
         // Alice earned BASE_REWARD from S1 + s2BaseReward from S2
-        assertEq(claw.balanceOf(alice), BASE_REWARD + s2BaseReward);
+        assertEq(gold.balanceOf(alice), BASE_REWARD + s2BaseReward);
 
         // Season stats independent
         assertEq(pool.getSeasonMinted(1), BASE_REWARD);
@@ -863,10 +863,10 @@ contract MiningPoolTest is Test {
     // ──────────── M-02 Regression: Escrow-at-start prevents permanent team lock ────────────
 
     function test_startExpeditionRevertsWhenMaxSupplyInsufficient() public {
-        // Arrange: consume nearly all of ClawToken's remaining mintable supply
+        // Arrange: consume nearly all of GoldToken's remaining mintable supply
         // Initial supply: 125M (LP) + 100M (treasury) = 225M minted at deploy
         // MAX_SUPPLY = 1B, so 775M remaining
-        uint256 remaining = claw.remainingMintable();
+        uint256 remaining = gold.remainingMintable();
 
         // Mint all but a tiny amount (less than BASE_REWARD) to exhaust supply
         uint256 leaveAvailable = BASE_REWARD / 2; // not enough for an expedition
@@ -874,12 +874,12 @@ contract MiningPoolTest is Test {
 
         // Grant admin minting power and consume supply
         vm.startPrank(admin);
-        claw.grantRole(claw.MINTER_ROLE(), admin);
-        claw.mint(makeAddr("sink"), consumeAmount);
+        gold.grantRole(gold.MINTER_ROLE(), admin);
+        gold.mint(makeAddr("sink"), consumeAmount);
         vm.stopPrank();
 
         // Verify headroom is insufficient
-        assertLt(claw.remainingMintable(), BASE_REWARD);
+        assertLt(gold.remainingMintable(), BASE_REWARD);
 
         uint256 teamId = _createTeam(alice, 0);
         // Use a small season budget that would normally fit
@@ -887,7 +887,7 @@ contract MiningPoolTest is Test {
 
         // Act: startExpedition should revert because mint to escrow fails
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(ClawToken.ExceedsMaxSupply.selector, BASE_REWARD, leaveAvailable));
+        vm.expectRevert(abi.encodeWithSelector(GoldToken.ExceedsMaxSupply.selector, BASE_REWARD, leaveAvailable));
         pool.startExpedition(teamId, 0);
 
         // Assert: team is NOT stuck active, no expedition mapped
@@ -904,18 +904,18 @@ contract MiningPoolTest is Test {
         // Start expedition — reward is escrowed in pool at this point
         vm.prank(alice);
         uint256 expId = pool.startExpedition(teamId, 0);
-        uint256 poolBal = claw.balanceOf(address(pool));
+        uint256 poolBal = gold.balanceOf(address(pool));
         assertGe(poolBal, BASE_REWARD);
 
         // Now exhaust remaining global supply via another minter
-        uint256 remaining = claw.remainingMintable();
+        uint256 remaining = gold.remainingMintable();
         if (remaining > 0) {
             vm.startPrank(admin);
-            claw.grantRole(claw.MINTER_ROLE(), admin);
-            claw.mint(makeAddr("sink"), remaining);
+            gold.grantRole(gold.MINTER_ROLE(), admin);
+            gold.mint(makeAddr("sink"), remaining);
             vm.stopPrank();
         }
-        assertEq(claw.remainingMintable(), 0);
+        assertEq(gold.remainingMintable(), 0);
 
         // Warp past expedition duration
         vm.warp(block.timestamp + 4 hours);
@@ -924,7 +924,7 @@ contract MiningPoolTest is Test {
         vm.prank(alice);
         pool.claimExpedition(expId);
 
-        assertEq(claw.balanceOf(alice), BASE_REWARD);
+        assertEq(gold.balanceOf(alice), BASE_REWARD);
         assertFalse(tm.isTeamActive(teamId));
         assertEq(pool.getActiveExpedition(teamId), 0);
     }
@@ -933,13 +933,13 @@ contract MiningPoolTest is Test {
         uint256 teamId = _createTeam(alice, 1); // Evolved tier
         _startSeason();
 
-        uint256 poolBalBefore = claw.balanceOf(address(pool));
+        uint256 poolBalBefore = gold.balanceOf(address(pool));
 
         vm.prank(alice);
         pool.startExpedition(teamId, 1);
 
         uint256 expectedReward = BASE_REWARD * 3; // Evolved weight
-        assertEq(claw.balanceOf(address(pool)), poolBalBefore + expectedReward);
+        assertEq(gold.balanceOf(address(pool)), poolBalBefore + expectedReward);
     }
 
     function test_claimReducesPoolBalance() public {
@@ -949,7 +949,7 @@ contract MiningPoolTest is Test {
         vm.prank(alice);
         uint256 expId = pool.startExpedition(teamId, 0);
 
-        uint256 poolBalAfterStart = claw.balanceOf(address(pool));
+        uint256 poolBalAfterStart = gold.balanceOf(address(pool));
         assertEq(poolBalAfterStart, BASE_REWARD);
 
         vm.warp(block.timestamp + 4 hours);
@@ -957,8 +957,8 @@ contract MiningPoolTest is Test {
         vm.prank(alice);
         pool.claimExpedition(expId);
 
-        assertEq(claw.balanceOf(address(pool)), 0);
-        assertEq(claw.balanceOf(alice), BASE_REWARD);
+        assertEq(gold.balanceOf(address(pool)), 0);
+        assertEq(gold.balanceOf(alice), BASE_REWARD);
     }
 
     // ──────────── F-06: Admin expedition release ────────────
@@ -988,7 +988,7 @@ contract MiningPoolTest is Test {
         assertTrue(exp.claimed);
 
         // Reward was burned, not sent anywhere
-        assertEq(claw.balanceOf(address(pool)), 0);
+        assertEq(gold.balanceOf(address(pool)), 0);
     }
 
     function test_adminReleaseExpeditionRevertsBeforeGrace() public {
@@ -1158,7 +1158,7 @@ contract MiningPoolTest is Test {
     // ── D-18: the epoch count includes this one ──
 
     /// @dev One hour in, 1,439 epochs remain INCLUDING this one. Budget chosen so the target
-    ///      lands inside the ±30% band (otherwise the clamp hides the count): 1,000 CLAW per unit
+    ///      lands inside the ±30% band (otherwise the clamp hides the count): 1,000 GOLD per unit
     ///      over 1,439 epochs x 6 units, plus the 7,500 served in hour 0. Warped past the
     ///      boundary second, where the old formula happened to be right.
     function test_D18_epochCountIncludesThisOne() public {
@@ -1234,7 +1234,7 @@ contract MiningPoolTest is Test {
 
     // ── D-19: the per-epoch spend ceiling ──
 
-    /// @dev S1 budget: hour 0's ceiling is 2 x 352.5M / 1,440 = 489,583.3 CLAW. Fifteen Apex
+    /// @dev S1 budget: hour 0's ceiling is 2 x 352.5M / 1,440 = 489,583.3 GOLD. Fifteen Apex
     ///      expeditions at launch (468,750) fit; the sixteenth (500,000) does not, and the revert
     ///      names when the next epoch opens. There it starts — against a fresh counter, at the
     ///      rate the fifteen pulled down.
@@ -1271,7 +1271,7 @@ contract MiningPoolTest is Test {
 
     /// @dev The ceiling never falls below one expedition of the heaviest tier at the highest
     ///      boost: the rate only moves on a demand signal, so an epoch that could admit nothing
-    ///      would never re-peg — a deadlock. A tiny season (2 x 125,000 / 1,440 = 174 CLAW an
+    ///      would never re-peg — a deadlock. A tiny season (2 x 125,000 / 1,440 = 174 GOLD an
     ///      hour) therefore still admits one +50% Apex expedition (46,875) per hour, and no more.
     function test_D19_ceilingFloorsAtOneMaxExpedition() public {
         _startSeasonWith(BASE_REWARD * 100, BASE_REWARD);
@@ -1313,7 +1313,7 @@ contract MiningPoolTest is Test {
 
     /// @dev D-20 inside the ceiling: when less of the 705M allocation is left than the season's
     ///      nominal budget, the ceiling paces what can actually be minted. Pinned after the
-    ///      season started (startSeason itself clamps the budget), 1M CLAW left: 2 x 1M / 1,440
+    ///      season started (startSeason itself clamps the budget), 1M GOLD left: 2 x 1M / 1,440
     ///      is under the floor, so one Apex expedition an hour — where the nominal 352.5M budget
     ///      would have admitted fifteen.
     function test_D19_ceilingPacesTheAllocationLeft() public {
@@ -1579,12 +1579,12 @@ contract MiningPoolTest is Test {
         pool.repeg();
         assertEq(pool.getSeasonMinted(1), mintedBefore); // repeg reserves nothing
         assertLt(pool.currentBaseReward(), (BASE_REWARD * 7_000) / 10_000, "the rate moved again");
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
         vm.warp(block.timestamp + 4 hours);
         vm.prank(alice);
         pool.claimExpedition(expeditionId);
         // Reward was locked at start (the post-clamp rate), unaffected by the later re-peg.
-        assertEq(claw.balanceOf(alice) - balBefore, (BASE_REWARD * 7_000) / 10_000);
+        assertEq(gold.balanceOf(alice) - balBefore, (BASE_REWARD * 7_000) / 10_000);
     }
 
     function test_glideNeverExceedsLaunchAfterAdminOverride() public {
@@ -1662,12 +1662,12 @@ contract MiningPoolTest is Test {
 
         assertEq(pool.getExpedition(eid).reward, expected, "reward = boosted base x weight");
         assertEq(pool.getSeasonMinted(1), expected, "budget accounts the boosted amount");
-        assertEq(claw.balanceOf(address(pool)), expected, "escrow holds the boosted amount");
+        assertEq(gold.balanceOf(address(pool)), expected, "escrow holds the boosted amount");
 
         vm.warp(block.timestamp + 4 hours);
         vm.prank(alice);
         pool.claimExpedition(eid);
-        assertEq(claw.balanceOf(alice), expected, "claim pays the boosted reward");
+        assertEq(gold.balanceOf(alice), expected, "claim pays the boosted reward");
     }
 
     function test_boostZeroBeforeAnyEpochActivated() public {

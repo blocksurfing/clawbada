@@ -13,7 +13,7 @@ export const FaucetAbi = [
         "internalType": "address"
       },
       {
-        "name": "clawToken_",
+        "name": "goldToken_",
         "type": "address",
         "internalType": "address"
       },
@@ -24,19 +24,6 @@ export const FaucetAbi = [
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "CLAW_DRIP_AMOUNT",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -67,6 +54,19 @@ export const FaucetAbi = [
   {
     "type": "function",
     "name": "FINALIZE_MIN_BLOCKS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "GOLD_DRIP_AMOUNT",
     "inputs": [],
     "outputs": [
       {
@@ -138,7 +138,7 @@ export const FaucetAbi = [
   },
   {
     "type": "function",
-    "name": "claimClaw",
+    "name": "claimGold",
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
@@ -174,19 +174,6 @@ export const FaucetAbi = [
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "clawToken",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract ClawToken"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -277,6 +264,19 @@ export const FaucetAbi = [
   },
   {
     "type": "function",
+    "name": "goldToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract GoldToken"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "grantRole",
     "inputs": [
       {
@@ -295,7 +295,7 @@ export const FaucetAbi = [
   },
   {
     "type": "function",
-    "name": "hasClaimedClaw",
+    "name": "hasClaimedGold",
     "inputs": [
       {
         "name": "",
@@ -532,7 +532,7 @@ export const FaucetAbi = [
   },
   {
     "type": "function",
-    "name": "totalClawClaimed",
+    "name": "totalGoldClaimed",
     "inputs": [],
     "outputs": [
       {
@@ -558,25 +558,6 @@ export const FaucetAbi = [
   },
   {
     "type": "event",
-    "name": "ClawClaimed",
-    "inputs": [
-      {
-        "name": "claimer",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "EligibilitySet",
     "inputs": [
       {
@@ -590,6 +571,25 @@ export const FaucetAbi = [
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GoldClaimed",
+    "inputs": [
+      {
+        "name": "claimer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -828,11 +828,6 @@ export const FaucetAbi = [
   },
   {
     "type": "error",
-    "name": "ClawAlreadyClaimed",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "FaucetIsClosed",
     "inputs": []
   },
@@ -844,6 +839,11 @@ export const FaucetAbi = [
   {
     "type": "error",
     "name": "FaucetStillOpen",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "GoldAlreadyClaimed",
     "inputs": []
   },
   {

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { RepairShopAbi, ClawTokenAbi, addresses } from '@clawbada/chain';
+import { RepairShopAbi, GoldTokenAbi, addresses } from '@clawbada/chain';
 import { REPAIR_RATES, DAMAGE_THRESHOLD, EvolutionTier } from '@clawbada/game-logic';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
@@ -88,8 +88,8 @@ repairRoutes.post(
     const cost = costWei / WEI;
 
     const approveCalldata = buildCalldata(
-      addresses.clawToken,
-      ClawTokenAbi as any,
+      addresses.goldToken,
+      GoldTokenAbi as any,
       'approve',
       [addresses.repairShop, costWei],
     );
@@ -103,7 +103,7 @@ repairRoutes.post(
 
     return c.json({
       ...multiStep(
-        { description: `Approve ${cost} $CLAW for repair`, calldata: approveCalldata },
+        { description: `Approve ${cost} $GOLD for repair`, calldata: approveCalldata },
         { description: `Repair ${actualPoints} damage on lobster #${lobsterId}`, calldata: repairCalldata },
       ),
       preview: serializeBigInts({

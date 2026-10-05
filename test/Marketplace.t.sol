@@ -4,14 +4,14 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {Marketplace} from "../contracts/Marketplace.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 contract MarketplaceTest is Test {
     Marketplace marketplace;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
     Treasury treasury;
 
     address admin = makeAddr("admin");
@@ -28,10 +28,10 @@ contract MarketplaceTest is Test {
         // Deploy contracts
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
         treasury = new Treasury(admin, devWallet);
-        claw = new ClawToken(admin, lpAddress, address(treasury));
-        treasury.setClawToken(address(claw));
+        gold = new GoldToken(admin, lpAddress, address(treasury));
+        treasury.setGoldToken(address(gold));
 
-        marketplace = new Marketplace(address(claw), address(nft), address(treasury));
+        marketplace = new Marketplace(address(gold), address(nft), address(treasury));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -54,9 +54,9 @@ contract MarketplaceTest is Test {
         return nft.mint(to, validDNA, soulbound);
     }
 
-    function _giveClaw(address to, uint256 amount) internal {
+    function _giveGold(address to, uint256 amount) internal {
         vm.prank(lpAddress);
-        claw.transfer(to, amount);
+        gold.transfer(to, amount);
     }
 
     function _approveNFT(address owner) internal {
@@ -64,9 +64,9 @@ contract MarketplaceTest is Test {
         nft.setApprovalForAll(address(marketplace), true);
     }
 
-    function _approveClaw(address owner, uint256 amount) internal {
+    function _approveGold(address owner, uint256 amount) internal {
         vm.prank(owner);
-        claw.approve(address(marketplace), amount);
+        gold.approve(address(marketplace), amount);
     }
 
     function _listLobster(address seller, uint256 lobsterId, uint256 price) internal returns (uint256) {
@@ -78,24 +78,24 @@ contract MarketplaceTest is Test {
     // ──────────── Constructor ────────────
 
     function test_constructorSetsState() public view {
-        assertEq(address(marketplace.clawToken()), address(claw));
+        assertEq(address(marketplace.goldToken()), address(gold));
         assertEq(address(marketplace.lobsterNFT()), address(nft));
         assertEq(address(marketplace.treasury()), address(treasury));
     }
 
-    function test_constructorZeroClawReverts() public {
+    function test_constructorZeroGoldReverts() public {
         vm.expectRevert(Marketplace.ZeroAddress.selector);
         new Marketplace(address(0), address(nft), address(treasury));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(Marketplace.ZeroAddress.selector);
-        new Marketplace(address(claw), address(0), address(treasury));
+        new Marketplace(address(gold), address(0), address(treasury));
     }
 
     function test_constructorZeroTreasuryReverts() public {
         vm.expectRevert(Marketplace.ZeroAddress.selector);
-        new Marketplace(address(claw), address(nft), address(0));
+        new Marketplace(address(gold), address(nft), address(0));
     }
 
     // ──────────── listLobster() ────────────
@@ -249,8 +249,8 @@ contract MarketplaceTest is Test {
         uint256 price = 10_000e18;
         uint256 listingId = _listLobster(alice, lobsterId, price);
 
-        _giveClaw(bob, price);
-        _approveClaw(bob, price);
+        _giveGold(bob, price);
+        _approveGold(bob, price);
 
         vm.prank(bob);
         marketplace.buyLobster(listingId, type(uint256).max);
@@ -268,10 +268,10 @@ contract MarketplaceTest is Test {
         uint256 lobsterId = _mintLobster(alice, false);
         uint256 price = 10_000e18;
         uint256 listingId = _listLobster(alice, lobsterId, price);
-        uint256 expectedFee = (price * 250) / 10_000; // 250 $CLAW
+        uint256 expectedFee = (price * 250) / 10_000; // 250 $GOLD
 
-        _giveClaw(bob, price);
-        _approveClaw(bob, price);
+        _giveGold(bob, price);
+        _approveGold(bob, price);
 
         vm.prank(bob);
         vm.expectEmit(true, true, true, true);
@@ -283,40 +283,40 @@ contract MarketplaceTest is Test {
         uint256 lobsterId = _mintLobster(alice, false);
         uint256 price = 10_000e18;
         uint256 listingId = _listLobster(alice, lobsterId, price);
-        uint256 expectedFee = (price * 250) / 10_000; // 250 $CLAW
-        uint256 expectedSellerProceeds = price - expectedFee; // 9,750 $CLAW
+        uint256 expectedFee = (price * 250) / 10_000; // 250 $GOLD
+        uint256 expectedSellerProceeds = price - expectedFee; // 9,750 $GOLD
 
-        _giveClaw(bob, price);
-        _approveClaw(bob, price);
+        _giveGold(bob, price);
+        _approveGold(bob, price);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 aliceBefore = gold.balanceOf(alice);
 
         vm.prank(bob);
         marketplace.buyLobster(listingId, type(uint256).max);
 
-        uint256 aliceAfter = claw.balanceOf(alice);
+        uint256 aliceAfter = gold.balanceOf(alice);
         assertEq(aliceAfter - aliceBefore, expectedSellerProceeds);
-        assertEq(claw.balanceOf(bob), 0); // buyer spent all
+        assertEq(gold.balanceOf(bob), 0); // buyer spent all
     }
 
     function test_buyLobsterTreasuryFeeRouting() public {
         uint256 lobsterId = _mintLobster(alice, false);
         uint256 price = 10_000e18;
         uint256 listingId = _listLobster(alice, lobsterId, price);
-        uint256 fee = (price * 250) / 10_000; // 250 $CLAW
+        uint256 fee = (price * 250) / 10_000; // 250 $GOLD
         uint256 expectedDevAmount = fee - (fee * 8500) / 10_000; // 15% of fee
 
-        _giveClaw(bob, price);
-        _approveClaw(bob, price);
+        _giveGold(bob, price);
+        _approveGold(bob, price);
 
-        uint256 devBefore = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         vm.prank(bob);
         marketplace.buyLobster(listingId, type(uint256).max);
 
-        uint256 devAfter = claw.balanceOf(devWallet);
-        uint256 supplyAfter = claw.totalSupply();
+        uint256 devAfter = gold.balanceOf(devWallet);
+        uint256 supplyAfter = gold.totalSupply();
 
         // Dev wallet received 15% of fee
         assertEq(devAfter - devBefore, expectedDevAmount);
@@ -336,20 +336,20 @@ contract MarketplaceTest is Test {
         vm.prank(alice);
         marketplace.cancelListing(listingId);
 
-        _giveClaw(bob, 1_000e18);
-        _approveClaw(bob, 1_000e18);
+        _giveGold(bob, 1_000e18);
+        _approveGold(bob, 1_000e18);
 
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(Marketplace.ListingNotActive.selector, listingId));
         marketplace.buyLobster(listingId, type(uint256).max);
     }
 
-    function test_buyLobsterInsufficientClawReverts() public {
+    function test_buyLobsterInsufficientGoldReverts() public {
         uint256 lobsterId = _mintLobster(alice, false);
         uint256 listingId = _listLobster(alice, lobsterId, 1_000e18);
 
-        _giveClaw(bob, 999e18); // not enough
-        _approveClaw(bob, 999e18);
+        _giveGold(bob, 999e18); // not enough
+        _approveGold(bob, 999e18);
 
         vm.prank(bob);
         vm.expectRevert(); // ERC20 insufficient balance
@@ -363,8 +363,8 @@ contract MarketplaceTest is Test {
         uint256 price = 1_000e18;
         uint256 listingId = _listLobster(alice, lobsterId, price);
 
-        _giveClaw(alice, price);
-        _approveClaw(alice, price);
+        _giveGold(alice, price);
+        _approveGold(alice, price);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Marketplace.SelfPurchase.selector, alice));
@@ -377,8 +377,8 @@ contract MarketplaceTest is Test {
 
         assertEq(marketplace.lobsterToListing(lobsterId), listingId);
 
-        _giveClaw(bob, 1_000e18);
-        _approveClaw(bob, 1_000e18);
+        _giveGold(bob, 1_000e18);
+        _approveGold(bob, 1_000e18);
 
         vm.prank(bob);
         marketplace.buyLobster(listingId, type(uint256).max);
@@ -452,8 +452,8 @@ contract MarketplaceTest is Test {
         assertEq(nft.ownerOf(lobsterId), address(marketplace));
 
         // Bob buys
-        _giveClaw(bob, price);
-        _approveClaw(bob, price);
+        _giveGold(bob, price);
+        _approveGold(bob, price);
         vm.prank(bob);
         marketplace.buyLobster(listingId1, type(uint256).max);
         assertEq(nft.ownerOf(lobsterId), bob);
@@ -493,8 +493,8 @@ contract MarketplaceTest is Test {
         assertEq(nft.ownerOf(lobster3), address(marketplace));
 
         // Bob buys one, Alice cancels another
-        _giveClaw(bob, 2_000e18);
-        _approveClaw(bob, 2_000e18);
+        _giveGold(bob, 2_000e18);
+        _approveGold(bob, 2_000e18);
         vm.prank(bob);
         marketplace.buyLobster(listing2, type(uint256).max);
 
@@ -517,7 +517,7 @@ contract MarketplaceTest is Test {
     }
 
     function testFuzz_sellerReceivesCorrectAmount(uint256 price) public {
-        price = bound(price, 1e18, 1_000_000e18); // 1 to 1M $CLAW
+        price = bound(price, 1e18, 1_000_000e18); // 1 to 1M $GOLD
 
         uint256 lobsterId = _mintLobster(alice, false);
         uint256 listingId = _listLobster(alice, lobsterId, price);
@@ -525,14 +525,14 @@ contract MarketplaceTest is Test {
         uint256 expectedFee = (price * 250) / 10_000;
         uint256 expectedSellerProceeds = price - expectedFee;
 
-        _giveClaw(bob, price);
-        _approveClaw(bob, price);
+        _giveGold(bob, price);
+        _approveGold(bob, price);
 
-        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 aliceBefore = gold.balanceOf(alice);
 
         vm.prank(bob);
         marketplace.buyLobster(listingId, type(uint256).max);
 
-        assertEq(claw.balanceOf(alice) - aliceBefore, expectedSellerProceeds);
+        assertEq(gold.balanceOf(alice) - aliceBefore, expectedSellerProceeds);
     }
 }

@@ -70,7 +70,7 @@ describe('faucet routes', () => {
       expect(body).toHaveProperty('isOpen');
       expect(body).toHaveProperty('isEligible');
       expect(body).toHaveProperty('canClaimLobsters');
-      expect(body).toHaveProperty('canClaimClaw');
+      expect(body).toHaveProperty('canClaimGold');
     });
 
     test('canClaimLobsters true when eligible, open, unclaimed', async () => {
@@ -83,24 +83,24 @@ describe('faucet routes', () => {
       expect(body.canClaimLobsters).toBe(true);
     });
 
-    test('canClaimClaw true when lobsters claimed but claw unclaimed', async () => {
+    test('canClaimGold true when lobsters claimed but gold unclaimed', async () => {
       mockReadFaucetStatus.mockResolvedValue(
-        mockFaucetStatus({ hasClaimedLobsters: true, hasClaimedClaw: false }),
+        mockFaucetStatus({ hasClaimedLobsters: true, hasClaimedGold: false }),
       );
 
       const res = await app.request(`/faucet/status/${TEST_ADDRESS}`);
       const body = await res.json();
-      expect(body.canClaimClaw).toBe(true);
+      expect(body.canClaimGold).toBe(true);
     });
 
-    test('canClaimClaw false when lobsters not yet claimed', async () => {
+    test('canClaimGold false when lobsters not yet claimed', async () => {
       mockReadFaucetStatus.mockResolvedValue(
-        mockFaucetStatus({ hasClaimedLobsters: false, hasClaimedClaw: false }),
+        mockFaucetStatus({ hasClaimedLobsters: false, hasClaimedGold: false }),
       );
 
       const res = await app.request(`/faucet/status/${TEST_ADDRESS}`);
       const body = await res.json();
-      expect(body.canClaimClaw).toBe(false);
+      expect(body.canClaimGold).toBe(false);
     });
   });
 
@@ -157,22 +157,22 @@ describe('faucet routes', () => {
     });
   });
 
-  // ──────────── POST /faucet/claim-claw ────────────
+  // ──────────── POST /faucet/claim-gold ────────────
 
-  describe('POST /faucet/claim-claw', () => {
+  describe('POST /faucet/claim-gold', () => {
     test('returns calldata when eligible and lobsters claimed', async () => {
       mockReadFaucetStatus.mockResolvedValue(
         mockFaucetStatus({ hasClaimedLobsters: true }),
       );
 
-      const res = await app.request('/faucet/claim-claw', {
+      const res = await app.request('/faucet/claim-gold', {
         method: 'POST',
         headers: authHeaders(),
       });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.steps).toHaveLength(1);
-      expect(body.steps[0].description).toContain('CLAW');
+      expect(body.steps[0].description).toContain('GOLD');
     });
 
     test('returns 400 when lobsters not claimed yet', async () => {
@@ -180,7 +180,7 @@ describe('faucet routes', () => {
         mockFaucetStatus({ hasClaimedLobsters: false }),
       );
 
-      const res = await app.request('/faucet/claim-claw', {
+      const res = await app.request('/faucet/claim-gold', {
         method: 'POST',
         headers: authHeaders(),
       });
@@ -189,12 +189,12 @@ describe('faucet routes', () => {
       expect(body.message).toContain('lobsters first');
     });
 
-    test('returns 400 when CLAW already claimed', async () => {
+    test('returns 400 when GOLD already claimed', async () => {
       mockReadFaucetStatus.mockResolvedValue(
-        mockFaucetStatus({ hasClaimedLobsters: true, hasClaimedClaw: true }),
+        mockFaucetStatus({ hasClaimedLobsters: true, hasClaimedGold: true }),
       );
 
-      const res = await app.request('/faucet/claim-claw', {
+      const res = await app.request('/faucet/claim-gold', {
         method: 'POST',
         headers: authHeaders(),
       });
@@ -212,14 +212,14 @@ describe('faucet routes', () => {
 
     beforeEach(() => mockReadBlockNumber.mockReset());
 
-    test('status: requested-but-not-minted is visible, and the CLAW drip waits for the lobsters', async () => {
+    test('status: requested-but-not-minted is visible, and the GOLD drip waits for the lobsters', async () => {
       mockReadFaucetStatus.mockResolvedValue(pending());
       const body = await (await app.request(`/faucet/status/${TEST_ADDRESS}`)).json();
-      expect(body).toMatchObject({ lobsterClaimPending: true, lobsterClaimId: '7', canFinalizeLobsters: true, canClaimClaw: false, canClaimLobsters: false });
+      expect(body).toMatchObject({ lobsterClaimPending: true, lobsterClaimId: '7', canFinalizeLobsters: true, canClaimGold: false, canClaimLobsters: false });
 
       mockReadFaucetStatus.mockResolvedValue(pending({ lobsterClaimPending: false }));
       const minted = await (await app.request(`/faucet/status/${TEST_ADDRESS}`)).json();
-      expect(minted).toMatchObject({ lobsterClaimPending: false, canFinalizeLobsters: false, canClaimClaw: true });
+      expect(minted).toMatchObject({ lobsterClaimPending: false, canFinalizeLobsters: false, canClaimGold: true });
     });
 
     test('claim-lobsters says the lobsters arrive later and what to poll', async () => {
@@ -230,9 +230,9 @@ describe('faucet routes', () => {
       expect(body.next).toMatchObject({ until: 'lobsterClaimPending === false', fallback: '/api/faucet/finalize-lobsters' });
     });
 
-    test('claim-claw is refused while the lobsters are not minted', async () => {
+    test('claim-gold is refused while the lobsters are not minted', async () => {
       mockReadFaucetStatus.mockResolvedValue(pending());
-      const res = await app.request('/faucet/claim-claw', { method: 'POST', headers: authHeaders() });
+      const res = await app.request('/faucet/claim-gold', { method: 'POST', headers: authHeaders() });
       expect(res.status).toBe(400);
       expect((await res.json()).message).toContain('not been minted yet');
     });

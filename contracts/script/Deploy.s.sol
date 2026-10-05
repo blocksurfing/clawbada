@@ -7,7 +7,7 @@ import {DeployHelpers} from "./DeployHelpers.s.sol";
 import {Treasury} from "../Treasury.sol";
 import {LobsterNFT} from "../LobsterNFT.sol";
 import {BattleVRF} from "../BattleVRF.sol";
-import {ClawToken} from "../ClawToken.sol";
+import {GoldToken} from "../GoldToken.sol";
 import {TeamManager} from "../TeamManager.sol";
 import {Faucet} from "../Faucet.sol";
 import {MiningPool} from "../MiningPool.sol";
@@ -62,10 +62,10 @@ contract Deploy is DeployHelpers {
         // deployer. Like the reserve, it must not be the fee-splitter.
         require(treasuryReserveAddress != d.treasury, "TOK-H1: reserve recipient must not be the fee-splitter");
         require(lpRecipient != d.treasury, "D-24: LP recipient must not be the fee-splitter");
-        d.clawToken = address(new ClawToken(deployer, lpRecipient, treasuryReserveAddress));
-        console2.log("ClawToken:", d.clawToken);
+        d.goldToken = address(new GoldToken(deployer, lpRecipient, treasuryReserveAddress));
+        console2.log("GoldToken:", d.goldToken);
         require(
-            ClawToken(d.clawToken).balanceOf(d.treasury) == 0,
+            GoldToken(d.goldToken).balanceOf(d.treasury) == 0,
             "TOK-H1: Treasury fee-splitter must hold no genesis reserve"
         );
 
@@ -75,29 +75,29 @@ contract Deploy is DeployHelpers {
         console2.log("TeamManager:", d.teamManager);
 
         uint256 closeTime = block.timestamp + FAUCET_DURATION;
-        d.faucet = address(new Faucet(deployer, d.lobsterNFT, d.clawToken, closeTime));
+        d.faucet = address(new Faucet(deployer, d.lobsterNFT, d.goldToken, closeTime));
         console2.log("Faucet:", d.faucet);
         console2.log("  closeTime:", closeTime);
 
-        d.miningPool = address(new MiningPool(deployer, d.clawToken, d.lobsterNFT, d.teamManager));
+        d.miningPool = address(new MiningPool(deployer, d.goldToken, d.lobsterNFT, d.teamManager));
         console2.log("MiningPool:", d.miningPool);
 
-        d.breedingLab = address(new BreedingLab(d.clawToken, d.lobsterNFT, d.treasury));
+        d.breedingLab = address(new BreedingLab(d.goldToken, d.lobsterNFT, d.treasury));
         console2.log("BreedingLab:", d.breedingLab);
 
-        d.evolutionLab = address(new EvolutionLab(d.clawToken, d.lobsterNFT, d.treasury));
+        d.evolutionLab = address(new EvolutionLab(d.goldToken, d.lobsterNFT, d.treasury));
         console2.log("EvolutionLab:", d.evolutionLab);
 
-        d.repairShop = address(new RepairShop(d.clawToken, d.lobsterNFT, d.treasury, d.miningPool));
+        d.repairShop = address(new RepairShop(d.goldToken, d.lobsterNFT, d.treasury, d.miningPool));
         console2.log("RepairShop:", d.repairShop);
 
-        d.marketplace = address(new Marketplace(d.clawToken, d.lobsterNFT, d.treasury));
+        d.marketplace = address(new Marketplace(d.goldToken, d.lobsterNFT, d.treasury));
         console2.log("Marketplace:", d.marketplace);
 
         // ── Tier 2 — Depends on Tiers 0 + 1 ──
 
         d.battleArena = address(
-            new BattleArena(deployer, d.clawToken, d.lobsterNFT, d.teamManager, d.treasury, d.battleVRF, d.miningPool)
+            new BattleArena(deployer, d.goldToken, d.lobsterNFT, d.teamManager, d.treasury, d.battleVRF, d.miningPool)
         );
         console2.log("BattleArena:", d.battleArena);
     }

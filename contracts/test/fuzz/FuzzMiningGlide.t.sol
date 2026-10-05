@@ -333,7 +333,7 @@ contract FuzzMiningGlideTest is BaseSetup {
 
     // ───────────────────────── fuzz ─────────────────────────
 
-    /// @dev A budget small enough that eight teams' demand moves the glide: 10K .. ~330M CLAW,
+    /// @dev A budget small enough that eight teams' demand moves the glide: 10K .. ~330M GOLD,
     ///      log-spread (a uniform draw would almost always pin the rate to its cap). At the
     ///      small end the hourly ceiling binds on most visits; at the large end it never does.
     function testFuzz_glide_matches_reference_model(uint256 emissionSeed, uint256 baseSeed, uint256[STEPS] memory seeds)
@@ -369,7 +369,7 @@ contract FuzzMiningGlideTest is BaseSetup {
     }
 
     /// @dev D-20: near the end of the 705M allocation the lifetime cap, not the season budget,
-    ///      is what is left to pace. Pin lifetimeMinted so only `left` CLAW can ever be minted.
+    ///      is what is left to pace. Pin lifetimeMinted so only `left` GOLD can ever be minted.
     function testFuzz_glide_paces_against_the_lifetime_cap(uint256 leftSeed, uint256[STEPS] memory seeds) public {
         uint256 left = bound(leftSeed, 5_000e18, 2_000_000e18);
         stdstore.target(address(miningPool)).sig("lifetimeMinted()").checked_write(miningPool.MINING_ALLOCATION() - left);
@@ -429,7 +429,7 @@ contract FuzzMiningGlideTest is BaseSetup {
     /// @dev The in-band step: the target lies inside [0.7, 1.3] x old, so next == target exactly.
     function test_glide_in_band_lands_exactly_on_target() public {
         _begin(130_000_000e18, 1_000e18);
-        for (uint256 k = 0; k < 4; k++) _start(k, 3); // 100 units, 100,000 CLAW
+        for (uint256 k = 0; k < 4; k++) _start(k, 3); // 100 units, 100,000 GOLD
         _hour(1);
         _start(4, 0);
         // left 129.9M over 1,439 epochs x 100 units = 902.7...; inside [700, 1300] and under launch
@@ -558,7 +558,7 @@ contract FuzzMiningGlideTest is BaseSetup {
         assertFalse(_start(1, 0), "a Base expedition does not fit in half a reward");
     }
 
-    /// @dev D-19: the ceiling. 100M over 1,440 epochs, twice the fair share = 138,888 CLAW an
+    /// @dev D-19: the ceiling. 100M over 1,440 epochs, twice the fair share = 138,888 GOLD an
     ///      hour: five Apex expeditions at launch (125,000) fit, the sixth (150,000) is refused
     ///      and names the next epoch — where it starts, at the rate the five pulled down.
     function test_glide_ceiling_binds_then_opens_next_epoch() public {

@@ -232,13 +232,13 @@ function DepositAction({ battleId, address, teamId, stake, opponentPower }: { ba
   }, [battleId, teamId, address, getAuthHeaders, executeTx]);
 
   const busy = status === 'pending' || status === 'confirming';
-  const stakeClaw = (() => { try { return (BigInt(stake) / 10n ** 18n).toLocaleString(); } catch { return stake; } })();
+  const stakeGold = (() => { try { return (BigInt(stake) / 10n ** 18n).toLocaleString(); } catch { return stake; } })();
 
   return (
     <div className="border border-border rounded-md p-6 text-center space-y-3">
       <p className="text-sm">Deposit your stake + 5% anti-grief deposit and commit your team.</p>
       <p className="text-xs text-muted-foreground">
-        You agree to a stake of {stakeClaw} $CLAW against a team of Power {opponentPower}. The contract refuses the
+        You agree to a stake of {stakeGold} $GOLD against a team of Power {opponentPower}. The contract refuses the
         deposit if the battle is anything else. Your opponent won&apos;t see your team until both teams are revealed together.
       </p>
       <Button onClick={handleDeposit} disabled={busy} size="sm">

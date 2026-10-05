@@ -103,7 +103,7 @@ function describeEvent(event: ActivityEvent): { iconSrc: string; label: string; 
       return {
         iconSrc,
         label: 'Sold',
-        detail: buyer ? `to ${formatAddress(buyer)}${price ? ` for ${Number(price).toLocaleString()} $CLAW` : ''}` : '',
+        detail: buyer ? `to ${formatAddress(buyer)}${price ? ` for ${Number(price).toLocaleString()} $GOLD` : ''}` : '',
       };
     }
     case 'expedition_claimed': {
@@ -113,7 +113,7 @@ function describeEvent(event: ActivityEvent): { iconSrc: string; label: string; 
         iconSrc,
         label: 'Mining claimed',
         detail: owner
-          ? `${formatAddress(owner)}${reward ? ` +${Number(reward).toLocaleString()} $CLAW` : ''}`
+          ? `${formatAddress(owner)}${reward ? ` +${Number(reward).toLocaleString()} $GOLD` : ''}`
           : '',
       };
     }
@@ -132,7 +132,7 @@ function describeEvent(event: ActivityEvent): { iconSrc: string; label: string; 
         iconSrc,
         label: 'Listed',
         detail: seller
-          ? `by ${formatAddress(seller)}${price ? ` for ${Number(price).toLocaleString()} $CLAW` : ''}`
+          ? `by ${formatAddress(seller)}${price ? ` for ${Number(price).toLocaleString()} $GOLD` : ''}`
           : '',
       };
     }

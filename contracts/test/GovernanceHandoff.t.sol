@@ -19,7 +19,7 @@ contract GovernanceHandoffTest is BaseSetup {
 
     function _admins() internal view returns (address[] memory a) {
         a = new address[](7);
-        a[0] = address(claw);
+        a[0] = address(gold);
         a[1] = address(nft);
         a[2] = address(teamMgr);
         a[3] = address(miningPool);
@@ -50,7 +50,7 @@ contract GovernanceHandoffTest is BaseSetup {
 
     function _deprivileged() internal view returns (bool) {
         return DeploymentChecks.deployerHoldsNoGovernance(
-            _admins(), address(miningPool), address(faucet), address(claw), admin
+            _admins(), address(miningPool), address(faucet), address(gold), admin
         );
     }
 
@@ -218,21 +218,21 @@ contract GovernanceHandoffTest is BaseSetup {
     // ───────────────────────── the predicate ─────────────────────────
 
     /// @dev D-23: the old predicate looked at DEFAULT_ADMIN, SEASON_ADMIN and ELIGIBILITY
-    ///      only. A deployer left holding ClawToken MINTER_ROLE (Configure's last
+    ///      only. A deployer left holding GoldToken MINTER_ROLE (Configure's last
     ///      transaction dropped) passed it, while able to mint the whole unminted supply.
     function test_D23_predicate_sees_lingering_clawtoken_minter() public {
-        bytes32 clawMinter = claw.MINTER_ROLE();
+        bytes32 goldMinter = gold.MINTER_ROLE();
         vm.prank(admin);
-        claw.grantRole(clawMinter, admin);
+        gold.grantRole(goldMinter, admin);
 
         _propose(safe);
         _accept(safe);
         this.extFinalize(safe);
 
-        assertFalse(_deprivileged(), "a deployer that can still mint CLAW is not de-privileged");
+        assertFalse(_deprivileged(), "a deployer that can still mint GOLD is not de-privileged");
 
         vm.prank(safe);
-        claw.revokeRole(clawMinter, admin);
+        gold.revokeRole(goldMinter, admin);
         assertTrue(_deprivileged(), "clean once the safe revokes it");
     }
 }

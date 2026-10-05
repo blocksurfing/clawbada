@@ -29,7 +29,7 @@ export const WEI = 10n ** 18n;
 const BPS = 10_000n;
 export const TIER_WEIGHTS = [1, 3, 10, 25]; // Base, Evolved, Elite, Apex
 export const EXPEDITIONS_PER_DAY = 6;
-/** Effective $CLAW to take a 3-lobster team up one tier (evolution fees + market fuel). Assumption, as in season.ts. */
+/** Effective $GOLD to take a 3-lobster team up one tier (evolution fees + market fuel). Assumption, as in season.ts. */
 export const UPGRADE_COST = [12_000, 60_000, 300_000];
 const BOOST_FACTOR = 1.15; // 50 % of Evolved+ teams boosted at +30 % average, as in season.ts
 export const SEASON_DAYS = 60;
@@ -188,7 +188,7 @@ export interface GlideRunResult {
   exhaustionDay: number | null;
   /** Days on which active teams earned nothing at all. */
   zeroIncomeDays: number;
-  /** Reward per Base expedition (CLAW) at the end of each day, index day-1. */
+  /** Reward per Base expedition (GOLD) at the end of each day, index day-1. */
   rewardByDay: number[];
   /** Cumulative share of the season budget minted by the end of each day. */
   mintedShareByDay: number[];
@@ -197,14 +197,14 @@ export interface GlideRunResult {
   /** Largest single-day spend as a share of the SUM of that day's epoch ceilings: ≤ 1 by construction
    *  (the ceiling is per epoch, 2× the fair share of what is left, floored at one Apex expedition). */
   maxDayVsCapX: number;
-  unspentClaw: number;
-  /** Cumulative season earnings (CLAW) of a team that arrived on day 1. */
+  unspentGold: number;
+  /** Cumulative season earnings (GOLD) of a team that arrived on day 1. */
   day1TeamEarnings: number;
   /** Teams per tier at season end. */
   tierMix: number[];
   /** Battle-layer stress: breakeven base boost (bps) for an Elite team at the final reward (season.ts). */
   finalEliteBreakevenBps: number;
-  /** D-C: CLAW earned per unit demanded by the shape's two cohorts (locked / peak vs spread / off-peak),
+  /** D-C: GOLD earned per unit demanded by the shape's two cohorts (locked / peak vs spread / off-peak),
    *  and their ratio — 1.0 is fair; refused starts retry next epoch, so this is the time-of-day premium. */
   cohortPerUnit: { locked: number; spread: number; ratio: number };
   /** Share of all starts refused by the ceiling at least once (they retried next epoch). */
@@ -363,7 +363,7 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
     mintedShareByDay,
     maxDayOverspendX,
     maxDayVsCapX,
-    unspentClaw: Number(s.emission - s.minted) / 1e18,
+    unspentGold: Number(s.emission - s.minted) / 1e18,
     day1TeamEarnings: teams.length ? teams[0].earned : 0,
     tierMix,
     finalEliteBreakevenBps,

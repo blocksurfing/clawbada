@@ -3,7 +3,7 @@ export const MarketplaceAbi = [
     "type": "constructor",
     "inputs": [
       {
-        "name": "clawToken_",
+        "name": "goldToken_",
         "type": "address",
         "internalType": "address"
       },
@@ -92,19 +92,6 @@ export const MarketplaceAbi = [
   },
   {
     "type": "function",
-    "name": "clawToken",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IERC20"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "getListing",
     "inputs": [
       {
@@ -140,6 +127,19 @@ export const MarketplaceAbi = [
             "internalType": "bool"
           }
         ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "goldToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
       }
     ],
     "stateMutability": "view"

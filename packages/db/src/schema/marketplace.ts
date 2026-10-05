@@ -4,7 +4,7 @@ export const listings = pgTable('listings', {
   listingId: bigint('listing_id', { mode: 'bigint' }).primaryKey(),
   tokenId: bigint('token_id', { mode: 'bigint' }).notNull(),
   seller: text('seller').notNull(),
-  price: text('price').notNull(), // $CLAW amount as string
+  price: text('price').notNull(), // $GOLD amount as string
   active: boolean('active').notNull().default(true),
   buyer: text('buyer'),
   listedAt: timestamp('listed_at').defaultNow().notNull(),

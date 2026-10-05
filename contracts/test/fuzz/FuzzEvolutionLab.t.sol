@@ -10,7 +10,7 @@ contract FuzzEvolutionLab is BaseSetup {
 
     function _doEvolve(uint256 target, uint256 fuel1, uint256 fuel2) internal {
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
     }
@@ -21,7 +21,7 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         assertEq(nft.getEvolutionTier(target), 0);
         _doEvolve(target, fuel1, fuel2);
@@ -30,7 +30,7 @@ contract FuzzEvolutionLab is BaseSetup {
 
     function test_evolve_full_chain() public {
         // Base → Evolved → Elite → Apex requires 2+4+8 = 14 fuel lobsters
-        _giveClaw(alice, 2_000_000e18);
+        _giveGold(alice, 2_000_000e18);
 
         // Create target
         uint256 target = _mintLobster(alice, 0);
@@ -64,14 +64,14 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 2_000_000e18);
+        _giveGold(alice, 2_000_000e18);
 
         // Set target to Apex directly for speed
         vm.prank(admin);
         nft.setEvolutionTier(target, 3);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.AlreadyMaxTier.selector, target));
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
@@ -88,14 +88,14 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 2_000_000e18);
+        _giveGold(alice, 2_000_000e18);
 
         vm.prank(admin); nft.setEvolutionTier(target, targetTier);
         vm.prank(admin); nft.setEvolutionTier(fuel1, fuelTier);
         vm.prank(admin); nft.setEvolutionTier(fuel2, fuelTier);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(); // InvalidFuelTier
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
@@ -106,10 +106,10 @@ contract FuzzEvolutionLab is BaseSetup {
     function test_target_same_as_fuel1_reverts() public {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.DuplicateId.selector, target));
         evolutionLab.evolve(target, target, fuel2);
         vm.stopPrank();
@@ -118,10 +118,10 @@ contract FuzzEvolutionLab is BaseSetup {
     function test_target_same_as_fuel2_reverts() public {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.DuplicateId.selector, target));
         evolutionLab.evolve(target, fuel1, target);
         vm.stopPrank();
@@ -130,10 +130,10 @@ contract FuzzEvolutionLab is BaseSetup {
     function test_fuel1_same_as_fuel2_reverts() public {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.DuplicateId.selector, fuel1));
         evolutionLab.evolve(target, fuel1, fuel1);
         vm.stopPrank();
@@ -145,7 +145,7 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         assertTrue(nft.exists(fuel1));
         assertTrue(nft.exists(fuel2));
@@ -162,7 +162,7 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         // Lock target via team
         uint256 extra1 = _mintLobster(alice, 3);
@@ -171,7 +171,7 @@ contract FuzzEvolutionLab is BaseSetup {
         teamMgr.createTeam([target, extra1, extra2]);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.LobsterIsLocked.selector, target));
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
@@ -192,10 +192,10 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0); // alice owns
         uint256 fuel1  = _mintLobster(bob, 1);
         uint256 fuel2  = _mintLobster(bob, 2);
-        _giveClaw(bob, 10_000e18);
+        _giveGold(bob, 10_000e18);
 
         vm.startPrank(bob);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.NotLobsterOwner.selector, target));
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
@@ -211,10 +211,10 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(bob, 1);   // bob owns
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.NotLobsterOwner.selector, fuel1));
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
@@ -225,10 +225,10 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(bob, 2);   // bob owns
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.NotLobsterOwner.selector, fuel2));
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
@@ -239,13 +239,13 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         vm.prank(admin);
         nft.setLocked(fuel1, true);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.LobsterIsLocked.selector, fuel1));
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
@@ -255,13 +255,13 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         vm.prank(admin);
         nft.setLocked(fuel2, true);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.LobsterIsLocked.selector, fuel2));
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
@@ -274,7 +274,7 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         vm.prank(admin); uint256 fuel1 = nft.mint(alice, _pureDNA(1), true); // soulbound
         vm.prank(admin); uint256 fuel2 = nft.mint(alice, _pureDNA(2), true); // soulbound
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         assertTrue(nft.isSoulbound(fuel1));
         assertTrue(nft.isSoulbound(fuel2));
@@ -292,7 +292,7 @@ contract FuzzEvolutionLab is BaseSetup {
         vm.prank(admin); uint256 target = nft.mint(alice, _pureDNA(0), true); // soulbound
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         assertTrue(nft.isSoulbound(target));
 
@@ -307,16 +307,16 @@ contract FuzzEvolutionLab is BaseSetup {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 cost = 2_000e18;
-        uint256 supplyBefore = claw.totalSupply();
-        uint256 devBefore = claw.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
+        uint256 devBefore = gold.balanceOf(devWallet);
 
         _doEvolve(target, fuel1, fuel2);
 
-        uint256 burned = supplyBefore - claw.totalSupply();
-        uint256 devGot = claw.balanceOf(devWallet) - devBefore;
+        uint256 burned = supplyBefore - gold.totalSupply();
+        uint256 devGot = gold.balanceOf(devWallet) - devBefore;
         uint256 expectedBurn = cost * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR();
         uint256 expectedDev = cost - expectedBurn;
 
@@ -325,16 +325,16 @@ contract FuzzEvolutionLab is BaseSetup {
         assertEq(burned + devGot, cost, "full fee accounted");
     }
 
-    // Insufficient CLAW balance reverts from ERC20 (not a custom error).
-    function test_evolve_insufficientClaw_reverts() public {
+    // Insufficient GOLD balance reverts from ERC20 (not a custom error).
+    function test_evolve_insufficientGold_reverts() public {
         uint256 target = _mintLobster(alice, 0);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        // Alice has only 100 CLAW — less than the 2,000 cost
-        _giveClaw(alice, 100e18);
+        // Alice has only 100 GOLD — less than the 2,000 cost
+        _giveGold(alice, 100e18);
 
         vm.startPrank(alice);
-        claw.approve(address(evolutionLab), type(uint256).max);
+        gold.approve(address(evolutionLab), type(uint256).max);
         vm.expectRevert();
         evolutionLab.evolve(target, fuel1, fuel2);
         vm.stopPrank();
@@ -348,7 +348,7 @@ contract FuzzEvolutionLab is BaseSetup {
         vm.prank(admin); uint256 target = nft.mintWithGeneration(alice, _pureDNA(0), 5);
         uint256 fuel1  = _mintLobster(alice, 1);
         uint256 fuel2  = _mintLobster(alice, 2);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         _doEvolve(target, fuel1, fuel2);
         assertEq(nft.getEvolutionTier(target), 1);
