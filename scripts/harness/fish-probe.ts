@@ -37,6 +37,9 @@ async function burst(b: Browser, name: string) {
  *  turned or left (`…-after-N.png`), and fails on any runtime exception. */
 export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
+  // The Unity bundle keeps its URL across builds: drop Chrome's HTTP cache too, or a probe after a rebuild
+  // can run the previous build (seen 2026-10-05 — the school never logged because the bundle predated it).
+  await b.send('Network.clearBrowserCache', {});
   await b.goto(`${BASE}/game/battle?preset=${PRESET}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -78,7 +81,7 @@ export default async function (b: Browser) {
     }
   }
 
-  // First crossing: the stagger is ≤ 20 s, then the swim in from off-screen (≤ 16 s at the slowest speed).
+  // First crossing: the stagger is ≤ 16 s, then the swim in from off-screen (≤ 14 s at the slowest speed).
   const enterRe = /\[AnglerSchool\] fish (\d+) crossing (\d+) enter ([LR])→([LR]) y=([\d.]+) speed=([\d.]+) scale=([\d.]+) (turn@x=(-?[\d.]+)|straight)/;
   const first = (await waitLogs(b, /\[AnglerSchool\] fish \d+ crossing \d+ enter /, 1, 60000))[0];
   if (!first) fail('no crossing within 60 s of the seed line');
@@ -111,7 +114,7 @@ export default async function (b: Browser) {
     const y = Number(m[5]), speed = Number(m[6]), scale = Number(m[7]);
     sides.add(m[3]);
     if (y < bandLo - 0.01 || y > bandHi + 0.01) fail(`lane y=${y} outside the band [${bandLo},${bandHi}]`);
-    if (speed < 0.34 || speed > 0.71) fail(`speed ${speed} outside 0.35..0.7`);
+    if (speed < 0.41 || speed > 0.85) fail(`speed ${speed} outside 0.42..0.84`);
     if (scale < 0.69 || scale > 1.01) fail(`scale ${scale} outside 0.7..1.0`);
     if (m[9] !== undefined && Math.abs(Number(m[9])) > 1.81) fail(`turn at x=${m[9]} is outside the visible middle`);
   }
