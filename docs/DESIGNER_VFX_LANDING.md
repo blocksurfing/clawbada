@@ -231,6 +231,21 @@ along that crest; untick `disabled` to open the far-right rock). The gizmos show
 Keep the seven state names (Idle_1/2/3, Jump, Fly, Landing, Walk) and the one-shot flags on Jump
 and Landing; the installer refuses anything else.
 
+**Angler fish (Elite).** Your AnglerFish prefab is driven by `AnglerSchool` on the `Fish` child of
+`ArenaArt_Elite.prefab`, as you asked: 1–3 fish per battle, each swimming in from a random edge on
+its own lane in the open water above the floor, sometimes turning back mid-way (your Turn clip)
+where it can be seen between the ruined walls, leaving by an edge and coming back later. Everything
+you may want to tune is on the component (select the `Fish` child in the prefab stage; the gizmos
+draw the lane band and the turn zone): the count and its weights, the lane band (`laneYMin/Max`,
+arena-local; the default 2.1–2.5 keeps the whole fish above the floor and under the frame top),
+speeds, sizes, how often it turns, the pauses between passes. **Depth**: the engine puts the fish on
+`Background/2` — in front of the water (`BG - 3`), behind the ruined walls (`BG - 2`, which you
+moved to 3), so it slips behind the corners. Your prefab carries `Background/3`; if you meant it
+level with the walls, set `sortingOrder` to 3 on the component. Keep the two state names (Swim
+loops, Turn is a one-shot, Swim is the default state) and the art facing right; the installer
+refuses anything else. Your seaweed placements (4 Seaweed, 5 FG_Seaweed) landed as you placed
+them; the engine only adds the `Fish` child.
+
 ## 3d. HUD and UI art — the contract when you get to it
 
 The action buttons, the gear and the glyphs currently in the build are **placeholder art we
