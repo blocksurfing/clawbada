@@ -244,7 +244,10 @@ moved to 3), so it slips behind the corners. Your prefab carries `Background/3`;
 level with the walls, set `sortingOrder` to 3 on the component. Keep the two state names (Swim
 loops, Turn is a one-shot, Swim is the default state) and the art facing right; the installer
 refuses anything else. Your seaweed placements (4 Seaweed, 5 FG_Seaweed) landed as you placed
-them; the engine only adds the `Fish` child.
+them; the engine only adds the `Fish` child. After the first look (2026-10-05) two tweaks landed on
+our side: your seaweed Idle states play at 0.7× (the clips are as you authored them — change the state
+speed if you want them lively again), and the five foreground seaweeds were lowered by 3–13 px so each
+painted base sits just behind the front ledge instead of on the arena floor.
 
 ## 3d. HUD and UI art — the contract when you get to it
 
