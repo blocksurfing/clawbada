@@ -6,7 +6,7 @@ To play Clawbada you need a wallet on **Base** (Chain ID 8453). Both EOA wallets
 
 ## New Player Onboarding
 
-During the first \~7 days after launch, new players can claim free resources from the faucet.
+For about 7 days after the game opens (the faucets close 6 days 23 hours in), new players can claim free resources from the faucet. Whatever is left unclaimed is burned when it closes.
 
 ### Faucet Eligibility
 
@@ -25,9 +25,9 @@ Your claim is locked in the moment you make it, and the lobsters appear a few se
 
 Soulbound means they can't be sold or transferred — but they can be used in teams, mining, breeding, and as evolution fuel.
 
-### Step 2: Claim $CLAW
+### Step 2: Claim $GOLD
 
-After claiming your lobsters, claim **7,000 $CLAW**. This covers your first team formation, initial breeds, and your first evolution — enough to reach Evolved tier without buying from the DEX.
+After claiming your lobsters, claim **7,000 $GOLD**. This covers your first team formation, initial breeds, and your first evolution — enough to reach Evolved tier without buying from the DEX.
 
 ### Step 3: Build a Team
 
@@ -35,14 +35,14 @@ Go to the Teams page and assign 3 of your lobsters to a team. You need a full te
 
 ### Step 4: Start Mining
 
-Send your team to the Base mine. Each expedition takes 4 hours and earns 1,250 $CLAW. You can run 6 expeditions per day per team.
+Send your team to the Base mine. Each expedition takes 4 hours and pays the Base-mine rate — 1,250 $GOLD at launch; the rate glides with how crowded the mines are, and what you will earn is locked in the moment you start (see [Mining](mining.md)). You can run 6 expeditions per day per team.
 
 ### After the Faucet Closes
 
 Once the faucet window ends (\~7 days post-launch), new players must:
 
 - Buy lobsters from the [Marketplace](marketplace.md)
-- Buy $CLAW from the Uniswap V3 pool ($CLAW/ETH)
+- Buy $GOLD from the Uniswap V3 pool ($GOLD/ETH)
 
 ## Player Identity Badges
 
