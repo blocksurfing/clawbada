@@ -18,18 +18,18 @@ public class AnglerSchoolConfig
     public float weightThree = 1f;
     public float laneYMin = 2.1f;
     public float laneYMax = 2.5f;
-    public float speedMin = 0.35f;
-    public float speedMax = 0.7f;
+    public float speedMin = 0.42f;
+    public float speedMax = 0.84f;
     /// <summary>Smaller fish read as farther away.</summary>
     public float scaleMin = 0.7f;
     public float scaleMax = 1f;
     /// <summary>The first crossing of each fish starts after a random delay up to this, so a school trickles in.</summary>
-    public float startDelayMax = 20f;
+    public float startDelayMax = 16f;
     public float turnChance = 0.45f;
     public float turnHalfWidth = 1.8f;
     /// <summary>Off-screen pause between one crossing and the next.</summary>
-    public float respawnGapMin = 8f;
-    public float respawnGapMax = 25f;
+    public float respawnGapMin = 6.4f;
+    public float respawnGapMax = 20f;
     public float bobAmplitude = 0.08f;
     public float bobPeriodMin = 3f;
     public float bobPeriodMax = 5f;
