@@ -64,6 +64,10 @@ classes at a time) land faster than one giant drop.
 | Effect prefabs | `Assets/Prefabs/VFX/FX_<Class>_<Special>.prefab` |
 | **The binding** | `Assets/Prefabs/VFX/BattleVfxLibrary.asset` — drag each prefab into its slot |
 
+**Website and marketing art does not go here.** Logo, socials, hero and section art,
+mockups: the `design/website/` folder on the `design/website` branch — see
+`design/website/README.md`. This branch stays Unity-only.
+
 An effect prefab is just: **SpriteRenderer + Animator (one-shot clip) + `OneShotVfx`**.
 `OneShotVfx` measures the clip and destroys the object when it ends — same setup as the
 existing `FX_Generic_*` prefabs; copy one of those as a template. Import settings for

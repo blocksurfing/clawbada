@@ -64,3 +64,27 @@ packages/battle-engine/**/*.meta   merge=unityyamlmerge eol=lf
 packages/battle-engine/**/*.mat    merge=unityyamlmerge eol=lf
 packages/battle-engine/**/*.anim   merge=unityyamlmerge eol=lf
 packages/battle-engine/**/*.controller merge=unityyamlmerge eol=lf
+
+# --- Website & marketing drop zone: design/website/** (Nzib's `design/website` branch) ---
+# A new folder with no history, so these patterns broaden nothing. Raster exports and design
+# sources are LFS; SVG, PDF-as-text and markdown stay plain git. Landing a batch copies the
+# exports into apps/web/public (plain git, intentionally not LFS) — nothing here is served.
+design/website/**/*.png      filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.jpg      filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.jpeg     filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.gif      filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.webp     filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.tif      filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.tiff     filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.psd      filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.psb      filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.ai       filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.afdesign filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.afphoto  filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.aseprite filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.sketch   filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.mp4      filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.mov      filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.webm     filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.wav      filter=lfs diff=lfs merge=lfs -text
+design/website/**/*.mp3      filter=lfs diff=lfs merge=lfs -text
