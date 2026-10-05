@@ -136,11 +136,8 @@ MonoBehaviour:
   cardHeader: {fileID: 21300000, guid: 9e9164114ed374d988f13e03c4c4a70a, type: 3}
   pennant: {fileID: 21300000, guid: 9d8c0ae792c9649fead6141e3708912b, type: 3}
   hexBevel: {fileID: 21300000, guid: 13877da9930984bba867ce66f0630c67, type: 3}
-  segBg: {fileID: 21300000, guid: bc0fa610693774b73863f16b98940f4d, type: 3}
-  segFill: {fileID: 21300000, guid: 7315a86abb3d64e8d837c452007da527, type: 3}
   cardSize: {x: 54, y: 64}
   activeCardScale: 1.18
-  hpSegments: 8
   cardInner: {r: 0.0627451, g: 0.101960786, b: 0.15294118, a: 1}
   fillCanvas: 1
   fillOrthographicSize: 2.8125
@@ -169,12 +166,7 @@ MonoBehaviour:
   stripPortrait: 56
   activePortrait: 72
   buttonSize: 64
-  overlayBar: {x: 52, y: 10}
   overlayWorldYOffset: 0.22
-  fieldBarFrame: {r: 0.14117648, g: 0.16862746, b: 0.21960784, a: 1}
-  fieldBarRim: {r: 0.5137255, g: 0.5686275, b: 0.6666667, a: 1}
-  fieldBarFriend: {r: 0.37254903, g: 0.8392157, b: 0.2901961, a: 1}
-  fieldBarEnemy: {r: 0.8862745, g: 0.2784314, b: 0.24705882, a: 1}
   floatRise: 40
   floatSeconds: 1.2
   clockDangerMs: 10000

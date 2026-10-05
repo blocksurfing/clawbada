@@ -1,7 +1,9 @@
 import type { Browser } from './cdp';
 const S = `${import.meta.dir}/out`;
 const PRESET = process.env.PRESET ?? 'trio_mantis';
-const TURNS = Number(process.env.TURNS ?? '5');
+const TURNS = Number(process.env.TURNS ?? '4');
+/** Web origin under test (a worktree's dev server can run on another port). */
+const BASE = process.env.BASE ?? 'http://127.0.0.1:3000';
 
 async function rectClick(b: Browser, selector: string, text?: string) {
   const r = await b.eval(`(() => { const els = Array.from(document.querySelectorAll(${JSON.stringify(selector)})); const el = ${text ? `els.find(e => (e.textContent || '').trim().includes(${JSON.stringify(text)}))` : 'els[0]'}; if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
@@ -27,14 +29,16 @@ function parseCells(line: string) {
 }
 const sel = (b: Browser) => b.eval(`window.__clawbada_selection ? JSON.parse(JSON.stringify(window.__clawbada_selection)) : null`) as Promise<any>;
 
-/** LOKR field bars: at rest nobody on the field carries a health bar; the unit the player is
- *  about to hit shows one while chosen; after the hit, that enemy keeps it until another is hit;
- *  the player's own lobsters never get one. Frames: fieldbar-clean.png, fieldbar-lasthit.png. */
+/** The LOKR field HP bar is gone (user 2026-10-04: redundant with Nzib's team panels). Nothing floats
+ *  over a rig at rest, while it is the chosen target, or after it was hit — only the armed-action badge
+ *  over the selected target and the damage floats. Targeting itself still works (target panel, submit).
+ *  Frames: nofieldbar-clean.png (own turn, at rest), nofieldbar-target.png (an enemy selected, before the
+ *  confirm), nofieldbar-lasthit.png (right after the hit). `BASE=http://127.0.0.1:3010` for a worktree. */
 export default async function (b: Browser) {
   const fails: string[] = [];
   const expect = (ok: boolean, what: string) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails.push(what); };
-  await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${PRESET}&stay=1`);
+  await b.send('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
+  await b.goto(`${BASE}/game/battle?preset=${PRESET}&stay=1`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);
@@ -47,7 +51,7 @@ export default async function (b: Browser) {
   expect(await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 30000), 'battle page opened');
   let inited = false;
   for (let load = 0; load < 3 && !inited; load++) {
-    if (load > 0) { console.log(`[fieldbar] Unity did not bind — reloading (${load})`); b.drainLogs(); await b.goto(await b.eval('location.href')); }
+    if (load > 0) { console.log(`[nofieldbar] Unity did not bind — reloading (${load})`); b.drainLogs(); await b.goto(await b.eval('location.href')); }
     const t0 = Date.now();
     while (Date.now() - t0 < 150000) {
       if (b.logs.some((l) => /\[BattleHud\] bind/.test(l))) { inited = true; break; }
@@ -60,14 +64,14 @@ export default async function (b: Browser) {
   await b.eval(`document.querySelector('canvas')?.scrollIntoView({ block: 'start' })`);
 
   const myTurn = `/Your turn/i.test(document.body.innerText) && !/animating…/.test(document.body.innerText)`;
-  let played = 0, attacks = 0, shotClean = false, shotHit = false;
+  let played = 0, attacks = 0, shotClean = false, shotTarget = false, shotHit = false, panelSeen = false;
   const started = Date.now();
   while (played < TURNS && Date.now() - started < 5 * 60_000) {
     if (grab(b, /\[BattleHud\] banner/).length > 0) break;
     const mine = await b.waitFor(myTurn, 30000, 250);
     if (!mine) continue;
     await b.sleep(700);
-    if (!shotClean) { await b.screenshot(`${S}/fieldbar-clean.png`); shotClean = true; }
+    if (!shotClean) { await b.screenshot(`${S}/nofieldbar-clean.png`); shotClean = true; }
     const s = await sel(b);
     if (!s?.actor) continue;
     const g = await canvasGeom(b);
@@ -77,9 +81,18 @@ export default async function (b: Browser) {
     const lob = target ? (s.lobsters || []).find((l: any) => l.id === target) : null;
     const cell = lob ? cells.get(`${lob.col},${lob.row}`) : null;
     if (cell) {
-      const p = toCss(g, cell.x, cell.y); await b.clickAt(p.x, p.y); attacks++;
+      // Two-step targeting (user 2026-09-25): the first tap selects (target panel + badge), the second confirms.
+      const p = toCss(g, cell.x, cell.y);
+      const sentBefore = grab(b, /\[LiveBattle\] submit/).length;
+      await b.clickAt(p.x, p.y); await b.sleep(700);
+      if (grab(b, /\[BattleHud\] target panel/).some((l) => l.includes(target))) panelSeen = true;
+      if (!shotTarget) { await b.screenshot(`${S}/nofieldbar-target.png`); shotTarget = true; }
+      await b.clickAt(p.x, p.y);
+      let sent = false;
+      for (const t0 = Date.now(); Date.now() - t0 < 4000 && !sent; ) { sent = grab(b, /\[LiveBattle\] submit/).length > sentBefore; if (!sent) await b.sleep(150); }
+      if (sent) attacks++;
       await b.sleep(2500);
-      if (!shotHit) { await b.screenshot(`${S}/fieldbar-lasthit.png`); shotHit = true; }
+      if (!shotHit) { await b.screenshot(`${S}/nofieldbar-lasthit.png`); shotHit = true; }
     } else if (btns.defend) {
       const p = toCss(g, btns.defend.x + btns.defend.w / 2, btns.defend.y + btns.defend.h / 2); await b.clickAt(p.x, p.y);
       await b.sleep(1200);
@@ -88,18 +101,13 @@ export default async function (b: Browser) {
   }
   await b.sleep(1500);
 
-  const lines = grab(b, /\[BattleHud\] fieldbar/);
-  console.log(`[fieldbar] ${lines.length} state changes over ${played} own turns (${attacks} attacks):`);
-  for (const l of lines.slice(0, 14)) console.log('   ', l.slice(0, 120));
-  const parse = (l: string) => ({ last: (l.match(/last=(\S*)/) || [, ''])[1], target: (l.match(/target=(\S*)/) || [, ''])[1], shown: ((l.match(/shown=\[([^\]]*)\]/) || [, ''])[1]).split(',').filter(Boolean) });
-  const states = lines.map(parse);
-  expect(states.length > 0 && states[0].shown.length === 0, 'at bind nobody on the field carries a bar');
-  expect(states.some((s) => s.target.startsWith('bot-') && s.shown.includes(s.target)), 'the enemy being targeted carries a bar while chosen');
-  expect(attacks === 0 || states.some((s) => s.last.startsWith('bot-') && s.shown.includes(s.last)), 'the enemy hit last keeps a bar');
-  expect(states.every((s) => s.shown.every((id) => !id.startsWith('preset-') || id === s.target)), "the player's own lobsters never carry a field bar");
-  expect(states.every((s) => s.shown.length <= 2), 'never more than two field bars');
+  console.log(`[nofieldbar] ${played} own turns, ${attacks} attacks sent`);
+  expect(attacks > 0, 'at least one attack was selected, confirmed and sent');
+  expect(panelSeen, 'the target panel still appears for the selected enemy');
+  expect(grab(b, /\[BattleHud\] fieldbar/).length === 0, 'no field-bar state lines: the field HP bar code is gone');
+  expect(shotClean && shotTarget && shotHit, 'frames taken: clean, target selected, last hit');
   const errs = grab(b, /Exception|GLctx|Uncaught|\[exception\]/).filter((l) => !/Family|Aave|hydrat/i.test(l));
   expect(errs.length === 0, `no exceptions (${errs.length})`);
   for (const l of errs.slice(0, 4)) console.log('  err:', l.slice(0, 160));
-  console.log(fails.length ? `[fieldbar] FAILED: ${fails.join('; ')}` : '[fieldbar] ALL CHECKS PASSED');
+  console.log(fails.length ? `[nofieldbar] FAILED: ${fails.join('; ')}` : '[nofieldbar] ALL CHECKS PASSED');
 }

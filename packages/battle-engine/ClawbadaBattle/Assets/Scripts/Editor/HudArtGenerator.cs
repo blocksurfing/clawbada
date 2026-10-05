@@ -43,8 +43,6 @@ public static class HudArtGenerator
         made["card_header"] = WritePng("card_header", Box(8, 8, Ink, new Color(0.75f, 0.75f, 0.75f, 1f), 1));
         made["pennant"] = WritePng("pennant", Pennant(14, 18));
         made["hex_bevel_64"] = WritePng("hex_bevel_64", HexBevel(64, 74));
-        made["seg_bg"] = WritePng("seg_bg", Box(6, 6, new Color(0.05f, 0.08f, 0.12f, 1f), new Color(0.22f, 0.26f, 0.3f, 1f), 1));
-        made["seg_fill"] = WritePng("seg_fill", Box(4, 4, Ink, Ink, 0));
 
         made["icon_attack"] = WritePng("icon_attack", Glyph(Glyphs.Attack, Ink));
         made["icon_special"] = WritePng("icon_special", Glyph(Glyphs.Special, Ink));
@@ -75,7 +73,6 @@ public static class HudArtGenerator
         SetBorder(made["panel_bg"], new Vector4(5, 5, 5, 5));
         SetBorder(made["card_frame"], new Vector4(7, 7, 7, 7));
         SetBorder(made["card_header"], new Vector4(2, 2, 2, 2));
-        SetBorder(made["seg_bg"], new Vector4(2, 2, 2, 2));
         AssetDatabase.SaveAssets();
         HexDestArt.Generate(); // the move-target overlay sprite + HudSkin.hexDest (2026-10-04)
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
@@ -123,8 +120,6 @@ public static class HudArtGenerator
         if (skin.cardHeader == null) skin.cardHeader = S("card_header");
         if (skin.pennant == null) skin.pennant = S("pennant");
         if (skin.hexBevel == null) skin.hexBevel = S("hex_bevel_64");
-        if (skin.segBg == null) skin.segBg = S("seg_bg");
-        if (skin.segFill == null) skin.segFill = S("seg_fill");
 
         var icons = new List<HudSkin.StatusIcon>(skin.statusIcons ?? new HudSkin.StatusIcon[0]);
         foreach (var key in Glyphs.Statuses.Keys)

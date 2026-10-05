@@ -147,11 +147,8 @@ public class HudSkin : ScriptableObject
     public Sprite cardHeader;   // 9-sliced band, tinted per team
     public Sprite pennant;      // flag under the active card
     public Sprite hexBevel;     // filled bevelled hex for action buttons
-    public Sprite segBg;        // one HP segment cell
-    public Sprite segFill;      // segment fill (tinted)
     public Vector2 cardSize = new Vector2(54f, 64f);
     public float activeCardScale = 1.18f;
-    public int hpSegments = 8;
     public Color cardInner = C("#101a27");
 
     [Header("Camera")]
@@ -203,16 +200,10 @@ public class HudSkin : ScriptableObject
     public float stripPortrait = 56f;
     public float activePortrait = 72f;
     public float buttonSize = 64f;
-    public Vector2 overlayBar = new Vector2(52f, 10f);  // the field bar's cells (LOKR: about the character's width, chunky)
-    [Tooltip("World units above the rig's origin (the body centre, on the hex) where the field bar's frame sits. The rigs " +
-             "are wide and ~0.3 u tall; 0.58 floated the bar a head above them, which read as a neighbour's when units " +
-             "bunched. NOTE: Resources/UI/HudSkin.asset carries the shipped value — this default only seeds a new asset.")]
+    [Tooltip("World units above the rig's origin (the body centre, on the hex) that the damage floats and the armed-action " +
+             "badge over the selected target are anchored to. The rigs are wide and ~0.3 u tall. NOTE: Resources/UI/HudSkin.asset " +
+             "carries the shipped value — this default only seeds a new asset.")]
     public float overlayWorldYOffset = 0.22f;
-    [Header("Field bar (LOKR): dark slate frame with a lighter rim; fill by team, not by HP band")]
-    public Color fieldBarFrame = C("#242b38");
-    public Color fieldBarRim = C("#8391aa");
-    public Color fieldBarFriend = C("#5fd64a");
-    public Color fieldBarEnemy = C("#e2473f");
     public float floatRise = 40f;
     public float floatSeconds = 1.2f;
     public int clockDangerMs = 10000;
@@ -250,13 +241,6 @@ public class HudSkin : ScriptableObject
 
     public Color TeamColor(string side) => side == "A" ? teamA : teamB;
 
-    public Color HpColor(int hp, int max)
-    {
-        float pct = max > 0 ? (float)hp / max : 0f;
-        if (pct > 0.5f) return hpHigh;
-        if (pct > 0.25f) return hpMid;
-        return hpLow;
-    }
 
     private static Color C(string hex)
     {
