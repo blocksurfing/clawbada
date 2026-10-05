@@ -267,6 +267,23 @@ list (select the `Birds` child in the prefab stage; gizmos draw each perch box a
 `RightFar` ships disabled. `BirdFlockInstaller.Install` (menu *Clawbada ▸ Arena ▸ Install Evolved
 Bird Flock*, headless `-executeMethod BirdFlockInstaller.Install`) adds the child and validates the
 bird asset; it is idempotent and never overwrites tuned perches (the "reset perches" variant does).
+Elite angler fish (2026-10-05, Nzib's Elite decoration drop): the ambient school is an `AnglerSchool`
+component on the `Fish` child of `ArenaArt_Elite.prefab` (same pattern as the gulls, nothing in the
+scene). The designer's note as implemented (`Assets/Scripts/Battle/AnglerSchool.cs`): 1–3 fish per
+battle (weighted 2:2:1), each entering from a random edge on its own lane in the open-water band above
+the floor (arena-local y 2.1–2.5: the Elite `Ground` layer paints up to y ≈ 1.81, the frame top is 2.81),
+at a random speed (0.35–0.7 u/s) and size (0.7–1.0), staggered by up to 20 s, with a slow bob; 45 % of
+passes turn back mid-way with the Turn clip (mirrored with `flipX` for the other direction), only inside
+|x| < 1.8 where the fish is visible between the ruined walls; a fish that leaves comes back 8–25 s
+later on a new pass. The sprites are forced to `Background/2`: in front of the water (`BG - 3`, order 1),
+behind the ruined walls (`BG - 2`, order 3) and under the floor, the actors and the HUD — "stay on
+background". Scaled time, `Animator.Play` to state names (Swim loops, Turn is a one-shot timed by clip
+length), deterministic per battle (`AnglerSchoolPlanner`, pure C#, seeded with the battle id; later
+passes come from the same seed). `AnglerSchoolInstaller.Install` adds the child and validates the asset
+(idempotent, never overwrites a tuned config); `AnglerSchoolSmokeTest.Run` checks the planner over
+1,000 seeds, the asset, the prefab and that Nzib's nine seaweed placements are intact. Probe:
+`scripts/harness/fish-probe.ts` (`PRESET=random_elite`, `BASE`).
+
 `BirdFlockSmokeTest.Run` checks the planner's guarantees, that each of a gull's two feet (4 px left and
 5 px right of the pivot, at every point of the walk span) rests on the painted surface of `BG_4.png` —
 at most 1 px of air, at most 2 px into the rock — and the installed prefab; the browser

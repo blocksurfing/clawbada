@@ -45,6 +45,7 @@ Transform:
   - {fileID: 4962750319625521684}
   - {fileID: 5871777550503852304}
   - {fileID: 5541106068248650518}
+  - {fileID: 5163573578103221033}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2876649940999499766
@@ -684,6 +685,76 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!1 &8400650565859998509
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5163573578103221033}
+  - component: {fileID: 7133521082247108928}
+  m_Layer: 0
+  m_Name: Fish
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5163573578103221033
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8400650565859998509}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2227674113820425240}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7133521082247108928
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8400650565859998509}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 60289779dd2324d229fe65f9047f37bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AnglerSchool
+  fishPrefab: {fileID: 7916837266195725391, guid: 2e52ce3bf73f6b04dbdc6d4219b0a434, type: 3}
+  artFacesRight: 1
+  sortingOrder: 2
+  config:
+    minFish: 1
+    maxFish: 3
+    weightOne: 2
+    weightTwo: 2
+    weightThree: 1
+    laneYMin: 2.1
+    laneYMax: 2.5
+    speedMin: 0.35
+    speedMax: 0.7
+    scaleMin: 0.7
+    scaleMax: 1
+    startDelayMax: 20
+    turnChance: 0.45
+    turnHalfWidth: 1.8
+    respawnGapMin: 8
+    respawnGapMax: 25
+    bobAmplitude: 0.08
+    bobPeriodMin: 3
+    bobPeriodMax: 5
+  offscreenMargin: 0.6
+  seedOverride: 
+  verbose: 0
 --- !u!1001 &232751706406711057
 PrefabInstance:
   m_ObjectHideFlags: 0

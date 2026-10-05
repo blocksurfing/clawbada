@@ -13,6 +13,10 @@ MonoBehaviour:
   m_Name: ArenaDecorAnchors
   m_EditorClassIdentifier: Assembly-CSharp::ArenaDecorAnchors
   entries:
+  - sprite: Angler Fish/Swim
+    content: {x: 0.026785715, y: 0.234375, z: 0.9754464, w: 0.765625}
+  - sprite: Angler Fish/Turn
+    content: {x: 0.046875, y: 0.25, z: 0.953125, w: 0.75}
   - sprite: Apex/BG - 1
     content: {x: 0, y: 0.15, z: 1, w: 0.8055556}
   - sprite: Apex/BG - 2
@@ -27,8 +31,22 @@ MonoBehaviour:
     content: {x: 0, y: 0, z: 1, w: 0.5222222}
   - sprite: Apex/Ground
     content: {x: 0, y: 0, z: 1, w: 0.76666665}
+  - sprite: Bird/Fly
+    content: {x: 0.020833334, y: 0.25, z: 0.9583333, w: 0.8125}
+  - sprite: Bird/Idle_1
+    content: {x: 0.013671875, y: 0.21875, z: 0.984375, w: 0.78125}
+  - sprite: Bird/Idle_2
+    content: {x: 0.019886363, y: 0.21875, z: 0.97727275, w: 0.78125}
+  - sprite: Bird/Idle_3
+    content: {x: 0.02734375, y: 0.21875, z: 0.99609375, w: 0.78125}
+  - sprite: Bird/Jump
+    content: {x: 0.03125, y: 0.21875, z: 0.97321427, w: 0.875}
+  - sprite: Bird/Landing
+    content: {x: 0.010416667, y: 0.21875, z: 0.9635417, w: 0.8125}
+  - sprite: Bird/Walk
+    content: {x: 0.0625, y: 0.21875, z: 0.9453125, w: 0.78125}
   - sprite: Elite/BG - 2
-    content: {x: 0, y: 0.6638889, z: 1, w: 0.99444443}
+    content: {x: 0, y: 0.6666667, z: 1, w: 0.99444443}
   - sprite: Elite/BG - 3
     content: {x: 0, y: 0, z: 1, w: 1}
   - sprite: Elite/FG - 1 - Rock
@@ -57,3 +75,17 @@ MonoBehaviour:
     content: {x: 0, y: 0, z: 1, w: 1}
   - sprite: Evolved/Foam
     content: {x: 0.246875, y: 0.78333336, z: 0.7921875, w: 0.8111111}
+  - sprite: Foreground Seaweed/FG_Seaweed_1
+    content: {x: 0.03125, y: 0, z: 0.9739583, w: 0.9166667}
+  - sprite: Foreground Seaweed/FG_Seaweed_2
+    content: {x: 0.0390625, y: 0, z: 0.9635417, w: 0.9166667}
+  - sprite: Lava/Lava
+    content: {x: 0, y: 0, z: 1, w: 0.9869792}
+  - sprite: Lava/LavaBody
+    content: {x: 0, y: 0.15, z: 1, w: 0.7277778}
+  - sprite: Sea/Foam
+    content: {x: 0, y: 0.027083334, z: 1, w: 0.99791664}
+  - sprite: Sea/Sea
+    content: {x: 0, y: 0, z: 1, w: 0.94196427}
+  - sprite: Seaweed/Seaweed
+    content: {x: 0.017857144, y: 0, z: 0.98214287, w: 1}
