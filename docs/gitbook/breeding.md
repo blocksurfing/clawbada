@@ -27,7 +27,7 @@ Breeding cost is calculated per parent based on that parent's breed count and ge
 
 **Total cost** = parent A cost + parent B cost.
 
-**Example**: Two fresh Gen 0 parents, 5 breeds = 17,000 $CLAW total for 5 offspring. Breakeven at 3,400 $CLAW per offspring.
+**Example**: Two fresh Gen 0 parents, 5 breeds = 17,000 $GOLD total for 5 offspring. Breakeven at 3,400 $GOLD per offspring.
 
 Higher-generation parents cost more due to the 1.5^generation multiplier. Gen 2 parents cost 2.25x more than Gen 0.
 
@@ -81,4 +81,4 @@ Each breed has a **\~0.3% chance** (about 1 in 333) of producing a legend offspr
 - Breed same-class parents to guarantee offspring class
 - Look for hidden value in recessive alleles (R1/R2 matching the class)
 - Gen 0 pairs are cheapest — maximize breeds before moving to higher gens
-- The marketplace creates a self-correcting economy: if offspring sell below 3,400 $CLAW, breeders exit and supply drops
+- The marketplace creates a self-correcting economy: if offspring sell below 3,400 $GOLD, breeders exit and supply drops

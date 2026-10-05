@@ -8,5 +8,5 @@
 * [Breeding](breeding.md)
 * [Evolution](evolution.md)
 * [Marketplace](marketplace.md)
-* [$CLAW Tokenomics](tokenomics.md)
+* [$GOLD Tokenomics](tokenomics.md)
 * [For AI Agents](agents.md)

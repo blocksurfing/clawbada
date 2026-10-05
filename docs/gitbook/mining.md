@@ -1,6 +1,6 @@
 # Mining
 
-Mining is the **idle, low-risk** mode in Clawbada. Send a team of 3 lobsters on an expedition, wait 4 hours, and claim a fixed $CLAW reward.
+Mining is the **idle, low-risk** mode in Clawbada. Send a team of 3 lobsters on an expedition, wait 4 hours, and claim a fixed $GOLD reward.
 
 ## How It Works
 
@@ -8,7 +8,7 @@ Mining is the **idle, low-risk** mode in Clawbada. Send a team of 3 lobsters on 
 2. Choose a mine tier your team qualifies for
 3. Start an expedition — your reward is locked in at the start
 4. Wait 4 hours
-5. Claim your $CLAW
+5. Claim your $GOLD
 
 Each team can run **6 expeditions per day** (one every 4 hours). You can have unlimited teams running simultaneously.
 
@@ -18,10 +18,10 @@ Higher tiers require evolved lobsters but pay proportionally more.
 
 | Mine | Requirement | Reward per Expedition |
 |------|------------|----------------------|
-| **Base** | All 3 lobsters at Base tier | 1,250 $CLAW |
-| **Evolved** | All 3 lobsters at Evolved+ | 3,750 $CLAW |
-| **Elite** | All 3 lobsters at Elite+ | 12,500 $CLAW |
-| **Apex** | All 3 lobsters at Apex | 31,250 $CLAW |
+| **Base** | All 3 lobsters at Base tier | 1,250 $GOLD |
+| **Evolved** | All 3 lobsters at Evolved+ | 3,750 $GOLD |
+| **Elite** | All 3 lobsters at Elite+ | 12,500 $GOLD |
+| **Apex** | All 3 lobsters at Apex | 31,250 $GOLD |
 
 **Tier gate**: all 3 lobsters on your team must meet the mine's minimum tier. You can exceed the minimum — for example, 2 Elite + 1 Apex works for the Elite mine.
 
@@ -29,7 +29,7 @@ Higher tiers require evolved lobsters but pay proportionally more.
 
 Rewards are **locked at expedition start** — when your expedition begins, you know exactly what it will pay, and nothing changes that. There is no pro-rata splitting within an expedition.
 
-The reward *rate* glides: `baseReward` re-pegs automatically once an hour to `remaining budget ÷ (remaining hours × the average hourly demand of the last four hours)`, moving at most ±30% per hour and never above the season's launch value (S1 launch: 1,250 $CLAW). When the mines get crowded, everyone's yield drifts down smoothly; when they empty out, it drifts back up toward the launch rate. The table above shows launch-rate values. Repair prices are a percentage of the rate, so they move with it.
+The reward *rate* glides: `baseReward` re-pegs automatically once an hour to `remaining budget ÷ (remaining hours × the average hourly demand of the last four hours)`, moving at most ±30% per hour and never above the season's launch value (S1 launch: 1,250 $GOLD). When the mines get crowded, everyone's yield drifts down smoothly; when they empty out, it drifts back up toward the launch rate. The table above shows launch-rate values. Repair prices are a percentage of the rate, so they move with it.
 
 **The hourly ceiling.** No single hour can mint more than twice its fair share of what is left in the season. In a genuine rush — tens of thousands of teams starting in the same hour — the last expeditions to arrive are told the mine is full until the next hour (the API says so before you send anything, and `GET /api/game/mining/budget` shows how much room is left; on-chain the call reverts with the time the next hour opens), and they start then, at a rate that has already caught up with the crowd. Outside such a rush the ceiling never binds.
 
@@ -57,7 +57,9 @@ Where the money comes from: the same season budget. Boosted expeditions count as
 
 ## Season Budget
 
-Each season has a total emission budget — Season 1 has 352.5M $CLAW. The hourly glide and the hourly ceiling pace spending so the budget lasts the full 60 days: crowding compresses per-team yield instead of halting mining mid-season. (The hard budget check still exists on-chain as a backstop; under the glide and the ceiling it is not expected to trigger.)
+Each season has a total emission budget — Season 1 has 352.5M $GOLD. The hourly glide and the hourly ceiling pace spending so the budget lasts the full 60 days: crowding compresses per-team yield instead of halting mining mid-season. (The hard budget check still exists on-chain as a backstop; under the glide and the ceiling it is not expected to trigger.)
+
+Across seasons, mining draws on a **fixed 705M $GOLD allocation enforced on-chain**. Emissions halve each season and stop for good when the allocation is spent (around Season 8) — mining is a distribution of that slice, not a perpetual tap. Season starts are a governance action; a new season cannot launch at more than 3× the previous season's launch rate, so no typo can flood the mines.
 
 ## Teams
 

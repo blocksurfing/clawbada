@@ -1,6 +1,6 @@
 # Battle Mode
 
-Battle is the **active, high-risk** mode in Clawbada. Two players wager $CLAW in hex-grid tactical PvP combat. The winner takes the combined pot minus a protocol fee. Both players pay $CLAW for post-battle repairs.
+Battle is the **active, high-risk** mode in Clawbada. Two players wager $GOLD in hex-grid tactical PvP combat. The winner takes the combined pot minus a protocol fee. Both players pay $GOLD for post-battle repairs.
 
 Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style turn-based play with full information during the match. The only hidden information is each side's team composition before the battle starts (commit-reveal at deposit time prevents counter-picking).
 
@@ -8,7 +8,7 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 
 - All 3 lobsters on your team must be **Evolved tier or higher**
 - All 3 lobsters must have damage **below 80** (≥80 blocks battle entry — repair first)
-- You need enough $CLAW for the stake bracket you choose
+- You need enough $GOLD for the stake bracket you choose
 
 ## Stake Brackets
 
@@ -18,7 +18,7 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 | **Mid** | 10,000 | 18,000 | +8,000 | -10,000 |
 | **High** | 50,000 | 90,000 | +40,000 | -50,000 |
 
-**Stakes follow the mining rate.** Each bracket is a multiple (Low 2× / Mid 8× / High 40×) of a unit that is 20 % the launch reward (1,250 $CLAW, fixed forever) and 80 % the current mining base reward, sampled once a day. So when mining pays less, battles cost less in the same proportion, with a day's lag — and a stake is never higher than the launch value in the table. The amount is fixed the moment your match is created (both players consent to that exact amount when they deposit), and the current amounts are always on the battle page or at `GET /api/game/combat/stakes`. The 20 % anchor is a governance dial behind a 24-hour timelock.
+**Stakes follow the mining rate.** Each bracket is a multiple (Low 2× / Mid 8× / High 40×) of a unit that is 20 % the launch reward (1,250 $GOLD, fixed forever) and 80 % the current mining base reward, sampled once a day. So when mining pays less, battles cost less in the same proportion, with a day's lag — and a stake is never higher than the launch value in the table. The amount is fixed the moment your match is created (both players consent to that exact amount when they deposit), and the current amounts are always on the battle page or at `GET /api/game/combat/stakes`. The 20 % anchor is a governance dial behind a 24-hour timelock.
 
 The protocol takes a **10% fee** from the combined pot (85% burned, 15% to dev).
 
@@ -83,7 +83,7 @@ Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempe
 Pick your team in the Team Builder, see your Team Power score, and join the queue at your chosen stake bracket. The matchmaker pairs you with an opponent in the same power × stake sub-pool. If your power bucket is thin (rare composition), the search radius expands every 30 s to keep wait times bounded — see the [Matchmaking](#matchmaking) section above. Player identity badges show whether you're facing a **Human** or **Agent**.
 
 ### 2. Deposit (stake + team commit + consent)
-Each player makes one deposit: their $CLAW stake plus a 5% anti-grief deposit, together with a sealed **commit** of their team (a hash of the team and a secret salt) and their **consent** — the stake and the opponent Team Power they were shown. If the battle on-chain is not the one they agreed to, the deposit reverts. There is no separate commit step, so there is no commit clock for the opponent to start.
+Each player makes one deposit: their $GOLD stake plus a 5% anti-grief deposit, together with a sealed **commit** of their team (a hash of the team and a secret salt) and their **consent** — the stake and the opponent Team Power they were shown. If the battle on-chain is not the one they agreed to, the deposit reverts. There is no separate commit step, so there is no commit clock for the opponent to start.
 
 ### 3. Team Reveal
 Once both deposits are in, each player's salt goes to the game server (the web app and the agent kit send it with the deposit). The resolver then opens both teams in a single atomic transaction — neither composition reaches the chain until both are revealed together. This delivers genuine simultaneity: it prevents counter-picking *and* the matchup-dodge it used to enable (a player can no longer see the opponent's team and then back out cheaply, because no one-sided action reveals anything).
@@ -96,8 +96,8 @@ If a player's salt does not open their commit (or never arrives), or opens onto 
 
 **MEV protection:** Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Team commits ride in the on-chain deposit and the reveal is a single resolver-submitted transaction; battle turns themselves run off-chain via WebSocket for speed.
 
-### 4. VRF Beacon
-A single drand beacon is rolled at team-reveal time. It seeds a deterministic randomness stream used for damage variance, critical hits, and enhanced Special procs across the entire battle. Same beacon = same battle, every time — which is what lets the game (and anyone else) replay a battle and check its result.
+### 4. Battle Seed
+Every roll in the battle — damage variance, criticals, enhanced Special procs — comes from one deterministic stream seeded by `keccak(drand round, per-battle server secret, battleId)`. The secret's hash is committed on-chain in the same transaction that reveals the teams, the secret itself is disclosed and checked when the result is recorded, and the drand round is fixed by rule as the first one published after that reveal — so it does not exist yet when the secret is locked in. Neither player nor the operator can know or choose the rolls in advance, and anyone can recompute the seed afterwards and replay the battle. (The public drand beacon alone would not do: a player could look it up and foresee every roll.)
 
 ### 5. Battle (ATB Turns)
 The initiative bar fills and lobsters take turns one at a time in tick order. **On your lobster's turn**, with full board state visible, you have **60 seconds** to commit:
@@ -217,7 +217,7 @@ counter_damage = 30 × min(Atk/Armor, 2.2) × class_mult × VRF
 ```
 Defend halves incoming damage until your lobster's next turn and deals a small counter if the attacker is adjacent. Counter does **not** trigger against Specials — Special attacks overwhelm Defend stance.
 
-**Randomness source:** Combat variance (damage ±15%, crits, enhanced Special procs) uses **drand-based VRF** (Proof of Play model) — faster and cheaper than Chainlink VRF. A single beacon is rolled at team-reveal time and seeds a deterministic stream for the entire battle. Beacon values are verified on-chain via `BattleVRF.sol`.
+**Randomness source:** Combat variance (damage ±15%, crits, enhanced Special procs) uses a **drand-based** seed (Proof of Play model) — faster and cheaper than Chainlink VRF. The seed is `keccak(drand round, per-battle server secret, battleId)`, with the secret committed at team reveal and disclosed at settlement (see *Battle Seed* above); `BattleVRF.sol` verifies the beacon values on-chain.
 
 ## Class Advantage
 
@@ -290,15 +290,15 @@ Every battle inflicts damage on all lobsters:
 
 Lobsters at **80+ damage** cannot enter battle until repaired.
 
-**Repair is instant** — pay $CLAW, damage is removed immediately. Partial repairs are allowed.
+**Repair is instant** — pay $GOLD, damage is removed immediately. Partial repairs are allowed.
 
-Repair rates track the mining economy: each tier's rate is a fixed fraction of the current `baseReward` (Evolved 0.40% / Elite 1.20% / Apex 3.20% per damage point — 5 / 15 / 40 $CLAW at the S1 launch reward). As mining yields glide with crowding, repair costs glide with them, so battle stays rationally priced all season.
+Repair rates track the mining economy: each tier's rate is a fixed fraction of the current `baseReward` (Evolved 0.40% / Elite 1.20% / Apex 3.20% per damage point — 5 / 15 / 40 $GOLD at the S1 launch reward). As mining yields glide with crowding, repair costs glide with them, so battle stays rationally priced all season.
 
 | Tier | Cost per Damage Point |
 |------|---------------------|
-| Evolved | 5 $CLAW |
-| Elite | 15 $CLAW |
-| Apex | 40 $CLAW |
+| Evolved | 5 $GOLD |
+| Elite | 15 $GOLD |
+| Apex | 40 $GOLD |
 
 Repair costs are burned through the Treasury (85% burn / 15% dev).
 
@@ -311,7 +311,7 @@ Repair costs are burned through the Treasury (85% burn / 15% dev).
 
 ## Anti-Griefing
 
-- **5% anti-grief deposit**: lost if you resign, time out three turns in a row, or commit a team you then fail to open; returned otherwise
+- **5% anti-grief deposit**: lost if you resign, time out three turns in a row, or commit a team you then fail to open — or that you make unplayable before the reveal (disbanded, sent mining, changed in Power); returned otherwise
 - **60-second per-turn shot clock**: generous for humans, agents submit instantly; on timeout the lobster auto-Defends and the bar advances
 - **Auto-forfeit**: after 3 consecutive per-turn timeouts by the same player
 - **Commit in the deposit**: your opponent cannot start a clock on you before you are ready
