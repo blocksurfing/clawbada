@@ -47,7 +47,10 @@ public static class HudSmokeTest
             hexGrid.ClearHighlights();
             Check(!hexGrid.HasDestOverlay(1, 1), "ClearHighlights drops the dest overlay");
 
-            Check(hud.Overlays.Count == 6, $"6 unit overlays (got {hud.Overlays.Count})");
+            // User 2026-10-04: the LOKR field HP bar is gone — redundant with Nzib's team panels. Nothing named
+            // FieldBar/Overlays may exist on the canvas any more.
+            Check(hud.Canvas.transform.Find("Overlays") == null && !hud.Canvas.GetComponentsInChildren<RectTransform>(true).Any(r => r.name == "FieldBar"),
+                "no field HP bars over the rigs (removed 2026-10-04)");
             Check(hud.Options != null && hud.Options.gameObject.activeSelf && !hud.Options.IsOpen, "options gear shown (closed) for a participant");
             manager.StartTurn(new TurnStartData { turn = 3, lobsterId = "A1", side = "A", deadlineMs = 0, isPlayer = true });
             manager.UpdateBar(new BarData
@@ -97,7 +100,7 @@ public static class HudSmokeTest
             var a1 = manager.GetLobster("A1");
             Check(a1.currentHp == 300 && a1.charge == 3 && a1.statuses.Count == 1 && a1.statuses[0].type == "bleed", "SyncUnits applied hp/charge/statuses");
             Check(manager.GetLobster("B1").alive == false, "SyncUnits marks B1 dead");
-            Check(hud.Overlays["A2"].Lobster.defending, "defending flag synced");
+            Check(manager.GetLobster("A2").defending, "defending flag synced");
             // Nzib's status badges (drop 36c7068): A1 bleeds → Bleeding; A2 defends → Defense; B1 is dead → none.
             var skinS = hud.Skin;
             string Badges(string id) => string.Join(",", hud.Teams.PanelFor(id).ActiveBadges.Select(b => b != null ? b.name : "null"));
