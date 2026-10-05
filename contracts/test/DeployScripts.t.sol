@@ -8,7 +8,7 @@ import {DeploymentChecks} from "../script/DeploymentChecks.sol";
 import {Deploy} from "../script/Deploy.s.sol";
 import {Configure} from "../script/Configure.s.sol";
 import {Handoff} from "../script/Handoff.s.sol";
-import {ClawToken} from "../ClawToken.sol";
+import {GoldToken} from "../GoldToken.sol";
 import {Treasury} from "../Treasury.sol";
 import {MiningPool} from "../MiningPool.sol";
 import {BattleArena} from "../BattleArena.sol";
@@ -187,10 +187,10 @@ contract DeployScriptsTest is Test {
         DeployHelpers.Deployment memory d = deployH.deployAll();
 
         // D-24: the 125M LP allocation never touches the deploy key.
-        ClawToken claw = ClawToken(d.clawToken);
-        assertEq(claw.balanceOf(p.lp), 125_000_000e18, "LP allocation -> LP_RECIPIENT");
-        assertEq(claw.balanceOf(p.deployer), 0, "deployer holds no CLAW at genesis");
-        assertEq(claw.balanceOf(p.reserve), 100_000_000e18, "reserve -> TREASURY_RESERVE_ADDRESS");
+        GoldToken gold = GoldToken(d.goldToken);
+        assertEq(gold.balanceOf(p.lp), 125_000_000e18, "LP allocation -> LP_RECIPIENT");
+        assertEq(gold.balanceOf(p.deployer), 0, "deployer holds no GOLD at genesis");
+        assertEq(gold.balanceOf(p.reserve), 100_000_000e18, "reserve -> TREASURY_RESERVE_ADDRESS");
 
         configureH.configureAll(d);
         handoffH.checkConfigured(d);
@@ -230,11 +230,11 @@ contract DeployScriptsTest is Test {
     // ───────────────────────── GUARDIAN + refund reserve ─────────────────────────
 
     bytes internal constant RESERVE_LOW =
-        bytes("verify: BattleArena refund reserve is below 2,000,000 CLAW - the Safe must approve + fundReserve");
+        bytes("verify: BattleArena refund reserve is below 2,000,000 GOLD - the Safe must approve + fundReserve");
 
     function _fundReserveFrom(DeployHelpers.Deployment memory d, address from, uint256 amount) internal {
         vm.startPrank(from);
-        ClawToken(d.clawToken).approve(d.battleArena, amount);
+        GoldToken(d.goldToken).approve(d.battleArena, amount);
         BattleArena(d.battleArena).fundReserve(amount);
         vm.stopPrank();
     }
@@ -288,7 +288,7 @@ contract DeployScriptsTest is Test {
         assertEq(BattleArena(d.battleArena).refundReserve(), REFUND_RESERVE_TARGET);
     }
 
-    /// @dev Mainnet: the deploy key never funds the reserve, even if it happened to hold CLAW.
+    /// @dev Mainnet: the deploy key never funds the reserve, even if it happened to hold GOLD.
     function test_mainnet_configure_does_not_fund_the_reserve() public {
         vm.chainId(8453);
         p.reserve = p.deployer; // would let Configure pay, if it ever tried on mainnet
@@ -376,21 +376,21 @@ contract DeployScriptsTest is Test {
 
     function test_D23_handoff_refuses_to_start_before_configure() public {
         DeployHelpers.Deployment memory d = deployH.deployAll();
-        vm.expectRevert(bytes("verify: MiningPool lacks ClawToken MINTER_ROLE"));
+        vm.expectRevert(bytes("verify: MiningPool lacks GoldToken MINTER_ROLE"));
         handoffH.propose(d);
     }
 
-    /// @dev Configure's LAST transaction revokes ClawToken MINTER_ROLE from the deploy key.
+    /// @dev Configure's LAST transaction revokes GoldToken MINTER_ROLE from the deploy key.
     ///      forge broadcasts are not atomic; this is that transaction never landing.
     function test_D23_dropped_minter_revoke_is_caught() public {
         DeployHelpers.Deployment memory d = _deployAndConfigure();
-        ClawToken claw = ClawToken(d.clawToken);
-        bytes32 minter = claw.MINTER_ROLE();
+        GoldToken gold = GoldToken(d.goldToken);
+        bytes32 minter = gold.MINTER_ROLE();
         vm.prank(p.deployer);
-        claw.grantRole(minter, p.deployer);
+        gold.grantRole(minter, p.deployer);
 
         bytes memory err =
-            bytes("verify: deployer still holds ClawToken MINTER_ROLE (Configure's final revoke did not land)");
+            bytes("verify: deployer still holds GoldToken MINTER_ROLE (Configure's final revoke did not land)");
         vm.expectRevert(err);
         handoffH.checkConfigured(d);
         vm.expectRevert(err);
@@ -442,7 +442,7 @@ contract DeployScriptsTest is Test {
         // treasury allocation here), so e2e runs with the reserve mainnet will have.
         assertEq(BattleArena(d.battleArena).refundReserve(), REFUND_RESERVE_TARGET, "reserve funded by Configure");
         assertEq(
-            ClawToken(d.clawToken).balanceOf(p.deployer), 100_000_000e18 + 125_000_000e18 - REFUND_RESERVE_TARGET
+            GoldToken(d.goldToken).balanceOf(p.deployer), 100_000_000e18 + 125_000_000e18 - REFUND_RESERVE_TARGET
         );
         handoffH.checkReserveFunded(d);
     }

@@ -34,7 +34,7 @@ import { join } from 'node:path';
 import type { Hex } from 'viem';
 import { deriveSeedSecret } from '@clawbada/chain';
 import { waitFor } from '../lib/wait';
-import { WEI, PHASE, FREEZE_LONG_STOP_SEC, BattleArenaAbi, ClawTokenAbi, TeamManagerAbi } from '../lib/chain';
+import { WEI, PHASE, FREEZE_LONG_STOP_SEC, BattleArenaAbi, GoldTokenAbi, TeamManagerAbi } from '../lib/chain';
 import { KEYS } from '../lib/env';
 import type { Checks } from '../lib/checks';
 import type { Stack } from './00-infra';
@@ -60,8 +60,8 @@ export async function rogueSettlementDrill(stack: Stack, players: Players, flags
   const participation = async (battleId: string) => Number((await db.sql`select count(*)::int as n from battle_participation where battle_id = ${battleId}`)[0]?.n ?? 0);
 
   // Four more battles' stakes for both players.
-  await chain.transferClaw(KEYS.deployer.key, a.agent.address, 4n * (stake + antiGrief) + 1_000n * WEI);
-  await chain.transferClaw(KEYS.deployer.key, b.agent.address, 4n * (stake + antiGrief) + 1_000n * WEI);
+  await chain.transferGold(KEYS.deployer.key, a.agent.address, 4n * (stake + antiGrief) + 1_000n * WEI);
+  await chain.transferGold(KEYS.deployer.key, b.agent.address, 4n * (stake + antiGrief) + 1_000n * WEI);
 
   // ── the guardian key the watchdog freezes with ──
   const guardianRole = await chain.read<Hex>(arena, BattleArenaAbi, 'GUARDIAN_ROLE');
@@ -156,9 +156,9 @@ export async function rogueSettlementDrill(stack: Stack, players: Players, flags
   // Reserve: make sure it can cover one expiry (Configure funds it on a test chain; top up if not).
   const needed = 2n * stake;
   const reserve0 = await chain.refundReserve();
-  checks.check(reserve0 >= needed, 'refund reserve funded by Configure', `${reserve0 / WEI} CLAW`);
+  checks.check(reserve0 >= needed, 'refund reserve funded by Configure', `${reserve0 / WEI} GOLD`);
   if (reserve0 < needed) {
-    await chain.tx(KEYS.deployer.key, chain.claw, ClawTokenAbi, 'approve', [arena, needed - reserve0]);
+    await chain.tx(KEYS.deployer.key, chain.gold, GoldTokenAbi, 'approve', [arena, needed - reserve0]);
     await chain.tx(KEYS.deployer.key, arena, BattleArenaAbi, 'fundReserve', [needed - reserve0]);
   }
 

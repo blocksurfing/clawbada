@@ -4,14 +4,14 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {BreedingLab} from "../contracts/BreedingLab.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 contract BreedingLabTest is Test {
     BreedingLab lab;
     LobsterNFT nft;
-    ClawToken claw;
+    GoldToken gold;
     Treasury treasury;
 
     address admin = makeAddr("admin");
@@ -28,10 +28,10 @@ contract BreedingLabTest is Test {
 
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
         treasury = new Treasury(admin, devWallet);
-        claw = new ClawToken(admin, lpAddress, address(treasury));
-        treasury.setClawToken(address(claw));
+        gold = new GoldToken(admin, lpAddress, address(treasury));
+        treasury.setGoldToken(address(gold));
 
-        lab = new BreedingLab(address(claw), address(nft), address(treasury));
+        lab = new BreedingLab(address(gold), address(nft), address(treasury));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -78,19 +78,19 @@ contract BreedingLabTest is Test {
         b = _mintLobster(to, validDNA_A); // same DNA = same class
     }
 
-    function _giveClaw(address to, uint256 amount) internal {
+    function _giveGold(address to, uint256 amount) internal {
         vm.prank(lpAddress);
-        claw.transfer(to, amount);
+        gold.transfer(to, amount);
     }
 
-    function _approveClaw(address owner, uint256 amount) internal {
+    function _approveGold(address owner, uint256 amount) internal {
         vm.prank(owner);
-        claw.approve(address(lab), amount);
+        gold.approve(address(lab), amount);
     }
 
     function _fundAndApprove(address owner, uint256 amount) internal {
-        _giveClaw(owner, amount);
-        _approveClaw(owner, amount);
+        _giveGold(owner, amount);
+        _approveGold(owner, amount);
     }
 
     /// @dev Full 2-step breed: request + roll forward + finalize
@@ -108,7 +108,7 @@ contract BreedingLabTest is Test {
     // ──────────── Constructor ────────────
 
     function test_constructorSetsState() public view {
-        assertEq(address(lab.clawToken()), address(claw));
+        assertEq(address(lab.goldToken()), address(gold));
         assertEq(address(lab.lobsterNFT()), address(nft));
         assertEq(address(lab.treasury()), address(treasury));
         assertEq(lab.BREED_COOLDOWN(), 48 hours);
@@ -116,19 +116,19 @@ contract BreedingLabTest is Test {
         assertEq(lab.MAX_BREEDS(), 5);
     }
 
-    function test_constructorZeroClawReverts() public {
+    function test_constructorZeroGoldReverts() public {
         vm.expectRevert(BreedingLab.ZeroAddress.selector);
         new BreedingLab(address(0), address(nft), address(treasury));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(BreedingLab.ZeroAddress.selector);
-        new BreedingLab(address(claw), address(0), address(treasury));
+        new BreedingLab(address(gold), address(0), address(treasury));
     }
 
     function test_constructorZeroTreasuryReverts() public {
         vm.expectRevert(BreedingLab.ZeroAddress.selector);
-        new BreedingLab(address(claw), address(nft), address(0));
+        new BreedingLab(address(gold), address(nft), address(0));
     }
 
     // ──────────── requestBreed() — Validation Reverts ────────────
@@ -290,14 +290,14 @@ contract BreedingLabTest is Test {
     function test_breedCostFirstBreedGen0() public {
         (uint256 a, uint256 b) = _mintPair(alice);
 
-        uint256 expectedCost = 500e18 + 500e18; // 1000 $CLAW
+        uint256 expectedCost = 500e18 + 500e18; // 1000 $GOLD
         _fundAndApprove(alice, expectedCost);
 
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
 
         _breed(alice, a, b);
 
-        assertEq(balBefore - claw.balanceOf(alice), expectedCost);
+        assertEq(balBefore - gold.balanceOf(alice), expectedCost);
     }
 
     function test_breedCostScalesWithBreedCount() public {
@@ -318,11 +318,11 @@ contract BreedingLabTest is Test {
         _fundAndApprove(alice, totalNeeded);
 
         for (uint256 i = 0; i < 5; i++) {
-            uint256 balBefore = claw.balanceOf(alice);
+            uint256 balBefore = gold.balanceOf(alice);
 
             _breed(alice, a, b);
 
-            assertEq(balBefore - claw.balanceOf(alice), expectedCosts[i], "wrong cost at breed index");
+            assertEq(balBefore - gold.balanceOf(alice), expectedCosts[i], "wrong cost at breed index");
 
             // Advance past cooldown
             vm.warp(block.timestamp + 48 hours + 1);
@@ -365,30 +365,30 @@ contract BreedingLabTest is Test {
 
         // Now A has 0 breeds, B has 1 breed
         // Cost: A = 500 × 1.0 = 500, B = 500 × 1.5 = 750 → total 1250
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
         _breed(alice, a, b);
 
-        assertEq(balBefore - claw.balanceOf(alice), 1_250e18);
+        assertEq(balBefore - gold.balanceOf(alice), 1_250e18);
     }
 
-    function test_breedDeductsCorrectClaw() public {
+    function test_breedDeductsCorrectGold() public {
         (uint256 a, uint256 b) = _mintPair(alice);
 
         uint256 totalCost = 1_000e18; // first breed gen 0
         _fundAndApprove(alice, 5_000e18);
 
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
 
         _breed(alice, a, b);
 
-        assertEq(balBefore - claw.balanceOf(alice), totalCost);
+        assertEq(balBefore - gold.balanceOf(alice), totalCost);
     }
 
-    function test_breedInsufficientClawReverts() public {
+    function test_breedInsufficientGoldReverts() public {
         (uint256 a, uint256 b) = _mintPair(alice);
 
-        _giveClaw(alice, 999e18); // need 1000
-        _approveClaw(alice, 999e18);
+        _giveGold(alice, 999e18); // need 1000
+        _approveGold(alice, 999e18);
 
         vm.prank(alice);
         vm.expectRevert(); // ERC20 insufficient balance
@@ -692,22 +692,22 @@ contract BreedingLabTest is Test {
         (uint256 a, uint256 b) = _mintPair(alice);
         _fundAndApprove(alice, 1_000e18);
 
-        uint256 balBefore = claw.balanceOf(alice);
+        uint256 balBefore = gold.balanceOf(alice);
 
         vm.prank(alice);
         lab.requestBreed(a, b);
 
         // Fee charged at request, not at finalize
-        assertEq(claw.balanceOf(alice), balBefore - 1_000e18);
+        assertEq(gold.balanceOf(alice), balBefore - 1_000e18);
 
         vm.roll(block.number + 3);
 
-        uint256 balBeforeFinalize = claw.balanceOf(alice);
+        uint256 balBeforeFinalize = gold.balanceOf(alice);
         vm.prank(alice);
         lab.finalizeBreed(1);
 
         // No additional charge at finalize
-        assertEq(claw.balanceOf(alice), balBeforeFinalize);
+        assertEq(gold.balanceOf(alice), balBeforeFinalize);
     }
 
     function test_breedCountConsumedEvenIfNotFinalized() public {

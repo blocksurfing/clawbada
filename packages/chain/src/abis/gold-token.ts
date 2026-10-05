@@ -1,4 +1,4 @@
-export const ClawTokenAbi = [
+export const GoldTokenAbi = [
   {
     "type": "constructor",
     "inputs": [

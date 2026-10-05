@@ -3,7 +3,7 @@ export const RepairShopAbi = [
     "type": "constructor",
     "inputs": [
       {
-        "name": "clawToken_",
+        "name": "goldToken_",
         "type": "address",
         "internalType": "address"
       },
@@ -46,7 +46,7 @@ export const RepairShopAbi = [
   },
   {
     "type": "function",
-    "name": "clawToken",
+    "name": "goldToken",
     "inputs": [],
     "outputs": [
       {

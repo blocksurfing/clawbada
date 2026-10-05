@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 
 // Contracts
-import {ClawToken} from "../contracts/ClawToken.sol";
+import {GoldToken} from "../contracts/GoldToken.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
@@ -125,7 +125,7 @@ contract ResolverBoundaryHarness {
 /// @notice Tests off-by-one conditions, exact thresholds, and cross-contract boundary interactions.
 contract BoundaryTests is Test {
     // ──────────── Contracts ────────────
-    ClawToken claw;
+    GoldToken gold;
     LobsterNFT nft;
     Treasury treasury;
     TeamManager tm;
@@ -167,21 +167,21 @@ contract BoundaryTests is Test {
         // Deploy core contracts
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
         treasury = new Treasury(admin, devWallet);
-        claw = new ClawToken(admin, lpAddress, address(treasury));
-        treasury.setClawToken(address(claw));
+        gold = new GoldToken(admin, lpAddress, address(treasury));
+        treasury.setGoldToken(address(gold));
         tm = new TeamManager(admin, address(nft));
         vrf = new BattleVRF(admin);
-        pool = new MiningPool(admin, address(claw), address(nft), address(tm));
-        breeding = new BreedingLab(address(claw), address(nft), address(treasury));
-        evolution = new EvolutionLab(address(claw), address(nft), address(treasury));
-        repair = new RepairShop(address(claw), address(nft), address(treasury), address(pool));
-        market = new Marketplace(address(claw), address(nft), address(treasury));
+        pool = new MiningPool(admin, address(gold), address(nft), address(tm));
+        breeding = new BreedingLab(address(gold), address(nft), address(treasury));
+        evolution = new EvolutionLab(address(gold), address(nft), address(treasury));
+        repair = new RepairShop(address(gold), address(nft), address(treasury), address(pool));
+        market = new Marketplace(address(gold), address(nft), address(treasury));
         arena = new BattleArena(
-            admin, address(claw), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool)
         );
 
         // Faucet with 7-day window
-        faucet = new Faucet(admin, address(nft), address(claw), block.timestamp + 7 days);
+        faucet = new Faucet(admin, address(nft), address(gold), block.timestamp + 7 days);
 
         // Grant all required roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -199,8 +199,8 @@ contract BoundaryTests is Test {
         tm.grantRole(tm.ACTIVITY_ROLE(), address(pool));
         tm.grantRole(tm.ACTIVITY_ROLE(), address(arena));
 
-        claw.grantRole(claw.MINTER_ROLE(), address(pool));
-        claw.grantRole(claw.MINTER_ROLE(), address(faucet));
+        gold.grantRole(gold.MINTER_ROLE(), address(pool));
+        gold.grantRole(gold.MINTER_ROLE(), address(faucet));
 
         pool.grantRole(pool.SEASON_ADMIN_ROLE(), seasonAdmin);
         arena.grantRole(arena.MATCHMAKER_ROLE(), matchmaker);
@@ -229,9 +229,9 @@ contract BoundaryTests is Test {
 
         // Fund actors
         vm.prank(lpAddress);
-        claw.transfer(alice, 500_000e18);
+        gold.transfer(alice, 500_000e18);
         vm.prank(lpAddress);
-        claw.transfer(bob, 500_000e18);
+        gold.transfer(bob, 500_000e18);
 
         vm.deal(alice, 10 ether);
         vm.deal(bob, 10 ether);
@@ -341,7 +341,7 @@ contract BoundaryTests is Test {
         vm.prank(alice);
         pool.claimExpedition(expId);
 
-        assertEq(claw.balanceOf(alice), 500_000e18 + BASE_REWARD);
+        assertEq(gold.balanceOf(alice), 500_000e18 + BASE_REWARD);
     }
 
     function test_boundary_claimOneSecondBeforeDurationReverts() public {
@@ -399,7 +399,7 @@ contract BoundaryTests is Test {
         vm.prank(alice);
         pool.claimExpedition(expId);
 
-        assertEq(claw.balanceOf(alice), 500_000e18 + BASE_REWARD);
+        assertEq(gold.balanceOf(alice), 500_000e18 + BASE_REWARD);
     }
 
     function test_boundary_startNewSeasonAtExactExpiry() public {
@@ -471,14 +471,14 @@ contract BoundaryTests is Test {
         uint256 expId = pool.startExpedition(teamId, 3);
 
         MiningPool.Expedition memory exp = pool.getExpedition(expId);
-        assertEq(exp.reward, BASE_REWARD * 25); // 31,250 $CLAW
+        assertEq(exp.reward, BASE_REWARD * 25); // 31,250 $GOLD
 
         vm.warp(block.timestamp + 4 hours);
 
         vm.prank(alice);
         pool.claimExpedition(expId);
 
-        assertEq(claw.balanceOf(alice), 500_000e18 + BASE_REWARD * 25);
+        assertEq(gold.balanceOf(alice), 500_000e18 + BASE_REWARD * 25);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -571,8 +571,8 @@ contract BoundaryTests is Test {
     function test_boundary_settleWithPlayerBAsWinner() public {
         (uint256 battleId,,) = _setupActiveBattle();
 
-        uint256 bobBalBefore = claw.balanceOf(bob);
-        uint256 aliceBalBefore = claw.balanceOf(alice);
+        uint256 bobBalBefore = gold.balanceOf(bob);
+        uint256 aliceBalBefore = gold.balanceOf(alice);
         uint256 antiGrief = STAKE_LOW * 500 / 10_000;
         uint256 combinedPot = STAKE_LOW * 2;
         uint256 protocolFee = combinedPot * 1000 / 10_000;
@@ -584,8 +584,8 @@ contract BoundaryTests is Test {
         vm.warp(block.timestamp + arena.reviewWindows(0) + 1);
         arena.finalizeBattle(battleId);
 
-        assertEq(claw.balanceOf(bob), bobBalBefore + winnerPayout + antiGrief);
-        assertEq(claw.balanceOf(alice), aliceBalBefore + antiGrief, "the loser gets only the 5% back");
+        assertEq(gold.balanceOf(bob), bobBalBefore + winnerPayout + antiGrief);
+        assertEq(gold.balanceOf(alice), aliceBalBefore + antiGrief, "the loser gets only the 5% back");
         assertEq(arena.getBattle(battleId).winner, bob);
     }
 
@@ -629,7 +629,7 @@ contract BoundaryTests is Test {
 
         uint256 cost = 1 * 5e18; // 1 point at Evolved rate
         vm.prank(alice);
-        claw.approve(address(repair), cost);
+        gold.approve(address(repair), cost);
         vm.prank(alice);
         repair.repair(id, 1);
 
@@ -641,9 +641,9 @@ contract BoundaryTests is Test {
         uint256 id = _mintLobsterAtTier(alice, 3); // Apex
         _setDamage(id, 100);
 
-        uint256 cost = 100 * 40e18; // 4,000 $CLAW — max possible repair cost
+        uint256 cost = 100 * 40e18; // 4,000 $GOLD — max possible repair cost
         vm.prank(alice);
-        claw.approve(address(repair), cost);
+        gold.approve(address(repair), cost);
         vm.prank(alice);
         repair.repair(id, 100);
 
@@ -658,7 +658,7 @@ contract BoundaryTests is Test {
         // Repair 10 points → damage = 80, still over MAX_DAMAGE_FOR_BATTLE (79)
         uint256 cost = 10 * 5e18;
         vm.prank(alice);
-        claw.approve(address(repair), cost);
+        gold.approve(address(repair), cost);
         vm.prank(alice);
         repair.repair(id, 10);
 
@@ -674,7 +674,7 @@ contract BoundaryTests is Test {
         // Repair 11 points → damage = 79, exactly at MAX_DAMAGE_FOR_BATTLE
         uint256 cost = 11 * 5e18;
         vm.prank(alice);
-        claw.approve(address(repair), cost);
+        gold.approve(address(repair), cost);
         vm.prank(alice);
         repair.repair(id, 11);
 
@@ -695,7 +695,7 @@ contract BoundaryTests is Test {
         uint256 dummy = _mintLobster(alice);
 
         vm.startPrank(alice);
-        claw.approve(address(breeding), 100_000e18);
+        gold.approve(address(breeding), 100_000e18);
         for (uint256 i = 0; i < 4; i++) {
             uint256 rid = breeding.requestBreed(a, dummy);
             vm.roll(block.number + 3);
@@ -762,8 +762,8 @@ contract BoundaryTests is Test {
 
     // Marketplace listings large enough to produce fee >= 10_000 wei still
     // settle normally. Min listing price for marketplace: fee_rate × price
-    // = 0.025 × price >= 10_000 → price >= 400_000. At 18-decimal CLAW
-    // this is 4e-13 CLAW, well below any realistic listing.
+    // = 0.025 × price >= 10_000 → price >= 400_000. At 18-decimal GOLD
+    // this is 4e-13 GOLD, well below any realistic listing.
     function test_boundary_marketplaceMinPriceAtTreasuryMin() public {
         uint256 minPrice = 400_000; // yields fee = 10_000 exactly
         uint256 id = _mintLobster(alice);
@@ -773,7 +773,7 @@ contract BoundaryTests is Test {
         uint256 listingId = market.listLobster(id, minPrice);
 
         vm.prank(bob);
-        claw.approve(address(market), minPrice);
+        gold.approve(address(market), minPrice);
 
         vm.prank(bob);
         market.buyLobster(listingId, type(uint256).max);
@@ -969,53 +969,53 @@ contract BoundaryTests is Test {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // 9. ClawToken — Supply boundary
+    // 9. GoldToken — Supply boundary
     // ════════════════════════════════════════════════════════════════
 
     function test_boundary_mintExactly1WhenOnly1Remains() public {
         // Mint to 1 wei below max, then mint exactly 1
-        uint256 remaining = claw.remainingMintable();
-        bytes32 minterRole = claw.MINTER_ROLE();
+        uint256 remaining = gold.remainingMintable();
+        bytes32 minterRole = gold.MINTER_ROLE();
         vm.prank(admin);
-        claw.grantRole(minterRole, admin);
+        gold.grantRole(minterRole, admin);
 
         // Mint all but 1
         vm.prank(admin);
-        claw.mint(alice, remaining - 1);
+        gold.mint(alice, remaining - 1);
 
-        assertEq(claw.remainingMintable(), 1);
+        assertEq(gold.remainingMintable(), 1);
 
         // Mint exactly 1 more
         vm.prank(admin);
-        claw.mint(alice, 1);
+        gold.mint(alice, 1);
 
-        assertEq(claw.remainingMintable(), 0);
-        assertEq(claw.totalSupply(), claw.MAX_SUPPLY());
+        assertEq(gold.remainingMintable(), 0);
+        assertEq(gold.totalSupply(), gold.MAX_SUPPLY());
     }
 
     function test_boundary_burnThenRemintToMax() public {
-        bytes32 minterRole = claw.MINTER_ROLE();
+        bytes32 minterRole = gold.MINTER_ROLE();
         vm.prank(admin);
-        claw.grantRole(minterRole, admin);
+        gold.grantRole(minterRole, admin);
 
-        uint256 remaining = claw.remainingMintable();
+        uint256 remaining = gold.remainingMintable();
         vm.prank(admin);
-        claw.mint(alice, remaining);
+        gold.mint(alice, remaining);
 
-        assertEq(claw.remainingMintable(), 0);
+        assertEq(gold.remainingMintable(), 0);
 
         // Burn some
         vm.prank(alice);
-        claw.burn(1_000e18);
+        gold.burn(1_000e18);
 
         // remainingMintable should reflect burned amount
-        assertEq(claw.remainingMintable(), 1_000e18);
+        assertEq(gold.remainingMintable(), 1_000e18);
 
         // Can mint again
         vm.prank(admin);
-        claw.mint(bob, 1_000e18);
+        gold.mint(bob, 1_000e18);
 
-        assertEq(claw.remainingMintable(), 0);
+        assertEq(gold.remainingMintable(), 0);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -1027,7 +1027,7 @@ contract BoundaryTests is Test {
         uint256 fuel1 = _mintLobster(alice);
 
         vm.prank(alice);
-        claw.approve(address(evolution), 10_000e18);
+        gold.approve(address(evolution), 10_000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(EvolutionLab.DuplicateId.selector, target));
@@ -1044,9 +1044,9 @@ contract BoundaryTests is Test {
         uint256 target = bases[0];
 
         vm.startPrank(alice);
-        claw.approve(address(evolution), 200_000e18);
+        gold.approve(address(evolution), 200_000e18);
 
-        // Base → Evolved (needs 2 Base fuel + 2,000 $CLAW)
+        // Base → Evolved (needs 2 Base fuel + 2,000 $GOLD)
         evolution.evolve(target, bases[1], bases[2]);
         assertEq(nft.getEvolutionTier(target), 1);
 
@@ -1060,7 +1060,7 @@ contract BoundaryTests is Test {
         nft.setEvolutionTier(fuel2, 1);
         vm.startPrank(alice);
 
-        // Evolved → Elite (needs 2 Evolved fuel + 10,000 $CLAW)
+        // Evolved → Elite (needs 2 Evolved fuel + 10,000 $GOLD)
         evolution.evolve(target, fuel1, fuel2);
         assertEq(nft.getEvolutionTier(target), 2);
 
@@ -1074,7 +1074,7 @@ contract BoundaryTests is Test {
         nft.setEvolutionTier(fuel4, 2);
         vm.startPrank(alice);
 
-        // Elite → Apex (needs 2 Elite fuel + 50,000 $CLAW)
+        // Elite → Apex (needs 2 Elite fuel + 50,000 $GOLD)
         evolution.evolve(target, fuel3, fuel4);
         assertEq(nft.getEvolutionTier(target), 3);
 
@@ -1148,7 +1148,7 @@ contract BoundaryTests is Test {
         treasury.setAuthorized(alice, true);
 
         vm.prank(alice);
-        claw.approve(address(treasury), 2);
+        gold.approve(address(treasury), 2);
 
         vm.expectRevert(abi.encodeWithSelector(Treasury.AmountBelowMinimum.selector, 2, treasury.BPS_DENOMINATOR()));
         vm.prank(alice);
@@ -1161,14 +1161,14 @@ contract BoundaryTests is Test {
         treasury.setAuthorized(alice, true);
 
         vm.prank(alice);
-        claw.approve(address(treasury), 10_000);
+        gold.approve(address(treasury), 10_000);
 
-        uint256 devBalBefore = claw.balanceOf(devWallet);
+        uint256 devBalBefore = gold.balanceOf(devWallet);
 
         vm.prank(alice);
         treasury.processFee(10_000);
 
-        assertEq(claw.balanceOf(devWallet), devBalBefore + 1500);
+        assertEq(gold.balanceOf(devWallet), devBalBefore + 1500);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -1248,7 +1248,7 @@ contract BoundaryTests is Test {
         // 3. Repair to exactly 79
         uint256 cost = 6 * 5e18; // repair 6 points at Evolved rate
         vm.prank(alice);
-        claw.approve(address(repair), cost);
+        gold.approve(address(repair), cost);
         vm.prank(alice);
         repair.repair(lob, 6);
 
@@ -1302,7 +1302,7 @@ contract BoundaryTests is Test {
         vm.prank(alice);
         pool.claimExpedition(expId);
 
-        assertEq(claw.balanceOf(alice), 500_000e18 + BASE_REWARD * 3);
+        assertEq(gold.balanceOf(alice), 500_000e18 + BASE_REWARD * 3);
     }
 
     function test_integration_marketplaceLockedLobsterReverts() public {
@@ -1342,7 +1342,7 @@ contract BoundaryTests is Test {
 
         // Evolve faucetIds[0] using faucetIds[1] and faucetIds[2] as fuel
         vm.prank(alice);
-        claw.approve(address(evolution), 10_000e18);
+        gold.approve(address(evolution), 10_000e18);
 
         vm.prank(alice);
         evolution.evolve(faucetIds[0], faucetIds[1], faucetIds[2]);
@@ -1359,12 +1359,12 @@ contract BoundaryTests is Test {
         uint256 total = STAKE_LOW + antiGrief;
 
         vm.prank(alice);
-        claw.approve(address(arena), total);
+        gold.approve(address(arena), total);
         vm.prank(alice);
         arena.deposit(battleId, STAKE_LOW, 9, commitA);
 
         vm.prank(bob);
-        claw.approve(address(arena), total);
+        gold.approve(address(arena), total);
         vm.prank(bob);
         arena.deposit(battleId, STAKE_LOW, 9, commitB);
     }

@@ -41,7 +41,7 @@ Severity: **High** = funds or liveness at risk · **Medium** = a decided behavio
 
 **L1 (Low) — Payouts whose review window has closed have no escape if the Treasury de-authorises the arena.** `finalizeBattle` / `handleTimeout` → `_executePayout` → `treasury.processFee` (`:704-705, :718-719`); `freeze` is refused after the window (`:497`), so the Safe cannot route the battle to `resolveFrozen(refundBoth)` / `expireFrozen`, which do not touch the Treasury. **Proved**: after `setAuthorized(arena, false)` a closed review reverts on finalize, timeout and freeze until re-authorised. Safe-only, recoverable. *Fix: a runbook rule (never de-authorise with battles live) and a `VerifyDeployment` assertion; or let the Safe freeze without the window bound.*
 
-**L2 (Low) — `settle` can apply 100 damage per lobster; a rogue result's repair cost has no on-chain remedy.** `_applyDamage` clamps at 100 (`:758-759`); the spec's maximum is 40. A stolen resolver key can bar every lobster in every live battle (≥ 80) and charge up to 12,000 CLAW of repairs per Apex team; the decision says the treasury makes players whole by hand. *Fix: D-F.*
+**L2 (Low) — `settle` can apply 100 damage per lobster; a rogue result's repair cost has no on-chain remedy.** `_applyDamage` clamps at 100 (`:758-759`); the spec's maximum is 40. A stolen resolver key can bar every lobster in every live battle (≥ 80) and charge up to 12,000 GOLD of repairs per Apex team; the decision says the treasury makes players whole by hand. *Fix: D-F.*
 
 **L3 (Low) — No server process calls `handleTimeout` for the Deposit / TeamReveal / Active phases.** The finalize watcher sweeps only `finalizeBattle` and `expireFrozen`; the D-14 slash and every pre-settle refund wait for the victim's own transaction (web shows a button; agents are on their own). *Fix: add the three phases to the watcher's permissionless sweep.*
 
@@ -55,7 +55,7 @@ Severity: **High** = funds or liveness at risk · **Medium** = a decided behavio
 
 **I5 (Info) — `emergencyWithdraw` is dead code** (`:612-619`, 24 h after `lastProgressAt`; `handleTimeout` cancels the same battle at 3 h). **I6** — `battleVRF` stored, never used. **I7** — `_cancelWithSlash` would slash a side that never deposited if a future path asked it to (`:783`; unreachable today). **I8** — direct token transfers to the arena are unrecoverable (no sweep). **I9** — after 72 h `expireFrozen` and a late `resolveFrozen` race; whichever lands first wins. **I10 (HARDEN-1, known)** — the commit hash has no chain-id / contract domain separator (`:365, 368, 430`); no exploit found.
 
-**D1 (decision) — Stake brackets are constructor-fixed** (`:257-259`, no setter) while the spec and gitbook say they re-peg per season as multiples of the launch reward. With the glide at ~49 CLAW per Base expedition at 20,000 teams, a Low stake of 2,500 is 51 expeditions' worth; the breakeven economics assumed proportionality. *Fix: D-E.*
+**D1 (decision) — Stake brackets are constructor-fixed** (`:257-259`, no setter) while the spec and gitbook say they re-peg per season as multiples of the launch reward. With the glide at ~49 GOLD per Base expedition at 20,000 teams, a Low stake of 2,500 is 51 expeditions' worth; the breakeven economics assumed proportionality. *Fix: D-E.*
 
 ### B. MiningPool.sol (D-19) and the economics
 

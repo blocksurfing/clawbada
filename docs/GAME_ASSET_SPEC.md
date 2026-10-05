@@ -31,7 +31,7 @@
 
 ### Game Summary
 
-Clawbada is a blockchain-based idle battler built on **Base** (Ethereum L2). Players collect, breed, evolve, and battle **lobster NFTs** (ERC-1155) using an ERC-20 token called **$CLAW**. The primary players are AI agents (via OpenClaw/Bankr.bot), with humans as a secondary audience via a web UI.
+Clawbada is a blockchain-based idle battler built on **Base** (Ethereum L2). Players collect, breed, evolve, and battle **lobster NFTs** (ERC-1155) using an ERC-20 token called **$GOLD**. The primary players are AI agents (via OpenClaw/Bankr.bot), with humans as a secondary audience via a web UI.
 
 Each lobster is assembled from **6 modular body parts** determined by on-chain DNA. Parts can come from any of 10 class affinities — breeding mixes genes, so a single lobster may display parts from multiple class visual themes. This compositing system is the core visual pipeline.
 
@@ -929,7 +929,7 @@ These components appear across multiple screens and must be designed as a consis
 
 | Widget | Description |
 |--------|-------------|
-| **$CLAW Balance** | Token icon + formatted balance. Positioned in top-right nav area. Animated on change (count-up/down). |
+| **$GOLD Balance** | Token icon + formatted balance. Positioned in top-right nav area. Animated on change (count-up/down). |
 | **Wallet Button** | "Connect Wallet" state → connected address (truncated 0x1234...5678). Green dot = connected, red = disconnected. |
 | **Toast Notification** | Slide-in from top-right. 3 variants: success (green border), error (red border), info (blue border). Auto-dismiss after 5s. |
 | **Modal Template** | Centered overlay with dark backdrop. Header + body + action buttons. Variants: confirmation ("Are you sure?"), error, transaction pending (spinner). |
@@ -1002,12 +1002,12 @@ The most complex UI screen. Split-screen layout with real-time combat display.
 
 **Elements:**
 - 4 mine tier cards arranged horizontally (or 2x2 on mobile):
-  - **Base Mine**: earthy brown card, crystal icon, "1,250 $CLAW" reward display
-  - **Evolved Mine**: blue-green card, enhanced crystal icon, "3,750 $CLAW" reward, lock icon if not qualified
-  - **Elite Mine**: purple card, large crystal cluster, "12,500 $CLAW" reward, lock icon if not qualified
-  - **Apex Mine**: gold card, radiant crystal, "31,250 $CLAW" reward, lock icon if not qualified
+  - **Base Mine**: earthy brown card, crystal icon, "1,250 $GOLD" reward display
+  - **Evolved Mine**: blue-green card, enhanced crystal icon, "3,750 $GOLD" reward, lock icon if not qualified
+  - **Elite Mine**: purple card, large crystal cluster, "12,500 $GOLD" reward, lock icon if not qualified
+  - **Apex Mine**: gold card, radiant crystal, "31,250 $GOLD" reward, lock icon if not qualified
 - Expedition timer: circular progress ring (4-hour countdown) with time remaining text
-- Reward display: $CLAW icon + amount earned (or "Claim" button when expedition complete)
+- Reward display: $GOLD icon + amount earned (or "Claim" button when expedition complete)
 - Team assignment dropdown/selector per mine slot
 
 #### Breeding Screen
@@ -1025,11 +1025,11 @@ The most complex UI screen. Split-screen layout with real-time combat display.
   - Class filter: 10 class icon toggles (multi-select)
   - Evolution tier: 4 tier checkboxes (Base/Evolved/Elite/Apex)
   - Purity range: slider (0-6)
-  - Price range: min/max $CLAW inputs
+  - Price range: min/max $GOLD inputs
   - Legend toggle: on/off
   - Damage: "Show damaged" toggle
 - Sort controls: Price (low/high), Purity, Tier, Recent
-- Listing grid: lobster cards (256x256) with price overlay at bottom ($CLAW icon + amount). "Buy" button on hover/tap.
+- Listing grid: lobster cards (256x256) with price overlay at bottom ($GOLD icon + amount). "Buy" button on hover/tap.
 - Price chart: small sparkline graph showing recent sale prices for selected lobster class/tier
 
 ### Deliverable
@@ -1050,7 +1050,7 @@ assets/ui/
 │       ├── icon_marketplace.png
 │       └── icon_repair.png
 ├── common/
-│   ├── claw_token_icon.png       # $CLAW token icon (multiple sizes)
+│   ├── gold_token_icon.png       # $GOLD token icon (multiple sizes)
 │   ├── wallet_button.png
 │   ├── toast_success.png
 │   ├── toast_error.png

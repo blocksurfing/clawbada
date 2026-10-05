@@ -4,7 +4,7 @@
  * Mirrors `BattleArena.stakeFor` exactly (integer maths, same rounding):
  *
  *   stake = multiplier[bracket] × (GENESIS × fixedBps + reference × (10,000 − fixedBps)) / 10,000
- *           (one division), then floored to a whole CLAW
+ *           (one division), then floored to a whole GOLD
  *
  * where `reference` is MiningPool's `stakeReference` (the base reward sampled once per
  * season-day), falling back to the live base reward and then to GENESIS when the chain has no
@@ -28,7 +28,7 @@ export function stakeReferenceWei(stakeReferenceWei_: bigint, liveBaseRewardWei 
   return ref;
 }
 
-/** The stake a battle created now in `bracket` would bind, in CLAW wei. */
+/** The stake a battle created now in `bracket` would bind, in GOLD wei. */
 export function stakeFor(
   bracket: StakeBracket | number,
   referenceWei: bigint,
@@ -45,7 +45,7 @@ export function stakeFor(
   return stake - (stake % ONE_CLAW);
 }
 
-/** All three bracket stakes for one reference, in CLAW wei. */
+/** All three bracket stakes for one reference, in GOLD wei. */
 export function stakesFor(referenceWei: bigint, fixedBps: bigint = STAKE_FIXED_BPS_DEFAULT, liveBaseRewardWei = 0n): [bigint, bigint, bigint] {
   return [0, 1, 2].map((b) => stakeFor(b, referenceWei, fixedBps, liveBaseRewardWei)) as [bigint, bigint, bigint];
 }

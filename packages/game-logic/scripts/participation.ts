@@ -17,12 +17,12 @@ const N = 2000;
 say('# Battle participation — who battles, and what does it cost to make that rational?');
 say();
 say('## Core result: complete unraveling');
-say('Battle is negative-sum (~1,900 $CLAW average drain per player per Mid battle from fee + repairs). Under random matchmaking, the weakest agent in ANY pool wins <50% inside it while breakeven is ~60% — so the rational exit cascade never stops. **With purely profit-maximizing agents, battle participation collapses to zero at every skill spread.** Humans battle anyway (fun, overconfidence); rational agents will not. A positive-sum layer is required.');
+say('Battle is negative-sum (~1,900 $GOLD average drain per player per Mid battle from fee + repairs). Under random matchmaking, the weakest agent in ANY pool wins <50% inside it while breakeven is ~60% — so the rational exit cascade never stops. **With purely profit-maximizing agents, battle participation collapses to zero at every skill spread.** Humans battle anyway (fun, overconfidence); rational agents will not. A positive-sum layer is required.');
 say();
 say('## Subsidy required per battle (paid to each participant) to hold a pool');
-say(`Mid bracket, Elite mining alternative. Protocol fee collected per battle: ${fee} $CLAW.`);
+say(`Mid bracket, Elite mining alternative. Protocol fee collected per battle: ${fee} $GOLD.`);
 say();
-say('| Skill spread (Elo σ) | Battles/hr | Mining $CLAW/hr | Pool 10% | Pool 25% | Pool 50% |');
+say('| Skill spread (Elo σ) | Battles/hr | Mining $GOLD/hr | Pool 10% | Pool 25% | Pool 50% |');
 say('|---|---|---|---|---|---|');
 for (const sigma of [100, 200, 400]) {
   for (const bph of [4, 10]) {
@@ -39,10 +39,10 @@ for (const sigma of [100, 200, 400]) {
 }
 say();
 say('## Matchmaking cannot fix this');
-say('The table assumes S1 random matchmaking, where holding a broad pool means paying the bottom to be farmed (their win rate is ~34% at the 25%-pool margin). But skill-banded (ELO) matchmaking makes everyone ~50% within their band — EV(0.5) = −1,900 — so even perfect banding needs subsidy ≈ drain + mining opportunity ≈ 2,700 $CLAW/participant at S1 Mid (≈270% of the fee). The drain is structural: fee + repairs leave the arena every battle.');
+say('The table assumes S1 random matchmaking, where holding a broad pool means paying the bottom to be farmed (their win rate is ~34% at the 25%-pool margin). But skill-banded (ELO) matchmaking makes everyone ~50% within their band — EV(0.5) = −1,900 — so even perfect banding needs subsidy ≈ drain + mining opportunity ≈ 2,700 $GOLD/participant at S1 Mid (≈270% of the fee). The drain is structural: fee + repairs leave the arena every battle.');
 say();
 say('## Design implication');
-say('For rational agents, sustained battle participation requires a positive-sum source of roughly (drain + mining alternative) per player per battle. The protocol fee fully recycled covers ~37% of that; fee + repair burns recycled cover ~100% of the drain but not the mining opportunity. The structural lever is an EMISSION SPLIT: allocate part of seasonal emissions to battle rewards (per-battle or leaderboard), shrinking as mining halves. Without it, the docs\' "battle becomes the dominant $CLAW source for skilled agents" holds only while less-skilled participants keep donating — which rational agents will not do.');
+say('For rational agents, sustained battle participation requires a positive-sum source of roughly (drain + mining alternative) per player per battle. The protocol fee fully recycled covers ~37% of that; fee + repair burns recycled cover ~100% of the drain but not the mining opportunity. The structural lever is an EMISSION SPLIT: allocate part of seasonal emissions to battle rewards (per-battle or leaderboard), shrinking as mining halves. Without it, the docs\' "battle becomes the dominant $GOLD source for skilled agents" holds only while less-skilled participants keep donating — which rational agents will not do.');
 say();
 say('Reading the table: "X (Y% of fee)" = per-participant subsidy X, and Y% is the share of that battle\'s own protocol fee needed to fund BOTH participants\' subsidies. Under 100% means fee recycling alone could sustain the pool (burn less, pay battlers); over 100% needs emissions or treasury.');
 if (out) { await Bun.write(out, lines.join('\n') + '\n'); console.log(`written ${out}`); }

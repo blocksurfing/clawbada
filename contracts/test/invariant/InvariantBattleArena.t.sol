@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {BattleArenaHandler} from "./handlers/BattleArenaHandler.sol";
 import {BattleArena} from "../../BattleArena.sol";
-import {ClawToken} from "../../ClawToken.sol";
+import {GoldToken} from "../../GoldToken.sol";
 import {TeamManager} from "../../TeamManager.sol";
 import {LobsterNFT} from "../../LobsterNFT.sol";
 
@@ -64,7 +64,7 @@ contract InvariantBattleArena is Test {
 
     // ─── I-7: exact token conservation ────────────────────────────
     //
-    // The arena's CLAW balance is exactly the escrow it owes (stake + anti-grief for every
+    // The arena's GOLD balance is exactly the escrow it owes (stake + anti-grief for every
     // deposited side of a non-terminal battle — Frozen included) plus the refund reserve. No
     // token is ever stuck after a win, a draw, a forfeit, a cancel, a refund or an expiry, none
     // leaks out early, and the reserve and escrow never pay for each other.
@@ -72,9 +72,9 @@ contract InvariantBattleArena is Test {
         BattleArena arena = handler.getBattleArena();
         uint256 owed = _owedEscrow(arena);
         assertEq(
-            handler.getClaw().balanceOf(address(arena)),
+            handler.getGold().balanceOf(address(arena)),
             owed + arena.refundReserve(),
-            "arena CLAW balance != escrow + refundReserve"
+            "arena GOLD balance != escrow + refundReserve"
         );
         assertEq(owed, handler.ghostEscrow(), "per-battle escrow != modelled escrow");
         assertEq(arena.refundReserve(), handler.ghostReserve(), "refundReserve != modelled reserve");
@@ -86,14 +86,14 @@ contract InvariantBattleArena is Test {
     // payout rules (decided / forfeit / draw fee / refund / expiry burn / reveal-failure slash).
     // Every party's real balance must equal the model's.
     function invariant_balancesMatchPayoutModel() public view {
-        ClawToken claw = handler.getClaw();
+        GoldToken gold = handler.getGold();
         (address alice, address bob, address dev, address sink, address funder) = handler.actors();
-        assertEq(claw.balanceOf(alice), handler.ghostAlice(), "player A balance != model");
-        assertEq(claw.balanceOf(bob), handler.ghostBob(), "player B balance != model");
-        assertEq(claw.balanceOf(dev), handler.ghostDev(), "dev wallet != model (15% of fees)");
-        assertEq(handler.initialSupply() - claw.totalSupply(), handler.ghostBurned(), "burned != model");
-        assertEq(claw.balanceOf(sink), handler.ghostSink(), "reserve withdrawals != model");
-        assertEq(claw.balanceOf(funder), handler.ghostFunder(), "reserve funding != model");
+        assertEq(gold.balanceOf(alice), handler.ghostAlice(), "player A balance != model");
+        assertEq(gold.balanceOf(bob), handler.ghostBob(), "player B balance != model");
+        assertEq(gold.balanceOf(dev), handler.ghostDev(), "dev wallet != model (15% of fees)");
+        assertEq(handler.initialSupply() - gold.totalSupply(), handler.ghostBurned(), "burned != model");
+        assertEq(gold.balanceOf(sink), handler.ghostSink(), "reserve withdrawals != model");
+        assertEq(gold.balanceOf(funder), handler.ghostFunder(), "reserve funding != model");
     }
 
     // ─── I-9: liveness ────────────────────────────────────────────

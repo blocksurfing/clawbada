@@ -268,7 +268,7 @@ miningRoutes.post(
     );
 
     return c.json({
-      ...singleStep(`Start ${EvolutionTier[mineTier]} mine expedition (~${expectedReward} $CLAW)`, calldata),
+      ...singleStep(`Start ${EvolutionTier[mineTier]} mine expedition (~${expectedReward} $GOLD)`, calldata),
       preview: serializeBigInts({
         teamId,
         mineTier,

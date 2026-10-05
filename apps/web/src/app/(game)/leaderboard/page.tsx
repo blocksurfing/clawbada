@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
-import { formatAddress, formatClaw } from '@/lib/format';
+import { formatAddress, formatGold } from '@/lib/format';
 import { BACKGROUNDS } from '@/lib/assets';
 import { Trophy } from 'lucide-react';
 
@@ -82,7 +82,7 @@ export default function LeaderboardPage() {
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     <span className="font-mono font-medium text-foreground">{entry.totalExpeditions} runs</span>
-                    <span className="font-mono text-claw-gold">{formatClaw(entry.totalReward)}</span>
+                    <span className="font-mono text-claw-gold">{formatGold(entry.totalReward)}</span>
                   </div>
                 </FrostedPanel>
               ))

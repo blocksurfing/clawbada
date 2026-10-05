@@ -5,7 +5,7 @@ import {console2} from "forge-std/Script.sol";
 import {DeployHelpers, REFUND_RESERVE_TARGET} from "./DeployHelpers.s.sol";
 
 import {Treasury} from "../Treasury.sol";
-import {ClawToken} from "../ClawToken.sol";
+import {GoldToken} from "../GoldToken.sol";
 import {LobsterNFT} from "../LobsterNFT.sol";
 import {TeamManager} from "../TeamManager.sol";
 import {MiningPool} from "../MiningPool.sol";
@@ -34,11 +34,11 @@ contract Configure is DeployHelpers {
         console2.log("=== Configuration sent ===");
         console2.log("Total: 6 Treasury authorizations, 16 role grants, 1 season start, 1 faucet pre-mint");
         if (block.chainid == 8453) {
-            console2.log("Mainnet: the 2M CLAW refund reserve is funded by the Safe after the handoff;");
+            console2.log("Mainnet: the 2M GOLD refund reserve is funded by the Safe after the handoff;");
             console2.log("  confirm with VerifyDeployment --sig 'reserveFunded()' (docs/runbooks/admin-roles.md).");
         }
         // D-23: a forge broadcast is not atomic, and the LAST transaction of this script
-        // is the one that takes ClawToken MINTER_ROLE back off the deploy key. Nothing
+        // is the one that takes GoldToken MINTER_ROLE back off the deploy key. Nothing
         // above proves it landed — only a read of the chain does.
         console2.log("NEXT: confirm it landed, against the chain (no --broadcast):");
         console2.log("  forge script contracts/script/VerifyDeployment.s.sol --rpc-url <net> --sig 'configured()'");
@@ -48,7 +48,7 @@ contract Configure is DeployHelpers {
     ///      test runs exactly what mainnet runs.
     function _configureAll(Deployment memory d) internal {
         _configureTreasury(d);
-        _configureClawToken(d);
+        _configureGoldToken(d);
         _configureLobsterNFT(d);
         _configureTeamManager(d);
         _configureMiningPool(d);
@@ -62,8 +62,8 @@ contract Configure is DeployHelpers {
         console2.log("--- Treasury Setup ---");
         Treasury treasury = Treasury(d.treasury);
 
-        treasury.setClawToken(d.clawToken);
-        console2.log("  setClawToken");
+        treasury.setGoldToken(d.goldToken);
+        console2.log("  setGoldToken");
 
         treasury.setAuthorized(d.breedingLab, true);
         console2.log("  authorized: BreedingLab");
@@ -82,12 +82,12 @@ contract Configure is DeployHelpers {
         console2.log("");
     }
 
-    function _configureClawToken(Deployment memory d) internal {
-        console2.log("--- ClawToken Roles ---");
-        ClawToken clawToken = ClawToken(d.clawToken);
-        bytes32 minter = clawToken.MINTER_ROLE();
+    function _configureGoldToken(Deployment memory d) internal {
+        console2.log("--- GoldToken Roles ---");
+        GoldToken goldToken = GoldToken(d.goldToken);
+        bytes32 minter = goldToken.MINTER_ROLE();
 
-        clawToken.grantRole(minter, d.miningPool);
+        goldToken.grantRole(minter, d.miningPool);
         console2.log("  MINTER_ROLE -> MiningPool");
         console2.log("");
     }
@@ -184,13 +184,13 @@ contract Configure is DeployHelpers {
         faucet.grantRole(faucet.ELIGIBILITY_ROLE(), deployer);
         console2.log("  ELIGIBILITY_ROLE -> deployer");
 
-        // Pre-mint faucet $CLAW allocation (Faucet distributes via transfer, not mint)
-        ClawToken clawToken = ClawToken(d.clawToken);
-        bytes32 minter = clawToken.MINTER_ROLE();
-        clawToken.grantRole(minter, deployer);
-        clawToken.mint(d.faucet, FAUCET_CLAW_ALLOCATION);
-        clawToken.revokeRole(minter, deployer);
-        console2.log("  Pre-minted 70M $CLAW to Faucet");
+        // Pre-mint faucet $GOLD allocation (Faucet distributes via transfer, not mint)
+        GoldToken goldToken = GoldToken(d.goldToken);
+        bytes32 minter = goldToken.MINTER_ROLE();
+        goldToken.grantRole(minter, deployer);
+        goldToken.mint(d.faucet, FAUCET_GOLD_ALLOCATION);
+        goldToken.revokeRole(minter, deployer);
+        console2.log("  Pre-minted 70M $GOLD to Faucet");
         console2.log("");
     }
 
@@ -198,7 +198,7 @@ contract Configure is DeployHelpers {
     ///      e2e run has the same reserve a mainnet launch will. Off mainnet the 100M genesis
     ///      reserve falls back to the deployer, so it can pay; when TREASURY_RESERVE_ADDRESS
     ///      names another account, that account has to fund it (as the Safe does on mainnet).
-    ///      Mainnet never runs this: the deploy key holds no CLAW there, and the reserve comes
+    ///      Mainnet never runs this: the deploy key holds no GOLD there, and the reserve comes
     ///      from the Safe right after the handoff (VerifyDeployment --sig "reserveFunded()").
     function _fundRefundReserveOffMainnet(Deployment memory d) internal {
         if (block.chainid == 8453) return;
@@ -216,7 +216,7 @@ contract Configure is DeployHelpers {
             return;
         }
         uint256 amount = REFUND_RESERVE_TARGET - have;
-        ClawToken(d.clawToken).approve(d.battleArena, amount);
+        GoldToken(d.goldToken).approve(d.battleArena, amount);
         arena.fundReserve(amount);
         console2.log("  fundReserve:", amount);
         console2.log("");

@@ -16,7 +16,7 @@ import {DeploymentChecks, CheckedDeployHelpers} from "./DeploymentChecks.sol";
 ///      Why a separate script: `forge script --broadcast` is not atomic, and the asserts at
 ///      the end of a broadcasting script run against forge's local SIMULATION of that
 ///      broadcast, not against what actually landed. A dropped final transaction — in
-///      Configure that is the revoke of ClawToken MINTER_ROLE from the deploy key, which
+///      Configure that is the revoke of GoldToken MINTER_ROLE from the deploy key, which
 ///      would leave a raw env-var key able to mint the whole unminted supply — is invisible
 ///      to them. This script sends nothing, so everything it reads is the real chain state.
 ///
@@ -38,7 +38,7 @@ contract VerifyDeployment is CheckedDeployHelpers {
         Deployment memory d = _load();
         DeploymentChecks.requireConfigured(d, deployer, _hotKeys());
         console2.log("OK: configured - roles, Treasury wiring, season 1 and the faucet pre-mint are in place,");
-        console2.log("    and the deployer holds no ClawToken MINTER_ROLE.");
+        console2.log("    and the deployer holds no GoldToken MINTER_ROLE.");
     }
 
     /// @notice After Handoff.s.sol phase 1.
@@ -69,7 +69,7 @@ contract VerifyDeployment is CheckedDeployHelpers {
     function reserveFunded() public {
         Deployment memory d = _load();
         DeploymentChecks.requireReserveFunded(d);
-        console2.log("OK: BattleArena refund reserve holds at least 2,000,000 CLAW.");
+        console2.log("OK: BattleArena refund reserve holds at least 2,000,000 GOLD.");
     }
 
     function _load() internal returns (Deployment memory d) {

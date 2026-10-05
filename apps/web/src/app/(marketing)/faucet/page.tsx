@@ -31,7 +31,7 @@ export default function FaucetPage() {
     queryClient.invalidateQueries({ queryKey: ['lobsters'] });
   };
 
-  const bothClaimed = faucetStatus?.hasClaimedLobsters && faucetStatus?.hasClaimedClaw;
+  const bothClaimed = faucetStatus?.hasClaimedLobsters && faucetStatus?.hasClaimedGold;
 
   return (
     <div className="min-h-screen bg-ocean-deep">
@@ -45,7 +45,7 @@ export default function FaucetPage() {
             </div>
             <h1 className="font-pixel text-2xl text-foreground">Faucet</h1>
             <p className="text-sm text-text-secondary mt-2">
-              Get your starting lobsters and $CLAW to begin playing
+              Get your starting lobsters and $GOLD to begin playing
             </p>
           </div>
 
@@ -72,7 +72,7 @@ export default function FaucetPage() {
             <FrostedPanel className="text-center space-y-3">
               <p className="font-pixel text-sm text-foreground">Faucet Closed</p>
               <p className="text-sm text-text-secondary">
-                The faucet has closed. You can buy lobsters on the marketplace and $CLAW on Uniswap.
+                The faucet has closed. You can buy lobsters on the marketplace and $GOLD on Uniswap.
               </p>
               <Link href="/market">
                 <Button size="sm" className="bg-sand hover:bg-sand-light text-foreground border border-[rgba(255,210,128,0.15)]">
@@ -138,22 +138,22 @@ export default function FaucetPage() {
                 )}
               </FrostedPanel>
 
-              {/* Step 2: $CLAW */}
+              {/* Step 2: $GOLD */}
               <FrostedPanel className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Step 2: Claim 7,000 $CLAW</p>
+                    <p className="text-sm font-medium text-foreground">Step 2: Claim 7,000 $GOLD</p>
                     <p className="text-xs text-text-secondary mt-0.5">Covers teams, first breed, first evolution</p>
                   </div>
-                  {faucetStatus.hasClaimedClaw ? (
+                  {faucetStatus.hasClaimedGold ? (
                     <Badge className="bg-teal/15 text-teal border-0">
                       <Check className="size-3 mr-1" /> Claimed
                     </Badge>
-                  ) : faucetStatus.canClaimClaw ? (
+                  ) : faucetStatus.canClaimGold ? (
                     <TransactionButton
-                      label="Claim $CLAW"
+                      label="Claim $GOLD"
                       size="sm"
-                      fetchSteps={(auth) => api.faucet.claimClaw(auth)}
+                      fetchSteps={(auth) => api.faucet.claimGold(auth)}
                       onSuccess={invalidate}
                     />
                   ) : (

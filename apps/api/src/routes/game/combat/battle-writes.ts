@@ -23,7 +23,7 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import {
   BattleArenaAbi,
-  ClawTokenAbi,
+  GoldTokenAbi,
   addresses,
   teamCommitHash,
 } from '@clawbada/chain';
@@ -62,10 +62,10 @@ export function depositConsentMismatch(
   if (launch === undefined) return 'the match record names no valid bracket';
   const label = STAKE_BRACKET_LABELS[row.stakeBracket];
   if (onChain.bracket !== undefined && Number(onChain.bracket) !== row.stakeBracket) {
-    return `the bracket differs from the one you queued for (on-chain bracket ${Number(onChain.bracket)} at ${onChain.stakeAmount / 10n ** 18n} CLAW, you queued ${label})`;
+    return `the bracket differs from the one you queued for (on-chain bracket ${Number(onChain.bracket)} at ${onChain.stakeAmount / 10n ** 18n} GOLD, you queued ${label})`;
   }
   if (onChain.stakeAmount > launch * 10n ** 18n) {
-    return `the stake differs from the bracket you queued for (on-chain ${onChain.stakeAmount / 10n ** 18n} CLAW, above the ${label} bracket's launch value of ${launch} CLAW)`;
+    return `the stake differs from the bracket you queued for (on-chain ${onChain.stakeAmount / 10n ** 18n} GOLD, above the ${label} bracket's launch value of ${launch} GOLD)`;
   }
   if (onChain.stakeAmount <= 0n) return 'the stake on-chain is zero';
   if (row.powerA !== null && onChain.powerA !== undefined && Number(onChain.powerA) !== row.powerA) return 'Team Power A differs from the match on record';
@@ -182,8 +182,8 @@ battleWriteRoutes.post(
     const totalDeposit = battle.stakeAmount + antiGrief;
 
     const approveCalldata = buildCalldata(
-      addresses.clawToken,
-      ClawTokenAbi as any,
+      addresses.goldToken,
+      GoldTokenAbi as any,
       'approve',
       [addresses.battleArena, totalDeposit],
     );
@@ -197,7 +197,7 @@ battleWriteRoutes.post(
 
     return c.json({
       ...multiStep(
-        { description: `Approve ${totalDeposit} $CLAW (stake + 5% anti-grief)`, calldata: approveCalldata },
+        { description: `Approve ${totalDeposit} $GOLD (stake + 5% anti-grief)`, calldata: approveCalldata },
         { description: 'Deposit stake and commit your team', calldata: depositCalldata },
       ),
       preview: serializeBigInts({

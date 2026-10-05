@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { TransactionButton } from '@/components/game/transaction-button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
-import { formatClaw, tierLabel } from '@/lib/format';
+import { formatGold, tierLabel } from '@/lib/format';
 import { BACKGROUNDS } from '@/lib/assets';
 import { ArrowUpCircle, ArrowRight } from 'lucide-react';
 
@@ -69,7 +69,7 @@ export default function EvolutionPage() {
             <h1 className="font-pixel text-xl text-foreground">Evolution Lab</h1>
           </div>
           <p className="text-sm text-text-secondary mt-1">
-            Evolve your lobsters — burn 2 fuel lobsters + $CLAW to unlock higher tiers
+            Evolve your lobsters — burn 2 fuel lobsters + $GOLD to unlock higher tiers
           </p>
         </div>
 
@@ -122,8 +122,8 @@ export default function EvolutionPage() {
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <p className="text-xs text-text-secondary">$CLAW Cost</p>
-                <p className="font-mono text-text-accent">{formatClaw(costData.clawCost)}</p>
+                <p className="text-xs text-text-secondary">$GOLD Cost</p>
+                <p className="font-mono text-text-accent">{formatGold(costData.goldCost)}</p>
               </div>
               <div>
                 <p className="text-xs text-text-secondary">Fuel Required</p>

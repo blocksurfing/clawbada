@@ -16,7 +16,7 @@ The contracts are intentionally non-upgradeable. The only governance lever is th
 | `MATCHMAKER_ROLE` (BattleArena) | **Hot service wallet** | Quarterly + on suspicion | Match: <60s |
 | `OPERATOR_ROLE` (BattleVRF) | **Hot relayer wallet** | Quarterly | Beacon push: per drand round |
 | `ELIGIBILITY_ROLE` (Faucet) | **Hot service wallet** | Faucet lifetime only | Claim eligibility: <5s |
-| `MINTER_ROLE` (ClawToken) | **MiningPool only** (persistent) | Never | n/a |
+| `MINTER_ROLE` (GoldToken) | **MiningPool only** (persistent) | Never | n/a |
 | `MINTER_ROLE` / `BURNER_ROLE` / `EVOLVER_ROLE` / `DAMAGE_ROLE` / `LOCKER_ROLE` / `BREED_ROLE` (LobsterNFT) | **Game contracts only** (per Configure.s.sol) | Never | n/a |
 | `ACTIVITY_ROLE` (TeamManager) | **MiningPool + BattleArena only** | Never | n/a |
 
@@ -24,7 +24,7 @@ The contracts are intentionally non-upgradeable. The only governance lever is th
 
 Most attacks against well-audited contracts route through compromised privileged keys. The Phase 1–3 audit campaign identified several classes of damage that DEFAULT_ADMIN_ROLE compromise enables:
 
-- **C-05 god key**: DEFAULT_ADMIN_ROLE on every contract can grant or revoke any role. Compromise on ClawToken = grant MINTER_ROLE to attacker = mint up to remaining cap. Compromise on BattleArena = `resolveFrozen` attacker-favorable on any frozen battle, `withdrawReserve` drains the refund reserve. Compromise on TeamManager = unlock any team.
+- **C-05 god key**: DEFAULT_ADMIN_ROLE on every contract can grant or revoke any role. Compromise on GoldToken = grant MINTER_ROLE to attacker = mint up to remaining cap. Compromise on BattleArena = `resolveFrozen` attacker-favorable on any frozen battle, `withdrawReserve` drains the refund reserve. Compromise on TeamManager = unlock any team.
 - **M-02 SEASON_ADMIN drain**: setBaseReward(remaining_budget) consumes the season pool in one expedition.
 - **F-01/F-02 faucet sybil**: ELIGIBILITY_ROLE can mark arbitrary wallets eligible. Sybil farm = drain the 70M faucet pre-mint.
 - **Resolver compromise**: the review window and the guardian's freeze contain it, but only the Safe can decide a frozen battle (`resolveFrozen`).
@@ -61,7 +61,7 @@ forge script contracts/script/Handoff.s.sol --rpc-url base --broadcast --sig "fi
 forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "finalized()"
 
 # 4. Refund reserve — Safe transactions from the treasury allocation (see "Refund reserve" below):
-#    ClawToken.approve(BattleArena, 2_000_000e18); BattleArena.fundReserve(2_000_000e18)
+#    GoldToken.approve(BattleArena, 2_000_000e18); BattleArena.fundReserve(2_000_000e18)
 forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "reserveFunded()"
 ```
 
@@ -76,18 +76,18 @@ On mainnet both phases also require `GOVERNANCE_SAFE` to be a deployed Safe on t
 
 **If phase 1 named the wrong address:** nothing is lost. `forge script contracts/script/Handoff.s.sol --rpc-url base --broadcast --sig "retract(address)" <wrong address>` strips it, then fix `GOVERNANCE_SAFE` and run phase 1 again. This is only possible before phase 2.
 
-**Why the separate verify script:** `forge script --broadcast` is not atomic, and the asserts at the end of a broadcasting script run against forge's local *simulation*, not against what landed. The last transaction of `Configure.s.sol` is the one that takes ClawToken `MINTER_ROLE` back off the deploy key; if it is dropped, a raw env-var key can mint the entire unminted supply (~705M), and nothing in the broadcasting scripts would notice. `VerifyDeployment.s.sol` sends nothing, so everything it reads is real chain state. If `configured()` reports the lingering `MINTER_ROLE`, re-send with `forge script contracts/script/Configure.s.sol ... --resume`, or revoke it by hand from the deployer, before phase 1.
+**Why the separate verify script:** `forge script --broadcast` is not atomic, and the asserts at the end of a broadcasting script run against forge's local *simulation*, not against what landed. The last transaction of `Configure.s.sol` is the one that takes GoldToken `MINTER_ROLE` back off the deploy key; if it is dropped, a raw env-var key can mint the entire unminted supply (~705M), and nothing in the broadcasting scripts would notice. `VerifyDeployment.s.sol` sends nothing, so everything it reads is real chain state. If `configured()` reports the lingering `MINTER_ROLE`, re-send with `forge script contracts/script/Configure.s.sol ... --resume`, or revoke it by hand from the deployer, before phase 1.
 
 Regression-tested in `contracts/test/GovernanceHandoff.t.sol` (the library) and `contracts/test/DeployScripts.t.sol` (the real Deploy → Configure → Handoff scripts, end to end).
 
 Post-launch verification — `VerifyDeployment.s.sol --sig "finalized()"` asserts all of this; anyone can re-run it, since it needs only public addresses:
-- `hasRole(DEFAULT_ADMIN_ROLE, deployer) == false` **and `== true` for the Safe** on ClawToken, LobsterNFT, TeamManager, MiningPool, BattleArena, BattleVRF, Faucet.
+- `hasRole(DEFAULT_ADMIN_ROLE, deployer) == false` **and `== true` for the Safe** on GoldToken, LobsterNFT, TeamManager, MiningPool, BattleArena, BattleVRF, Faucet.
 - `MiningPool.hasRole(SEASON_ADMIN_ROLE, deployer) == false` (`true` for the Safe); `Faucet.hasRole(ELIGIBILITY_ROLE, deployer) == false` (`true` for the operator).
-- **`ClawToken.hasRole(MINTER_ROLE, deployer) == false`** and `== true` for MiningPool.
+- **`GoldToken.hasRole(MINTER_ROLE, deployer) == false`** and `== true` for MiningPool.
 - Every hot role (`MATCHMAKER`, `RESOLVER`, `GUARDIAN`, BattleVRF `OPERATOR`, `BOOST_ADMIN`) is held by its env address and **not** by the deployer — in particular the retired deploy key holds no `GUARDIAN_ROLE`, and the Safe holds `DEFAULT_ADMIN_ROLE` on BattleArena (it alone can `resolveFrozen`); the LobsterNFT / TeamManager contract roles are held by the contracts listed below and not by the deployer. (Handoff leaves hot roles in place — they are service roles, not governance roles.)
 - Treasury: `owner() == safe`, `pendingOwner() == address(0)`, `devWallet() == DEV_WALLET`, all 5 game contracts authorized.
-- `currentSeason >= 1`; while the faucet is open, its balance plus `totalClawClaimed` covers the 70M pre-mint.
-- `--sig "reserveFunded()"`: `BattleArena.refundReserve() >= 2,000,000 CLAW` (`REFUND_RESERVE_TARGET` in `DeployHelpers.s.sol`).
+- `currentSeason >= 1`; while the faucet is open, its balance plus `totalGoldClaimed` covers the 70M pre-mint.
+- `--sig "reserveFunded()"`: `BattleArena.refundReserve() >= 2,000,000 GOLD` (`REFUND_RESERVE_TARGET` in `DeployHelpers.s.sol`).
 
 ### Key separation (mainnet, enforced by `DeployHelpers._loadEnv`)
 
@@ -154,7 +154,7 @@ A `BattleFrozen(battleId, by)` event means the watchdog could not reproduce a re
 
 ### Refund reserve
 
-`BattleArena.refundReserve` pays `expireFrozen` refunds so the held stakes can be burned — a frozen battle governance ignores costs the protocol, not the players. Target: **2,000,000 CLAW** (`REFUND_RESERVE_TARGET`), funded **by the Safe from the treasury allocation right after the handoff**: `ClawToken.approve(BattleArena, 2_000_000e18)` then `BattleArena.fundReserve(2_000_000e18)` (anyone can fund; only `DEFAULT_ADMIN_ROLE` can `withdrawReserve`). Confirm with `VerifyDeployment.s.sol --sig "reserveFunded()"`. Off mainnet `Configure.s.sol` funds it from the deployer when the deployer holds the treasury allocation (the testnet fallback), so e2e runs with the same reserve. Re-check after every `FrozenExpired` with a non-zero burn.
+`BattleArena.refundReserve` pays `expireFrozen` refunds so the held stakes can be burned — a frozen battle governance ignores costs the protocol, not the players. Target: **2,000,000 GOLD** (`REFUND_RESERVE_TARGET`), funded **by the Safe from the treasury allocation right after the handoff**: `GoldToken.approve(BattleArena, 2_000_000e18)` then `BattleArena.fundReserve(2_000_000e18)` (anyone can fund; only `DEFAULT_ADMIN_ROLE` can `withdrawReserve`). Confirm with `VerifyDeployment.s.sol --sig "reserveFunded()"`. Off mainnet `Configure.s.sol` funds it from the deployer when the deployer holds the treasury allocation (the testnet fallback), so e2e runs with the same reserve. Re-check after every `FrozenExpired` with a non-zero burn.
 
 ### Detection signals
 Surface alerts on:
@@ -205,7 +205,7 @@ S1 trust assumption: operator submits drand beacons honestly; on-chain BLS verif
 Lifetime: 6 days 23 hours after launch (per `closeTime`), then permanently mute (no on-chain eligibility checks possible after closure). During the active window the holder marks wallets eligible via off-chain verification (wallet age ≥ 7 days, ≥ 3 prior tx history before the 7-day mark, ≥ 0.001 ETH balance).
 
 ### Compromise blast radius
-A compromised key can mark arbitrary wallets eligible. Each eligible wallet can claim 5 soulbound lobsters + 7,000 CLAW. Worst case, both hard-bounded on-chain: the 70M CLAW pre-mint drained, and `MAX_FAUCET_LOBSTERS` = 50,000 lobsters minted (10,000 wallets × 5 — the population the drip is sized for).
+A compromised key can mark arbitrary wallets eligible. Each eligible wallet can claim 5 soulbound lobsters + 7,000 GOLD. Worst case, both hard-bounded on-chain: the 70M GOLD pre-mint drained, and `MAX_FAUCET_LOBSTERS` = 50,000 lobsters minted (10,000 wallets × 5 — the population the drip is sized for).
 
 The lobster bound matters more than it looks (audit D-02): a faucet lobster mines the 705M pool with no stake, the hourly glide splits a fixed budget across demand, and minted lobsters outlive a key rotation — there is no pause and no miner blacklist. Before the cap the key could mint an unlimited sybil mining fleet; with it the worst case is the sybil taking the whole faucet population's share, which is what the faucet was always allowed to hand out.
 
@@ -220,7 +220,7 @@ The lobster bound matters more than it looks (audit D-02): a faucet lobster mine
 
 | Role | Granted to | Why |
 |------|-----------|-----|
-| ClawToken `MINTER_ROLE` | MiningPool **only** (persistent) | Mining emission. The faucet's 70M pre-mint uses an ephemeral grant-mint-revoke pattern in `Configure.s.sol`. |
+| GoldToken `MINTER_ROLE` | MiningPool **only** (persistent) | Mining emission. The faucet's 70M pre-mint uses an ephemeral grant-mint-revoke pattern in `Configure.s.sol`. |
 | LobsterNFT `MINTER_ROLE` | Faucet, BreedingLab | Faucet onboarding + breed offspring |
 | LobsterNFT `BURNER_ROLE` | EvolutionLab | Burn 2 fuel lobsters per evolution |
 | LobsterNFT `EVOLVER_ROLE` | EvolutionLab | Set evolution tier |
@@ -241,7 +241,7 @@ The lobster bound matters more than it looks (audit D-02): a faucet lobster mine
 4. **The multisig calls `Treasury.acceptOwnership()`** — the proof that it can sign on this chain.
 5. **Handoff phase 2** — the deployer renounces `DEFAULT_ADMIN_ROLE` on every contract. It cannot run before step 4.
 6. `VerifyDeployment.s.sol --sig "finalized()"`, then log the multisig address publicly so anyone can verify governance (the verify script needs only public addresses).
-7. **The multisig funds the refund reserve** (2M CLAW: `approve` + `BattleArena.fundReserve`), then `VerifyDeployment.s.sol --sig "reserveFunded()"`. Open the game only after this passes.
+7. **The multisig funds the refund reserve** (2M GOLD: `approve` + `BattleArena.fundReserve`), then `VerifyDeployment.s.sol --sig "reserveFunded()"`. Open the game only after this passes.
 
 This sequence closes C-06 (deployer-as-admin without timelock) at deploy time.
 

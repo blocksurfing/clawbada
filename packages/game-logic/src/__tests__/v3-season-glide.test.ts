@@ -8,8 +8,8 @@ const BASE = 1_250n * WEI;
 const EPOCHS = 1_440; // 60 days of hourly epochs (MiningPool.SEASON_DURATION / REPEG_EPOCH)
 
 describe('repegIfNeeded reproduces the contract', () => {
-  // test/MiningPool.t.sol::test_glideRepegsDownWithDampingClamp — a 125,000 CLAW season, six Base
-  // expeditions in hour 0 (7,500 CLAW minted, 6 units served), first touch of a later epoch → 70 % of 1,250.
+  // test/MiningPool.t.sol::test_glideRepegsDownWithDampingClamp — a 125,000 GOLD season, six Base
+  // expeditions in hour 0 (7,500 GOLD minted, 6 units served), first touch of a later epoch → 70 % of 1,250.
   test('damping clamp: 1,250 → 875 on the contract\'s own vector', () => {
     const s = newGlideState(BASE * 100n, BASE);
     s.minted = 6n * BASE;
@@ -153,7 +153,7 @@ describe('runGlideSeason', () => {
     const r = runGlideSeason({ scenario: D19_SCENARIOS[3], mode: 'ideal' });
     expect(r.exhaustionDay).toBeNull();
     expect(r.zeroIncomeDays).toBe(0);
-    expect(r.unspentClaw / 352_500_000).toBeLessThan(0.01);
+    expect(r.unspentGold / 352_500_000).toBeLessThan(0.01);
     expect(r.maxDayOverspendX).toBeLessThan(1.05);
   });
 
@@ -209,8 +209,8 @@ describe('runGlideSeason', () => {
     const locked = runGlideSeason({ scenario: SHAPE_SCENARIOS[4], mode: 'onchain', params: { ...ONCHAIN, estimatorWindow: 24 } });
     const deployed = runGlideSeason({ scenario: SHAPE_SCENARIOS[4], mode: 'onchain', params: D19_SINGLE_EPOCH });
     expect(Math.abs(locked.rewardByDay[29] / smooth.rewardByDay[29] - 1)).toBeLessThan(0.05);
-    expect(deployed.unspentClaw).toBeGreaterThan(50_000_000); // the deployed estimator strands the budget
-    expect(locked.unspentClaw).toBeLessThan(1_000_000);
+    expect(deployed.unspentGold).toBeGreaterThan(50_000_000); // the deployed estimator strands the budget
+    expect(locked.unspentGold).toBeLessThan(1_000_000);
     // And a daily rhythm pays peak-hour and off-peak starters alike under the window, not under the deployed rule.
     const rhythmWindow = runGlideSeason({ scenario: SHAPE_SCENARIOS[5], mode: 'onchain', params: { ...ONCHAIN, estimatorWindow: 24 } });
     const rhythmDeployed = runGlideSeason({ scenario: SHAPE_SCENARIOS[5], mode: 'onchain', params: D19_SINGLE_EPOCH });

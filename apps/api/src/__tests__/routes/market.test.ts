@@ -10,9 +10,9 @@ mock.module('@clawbada/chain', () => ({
   getAddress: mockGetAddress,
   encodeFunctionData: mockEncodeFunctionData,
   MarketplaceAbi: [],
-  ClawTokenAbi: [],
+  GoldTokenAbi: [],
   LobsterNFTAbi: [],
-  addresses: { marketplace: '0xMKT', clawToken: '0xCLAW', lobsterNFT: '0xNFT' },
+  addresses: { marketplace: '0xMKT', goldToken: '0xGOLD', lobsterNFT: '0xNFT' },
   base: { id: 8453 },
   baseSepolia: { id: 84532 },
 }));

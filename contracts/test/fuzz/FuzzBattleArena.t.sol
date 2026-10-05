@@ -79,9 +79,9 @@ contract FuzzBattleArena is BaseSetup {
     /// @dev Fund + approve + deposit with full consent (expected stake, any opponent power).
     function _depositWith(address player, uint256 battleId, uint256 stake, bytes32 commitHash) internal {
         uint256 total = stake + _ag(stake);
-        _giveClaw(player, total);
+        _giveGold(player, total);
         vm.startPrank(player);
-        claw.approve(address(battleArena), total);
+        gold.approve(address(battleArena), total);
         battleArena.deposit(battleId, stake, 9, commitHash);
         vm.stopPrank();
     }
@@ -147,9 +147,9 @@ contract FuzzBattleArena is BaseSetup {
     }
 
     function _fundReserve(uint256 amount) internal {
-        _giveClaw(funder, amount);
+        _giveGold(funder, amount);
         vm.startPrank(funder);
-        claw.approve(address(battleArena), amount);
+        gold.approve(address(battleArena), amount);
         battleArena.fundReserve(amount);
         vm.stopPrank();
     }
@@ -188,12 +188,12 @@ contract FuzzBattleArena is BaseSetup {
     }
 
     function _snap() internal view returns (Snap memory s) {
-        s.alice = claw.balanceOf(alice);
-        s.bob = claw.balanceOf(bob);
-        s.dev = claw.balanceOf(devWallet);
-        s.supply = claw.totalSupply();
-        s.arena = claw.balanceOf(address(battleArena));
-        s.treasury = claw.balanceOf(address(treasury));
+        s.alice = gold.balanceOf(alice);
+        s.bob = gold.balanceOf(bob);
+        s.dev = gold.balanceOf(devWallet);
+        s.supply = gold.totalSupply();
+        s.arena = gold.balanceOf(address(battleArena));
+        s.treasury = gold.balanceOf(address(treasury));
         s.reserve = battleArena.refundReserve();
     }
 
@@ -256,7 +256,7 @@ contract FuzzBattleArena is BaseSetup {
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
         assertEq(b.stakeAmount, quoted, "amount bound = quote");
         assertEq(b.bracket, bracket, "bracket stored");
-        assertEq(b.stakeAmount % 1e18, 0, "whole CLAW");
+        assertEq(b.stakeAmount % 1e18, 0, "whole GOLD");
     }
 
     function test_same_player_reverts() public {
@@ -297,9 +297,9 @@ contract FuzzBattleArena is BaseSetup {
     function test_zero_commit_hash_reverts() public {
         uint256 battleId = _createBattle();
         uint256 total = LOW_STAKE + _ag(LOW_STAKE);
-        _giveClaw(alice, total);
+        _giveGold(alice, total);
         vm.startPrank(alice);
-        claw.approve(address(battleArena), total);
+        gold.approve(address(battleArena), total);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
         battleArena.deposit(battleId, LOW_STAKE, 9, bytes32(0));
         vm.stopPrank();
@@ -310,9 +310,9 @@ contract FuzzBattleArena is BaseSetup {
         _deposit(alice, battleId);
 
         uint256 total = LOW_STAKE + _ag(LOW_STAKE);
-        _giveClaw(alice, total);
+        _giveGold(alice, total);
         vm.startPrank(alice);
-        claw.approve(address(battleArena), total);
+        gold.approve(address(battleArena), total);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.AlreadyDeposited.selector, battleId));
         battleArena.deposit(battleId, LOW_STAKE, 9, keccak256("again"));
         vm.stopPrank();
@@ -321,9 +321,9 @@ contract FuzzBattleArena is BaseSetup {
     function test_non_participant_reverts() public {
         uint256 battleId = _createBattle();
         uint256 total = LOW_STAKE + _ag(LOW_STAKE);
-        _giveClaw(stranger, total);
+        _giveGold(stranger, total);
         vm.startPrank(stranger);
-        claw.approve(address(battleArena), total);
+        gold.approve(address(battleArena), total);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.NotBattleParticipant.selector, battleId));
         battleArena.deposit(battleId, LOW_STAKE, 9, keccak256("x"));
         vm.stopPrank();
@@ -332,14 +332,14 @@ contract FuzzBattleArena is BaseSetup {
     function test_deposit_timeout_refunds() public {
         uint256 battleId = _createBattle();
         _deposit(alice, battleId);
-        uint256 aliceBefore = claw.balanceOf(alice);
+        uint256 aliceBefore = gold.balanceOf(alice);
 
         vm.warp(block.timestamp + battleArena.DEPOSIT_WINDOW() + 1);
         battleArena.handleTimeout(battleId);
 
         assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Cancelled));
-        assertEq(claw.balanceOf(alice) - aliceBefore, LOW_STAKE + _ag(LOW_STAKE), "alice refunded");
-        assertEq(claw.balanceOf(address(battleArena)), 0, "nothing stuck");
+        assertEq(gold.balanceOf(alice) - aliceBefore, LOW_STAKE + _ag(LOW_STAKE), "alice refunded");
+        assertEq(gold.balanceOf(address(battleArena)), 0, "nothing stuck");
     }
 
     function test_wrong_phase_deposit_reverts() public {
@@ -347,9 +347,9 @@ contract FuzzBattleArena is BaseSetup {
         _bothDeposit(battleId); // phase -> TeamReveal
 
         uint256 total = LOW_STAKE + _ag(LOW_STAKE);
-        _giveClaw(alice, total);
+        _giveGold(alice, total);
         vm.startPrank(alice);
-        claw.approve(address(battleArena), total);
+        gold.approve(address(battleArena), total);
         vm.expectRevert(
             abi.encodeWithSelector(
                 BattleArena.InvalidBattlePhase.selector,
@@ -389,9 +389,9 @@ contract FuzzBattleArena is BaseSetup {
         bool mismatch = expectedStake != stake || opponentPower > maxOpponentPower;
 
         uint256 total = stake + _ag(stake);
-        _giveClaw(player, total);
+        _giveGold(player, total);
         vm.startPrank(player);
-        claw.approve(address(battleArena), total);
+        gold.approve(address(battleArena), total);
         if (mismatch) {
             vm.expectRevert(
                 abi.encodeWithSelector(BattleArena.ConsentMismatch.selector, battleId, stake, opponentPower)
@@ -403,8 +403,8 @@ contract FuzzBattleArena is BaseSetup {
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
         bool deposited = depositorIsA ? b.depositA : b.depositB;
         assertEq(deposited, !mismatch, "deposit lands iff consent matches");
-        assertEq(claw.balanceOf(address(battleArena)), mismatch ? 0 : total, "escrow iff consent matches");
-        assertEq(claw.balanceOf(player), mismatch ? total : 0, "player keeps funds on mismatch");
+        assertEq(gold.balanceOf(address(battleArena)), mismatch ? 0 : total, "escrow iff consent matches");
+        assertEq(gold.balanceOf(player), mismatch ? total : 0, "player keeps funds on mismatch");
     }
 
     // ─────────────────────── reveal ───────────────────────
@@ -458,9 +458,9 @@ contract FuzzBattleArena is BaseSetup {
 
         assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Cancelled));
         uint256 full = LOW_STAKE + _ag(LOW_STAKE);
-        assertEq(claw.balanceOf(alice) - s.alice, full, "alice fully refunded");
-        assertEq(claw.balanceOf(bob) - s.bob, full, "bob fully refunded");
-        assertEq(claw.totalSupply(), s.supply, "nothing burned");
+        assertEq(gold.balanceOf(alice) - s.alice, full, "alice fully refunded");
+        assertEq(gold.balanceOf(bob) - s.bob, full, "bob fully refunded");
+        assertEq(gold.totalSupply(), s.supply, "nothing burned");
         assertFalse(battleArena.teamInBattle(teamA));
         assertFalse(battleArena.teamInBattle(teamB));
     }
@@ -518,11 +518,11 @@ contract FuzzBattleArena is BaseSetup {
         bool faultA = accA && !(openA && !unplayableA);
         bool faultB = accB && !openB;
         uint256 ag = _ag(LOW_STAKE);
-        assertEq(claw.balanceOf(alice) - s.alice, LOW_STAKE + (faultA ? 0 : ag), "alice refund");
-        assertEq(claw.balanceOf(bob) - s.bob, LOW_STAKE + (faultB ? 0 : ag), "bob refund");
+        assertEq(gold.balanceOf(alice) - s.alice, LOW_STAKE + (faultA ? 0 : ag), "alice refund");
+        assertEq(gold.balanceOf(bob) - s.bob, LOW_STAKE + (faultB ? 0 : ag), "bob refund");
         uint256 slashed = (faultA ? ag : 0) + (faultB ? ag : 0);
-        assertEq(s.supply - claw.totalSupply(), slashed * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR(), "burn");
-        assertEq(claw.balanceOf(address(battleArena)), 0, "nothing stuck");
+        assertEq(s.supply - gold.totalSupply(), slashed * treasury.BURN_BPS() / treasury.BPS_DENOMINATOR(), "burn");
+        assertEq(gold.balanceOf(address(battleArena)), 0, "nothing stuck");
         assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Cancelled));
     }
 
@@ -727,7 +727,7 @@ contract FuzzBattleArena is BaseSetup {
         vm.expectEmit(true, true, false, true, address(battleArena));
         emit BattleArena.AntiGriefSlashed(battleId, bob, ag);
         battleArena.finalizeBattle(battleId);
-        assertEq(claw.balanceOf(bob), s.bob, "bob gets nothing back");
+        assertEq(gold.balanceOf(bob), s.bob, "bob gets nothing back");
         _assertPaid(s, LOW_STAKE, alice, bob);
     }
 
@@ -746,10 +746,10 @@ contract FuzzBattleArena is BaseSetup {
         battleArena.finalizeBattle(battleId);
 
         uint256 side = stake / 10;
-        assertEq(claw.balanceOf(alice) - s.alice, stake - side + _ag(stake), "alice: stake - 10% + 5%");
-        assertEq(claw.balanceOf(bob) - s.bob, stake - side + _ag(stake), "bob: stake - 10% + 5%");
-        assertEq(claw.balanceOf(devWallet) - s.dev + (s.supply - claw.totalSupply()), decidedFee, "draw fee == decided fee");
-        assertEq(claw.balanceOf(devWallet) - s.dev, decidedFee * 15 / 100, "dev share");
+        assertEq(gold.balanceOf(alice) - s.alice, stake - side + _ag(stake), "alice: stake - 10% + 5%");
+        assertEq(gold.balanceOf(bob) - s.bob, stake - side + _ag(stake), "bob: stake - 10% + 5%");
+        assertEq(gold.balanceOf(devWallet) - s.dev + (s.supply - gold.totalSupply()), decidedFee, "draw fee == decided fee");
+        assertEq(gold.balanceOf(devWallet) - s.dev, decidedFee * 15 / 100, "dev share");
         _assertPaid(s, stake, address(0), address(0));
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
         assertEq(b.winner, address(0));
@@ -921,11 +921,11 @@ contract FuzzBattleArena is BaseSetup {
             vm.prank(admin);
             battleArena.resolveFrozen(battleId, winner, forfeiter, true);
             uint256 back = stake + _ag(stake);
-            assertEq(claw.balanceOf(alice) - s.alice, back, "alice refunded");
-            assertEq(claw.balanceOf(bob) - s.bob, back, "bob refunded");
-            assertEq(claw.totalSupply(), s.supply, "no fee on refundBoth");
-            assertEq(claw.balanceOf(devWallet), s.dev, "no dev share on refundBoth");
-            assertEq(claw.balanceOf(address(battleArena)), 0, "nothing stuck");
+            assertEq(gold.balanceOf(alice) - s.alice, back, "alice refunded");
+            assertEq(gold.balanceOf(bob) - s.bob, back, "bob refunded");
+            assertEq(gold.totalSupply(), s.supply, "no fee on refundBoth");
+            assertEq(gold.balanceOf(devWallet), s.dev, "no dev share on refundBoth");
+            assertEq(gold.balanceOf(address(battleArena)), 0, "nothing stuck");
             BattleArena.Battle memory b = battleArena.getBattle(battleId);
             assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
             assertEq(b.winner, address(0));
@@ -1001,13 +1001,13 @@ contract FuzzBattleArena is BaseSetup {
         else battleArena.expireFrozen(battleId);
 
         uint256 back = stake + _ag(stake);
-        assertEq(claw.balanceOf(alice) - s.alice, back, "alice: stake + 5% (forfeiter ignored)");
-        assertEq(claw.balanceOf(bob) - s.bob, back, "bob: stake + 5% (forfeiter ignored)");
-        assertEq(s.supply - claw.totalSupply(), burns ? 2 * stake : 0, "burn iff reserve covers");
-        assertEq(claw.balanceOf(devWallet), s.dev, "no fee on expiry");
+        assertEq(gold.balanceOf(alice) - s.alice, back, "alice: stake + 5% (forfeiter ignored)");
+        assertEq(gold.balanceOf(bob) - s.bob, back, "bob: stake + 5% (forfeiter ignored)");
+        assertEq(s.supply - gold.totalSupply(), burns ? 2 * stake : 0, "burn iff reserve covers");
+        assertEq(gold.balanceOf(devWallet), s.dev, "no fee on expiry");
         uint256 newReserve = burns ? reserve - 2 * stake : reserve;
         assertEq(battleArena.refundReserve(), newReserve, "reserve accounting");
-        assertEq(claw.balanceOf(address(battleArena)), newReserve, "arena holds exactly the reserve");
+        assertEq(gold.balanceOf(address(battleArena)), newReserve, "arena holds exactly the reserve");
         BattleArena.Battle memory b = battleArena.getBattle(battleId);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.Settled));
         assertEq(b.winner, address(0));
@@ -1031,7 +1031,7 @@ contract FuzzBattleArena is BaseSetup {
         }
         uint256 escrow = 2 * (battleArena.stakeFor(1) + _ag(battleArena.stakeFor(1)))
             + 2 * (LOW_STAKE + _ag(LOW_STAKE));
-        assertEq(claw.balanceOf(address(battleArena)), escrow);
+        assertEq(gold.balanceOf(address(battleArena)), escrow);
 
         uint256 model;
         address sink = makeAddr("reserve-sink");
@@ -1043,7 +1043,7 @@ contract FuzzBattleArena is BaseSetup {
             } else {
                 // Sometimes target exactly the reserve or just over it.
                 if (ops[i] % 3 == 2) amount = model + ((ops[i] >> 4) % 2);
-                uint256 sinkBefore = claw.balanceOf(sink);
+                uint256 sinkBefore = gold.balanceOf(sink);
                 vm.prank(admin);
                 if (amount > model) {
                     vm.expectRevert(abi.encodeWithSelector(BattleArena.InsufficientReserve.selector, amount, model));
@@ -1051,11 +1051,11 @@ contract FuzzBattleArena is BaseSetup {
                 } else {
                     battleArena.withdrawReserve(sink, amount);
                     model -= amount;
-                    assertEq(claw.balanceOf(sink) - sinkBefore, amount, "sink received");
+                    assertEq(gold.balanceOf(sink) - sinkBefore, amount, "sink received");
                 }
             }
             assertEq(battleArena.refundReserve(), model, "reserve == model");
-            assertEq(claw.balanceOf(address(battleArena)), escrow + model, "balance == escrow + reserve");
+            assertEq(gold.balanceOf(address(battleArena)), escrow + model, "balance == escrow + reserve");
         }
 
         // Escrow is intact: both battles still pay out in full.
@@ -1072,11 +1072,11 @@ contract FuzzBattleArena is BaseSetup {
         }
         vm.warp(battleArena.getBattle(idActive).phaseDeadline + 1);
         battleArena.handleTimeout(idActive);
-        assertEq(claw.balanceOf(address(battleArena)), model, "after payouts only the reserve remains");
+        assertEq(gold.balanceOf(address(battleArena)), model, "after payouts only the reserve remains");
 
         vm.prank(admin);
         battleArena.withdrawReserve(sink, model);
-        assertEq(claw.balanceOf(address(battleArena)), 0, "fully drained, nothing stuck");
+        assertEq(gold.balanceOf(address(battleArena)), 0, "fully drained, nothing stuck");
     }
 
     function test_withdrawReserve_guards() public {
@@ -1242,9 +1242,9 @@ contract FuzzBattleArena is BaseSetup {
         uint256 battleId = _createBattle();
         vm.warp(battleArena.getBattle(battleId).phaseDeadline + 1);
         uint256 total = LOW_STAKE + _ag(LOW_STAKE);
-        _giveClaw(alice, total);
+        _giveGold(alice, total);
         vm.startPrank(alice);
-        claw.approve(address(battleArena), total);
+        gold.approve(address(battleArena), total);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseTimedOut.selector, battleId));
         battleArena.deposit(battleId, LOW_STAKE, 9, keccak256("late"));
         vm.stopPrank();
@@ -1275,9 +1275,9 @@ contract FuzzBattleArena is BaseSetup {
         vm.prank(stranger);
         battleArena.handleTimeout(battleId);
         assertEq(uint8(battleArena.getBattle(battleId).phase), uint8(BattleArena.BattlePhase.Cancelled));
-        assertEq(claw.balanceOf(alice) - s.alice, LOW_STAKE + _ag(LOW_STAKE));
-        assertEq(claw.balanceOf(bob) - s.bob, LOW_STAKE + _ag(LOW_STAKE));
-        assertEq(claw.balanceOf(address(battleArena)), 0);
+        assertEq(gold.balanceOf(alice) - s.alice, LOW_STAKE + _ag(LOW_STAKE));
+        assertEq(gold.balanceOf(bob) - s.bob, LOW_STAKE + _ag(LOW_STAKE));
+        assertEq(gold.balanceOf(address(battleArena)), 0);
         assertFalse(battleArena.teamInBattle(teamA) || battleArena.teamInBattle(teamB), "teams released");
     }
 

@@ -15,7 +15,7 @@ Reviewed contracts:
 - `BattleArena.sol`
 - `BattleVRF.sol`
 - `BreedingLab.sol`
-- `ClawToken.sol`
+- `GoldToken.sol`
 - `EvolutionLab.sol`
 - `Faucet.sol`
 - `LobsterNFT.sol`
@@ -31,7 +31,7 @@ Reviewed contracts:
 |----|----------|--------|----------|-------|
 | **P-01** | **High** | **Fixed** | **MiningPool** | **Missing team.active check allows simultaneous battle+mining, potential fund lock** |
 | H-01 | High | Partially mitigated | BattleArena | Battle settlement trusted resolver before verified moves |
-| **S-01** | **High** | **Fixed** | **Faucet/ClawToken** | **Faucet CLAW minting competes with MiningPool for MAX_SUPPLY headroom** |
+| **S-01** | **High** | **Fixed** | **Faucet/GoldToken** | **Faucet GOLD minting competes with MiningPool for MAX_SUPPLY headroom** |
 | **S-02** | **Medium** | **Fixed** | **BattleArena** | **No neutral resolver-independent unwind for Active battles** |
 | **P-02** | **Medium** | **Fixed** | **BattleArena** | **Reveal-timeout griefing leaks opponent's move data for free counter-play** |
 | **P-03** | **Medium** | **Fixed** | **BreedingLab** | **Deterministic breeding randomness enables legend sniping via smart contract** |
@@ -99,7 +99,7 @@ Evidence:
 - *(Pre-hardening)* The deployment script granted `MATCHMAKER_ROLE` and `RESOLVER_ROLE` directly to `deployer`: `contracts/script/Configure.s.sol:139-149`. This has been remediated — see Hardening section.
 
 Impact:
-- Before the patch, a compromised or malicious resolver could settle an active battle in favor of either player and route the loser's staked `CLAW` to the preferred winner before any verified gameplay occurred.
+- Before the patch, a compromised or malicious resolver could settle an active battle in favor of either player and route the loser's staked `GOLD` to the preferred winner before any verified gameplay occurred.
 - That concrete early-settlement path is now blocked.
 - Remaining risk: after at least one verified round exists, the resolver still supplies `winner` and damage arrays, so the battle system is still operator-trusted rather than trustless.
 
@@ -137,22 +137,22 @@ Affected files:
 - `contracts/BattleArena.sol:209,388,389,503,506,529,531`
 
 Summary:
-Every contract that moves $CLAW uses `IERC20.transfer()` / `IERC20.transferFrom()` without checking return values and without using OpenZeppelin's `SafeERC20` wrapper. OZ v5.5.0 provides `SafeERC20.safeTransfer()` and `safeTransferFrom()` specifically for this purpose.
+Every contract that moves $GOLD uses `IERC20.transfer()` / `IERC20.transferFrom()` without checking return values and without using OpenZeppelin's `SafeERC20` wrapper. OZ v5.5.0 provides `SafeERC20.safeTransfer()` and `safeTransferFrom()` specifically for this purpose.
 
-While the concrete token (`ClawToken`) inherits OZ `ERC20` which always reverts on failure (making bare calls safe in practice), several contracts reference the token as `IERC20` rather than `ClawToken`. This means:
+While the concrete token (`GoldToken`) inherits OZ `ERC20` which always reverts on failure (making bare calls safe in practice), several contracts reference the token as `IERC20` rather than `GoldToken`. This means:
 1. The compiler does not enforce that the token at that address is a reverting ERC20.
 2. If the token address were ever pointed at a non-standard ERC20 (e.g., USDT-style that returns false instead of reverting), transfers would silently fail, leading to direct loss of funds.
 
-The same contracts also use bare `approve()` — OZ recommends `forceApprove()` to handle tokens that require approval to be set to 0 before changing (not an issue with ClawToken, but a best-practice deviation).
+The same contracts also use bare `approve()` — OZ recommends `forceApprove()` to handle tokens that require approval to be set to 0 before changing (not an issue with GoldToken, but a best-practice deviation).
 
 Recommendation:
-- Add `using SafeERC20 for IERC20;` to all contracts that interact with `clawToken`.
+- Add `using SafeERC20 for IERC20;` to all contracts that interact with `goldToken`.
 - Replace all `.transfer()` → `.safeTransfer()`, `.transferFrom()` → `.safeTransferFrom()`, `.approve()` → `.forceApprove()`.
 - This is a minimal diff (~2 lines per contract) with meaningful defensive value.
 
 ---
 
-### M-02: MiningPool expedition claim can permanently lock teams if ClawToken MAX_SUPPLY is reached
+### M-02: MiningPool expedition claim can permanently lock teams if GoldToken MAX_SUPPLY is reached
 
 Severity: Medium
 
@@ -160,19 +160,19 @@ Status: **Fixed** on 2026-03-06
 
 Affected files:
 - `contracts/MiningPool.sol:166-167,208`
-- `contracts/ClawToken.sol:44-48`
+- `contracts/GoldToken.sol:44-48`
 
 **Original issue (pre-fix):**
-When `startExpedition()` was called, the reward was reserved against the season's local budget (`season.totalMinted += reward`) but the actual `clawToken.mint()` happened later in `claimExpedition()`. The season budget tracked only per-season allocation and did NOT verify against `ClawToken.MAX_SUPPLY`.
+When `startExpedition()` was called, the reward was reserved against the season's local budget (`season.totalMinted += reward`) but the actual `goldToken.mint()` happened later in `claimExpedition()`. The season budget tracked only per-season allocation and did NOT verify against `GoldToken.MAX_SUPPLY`.
 
-If the global `ClawToken.totalSupply()` reached `MAX_SUPPLY` (1B) before a claim was executed — due to concurrent mints from Faucet, other seasons, or other MINTER_ROLE holders — the `mint()` call would revert with `ExceedsMaxSupply`. This made the expedition permanently unclaimable, and since `claimExpedition` was the only code path that called `teamManager.setTeamActive(teamId, false)`, the team's 3 lobsters would remain locked forever.
+If the global `GoldToken.totalSupply()` reached `MAX_SUPPLY` (1B) before a claim was executed — due to concurrent mints from Faucet, other seasons, or other MINTER_ROLE holders — the `mint()` call would revert with `ExceedsMaxSupply`. This made the expedition permanently unclaimable, and since `claimExpedition` was the only code path that called `teamManager.setTeamActive(teamId, false)`, the team's 3 lobsters would remain locked forever.
 
 Impact:
 - Permanent asset lockup (3 lobsters stuck in a team that can never be released).
 - Reserved budget consumed but tokens never minted — season budget wasted.
 
 **Current state (post-fix):**
-`startExpedition()` now mints the reward into MiningPool escrow (`clawToken.mint(address(this), reward)`) at expedition start. If `MAX_SUPPLY` headroom is insufficient, `startExpedition()` reverts immediately — the team never becomes active and no expedition is created. `claimExpedition()` now transfers the escrowed reward (`clawToken.transfer(msg.sender, expedition.reward)`) instead of minting. Once an expedition starts, its reward is guaranteed claimable regardless of later global supply changes.
+`startExpedition()` now mints the reward into MiningPool escrow (`goldToken.mint(address(this), reward)`) at expedition start. If `MAX_SUPPLY` headroom is insufficient, `startExpedition()` reverts immediately — the team never becomes active and no expedition is created. `claimExpedition()` now transfers the escrowed reward (`goldToken.transfer(msg.sender, expedition.reward)`) instead of minting. Once an expedition starts, its reward is guaranteed claimable regardless of later global supply changes.
 
 4 regression tests added to `test/MiningPool.t.sol`:
 - `test_startExpeditionRevertsWhenMaxSupplyInsufficient` — verifies clean revert with no stuck team state
@@ -200,7 +200,7 @@ There was no way to cancel an in-progress expedition. The only exit path was `cl
 
 ### L-05: Faucet claim functions missing ReentrancyGuard
 
-Severity: Low (downgraded from Medium — CEI is respected, no duplicate claim possible; callback can only reorder claimClaw earlier than intended, not extract extra tokens)
+Severity: Low (downgraded from Medium — CEI is respected, no duplicate claim possible; callback can only reorder claimGold earlier than intended, not extract extra tokens)
 
 Status: Open
 
@@ -208,11 +208,11 @@ Affected files:
 - `contracts/Faucet.sol:84-98,102-113`
 
 Summary:
-`Faucet` does not inherit `ReentrancyGuard`, and neither `claimLobsters()` nor `claimClaw()` has a `nonReentrant` modifier.
+`Faucet` does not inherit `ReentrancyGuard`, and neither `claimLobsters()` nor `claimGold()` has a `nonReentrant` modifier.
 
 `claimLobsters()` mints 5 ERC-1155 tokens in a loop (line 94). Each `lobsterNFT.mint()` triggers `_mint()` → `_update()` → OZ's `_doSafeTransferAcceptanceCheck()`, which calls `onERC1155Received` on the recipient if it's a contract. This creates a reentrancy callback after each mint.
 
-While CEI is respected (`hasClaimedLobsters[msg.sender] = true` at line 90, before mints), a reentrant call from the `onERC1155Received` callback could call `claimClaw()` mid-loop — `hasClaimedLobsters` is already true and `hasClaimedClaw` is still false, so the CLAW claim would succeed. This is functionally harmless (the user would have claimed both anyway), but it violates the intended ordering (lobsters first, CLAW second after all 5 mints) and means `totalLobstersClaimed` (updated at line 97, after the loop) would be stale during the CLAW claim.
+While CEI is respected (`hasClaimedLobsters[msg.sender] = true` at line 90, before mints), a reentrant call from the `onERC1155Received` callback could call `claimGold()` mid-loop — `hasClaimedLobsters` is already true and `hasClaimedGold` is still false, so the GOLD claim would succeed. This is functionally harmless (the user would have claimed both anyway), but it violates the intended ordering (lobsters first, GOLD second after all 5 mints) and means `totalLobstersClaimed` (updated at line 97, after the loop) would be stale during the GOLD claim.
 
 More importantly, the absence of `ReentrancyGuard` on a contract that makes external calls to other contracts (which themselves make external calls) is a deviation from OZ best practices and leaves the door open for future issues if the contract is extended.
 
@@ -317,7 +317,7 @@ Affected files:
 - `contracts/BattleArena.sol:384,524`
 
 Summary:
-Multiple contracts call `clawToken.approve(address(treasury), amount)` before `treasury.processFee(amount)`. Since `processFee` always consumes the full approved amount via `transferFrom`, no residual approval remains. However, OZ v5.5.0 recommends `forceApprove()` (from SafeERC20) over bare `approve()` to handle tokens that revert on non-zero-to-non-zero approval changes. Not a risk with ClawToken specifically, but a best-practice alignment opportunity when adopting SafeERC20 per M-01.
+Multiple contracts call `goldToken.approve(address(treasury), amount)` before `treasury.processFee(amount)`. Since `processFee` always consumes the full approved amount via `transferFrom`, no residual approval remains. However, OZ v5.5.0 recommends `forceApprove()` (from SafeERC20) over bare `approve()` to handle tokens that revert on non-zero-to-non-zero approval changes. Not a risk with GoldToken specifically, but a best-practice alignment opportunity when adopting SafeERC20 per M-01.
 
 ## Pashov Audit Skill Findings (Parallelized Agent Scan)
 
@@ -352,7 +352,7 @@ Summary:
 7. Minted reward tokens (already in MiningPool escrow) are permanently locked
 
 Impact:
-- Permanent $CLAW token lock in MiningPool contract (minted at expedition start, unclaimable)
+- Permanent $GOLD token lock in MiningPool contract (minted at expedition start, unclaimable)
 - Simultaneous battle + mining = double-dipping on rewards (economic exploit even without the lock path)
 - Note: the reverse (mine first, then battle) is correctly blocked — `_validateTeamForBattle` checks `team.active`
 
@@ -573,7 +573,7 @@ Affected files: `test/` directory
 Summary:
 The test suite consists entirely of unit tests (specific scenario → expected outcome). No Foundry invariant tests (`function invariant_*`) or stateful fuzz campaigns exist. Key system invariants that should be tested under randomized sequences:
 
-1. **ClawToken**: `totalSupply() <= MAX_SUPPLY` — always, regardless of mint/burn sequence
+1. **GoldToken**: `totalSupply() <= MAX_SUPPLY` — always, regardless of mint/burn sequence
 2. **MiningPool**: `season.totalMinted <= season.totalEmission` — budget cap never exceeded
 3. **MiningPool**: escrow balance ≥ sum of unclaimed expedition rewards
 4. **TeamManager**: a locked lobster is always on exactly one team; an unlocked lobster is on zero teams
@@ -595,7 +595,7 @@ Severity: Low
 Status: Open
 
 Affected files:
-- `contracts/ClawToken.sol:32`
+- `contracts/GoldToken.sol:32`
 - `contracts/LobsterNFT.sol:72`
 - `contracts/MiningPool.sol:96`
 - `contracts/TeamManager.sol:50`
@@ -606,7 +606,7 @@ Affected files:
 
 Summary:
 Seven contracts grant `DEFAULT_ADMIN_ROLE` to the deployer at construction. This role can:
-- Grant `MINTER_ROLE` on ClawToken → mint up to MAX_SUPPLY to any address
+- Grant `MINTER_ROLE` on GoldToken → mint up to MAX_SUPPLY to any address
 - Grant `MINTER_ROLE` + `BURNER_ROLE` + `DAMAGE_ROLE` + `EVOLVER_ROLE` on LobsterNFT → mint/burn/modify any lobster
 - Grant `ACTIVITY_ROLE` on TeamManager → lock/unlock any team
 - Grant `MATCHMAKER_ROLE` + `RESOLVER_ROLE` on BattleArena → create battles and control outcomes
@@ -653,7 +653,7 @@ Scan sources: Trail of Bits token-integration-analyzer, quillai-network audit sk
 
 Findings are deduplicated across agents by root cause. Items that overlap with existing findings (P-01–P-05, C-01–C-06, H-01, M-02) are noted as duplicates and not re-listed.
 
-### S-01: Faucet CLAW minting competes with MiningPool for MAX_SUPPLY headroom without budget tracking
+### S-01: Faucet GOLD minting competes with MiningPool for MAX_SUPPLY headroom without budget tracking
 
 Severity: High
 
@@ -661,27 +661,27 @@ Confidence: Confirmed
 
 Source: state-invariant-detection scan
 
-Status: **Fixed** (2026-03-07) — Faucet now distributes pre-minted $CLAW via `transfer()` instead of `mint()`. 3 regression tests added.
+Status: **Fixed** (2026-03-07) — Faucet now distributes pre-minted $GOLD via `transfer()` instead of `mint()`. 3 regression tests added.
 
 Affected files:
-- `contracts/Faucet.sol:109-114` (claimClaw → transfer from pre-funded balance)
-- `contracts/script/Configure.s.sol:160-175` (pre-mints 70M $CLAW to Faucet during deployment)
-- `contracts/script/DeployHelpers.s.sol:40` (FAUCET_CLAW_ALLOCATION constant)
+- `contracts/Faucet.sol:109-114` (claimGold → transfer from pre-funded balance)
+- `contracts/script/Configure.s.sol:160-175` (pre-mints 70M $GOLD to Faucet during deployment)
+- `contracts/script/DeployHelpers.s.sol:40` (FAUCET_GOLD_ALLOCATION constant)
 
 **Original issue:**
-The Faucet minted 7,000 $CLAW per eligible wallet via `clawToken.mint()`, drawing from the same `MAX_SUPPLY` (1B) headroom as MiningPool. Faucet mints were not tracked against any budget. With 10K wallets claiming, 70M $CLAW would be minted outside the mining emission schedule, eating into the 775M mining allocation.
+The Faucet minted 7,000 $GOLD per eligible wallet via `goldToken.mint()`, drawing from the same `MAX_SUPPLY` (1B) headroom as MiningPool. Faucet mints were not tracked against any budget. With 10K wallets claiming, 70M $GOLD would be minted outside the mining emission schedule, eating into the 775M mining allocation.
 
 **Fix applied:**
-- `Faucet.claimClaw()` now uses `clawToken.transfer()` from the Faucet's pre-funded balance instead of `clawToken.mint()`.
+- `Faucet.claimGold()` now uses `goldToken.transfer()` from the Faucet's pre-funded balance instead of `goldToken.mint()`.
 - Added `InsufficientFaucetBalance` error for descriptive revert when balance is exhausted.
-- Faucet no longer holds `MINTER_ROLE` on ClawToken.
-- `Configure.s.sol` pre-mints `FAUCET_CLAW_ALLOCATION` (70M $CLAW) into the Faucet contract during deployment setup, then revokes the temporary MINTER_ROLE from deployer.
+- Faucet no longer holds `MINTER_ROLE` on GoldToken.
+- `Configure.s.sol` pre-mints `FAUCET_GOLD_ALLOCATION` (70M $GOLD) into the Faucet contract during deployment setup, then revokes the temporary MINTER_ROLE from deployer.
 - Faucet allocation is explicitly carved from MAX_SUPPLY at deployment time, making the tokenomics auditable.
-- Token allocation updated: mining 70.5% (705M), LP 12.5% (125M), treasury 10% (100M), faucet 7% (70M). Docs updated in ClawToken.sol, GAME_DESIGN_RATIONALE.md, and gitbook/tokenomics.md.
+- Token allocation updated: mining 70.5% (705M), LP 12.5% (125M), treasury 10% (100M), faucet 7% (70M). Docs updated in GoldToken.sol, GAME_DESIGN_RATIONALE.md, and gitbook/tokenomics.md.
 
 Tests added:
-- `test_claimClawTransfersFromFaucetBalance` — verifies transfer from balance, totalSupply unchanged
-- `test_claimClawRevertsWhenFaucetBalanceInsufficient` — verifies descriptive revert on empty faucet
+- `test_claimGoldTransfersFromFaucetBalance` — verifies transfer from balance, totalSupply unchanged
+- `test_claimGoldRevertsWhenFaucetBalanceInsufficient` — verifies descriptive revert on empty faucet
 - `test_faucetClaimDoesNotAffectMiningSupply` — verifies `remainingMintable()` unchanged after claim
 
 ---
@@ -797,7 +797,7 @@ Affected files:
 - `test/BreedingLab.t.sol` (new test: `test_breedCostPrecisionAtHighGeneration`)
 
 Summary:
-The iterative `cost * 3 / 2` computation truncates at most 0.5 wei per step. On an 18-decimal token with costs ≥500e18, this error is negligible (< 1 part per 10^18 per generation). At gen 10, the computed cost is within 1 $CLAW of the theoretical value. Added NatSpec documenting the truncation behavior and a boundary test verifying gen-10 precision.
+The iterative `cost * 3 / 2` computation truncates at most 0.5 wei per step. On an 18-decimal token with costs ≥500e18, this error is negligible (< 1 part per 10^18 per generation). At gen 10, the computed cost is within 1 $GOLD of the theoretical value. Added NatSpec documenting the truncation behavior and a boundary test verifying gen-10 precision.
 
 ---
 
@@ -842,7 +842,7 @@ The following were independently identified by scan agents but are duplicates of
 ## Notes
 
 - All contracts were reviewed against OpenZeppelin Contracts v5.5.0 (installed at `lib/openzeppelin-contracts/`).
-- The `ClawToken` inherits OZ `ERC20` + `ERC20Burnable` + `AccessControl` — standard and correct.
+- The `GoldToken` inherits OZ `ERC20` + `ERC20Burnable` + `AccessControl` — standard and correct.
 - `LobsterNFT._update()` correctly enforces soulbound and locked restrictions on transfers while allowing mints and burns to proceed. Soulbound lobsters being burnable is intentional (evolution fuel per design spec).
 - `Treasury.sol` is clean: atomic pull-split-burn, `Ownable2Step` for safe ownership transfer, one-time token setup, authorized caller whitelist.
 - `RepairShop.sol` is clean: CEI respected, correct tier-rate lookup, proper damage bounds checking.
@@ -925,7 +925,7 @@ Final validation: `FOUNDRY_OFFLINE=true forge test` — 523/523 passing across 1
 | P-02 | Medium | BattleArena | Reveal withhold triggers immediate forfeit (no retry) | 1 |
 | P-04 | Medium | BattleArena | `advanceRound()` no longer resets timeout counters — cumulative | 1 |
 | M-02 | Medium | MiningPool | Mint-to-escrow at expedition start; claim transfers from escrow | 4 |
-| S-01 | High | Faucet/ClawToken | Pre-mint faucet allocation; `claimClaw()` uses `transfer()` not `mint()` | 3 |
+| S-01 | High | Faucet/GoldToken | Pre-mint faucet allocation; `claimGold()` uses `transfer()` not `mint()` | 3 |
 | S-02 | Medium | BattleArena | Added `emergencyWithdraw()` with 24h delay + `lastProgressAt` tracking | 7 |
 | P-03 | Medium | BreedingLab | 2-step `requestBreed`/`finalizeBreed` with blockhash entropy; anyone-can-finalize | 8 |
 | P-05 | Low | BattleArena | `_applyDamage` arithmetic widened to `uint256` before cap | 1 |

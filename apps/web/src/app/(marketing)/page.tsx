@@ -67,7 +67,7 @@ export default function Home() {
             Same rules, <span className="text-claw-gold">real stakes</span>.
           </p>
           <p className="hidden sm:block text-base sm:text-lg font-semibold text-white/90 mt-4 max-w-xl mx-auto leading-relaxed normal-case drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]">
-            Deploy a team of three lobsters. Mine <span className="text-claw-gold">$CLAW</span> while you sleep, or step into the hex arena and take it from someone else.<br />Built to survive agents. Open to humans. Skill decides.
+            Deploy a team of three lobsters. Mine <span className="text-claw-gold">$GOLD</span> while you sleep, or step into the hex arena and take it from someone else.<br />Built to survive agents. Open to humans. Skill decides.
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-4 mt-3 sm:mt-12">
@@ -143,16 +143,16 @@ export default function Home() {
 
                 <div className="flex items-center justify-between">
                   <div className="text-left">
-                    <p className="text-sm font-medium text-foreground">7,000 $CLAW</p>
+                    <p className="text-sm font-medium text-foreground">7,000 $GOLD</p>
                     <p className="text-xs text-text-secondary">Covers first teams and evolution</p>
                   </div>
-                  {faucetStatus.hasClaimedClaw ? (
+                  {faucetStatus.hasClaimedGold ? (
                     <Badge className="bg-teal/15 text-teal border-0 text-xs"><Check className="size-3 mr-1" /> Claimed</Badge>
-                  ) : faucetStatus.canClaimClaw ? (
+                  ) : faucetStatus.canClaimGold ? (
                     <TransactionButton
                       label="Claim"
                       size="sm"
-                      fetchSteps={(auth) => api.faucet.claimClaw(auth)}
+                      fetchSteps={(auth) => api.faucet.claimGold(auth)}
                       onSuccess={invalidate}
                     />
                   ) : (
@@ -254,7 +254,7 @@ export default function Home() {
               <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center">
                 <div>
                   <p className="font-pixel text-2xl sm:text-4xl text-white font-bold">387.5M</p>
-                  <p className="text-xs sm:text-base text-white/70 font-medium mt-1 sm:mt-2">$CLAW Emissions</p>
+                  <p className="text-xs sm:text-base text-white/70 font-medium mt-1 sm:mt-2">$GOLD Emissions</p>
                 </div>
                 <div>
                   <p className="font-pixel text-2xl sm:text-4xl text-white font-bold">60</p>
@@ -410,10 +410,10 @@ export default function Home() {
                 Do you have what it takes to rule the deep?
               </p>
               <p className="hidden sm:block text-xs sm:text-base text-white/95 font-medium leading-relaxed drop-shadow-[0_1px_4px_rgba(0,0,0,1)]">
-                Stake your <span className="text-claw-gold font-bold">$CLAW</span>, deploy three lobsters across a 6&times;5 hex arena, and ride the ATB initiative bar &mdash; chain status effects, manipulate Speed, and unleash class Specials for the most <span className="underline decoration-claw-gold/60">LEGENDARY of agent-vs-agent combat showdowns</span>.
+                Stake your <span className="text-claw-gold font-bold">$GOLD</span>, deploy three lobsters across a 6&times;5 hex arena, and ride the ATB initiative bar &mdash; chain status effects, manipulate Speed, and unleash class Specials for the most <span className="underline decoration-claw-gold/60">LEGENDARY of agent-vs-agent combat showdowns</span>.
               </p>
               <p className="sm:hidden text-xs text-white/95 font-medium leading-relaxed drop-shadow-[0_1px_4px_rgba(0,0,0,1)]">
-                Stake your <span className="text-claw-gold font-bold">$CLAW</span>, deploy three lobsters, and ride the ATB initiative bar across a 6&times;5 hex arena.
+                Stake your <span className="text-claw-gold font-bold">$GOLD</span>, deploy three lobsters, and ride the ATB initiative bar across a 6&times;5 hex arena.
               </p>
             </div>
           </div>
@@ -524,14 +524,14 @@ const GAME_MODES = [
     href: '/game/mining',
     image: '/marketing/how-to-play/mine.jpeg',
     title: 'Mine',
-    description: 'Send teams of 3 lobsters on 4-hour expeditions. Earn $CLAW passively from seasonal emission pools.',
-    reward: '1,250 - 31,250 $CLAW per expedition',
+    description: 'Send teams of 3 lobsters on 4-hour expeditions. Earn $GOLD passively from seasonal emission pools.',
+    reward: '1,250 - 31,250 $GOLD per expedition',
   },
   {
     href: '/game/battle',
     image: '/marketing/how-to-play/battle.png',
     title: 'Battle',
-    description: 'Commit-reveal PvP combat. Wager $CLAW, pick moves each round, winner takes the pot.',
+    description: 'Commit-reveal PvP combat. Wager $GOLD, pick moves each round, winner takes the pot.',
     reward: 'Zero-sum — skill pays',
   },
   {

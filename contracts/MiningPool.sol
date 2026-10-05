@@ -5,7 +5,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ClawToken} from "./ClawToken.sol";
+import {GoldToken} from "./GoldToken.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {TeamManager} from "./TeamManager.sol";
 
@@ -26,7 +26,7 @@ import {TeamManager} from "./TeamManager.sol";
 ///         spend is paid from the same season budget (no separate carve).
 /// @dev Admin calls startSeason(totalEmission, baseReward) each season. Rewards are minted into
 ///      MiningPool escrow at expedition start and transferred to the user at claim time. This
-///      ensures startExpedition() fails immediately if ClawToken.MAX_SUPPLY headroom is insufficient,
+///      ensures startExpedition() fails immediately if GoldToken.MAX_SUPPLY headroom is insufficient,
 ///      preventing teams from becoming permanently locked by a later mint failure.
 /// @custom:security-contact security@clawbada.com
 contract MiningPool is AccessControl, ReentrancyGuard {
@@ -53,14 +53,14 @@ contract MiningPool is AccessControl, ReentrancyGuard {
 
     struct SeasonConfig {
         uint256 totalEmission; // season budget cap
-        uint256 baseReward; // $CLAW per Base expedition (×tierWeight for higher tiers)
+        uint256 baseReward; // $GOLD per Base expedition (×tierWeight for higher tiers)
         uint256 startTime;
         uint256 totalMinted; // tracks budget allocated and minted into escrow this season
         uint256 launchBaseReward; // TOK-G1: glide cap — reward never re-pegs above this
         uint256 lastRepegEpoch; // epoch index of the last glide re-peg
         uint256 epochWeightServed; // tier-weight units × BPS_DENOMINATOR served this epoch (boost-scaled)
         uint256 trailingWeightServed; // D-C: average tier-weight units per epoch over the last DEMAND_WINDOW closed epochs
-        uint256 epochMinted; // $CLAW minted this epoch (reset at the re-peg) — the spend ceiling's counter
+        uint256 epochMinted; // $GOLD minted this epoch (reset at the re-peg) — the spend ceiling's counter
     }
 
     /// @dev Battle-rank boost entry for one team. Packed into one slot. `epoch` stamps the boost
@@ -117,7 +117,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     // TOK-M1: hard on-chain lifetime cap on cumulative mining emissions = the 705M
     // (70.5%) fair-launch allocation. Without this, the budget is enforced only by
     // per-season admin discipline (`startSeason` totalEmission), and Treasury burns
-    // reopen ClawToken's MAX_SUPPLY headroom — so mining could mint past 705M (the
+    // reopen GoldToken's MAX_SUPPLY headroom — so mining could mint past 705M (the
     // documented perpetual floor crosses it by ~S8). This makes 705M a true cap.
     uint256 public constant MINING_ALLOCATION = 705_000_000e18;
     // Battle-rank mining boost (S1): +10%..+50% of a team's own mining income, linear in the
@@ -134,7 +134,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     uint256[4] public TIER_WEIGHTS = [uint256(1), 3, 10, 25];
 
     // ──────────── State ────────────
-    ClawToken public clawToken;
+    GoldToken public goldToken;
     LobsterNFT public lobsterNFT;
     TeamManager public teamManager;
 
@@ -230,16 +230,16 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     // ──────────── Constructor ────────────
 
     /// @param admin The DEFAULT_ADMIN_ROLE holder
-    /// @param clawToken_ The ClawToken contract
+    /// @param goldToken_ The GoldToken contract
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param teamManager_ The TeamManager contract
-    constructor(address admin, address clawToken_, address lobsterNFT_, address teamManager_) {
-        if (admin == address(0) || clawToken_ == address(0) || lobsterNFT_ == address(0) || teamManager_ == address(0))
+    constructor(address admin, address goldToken_, address lobsterNFT_, address teamManager_) {
+        if (admin == address(0) || goldToken_ == address(0) || lobsterNFT_ == address(0) || teamManager_ == address(0))
         {
             revert ZeroAddress();
         }
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        clawToken = ClawToken(clawToken_);
+        goldToken = GoldToken(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         teamManager = TeamManager(teamManager_);
     }
@@ -247,8 +247,8 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     // ──────────── Season Management ────────────
 
     /// @notice Start the next season with a given total emission budget and base reward.
-    /// @param totalEmission Total $CLAW budget for this season
-    /// @param baseReward $CLAW per Base expedition (multiplied by tier weight for higher tiers)
+    /// @param totalEmission Total $GOLD budget for this season
+    /// @param baseReward $GOLD per Base expedition (multiplied by tier weight for higher tiers)
     function startSeason(uint256 totalEmission, uint256 baseReward) external onlyRole(SEASON_ADMIN_ROLE) {
         if (totalEmission == 0) revert ZeroEmission();
         if (baseReward == 0) revert ZeroBaseReward();
@@ -298,7 +298,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     ///         expeditions; the hourly glide keeps re-pegging from the new value (still capped
     ///         at the season's launch reward). D-D: bounded by what the budget can still pay and
     ///         by MAX_BASE_REWARD_STEP_X the season's launch reward.
-    /// @param newBaseReward New $CLAW per Base expedition
+    /// @param newBaseReward New $GOLD per Base expedition
     function setBaseReward(uint256 newBaseReward) external onlyRole(SEASON_ADMIN_ROLE) {
         if (newBaseReward == 0) revert ZeroBaseReward();
         _requireActiveSeason();
@@ -320,7 +320,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     /// @param teamId The team to send mining
     /// @param mineTier The mine tier (0=Base, 1=Evolved, 2=Elite, 3=Apex)
     /// @return expeditionId The ID of the started expedition
-    // slither-disable-next-line reentrancy-no-eth,divide-before-multiply — nonReentrant; clawToken.mint is to the trusted ClawToken and the expedition write follows the mint. divide-before-multiply is deliberate: the boost is applied to the base BEFORE the tier multiply so the locked reward stays an exact tier-weight multiple (invariant I-4); the truncation is < 1 wei per weight unit on 1e18-scale rewards.
+    // slither-disable-next-line reentrancy-no-eth,divide-before-multiply — nonReentrant; goldToken.mint is to the trusted GoldToken and the expedition write follows the mint. divide-before-multiply is deliberate: the boost is applied to the base BEFORE the tier multiply so the locked reward stays an exact tier-weight multiple (invariant I-4); the truncation is < 1 wei per weight unit on 1e18-scale rewards.
     function startExpedition(uint256 teamId, uint8 mineTier) external nonReentrant returns (uint256 expeditionId) {
         if (mineTier >= NUM_TIERS) revert InvalidMineTier(mineTier);
         _requireActiveSeason();
@@ -367,7 +367,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         lifetimeMinted += reward;
 
         // Mint reward into escrow now — reverts with ExceedsMaxSupply if global cap insufficient
-        clawToken.mint(address(this), reward);
+        goldToken.mint(address(this), reward);
 
         expeditionId = nextExpeditionId++;
         _expeditions[expeditionId] = Expedition({
@@ -414,9 +414,9 @@ contract MiningPool is AccessControl, ReentrancyGuard {
             teamManager.setTeamActive(expedition.teamId, false);
         }
 
-        // Transfer escrowed reward to claimer (I-04 SafeERC20; clawToken is
-        // typed as ClawToken for the .mint() call, so cast at the boundary).
-        IERC20(address(clawToken)).safeTransfer(msg.sender, expedition.reward);
+        // Transfer escrowed reward to claimer (I-04 SafeERC20; goldToken is
+        // typed as GoldToken for the .mint() call, so cast at the boundary).
+        IERC20(address(goldToken)).safeTransfer(msg.sender, expedition.reward);
 
         emit ExpeditionClaimed(expeditionId, expedition.teamId, msg.sender, expedition.reward);
     }
@@ -450,7 +450,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         }
 
         // Burn the escrowed reward rather than sending to admin
-        clawToken.burn(expedition.reward);
+        goldToken.burn(expedition.reward);
 
         emit ExpeditionAdminReleased(expeditionId, expedition.teamId, expedition.reward);
     }
@@ -525,7 +525,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         return _seasons[season];
     }
 
-    /// @notice Get total $CLAW reserved/minted for a season.
+    /// @notice Get total $GOLD reserved/minted for a season.
     function getSeasonMinted(uint256 season) external view returns (uint256) {
         return _seasons[season].totalMinted;
     }

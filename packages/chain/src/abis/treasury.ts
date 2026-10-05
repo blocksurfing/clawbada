@@ -82,19 +82,6 @@ export const TreasuryAbi = [
   },
   {
     "type": "function",
-    "name": "clawToken",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IClawBurnable"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "devWallet",
     "inputs": [],
     "outputs": [
@@ -102,6 +89,19 @@ export const TreasuryAbi = [
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "goldToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IGoldBurnable"
       }
     ],
     "stateMutability": "view"
@@ -172,10 +172,10 @@ export const TreasuryAbi = [
   },
   {
     "type": "function",
-    "name": "setClawToken",
+    "name": "setDevWallet",
     "inputs": [
       {
-        "name": "token",
+        "name": "newDevWallet",
         "type": "address",
         "internalType": "address"
       }
@@ -185,10 +185,10 @@ export const TreasuryAbi = [
   },
   {
     "type": "function",
-    "name": "setDevWallet",
+    "name": "setGoldToken",
     "inputs": [
       {
-        "name": "newDevWallet",
+        "name": "token",
         "type": "address",
         "internalType": "address"
       }
@@ -224,19 +224,6 @@ export const TreasuryAbi = [
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "ClawTokenSet",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -287,6 +274,19 @@ export const TreasuryAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GoldTokenSet",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false

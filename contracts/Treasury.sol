@@ -7,10 +7,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title Treasury — Protocol fee splitter for Clawbada
-/// @notice Receives $CLAW fees from game contracts and splits: 85% burn / 15% dev wallet.
+/// @notice Receives $GOLD fees from game contracts and splits: 85% burn / 15% dev wallet.
 /// @dev All game contracts that collect fees call processFee() after approving this contract.
 ///      Treasury does NOT accumulate tokens — each processFee call is atomic pull-split-burn.
-interface IClawBurnable is IERC20 {
+interface IGoldBurnable is IERC20 {
     function burn(uint256 amount) external;
 }
 
@@ -24,7 +24,7 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
     uint256 public constant BPS_DENOMINATOR = 10_000;
 
     // ──────────── State ────────────
-    IClawBurnable public clawToken;
+    IGoldBurnable public goldToken;
     address public devWallet;
     mapping(address => bool) public authorized;
 
@@ -32,7 +32,7 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
     event FeeProcessed(address indexed from, uint256 amount, uint256 burned, uint256 toDev);
     event DevWalletUpdated(address indexed oldWallet, address indexed newWallet);
     event AuthorizationUpdated(address indexed account, bool isAuthorized);
-    event ClawTokenSet(address indexed token);
+    event GoldTokenSet(address indexed token);
 
     // ──────────── Errors ────────────
     error NotAuthorized();
@@ -62,13 +62,13 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
 
     // ──────────── Admin ────────────
 
-    /// @notice Set the CLAW token address. Can only be called once.
-    /// @dev Called after ClawToken is deployed. One-time setup.
-    function setClawToken(address token) external onlyOwner {
-        if (address(clawToken) != address(0)) revert TokenAlreadySet();
+    /// @notice Set the GOLD token address. Can only be called once.
+    /// @dev Called after GoldToken is deployed. One-time setup.
+    function setGoldToken(address token) external onlyOwner {
+        if (address(goldToken) != address(0)) revert TokenAlreadySet();
         if (token == address(0)) revert ZeroAddress();
-        clawToken = IClawBurnable(token);
-        emit ClawTokenSet(token);
+        goldToken = IGoldBurnable(token);
+        emit GoldTokenSet(token);
     }
 
     /// @notice Update the dev wallet address.
@@ -92,9 +92,9 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
 
     // ──────────── Core ────────────
 
-    /// @notice Process a protocol fee: pull CLAW from caller, burn 85%, send 15% to dev.
-    /// @dev Caller must have approved this contract for at least `amount` CLAW.
-    /// @param amount The total fee amount in CLAW
+    /// @notice Process a protocol fee: pull GOLD from caller, burn 85%, send 15% to dev.
+    /// @dev Caller must have approved this contract for at least `amount` GOLD.
+    /// @param amount The total fee amount in GOLD
     function processFee(uint256 amount) external onlyAuthorized nonReentrant {
         if (amount == 0) revert ZeroAmount();
         // T-03: reject amounts below the BPS denominator. The burn leg rounds
@@ -109,17 +109,17 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
         uint256 burnAmount = (amount * BURN_BPS) / BPS_DENOMINATOR;
         uint256 devAmount = amount - burnAmount; // remainder to dev, avoids rounding dust
 
-        // I-04 (SafeERC20): pull, burn, distribute. ClawToken is well-behaved
+        // I-04 (SafeERC20): pull, burn, distribute. GoldToken is well-behaved
         // (returns true on every path), but Safe* future-proofs against tokens
         // that revert without a revert string or that return false instead.
-        IERC20(address(clawToken)).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(address(goldToken)).safeTransferFrom(msg.sender, address(this), amount);
 
-        // Burn 85% (ClawToken-specific; not part of IERC20)
-        clawToken.burn(burnAmount);
+        // Burn 85% (GoldToken-specific; not part of IERC20)
+        goldToken.burn(burnAmount);
 
         // Send 15% to dev wallet
         if (devAmount > 0) {
-            IERC20(address(clawToken)).safeTransfer(devWallet, devAmount);
+            IERC20(address(goldToken)).safeTransfer(devWallet, devAmount);
         }
 
         emit FeeProcessed(msg.sender, amount, burnAmount, devAmount);

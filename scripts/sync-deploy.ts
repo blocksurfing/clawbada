@@ -19,7 +19,7 @@ const ROOT = resolve(import.meta.dir, '..');
 // ── Map from Foundry JSON keys (PascalCase) to .env var names ──
 
 const CONTRACT_ENV_MAP: Record<string, string> = {
-  ClawToken: 'CLAW_TOKEN_ADDRESS',
+  GoldToken: 'GOLD_TOKEN_ADDRESS',
   LobsterNFT: 'LOBSTER_NFT_ADDRESS',
   TeamManager: 'TEAM_MANAGER_ADDRESS',
   BreedingLab: 'BREEDING_LAB_ADDRESS',

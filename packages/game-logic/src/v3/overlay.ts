@@ -51,13 +51,13 @@ export function payoutShares(n: number, s: PayoutSchedule): number[] {
 export interface OverlayConfig {
   /** Candidate agents' Elo-like skills (any order). */
   skills: number[];
-  /** Seasonal overlay pool for this bracket ($CLAW). */
+  /** Seasonal overlay pool for this bracket ($GOLD). */
   pool: number;
   schedule: PayoutSchedule;
   /** Qualification floor: battles each entrant plays over the season. */
   battlesPerSeason: number;
   econ: BracketEconomics;
-  /** Mining income the battle team forgoes per battle played ($CLAW). */
+  /** Mining income the battle team forgoes per battle played ($GOLD). */
   opportunityPerBattle: number;
   /**
    * ELO-banded matchmaking within the entrant pool: everyone's win rate is
@@ -83,7 +83,7 @@ export interface OverlayResult {
   battlesPerSeasonTotal: number;
   /** Protocol burn those battles generate (85% of fee + repairs). */
   seasonBurn: number;
-  /** pool - seasonBurn: net new $CLAW from the battle layer (< 0 = deflationary). */
+  /** pool - seasonBurn: net new $GOLD from the battle layer (< 0 = deflationary). */
   netEmission: number;
   costPerEntrant: number;
 }
