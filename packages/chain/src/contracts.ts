@@ -1,7 +1,7 @@
 import { getContract, type PublicClient } from 'viem';
 import { addresses } from './addresses';
 import {
-  ClawTokenAbi,
+  GoldTokenAbi,
   LobsterNFTAbi,
   TeamManagerAbi,
   BreedingLabAbi,
@@ -15,8 +15,8 @@ import {
   RepairShopAbi,
 } from './abis';
 
-export function getClawToken(client: PublicClient) {
-  return getContract({ address: addresses.clawToken, abi: ClawTokenAbi, client });
+export function getGoldToken(client: PublicClient) {
+  return getContract({ address: addresses.goldToken, abi: GoldTokenAbi, client });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

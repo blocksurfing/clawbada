@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { EvolutionLabAbi, ClawTokenAbi, addresses } from '@clawbada/chain';
+import { EvolutionLabAbi, GoldTokenAbi, addresses } from '@clawbada/chain';
 import {
   evolutionRequirements,
   canEvolve,
@@ -49,7 +49,7 @@ evolutionRoutes.get(
       fuelCount: reqs.fuelCount,
       fuelTier: reqs.fuelTier,
       fuelTierName: EvolutionTier[reqs.fuelTier],
-      clawCost: reqs.clawCost,
+      goldCost: reqs.goldCost,
       previewStats,
     }));
   }),
@@ -107,15 +107,15 @@ evolutionRoutes.post(
     }
 
     const reqs = evolutionRequirements(lobster.evolutionTier as EvolutionTier)!;
-    // The contract charges wei (EvolutionLab.EVOLUTION_COSTS); game-logic's clawCost is the
+    // The contract charges wei (EvolutionLab.EVOLUTION_COSTS); game-logic's goldCost is the
     // display number. Approving the display number left the allowance ~1e18x short.
-    const clawCostWei = await readEvolutionCost(lobster.evolutionTier);
+    const goldCostWei = await readEvolutionCost(lobster.evolutionTier);
 
     const approveCalldata = buildCalldata(
-      addresses.clawToken,
-      ClawTokenAbi as any,
+      addresses.goldToken,
+      GoldTokenAbi as any,
       'approve',
-      [addresses.evolutionLab, clawCostWei],
+      [addresses.evolutionLab, goldCostWei],
     );
 
     const evolveCalldata = buildCalldata(
@@ -127,14 +127,14 @@ evolutionRoutes.post(
 
     return c.json({
       ...multiStep(
-        { description: `Approve ${reqs.clawCost} $CLAW for evolution`, calldata: approveCalldata },
+        { description: `Approve ${reqs.goldCost} $GOLD for evolution`, calldata: approveCalldata },
         { description: `Evolve lobster #${lobsterId} to ${EvolutionTier[lobster.evolutionTier + 1]}`, calldata: evolveCalldata },
       ),
       preview: serializeBigInts({
         lobsterId,
         fuelBurned: [fuelId1, fuelId2],
-        clawCost: reqs.clawCost,
-        clawCostWei,
+        goldCost: reqs.goldCost,
+        goldCostWei,
         fromTier: EvolutionTier[lobster.evolutionTier],
         toTier: EvolutionTier[lobster.evolutionTier + 1],
       }),

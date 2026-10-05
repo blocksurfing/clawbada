@@ -69,7 +69,7 @@ Trust NatSpec update: "resolver proposes, 5-minute player veto, admin final tieb
 | **I-01** | Info | Documented (design) | Marketplace | Self-purchase allowed — wash trading costs seller the full 2.5% fee |
 | **L-05** | Low | **Fixed** | Faucet | Missing `ReentrancyGuard` on claim functions (prior audit item) |
 | **F-01** | Low | Documented (operational policy) | Faucet | Contract claimers can reroll DNA via reverting `onERC1155Received` — admin must whitelist EOAs only |
-| **F-02** | Low | Documented (tokenomics) | Faucet | No sweep path for unused faucet pre-mint CLAW — unclaimed budget stays in contract |
+| **F-02** | Low | Documented (tokenomics) | Faucet | No sweep path for unused faucet pre-mint GOLD — unclaimed budget stays in contract |
 | **RP-01** | Low | Documented (state-machine caveat) | RepairShop | Repair callable during Active/AwaitingFinalize battle phases — damage not frozen across `settle()`→`finalize` window |
 | **TM-01** | Medium | **Fixed** | BattleArena | Terminal paths reverted on deleted team (M-01 parity miss) — compromised ACTIVITY_ROLE could brick battle settlement and trap stakes |
 | **TM-02** | Low | Documented (C-05 instance) | TeamManager | `disbandTeam` reverts if a team lobster was burned via compromised LOCKER+BURNER role chain |
@@ -204,11 +204,11 @@ Summary by category:
 | Detector | Count | Triage |
 |----------|-------|--------|
 | `immutable-states` | ~24 | Gas optimization — token/contract addresses set in constructor. Real. Per-contract passes will address. |
-| `unchecked-transfer` | 16 | Overlaps with prior audit `I-04` (open). SafeERC20 migration queued. Every CLAW transfer/transferFrom ignores return value. |
+| `unchecked-transfer` | 16 | Overlaps with prior audit `I-04` (open). SafeERC20 migration queued. Every GOLD transfer/transferFrom ignores return value. |
 | `weak-prng` | 10 | `BreedingLab`: false positive — P-03 future-block entropy is commit-reveal, Slither can't see that. `Faucet`: weaker but soulbound + small quantity; accepted risk. |
 | `timestamp` | ~8 | `block.timestamp` comparisons for game timing. Expected pattern; false positive for this use case. |
 | `naming-convention` | 5 | Uppercase array constants (`STAKE_BRACKETS`, `TIER_WEIGHTS`, etc.). Semantic constants — intentional. |
-| `reentrancy-no-eth` | 5 | TeamManager + BattleArena + Marketplace do external calls before state update. All paths are behind `nonReentrant`; exposure only if an ERC-777-style callback hook exists on CLAW/NFT (not applicable here). Worth re-examining in per-contract pass. |
+| `reentrancy-no-eth` | 5 | TeamManager + BattleArena + Marketplace do external calls before state update. All paths are behind `nonReentrant`; exposure only if an ERC-777-style callback hook exists on GOLD/NFT (not applicable here). Worth re-examining in per-contract pass. |
 | `divide-before-multiply` | 1 | BreedingLab cost formula. Addressed by prior audit `S-06` as documented negligible precision loss at 18 decimals. |
 | `incorrect-equality` | 3 | `== 0` for sentinel checks (BattleArena phase, BreedingLab lastBreed). Defensible idiom — mapping defaults to 0. |
 | `reentrancy-events`, `reentrancy-benign`, `uninitialized-local`, `unused-return`, `calls-loop` | 1 each | Deferred to per-contract passes. |
@@ -274,7 +274,7 @@ Populated as each contract is audited.
 
 - **I-1 `invariant_currentRoundBounded`** — `currentRound <= MAX_ROUNDS` across every tracked battle. Direct continuous-regression guard for N-01.
 - **I-2 `invariant_lastVerifiedRoundLeCurrentRound`** — `lastVerifiedRound <= currentRound`. Ensures the settlement-gating counter never overtakes the round counter.
-- **I-3 `invariant_escrowCoversActiveBattles`** — arena CLAW balance ≥ sum of deposited stake+antigrief across all non-terminal battles. Catches any leak path that drains escrow without transitioning the phase.
+- **I-3 `invariant_escrowCoversActiveBattles`** — arena GOLD balance ≥ sum of deposited stake+antigrief across all non-terminal battles. Catches any leak path that drains escrow without transitioning the phase.
 - **I-4 `invariant_teamInBattleMatchesPhase`** — terminal battles have released `teamInBattle[teamId]` for both teams. Catches leaked team locks.
 - **I-5 `invariant_winnerIsParticipant`** — whenever `b.winner != address(0)`, it's a battle participant. Any path that writes a non-participant winner trips this.
 - **I-6 `invariant_awaitingFinalizeHasProposal`** — battles in AwaitingFinalize always have a valid `proposedWinner` and non-zero `payoutDeadline`. Protects the H-01 flow against writes that land a battle in the veto window without a usable proposal.
@@ -340,12 +340,12 @@ Pure math library (241 LOC, all `internal pure`). Currently consumed only by the
 - **B. Tier-gate at start-only**: once started, reward + tier are locked in the expedition struct; lobster evolution mid-expedition can't retroactively affect the tier gate.
 - **C. Admin release vs user claim race**: both set `claimed = true`. Admin can only release after `EXPEDITION_DURATION + 7d` grace; user can claim any time after `EXPEDITION_DURATION`. If user doesn't claim within 7 days, admin can burn the reward. This is F-06 design tradeoff — documents a trust-based grief vector.
 - **D. `setBaseReward` admin lever**: admin can change baseReward mid-season; affects future expeditions only (locked at start for in-flight). In a compromised-admin scenario, this is a favoritism vector (raise reward, let crony start, lower back) — bounded by per-season budget cap.
-- **E. CLAW supply exhaustion at start**: `clawToken.mint` at expedition start (not at claim) — reverts `ExceedsMaxSupply` loudly rather than silently locking teams. This is the M-02 fix.
+- **E. GOLD supply exhaustion at start**: `goldToken.mint` at expedition start (not at claim) — reverts `ExceedsMaxSupply` loudly rather than silently locking teams. This is the M-02 fix.
 - **F. Budget-exhaustion dust**: per-season `totalMinted` can approach but never exceed `totalEmission`; residual dust surfaced via `getSeasonUnspent`, not a bug.
 
 **Slither scoped triage (task 28)**:
 - `unchecked-transfer` at line 221 (overlaps prior I-04 SafeERC20 work).
-- `reentrancy-no-eth` on `startExpedition.clawToken.mint` before `_teamToExpedition[teamId] = expId`. False positive: `startExpedition` is `nonReentrant`, and `clawToken` has no callbacks.
+- `reentrancy-no-eth` on `startExpedition.goldToken.mint` before `_teamToExpedition[teamId] = expId`. False positive: `startExpedition` is `nonReentrant`, and `goldToken` has no callbacks.
 - `calls-loop` on `lobsterNFT.getEvolutionTier` inside the 3-iteration tier-gate loop. Bounded, not a DoS.
 - `timestamp` comparisons: all legitimate for time-gated mechanics.
 
@@ -353,7 +353,7 @@ No new actionable findings from Slither.
 
 **New invariants landed (task 29)** — `contracts/test/invariant/InvariantMiningPool.t.sol` with handler at `contracts/test/invariant/handlers/MiningPoolHandler.sol`:
 - **I-1 `invariant_seasonBudgetCap`** — for every season ever started, `totalMinted <= totalEmission`. `SeasonBudgetExhausted` enforces at write time; invariant confirms under arbitrary sequences.
-- **I-2 `invariant_escrowMatchesUnclaimedRewards`** — `clawToken.balanceOf(MiningPool) == sum(reward over unclaimed expeditions)`. Strongest invariant: catches lost escrow, double-mint, or burn-before-clear in `adminReleaseExpedition`.
+- **I-2 `invariant_escrowMatchesUnclaimedRewards`** — `goldToken.balanceOf(MiningPool) == sum(reward over unclaimed expeditions)`. Strongest invariant: catches lost escrow, double-mint, or burn-before-clear in `adminReleaseExpedition`.
 - **I-3 `invariant_seasonMonotonic`** — `currentSeason` is non-decreasing across handler sequences. Trivially true today; regression guard for future admin functions.
 - **I-4 `invariant_rewardIsTierWeightMultiple`** — every expedition's reward is a multiple of its tier weight ∈ {1, 3, 10, 25} and non-zero. Breaks if reward math ever drifts to fractional logic.
 - **I-5 `invariant_teamExpeditionLinkConsistent`** — unclaimed expedition implies `_teamToExpedition[teamId] == expId` AND `teamManager.isTeamActive(teamId) == true`.
@@ -386,9 +386,9 @@ Sequence:
 2. Compromised `ACTIVITY_ROLE` on TeamManager calls `setTeamActive(teamId, false)` directly. MiningPool's `_teamToExpedition` is unchanged.
 3. Team owner calls `TeamManager.disbandTeam(teamId)` — TeamManager only checks `team.active == false`, so disband succeeds and deletes the team record.
 4. Later, `claimExpedition` or `adminReleaseExpedition` reaches `teamManager.setTeamActive(expedition.teamId, false)` → reverts `TeamDoesNotExist`.
-5. Pre-fix: the whole tx rolls back including `expedition.claimed = true` and the `_teamToExpedition` clear. Escrowed CLAW is permanently stuck; no path reaches terminal state.
+5. Pre-fix: the whole tx rolls back including `expedition.claimed = true` and the `_teamToExpedition` clear. Escrowed GOLD is permanently stuck; no path reaches terminal state.
 
-Impact: permanent CLAW lockup and permanently non-terminal expedition state if ACTIVITY_ROLE is ever compromised (or if a future admin action accidentally revokes the team while an expedition is live). The season budget also stays consumed — it can't roll over because `totalMinted` isn't refunded.
+Impact: permanent GOLD lockup and permanently non-terminal expedition state if ACTIVITY_ROLE is ever compromised (or if a future admin action accidentally revokes the team while an expedition is live). The season budget also stays consumed — it can't roll over because `totalMinted` isn't refunded.
 
 Fix (both paths):
 ```solidity
@@ -425,7 +425,7 @@ Deploy-day runbook item (task C-05 follow-up): `SEASON_ADMIN_ROLE` must be held 
 - Season-end boundary — consistent at `startTime + 60 days`.
 - Escrow-drain / insufficient-balance drift — OZ ERC20 reverts on insufficient balance for both `transfer` and `burn`.
 - Multi-season carry-over — clean isolation.
-- `team.active` race at start — no reentrancy window with current CLAW (no hooks).
+- `team.active` race at start — no reentrancy window with current GOLD (no hooks).
 - Tier gate timing — start-only snapshot is correct (reward/tier locked in struct).
 - Terminal path `_teamToExpedition` cleanup — correct in honest flows (with M-01 fix, resilient to compromised-role paths).
 
@@ -435,9 +435,9 @@ No new findings from the post-fix pass.
 
 ### Treasury.sol — Phase 1 done 2026-04-20
 
-104-LOC fee splitter. `processFee(amount)` pulls via `transferFrom`, burns 85% via `clawToken.burn`, forwards 15% to `devWallet`. Atomic pull-split-burn — no token accumulation. Owner (Ownable2Step) can update devWallet and toggle authorized callers.
+104-LOC fee splitter. `processFee(amount)` pulls via `transferFrom`, burns 85% via `goldToken.burn`, forwards 15% to `devWallet`. Atomic pull-split-burn — no token accumulation. Owner (Ownable2Step) can update devWallet and toggle authorized callers.
 
-**Read pass**: fee-split math under small amounts, `setClawToken` one-time setup, `setDevWallet` race, authorization revocation DoS, reentrancy paths (nonReentrant guard active), `devWallet = address(this)` self-routing.
+**Read pass**: fee-split math under small amounts, `setGoldToken` one-time setup, `setDevWallet` race, authorization revocation DoS, reentrancy paths (nonReentrant guard active), `devWallet = address(this)` self-routing.
 
 **Slither**: 2 `unchecked-transfer` findings on `transferFrom`/`transfer` — false positives (OZ ERC20 reverts on failure). Overlaps prior I-04.
 
@@ -447,7 +447,7 @@ No new findings from the post-fix pass.
 
 **Codex pre-fix findings** (2 Low):
 
-- **T-03** (Fixed): `processFee` accepted amounts below `BPS_DENOMINATOR`, letting an adversarial caller chunk a fee total into tiny pieces that all round the burn leg to 0 and send 100% to dev. Fix: `require(amount >= BPS_DENOMINATOR)` — minimum 10_000 wei (1e-14 CLAW), far below any realistic in-protocol fee.
+- **T-03** (Fixed): `processFee` accepted amounts below `BPS_DENOMINATOR`, letting an adversarial caller chunk a fee total into tiny pieces that all round the burn leg to 0 and send 100% to dev. Fix: `require(amount >= BPS_DENOMINATOR)` — minimum 10_000 wei (1e-14 GOLD), far below any realistic in-protocol fee.
 
 - **T-04** (Fixed): `setDevWallet(address(this))` would transfer the 15% leg to Treasury itself (an OZ ERC20 self-transfer no-op in balance terms), silently accumulating inside Treasury with no sweep path. Fix: reject at both constructor and `setDevWallet`.
 
@@ -461,7 +461,7 @@ Status: **Fixed** 2026-04-20.
 
 Under T-03, Marketplace listings cheap enough to produce a fee in `[1, 9_999]` (i.e., prices in `[40, 399_999]` at the 2.5% fee rate) landed in a broken state: the listing was valid at creation but `buyLobster` would revert `AmountBelowMinimum` on the subsequent `treasury.processFee(fee)` call.
 
-Fix: `Marketplace.MIN_LISTING_PRICE = 400_000` enforced at both `listLobster` and `updatePrice` via `PriceBelowMinimum(price, minimum)` error. Derivation: `price × FEE_BPS / BPS_DENOMINATOR >= Treasury.BPS_DENOMINATOR → price >= 400_000`. At 18-decimal CLAW this is 4 × 10^-13 CLAW, well below any realistic listing.
+Fix: `Marketplace.MIN_LISTING_PRICE = 400_000` enforced at both `listLobster` and `updatePrice` via `PriceBelowMinimum(price, minimum)` error. Derivation: `price × FEE_BPS / BPS_DENOMINATOR >= Treasury.BPS_DENOMINATOR → price >= 400_000`. At 18-decimal GOLD this is 4 × 10^-13 GOLD, well below any realistic listing.
 
 **Listing state**: pre-fix, dust listings could be created but not bought — stuck with escrowed NFT. Post-fix, they're rejected at creation. No existing listings are affected at launch (repo has no deployed state).
 
@@ -511,7 +511,7 @@ Sequence:
 5. Attacker waits 256 blocks. Calls `cancelExpiredRequest` — breed counts are refunded.
 6. Fee is burned but breed count is recoverable. Attacker farms legends/high-purity rolls at ~fee per attempt instead of ~fee per breed-slot.
 
-Weakens the 5-breed-per-lobster scarcity gate. Legend farming becomes cheap in CLAW terms.
+Weakens the 5-breed-per-lobster scarcity gate. Legend farming becomes cheap in GOLD terms.
 
 Fix: wrap the mint in `try { } catch { }` in `finalizeBreed`. `req.finalized = true` is committed before the mint, so a rejected mint still consumes the request. Attack becomes -EV (fee burned, breed count burned, no offspring). Emits `LobsterBredRejected(requestId, offspringDna, cost)` for off-chain visibility.
 
@@ -605,7 +605,7 @@ Not fixed: the spec explicitly reserves legend 2-3 and the reserved bits for fut
 
 ### EvolutionLab.sol — Phase 2 done 2026-04-22 (no findings)
 
-99-LOC single-function contract: `evolve(lobsterId, fuelId1, fuelId2)`. Burns 2 fuel lobsters of the same tier as target + CLAW fee (2K / 10K / 50K at Base→Evolved / Evolved→Elite / Elite→Apex). Routes fee through Treasury. `nonReentrant` guard.
+99-LOC single-function contract: `evolve(lobsterId, fuelId1, fuelId2)`. Burns 2 fuel lobsters of the same tier as target + GOLD fee (2K / 10K / 50K at Base→Evolved / Evolved→Elite / Elite→Apex). Routes fee through Treasury. `nonReentrant` guard.
 
 **Read pass (task 49)** — confirmed the checks align with the attack surface:
 - Duplicate-id check first (line 58-59): target ≠ fuel, fuel1 ≠ fuel2.
@@ -623,7 +623,7 @@ T-03 interaction: minimum evolution cost is 2_000e18 wei, far above Treasury's 1
 - `test_soulbound_fuel_canBeBurned` (evolution fuel design path)
 - `test_soulbound_target_staysSoulbound` (prevents laundering a soulbound lobster tradeable via evolution)
 - `test_evolve_feeRoutedToTreasury` (85/15 split verified)
-- `test_evolve_insufficientClaw_reverts`
+- `test_evolve_insufficientGold_reverts`
 - `test_evolve_mixedGeneration_works` (evolution cares about tier, not generation)
 
 **Deep profile (task 51)**: 20/20 passing at 50k runs, 11.3s.
@@ -638,24 +638,24 @@ Every angle probed was cleared:
 - Fee-before-burn — no partial-loss path
 - Burn1→burn2 atomicity — no persisted single-burn scenario
 - Tier bump after burns — no fuel-burn-without-evolution scenario
-- Reentrancy via CLAW / Treasury / LobsterNFT burn — blocked at every layer (no hooks on CLAW, `nonReentrant` on Treasury, burn skips receiver callback)
+- Reentrancy via GOLD / Treasury / LobsterNFT burn — blocked at every layer (no hooks on GOLD, `nonReentrant` on Treasury, burn skips receiver callback)
 - Role-revocation mid-flight — atomic revert, fee refunded
 - Gas griefing — no unbounded loops; fixed 3-iteration check surface
 - Arithmetic — 0.8 checked + tier cap
 - L-01 ownerOf — fixed; value=1 enforcement prevents ownerOf forgery
-- CLAW approval residual — exactly `cost` approved, fully consumed by `transferFrom`
-- Treasury split rounding — min cost 2K CLAW, comfortably above T-03 floor
+- GOLD approval residual — exactly `cost` approved, fully consumed by `transferFrom`
+- Treasury split rounding — min cost 2K GOLD, comfortably above T-03 floor
 - Listed/locked races — re-read on every call, no stale-validation path
 - Event-sequence — state changes precede all emits
 
 **Coverage gaps deferred** (Codex flagged but not sprint-blocking):
-- Adversarial mock-token / mock-Treasury tests (current suite uses production ClawToken)
+- Adversarial mock-token / mock-Treasury tests (current suite uses production GoldToken)
 - Listed-token race (target is on Marketplace escrow during evolve attempt)
 - Event-sequence assertions spanning Treasury + LobsterNFT + EvolutionLab
 
 ### Marketplace.sol — Phase 2 done 2026-04-22
 
-166-LOC escrow marketplace. `listLobster(id, price)` escrows the NFT, stores the listing. `buyLobster(listingId, maxPrice)` pulls CLAW, routes 2.5% fee through Treasury (85/15), sends seller proceeds, transfers NFT. `cancelListing` returns NFT; `updatePrice` lets seller adjust. Already touched via T-05 (min listing price = 400_000 wei) during the Treasury sprint.
+166-LOC escrow marketplace. `listLobster(id, price)` escrows the NFT, stores the listing. `buyLobster(listingId, maxPrice)` pulls GOLD, routes 2.5% fee through Treasury (85/15), sends seller proceeds, transfers NFT. `cancelListing` returns NFT; `updatePrice` lets seller adjust. Already touched via T-05 (min listing price = 400_000 wei) during the Treasury sprint.
 
 **Read pass**: checked escrow lifecycle, listing state vs lobster-locked state, buy/cancel/updatePrice atomicity, fee math at T-05 boundary, receiver-hook handling.
 
@@ -665,17 +665,17 @@ Every angle probed was cleared:
 
 **Codex red-team pre-fix pass** — 3 findings:
 
-### M-04: Seller can front-run `buyLobster` with `updatePrice` to extract extra CLAW
+### M-04: Seller can front-run `buyLobster` with `updatePrice` to extract extra GOLD
 
 Severity: Medium (real MEV/slippage vector)
 
 Status: **Fixed** 2026-04-22.
 
 Sequence:
-1. Buyer holds a standing CLAW allowance on Marketplace (common pattern — `approve(market, max)` once, buy many times).
+1. Buyer holds a standing GOLD allowance on Marketplace (common pattern — `approve(market, max)` once, buy many times).
 2. Buyer submits `buyLobster(listingId)` based on the UI-displayed price `P`.
 3. Seller observes the pending tx in the mempool and front-runs with `updatePrice(listingId, Q)` where `Q > P` but `Q <= buyer_allowance`.
-4. Pre-fix, `buyLobster` reads `listing.price` at execution time, pulls `Q` CLAW from buyer, transfers `Q - fee` to seller.
+4. Pre-fix, `buyLobster` reads `listing.price` at execution time, pulls `Q` GOLD from buyer, transfers `Q - fee` to seller.
 
 Impact: seller extracts up to the buyer's standing allowance. No upper bound beyond the allowance cap.
 
@@ -697,7 +697,7 @@ Sequence:
 3. Later, `cancelListing` and `buyLobster` both call `lobsterNFT.safeTransferFrom(address(this), ...)`. LobsterNFT's `_update` rejects locked transfers. Both revert.
 4. NFT is stranded in escrow until admin unlocks via `setLocked(id, false)`.
 
-Not a fund-loss vulnerability — buyer's CLAW is never pulled (buy reverts atomically). But the seller's NFT is frozen until operational recovery.
+Not a fund-loss vulnerability — buyer's GOLD is never pulled (buy reverts atomically). But the seller's NFT is frozen until operational recovery.
 
 Marketplace-side fix options considered:
 - Preflight `isLocked` check in cancel/buy (adds clearer error but doesn't enable recovery) — deferred as diagnostic-only improvement
@@ -729,7 +729,7 @@ Severity: Info (documented design tradeoff from prior audit)
 
 Status: Documented, not fixed. Cost of self-purchase = 2.5% fee; the seller ends up with their own NFT and paid the fee. Not a bypass of any protocol guarantee — just a volume-inflation vector that the protocol doesn't attempt to prevent.
 
-**Cleared** (Codex pre/post-fix): CEI ordering in buyLobster, no batch-listing helper, zero-proceeds impossible at T-05 min, updatePrice T-05 boundary, approval-race (pre-M-04 was real — now fixed), cancel-after-updatePrice, relist guard, cancel/buy race atomicity, CLAW/Treasury/NFT reentrancy, gas-griefing surface, Treasury auth revoke = graceful DoS.
+**Cleared** (Codex pre/post-fix): CEI ordering in buyLobster, no batch-listing helper, zero-proceeds impossible at T-05 min, updatePrice T-05 boundary, approval-race (pre-M-04 was real — now fixed), cancel-after-updatePrice, relist guard, cancel/buy race atomicity, GOLD/Treasury/NFT reentrancy, gas-griefing surface, Treasury auth revoke = graceful DoS.
 
 **Post-fix Codex verdict on M-04**: "correct, including the equality boundary" — `test_M04_maxPriceExact_allowed` covers `listing.price == maxPrice` passing through.
 
@@ -742,13 +742,13 @@ Status: Documented, not fixed. Cost of self-purchase = 2.5% fee; the seller ends
 
 ### Faucet.sol — Phase 2 done 2026-04-23
 
-165-LOC onboarding drop. Eligible wallets claim 5 soulbound lobsters + 7,000 CLAW, once each. ELIGIBILITY_ROLE maintains the whitelist (off-chain verification of wallet age/tx history); admin can adjust closeTime. Faucet is pre-funded with 70M CLAW (10K wallets × 7K) and self-closes ~7 days after launch.
+165-LOC onboarding drop. Eligible wallets claim 5 soulbound lobsters + 7,000 GOLD, once each. ELIGIBILITY_ROLE maintains the whitelist (off-chain verification of wallet age/tx history); admin can adjust closeTime. Faucet is pre-funded with 70M GOLD (10K wallets × 7K) and self-closes ~7 days after launch.
 
 **Read pass**: checked L-05 reentrancy, sybil surface, flash-loan ETH balance bypass, randomness for DNA, close-time races, double-claim paths, faucet-balance depletion.
 
-**L-05 (Low, Fixed)**: prior-audit item. Added `ReentrancyGuard` inheritance + `nonReentrant` on both `claimLobsters` and `claimClaw`. `claimLobsters`'s ERC-1155 mints trigger `onERC1155Received` on contract claimers — without the guard, a contract could re-enter `claimClaw` during the mint loop to get CLAW before the outer flow even finished. The flag-ordering already prevented duplicate claims, but the guard is defence-in-depth uniform with the rest of the protocol.
+**L-05 (Low, Fixed)**: prior-audit item. Added `ReentrancyGuard` inheritance + `nonReentrant` on both `claimLobsters` and `claimGold`. `claimLobsters`'s ERC-1155 mints trigger `onERC1155Received` on contract claimers — without the guard, a contract could re-enter `claimGold` during the mint loop to get GOLD before the outer flow even finished. The flag-ordering already prevented duplicate claims, but the guard is defence-in-depth uniform with the rest of the protocol.
 
-Regression test: `test_L05_nonReentrant_blocksReentryIntoClaimClaw`. The helper `ReentrantClaimer` contract tries to call `faucet.claimClaw()` from its `onERC1155Received`; the revert propagates through the acceptance check and reverts the whole `claimLobsters` call, asserting the guard fired.
+Regression test: `test_L05_nonReentrant_blocksReentryIntoClaimGold`. The helper `ReentrantClaimer` contract tries to call `faucet.claimGold()` from its `onERC1155Received`; the revert propagates through the acceptance check and reverts the whole `claimLobsters` call, asserting the guard fired.
 
 **Codex red-team pre-fix pass (2026-04-23)** — 2 new Low findings, both operational-policy:
 
@@ -760,24 +760,24 @@ Mitigation: operational. Per `CLAUDE.md` tokenomics, eligibility requires on-cha
 
 Runbook addition: `ELIGIBILITY_ROLE` holder verifies wallet is an EOA (or an explicitly-vetted smart wallet with a conforming ERC-1155 receiver) before calling `setEligible` / `setEligibleBatch`.
 
-**F-02 (Low, documented)**: no admin sweep path for residual pre-mint CLAW. If campaign uptake is below the 70M allocation, the unspent balance is permanently stuck in the Faucet contract. Only `claimClaw` can remove CLAW, and only eligible first-time claimers can trigger it.
+**F-02 (Low, documented)**: no admin sweep path for residual pre-mint GOLD. If campaign uptake is below the 70M allocation, the unspent balance is permanently stuck in the Faucet contract. Only `claimGold` can remove GOLD, and only eligible first-time claimers can trigger it.
 
 Tokenomics interpretation: the 70M was "committed" to faucet in the allocation. Under-distribution effectively reduces circulating supply — a deflationary side-effect, not a bug. If future ops wants a sweep, add `sweepUnclaimed(address to)` gated to DEFAULT_ADMIN_ROLE + `block.timestamp >= closeTime + grace`. Not sprint-blocking; tokenomics decision.
 
-**Cleared** (Codex): `hasClaimedLobsters` / `hasClaimedClaw` flag desync on revert (atomic), mid-tx close-time interference (impossible across txs), dual-claim in one tx (flags still gate), faucet-balance depletion at the 10_001st claimer (clean revert), batch-eligibility griefing (bounded at 500), repeat `setEligible` idempotent, multiple re-entry contracts no multiplier (guard is global).
+**Cleared** (Codex): `hasClaimedLobsters` / `hasClaimedGold` flag desync on revert (atomic), mid-tx close-time interference (impossible across txs), dual-claim in one tx (flags still gate), faucet-balance depletion at the 10_001st claimer (clean revert), batch-eligibility griefing (bounded at 500), repeat `setEligible` idempotent, multiple re-entry contracts no multiplier (guard is global).
 
 **Coverage gaps Codex flagged** (deferred):
 - `test_contractClaimerCanRerollFaucetDNAByRevertingReceiverHook` — demonstrate F-01 attack surface explicitly
-- `test_claimClaw_exactAllocationBoundary` — 70M drain then 10_001st reverts cleanly
+- `test_claimGold_exactAllocationBoundary` — 70M drain then 10_001st reverts cleanly
 - `test_contractClaimer_withTransientEthStillPassesMinBalanceCheck` — documents flash-loan ETH bypass (caller-trust concern, not a runtime fix)
 
 ### RepairShop.sol — Phase 2 done 2026-04-23
 
-85-LOC single-function contract. `repair(lobsterId, pointsToRepair)` pulls `pointsToRepair × REPAIR_RATES[tier]` CLAW (Evolved 5 / Elite 15 / Apex 40; Base = 0 rejected), routes the fee through Treasury, decrements damage. `nonReentrant`, owner-only.
+85-LOC single-function contract. `repair(lobsterId, pointsToRepair)` pulls `pointsToRepair × REPAIR_RATES[tier]` GOLD (Evolved 5 / Elite 15 / Apex 40; Base = 0 rejected), routes the fee through Treasury, decrements damage. `nonReentrant`, owner-only.
 
-**Read pass**: cost formula overflow (unreachable — damage ≤ 100, max rate 40e18, max cost 4e21 << uint256.max), rate-table mutability (initialized at declaration, no setter — effectively immutable), ordering atomicity (CLAW pull → fee → setDamage, atomic revert on any step), role-compromise blast radius.
+**Read pass**: cost formula overflow (unreachable — damage ≤ 100, max rate 40e18, max cost 4e21 << uint256.max), rate-table mutability (initialized at declaration, no setter — effectively immutable), ordering atomicity (GOLD pull → fee → setDamage, atomic revert on any step), role-compromise blast radius.
 
-**New fuzz tests (6 added)**: locked-lobster-repair-allowed (mining lock doesn't block repair), soulbound-lobster-repair-allowed, fee-routed-to-Treasury (85/15 verified), insufficient-CLAW-reverts, max-damage-Apex (100 pts × 40e18 = 4,000 CLAW), exact-damage-sets-to-zero.
+**New fuzz tests (6 added)**: locked-lobster-repair-allowed (mining lock doesn't block repair), soulbound-lobster-repair-allowed, fee-routed-to-Treasury (85/15 verified), insufficient-GOLD-reverts, max-damage-Apex (100 pts × 40e18 = 4,000 GOLD), exact-damage-sets-to-zero.
 
 **Deep profile**: 14/14 passing at 50k fuzz runs, 7s.
 
@@ -797,7 +797,7 @@ Sequence:
 
 Impact:
 - "Damage is frozen during battle" is an implicit, unstated invariant that the current code does not enforce.
-- Economic analysis: paying to repair mid-window does NOT save CLAW vs. normal post-battle repair. For any lifetime damage target, exploit cost ≥ normal cost (the `_applyDamage` cap at 100 doesn't create a free rescue — any "cap wastage" in the normal flow is matched by equal or larger up-front repair cost in the exploit flow).
+- Economic analysis: paying to repair mid-window does NOT save GOLD vs. normal post-battle repair. For any lifetime damage target, exploit cost ≥ normal cost (the `_applyDamage` cap at 100 doesn't create a free rescue — any "cap wastage" in the normal flow is matched by equal or larger up-front repair cost in the exploit flow).
 - Remaining concern: off-chain systems (UI, battle replay, leaderboard) that assume damage is immutable post-settle may display stale or inconsistent state.
 
 Mitigation options considered:
@@ -811,7 +811,7 @@ Regression coverage gaps (deferred):
 - Test repairing during AwaitingFinalize window
 - Assert lifetime cost is non-decreasing under exploit flow
 
-**Cleared** (Codex): cost-formula overflow unreachable, rate-table effectively immutable, call ordering atomic, reentrancy via CLAW/Treasury/LobsterNFT safe, `setDamage` role-gated state-write with no callback, burned-lobster race impossible (atomic tx), cross-contract repair-then-evolve reduces to ordinary tx ordering, L-01 `ownerOf` check trusted, no M-04-style slippage (REPAIR_RATES has no setter, tier is monotonic), cost rounding exact.
+**Cleared** (Codex): cost-formula overflow unreachable, rate-table effectively immutable, call ordering atomic, reentrancy via GOLD/Treasury/LobsterNFT safe, `setDamage` role-gated state-write with no callback, burned-lobster race impossible (atomic tx), cross-contract repair-then-evolve reduces to ordinary tx ordering, L-01 `ownerOf` check trusted, no M-04-style slippage (REPAIR_RATES has no setter, tier is monotonic), cost rounding exact.
 
 **Final verdict** (Codex): "ship with caveats" — no fee-bypass, overflow, or reentrancy bug. State-machine gap documented.
 
@@ -838,7 +838,7 @@ Sequence:
 2. Compromised `ACTIVITY_ROLE` holder calls `TeamManager.setTeamActive(teamId, false)` directly. (BattleArena's `teamInBattle[teamId]` is unchanged because it's BattleArena-local state.)
 3. The team owner now sees `team.active == false` and calls `TeamManager.disbandTeam(teamId)` — passes the active check, deletes the team record entirely.
 4. Battle eventually reaches a terminal state — `_executePayout` calls `_applyDamage` which calls `teamManager.getTeam(teamId)`, OR `_cancelBattle/_forfeit` calls `_releaseTeam` which calls `teamManager.setTeamActive(teamId, false)`.
-5. Pre-fix, BOTH calls reverted `TeamDoesNotExist` on the deleted team. Whole tx reverted. Battle stuck non-terminal indefinitely. Escrowed CLAW (stakes + anti-grief) trapped in BattleArena forever.
+5. Pre-fix, BOTH calls reverted `TeamDoesNotExist` on the deleted team. Whole tx reverted. Battle stuck non-terminal indefinitely. Escrowed GOLD (stakes + anti-grief) trapped in BattleArena forever.
 
 Fix (parallel to M-01 in MiningPool):
 - `_applyDamage`: prefix with `if (!teamManager.teamExists(teamId)) return;` — skip damage application for the deleted team. Lobsters (if they still exist) keep their pre-battle damage. The other team's damage and the payout proceed normally.
@@ -898,7 +898,7 @@ The contract is wired into BattleArena's constructor and stored as a state varia
 
 **Final verdict**: no findings. Audit-clean as written. Standalone safe, integration-idle.
 
-### ClawToken.sol — Phase 2 done 2026-04-27 (no findings, audit-clean)
+### GoldToken.sol — Phase 2 done 2026-04-27 (no findings, audit-clean)
 
 62 LOC. ERC-20 + ERC20Burnable + AccessControl. `mint(to, amount)` enforces `totalSupply + amount <= MAX_SUPPLY` (1B). Constructor mints 125M → LP, 100M → Treasury (225M at deploy). MiningPool holds persistent MINTER_ROLE for ≤705M lifetime emission via season budgets. Faucet receives 70M one-shot via `Configure.s.sol`'s ephemeral grant→mint→revoke.
 
@@ -912,7 +912,7 @@ The contract is wired into BattleArena's constructor and stored as a state varia
 - The actual emission schedule lives in `MiningPool._seasons[].totalEmission` — incremented at `startExpedition` (line 177) BEFORE the `claw.mint` (line 180)
 - MiningPool's per-season `totalMinted` cap fires `SeasonBudgetExhausted` first; the token cap (`ExceedsMaxSupply`) is defense-in-depth
 - Lifetime mining issuance is ≤ 705M by halving schedule construction, regardless of how the burn-rebate behaves
-- **The 1B token cap is not a lifetime issuance ceiling — it's a concurrent supply ceiling**. This is correct given the burn pressure and is documented behavior tested at line 105 of `FuzzClawToken.t.sol`.
+- **The 1B token cap is not a lifetime issuance ceiling — it's a concurrent supply ceiling**. This is correct given the burn pressure and is documented behavior tested at line 105 of `FuzzGoldToken.t.sol`.
 
 **Standalone surface — no findings**:
 - Constructor uses `_mint` (uncapped) but only mints 225M < 1B; if constants changed to make `LP + TREASURY > MAX_SUPPLY`, the next `mint()` call would revert with arithmetic underflow on `MAX_SUPPLY - totalSupply()`. Not silent corruption — fail-loud. *Forward-compat note, no fix needed for current values.*
@@ -930,7 +930,7 @@ The contract is wired into BattleArena's constructor and stored as a state varia
 **Integration audit**:
 - `MiningPool.startExpedition` (line 180): correctly bubbles `ExceedsMaxSupply` (no try/catch swallowing); season-budget check at line 176 fires first under normal operation.
 - `Configure.s.sol` ephemeral pattern: clean grant→mint→revoke with no other state changes between.
-- No other production caller mints via ClawToken.
+- No other production caller mints via GoldToken.
 
 **Final verdict**: no findings. Audit-clean. The cap-with-burn-rebate behavior is intentional, tested, and integration-safe. Constants-invariant is the only forward-compat note (informational, no action needed).
 
@@ -956,17 +956,17 @@ Three parallel Codex passes were spawned at 14:30 PT through three lenses:
 - State machine (43s) — empty
 - Trust boundary (48s) — empty
 
-This is the 5th consecutive empty result from `codex:codex-rescue` today (BattleVRF, ClawToken also returned empty). The pattern — rapid completion (<60s) with no body — strongly indicates a transient rescue-subagent runtime issue, not a Codex-API or analysis issue. Pivoted to in-house analysis through each lens given high familiarity with the post-fix codebase from Phase 2.
+This is the 5th consecutive empty result from `codex:codex-rescue` today (BattleVRF, GoldToken also returned empty). The pattern — rapid completion (<60s) with no body — strongly indicates a transient rescue-subagent runtime issue, not a Codex-API or analysis issue. Pivoted to in-house analysis through each lens given high familiarity with the post-fix codebase from Phase 2.
 
 ### Economic lens — in-house analysis (clean)
 
-Audited every `$CLAW`-touching path against the agent-adversary model:
+Audited every `$GOLD`-touching path against the agent-adversary model:
 
-- **Mint/burn imbalance**: ClawToken cap is concurrent (1B), not lifetime. Burns reopen headroom. Lifetime mining issuance is bounded by the halving schedule (∑ season budgets ≤ 705M). Faucet pre-mint is one-shot (70M). Total = 70 + 225 (LP+Treasury) + 705 = 1B exactly. With burns the cap rebate is irrelevant because no live MINTER consumes it. ✅
+- **Mint/burn imbalance**: GoldToken cap is concurrent (1B), not lifetime. Burns reopen headroom. Lifetime mining issuance is bounded by the halving schedule (∑ season budgets ≤ 705M). Faucet pre-mint is one-shot (70M). Total = 70 + 225 (LP+Treasury) + 705 = 1B exactly. With burns the cap rebate is irrelevant because no live MINTER consumes it. ✅
 - **Fee bypass**: All sinks (mining claim, breeding, evolution, repair, marketplace, battle protocol fee) route through Treasury → 85/15. Treasury rejects unauthorized callers (T-04). All 5 fee-emitting contracts authorized at deploy via Configure.s.sol:54-66. ✅
 - **Reward farming loops**: No infinite mint loop possible. Breeding is exponential per parent, self-correcting via marketplace floor. Mining is gated by team + season cap. Evolution and repair are pure sinks.
 - **Sandwich/MEV**: Base Flashblocks have no public mempool. Marketplace M-04 maxPrice closes seller-front-run. Battle in-round commits are off-chain WebSocket; only stake/settle on-chain.
-- **Faucet farming**: Documented as F-01/F-02 (S2 oracle hook); soulbound output limits damage; CLAW drip caps total inflation at 70M one-shot.
+- **Faucet farming**: Documented as F-01/F-02 (S2 oracle hook); soulbound output limits damage; GOLD drip caps total inflation at 70M one-shot.
 - **Battle EV**: ~58% breakeven win rate including repairs at Evolved tier matches CLAUDE.md. Repair < loss for losers — losing is correctly net-negative. No zero-EV exploit.
 - **Evolution sink atomicity**: Listed lobsters are owned by Marketplace, so `evolutionLab.evolve()` cannot consume them as fuel. Round-trip evade impossible.
 - **Season budget gaming**: Coordinated draining is intended (gold rush phase); no exploit, just competition.
@@ -997,7 +997,7 @@ Audited every role grant in `Configure.s.sol` against compromise blast radius:
 - **DEFAULT_ADMIN_ROLE** on every contract: maximum power (governance reset, role grant/revoke). MUST be multisig (C-05).
 - **MATCHMAKER_ROLE** on BattleArena: can create battles. Can spam-create, but cannot deposit on behalf of users (deposits require user-signed `deposit` call). Bounded blast radius.
 - **RESOLVER_ROLE** on BattleArena: post-H-01 only proposes outcomes; players have 5-min veto via `disputeBattle`. Compromise → at most spam disputes; admin tiebreaker resolves.
-- **MINTER_ROLE on ClawToken**: persistent only on MiningPool. Compromise of MiningPool would require admin to grant role to attacker; same blast radius as admin compromise. Configure.s.sol uses ephemeral grant→mint→revoke for the 70M faucet pre-mint (lines 167-169) — exemplary pattern.
+- **MINTER_ROLE on GoldToken**: persistent only on MiningPool. Compromise of MiningPool would require admin to grant role to attacker; same blast radius as admin compromise. Configure.s.sol uses ephemeral grant→mint→revoke for the 70M faucet pre-mint (lines 167-169) — exemplary pattern.
 - **MINTER_ROLE / BURNER_ROLE / EVOLVER_ROLE / DAMAGE_ROLE / LOCKER_ROLE / BREED_ROLE on LobsterNFT**: granted only to Faucet, BreedingLab, EvolutionLab, BattleArena, RepairShop, TeamManager respectively. L-01 (supply=1 in `_update`) blocks the zero-value `ownerOf` hijack. Soulbound + lock checks in `_update`. ✅
 - **ACTIVITY_ROLE on TeamManager**: granted to MiningPool + BattleArena. Compromise → force team unlock mid-activity. M-01 + TM-01 fixes make terminal paths tolerate this scenario in MiningPool and BattleArena respectively.
 - **SEASON_ADMIN_ROLE on MiningPool**: can call `setBaseReward` to drain remaining season budget (M-02 documented). C-05 multisig dependency.
@@ -1005,12 +1005,12 @@ Audited every role grant in `Configure.s.sol` against compromise blast radius:
 - **Treasury.authorized**: 5/5 fee-emitting contracts authorized (BreedingLab, Marketplace, EvolutionLab, RepairShop, BattleArena). MiningPool not authorized (mining is pure issuance, not a fee event). Faucet not authorized (free distribution). Complete.
 
 External call surface review:
-- Treasury.processFee → ClawToken.transferFrom → ClawToken.burn / transfer to dev. No callbacks to caller. CEI-correct.
+- Treasury.processFee → GoldToken.transferFrom → GoldToken.burn / transfer to dev. No callbacks to caller. CEI-correct.
 - BreedingLab → LobsterNFT.mintWithGeneration with try/catch (B-02 hardening). Prevents requester-receiver-hook from rolling back `req.finalized = true`.
 - Marketplace → LobsterNFT safeTransferFrom; M-05 receiver hook only accepts Marketplace-initiated transfers.
 - EvolutionLab → LobsterNFT.burn; atomic with the new mint. No reentrancy surface.
-- BattleArena → ClawToken.approve + treasury.processFee + transfer to winner/loser. CEI-correct: phase set to Settled before external calls.
-- Faucet → LobsterNFT.mint + ClawToken.transfer. Post-L-05 nonReentrant.
+- BattleArena → GoldToken.approve + treasury.processFee + transfer to winner/loser. CEI-correct: phase set to Settled before external calls.
+- Faucet → LobsterNFT.mint + GoldToken.transfer. Post-L-05 nonReentrant.
 
 **Verdict**: trust boundary clean post-fix. All compromised-role scenarios either (a) are mitigated by Phase 1-2 fixes, or (b) are captured as C-05 multisig dependencies.
 
@@ -1022,7 +1022,7 @@ Phase 3 enumerated the following role responsibilities for the C-05 runbook (Pha
 |------|--------|----------------|
 | `DEFAULT_ADMIN_ROLE` on BattleArena | multisig | Resolve disputed battles within reasonable SLA (24h target). No emergency-cancel exists for disputed-stuck battles by design. |
 | `DEFAULT_ADMIN_ROLE` on MiningPool | multisig | Avoid mid-season `setBaseReward` shocks; rotate seasons via `startSeason` only. |
-| `DEFAULT_ADMIN_ROLE` on ClawToken | multisig | Never grant `MINTER_ROLE` to non-MiningPool addresses post-deploy (except ephemeral pre-mint). |
+| `DEFAULT_ADMIN_ROLE` on GoldToken | multisig | Never grant `MINTER_ROLE` to non-MiningPool addresses post-deploy (except ephemeral pre-mint). |
 | `SEASON_ADMIN_ROLE` on MiningPool | multisig (or hot wallet with cap) | M-02: can drain remaining season budget if compromised. |
 | `OPERATOR_ROLE` on BattleVRF | rotating drand relayer | S1: trusted operator. S2+: BLS verification on-chain. |
 | `RESOLVER_ROLE` on BattleArena | hot service wallet | Compromise mitigated by H-01 5-min challenge window; rotate on suspicion. |
@@ -1092,15 +1092,15 @@ All bare `IERC20` `transfer` / `transferFrom` / `approve` calls migrated to Open
 
 Contracts migrated: BattleArena (9 calls), BreedingLab (2), EvolutionLab (2), Marketplace (3), RepairShop (2), MiningPool (1), Faucet (1), Treasury (2). Total: **22 call sites across 8 contracts**.
 
-Storage typing: BattleArena, BreedingLab, EvolutionLab, Marketplace, RepairShop already use `IERC20 public clawToken` — direct `using SafeERC20 for IERC20;` directive applies. MiningPool and Faucet retain `ClawToken` typing for the `mint` / contract-reference paths and cast `IERC20(address(clawToken))` at SafeERC20 call sites. Treasury retains `IClawBurnable` typing for the `burn` call and casts at the safeTransfer call sites.
+Storage typing: BattleArena, BreedingLab, EvolutionLab, Marketplace, RepairShop already use `IERC20 public goldToken` — direct `using SafeERC20 for IERC20;` directive applies. MiningPool and Faucet retain `GoldToken` typing for the `mint` / contract-reference paths and cast `IERC20(address(goldToken))` at SafeERC20 call sites. Treasury retains `IGoldBurnable` typing for the `burn` call and casts at the safeTransfer call sites.
 
-Although `ClawToken` is well-behaved (returns `true` on every path; standard non-zero approve handling), the migration future-proofs against other tokens entering the system later (e.g., a swap module accepting non-standard ERC20s) and aligns with current OZ v5.5+ defensive coding.
+Although `GoldToken` is well-behaved (returns `true` on every path; standard non-zero approve handling), the migration future-proofs against other tokens entering the system later (e.g., a swap module accepting non-standard ERC20s) and aligns with current OZ v5.5+ defensive coding.
 
 Verification: full suite **818/818 pass**, invariant suite **14/14 pass on ci profile** post-migration.
 
 ### C-01 — `@custom:security-contact` NatSpec — **CLOSED** (commit 21)
 
-Added `/// @custom:security-contact security@clawbada.com` to all 12 production contracts (BattleArena, BattleVRF, BreedingLab, ClawToken, EvolutionLab, Faucet, LobsterNFT, Marketplace, MiningPool, RepairShop, TeamManager, Treasury). Triggers OZ-style security tooling (e.g., Wizard) to surface the contact, and gives bug-bounty platforms a stable reporting address.
+Added `/// @custom:security-contact security@clawbada.com` to all 12 production contracts (BattleArena, BattleVRF, BreedingLab, GoldToken, EvolutionLab, Faucet, LobsterNFT, Marketplace, MiningPool, RepairShop, TeamManager, Treasury). Triggers OZ-style security tooling (e.g., Wizard) to surface the contact, and gives bug-bounty platforms a stable reporting address.
 
 ### C-05 / C-06 — DEFAULT_ADMIN_ROLE god key + deployer-as-admin without timelock — **CLOSED via runbook** (commit 22)
 
@@ -1138,5 +1138,5 @@ Each contract pass produces two Codex transcripts (pre-fix and post-fix). Logged
 
 ## Open questions
 
-- **H-01 challenge window length**: 5 minutes default. Low-stake battles (2,500 $CLAW) may warrant a shorter window (60s) — calibrate during Phase 1 BattleArena sprint pass.
+- **H-01 challenge window length**: 5 minutes default. Low-stake battles (2,500 $GOLD) may warrant a shorter window (60s) — calibrate during Phase 1 BattleArena sprint pass.
 - **Slither baseline noise**: first run will likely produce many access-control / uninitialized-state warnings on custom patterns. Triage before logging in tracker.

@@ -12,7 +12,7 @@ contract FuzzBreedingLab is BaseSetup {
     // finalizeBreed is permissionless so we don't re-prank for it.
     function _breed(address caller, uint256 parentA, uint256 parentB) internal returns (uint256) {
         vm.startPrank(caller);
-        claw.approve(address(breedingLab), type(uint256).max);
+        gold.approve(address(breedingLab), type(uint256).max);
         uint256 requestId = breedingLab.requestBreed(parentA, parentB);
         vm.stopPrank();
         vm.roll(block.number + breedingLab.FINALIZE_MIN_BLOCKS() + 1);
@@ -58,10 +58,10 @@ contract FuzzBreedingLab is BaseSetup {
 
     function test_same_parent_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         vm.startPrank(alice);
-        claw.approve(address(breedingLab), type(uint256).max);
+        gold.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(BreedingLab.SameParent.selector);
         breedingLab.requestBreed(parentA, parentA);
         vm.stopPrank();
@@ -72,7 +72,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_offspring_is_base_tier_not_soulbound() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 offspringId = _breed(alice, parentA, parentB);
 
@@ -86,7 +86,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_offspring_generation() public {
         uint256 parentA = _mintLobster(alice, 0); // gen 0
         uint256 parentB = _mintLobster(alice, 1); // gen 0
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 offspringId = _breed(alice, parentA, parentB);
 
@@ -97,7 +97,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_parent_breed_count_increments() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 50_000e18);
+        _giveGold(alice, 50_000e18);
 
         uint8 countA0 = nft.getBreedCount(parentA);
         uint8 countB0 = nft.getBreedCount(parentB);
@@ -112,7 +112,7 @@ contract FuzzBreedingLab is BaseSetup {
 
     function test_breed_limit_enforced() public {
         uint256 parentA = _mintLobster(alice, 0);
-        _giveClaw(alice, 1_000_000e18);
+        _giveGold(alice, 1_000_000e18);
 
         // Breed parentA 5 times with different partners (need fresh partners each time due to cooldown)
         // We skip cooldown by warping and use fresh partners
@@ -129,7 +129,7 @@ contract FuzzBreedingLab is BaseSetup {
         vm.warp(block.timestamp + 48 hours + 1);
 
         vm.startPrank(alice);
-        claw.approve(address(breedingLab), type(uint256).max);
+        gold.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(BreedingLab.BreedLimitReached.selector, parentA));
         breedingLab.requestBreed(parentA, freshPartner);
         vm.stopPrank();
@@ -141,13 +141,13 @@ contract FuzzBreedingLab is BaseSetup {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
         uint256 parentC = _mintLobster(alice, 2);
-        _giveClaw(alice, 100_000e18);
+        _giveGold(alice, 100_000e18);
 
         _breed(alice, parentA, parentB);
 
         // Trying to breed parentA again within cooldown should revert
         vm.startPrank(alice);
-        claw.approve(address(breedingLab), type(uint256).max);
+        gold.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(); // BreedOnCooldown
         breedingLab.requestBreed(parentA, parentC);
         vm.stopPrank();
@@ -157,7 +157,7 @@ contract FuzzBreedingLab is BaseSetup {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
         uint256 parentC = _mintLobster(alice, 2);
-        _giveClaw(alice, 100_000e18);
+        _giveGold(alice, 100_000e18);
 
         _breed(alice, parentA, parentB);
 
@@ -172,7 +172,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_locked_parent_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         // Lock parentA via TeamManager (creating a team)
         uint256 extra1 = _mintLobster(alice, 2);
@@ -183,7 +183,7 @@ contract FuzzBreedingLab is BaseSetup {
         assertTrue(nft.isLocked(parentA));
 
         vm.startPrank(alice);
-        claw.approve(address(breedingLab), type(uint256).max);
+        gold.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(BreedingLab.LobsterIsLocked.selector, parentA));
         breedingLab.requestBreed(parentA, parentB);
         vm.stopPrank();
@@ -195,10 +195,10 @@ contract FuzzBreedingLab is BaseSetup {
         address bob = makeAddr("bob");
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(bob, 10_000e18);
+        _giveGold(bob, 10_000e18);
 
         vm.startPrank(bob);
-        claw.approve(address(breedingLab), type(uint256).max);
+        gold.approve(address(breedingLab), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(BreedingLab.NotLobsterOwner.selector, parentA));
         breedingLab.requestBreed(parentA, parentB);
         vm.stopPrank();
@@ -220,7 +220,7 @@ contract FuzzBreedingLab is BaseSetup {
     // Helper: drive requestBreed + return (requestId, parentA, parentB).
     function _requestBreed(address caller, uint256 parentA, uint256 parentB) internal returns (uint256 reqId) {
         vm.startPrank(caller);
-        claw.approve(address(breedingLab), type(uint256).max);
+        gold.approve(address(breedingLab), type(uint256).max);
         reqId = breedingLab.requestBreed(parentA, parentB);
         vm.stopPrank();
     }
@@ -231,7 +231,7 @@ contract FuzzBreedingLab is BaseSetup {
         address randoCaller = makeAddr("rando");
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         vm.roll(block.number + breedingLab.FINALIZE_MIN_BLOCKS() + 1);
@@ -248,7 +248,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_finalize_beforeTarget_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         BreedingLab.BreedRequest memory req = breedingLab.getBreedRequest(reqId);
@@ -262,7 +262,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_finalize_afterExpiry_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
 
@@ -277,7 +277,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_double_finalize_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         vm.roll(block.number + breedingLab.FINALIZE_MIN_BLOCKS() + 1);
@@ -293,7 +293,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_cancel_expired_doesNotRestoreBreedCounts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint8 countA0 = nft.getBreedCount(parentA);
         uint8 countB0 = nft.getBreedCount(parentB);
@@ -331,7 +331,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_F5_02_expiredBreed_consumesSlotAndDefeatsReroll() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 100_000e18);
+        _giveGold(alice, 100_000e18);
 
         // First breed request at the ×1 tier (breedCount 0 → 1 each).
         uint256 reqId = _requestBreed(alice, parentA, parentB);
@@ -357,7 +357,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_cancel_beforeTarget_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         BreedingLab.BreedRequest memory req = breedingLab.getBreedRequest(reqId);
@@ -370,7 +370,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_cancel_notExpired_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
 
@@ -386,7 +386,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_cancel_afterFinalize_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         vm.roll(block.number + breedingLab.FINALIZE_MIN_BLOCKS() + 1);
@@ -404,7 +404,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_cancel_parentBurned_tolerates() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
 
@@ -429,7 +429,7 @@ contract FuzzBreedingLab is BaseSetup {
 
         uint256 parentA = _mintLobster(alice, classA);
         uint256 parentB = _mintLobster(alice, classB);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         vm.roll(block.number + breedingLab.FINALIZE_MIN_BLOCKS() + 1);
@@ -450,7 +450,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_offspring_legend_bitValid() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         vm.roll(block.number + breedingLab.FINALIZE_MIN_BLOCKS() + 1);
@@ -486,7 +486,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_B01_cancel_atExactTargetBlock_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         BreedingLab.BreedRequest memory req = breedingLab.getBreedRequest(reqId);
@@ -505,7 +505,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_B01_finalize_atExactTargetBlock_reverts() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         BreedingLab.BreedRequest memory req = breedingLab.getBreedRequest(reqId);
@@ -520,7 +520,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_B01_finalize_atTargetPlusOne_succeeds() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
         BreedingLab.BreedRequest memory req = breedingLab.getBreedRequest(reqId);
@@ -537,7 +537,7 @@ contract FuzzBreedingLab is BaseSetup {
     function test_B03_missingMinterRole_revertsBeforeConsuming() public {
         uint256 parentA = _mintLobster(alice, 0);
         uint256 parentB = _mintLobster(alice, 1);
-        _giveClaw(alice, 10_000e18);
+        _giveGold(alice, 10_000e18);
 
         uint256 reqId = _requestBreed(alice, parentA, parentB);
 
@@ -570,8 +570,8 @@ contract FuzzBreedingLab is BaseSetup {
     // and the offspring DNA is emitted via LobsterBredRejected. Attacker
     // cannot use cancelExpiredRequest to refund — request is finalized.
     function test_B02_contractRequester_cannotVetoAndRefund() public {
-        MaliciousRequester attacker = new MaliciousRequester(address(nft), address(breedingLab), address(claw));
-        _giveClaw(address(attacker), 10_000e18);
+        MaliciousRequester attacker = new MaliciousRequester(address(nft), address(breedingLab), address(gold));
+        _giveGold(address(attacker), 10_000e18);
 
         // Mint parents to the attacker contract
         vm.prank(admin);
@@ -612,18 +612,18 @@ contract FuzzBreedingLab is BaseSetup {
 contract MaliciousRequester {
     LobsterNFT internal nft;
     BreedingLab internal breedingLab;
-    ClawToken internal claw;
+    GoldToken internal gold;
     address internal immutable _breedingLab;
 
     constructor(address nft_, address breedingLab_, address claw_) {
         nft = LobsterNFT(nft_);
         breedingLab = BreedingLab(breedingLab_);
-        claw = ClawToken(claw_);
+        gold = GoldToken(claw_);
         _breedingLab = breedingLab_;
     }
 
     function requestBreed(uint256 parentA, uint256 parentB) external returns (uint256) {
-        claw.approve(address(breedingLab), type(uint256).max);
+        gold.approve(address(breedingLab), type(uint256).max);
         return breedingLab.requestBreed(parentA, parentB);
     }
 

@@ -47,7 +47,7 @@ Every major system in Clawbada exists to address one or more of these failures:
 
 | Crabada Problem | Clawbada Solution |
 |----------------|-------------------|
-| Infinite TUS supply | Fixed 1B $CLAW max supply, seasonal halving, budget caps |
+| Infinite TUS supply | Fixed 1B $GOLD max supply, seasonal halving, budget caps |
 | 15:1 mint-to-burn ratio | Target < 1:1 via aggressive burn mechanics |
 | Unsustainable yields | Halving emissions (98.4% emitted in year 1, then floor) |
 | Ponzi inflow dependence | Zero-sum battle mode becomes dominant as emissions decline |
@@ -75,7 +75,7 @@ Clawbada is not a game with bot support — it's a game **built for bots** where
 - **Web UI**: Secondary — exists for human players and as a spectator/dashboard interface
 - **OpenClaw skill package**: Published so any agent can play out of the box
 
-This cascaded through every subsequent design choice. When we debated features like repair cooldowns, the answer was always: "agents don't have 'downtime' — use economic gates ($CLAW burns), not time gates."
+This cascaded through every subsequent design choice. When we debated features like repair cooldowns, the answer was always: "agents don't have 'downtime' — use economic gates ($GOLD burns), not time gates."
 
 ---
 
@@ -95,13 +95,13 @@ Crabada was idle-only. Mining was passive and required no skill. This made it tr
 | **Economy** | Inflationary (seasonal emissions) | Zero-sum + deflationary |
 | **Risk** | Low — guaranteed reward if budget exists | High — winner-take-all minus fees |
 | **Skill** | None (team composition + tier gating) | High (class matchups, move selection, purity) |
-| **$CLAW flow** | Protocol → players (minting) | Player ↔ player (redistribution + burn) |
+| **$GOLD flow** | Protocol → players (minting) | Player ↔ player (redistribution + burn) |
 
 ### The EV Crossover
 
 At ~58% battle win rate, battle breaks even (including repair costs). At ~63-65% win rate, battle matches mining EV. Above 65%, battle becomes the dominant income source.
 
-**This crossover is by design.** In Season 1, mining emissions are enormous (352.5M $CLAW). Most agents will mine. By Season 4-5 (emissions down to 22-44M), skilled battle agents earn more than miners. The economy naturally transitions from inflationary farming to competitive zero-sum play as emissions decline — no manual intervention needed.
+**This crossover is by design.** In Season 1, mining emissions are enormous (352.5M $GOLD). Most agents will mine. By Season 4-5 (emissions down to 22-44M), skilled battle agents earn more than miners. The economy naturally transitions from inflationary farming to competitive zero-sum play as emissions decline — no manual intervention needed.
 
 ---
 
@@ -114,9 +114,9 @@ Mining went through three major design iterations before reaching the final mode
 **Design**: Season total / 60 days = daily budget. All expeditions completing on a given day share that budget proportionally by tier weight.
 
 **Problem identified**:
-> *"We don't know how many active teams are mining any given day and it's impossible to predict... We certainly don't want 1-2 agents earning 200,000 / 500,000 $CLAW per mine."*
+> *"We don't know how many active teams are mining any given day and it's impossible to predict... We certainly don't want 1-2 agents earning 200,000 / 500,000 $GOLD per mine."*
 
-On a low-activity day, a single expedition would capture the **entire daily budget** — millions of $CLAW. On a high-activity day, the same expedition might earn almost nothing. Rewards were unpredictable and exploitable.
+On a low-activity day, a single expedition would capture the **entire daily budget** — millions of $GOLD. On a high-activity day, the same expedition might earn almost nothing. Rewards were unpredictable and exploitable.
 
 ### Iteration 2: Pro-Rata with Diminishing Returns (Rejected)
 
@@ -140,9 +140,9 @@ Diminishing returns punish honest whales, fail against Sybils, and suppress the 
 - **Budget-capped**: `totalMinted + reward > totalEmission` → reverts with `SeasonBudgetExhausted`
 - **Admin-tunable**: `setBaseReward()` for mid-season adjustments based on participation data
 
-### Why 1,250 $CLAW Base Reward
+### Why 1,250 $GOLD Base Reward
 
-> *"I want to lock in 1,250 $CLAW as base mining reward to kick off. That's still very enticing with the changes we made to flat payout."*
+> *"I want to lock in 1,250 $GOLD as base mining reward to kick off. That's still very enticing with the changes we made to flat payout."*
 
 Analysis showed: 27 Base teams at launch would use only 3.1% of the S1 budget in 60 days. Growth to 400 mixed-tier teams would use ~63%. Comfortable headroom for growth without hitting the cap prematurely.
 
@@ -150,16 +150,16 @@ Analysis showed: 27 Base teams at launch would use only 3.1% of the S1 budget in
 
 Considered gentler alternatives, but the evolution investment justified aggressive weights:
 
-> *"Apex is a 39x $CLAW investment and 42 lobsters burned compared to Evolved. This is massive — agents are destroying real assets for this tier upgrade."*
+> *"Apex is a 39x $GOLD investment and 42 lobsters burned compared to Evolved. This is massive — agents are destroying real assets for this tier upgrade."*
 
-The **season budget cap is what prevents inflation, not the tier weights.** Weights should feel proportional to the evolution investment. Since Apex requires 42 base lobsters burned and 234K $CLAW, a 25x reward multiplier is justified.
+The **season budget cap is what prevents inflation, not the tier weights.** Weights should feel proportional to the evolution investment. Since Apex requires 42 base lobsters burned and 234K $GOLD, a 25x reward multiplier is justified.
 
 | Tier | Reward per Expedition | Evolution Investment | Lobsters Burned |
 |------|----------------------|---------------------|-----------------|
-| Base | 1,250 $CLAW | 0 | 0 |
-| Evolved | 3,750 $CLAW | 2K $CLAW | 2 |
-| Elite | 12,500 $CLAW | 12K $CLAW | 6 |
-| Apex | 31,250 $CLAW | 62K+ $CLAW | 14+ |
+| Base | 1,250 $GOLD | 0 | 0 |
+| Evolved | 3,750 $GOLD | 2K $GOLD | 2 |
+| Elite | 12,500 $GOLD | 12K $GOLD | 6 |
+| Apex | 31,250 $GOLD | 62K+ $GOLD | 14+ |
 
 ---
 
@@ -262,19 +262,19 @@ The deposit and shot clock together are small enough not to deter participation 
 
 ### Instant Repair: Why No Time Delay?
 
-> *"How do repairs happen? Time + $CLAW?"*
+> *"How do repairs happen? Time + $GOLD?"*
 
-**Decision**: Repair is instant — pay $CLAW, damage removed immediately. No time delay or cooldown. Partial repairs allowed.
+**Decision**: Repair is instant — pay $GOLD, damage removed immediately. No time delay or cooldown. Partial repairs allowed.
 
-**Rationale**: In an agent-first game, time delays create awkward UX for automated agents. The $CLAW burn is the economic gate, not time. Agents manage a **roster depth metagame** — they need enough lobsters to rotate damaged ones out while repairs happen (or rather, while they pay for them).
+**Rationale**: In an agent-first game, time delays create awkward UX for automated agents. The $GOLD burn is the economic gate, not time. Agents manage a **roster depth metagame** — they need enough lobsters to rotate damaged ones out while repairs happen (or rather, while they pay for them).
 
 Repair costs scale with tier:
 
 | Tier | Cost per Damage Point | Typical Winner Repair (3 lobsters) | Typical Loser Repair |
 |------|----------------------|-----------------------------------|---------------------|
-| Evolved | 5 $CLAW | ~150 $CLAW | ~450 $CLAW |
-| Elite | 15 $CLAW | ~450 $CLAW | ~1,350 $CLAW |
-| Apex | 40 $CLAW | ~1,200 $CLAW | ~3,600 $CLAW |
+| Evolved | 5 $GOLD | ~150 $GOLD | ~450 $GOLD |
+| Elite | 15 $GOLD | ~450 $GOLD | ~1,350 $GOLD |
+| Apex | 40 $GOLD | ~1,200 $GOLD | ~3,600 $GOLD |
 
 ---
 
@@ -299,7 +299,7 @@ Repair costs scale with tier:
 | Mining emissions | 70.5% | 705M | Earned through gameplay |
 | DEX liquidity | 12.5% | 125M | Self-deployed Uniswap V3 pool |
 | Treasury | 10% | 100M | Protocol reserves, bug bounties, future modes |
-| Faucet | 7% | 70M | Pre-minted onboarding drip (~10K wallets × 7K $CLAW) |
+| Faucet | 7% | 70M | Pre-minted onboarding drip (~10K wallets × 7K $GOLD) |
 
 ### 60-Day Seasons with Halving
 
@@ -308,7 +308,7 @@ Repair costs scale with tier:
 Why 60 days instead of 30: "Stretching to 60-day seasons gives agents twice as long to develop and adapt within each era, making season transitions feel more meaningful."
 
 ```
-Season 1  (days 1-60):     352.5M $CLAW  ← gold rush
+Season 1  (days 1-60):     352.5M $GOLD  ← gold rush
 Season 2  (days 61-120):   176.25M       ← still massive
 Season 3  (days 121-180):  88.125M       ← tightening
 Season 4  (days 181-240):  44.06M        ← transition to zero-sum
@@ -320,7 +320,7 @@ Season 7+ (day 361+):      7.05M/season  ← floor (~2% of S1, perpetual)
 Gold rush phase (S1-S2): 75% of mining pool in first 4 months
 ```
 
-The floor (7.05M/season from S7 onward) ensures mining never fully stops — there's always a trickle of new $CLAW entering, preventing complete ossification.
+The floor (7.05M/season from S7 onward) ensures mining never fully stops — there's always a trickle of new $GOLD entering, preventing complete ossification.
 
 ### Self-Deployed Uniswap V3 (No Clanker)
 
@@ -330,16 +330,16 @@ The floor (7.05M/season from S7 onward) ensures mining never fully stops — the
 
 Clanker's 1% transaction fee is too extractive for a high-frequency game token. Self-deployed Uniswap V3 with 0.3% fee tier keeps LP fees in the ecosystem.
 
-### LP Seed: Why 125M $CLAW + 6 ETH
+### LP Seed: Why 125M $GOLD + 6 ETH
 
 The LP was iteratively reduced from 150M + 15 ETH to 125M + 6 ETH through scenario analysis:
 
-> *"What if we did get some human whale speculating on day 1 of launch with a thin LP... they would snipe a large chunk of the $CLAW supply?"*
+> *"What if we did get some human whale speculating on day 1 of launch with a thin LP... they would snipe a large chunk of the $GOLD supply?"*
 
-The analysis showed: in a thin LP, a whale buying in just moves the price against themselves (concentrated liquidity means higher slippage). Combined with a generous faucet (5 lobsters + 7,000 $CLAW), agents don't need to buy from the LP to start playing. This preserves LP depth for organic post-faucet trading.
+The analysis showed: in a thin LP, a whale buying in just moves the price against themselves (concentrated liquidity means higher slippage). Combined with a generous faucet (5 lobsters + 7,000 $GOLD), agents don't need to buy from the LP to start playing. This preserves LP depth for organic post-faucet trading.
 
 **Launch parameters**:
-- Initial price: ~$0.0001 per $CLAW (~$100K FDV at $2,100/ETH)
+- Initial price: ~$0.0001 per $GOLD (~$100K FDV at $2,100/ETH)
 - Wide V3 range: ~5x downside (~$20K FDV) to ~5x upside (~$500K FDV)
 - 3.5 ETH retained as operational reserve (gas, emergency LP adjustments, deployments)
 - Total ETH budget: 9.5 ETH (~$20K at $2,100/ETH)
@@ -350,15 +350,15 @@ The analysis showed: in a thin LP, a whale buying in just moves the price agains
 
 ### Evolution as Exponential Sink
 
-Evolution is the game's most powerful deflationary mechanic. Every tier upgrade permanently burns 2 lobster NFTs + $CLAW.
+Evolution is the game's most powerful deflationary mechanic. Every tier upgrade permanently burns 2 lobster NFTs + $GOLD.
 
-| Evolution | Fuel Burned | $CLAW Burned | Cumulative Lobsters from Base |
+| Evolution | Fuel Burned | $GOLD Burned | Cumulative Lobsters from Base |
 |-----------|-----------|-------------|------------------------------|
 | Base → Evolved | 2 Base | 2,000 | 3 (1 target + 2 fuel) |
 | Evolved → Elite | 2 Evolved | 10,000 | 9 (3 per Evolved × 3) |
 | Elite → Apex | 2 Elite | 50,000 | 27 (9 per Elite × 3) |
 
-A full 3-Apex team requires **42 base lobsters burned** and **186,000+ $CLAW** in evolution fees alone. This creates massive, exponential demand for both lobsters and tokens.
+A full 3-Apex team requires **42 base lobsters burned** and **186,000+ $GOLD** in evolution fees alone. This creates massive, exponential demand for both lobsters and tokens.
 
 **Key insight**: Evolution gates BOTH mining tiers and battle access. Every active agent needs evolved lobsters, not just battlers. This makes evolution pressure universal.
 
@@ -368,7 +368,7 @@ Per-parent cost: `500 × breed_multiplier × 1.5^generation`
 
 Breed multipliers: [1, 1.5, 2.5, 4, 8] (1st through 5th breed)
 
-**Example**: Two fresh Gen 0 parents, 5 breeds = 17,000 $CLAW total → breakeven at 3,400 per offspring.
+**Example**: Two fresh Gen 0 parents, 5 breeds = 17,000 $GOLD total → breakeven at 3,400 per offspring.
 
 | Breed # | Cost per Parent | Total | Cumulative |
 |---------|----------------|-------|-----------|
@@ -468,33 +468,33 @@ The class names were chosen to feel thematically appropriate for lobsters/ocean 
 
 ### The Problem
 
-New agents need lobsters and $CLAW to start playing. Without a cold start mechanism, there's a chicken-and-egg problem: no players → no marketplace → no lobsters available → no players.
+New agents need lobsters and $GOLD to start playing. Without a cold start mechanism, there's a chicken-and-egg problem: no players → no marketplace → no lobsters available → no players.
 
-### Lobster Faucet: 5 Soulbound + $CLAW Faucet: 7,000
+### Lobster Faucet: 5 Soulbound + $GOLD Faucet: 7,000
 
 **5 lobsters** (not 3): provides a full team of 3 plus 2 spare for the first evolution fuel. This lets agents immediately mine AND begin working toward Evolved tier.
 
-**7,000 $CLAW**: enough for team formation, first breeds, and first evolution to Evolved tier without touching the DEX. Agents can become self-sustaining from faucet resources alone.
+**7,000 $GOLD**: enough for team formation, first breeds, and first evolution to Evolved tier without touching the DEX. Agents can become self-sustaining from faucet resources alone.
 
 **Soulbound lobsters**: can be used (team, mine, breed, evolution fuel) but never sold or transferred. This prevents marketplace exploitation while preserving genuine economic utility — critically, soulbound lobsters CAN breed (offspring are tradeable) and CAN be burned as evolution fuel.
 
 ### Anti-Sybil Design
 
-> *"The $CLAW Faucet is only available to a wallet holding 5 soulbound lobster NFTs. This forces an agent to use the same wallet for lobsters. They can't just request $CLAW to sell from thousands of wallets."*
+> *"The $GOLD Faucet is only available to a wallet holding 5 soulbound lobster NFTs. This forces an agent to use the same wallet for lobsters. They can't just request $GOLD to sell from thousands of wallets."*
 
 **Chained dependencies**:
-1. Must claim lobsters first → then claim $CLAW (can't farm $CLAW without soulbound lobsters)
+1. Must claim lobsters first → then claim $GOLD (can't farm $GOLD without soulbound lobsters)
 2. Wallet age ≥ 7 days + ≥ 3 prior transactions + ≥ 0.001 ETH
 3. Soulbound lobsters can't be consolidated across wallets
 4. ~7-day faucet window then permanent shutdown
 
-Each layer reduces the profitability of Sybil farming. The cost of creating qualifying wallets (7+ days of aging, 3+ transactions, ETH deposits) makes mass farming uneconomical relative to the 7,000 $CLAW per wallet yield.
+Each layer reduces the profitability of Sybil farming. The cost of creating qualifying wallets (7+ days of aging, 3+ transactions, ETH deposits) makes mass farming uneconomical relative to the 7,000 $GOLD per wallet yield.
 
 ### Why ~7 Day Faucet Window
 
 > *"The faucets will go dry in 6 days 23 hours from token + game launch, which is more than enough time to seed the game with lobsters and activity."*
 
-After faucets close, new agents must buy lobsters from the marketplace and $CLAW from the DEX. This creates the marketplace flywheel: existing players breed → sell to new players → use proceeds to evolve/battle → demand drives breeding → cycle continues.
+After faucets close, new agents must buy lobsters from the marketplace and $GOLD from the DEX. This creates the marketplace flywheel: existing players breed → sell to new players → use proceeds to evolve/battle → demand drives breeding → cycle continues.
 
 ---
 
@@ -508,7 +508,7 @@ After faucets close, new agents must buy lobsters from the marketplace and $CLAW
 
 Token ownership, NFT ownership, breeding, staking, marketplace listings/sales, treasury, team assignments, battle stakes/settlement, evolution, repair.
 
-**Why on-chain**: These are economic primitives that agents must trust. An agent needs to verify that their lobster ownership is real, their $CLAW balance is accurate, and marketplace trades are atomic.
+**Why on-chain**: These are economic primitives that agents must trust. An agent needs to verify that their lobster ownership is real, their $GOLD balance is accurate, and marketplace trades are atomic.
 
 ### Off-Chain (Fast, Cheap, Iterable)
 
@@ -536,11 +536,11 @@ The project initially considered Solana before switching to Base:
 
 > *"The dev behind the project needs some value capture here... where would we insert a small value capture back to the dev?"*
 
-The fee structure evolved from a 3-way split (burn/stakers/dev) to a 2-way split when ve-CLAW was removed (see Section 13).
+The fee structure evolved from a 3-way split (burn/stakers/dev) to a 2-way split when ve-GOLD was removed (see Section 13).
 
 ### Why This Split Works
 
-**85% burn**: Creates aggressive deflationary pressure. Every activity (mining, breeding, marketplace, battle, repair, evolution) removes $CLAW from circulation permanently.
+**85% burn**: Creates aggressive deflationary pressure. Every activity (mining, breeding, marketplace, battle, repair, evolution) removes $GOLD from circulation permanently.
 
 **15% dev**: Ensures ongoing development funding without a token allocation. The dev's income is proportional to protocol usage — perfect alignment.
 
@@ -556,7 +556,7 @@ Hardcoded in `Treasury.sol`, verifiable on-chain. No special cases, no discretio
 
 ### Why 10% Battle Protocol Fee
 
-The 10% fee from battle pots means 8.5% of every battle pot is permanently burned. Combined with repair costs (also routed through Treasury), battle mode is **strongly deflationary** — each battle removes significantly more $CLAW from circulation than it redistributes.
+The 10% fee from battle pots means 8.5% of every battle pot is permanently burned. Combined with repair costs (also routed through Treasury), battle mode is **strongly deflationary** — each battle removes significantly more $GOLD from circulation than it redistributes.
 
 ---
 
@@ -581,20 +581,20 @@ Crabada's tavern let players lend idle crabs to others (for looting defense). Wi
 
 **Removed because**: No looting = no tavern. Unnecessary complexity.
 
-### ve-CLAW Governance and Staking Yield (Removed)
+### ve-GOLD Governance and Staking Yield (Removed)
 
-> *"How impactful to the overall game economy would it be to remove ve-CLAW governance and staking yield?"*
+> *"How impactful to the overall game economy would it be to remove ve-GOLD governance and staking yield?"*
 
-ve-CLAW would have provided:
+ve-GOLD would have provided:
 1. Governance — vote on season parameters, class rebalancing
-2. Staking yield — 15-35% of protocol fees go to ve-CLAW stakers
+2. Staking yield — 15-35% of protocol fees go to ve-GOLD stakers
 
 **Removed because**:
 
 > *"This is exactly what I was thinking — it also avoids the passive income, legal complications from a human dev perspective, even if I am planning to remain anon."*
 
 1. **No passive income avoids securities concerns** for the pseudonymous dev
-2. **Simplifies the economy** — the only way to earn $CLAW is by playing
+2. **Simplifies the economy** — the only way to earn $GOLD is by playing
 3. **Protocol fee split becomes a clean 2-way** (85% burn / 15% dev) instead of 3-way
 4. **Season 1 doesn't need governance** — dev controls rebalancing based on data analysis at day 40-50
 
@@ -623,10 +623,10 @@ A complete reference of every tuned parameter for Season 1, with the reasoning b
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
-| Max supply | 1,000,000,000 $CLAW | Round number, large enough for sub-cent pricing |
+| Max supply | 1,000,000,000 $GOLD | Round number, large enough for sub-cent pricing |
 | S1 emission | 352,500,000 (50% of mining pool) | Gold rush — massive early rewards attract agents |
-| LP seed | 125M $CLAW + 6 ETH | ~$100K FDV, thin but sufficient for price discovery |
-| Initial price | ~$0.0001/CLAW | Low enough that faucet 7K drip feels generous |
+| LP seed | 125M $GOLD + 6 ETH | ~$100K FDV, thin but sufficient for price discovery |
+| Initial price | ~$0.0001/GOLD | Low enough that faucet 7K drip feels generous |
 | V3 range | ~5x down to ~5x up | Wide range for volatile launch period |
 | Operational reserve | 3.5 ETH | Gas, emergency LP adjustments, deployments |
 
@@ -634,7 +634,7 @@ A complete reference of every tuned parameter for Season 1, with the reasoning b
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
-| Base reward | 1,250 $CLAW | Enticing S1 start; admin-tunable mid-season |
+| Base reward | 1,250 $GOLD | Enticing S1 start; admin-tunable mid-season |
 | Tier weights | 1 / 3 / 10 / 25 | Proportional to evolution investment |
 | Expedition duration | 4 hours (all tiers) | 6/day per team; matches Crabada cadence |
 | Diminishing returns | None | Whale miners drive the flywheel |
@@ -665,7 +665,7 @@ A complete reference of every tuned parameter for Season 1, with the reasoning b
 |-----------|-------|-----------|
 | Max breeds/lobster | 5 lifetime | Creates scarcity; escalating cost curve |
 | Cooldown | 48 hours per parent | Prevents spam breeding |
-| Base cost | 500 $CLAW | Low enough for accessible first breed |
+| Base cost | 500 $GOLD | Low enough for accessible first breed |
 | Breed multipliers | [1, 1.5, 2.5, 4, 8] | Exponential; 5th breed costs 8x the first |
 | Generation mult | 1.5x per gen | Prevents infinite cheap Gen 0 breeding |
 | Legend chance | ~0.3% per breed | A few per day at scale; rare but tradeable |
@@ -675,9 +675,9 @@ A complete reference of every tuned parameter for Season 1, with the reasoning b
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | Fuel count | 2 lobsters burned per tier | Major NFT sink |
-| Base → Evolved cost | 2K $CLAW | Accessible from faucet resources |
-| Evolved → Elite cost | 10K $CLAW | Significant but achievable in S1 |
-| Elite → Apex cost | 50K $CLAW | Major investment; Apex is endgame |
+| Base → Evolved cost | 2K $GOLD | Accessible from faucet resources |
+| Evolved → Elite cost | 10K $GOLD | Significant but achievable in S1 |
+| Elite → Apex cost | 50K $GOLD | Major investment; Apex is endgame |
 | Stat scaling | +20% / +40% / +60% | Each tier is meaningfully stronger |
 
 ### Faucet
@@ -685,7 +685,7 @@ A complete reference of every tuned parameter for Season 1, with the reasoning b
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | Lobster count | 5 soulbound | Team of 3 + 2 evolution fuel |
-| $CLAW drip | 7,000 | Self-sustaining without DEX purchase |
+| $GOLD drip | 7,000 | Self-sustaining without DEX purchase |
 | Duration | 6 days 23 hours | Enough to seed ecosystem; hard cutoff |
 | Wallet age | ≥ 7 days | Anti-Sybil: can't farm fresh wallets |
 | Min transactions | ≥ 3 | Anti-Sybil: proves wallet is real |

@@ -9,7 +9,7 @@ import { LobsterCard } from '@/components/game/lobster-card';
 import { TransactionButton } from '@/components/game/transaction-button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
-import { formatClaw } from '@/lib/format';
+import { formatGold } from '@/lib/format';
 import { BACKGROUNDS } from '@/lib/assets';
 import { Egg } from 'lucide-react';
 
@@ -127,7 +127,7 @@ export default function BreedingPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
               <div>
                 <span className="text-text-secondary text-xs">Total Cost</span>
-                <div className="font-medium font-mono text-text-accent">{formatClaw(preview.totalCost)}</div>
+                <div className="font-medium font-mono text-text-accent">{formatGold(preview.totalCost)}</div>
               </div>
               <div>
                 <span className="text-text-secondary text-xs">Offspring Gen</span>
@@ -155,7 +155,7 @@ export default function BreedingPage() {
             </div>
 
             <TransactionButton
-              label={`Breed — ${formatClaw(preview.totalCost)}`}
+              label={`Breed — ${formatGold(preview.totalCost)}`}
               fetchSteps={(auth) => api.breeding.breed(parentA!, parentB!, auth)}
               onSuccess={invalidate}
             />

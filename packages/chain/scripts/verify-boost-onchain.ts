@@ -11,7 +11,7 @@
  *
  * Run (see docs/runbooks/boost-epoch.md):
  *   CHAIN_ENV=testnet BASE_SEPOLIA_RPC_URL=http://127.0.0.1:8545 OPERATOR_PRIVATE_KEY=<anvil key 0> \
- *   MINING_POOL_ADDRESS=... LOBSTER_NFT_ADDRESS=... TEAM_MANAGER_ADDRESS=... CLAW_TOKEN_ADDRESS=... \
+ *   MINING_POOL_ADDRESS=... LOBSTER_NFT_ADDRESS=... TEAM_MANAGER_ADDRESS=... GOLD_TOKEN_ADDRESS=... \
  *   bun run verify:boost-onchain
  */
 import { createPublicClient, createWalletClient, http, parseEventLogs } from 'viem';

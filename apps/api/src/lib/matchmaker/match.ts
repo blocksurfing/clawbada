@@ -339,7 +339,7 @@ export async function tryMatchForPlayer(address: string): Promise<MatchResult | 
       // cancel-vs-match window correspondingly.
       // F-12: store the DISPLAY value of stakeAmount (e.g. "2500") rather
       // than wei (e.g. "2500000000000000000000"). Pre-B-18 the column was
-      // display semantics and frontend `formatClaw` consumers assume that.
+      // display semantics and frontend `formatGold` consumers assume that.
       // The wei conversion happens only at the chain boundary (the simulate
       // call above).
       // F-13: contract enum value 1 == Deposit. The previous alias

@@ -218,7 +218,7 @@ Each frame set = 9 pieces that tile to fit any panel size.
 |----------|--------|------|-------------|
 | `animated/bubbles-sheet.png` | 8 frames | 16x16px each | Rising bubbles, various sizes. Ambient bg animation. |
 | `animated/sparkle-sheet.png` | 6 frames | 16x16px each | Rotating/twinkling star. For legend cards. |
-| `animated/coin-sheet.png` | 8 frames | 16x16px each | $CLAW coin rotation. For reward animations. |
+| `animated/coin-sheet.png` | 8 frames | 16x16px each | $GOLD coin rotation. For reward animations. |
 | `animated/crack-sheet.png` | 4 frames | 32x32px each | Progressive cracking. For damage bar visual. |
 | `animated/wave-sheet.png` | 4 frames | 256x16px each | Animated water line. For section dividers. |
 

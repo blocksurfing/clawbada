@@ -30,7 +30,7 @@ The contracts are not upgradeable. Whatever is decided here has to be in before 
 
 ## 1. What a dispute is allowed to freeze (D-04, Medium)
 
-**Meaning.** Anyone in a battle, including the player who won, can file a dispute for 250 CLAW at the Low stake. Until the Safe acts (24 h by policy, no limit on-chain) the opponent's payout is frozen — and so is their **team**: it cannot mine, battle, be disbanded, evolved or sold, because battles and mining share one "team is busy" flag. A three-Apex team loses about 187,500 CLAW of mining a day. The bond scales with the stake; the damage scales with the team. That is up to 750x leverage, per wallet, five times a day.
+**Meaning.** Anyone in a battle, including the player who won, can file a dispute for 250 GOLD at the Low stake. Until the Safe acts (24 h by policy, no limit on-chain) the opponent's payout is frozen — and so is their **team**: it cannot mine, battle, be disbanded, evolved or sold, because battles and mining share one "team is busy" flag. A three-Apex team loses about 187,500 GOLD of mining a day. The bond scales with the stake; the damage scales with the team. That is up to 750x leverage, per wallet, five times a day.
 
 **Choice.**
 - **A (recommended). A dispute freezes the money, not the team.** Release both teams when the result is proposed (apply the damage then), and keep only the stakes in escrow while disputed. Add a long-stop: after 72 h disputed with no admin action, anyone can finalize the proposed result and the bond is slashed. This removes the lever completely and also closes the "admin never shows up" trap.

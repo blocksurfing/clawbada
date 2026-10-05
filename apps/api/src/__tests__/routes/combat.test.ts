@@ -14,8 +14,8 @@ mock.module('@clawbada/chain', () => ({
   encodeFunctionData: mockEncodeFunctionData,
   teamCommitHash: mockTeamCommitHash,
   BattleArenaAbi: [],
-  ClawTokenAbi: [],
-  addresses: { battleArena: '0xBATTLE', clawToken: '0xCLAW' },
+  GoldTokenAbi: [],
+  addresses: { battleArena: '0xBATTLE', goldToken: '0xGOLD' },
   base: { id: 8453 },
   baseSepolia: { id: 84532 },
   getPublicClient: mock(() => ({})),
@@ -629,7 +629,7 @@ describe('combat routes', () => {
       expect(res.status).toBe(409);
       const body = await res.json();
       expect(body.message).toContain('the stake differs');
-      expect(body.message).toContain('50000 CLAW');
+      expect(body.message).toContain('50000 GOLD');
       expect(body.steps).toBeUndefined();
     });
 

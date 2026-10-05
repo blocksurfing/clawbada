@@ -15,7 +15,7 @@ const OUT_DIR = join(ROOT, 'out');
 const ABIS_DIR = join(import.meta.dir, '..', 'src', 'abis');
 
 const CONTRACTS = [
-  'ClawToken',
+  'GoldToken',
   'LobsterNFT',
   'TeamManager',
   'BreedingLab',

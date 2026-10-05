@@ -178,9 +178,9 @@ These elements of the battle system are **unchanged**:
 - Enhanced Special proc chances tied to purity
 - 7 round maximum with HP% tiebreaker
 - Commit-reveal protocol with drand VRF randomness
-- 3 stake brackets (2,500 / 10,000 / 50,000 $CLAW)
+- 3 stake brackets (2,500 / 10,000 / 50,000 $GOLD)
 - 10% protocol fee (85% burn / 15% dev)
-- Repair system (battle damage, $CLAW burn to fix)
+- Repair system (battle damage, $GOLD burn to fix)
 - Anti-grief deposits (5% slashed on timeout/forfeit)
 
 ---

@@ -89,9 +89,9 @@ export class PlayerAgent {
     // keeper is down, finish the claim ourselves (finalizeClaim is permissionless).
     const lobsterIds = await this.awaitFaucetLobsters(20_000, opts.tick);
     await sleep(1200); // faucet route rate limit is per wallet now (XFF), but be gentle
-    const r2 = await this.post('/api/faucet/claim-claw');
+    const r2 = await this.post('/api/faucet/claim-gold');
     await this.executeSteps(r2.steps);
-    this.say(`faucet: 5 lobsters ${lobsterIds.join(',')} + 7,000 CLAW`);
+    this.say(`faucet: 5 lobsters ${lobsterIds.join(',')} + 7,000 GOLD`);
     return { lobsterIds };
   }
 
@@ -118,7 +118,7 @@ export class PlayerAgent {
   async evolve(lobsterId: bigint, fuel1: bigint, fuel2: bigint) {
     const r = await this.post('/api/game/evolution/evolve', { lobsterId: lobsterId.toString(), fuelId1: fuel1.toString(), fuelId2: fuel2.toString() });
     await this.executeSteps(r.steps);
-    this.say(`evolved #${lobsterId} (fuel #${fuel1}, #${fuel2}; approve ${r.preview?.clawCostWei ?? '?'} wei)`);
+    this.say(`evolved #${lobsterId} (fuel #${fuel1}, #${fuel2}; approve ${r.preview?.goldCostWei ?? '?'} wei)`);
   }
 
   async createTeam(lobsterIds: bigint[]): Promise<bigint> {

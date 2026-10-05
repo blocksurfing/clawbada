@@ -29,7 +29,7 @@ export async function breedingPhase(stack: Stack, players: Players, checks: Chec
   checks.eq(String(res.finalize?.by), 'keeper', 'breed: the API says a keeper finalizes');
   await player.agent.executeSteps(res.steps);
   const cost = balanceBefore - (await chain.balance(player.agent.address));
-  checks.eq(cost, 1_000n * 10n ** 18n, 'breed: two fresh gen-0 parents cost 500 + 500 CLAW');
+  checks.eq(cost, 1_000n * 10n ** 18n, 'breed: two fresh gen-0 parents cost 500 + 500 GOLD');
   const outcome: BreedingOutcome = { player, cost };
 
   const req = await chain.read<{ requester: string; finalized: boolean; targetBlock: bigint }>(lab, BreedingLabAbi, 'getBreedRequest', [requestId]);

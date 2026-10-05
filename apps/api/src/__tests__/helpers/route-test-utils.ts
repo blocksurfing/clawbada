@@ -7,7 +7,7 @@ export const TEST_ADDRESS = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
 export const OTHER_ADDRESS = '0x1234567890123456789012345678901234567890';
 
 export const MOCK_ADDRESSES = {
-  clawToken: '0xCLAW000000000000000000000000000000000000',
+  goldToken: '0xGOLD000000000000000000000000000000000000',
   lobsterNFT: '0xNFT0000000000000000000000000000000000000',
   teamManager: '0xTEAM000000000000000000000000000000000000',
   miningPool: '0xMINE000000000000000000000000000000000000',
@@ -128,7 +128,7 @@ export function mockFaucetStatus(overrides: Record<string, any> = {}) {
     closeTime: BigInt(Math.floor(Date.now() / 1000) + 86400),
     isEligible: true,
     hasClaimedLobsters: false,
-    hasClaimedClaw: false,
+    hasClaimedGold: false,
     lobsterClaimId: 0n,
     lobsterClaimPending: false,
     lobsterClaimTargetBlock: 0n,

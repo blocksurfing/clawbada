@@ -7,7 +7,7 @@ export const expeditions = pgTable('expeditions', {
   season: integer('season').notNull(),
   mineTier: smallint('mine_tier').notNull(), // 0-3
   startTime: bigint('start_time', { mode: 'bigint' }).notNull(), // unix timestamp
-  reward: text('reward').notNull(), // $CLAW amount as string
+  reward: text('reward').notNull(), // $GOLD amount as string
   /** Battle-rank boost applied at start (bps, 0..5000), from ExpeditionStarted.boostBps.
    *  NULL for rows indexed before the boost shipped. Source for "boost uptake by tier". */
   boostBps: smallint('boost_bps'),

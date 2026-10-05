@@ -15,7 +15,7 @@ import {Faucet} from "../Faucet.sol";
 ///         Role-handoff cluster (ROLE-M1/M2/M3): the handoff covers every authority the
 ///         deploy key holds — DEFAULT_ADMIN_ROLE on the 7 AccessControl contracts,
 ///         Treasury's Ownable2Step ownership, MiningPool.SEASON_ADMIN_ROLE (emission
-///         control) and Faucet.ELIGIBILITY_ROLE (free lobster + $CLAW minting).
+///         control) and Faucet.ELIGIBILITY_ROLE (free lobster + $GOLD minting).
 ///
 ///         Audit 2026-09 D-11: the previous version granted the Safe its roles AND revoked
 ///         the deployer in one run. The contracts are not upgradeable, DEFAULT_ADMIN is the
@@ -155,7 +155,7 @@ contract Handoff is CheckedDeployHelpers {
 
         console2.log("=== Phase 2 sent. ===");
         console2.log("NEXT 1: VerifyDeployment.s.sol --sig 'finalized()'  - the handoff is complete ONLY when this passes");
-        console2.log("NEXT 2: from the Safe, ClawToken.approve(BattleArena, 2M) + BattleArena.fundReserve(2M),");
+        console2.log("NEXT 2: from the Safe, GoldToken.approve(BattleArena, 2M) + BattleArena.fundReserve(2M),");
         console2.log("        then VerifyDeployment.s.sol --sig 'reserveFunded()'");
         console2.log("NEXT 3: retire DEPLOYER_PRIVATE_KEY; publish the Safe address:", governanceSafe);
     }

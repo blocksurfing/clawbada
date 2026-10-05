@@ -3,7 +3,7 @@ export const EvolutionLabAbi = [
     "type": "constructor",
     "inputs": [
       {
-        "name": "clawToken_",
+        "name": "goldToken_",
         "type": "address",
         "internalType": "address"
       },
@@ -41,19 +41,6 @@ export const EvolutionLabAbi = [
   },
   {
     "type": "function",
-    "name": "clawToken",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IERC20"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "evolve",
     "inputs": [
       {
@@ -74,6 +61,19 @@ export const EvolutionLabAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "goldToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",

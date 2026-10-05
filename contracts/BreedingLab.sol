@@ -51,7 +51,7 @@ contract BreedingLab is ReentrancyGuard {
     }
 
     // ──────────── State ────────────
-    IERC20 public clawToken;
+    IERC20 public goldToken;
     LobsterNFT public lobsterNFT;
     Treasury public treasury;
 
@@ -103,14 +103,14 @@ contract BreedingLab is ReentrancyGuard {
 
     // ──────────── Constructor ────────────
 
-    /// @param clawToken_ The $CLAW ERC-20 token
+    /// @param goldToken_ The $GOLD ERC-20 token
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param treasury_ The Treasury fee splitter
-    constructor(address clawToken_, address lobsterNFT_, address treasury_) {
-        if (clawToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)) {
+    constructor(address goldToken_, address lobsterNFT_, address treasury_) {
+        if (goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)) {
             revert ZeroAddress();
         }
-        clawToken = IERC20(clawToken_);
+        goldToken = IERC20(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         treasury = Treasury(treasury_);
     }
@@ -218,7 +218,7 @@ contract BreedingLab is ReentrancyGuard {
 
     /// @notice Close out an expired breed request whose finalize window has lapsed.
     /// @dev Callable by anyone after the blockhash window expires (~256 blocks / ~8.5 min on Base).
-    ///      F5-02: a committed breed is FINAL. Neither the $CLAW fee NOR the breed-count slot is
+    ///      F5-02: a committed breed is FINAL. Neither the $GOLD fee NOR the breed-count slot is
     ///      refunded. Previously this restored both parents' breed counts, which created an
     ///      outcome-selective re-roll: the offspring is fully deterministic once `targetBlock` is
     ///      mined (seed = keccak256(blockhash, requestId)), so a breeder could compute it off-chain,
@@ -258,11 +258,11 @@ contract BreedingLab is ReentrancyGuard {
         uint256 costB = _breedCostPerParent(lobsterNFT.getBreedCount(parentB), lobsterNFT.getGeneration(parentB));
         totalCost = costA + costB;
 
-        // Pull $CLAW from user (I-04 SafeERC20)
-        clawToken.safeTransferFrom(msg.sender, address(this), totalCost);
+        // Pull $GOLD from user (I-04 SafeERC20)
+        goldToken.safeTransferFrom(msg.sender, address(this), totalCost);
 
         // Route fee through Treasury (I-03 forceApprove)
-        clawToken.forceApprove(address(treasury), totalCost);
+        goldToken.forceApprove(address(treasury), totalCost);
         treasury.processFee(totalCost);
 
         // Update parent state

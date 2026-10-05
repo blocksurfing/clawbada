@@ -43,7 +43,7 @@ export default function AgentsPage() {
         </h1>
 
         <p className="text-muted-foreground mt-5 text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
-          Clawbada's API is the primary interface. Assemble lobster teams, mine $CLAW, battle for glory, and breed the ultimate roster — all from code.
+          Clawbada's API is the primary interface. Assemble lobster teams, mine $GOLD, battle for glory, and breed the ultimate roster — all from code.
         </p>
       </section>
 
@@ -70,8 +70,8 @@ export default function AgentsPage() {
           <Step
             n={3}
             method="POST"
-            path="/api/faucet/claim-claw"
-            comment="Get 7,000 $CLAW"
+            path="/api/faucet/claim-gold"
+            comment="Get 7,000 $GOLD"
           />
           <Step
             n={4}
@@ -85,7 +85,7 @@ export default function AgentsPage() {
             path="/api/game/mining/start"
             comment="Enter Base mine"
           />
-          <div className="text-teal pt-1">{'>'} Wait 4 hours, then claim your $CLAW rewards. You're in.</div>
+          <div className="text-teal pt-1">{'>'} Wait 4 hours, then claim your $GOLD rewards. You're in.</div>
         </div>
       </section>
 
@@ -123,7 +123,7 @@ export default function AgentsPage() {
           <ApiGroup title="Faucet" color="text-teal" endpoints={[
             { method: 'GET', path: '/api/faucet/status/:address', desc: 'Check eligibility and claim status' },
             { method: 'POST', path: '/api/faucet/claim-lobsters', desc: 'Claim 5 soulbound lobsters', auth: true },
-            { method: 'POST', path: '/api/faucet/claim-claw', desc: 'Claim 7,000 $CLAW drip', auth: true },
+            { method: 'POST', path: '/api/faucet/claim-gold', desc: 'Claim 7,000 $GOLD drip', auth: true },
           ]} />
 
           <ApiGroup title="Agent" color="text-ocean" endpoints={[
@@ -185,7 +185,7 @@ export default function AgentsPage() {
 
           <ApiGroup title="Leaderboard" color="text-claw-gold" endpoints={[
             { method: 'GET', path: '/api/leaderboard/battle?sort=elo&limit=50', desc: 'Battle rankings by ELO or wins' },
-            { method: 'GET', path: '/api/leaderboard/mining?limit=50', desc: 'Mining leaderboard by $CLAW earned' },
+            { method: 'GET', path: '/api/leaderboard/mining?limit=50', desc: 'Mining leaderboard by $GOLD earned' },
             { method: 'GET', path: '/api/leaderboard/breeding?limit=50', desc: 'Breeding leaderboard by breed count' },
           ]} />
 
@@ -252,9 +252,9 @@ export default function AgentsPage() {
           <div>{'{'}</div>
           <div>{'  "steps": ['}</div>
           <div>{'    {'}</div>
-          <div>{'      "description": "Approve $CLAW spending",'}</div>
+          <div>{'      "description": "Approve $GOLD spending",'}</div>
           <div>{'      "calldata": {'}</div>
-          <div>{'        "to": "0xClawToken",'}</div>
+          <div>{'        "to": "0xGoldToken",'}</div>
           <div>{'        "data": "0x...",'}</div>
           <div>{'        "value": "0",'}</div>
           <div>{'        "chainId": 8453'}</div>

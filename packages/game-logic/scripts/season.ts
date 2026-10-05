@@ -12,7 +12,7 @@ const fM = (v: number) => `${(v / 1e6).toFixed(1)}M`;
 
 say('# Season burn — S1 budget 352.5M, 60 days, launch baseReward 1,250');
 say();
-say('Assumptions: 1 team per participating wallet, full-time mining; arrivals ramp over the faucet window; 50% of income retained toward tier upgrades (effective upgrade costs 12k/60k/300k $CLAW incl. market fuel); boost = +30% avg on 50% of Evolved+ teams (expected +15%); glide recomputes baseReward daily = min(1,250, remaining/(remainingDays x demand)); carve = 20% of budget reserved for boost.');
+say('Assumptions: 1 team per participating wallet, full-time mining; arrivals ramp over the faucet window; 50% of income retained toward tier upgrades (effective upgrade costs 12k/60k/300k $GOLD incl. market fuel); boost = +30% avg on 50% of Evolved+ teams (expected +15%); glide recomputes baseReward daily = min(1,250, remaining/(remainingDays x demand)); carve = 20% of budget reserved for boost.');
 say();
 
 say('## Fixed baseReward (current contract semantics) vs auto-glide');
@@ -27,7 +27,7 @@ for (const scenario of SCENARIOS) {
   }
 }
 say();
-say('Reading: "Exhaustion day" is when fixed-reward mining halts (SeasonBudgetExhausted) — everything after is zero income, boost value zero, battle qualification irrational. Glide never halts: crowding becomes declining per-team yield instead. The last column is the battle-layer stress test: the base boost needed to keep Elite battle qualification rational at the season-end reward — above the 50% schedule cap means fixed-$CLAW battle costs (stakes, repairs) have outgrown compressed mining yields and need per-season re-pegging.');
+say('Reading: "Exhaustion day" is when fixed-reward mining halts (SeasonBudgetExhausted) — everything after is zero income, boost value zero, battle qualification irrational. Glide never halts: crowding becomes declining per-team yield instead. The last column is the battle-layer stress test: the base boost needed to keep Elite battle qualification rational at the season-end reward — above the 50% schedule cap means fixed-$GOLD battle costs (stakes, repairs) have outgrown compressed mining yields and need per-season re-pegging.');
 
 const outIdx = process.argv.indexOf('--out');
 if (outIdx > 0 && process.argv[outIdx + 1]) {

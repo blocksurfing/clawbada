@@ -8,18 +8,18 @@
  * Zero-sum core untouched; the cost is reduced burn on underdog wins.
  *
  * economicEquilibrium() models profit-maximizing agents: a population over
- * comps updates toward higher expected $CLAW per battle; pick shares feed back
+ * comps updates toward higher expected $GOLD per battle; pick shares feed back
  * into the rebate. The time-averaged mix is the economic meta.
  */
 import type { Comp } from './meta';
 import { effectiveSupport } from './meta';
 
 export interface BracketEconomics {
-  /** Stake per side ($CLAW). */
+  /** Stake per side ($GOLD). */
   stake: number;
   /** Protocol fee as share of the combined pot (bps). Spec: 1000 = 10%. */
   feeBps: number;
-  /** Expected repair burn for the winner / loser ($CLAW). */
+  /** Expected repair burn for the winner / loser ($GOLD). */
   repairWinner: number;
   repairLoser: number;
 }
@@ -50,14 +50,14 @@ export function underdogWeight(share: number, rule: UnderdogRule): number {
   return (fair - share) / fair;
 }
 
-/** Winner's rebate ($CLAW) for fielding `comp` under current pick shares. */
+/** Winner's rebate ($GOLD) for fielding `comp` under current pick shares. */
 export function rebateFor(comp: Comp, shares: number[], econ: BracketEconomics, rule: UnderdogRule): number {
   const fee = (2 * econ.stake * econ.feeBps) / 10_000;
   const u = comp.reduce((s, c) => s + underdogWeight(shares[c], rule), 0) / 3;
   return fee * (rule.rebateCapBps / 10_000) * u;
 }
 
-/** Expected $CLAW per battle at win probability `p`, including the rebate on wins. */
+/** Expected $GOLD per battle at win probability `p`, including the rebate on wins. */
 export function battleEV(p: number, econ: BracketEconomics, rebate = 0): number {
   const pot = 2 * econ.stake;
   const fee = (pot * econ.feeBps) / 10_000;
@@ -69,7 +69,7 @@ export function battleEV(p: number, econ: BracketEconomics, rebate = 0): number 
 export interface EconomicEquilibrium {
   mix: number[];
   classShares: number[];
-  /** Per class: best expected $CLAW per battle among comps containing it, under the final mix. */
+  /** Per class: best expected $GOLD per battle among comps containing it, under the final mix. */
   classBestEV: number[];
   /** Per comp: EV under the final mix. */
   compEV: number[];

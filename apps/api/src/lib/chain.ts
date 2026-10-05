@@ -185,13 +185,13 @@ export async function readChainNow(): Promise<bigint> {
 
 export const WEI = 10n ** 18n;
 
-/** $CLAW cost (wei) to evolve a lobster from `fromTier`, as EvolutionLab charges it. */
+/** $GOLD cost (wei) to evolve a lobster from `fromTier`, as EvolutionLab charges it. */
 export async function readEvolutionCost(fromTier: number): Promise<bigint> {
   const lab = getEvolutionLab(client()) as any;
   return BigInt(await lab.read.EVOLUTION_COSTS([BigInt(fromTier)]));
 }
 
-/** Total $CLAW cost (wei) to breed two parents, per BreedingLab's own schedule. */
+/** Total $GOLD cost (wei) to breed two parents, per BreedingLab's own schedule. */
 export async function readBreedCost(a: { breedCount: number; generation: number }, b: { breedCount: number; generation: number }): Promise<bigint> {
   const lab = getBreedingLab(client()) as any;
   const [costA, costB] = await Promise.all([
@@ -201,7 +201,7 @@ export async function readBreedCost(a: { breedCount: number; generation: number 
   return BigInt(costA) + BigInt(costB);
 }
 
-/** $CLAW per damage point (wei) for a tier — bps of the live MiningPool base reward. */
+/** $GOLD per damage point (wei) for a tier — bps of the live MiningPool base reward. */
 export async function readRepairRate(tier: number): Promise<bigint> {
   const shop = getRepairShop(client()) as any;
   return BigInt(await shop.read.repairRate([tier]));
@@ -349,7 +349,7 @@ export interface FaucetStatus {
   closeTime: bigint;
   isEligible: boolean;
   hasClaimedLobsters: boolean;
-  hasClaimedClaw: boolean;
+  hasClaimedGold: boolean;
   /** D-10: a lobster claim is two steps. 0 = never requested. */
   lobsterClaimId: bigint;
   /** Requested but not minted yet (the keeper finalizes a couple of blocks later). */
@@ -363,12 +363,12 @@ export async function readFaucetStatus(address: string): Promise<FaucetStatus> {
   const faucet = getFaucet(c);
   const addr = address as `0x${string}`;
 
-  const [isOpen, closeTime, isEligible, hasClaimedLobsters, hasClaimedClaw, claimId] = await Promise.all([
+  const [isOpen, closeTime, isEligible, hasClaimedLobsters, hasClaimedGold, claimId] = await Promise.all([
     faucet.read.isFaucetOpen(),
     faucet.read.closeTime(),
     faucet.read.isEligible([addr]),
     faucet.read.hasClaimedLobsters([addr]),
-    faucet.read.hasClaimedClaw([addr]),
+    faucet.read.hasClaimedGold([addr]),
     faucet.read.claimIdOf([addr]),
   ]);
   const lobsterClaimId = claimId as bigint;
@@ -379,7 +379,7 @@ export async function readFaucetStatus(address: string): Promise<FaucetStatus> {
     closeTime: closeTime as bigint,
     isEligible: isEligible as boolean,
     hasClaimedLobsters: hasClaimedLobsters as boolean,
-    hasClaimedClaw: hasClaimedClaw as boolean,
+    hasClaimedGold: hasClaimedGold as boolean,
     lobsterClaimId,
     lobsterClaimPending: !!claim && !claim.finalized,
     lobsterClaimTargetBlock: claim ? BigInt(claim.targetBlock) : 0n,

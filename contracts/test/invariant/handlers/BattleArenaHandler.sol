@@ -49,7 +49,7 @@ contract BattleArenaHandler is BaseSetup {
     uint256 public ghostPoolEvolutions;
 
     // ─── Model (ghost) state ───
-    uint256 public ghostEscrow; // CLAW the arena owes to battles
+    uint256 public ghostEscrow; // GOLD the arena owes to battles
     uint256 public ghostReserve; // refund reserve
     uint256 public ghostAlice; // expected balance of aliceH
     uint256 public ghostBob; // expected balance of bobH
@@ -88,8 +88,8 @@ contract BattleArenaHandler is BaseSetup {
         return battleArena;
     }
 
-    function getClaw() external view returns (ClawToken) {
-        return claw;
+    function getGold() external view returns (GoldToken) {
+        return gold;
     }
 
     function getTeamManager() external view returns (TeamManager) {
@@ -111,13 +111,13 @@ contract BattleArenaHandler is BaseSetup {
     constructor() {
         setUp();
 
-        _giveClaw(aliceH, PLAYER_FUNDS);
-        _giveClaw(bobH, PLAYER_FUNDS);
-        _giveClaw(funderH, FUNDER_FUNDS);
+        _giveGold(aliceH, PLAYER_FUNDS);
+        _giveGold(bobH, PLAYER_FUNDS);
+        _giveGold(funderH, FUNDER_FUNDS);
         ghostAlice = PLAYER_FUNDS;
         ghostBob = PLAYER_FUNDS;
         ghostFunder = FUNDER_FUNDS;
-        initialSupply = claw.totalSupply();
+        initialSupply = gold.totalSupply();
 
         vm.startPrank(admin);
         battleArena.grantRole(battleArena.MATCHMAKER_ROLE(), address(this));
@@ -126,7 +126,7 @@ contract BattleArenaHandler is BaseSetup {
         vm.stopPrank();
 
         vm.prank(funderH);
-        claw.approve(address(battleArena), type(uint256).max);
+        gold.approve(address(battleArena), type(uint256).max);
     }
 
     // ─────────── Helpers ───────────
@@ -345,7 +345,7 @@ contract BattleArenaHandler is BaseSetup {
     {
         require(msg.sender == address(this), "handler-only");
         vm.startPrank(who);
-        claw.approve(address(battleArena), total);
+        gold.approve(address(battleArena), total);
         // Stop the prank on BOTH paths: a revert would otherwise leave it running into the next
         // handler call (cheatcode state is not rolled back with the reverted frame).
         try battleArena.deposit(battleId, stake, oppPower, h) {

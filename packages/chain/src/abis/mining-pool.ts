@@ -8,7 +8,7 @@ export const MiningPoolAbi = [
         "internalType": "address"
       },
       {
-        "name": "clawToken_",
+        "name": "goldToken_",
         "type": "address",
         "internalType": "address"
       },
@@ -329,19 +329,6 @@ export const MiningPoolAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "clawToken",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract ClawToken"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -676,6 +663,19 @@ export const MiningPoolAbi = [
             "internalType": "uint8"
           }
         ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "goldToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract GoldToken"
       }
     ],
     "stateMutability": "view"

@@ -9,7 +9,7 @@ import { PlayerAgent } from './agent';
 
 const deployment: Deployment = {
   network: 'base-sepolia', chainId: 84532, deployer: KEYS.deployer.address,
-  contracts: Object.fromEntries(['ClawToken', 'LobsterNFT', 'Treasury', 'BattleVRF', 'TeamManager', 'Faucet', 'MiningPool', 'BreedingLab', 'EvolutionLab', 'RepairShop', 'Marketplace', 'BattleArena'].map((n, i) => [n, `0x${(i + 1).toString(16).padStart(40, '0')}`])) as Deployment['contracts'],
+  contracts: Object.fromEntries(['GoldToken', 'LobsterNFT', 'Treasury', 'BattleVRF', 'TeamManager', 'Faucet', 'MiningPool', 'BreedingLab', 'EvolutionLab', 'RepairShop', 'Marketplace', 'BattleArena'].map((n, i) => [n, `0x${(i + 1).toString(16).padStart(40, '0')}`])) as Deployment['contracts'],
 };
 
 describe('drand stub', () => {

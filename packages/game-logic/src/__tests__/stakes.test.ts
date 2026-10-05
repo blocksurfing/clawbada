@@ -36,7 +36,7 @@ describe('stakeFor (D-E damped live peg — mirror of BattleArena.stakeFor)', ()
     expect(stakeReferenceWei(0n, 3_000n * C)).toBe(1_250n * C);
   });
 
-  test('whole CLAW, never above launch, monotone in the reference', () => {
+  test('whole GOLD, never above launch, monotone in the reference', () => {
     let prev = [0n, 0n, 0n];
     for (let ref = 1n; ref <= 1_250n; ref += 7n) {
       const s = stakesFor(ref * C);

@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {MiningPoolHandler} from "./handlers/MiningPoolHandler.sol";
 import {MiningPool} from "../../MiningPool.sol";
-import {ClawToken} from "../../ClawToken.sol";
+import {GoldToken} from "../../GoldToken.sol";
 import {TeamManager} from "../../TeamManager.sol";
 
 /// @dev Stateful invariant harness for MiningPool. The handler drives the
@@ -86,13 +86,13 @@ contract InvariantMiningPool is Test {
 
     // ─── I-2: escrow balance matches unclaimed reward sum ──────────
     //
-    // CLAW held by MiningPool == sum(expedition.reward) over every
+    // GOLD held by MiningPool == sum(expedition.reward) over every
     // unclaimed expedition ever started. Catches: lost escrow (balance
     // drained outside the claim/adminRelease paths), double-mint, or
     // accidental burn-before-set in adminReleaseExpedition.
     function invariant_escrowMatchesUnclaimedRewards() public view {
         MiningPool pool = handler.getMiningPool();
-        ClawToken claw = handler.getClaw();
+        GoldToken gold = handler.getGold();
         uint256 n = handler.expeditionIdsLength();
 
         uint256 expectedEscrow = 0;
@@ -102,9 +102,9 @@ contract InvariantMiningPool is Test {
             if (!e.claimed) expectedEscrow += e.reward;
         }
         assertEq(
-            claw.balanceOf(address(pool)),
+            gold.balanceOf(address(pool)),
             expectedEscrow,
-            "MiningPool CLAW balance != sum of unclaimed expedition rewards"
+            "MiningPool GOLD balance != sum of unclaimed expedition rewards"
         );
     }
 

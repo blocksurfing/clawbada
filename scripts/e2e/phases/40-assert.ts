@@ -38,14 +38,14 @@ export async function assertPhase(stack: Stack, players: Players, battle: Battle
     checks.eq(dB, -stake / 10n, 'draw: B pays 10% of its stake');
   } else {
     const [dw, dl] = winner === aAddr ? [dA, dB] : [dB, dA];
-    checks.eq(dw, pot - pot / 10n - stake, `winner net +${(pot - pot / 10n - stake) / WEI} CLAW`);
-    checks.eq(dl, -stake - slash, `loser net −${(stake + slash) / WEI} CLAW${forfeited ? ' (forfeited the anti-grief deposit)' : ''}`);
+    checks.eq(dw, pot - pot / 10n - stake, `winner net +${(pot - pot / 10n - stake) / WEI} GOLD`);
+    checks.eq(dl, -stake - slash, `loser net −${(stake + slash) / WEI} GOLD${forfeited ? ' (forfeited the anti-grief deposit)' : ''}`);
   }
   // The breeding fee takes the same Treasury route as the battle fee: 85 % burned, 15 % to dev.
   const supplyDelta = (await chain.totalSupply()) - battle.balancesBefore.supply - mining.reward + (breeding.cost * 85n) / 100n;
   const devDelta = (await chain.balance(KEYS.devWallet.address)) - battle.balancesBefore.dev - (breeding.cost * 15n) / 100n;
-  checks.check(supplyDelta === -(fee * 85n) / 100n, 'protocol fee: 85 % burned', `supply Δ ${supplyDelta / WEI} CLAW (fee ${fee / WEI})`);
-  checks.check(devDelta === (fee * 15n) / 100n, 'protocol fee: 15 % to the dev wallet', `dev Δ ${devDelta / WEI} CLAW`);
+  checks.check(supplyDelta === -(fee * 85n) / 100n, 'protocol fee: 85 % burned', `supply Δ ${supplyDelta / WEI} GOLD (fee ${fee / WEI})`);
+  checks.check(devDelta === (fee * 15n) / 100n, 'protocol fee: 15 % to the dev wallet', `dev Δ ${devDelta / WEI} GOLD`);
 
   // ── teams released, damage applied ──
   for (const p of [players.a, players.b]) {

@@ -7,7 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {TeamManager} from "./TeamManager.sol";
-import {Treasury, IClawBurnable} from "./Treasury.sol";
+import {Treasury, IGoldBurnable} from "./Treasury.sol";
 import {BattleVRF} from "./BattleVRF.sol";
 
 /// @dev D-E: what BattleArena needs from MiningPool — the daily stake reference (0 before any season)
@@ -169,7 +169,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     }
 
     // ──────────── State ────────────
-    IERC20 public clawToken;
+    IERC20 public goldToken;
     LobsterNFT public lobsterNFT;
     TeamManager public teamManager;
     Treasury public treasury;
@@ -186,7 +186,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     uint256[3] public pendingReviewWindow;
     uint64[3] public pendingReviewWindowAt;
 
-    /// @notice CLAW held for paying players back when a frozen result expires. Never escrow.
+    /// @notice GOLD held for paying players back when a frozen result expires. Never escrow.
     uint256 public refundReserve;
 
     // ──────────── Events ────────────
@@ -263,7 +263,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     constructor(
         address admin,
-        address clawToken_,
+        address goldToken_,
         address lobsterNFT_,
         address teamManager_,
         address treasury_,
@@ -271,7 +271,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         address miningPool_
     ) {
         if (
-            admin == address(0) || clawToken_ == address(0) || lobsterNFT_ == address(0)
+            admin == address(0) || goldToken_ == address(0) || lobsterNFT_ == address(0)
                 || teamManager_ == address(0) || treasury_ == address(0) || battleVRF_ == address(0)
                 || miningPool_ == address(0)
         ) {
@@ -280,7 +280,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
-        clawToken = IERC20(clawToken_);
+        goldToken = IERC20(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         teamManager = TeamManager(teamManager_);
         treasury = Treasury(treasury_);
@@ -334,7 +334,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     // ──────────── D-E: stake peg ────────────
 
-    /// @notice The stake a battle created now in `bracket` would bind, in CLAW wei.
+    /// @notice The stake a battle created now in `bracket` would bind, in GOLD wei.
     /// @dev stake = multiplier × unit, where
     ///      unit = (GENESIS × fixedBps + reference × (10,000 − fixedBps)) / 10,000 and
     ///      reference = MiningPool.stakeReference (the base reward sampled once per season-day),
@@ -343,7 +343,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     ///      exactly 2,500 / 10,000 / 50,000. The reference is capped at GENESIS: the glide
     ///      never exceeds the launch reward, and a stake never exceeds its launch value.
     ///      Computed with ONE division (multiplier × unit × 10,000 / 10,000), then rounded DOWN
-    ///      to a whole CLAW so quoted amounts are readable.
+    ///      to a whole GOLD so quoted amounts are readable.
     function stakeFor(uint8 bracket) public view returns (uint256) {
         if (bracket >= NUM_STAKE_BRACKETS) revert InvalidStakeBracket(bracket);
         return _stakeFor(bracket, _stakeReference());
@@ -356,7 +356,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         if (ref == 0 || ref > GENESIS_BASE_REWARD) ref = GENESIS_BASE_REWARD;
     }
 
-    /// @dev multiplier × (GENESIS × fixed + ref × (10,000 − fixed)) / 10,000, floored to a whole CLAW.
+    /// @dev multiplier × (GENESIS × fixed + ref × (10,000 − fixed)) / 10,000, floored to a whole GOLD.
     function _stakeFor(uint8 bracket, uint256 ref) internal view returns (uint256) {
         uint256 unitBps = GENESIS_BASE_REWARD * stakeFixedBps + ref * (BPS_DENOMINATOR - stakeFixedBps);
         uint256 stake = (stakeMultiplier(bracket) * unitBps) / BPS_DENOMINATOR;
@@ -371,7 +371,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         revert InvalidStakeBracket(bracket);
     }
 
-    /// @notice The three bracket stakes as they stand now (Low, Mid, High), in CLAW wei.
+    /// @notice The three bracket stakes as they stand now (Low, Mid, High), in GOLD wei.
     function currentStakes() external view returns (uint256[3] memory stakes) {
         uint256 ref = _stakeReference();
         for (uint8 i = 0; i < NUM_STAKE_BRACKETS; i++) {
@@ -435,7 +435,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         }
 
         uint256 total = b.stakeAmount + _antiGrief(b);
-        clawToken.safeTransferFrom(msg.sender, address(this), total);
+        goldToken.safeTransferFrom(msg.sender, address(this), total);
 
         emit StakeDeposited(battleId, msg.sender);
         emit TeamCommitted(battleId, msg.sender);
@@ -636,8 +636,8 @@ contract BattleArena is AccessControl, ReentrancyGuard {
             b.winner = address(0);
             uint256 back = b.stakeAmount + _antiGrief(b);
             emit FrozenResolved(battleId, address(0), true);
-            clawToken.safeTransfer(b.playerA, back);
-            clawToken.safeTransfer(b.playerB, back);
+            goldToken.safeTransfer(b.playerA, back);
+            goldToken.safeTransfer(b.playerB, back);
             emit BattleSettled(battleId, address(0), 0, 0);
             return;
         }
@@ -655,20 +655,20 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         _expireFrozen(battleId);
     }
 
-    /// @notice Add CLAW to the refund reserve (pulled from the caller; approve first).
+    /// @notice Add GOLD to the refund reserve (pulled from the caller; approve first).
     function fundReserve(uint256 amount) external nonReentrant {
         refundReserve += amount;
         emit ReserveFunded(msg.sender, amount);
-        clawToken.safeTransferFrom(msg.sender, address(this), amount);
+        goldToken.safeTransferFrom(msg.sender, address(this), amount);
     }
 
-    /// @notice The Safe takes CLAW out of the refund reserve. Escrow is never reachable this way.
+    /// @notice The Safe takes GOLD out of the refund reserve. Escrow is never reachable this way.
     function withdrawReserve(address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (to == address(0)) revert ZeroAddress();
         if (amount > refundReserve) revert InsufficientReserve(amount, refundReserve);
         refundReserve -= amount;
         emit ReserveWithdrawn(to, amount);
-        clawToken.safeTransfer(to, amount);
+        goldToken.safeTransfer(to, amount);
     }
 
     // ──────────── Admin Tuning ────────────
@@ -810,10 +810,10 @@ contract BattleArena is AccessControl, ReentrancyGuard {
             // The normal fee on the combined pot, half from each side (an odd wei falls on B).
             uint256 drawFee = b.stakeAmount * 2 * PROTOCOL_FEE_BPS / BPS_DENOMINATOR;
             uint256 feeA = drawFee / 2;
-            clawToken.forceApprove(address(treasury), drawFee);
+            goldToken.forceApprove(address(treasury), drawFee);
             treasury.processFee(drawFee);
-            clawToken.safeTransfer(b.playerA, b.stakeAmount - feeA + antiGrief);
-            clawToken.safeTransfer(b.playerB, b.stakeAmount - (drawFee - feeA) + antiGrief);
+            goldToken.safeTransfer(b.playerA, b.stakeAmount - feeA + antiGrief);
+            goldToken.safeTransfer(b.playerB, b.stakeAmount - (drawFee - feeA) + antiGrief);
             emit BattleSettled(battleId, address(0), 0, drawFee);
             return;
         }
@@ -824,12 +824,12 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         uint256 winnerPayout = combinedPot - protocolFee;
         uint256 slashed = forfeiter == loser ? antiGrief : 0;
 
-        clawToken.forceApprove(address(treasury), protocolFee + slashed);
+        goldToken.forceApprove(address(treasury), protocolFee + slashed);
         treasury.processFee(protocolFee + slashed);
         if (slashed > 0) emit AntiGriefSlashed(battleId, loser, slashed);
 
-        clawToken.safeTransfer(winner, winnerPayout + antiGrief);
-        if (slashed == 0) clawToken.safeTransfer(loser, antiGrief);
+        goldToken.safeTransfer(winner, winnerPayout + antiGrief);
+        if (slashed == 0) goldToken.safeTransfer(loser, antiGrief);
 
         emit BattleSettled(battleId, winner, winnerPayout, protocolFee);
     }
@@ -846,14 +846,14 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         if (refundReserve >= stakes) {
             refundReserve -= stakes;
             emit FrozenExpired(battleId, stakes, stakes);
-            IClawBurnable(address(clawToken)).burn(stakes);
+            IGoldBurnable(address(goldToken)).burn(stakes);
         } else {
             emit FrozenExpired(battleId, 0, 0);
         }
         // Either way each player gets their stake + anti-grief back: from the reserve (the held
         // stakes having been burned) or, with the reserve short, the held stakes themselves.
-        clawToken.safeTransfer(b.playerA, b.stakeAmount + antiGrief);
-        clawToken.safeTransfer(b.playerB, b.stakeAmount + antiGrief);
+        goldToken.safeTransfer(b.playerA, b.stakeAmount + antiGrief);
+        goldToken.safeTransfer(b.playerB, b.stakeAmount + antiGrief);
         emit BattleSettled(battleId, address(0), 0, 0);
     }
 
@@ -891,13 +891,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         uint256 antiGrief = _antiGrief(b);
         uint256 slashed = (slashA ? antiGrief : 0) + (slashB ? antiGrief : 0);
         if (slashed > 0) {
-            clawToken.forceApprove(address(treasury), slashed);
+            goldToken.forceApprove(address(treasury), slashed);
             treasury.processFee(slashed);
             if (slashA) emit AntiGriefSlashed(battleId, b.playerA, antiGrief);
             if (slashB) emit AntiGriefSlashed(battleId, b.playerB, antiGrief);
         }
-        if (b.depositA) clawToken.safeTransfer(b.playerA, b.stakeAmount + (slashA ? 0 : antiGrief));
-        if (b.depositB) clawToken.safeTransfer(b.playerB, b.stakeAmount + (slashB ? 0 : antiGrief));
+        if (b.depositA) goldToken.safeTransfer(b.playerA, b.stakeAmount + (slashA ? 0 : antiGrief));
+        if (b.depositB) goldToken.safeTransfer(b.playerB, b.stakeAmount + (slashB ? 0 : antiGrief));
         if (b.teamRevealedA) _releaseTeam(b.teamIdA);
         if (b.teamRevealedB) _releaseTeam(b.teamIdB);
         emit BattleCancelled(battleId, reason);

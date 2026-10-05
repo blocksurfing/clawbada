@@ -3,12 +3,12 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {Treasury} from "../../Treasury.sol";
-import {ClawToken} from "../../ClawToken.sol";
+import {GoldToken} from "../../GoldToken.sol";
 
 /// @dev Fuzz tests for Treasury fee-split math and access control.
 contract FuzzTreasury is Test {
     Treasury   internal treasury;
-    ClawToken  internal claw;
+    GoldToken  internal gold;
     address    internal admin     = makeAddr("admin");
     address    internal devWallet = makeAddr("dev");
     address    internal lpWallet  = makeAddr("lp");
@@ -19,10 +19,10 @@ contract FuzzTreasury is Test {
         vm.startPrank(admin);
         treasury = new Treasury(admin, devWallet);
         // TOK-H1: mint the 100M reserve to a dedicated holder, never the fee-splitter.
-        claw     = new ClawToken(admin, lpWallet, reserveWallet);
-        treasury.setClawToken(address(claw));
+        gold     = new GoldToken(admin, lpWallet, reserveWallet);
+        treasury.setGoldToken(address(gold));
         treasury.setAuthorized(authorized, true);
-        claw.grantRole(claw.MINTER_ROLE(), authorized);
+        gold.grantRole(gold.MINTER_ROLE(), authorized);
         vm.stopPrank();
     }
 
@@ -30,23 +30,23 @@ contract FuzzTreasury is Test {
 
     function testFuzz_fee_split_no_loss(uint256 amount) public {
         // Cap to realistic amounts — min is BPS_DENOMINATOR per the T-03 guard.
-        amount = bound(amount, treasury.BPS_DENOMINATOR(), claw.balanceOf(lpWallet));
+        amount = bound(amount, treasury.BPS_DENOMINATOR(), gold.balanceOf(lpWallet));
 
-        // Give authorized some CLAW
+        // Give authorized some GOLD
         vm.prank(lpWallet);
-        claw.transfer(authorized, amount);
+        gold.transfer(authorized, amount);
 
-        uint256 devBefore    = claw.balanceOf(devWallet);
-        uint256 supplyBefore = claw.totalSupply();
+        uint256 devBefore    = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
 
         // Approve treasury then process fee
         vm.startPrank(authorized);
-        claw.approve(address(treasury), amount);
+        gold.approve(address(treasury), amount);
         treasury.processFee(amount);
         vm.stopPrank();
 
-        uint256 burned  = supplyBefore - claw.totalSupply();
-        uint256 devGot  = claw.balanceOf(devWallet) - devBefore;
+        uint256 burned  = supplyBefore - gold.totalSupply();
+        uint256 devGot  = gold.balanceOf(devWallet) - devBefore;
 
         // No dust: burned + devGot == amount
         assertEq(burned + devGot, amount, "burn+dev must equal amount");
@@ -56,21 +56,21 @@ contract FuzzTreasury is Test {
 
     function testFuzz_fee_split_proportions(uint256 amount) public {
         // Min = BPS_DENOMINATOR per the T-03 guard (also avoids rounding skew).
-        amount = bound(amount, treasury.BPS_DENOMINATOR(), claw.balanceOf(lpWallet));
+        amount = bound(amount, treasury.BPS_DENOMINATOR(), gold.balanceOf(lpWallet));
 
         vm.prank(lpWallet);
-        claw.transfer(authorized, amount);
+        gold.transfer(authorized, amount);
 
-        uint256 supplyBefore = claw.totalSupply();
-        uint256 devBefore    = claw.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
+        uint256 devBefore    = gold.balanceOf(devWallet);
 
         vm.startPrank(authorized);
-        claw.approve(address(treasury), amount);
+        gold.approve(address(treasury), amount);
         treasury.processFee(amount);
         vm.stopPrank();
 
-        uint256 burned = supplyBefore - claw.totalSupply();
-        uint256 devGot = claw.balanceOf(devWallet) - devBefore;
+        uint256 burned = supplyBefore - gold.totalSupply();
+        uint256 devGot = gold.balanceOf(devWallet) - devBefore;
 
         uint256 expectedBurn = (amount * treasury.BURN_BPS()) / treasury.BPS_DENOMINATOR();
         uint256 expectedDev  = amount - expectedBurn; // remainder avoids rounding dust
@@ -85,10 +85,10 @@ contract FuzzTreasury is Test {
         vm.assume(caller != authorized && caller != address(0));
 
         vm.prank(lpWallet);
-        claw.transfer(caller, 1000e18);
+        gold.transfer(caller, 1000e18);
 
         vm.startPrank(caller);
-        claw.approve(address(treasury), 1000e18);
+        gold.approve(address(treasury), 1000e18);
         vm.expectRevert(Treasury.NotAuthorized.selector);
         treasury.processFee(1000e18);
         vm.stopPrank();
@@ -96,7 +96,7 @@ contract FuzzTreasury is Test {
 
     function test_zero_amount_reverts() public {
         vm.startPrank(authorized);
-        claw.approve(address(treasury), 0);
+        gold.approve(address(treasury), 0);
         vm.expectRevert(Treasury.ZeroAmount.selector);
         treasury.processFee(0);
         vm.stopPrank();
@@ -104,10 +104,10 @@ contract FuzzTreasury is Test {
 
     // ── Token not set ─────────────────────────────────────────────
 
-    function test_claw_token_already_set_reverts() public {
+    function test_gold_token_already_set_reverts() public {
         vm.prank(admin);
         vm.expectRevert(Treasury.TokenAlreadySet.selector);
-        treasury.setClawToken(address(claw));
+        treasury.setGoldToken(address(gold));
     }
 
     // ── Dev wallet update ─────────────────────────────────────────
@@ -142,52 +142,52 @@ contract FuzzTreasury is Test {
     // genesis reserve is minted to a separate holding account (reserveWallet here;
     // a governance Safe in production), never to this contract.
     function test_treasury_holds_zero_reserve() public view {
-        assertEq(claw.balanceOf(address(treasury)), 0, "TOK-H1: fee-splitter must not custody the reserve");
-        assertEq(claw.balanceOf(reserveWallet), 100_000_000e18, "reserve held by the dedicated account");
+        assertEq(gold.balanceOf(address(treasury)), 0, "TOK-H1: fee-splitter must not custody the reserve");
+        assertEq(gold.balanceOf(reserveWallet), 100_000_000e18, "reserve held by the dedicated account");
     }
 
-    // Zero-delta invariant: processFee must not change Treasury's CLAW
+    // Zero-delta invariant: processFee must not change Treasury's GOLD
     // balance. The flow pulls `amount`, burns 85%, forwards 15% — net
     // balance delta of zero. Treasury holds no standing balance (TOK-H1),
     // so this also confirms processFee never makes it accumulate.
     function testFuzz_treasury_never_accumulates(uint256 amount) public {
-        amount = bound(amount, treasury.BPS_DENOMINATOR(), claw.balanceOf(lpWallet) / 10);
+        amount = bound(amount, treasury.BPS_DENOMINATOR(), gold.balanceOf(lpWallet) / 10);
 
-        uint256 balBefore = claw.balanceOf(address(treasury));
+        uint256 balBefore = gold.balanceOf(address(treasury));
 
         vm.prank(lpWallet);
-        claw.transfer(authorized, amount);
+        gold.transfer(authorized, amount);
 
         vm.startPrank(authorized);
-        claw.approve(address(treasury), amount);
+        gold.approve(address(treasury), amount);
         treasury.processFee(amount);
         vm.stopPrank();
 
-        assertEq(claw.balanceOf(address(treasury)), balBefore, "Treasury balance unchanged by processFee");
+        assertEq(gold.balanceOf(address(treasury)), balBefore, "Treasury balance unchanged by processFee");
     }
 
     // Same zero-delta property across multiple sequential calls, fuzzing
     // each amount. Catches any cumulative drift.
     function testFuzz_treasury_zero_across_multiple_calls(uint256 amt1, uint256 amt2, uint256 amt3) public {
         uint256 minAmt = treasury.BPS_DENOMINATOR();
-        amt1 = bound(amt1, minAmt, claw.balanceOf(lpWallet) / 10);
-        amt2 = bound(amt2, minAmt, claw.balanceOf(lpWallet) / 10);
-        amt3 = bound(amt3, minAmt, claw.balanceOf(lpWallet) / 10);
+        amt1 = bound(amt1, minAmt, gold.balanceOf(lpWallet) / 10);
+        amt2 = bound(amt2, minAmt, gold.balanceOf(lpWallet) / 10);
+        amt3 = bound(amt3, minAmt, gold.balanceOf(lpWallet) / 10);
 
-        uint256 balBefore = claw.balanceOf(address(treasury));
+        uint256 balBefore = gold.balanceOf(address(treasury));
         _doFee(amt1);
-        assertEq(claw.balanceOf(address(treasury)), balBefore, "after call 1");
+        assertEq(gold.balanceOf(address(treasury)), balBefore, "after call 1");
         _doFee(amt2);
-        assertEq(claw.balanceOf(address(treasury)), balBefore, "after call 2");
+        assertEq(gold.balanceOf(address(treasury)), balBefore, "after call 2");
         _doFee(amt3);
-        assertEq(claw.balanceOf(address(treasury)), balBefore, "after call 3");
+        assertEq(gold.balanceOf(address(treasury)), balBefore, "after call 3");
     }
 
     function _doFee(uint256 amount) internal {
         vm.prank(lpWallet);
-        claw.transfer(authorized, amount);
+        gold.transfer(authorized, amount);
         vm.startPrank(authorized);
-        claw.approve(address(treasury), amount);
+        gold.approve(address(treasury), amount);
         treasury.processFee(amount);
         vm.stopPrank();
     }
@@ -199,9 +199,9 @@ contract FuzzTreasury is Test {
 
         // First fee goes to old wallet
         _doFee(1_000e18);
-        uint256 oldDevBefore = claw.balanceOf(devWallet);
+        uint256 oldDevBefore = gold.balanceOf(devWallet);
         _doFee(1_000e18);
-        uint256 oldDevAfter = claw.balanceOf(devWallet);
+        uint256 oldDevAfter = gold.balanceOf(devWallet);
         assertGt(oldDevAfter, oldDevBefore, "old dev received from 2nd fee");
 
         // Update dev wallet
@@ -209,11 +209,11 @@ contract FuzzTreasury is Test {
         treasury.setDevWallet(newDev);
 
         // Future fees go to new wallet
-        uint256 newDevBefore = claw.balanceOf(newDev);
-        uint256 oldDevBefore2 = claw.balanceOf(devWallet);
+        uint256 newDevBefore = gold.balanceOf(newDev);
+        uint256 oldDevBefore2 = gold.balanceOf(devWallet);
         _doFee(1_000e18);
-        assertGt(claw.balanceOf(newDev), newDevBefore, "new dev received");
-        assertEq(claw.balanceOf(devWallet), oldDevBefore2, "old dev balance unchanged");
+        assertGt(gold.balanceOf(newDev), newDevBefore, "new dev received");
+        assertEq(gold.balanceOf(devWallet), oldDevBefore2, "old dev balance unchanged");
     }
 
     // Revoking authorization blocks future processFee calls from that
@@ -228,10 +228,10 @@ contract FuzzTreasury is Test {
 
         // Next call reverts
         vm.prank(lpWallet);
-        claw.transfer(authorized, 1_000e18);
+        gold.transfer(authorized, 1_000e18);
 
         vm.startPrank(authorized);
-        claw.approve(address(treasury), 1_000e18);
+        gold.approve(address(treasury), 1_000e18);
         vm.expectRevert(Treasury.NotAuthorized.selector);
         treasury.processFee(1_000e18);
         vm.stopPrank();
@@ -272,7 +272,7 @@ contract FuzzTreasury is Test {
     // Fee-split math holds at MAX_SUPPLY (upper bound on any realistic
     // single fee amount). Pure arithmetic check — no state exercise.
     function test_processFee_math_holds_at_max_supply() public view {
-        uint256 maxSupply = claw.MAX_SUPPLY();
+        uint256 maxSupply = gold.MAX_SUPPLY();
         uint256 burnAtMax = (maxSupply * treasury.BURN_BPS()) / treasury.BPS_DENOMINATOR();
         uint256 devAtMax = maxSupply - burnAtMax;
         assertEq(burnAtMax + devAtMax, maxSupply, "full-supply split preserves sum");
@@ -287,10 +287,10 @@ contract FuzzTreasury is Test {
         amount = bound(amount, 1, treasury.BPS_DENOMINATOR() - 1);
 
         vm.prank(lpWallet);
-        claw.transfer(authorized, amount);
+        gold.transfer(authorized, amount);
 
         vm.startPrank(authorized);
-        claw.approve(address(treasury), amount);
+        gold.approve(address(treasury), amount);
         vm.expectRevert(
             abi.encodeWithSelector(Treasury.AmountBelowMinimum.selector, amount, treasury.BPS_DENOMINATOR())
         );
@@ -304,18 +304,18 @@ contract FuzzTreasury is Test {
         uint256 amount = treasury.BPS_DENOMINATOR(); // 10_000 wei
 
         vm.prank(lpWallet);
-        claw.transfer(authorized, amount);
+        gold.transfer(authorized, amount);
 
-        uint256 supplyBefore = claw.totalSupply();
-        uint256 devBefore = claw.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
+        uint256 devBefore = gold.balanceOf(devWallet);
 
         vm.startPrank(authorized);
-        claw.approve(address(treasury), amount);
+        gold.approve(address(treasury), amount);
         treasury.processFee(amount);
         vm.stopPrank();
 
-        uint256 burned = supplyBefore - claw.totalSupply();
-        uint256 devGot = claw.balanceOf(devWallet) - devBefore;
+        uint256 burned = supplyBefore - gold.totalSupply();
+        uint256 devGot = gold.balanceOf(devWallet) - devBefore;
 
         assertEq(burned + devGot, amount, "sum preserved at minimum");
         assertEq(burned, (amount * treasury.BURN_BPS()) / treasury.BPS_DENOMINATOR(), "burn at min matches spec");
