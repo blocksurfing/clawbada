@@ -12,6 +12,7 @@ import {MiningPool} from "../MiningPool.sol";
 import {Faucet} from "../Faucet.sol";
 import {BattleArena} from "../BattleArena.sol";
 import {BattleVRF} from "../BattleVRF.sol";
+import {PauseSwitch} from "../PauseSwitch.sol";
 
 /// @title Configure
 /// @notice Post-deployment configuration: role grants, Treasury setup, Season 1 init.
@@ -32,7 +33,7 @@ contract Configure is DeployHelpers {
         vm.stopBroadcast();
 
         console2.log("=== Configuration sent ===");
-        console2.log("Total: 6 Treasury authorizations, 16 role grants, 1 season start, 1 faucet pre-mint");
+        console2.log("Total: 6 Treasury authorizations, 17 role grants, 1 season start, 1 faucet pre-mint");
         if (block.chainid == 8453) {
             console2.log("Mainnet: the 2M GOLD refund reserve is funded by the Safe after the handoff;");
             console2.log("  confirm with VerifyDeployment --sig 'reserveFunded()' (docs/runbooks/admin-roles.md).");
@@ -55,7 +56,19 @@ contract Configure is DeployHelpers {
         _configureBattleArena(d);
         _configureBattleVRF(d);
         _configureFaucet(d);
+        _configurePauseSwitch(d);
         _fundRefundReserveOffMainnet(d);
+    }
+
+    /// @dev PAUSE-I1: the guardian (the watchdog's hot key) may pause the inflows; only
+    ///      DEFAULT_ADMIN — the Safe after the handoff — may unpause. Like GUARDIAN_ROLE, a
+    ///      hot role Handoff.s.sol leaves in place.
+    function _configurePauseSwitch(Deployment memory d) internal {
+        console2.log("--- PauseSwitch Role ---");
+        PauseSwitch ps = PauseSwitch(d.pauseSwitch);
+        ps.grantRole(ps.PAUSER_ROLE(), guardianAddress);
+        console2.log("  PAUSER_ROLE ->", guardianAddress);
+        console2.log("");
     }
 
     function _configureTreasury(Deployment memory d) internal {

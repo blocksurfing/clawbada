@@ -7,7 +7,7 @@ import { createPublicClient, createWalletClient, http, parseEventLogs, type Abi,
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import {
-  BattleArenaAbi, GoldTokenAbi, LobsterNFTAbi, TeamManagerAbi, MiningPoolAbi, FaucetAbi, EvolutionLabAbi,
+  BattleArenaAbi, GoldTokenAbi, LobsterNFTAbi, TeamManagerAbi, MiningPoolAbi, FaucetAbi, EvolutionLabAbi, PauseSwitchAbi,
 } from '@clawbada/chain';
 import type { Deployment } from './forge';
 
@@ -111,4 +111,4 @@ export function dna(seed: number): bigint {
   return v;
 }
 
-export { BattleArenaAbi, GoldTokenAbi, LobsterNFTAbi, TeamManagerAbi, MiningPoolAbi, FaucetAbi, EvolutionLabAbi };
+export { BattleArenaAbi, GoldTokenAbi, LobsterNFTAbi, TeamManagerAbi, MiningPoolAbi, FaucetAbi, EvolutionLabAbi, PauseSwitchAbi };

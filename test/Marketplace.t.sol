@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {Marketplace} from "../contracts/Marketplace.sol";
+import {PauseSwitch} from "../contracts/PauseSwitch.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
@@ -10,6 +11,7 @@ import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 contract MarketplaceTest is Test {
     Marketplace marketplace;
+    PauseSwitch ps;
     LobsterNFT nft;
     GoldToken gold;
     Treasury treasury;
@@ -31,7 +33,8 @@ contract MarketplaceTest is Test {
         gold = new GoldToken(admin, lpAddress, address(treasury));
         treasury.setGoldToken(address(gold));
 
-        marketplace = new Marketplace(address(gold), address(nft), address(treasury));
+        ps = new PauseSwitch(admin);
+        marketplace = new Marketplace(address(gold), address(nft), address(treasury), address(ps));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -85,17 +88,17 @@ contract MarketplaceTest is Test {
 
     function test_constructorZeroGoldReverts() public {
         vm.expectRevert(Marketplace.ZeroAddress.selector);
-        new Marketplace(address(0), address(nft), address(treasury));
+        new Marketplace(address(0), address(nft), address(treasury), address(ps));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(Marketplace.ZeroAddress.selector);
-        new Marketplace(address(gold), address(0), address(treasury));
+        new Marketplace(address(gold), address(0), address(treasury), address(ps));
     }
 
     function test_constructorZeroTreasuryReverts() public {
         vm.expectRevert(Marketplace.ZeroAddress.selector);
-        new Marketplace(address(gold), address(nft), address(0));
+        new Marketplace(address(gold), address(nft), address(0), address(ps));
     }
 
     // ──────────── listLobster() ────────────

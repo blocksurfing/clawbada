@@ -16,6 +16,11 @@ export const BreedingLabAbi = [
         "name": "treasury_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "pauseSwitch_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -292,6 +297,19 @@ export const BreedingLabAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pauseSwitch",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPauseSwitch"
       }
     ],
     "stateMutability": "view"
@@ -597,6 +615,11 @@ export const BreedingLabAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "ProtocolPaused",
+    "inputs": []
   },
   {
     "type": "error",

@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
+import {IPauseSwitch} from "./PauseSwitch.sol";
 
 /// @title EvolutionLab — Lobster evolution for Clawbada
 /// @notice Evolves a single lobster by burning 2 fuel lobsters of the same tier + $GOLD fee.
@@ -23,6 +24,8 @@ contract EvolutionLab is ReentrancyGuard {
     IERC20 public goldToken;
     LobsterNFT public lobsterNFT;
     Treasury public treasury;
+    /// @dev PAUSE-I1: the protocol's emergency stop; gates only the money-in entry points of this contract.
+    IPauseSwitch public immutable pauseSwitch;
 
     // ──────────── Events ────────────
     event LobsterEvolved(
@@ -39,16 +42,26 @@ contract EvolutionLab is ReentrancyGuard {
 
     // ──────────── Constructor ────────────
 
+    /// @dev PAUSE-I1: money-IN entry points only — every exit always works (see PauseSwitch.sol).
+    modifier whenNotPaused() {
+        // Reverted HERE (not bubbled from the switch) so ProtocolPaused is in this contract's ABI.
+        if (pauseSwitch.paused()) revert IPauseSwitch.ProtocolPaused();
+        _;
+    }
+
     /// @param goldToken_ The $GOLD ERC-20 token
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param treasury_ The Treasury fee splitter
-    constructor(address goldToken_, address lobsterNFT_, address treasury_) {
-        if (goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)) {
+    constructor(address goldToken_, address lobsterNFT_, address treasury_, address pauseSwitch_) {
+        if (
+            goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0) || pauseSwitch_ == address(0)
+        ) {
             revert ZeroAddress();
         }
         goldToken = IERC20(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         treasury = Treasury(treasury_);
+        pauseSwitch = IPauseSwitch(pauseSwitch_);
     }
 
     // ──────────── Core ────────────
@@ -57,7 +70,7 @@ contract EvolutionLab is ReentrancyGuard {
     /// @param lobsterId The lobster to evolve
     /// @param fuelId1 First fuel lobster (burned)
     /// @param fuelId2 Second fuel lobster (burned)
-    function evolve(uint256 lobsterId, uint256 fuelId1, uint256 fuelId2) external nonReentrant {
+    function evolve(uint256 lobsterId, uint256 fuelId1, uint256 fuelId2) external nonReentrant whenNotPaused {
         // Validate no duplicate IDs
         if (lobsterId == fuelId1 || lobsterId == fuelId2) revert DuplicateId(lobsterId);
         if (fuelId1 == fuelId2) revert DuplicateId(fuelId1);

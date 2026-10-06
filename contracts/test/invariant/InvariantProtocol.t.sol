@@ -324,6 +324,17 @@ contract ProtocolHandler is BaseSetup {
 
     // ── Handler: the permissionless re-peg ────────────────────────
 
+    /// @dev PAUSE-I1: the switch flips during the run. Every invariant must hold paused or not;
+    ///      the inflow handlers simply revert while paused and the exits (claim, finalizeBreed)
+    ///      keep working, so the ghosts stay consistent either way.
+    function handler_togglePause(bool on) external {
+        bool p = pauseSwitch.paused();
+        if (on == p) return;
+        vm.prank(admin);
+        if (on) pauseSwitch.pause();
+        else pauseSwitch.unpause();
+    }
+
     function handler_repeg() external {
         try miningPool.repeg() {} catch {}
     }
@@ -381,7 +392,7 @@ contract InvariantProtocol is Test {
         // handler's inherited public BaseSetup.setUp() mid-run, which redeploys every
         // contract and orphans mintedIds[] / expeditionIds[] (same hazard the BattleArena
         // and MiningPool harnesses document and filter).
-        bytes4[] memory selectors = new bytes4[](12);
+        bytes4[] memory selectors = new bytes4[](13);
         selectors[0] = ProtocolHandler.handler_mint.selector;
         selectors[1] = ProtocolHandler.handler_createTeam.selector;
         selectors[2] = ProtocolHandler.handler_disbandTeam.selector;
@@ -394,6 +405,7 @@ contract InvariantProtocol is Test {
         selectors[9] = ProtocolHandler.handler_claim.selector;
         selectors[10] = ProtocolHandler.handler_warp.selector;
         selectors[11] = ProtocolHandler.handler_repeg.selector;
+        selectors[12] = ProtocolHandler.handler_togglePause.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
     }
 

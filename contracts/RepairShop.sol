@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
+import {IPauseSwitch} from "./PauseSwitch.sol";
 
 /// @dev Minimal read interface onto MiningPool's glide-pegged base reward (TOK-G1).
 interface IMiningPoolPeg {
@@ -33,6 +34,8 @@ contract RepairShop is ReentrancyGuard {
     LobsterNFT public lobsterNFT;
     Treasury public treasury;
     IMiningPoolPeg public miningPool;
+    /// @dev PAUSE-I1: the protocol's emergency stop; gates only the money-in entry points of this contract.
+    IPauseSwitch public immutable pauseSwitch;
 
     // ──────────── Events ────────────
     event LobsterRepaired(uint256 indexed lobsterId, uint8 pointsRepaired, uint8 newDamage, uint256 cost);
@@ -48,14 +51,21 @@ contract RepairShop is ReentrancyGuard {
 
     // ──────────── Constructor ────────────
 
+    /// @dev PAUSE-I1: money-IN entry points only — every exit always works (see PauseSwitch.sol).
+    modifier whenNotPaused() {
+        // Reverted HERE (not bubbled from the switch) so ProtocolPaused is in this contract's ABI.
+        if (pauseSwitch.paused()) revert IPauseSwitch.ProtocolPaused();
+        _;
+    }
+
     /// @param goldToken_ The $GOLD ERC-20 token
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param treasury_ The Treasury fee splitter
     /// @param miningPool_ The MiningPool whose glide-pegged baseReward anchors repair rates
-    constructor(address goldToken_, address lobsterNFT_, address treasury_, address miningPool_) {
+    constructor(address goldToken_, address lobsterNFT_, address treasury_, address miningPool_, address pauseSwitch_) {
         if (
             goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)
-                || miningPool_ == address(0)
+                || miningPool_ == address(0) || pauseSwitch_ == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -63,6 +73,7 @@ contract RepairShop is ReentrancyGuard {
         lobsterNFT = LobsterNFT(lobsterNFT_);
         treasury = Treasury(treasury_);
         miningPool = IMiningPoolPeg(miningPool_);
+        pauseSwitch = IPauseSwitch(pauseSwitch_);
     }
 
     // ──────────── Views ────────────
@@ -77,7 +88,7 @@ contract RepairShop is ReentrancyGuard {
     /// @notice Repair battle damage on a lobster. Partial repairs allowed.
     /// @param lobsterId The lobster to repair
     /// @param pointsToRepair Number of damage points to remove
-    function repair(uint256 lobsterId, uint8 pointsToRepair) external nonReentrant {
+    function repair(uint256 lobsterId, uint8 pointsToRepair) external nonReentrant whenNotPaused {
         if (pointsToRepair == 0) revert ZeroRepairPoints();
 
         // Validate ownership

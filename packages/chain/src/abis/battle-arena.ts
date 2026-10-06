@@ -36,6 +36,11 @@ export const BattleArenaAbi = [
         "name": "miningPool_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "pauseSwitch_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -856,6 +861,19 @@ export const BattleArenaAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "pauseSwitch",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPauseSwitch"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -2295,6 +2313,11 @@ export const BattleArenaAbi = [
   {
     "type": "error",
     "name": "PlayerCannotBeSelf",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProtocolPaused",
     "inputs": []
   },
   {

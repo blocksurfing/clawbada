@@ -16,9 +16,10 @@ import {EvolutionLab} from "../EvolutionLab.sol";
 import {RepairShop} from "../RepairShop.sol";
 import {Marketplace} from "../Marketplace.sol";
 import {BattleArena} from "../BattleArena.sol";
+import {PauseSwitch} from "../PauseSwitch.sol";
 
 /// @title Deploy
-/// @notice Deploys all 12 Clawbada contracts in dependency order to Base Sepolia.
+/// @notice Deploys all 13 Clawbada contracts in dependency order to Base Sepolia.
 /// @dev Usage: forge script contracts/script/Deploy.s.sol --rpc-url base_sepolia --broadcast --verify
 contract Deploy is DeployHelpers {
     function run() external {
@@ -33,7 +34,7 @@ contract Deploy is DeployHelpers {
         vm.stopBroadcast();
 
         console2.log("");
-        console2.log("=== All 12 contracts deployed ===");
+        console2.log("=== All 13 contracts deployed ===");
 
         _writeDeployment(network, d);
     }
@@ -42,6 +43,11 @@ contract Deploy is DeployHelpers {
     ///      (contracts/test/DeployScripts.t.sol) runs exactly what mainnet runs.
     function _deployAll() internal returns (Deployment memory d) {
         // ── Tier 0 — No dependencies ──
+
+        // PAUSE-I1: one emergency stop for every money-in entry point. PAUSER_ROLE goes to the
+        // guardian in Configure; DEFAULT_ADMIN (the only unpauser) to the Safe in Handoff.
+        d.pauseSwitch = address(new PauseSwitch(deployer));
+        console2.log("PauseSwitch:", d.pauseSwitch);
 
         d.treasury = address(new Treasury(deployer, devWallet));
         console2.log("Treasury:", d.treasury);
@@ -75,29 +81,31 @@ contract Deploy is DeployHelpers {
         console2.log("TeamManager:", d.teamManager);
 
         uint256 closeTime = block.timestamp + FAUCET_DURATION;
-        d.faucet = address(new Faucet(deployer, d.lobsterNFT, d.goldToken, closeTime));
+        d.faucet = address(new Faucet(deployer, d.lobsterNFT, d.goldToken, closeTime, d.pauseSwitch));
         console2.log("Faucet:", d.faucet);
         console2.log("  closeTime:", closeTime);
 
-        d.miningPool = address(new MiningPool(deployer, d.goldToken, d.lobsterNFT, d.teamManager));
+        d.miningPool = address(new MiningPool(deployer, d.goldToken, d.lobsterNFT, d.teamManager, d.pauseSwitch));
         console2.log("MiningPool:", d.miningPool);
 
-        d.breedingLab = address(new BreedingLab(d.goldToken, d.lobsterNFT, d.treasury));
+        d.breedingLab = address(new BreedingLab(d.goldToken, d.lobsterNFT, d.treasury, d.pauseSwitch));
         console2.log("BreedingLab:", d.breedingLab);
 
-        d.evolutionLab = address(new EvolutionLab(d.goldToken, d.lobsterNFT, d.treasury));
+        d.evolutionLab = address(new EvolutionLab(d.goldToken, d.lobsterNFT, d.treasury, d.pauseSwitch));
         console2.log("EvolutionLab:", d.evolutionLab);
 
-        d.repairShop = address(new RepairShop(d.goldToken, d.lobsterNFT, d.treasury, d.miningPool));
+        d.repairShop = address(new RepairShop(d.goldToken, d.lobsterNFT, d.treasury, d.miningPool, d.pauseSwitch));
         console2.log("RepairShop:", d.repairShop);
 
-        d.marketplace = address(new Marketplace(d.goldToken, d.lobsterNFT, d.treasury));
+        d.marketplace = address(new Marketplace(d.goldToken, d.lobsterNFT, d.treasury, d.pauseSwitch));
         console2.log("Marketplace:", d.marketplace);
 
         // ── Tier 2 — Depends on Tiers 0 + 1 ──
 
         d.battleArena = address(
-            new BattleArena(deployer, d.goldToken, d.lobsterNFT, d.teamManager, d.treasury, d.battleVRF, d.miningPool)
+            new BattleArena(
+                deployer, d.goldToken, d.lobsterNFT, d.teamManager, d.treasury, d.battleVRF, d.miningPool, d.pauseSwitch
+            )
         );
         console2.log("BattleArena:", d.battleArena);
     }

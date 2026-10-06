@@ -13,6 +13,7 @@ import {
   BattleVRFAbi,
   EvolutionLabAbi,
   RepairShopAbi,
+  PauseSwitchAbi,
 } from './abis';
 
 export function getGoldToken(client: PublicClient) {
@@ -67,4 +68,9 @@ export function getEvolutionLab(client: PublicClient) {
 
 export function getRepairShop(client: PublicClient) {
   return getContract({ address: addresses.repairShop, abi: RepairShopAbi, client });
+}
+
+/** PAUSE-I1: the protocol's emergency stop (inflows only). */
+export function getPauseSwitch(client: PublicClient) {
+  return getContract({ address: addresses.pauseSwitch, abi: PauseSwitchAbi, client });
 }

@@ -16,6 +16,11 @@ export const EvolutionLabAbi = [
         "name": "treasury_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "pauseSwitch_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -84,6 +89,19 @@ export const EvolutionLabAbi = [
         "name": "",
         "type": "address",
         "internalType": "contract LobsterNFT"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pauseSwitch",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPauseSwitch"
       }
     ],
     "stateMutability": "view"
@@ -202,6 +220,11 @@ export const EvolutionLabAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "ProtocolPaused",
+    "inputs": []
   },
   {
     "type": "error",
