@@ -1,10 +1,12 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
-// Same shape as auth.test.ts: the token layer only needs getAddress from the chain package.
+// Same shape as auth.test.ts: the token layer only needs getAddress from the chain package
+// (plus `addresses`, which routes/auth publishes in GET /params — HARDEN-1).
 const mockGetAddress = mock((addr: string) => addr);
 mock.module('@clawbada/chain', () => ({
   verifyMessage: mock(() => Promise.resolve(true)),
   getAddress: mockGetAddress,
+  addresses: { battleArena: '0xBATTLE' },
 }));
 
 import { Hono } from 'hono';

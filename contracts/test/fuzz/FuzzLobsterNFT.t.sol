@@ -291,31 +291,6 @@ contract FuzzLobsterNFT is Test {
         nft.burn(tokenId);
     }
 
-    // decrementBreedCount reverts at 0.
-    function test_decrementBreedCount_atZero_reverts() public {
-        uint256 tokenId = _mint(alice, 0);
-        assertEq(nft.getBreedCount(tokenId), 0);
-
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(LobsterNFT.BreedCountExceeded.selector, tokenId));
-        nft.decrementBreedCount(tokenId);
-    }
-
-    // decrementBreedCount after increment reduces count correctly.
-    function test_decrementBreedCount_reducesCount() public {
-        uint256 tokenId = _mint(alice, 0);
-
-        vm.prank(admin);
-        nft.incrementBreedCount(tokenId);
-        vm.prank(admin);
-        nft.incrementBreedCount(tokenId);
-        assertEq(nft.getBreedCount(tokenId), 2);
-
-        vm.prank(admin);
-        nft.decrementBreedCount(tokenId);
-        assertEq(nft.getBreedCount(tokenId), 1);
-    }
-
     // Batch transfer: if any token in the batch is soulbound or locked,
     // the whole batch reverts. Can't smuggle a restricted token inside
     // a mixed batch.
@@ -377,14 +352,6 @@ contract FuzzLobsterNFT is Test {
         vm.prank(caller);
         vm.expectRevert();
         nft.incrementBreedCount(tokenId);
-    }
-
-    function testFuzz_unauthorized_decrementBreed_reverts(address caller) public {
-        vm.assume(caller != admin);
-        uint256 tokenId = _mint(alice, 0);
-        vm.prank(caller);
-        vm.expectRevert();
-        nft.decrementBreedCount(tokenId);
     }
 
     // After burn, _owners mapping is cleared. ownerOf() reverts TokenDoesNotExist.

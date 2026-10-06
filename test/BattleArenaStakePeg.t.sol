@@ -132,8 +132,8 @@ contract BattleArenaStakePegTest is Test {
         teamId = tm.createTeam([id1, id2, id3]);
     }
 
-    function _commit(uint256 battleId, address player, uint256 teamId, bytes32 salt) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(battleId, player, teamId, salt));
+    function _commit(uint256 battleId, address player, uint256 teamId, bytes32 salt) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked(block.chainid, address(arena), battleId, player, teamId, salt));
     }
 
     function _deposit(uint256 battleId, address player, uint256 expectedStake, bytes32 commit) internal {

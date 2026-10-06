@@ -469,7 +469,8 @@ describe('combat routes', () => {
       mockTeamCommitHash.mockImplementation(() => COMMIT);
       const res = await deposit({ teamId: '1', salt: SALT });
       expect(res.status).toBe(200);
-      expect(mockTeamCommitHash).toHaveBeenCalledWith(1n, TEST_ADDRESS.toLowerCase(), 1n, SALT);
+      // HARDEN-1: bound to the chain the API serves and the arena it talks to.
+      expect(mockTeamCommitHash).toHaveBeenCalledWith(84532, '0xBATTLE', 1n, TEST_ADDRESS.toLowerCase(), 1n, SALT);
       expect(depositCall().args).toEqual([1n, 2_500n * WEI, 4, COMMIT]);
       expect(mockUpdateSet).toHaveBeenCalledWith({ teamA: 1n, revealSaltA: SALT });
       expect((await res.json()).preview.revealPrepared).toBe(true);
@@ -795,8 +796,10 @@ describe('combat routes', () => {
       expect(mockUpdateSet).toHaveBeenCalledTimes(1);
       // An accepted reveal also clears any refusal noted for this side.
       expect(mockUpdateSet.mock.calls[0][0]).toEqual({ teamA: 1n, revealSaltA: '0x' + 'ab'.repeat(32), revealRefusedA: null });
-      // The hash was checked for THIS player, battle 1, team 1.
-      const [battleId, player, teamId] = mockTeamCommitHash.mock.calls[0] as unknown as [bigint, string, bigint, string];
+      // The hash was checked for THIS chain + arena (HARDEN-1), THIS player, battle 1, team 1.
+      const [chainId, arena, battleId, player, teamId] = mockTeamCommitHash.mock.calls[0] as unknown as [number, string, bigint, string, bigint, string];
+      expect(chainId).toBe(84532);
+      expect(arena).toBe('0xBATTLE');
       expect(battleId).toBe(1n);
       expect(player.toLowerCase()).toBe(TEST_ADDRESS.toLowerCase());
       expect(teamId).toBe(1n);

@@ -1206,6 +1206,40 @@ export const BattleArenaAbi = [
   },
   {
     "type": "function",
+    "name": "teamCommitHash",
+    "inputs": [
+      {
+        "name": "battleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "player",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "teamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "teamInBattle",
     "inputs": [
       {

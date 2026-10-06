@@ -221,19 +221,6 @@ export const LobsterNFTAbi = [
   },
   {
     "type": "function",
-    "name": "decrementBreedCount",
-    "inputs": [
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "exists",
     "inputs": [
       {
