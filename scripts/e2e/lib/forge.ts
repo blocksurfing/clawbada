@@ -13,6 +13,8 @@ export interface Deployment {
   network: string;
   chainId: number;
   deployer: string;
+  /** The deploy block (INDEXER_START_BLOCK). */
+  blockNumber?: number;
   contracts: Record<'GoldToken' | 'LobsterNFT' | 'Treasury' | 'BattleVRF' | 'TeamManager' | 'Faucet' | 'MiningPool' | 'BreedingLab' | 'EvolutionLab' | 'RepairShop' | 'Marketplace' | 'BattleArena' | 'PauseSwitch', `0x${string}`>;
 }
 
@@ -30,13 +32,16 @@ export async function deployContracts(o: ForgeOpts): Promise<{ deployment: Deplo
   // nothing, so what it reads is the chain itself — unlike the asserts inside a
   // broadcasting script, which see forge's simulation (audit 2026-09 D-23).
   const { DEPLOYER_PRIVATE_KEY: _omit, ...readOnlyEnv } = env;
-  const steps: { name: string; args: string[]; env: Record<string, string | undefined> }[] = [
+  const steps: { name: string; args: string[]; env: Record<string, string | undefined>; log?: string }[] = [
     { name: 'Deploy', args: ['--broadcast', '--slow'], env },
     { name: 'Configure', args: ['--broadcast', '--slow'], env },
     { name: 'VerifyDeployment', args: ['--sig', 'configured()'], env: readOnlyEnv },
+    // D-G: the clocks start with the Open step (the deployer here, the Safe on mainnet).
+    { name: 'Open', args: ['--broadcast', '--slow'], env },
+    { name: 'VerifyDeployment', args: ['--sig', 'opened()'], env: readOnlyEnv, log: 'forge-verifydeployment-opened' },
   ];
   for (const step of steps) {
-    const log = `forge-${step.name.toLowerCase()}.log`;
+    const log = `${(step as any).log ?? `forge-${step.name.toLowerCase()}`}.log`;
     const proc = spawn(['forge', 'script', `contracts/script/${step.name}.s.sol`, '--rpc-url', o.rpcUrl, ...step.args], { cwd: o.repoRoot, env: step.env, stdout: 'pipe', stderr: 'pipe' });
     const [out, err] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
     const code = await proc.exited;

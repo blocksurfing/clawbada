@@ -12,6 +12,7 @@ import {DeploymentChecks, CheckedDeployHelpers} from "./DeploymentChecks.sol";
 ///        forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "proposed()"
 ///        forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "finalized()"
 ///        forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "reserveFunded()"
+///        forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "opened()"
 ///
 ///      Why a separate script: `forge script --broadcast` is not atomic, and the asserts at
 ///      the end of a broadcasting script run against forge's local SIMULATION of that
@@ -37,7 +38,7 @@ contract VerifyDeployment is CheckedDeployHelpers {
     function configured() public {
         Deployment memory d = _load();
         DeploymentChecks.requireConfigured(d, deployer, _hotKeys());
-        console2.log("OK: configured - roles, Treasury wiring, season 1 and the faucet pre-mint are in place,");
+        console2.log("OK: configured - roles, Treasury wiring and the faucet pre-mint are in place (no season yet: Open.s.sol),");
         console2.log("    and the deployer holds no GoldToken MINTER_ROLE.");
     }
 
@@ -70,6 +71,13 @@ contract VerifyDeployment is CheckedDeployHelpers {
         Deployment memory d = _load();
         DeploymentChecks.requireReserveFunded(d);
         console2.log("OK: BattleArena refund reserve holds at least 2,000,000 GOLD.");
+    }
+
+    /// @notice After Open.s.sol (or the Safe's two transactions): the game is live.
+    function opened() public {
+        Deployment memory d = _load();
+        DeploymentChecks.requireOpened(d);
+        console2.log("OK: open - season 1 is running and the faucet closes within 7 days.");
     }
 
     function _load() internal returns (Deployment memory d) {

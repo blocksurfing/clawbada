@@ -35,7 +35,7 @@ export async function infraPhase(o: { repoRoot: string; runDir: string; flags: F
   const chain = new Chain(anvil.rpcUrl, deployment);
   checks.check(true, `contracts deployed + configured (BattleArena ${deployment.contracts.BattleArena.slice(0, 10)}…)`);
   const boostAnchorTs = await chain.seasonStart();
-  checks.check(boostAnchorTs > 0n, 'season 1 started by Configure', `startTime ${boostAnchorTs}`);
+  checks.check(boostAnchorTs > 0n, 'season 1 started by the Open step (D-G)', `startTime ${boostAnchorTs}`);
 
   // 4. drand
   const drand = flags.liveDrand ? null : startDrandStub(flags.apiPort + 100);

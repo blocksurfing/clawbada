@@ -123,6 +123,19 @@ export const FaucetAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_FAUCET_WINDOW",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_ETH_BALANCE",
     "inputs": [],
     "outputs": [
@@ -576,6 +589,25 @@ export const FaucetAbi = [
   },
   {
     "type": "event",
+    "name": "CloseTimeSet",
+    "inputs": [
+      {
+        "name": "oldCloseTime",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newCloseTime",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "EligibilitySet",
     "inputs": [
       {
@@ -856,6 +888,11 @@ export const FaucetAbi = [
   },
   {
     "type": "error",
+    "name": "FaucetNeverOpened",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "FaucetStillOpen",
     "inputs": []
   },
@@ -904,6 +941,17 @@ export const FaucetAbi = [
         "name": "affinity",
         "type": "uint8",
         "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidCloseTime",
+    "inputs": [
+      {
+        "name": "newCloseTime",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

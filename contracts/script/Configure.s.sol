@@ -15,7 +15,8 @@ import {BattleVRF} from "../BattleVRF.sol";
 import {PauseSwitch} from "../PauseSwitch.sol";
 
 /// @title Configure
-/// @notice Post-deployment configuration: role grants, Treasury setup, Season 1 init.
+/// @notice Post-deployment configuration: role grants, Treasury setup, faucet pre-mint. It starts NO
+///         season and leaves the faucet closed: Open.s.sol (D-G) sets both clocks when the game goes live.
 /// @dev Reads addresses from deployments/<network>.json written by Deploy.s.sol.
 ///      Usage: forge script contracts/script/Configure.s.sol --rpc-url base_sepolia --broadcast
 contract Configure is DeployHelpers {
@@ -33,7 +34,7 @@ contract Configure is DeployHelpers {
         vm.stopBroadcast();
 
         console2.log("=== Configuration sent ===");
-        console2.log("Total: 6 Treasury authorizations, 17 role grants, 1 season start, 1 faucet pre-mint");
+        console2.log("Total: 6 Treasury authorizations, 17 role grants, 1 faucet pre-mint (no season: see Open.s.sol)");
         if (block.chainid == 8453) {
             console2.log("Mainnet: the 2M GOLD refund reserve is funded by the Safe after the handoff;");
             console2.log("  confirm with VerifyDeployment --sig 'reserveFunded()' (docs/runbooks/admin-roles.md).");
@@ -149,7 +150,7 @@ contract Configure is DeployHelpers {
     }
 
     function _configureMiningPool(Deployment memory d) internal {
-        console2.log("--- MiningPool Season Init ---");
+        console2.log("--- MiningPool Roles ---");
         MiningPool pool = MiningPool(d.miningPool);
 
         pool.grantRole(pool.SEASON_ADMIN_ROLE(), deployer);
@@ -159,8 +160,7 @@ contract Configure is DeployHelpers {
         pool.grantRole(pool.BOOST_ADMIN_ROLE(), boostAdminAddress);
         console2.log("  BOOST_ADMIN_ROLE -> boost admin", boostAdminAddress);
 
-        pool.startSeason(S1_EMISSION, S1_BASE_REWARD);
-        console2.log("  startSeason(352.5M, 1250)");
+        // D-G: Season 1 is started by Open.s.sol (the Safe on mainnet), not here.
         console2.log("");
     }
 

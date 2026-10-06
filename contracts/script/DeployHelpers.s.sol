@@ -202,6 +202,8 @@ abstract contract DeployHelpers is Script {
         vm.serializeUint(json, "chainId", block.chainid);
         vm.serializeAddress(json, "deployer", deployer);
         vm.serializeUint(json, "timestamp", block.timestamp);
+        // The indexer's cold-start block (INDEXER_START_BLOCK): nothing of ours exists before it.
+        vm.serializeUint(json, "blockNumber", block.number);
 
         // Serialize contract addresses
         string memory contracts = "contracts";
