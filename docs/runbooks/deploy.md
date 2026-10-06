@@ -1,5 +1,7 @@
 # Deploying the API (Railway) and the web app (Vercel)
 
+> Contracts, engine and indexer on Base Sepolia: `testnet-deploy.md` (the ordered runbook, not yet executed).
+
 Verified 2026-09-05. Both deploys run from a checkout on `main` (the engine worktree
 `Clawbada-engine` was used; any clean checkout works).
 

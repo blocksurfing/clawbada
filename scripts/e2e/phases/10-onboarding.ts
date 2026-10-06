@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PlayerAgent } from '../lib/agent';
 import { KEYS } from '../lib/env';
 import { WEI } from '../lib/chain';
@@ -16,8 +18,17 @@ export async function onboardingPhase(stack: Stack, checks: Checks): Promise<Pla
   const b = mk(KEYS.playerB.key, 'B', '10.0.0.12');
 
   // Eligibility is an on-chain allowlist held by the deployer after Configure.
+  // M10: the allowlist signer, dry-run against this chain. Fresh Anvil accounts have no transaction
+  // history, so the script must REFUSE them (3 transactions needed) — and say why.
+  const walletFile = join(stack.runDir, 'wallets.txt');
+  writeFileSync(walletFile, `# e2e players\n${a.address}\n${b.address}\nnot-an-address\n`);
+  const allowlist = Bun.spawnSync(['bun', 'run', 'packages/chain/scripts/faucet-allowlist.ts', '--file', walletFile, '--skip-age'], {
+    cwd: stack.repoRoot, env: { ...process.env, CHAIN_ENV: 'testnet', BASE_SEPOLIA_RPC_URL: stack.anvil.rpcUrl, FAUCET_ADDRESS: stack.deployment.contracts.Faucet },
+  });
+  const out = allowlist.stdout.toString() + allowlist.stderr.toString();
+  checks.check(allowlist.exitCode === 0 && out.includes('transaction(s), needs 3') && out.includes('dry run'), 'faucet-allowlist dry run refuses history-less wallets and sends nothing', out.split('\n').find((l) => l.startsWith('skip')) ?? out.slice(0, 80));
   await chain.setEligible(KEYS.deployer.key, [a.address, b.address]);
-  checks.check(true, 'faucet eligibility granted to both players');
+  checks.check(true, 'faucet eligibility granted to both players (deployer holds ELIGIBILITY_ROLE before the handoff)');
 
   const setup = async (p: PlayerAgent): Promise<Player> => {
     // D-10: the claim commits; the engine's keeper mints the lobsters once the target block (two

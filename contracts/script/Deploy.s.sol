@@ -80,10 +80,10 @@ contract Deploy is DeployHelpers {
         d.teamManager = address(new TeamManager(deployer, d.lobsterNFT));
         console2.log("TeamManager:", d.teamManager);
 
-        uint256 closeTime = block.timestamp + FAUCET_DURATION;
-        d.faucet = address(new Faucet(deployer, d.lobsterNFT, d.goldToken, closeTime, d.pauseSwitch));
-        console2.log("Faucet:", d.faucet);
-        console2.log("  closeTime:", closeTime);
+        // D-G: deployed CLOSED (closeTime 0). The Open step sets closeTime = now + 7 days when the
+        // game goes live, so the deploy date never constrains the launch date.
+        d.faucet = address(new Faucet(deployer, d.lobsterNFT, d.goldToken, 0, d.pauseSwitch));
+        console2.log("Faucet:", d.faucet, "(closed until Open.s.sol)");
 
         d.miningPool = address(new MiningPool(deployer, d.goldToken, d.lobsterNFT, d.teamManager, d.pauseSwitch));
         console2.log("MiningPool:", d.miningPool);

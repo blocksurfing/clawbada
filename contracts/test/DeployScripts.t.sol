@@ -8,6 +8,8 @@ import {DeploymentChecks} from "../script/DeploymentChecks.sol";
 import {Deploy} from "../script/Deploy.s.sol";
 import {Configure} from "../script/Configure.s.sol";
 import {Handoff} from "../script/Handoff.s.sol";
+import {Open} from "../script/Open.s.sol";
+import {Faucet} from "../Faucet.sol";
 import {GoldToken} from "../GoldToken.sol";
 import {Treasury} from "../Treasury.sol";
 import {MiningPool} from "../MiningPool.sol";
@@ -73,6 +75,14 @@ contract ConfigureHarness is ParamHarness, Configure {
     }
 }
 
+contract OpenHarness is ParamHarness, Open {
+    function openAll(Deployment memory d) external {
+        vm.startPrank(deployer);
+        _openAll(d);
+        vm.stopPrank();
+    }
+}
+
 contract HandoffHarness is ParamHarness, Handoff {
     function propose(Deployment memory d) external {
         vm.startPrank(deployer);
@@ -113,6 +123,10 @@ contract HandoffHarness is ParamHarness, Handoff {
     function checkReserveFunded(Deployment memory d) external view {
         DeploymentChecks.requireReserveFunded(d);
     }
+
+    function checkOpened(Deployment memory d) external view {
+        DeploymentChecks.requireOpened(d);
+    }
 }
 
 contract NotASafe {
@@ -133,6 +147,7 @@ contract DeployScriptsTest is Test {
     DeployHarness internal deployH;
     ConfigureHarness internal configureH;
     HandoffHarness internal handoffH;
+    OpenHarness internal openH;
     MockSafe internal safe;
     Params internal p;
 
@@ -140,6 +155,7 @@ contract DeployScriptsTest is Test {
         deployH = new DeployHarness();
         configureH = new ConfigureHarness();
         handoffH = new HandoffHarness();
+        openH = new OpenHarness();
         safe = _safe(3, 5);
 
         p = Params({
@@ -171,6 +187,7 @@ contract DeployScriptsTest is Test {
         deployH.setParams(p);
         configureH.setParams(p);
         handoffH.setParams(p);
+        openH.setParams(p);
     }
 
     function _deployAndConfigure() internal returns (DeployHelpers.Deployment memory d) {
@@ -226,6 +243,44 @@ contract DeployScriptsTest is Test {
         handoffH.checkReserveFunded(d);
         _fundReserveFrom(d, p.reserve, REFUND_RESERVE_TARGET);
         handoffH.checkReserveFunded(d);
+
+        // D-G: nothing is open yet — no season, faucet closed — and the stage check says so. On
+        // mainnet the Safe sends the two Open transactions; here the deployer stand-in does.
+        assertEq(MiningPool(d.miningPool).currentSeason(), 0, "Configure starts no season");
+        assertEq(Faucet(d.faucet).closeTime(), 0, "Deploy leaves the faucet closed");
+        vm.expectRevert(bytes("verify: season 1 not started (Open.s.sol / the Safe)"));
+        handoffH.checkOpened(d);
+        vm.startPrank(address(safe));
+        Faucet(d.faucet).setCloseTime(block.timestamp + 7 days);
+        MiningPool(d.miningPool).startSeason(352_500_000e18, 1_250e18);
+        vm.stopPrank();
+        handoffH.checkOpened(d);
+    }
+
+    // ───────────────────────── D-G: the Open step ─────────────────────────
+
+    /// @dev Testnet path: Open.s.sol run by the deployer before the handoff. configured() must pass
+    ///      without a season; opened() only after Open; the faucet window is bounded.
+    function test_DG_open_step_from_the_real_script() public {
+        DeployHelpers.Deployment memory d = _deployAndConfigure();
+        handoffH.checkConfigured(d);
+        vm.expectRevert(bytes("verify: season 1 not started (Open.s.sol / the Safe)"));
+        handoffH.checkOpened(d);
+        vm.expectRevert(Faucet.FaucetIsClosed.selector);
+        vm.prank(makeAddr("early bird"));
+        Faucet(d.faucet).claimLobsters();
+
+        openH.openAll(d);
+        handoffH.checkConfigured(d);
+        handoffH.checkOpened(d);
+        assertEq(MiningPool(d.miningPool).currentSeason(), 1);
+        assertEq(Faucet(d.faucet).closeTime(), block.timestamp + 7 days);
+
+        // A faucet left open longer than 7 days is not an opened deployment.
+        vm.prank(p.deployer);
+        Faucet(d.faucet).setCloseTime(block.timestamp + 8 days);
+        vm.expectRevert(bytes("verify: the faucet window is longer than 7 days"));
+        handoffH.checkOpened(d);
     }
 
     // ───────────────────────── PAUSE-I1 through the real scripts ─────────────────────────

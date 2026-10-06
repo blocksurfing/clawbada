@@ -713,6 +713,64 @@ contract FaucetTest is Test {
         faucet.finalizeClaim(claimId);
     }
 
+    // ──────────── D-G: the close-time clock ────────────
+
+    event CloseTimeSet(uint256 oldCloseTime, uint256 newCloseTime);
+
+    function test_setCloseTime_setsAndEmits() public {
+        uint256 t = block.timestamp + 3 days;
+        vm.expectEmit(false, false, false, true);
+        emit CloseTimeSet(closeTime, t);
+        vm.prank(admin);
+        faucet.setCloseTime(t);
+        assertEq(faucet.closeTime(), t);
+    }
+
+    function test_setCloseTime_pastOrNow_reverts() public {
+        vm.startPrank(admin);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.InvalidCloseTime.selector, block.timestamp));
+        faucet.setCloseTime(block.timestamp);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.InvalidCloseTime.selector, block.timestamp - 1));
+        faucet.setCloseTime(block.timestamp - 1);
+        vm.stopPrank();
+    }
+
+    function test_setCloseTime_beyondMaxWindow_reverts() public {
+        uint256 tooFar = block.timestamp + faucet.MAX_FAUCET_WINDOW() + 1;
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(Faucet.InvalidCloseTime.selector, tooFar));
+        faucet.setCloseTime(tooFar);
+        uint256 edge = block.timestamp + faucet.MAX_FAUCET_WINDOW();
+        vm.prank(admin);
+        faucet.setCloseTime(edge);
+        assertEq(faucet.closeTime(), edge);
+    }
+
+    function test_setCloseTime_nonAdmin_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        faucet.setCloseTime(block.timestamp + 1 days);
+    }
+
+    /// @dev Deployed closed (closeTime 0): claims revert, and the pre-mint cannot be "burned as residual".
+    function test_deployedClosed_claimsRevert_burnRefused() public {
+        vm.startPrank(admin);
+        Faucet closed = new Faucet(admin, address(nft), address(gold), 0, address(ps));
+        closed.grantRole(closed.ELIGIBILITY_ROLE(), admin);
+        closed.setEligible(alice, true);
+        vm.stopPrank();
+        vm.prank(alice);
+        vm.expectRevert(Faucet.FaucetIsClosed.selector);
+        closed.claimLobsters();
+        vm.prank(admin);
+        vm.expectRevert(Faucet.FaucetNeverOpened.selector);
+        closed.burnUnclaimed();
+        // Opening it makes claims possible.
+        vm.prank(admin);
+        closed.setCloseTime(block.timestamp + 7 days);
+        assertEq(closed.closeTime(), block.timestamp + 7 days);
+    }
+
     // ──────────── FAU-M1: burnUnclaimed (burn-only by governance decision 2026-09-02) ────────────
 
     function test_burnUnclaimed_beforeClose_reverts() public {

@@ -25,6 +25,9 @@ contract Faucet is AccessControl, ReentrancyGuard {
     uint256 public constant GOLD_DRIP_AMOUNT = 7_000e18;
     uint256 public constant MIN_ETH_BALANCE = 0.001 ether;
     uint256 public constant MAX_BATCH_SIZE = 500;
+    /// @dev D-G: the furthest out `setCloseTime` may put the close (a typo cannot leave the
+    ///      faucet open for a year). The intended window is 7 days (DeployHelpers.FAUCET_DURATION).
+    uint256 public constant MAX_FAUCET_WINDOW = 30 days;
     /// @dev D-02: lifetime cap on faucet lobsters — 10,000 wallets x 5, the same population the
     ///      70M GOLD pre-mint is sized for (10,000 x 7,000). The GOLD drip is bounded by the
     ///      faucet's balance; lobsters were bounded by nothing, and a faucet lobster mines the
@@ -72,6 +75,8 @@ contract Faucet is AccessControl, ReentrancyGuard {
     event LobsterClaimRearmed(uint256 indexed claimId, uint256 newTargetBlock);
     event GoldClaimed(address indexed claimer, uint256 amount);
     event EligibilitySet(address indexed account, bool eligible);
+    /// @dev D-G: the faucet's clock was set (the Open step) or moved.
+    event CloseTimeSet(uint256 oldCloseTime, uint256 newCloseTime);
     event UnclaimedBurned(uint256 amount);
 
     // ──────────── Errors ────────────
@@ -85,6 +90,8 @@ contract Faucet is AccessControl, ReentrancyGuard {
     error InsufficientFaucetBalance();
     error BatchTooLarge(uint256 length, uint256 max);
     error FaucetStillOpen();
+    error InvalidCloseTime(uint256 newCloseTime);
+    error FaucetNeverOpened();
     /// @dev D-02: the lifetime faucet lobster cap has been reached.
     error FaucetLobsterCapReached();
     // D-10: two-step claim
@@ -123,8 +130,14 @@ contract Faucet is AccessControl, ReentrancyGuard {
 
     // ──────────── Eligibility ────────────
 
-    /// @notice Update the faucet close time. Admin can extend or shorten the faucet window.
+    /// @notice Set (or move) the faucet's close time. D-G: this is how the faucet OPENS — Deploy
+    ///         leaves it closed (`closeTime = 0`) and the Open step sets `now + 7 days`.
+    /// @dev Must be in the future and at most MAX_FAUCET_WINDOW out; emits CloseTimeSet.
     function setCloseTime(uint256 newCloseTime) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newCloseTime <= block.timestamp || newCloseTime > block.timestamp + MAX_FAUCET_WINDOW) {
+            revert InvalidCloseTime(newCloseTime);
+        }
+        emit CloseTimeSet(closeTime, newCloseTime);
         closeTime = newCloseTime;
     }
 
@@ -267,6 +280,8 @@ contract Faucet is AccessControl, ReentrancyGuard {
     ///      faucet window knowing nobody (dev included) benefits from unclaimed funds.
     function burnUnclaimed() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (block.timestamp < closeTime) revert FaucetStillOpen();
+        // D-G: a faucet that was never opened (closeTime 0) holds the whole pre-mint — not a residual.
+        if (closeTime == 0) revert FaucetNeverOpened();
         uint256 balance = goldToken.balanceOf(address(this));
         goldToken.burn(balance);
         emit UnclaimedBurned(balance);
