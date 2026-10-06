@@ -216,12 +216,14 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
 2. STAKE DEPOSIT + TEAM COMMIT + CONSENT (on-chain, one call each)
    Both players call BattleArena.deposit(battleId, expectedStake, maxOpponentPower, commitHash)
    $GOLD escrowed in contract + 5% anti-grief deposit
-   commitHash = keccak256(battleId, player, teamId, salt): the team commit rides in the deposit
+   commitHash = keccak256(chainid, arena, battleId, player, teamId, salt) (BattleArena.teamCommitHash;
+   HARDEN-1 — bound to the chain and the arena, so a commit never opens on another deployment): the
+   team commit rides in the deposit
    (D-13), so there is no separate commit step or commit clock for the opponent to start
    expectedStake / maxOpponentPower = the stake and opponent Team Power the player was shown when
    matched (D-08); any other battle reverts ConsentMismatch. The API fills them from its match
    record; agents building their own transactions pass them too
-   Both deposits confirmed → TeamReveal (20 s window)
+   Both deposits confirmed → TeamReveal (60 s window)
 
 3. TEAM REVEAL (on-chain, resolver-submitted)
    Players hand the server their (teamId, salt) — with the deposit, or via POST /reveal-team

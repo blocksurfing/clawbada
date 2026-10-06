@@ -66,7 +66,7 @@ export async function battlePhase(stack: Stack, players: Players, flags: Flags, 
   const t1Chain = await chain.latestTimestamp();
   const revealLatencyChainSec = Number(t1Chain - t0Chain);
   const revealLatencyWallMs = Date.now() - t0Wall;
-  checks.check(revealLatencyChainSec < 20, `reveal landed inside the 20 s window`, `${revealLatencyChainSec} s chain / ${revealLatencyWallMs} ms wall`);
+  checks.check(revealLatencyChainSec < 60, `reveal landed inside the 60 s window`, `${revealLatencyChainSec} s chain / ${revealLatencyWallMs} ms wall`);
   checks.check(!active.accusedA && !active.accusedB, 'nobody was reported for an unopenable commit');
   // The matchmaker decides who is on-chain player A (the seeker pairs with the oldest queued
   // row), so map by address rather than assuming our A is slot A.

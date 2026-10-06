@@ -179,7 +179,7 @@ Page (fatal / error level, message prefix):
 
 ## A reveal stalls (phase 3)
 
-The team commit rides in the deposit; the reveal window is 20 s from the second deposit. The
+The team commit rides in the deposit; the reveal window is 60 s from the second deposit. The
 engine's RevealWatcher checks each stored salt against the on-chain commit. A salt that does not
 open its commit is reported at once (`accuseRevealFailure`, log `reveal_failure_reported`); a side
 with no salt is reported when 8 s of the window are left. The report extends the window by 2

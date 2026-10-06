@@ -559,6 +559,8 @@ export interface AuthParamsResponse {
   chainId: number;
   /** Chain ids the login message may carry. Absent on an API older than this field. */
   chainIds?: number[];
+  /** HARDEN-1: the arena address the team commit is bound to (with `chainId`). */
+  contracts?: { battleArena: string };
 }
 
 const auth = {
@@ -615,7 +617,7 @@ const combat = {
   getLegal: (battleId: string, auth: AuthHeaders) => get<{ turn: number; lobsterId: string; commands: TurnCommand[] }>(`/api/game/combat/${battleId}/legal`, auth),
   /** D-13: the deposit carries the team commit. Send the hash you built (keep the salt for
    *  revealTeam) and, optionally, teamId + salt so the server can reveal for you without racing
-   *  the 20 s reveal window. D-08: the server binds the stake + opponent Power you were matched at. */
+   *  the 60 s reveal window. D-08: the server binds the stake + opponent Power you were matched at. */
   deposit: (battleId: string, commit: { commitHash: string; teamId?: string; salt?: string }, auth: AuthHeaders) =>
     post<DepositResponse>(`/api/game/combat/${battleId}/deposit`, commit, auth),
   /** D-14: only after the resolver reported your commit unopenable — open it yourself on-chain. */

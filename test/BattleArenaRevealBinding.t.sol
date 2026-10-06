@@ -108,9 +108,9 @@ contract BattleArenaRevealBindingTest is Test {
     function _depositAndCommit(uint256 battleId, address a, uint256 teamA, address b, uint256 teamB) internal {
         // D-13: the team commit rides in the deposit (D-08: consent to stake + max opponent power).
         vm.prank(a);
-        arena.deposit(battleId, STAKE_LOW, 9, keccak256(abi.encodePacked(battleId, a, teamA, SALT_A)));
+        arena.deposit(battleId, STAKE_LOW, 9, keccak256(abi.encodePacked(block.chainid, address(arena), battleId, a, teamA, SALT_A)));
         vm.prank(b);
-        arena.deposit(battleId, STAKE_LOW, 9, keccak256(abi.encodePacked(battleId, b, teamB, SALT_B)));
+        arena.deposit(battleId, STAKE_LOW, 9, keccak256(abi.encodePacked(block.chainid, address(arena), battleId, b, teamB, SALT_B)));
     }
 
     function _reveal(uint256 battleId, uint256 teamA, uint256 teamB) internal {

@@ -73,7 +73,11 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant PROTOCOL_FEE_BPS = 1000; // 10% of combined pot (a draw: 10% of each stake)
     uint256 public constant DEPOSIT_WINDOW = 2 minutes;
-    uint256 public constant TEAM_REVEAL_WINDOW = 20 seconds;
+    /// @dev A13 (widened 20 s → 60 s before the first deployment, 2026-10-06): the window the resolver has
+    ///      to land `revealTeams` after the second deposit. Security-neutral — a lapse is a full-refund
+    ///      mutual cancel — so the only cost of a wider window is a slower cancel; 20 s left no slack for
+    ///      API→DB→poll→tx→confirm on a live chain.
+    uint256 public constant TEAM_REVEAL_WINDOW = 60 seconds;
     /// @dev D-14: once the resolver reports a commit it could not open, the accused player has this
     ///      long to open it themselves before they forfeit the anti-grief deposit.
     uint256 public constant REVEAL_GRACE = 2 minutes;
@@ -401,6 +405,22 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         emit StakeFixedBpsSet(old, stakeFixedBps);
     }
 
+    // ──────────── Commit hash ────────────
+
+    /// @notice The team commit a player deposits with for `battleId`.
+    /// @dev HARDEN-1 (2026-10-06): `keccak256(abi.encodePacked(block.chainid, address(this), battleId,
+    ///      player, teamId, salt))`. The chain id and this arena's address are part of the preimage, so a
+    ///      commit built for one deployment (a testnet, a fork, a redeploy) can never open on another,
+    ///      and a commit recorded here is useless anywhere else. Mirrored byte-for-byte by
+    ///      `teamCommitHash` in packages/chain (a known-answer test on both sides pins them together).
+    function teamCommitHash(uint256 battleId, address player, uint256 teamId, bytes32 salt)
+        public
+        view
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(block.chainid, address(this), battleId, player, teamId, salt));
+    }
+
     // ──────────── Player Actions ────────────
 
     /// @notice Deposit stake + anti-grief and commit your team, in one step.
@@ -408,7 +428,8 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     ///      battle with another stake or a stronger opponent reverts `ConsentMismatch`, so a
     ///      misbehaving matchmaker cannot spring a different battle on a depositor.
     ///      D-13: the commit is part of the deposit, so there is no separate commit clock for the
-    ///      opponent to start. `commitHash = keccak256(abi.encodePacked(battleId, player, teamId, salt))`.
+    ///      opponent to start. `commitHash = teamCommitHash(battleId, player, teamId, salt)` — see that
+    ///      view for the exact preimage (HARDEN-1: it is bound to this chain and this arena).
     function deposit(uint256 battleId, uint256 expectedStake, uint8 maxOpponentPower, bytes32 commitHash)
         external
         nonReentrant
@@ -465,10 +486,10 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         if (block.timestamp > b.phaseDeadline) revert PhaseTimedOut(battleId); // BA-M1
         if (seedCommit == bytes32(0)) revert InvalidSeedCommit(battleId); // D-01
 
-        if (keccak256(abi.encodePacked(battleId, b.playerA, teamIdA, saltA)) != b.teamCommitA) {
+        if (teamCommitHash(battleId, b.playerA, teamIdA, saltA) != b.teamCommitA) {
             revert InvalidCommitHash(battleId);
         }
-        if (keccak256(abi.encodePacked(battleId, b.playerB, teamIdB, saltB)) != b.teamCommitB) {
+        if (teamCommitHash(battleId, b.playerB, teamIdB, saltB) != b.teamCommitB) {
             revert InvalidCommitHash(battleId);
         }
 
@@ -540,7 +561,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         bool isA = msg.sender == b.playerA;
         if (isA ? !b.accusedA : !b.accusedB) revert NotAccused(battleId);
         bytes32 commit = isA ? b.teamCommitA : b.teamCommitB;
-        if (keccak256(abi.encodePacked(battleId, msg.sender, teamId, salt)) != commit) revert InvalidCommitHash(battleId);
+        if (teamCommitHash(battleId, msg.sender, teamId, salt) != commit) revert InvalidCommitHash(battleId);
         uint8 expectedPower = isA ? b.powerA : b.powerB;
         uint8 power = _validateTeamForBattle(teamId, msg.sender);
         if (power != expectedPower) revert TeamPowerChanged(teamId, expectedPower, power);

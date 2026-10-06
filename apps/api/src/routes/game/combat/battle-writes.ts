@@ -33,7 +33,7 @@ import { log as baseLog } from '../../../logger';
 import { walletAuth } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { readBattle, serializeBigInts } from '../../../lib/chain';
-import { buildCalldata, singleStep, multiStep } from '../../../lib/calldata';
+import { buildCalldata, singleStep, multiStep, chainId } from '../../../lib/calldata';
 
 const BYTES32_RE = /^0x[0-9a-fA-F]{64}$/;
 const ZERO_BYTES32 = `0x${'0'.repeat(64)}`;
@@ -103,9 +103,9 @@ battleWriteRoutes.post(
     const { battleId } = c.req.param();
     const id = BigInt(battleId);
     // D-13: the team commit rides in the deposit. Either send the hash you built yourself
-    // (keccak256(abi.encodePacked(battleId, you, teamId, salt)) — keep the salt for /reveal-team),
-    // or send teamId + salt and the server builds it (and keeps the salt for the reveal, so you
-    // do not have to race the 20 s reveal window).
+    // (BattleArena.teamCommitHash: keccak256(abi.encodePacked(chainid, arena, battleId, you, teamId,
+    // salt)) — keep the salt for /reveal-team), or send teamId + salt and the server builds it (and
+    // keeps the salt for the reveal, so you do not have to race the 60 s reveal window).
     const body = (await c.req.json().catch(() => ({}))) as { commitHash?: string; teamId?: string; salt?: string };
 
     const battle = await readBattle(id);
@@ -145,7 +145,7 @@ battleWriteRoutes.post(
         throw new ApiError('INVALID_INPUT', 'teamId is not the team you queued with for this battle');
       }
       preparedReveal = { teamId, salt: body.salt as `0x${string}` };
-      commitHash = teamCommitHash(id, address as `0x${string}`, teamId, preparedReveal.salt);
+      commitHash = teamCommitHash(chainId, addresses.battleArena as `0x${string}`, id, address as `0x${string}`, teamId, preparedReveal.salt);
       if (body.commitHash && body.commitHash.toLowerCase() !== commitHash.toLowerCase()) {
         throw new ApiError('INVALID_INPUT', 'commitHash does not match teamId + salt');
       }
@@ -259,10 +259,10 @@ battleWriteRoutes.post(
 
     // Fail fast: verify the salt+teamId against this player's on-chain commit, so a bad
     // reveal is rejected here instead of reverting the engine's revealTeams tx later. The
-    // commit hash binds (battleId, player, teamId, salt), so a match authenticates all three.
+    // commit hash binds (chain, arena, battleId, player, teamId, salt), so a match authenticates all.
     const teamId = BigInt(body.teamId);
     const salt = body.salt as `0x${string}`;
-    const expected = teamCommitHash(id, address as `0x${string}`, teamId, salt);
+    const expected = teamCommitHash(chainId, addresses.battleArena as `0x${string}`, id, address as `0x${string}`, teamId, salt);
     const onChainCommit = isPlayerA ? battle.teamCommitA : battle.teamCommitB;
     if (expected.toLowerCase() !== String(onChainCommit).toLowerCase()) {
       throw new ApiError('INVALID_INPUT', 'Salt/teamId do not match the committed team hash');
@@ -341,7 +341,7 @@ battleWriteRoutes.post(
     const teamId = BigInt(body.teamId);
     const salt = body.salt as `0x${string}`;
     const onChainCommit = isA ? battle.teamCommitA : battle.teamCommitB;
-    if (teamCommitHash(id, address as `0x${string}`, teamId, salt).toLowerCase() !== String(onChainCommit).toLowerCase()) {
+    if (teamCommitHash(chainId, addresses.battleArena as `0x${string}`, id, address as `0x${string}`, teamId, salt).toLowerCase() !== String(onChainCommit).toLowerCase()) {
       throw new ApiError('INVALID_INPUT', 'Salt/teamId do not match your committed team hash');
     }
     const calldata = buildCalldata(addresses.battleArena, BattleArenaAbi as any, 'openOwnCommit', [id, teamId, salt]);

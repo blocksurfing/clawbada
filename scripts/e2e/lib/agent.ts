@@ -36,11 +36,12 @@ export class PlayerAgent {
   // ── auth ──
   /** C-01: the EIP-4361 login message, bound to a domain and the API's chain. An agent has no
    *  page origin, so it signs for the API's default domain (the first one /api/auth/params lists). */
-  private authConfig: { domain: string; chainId: number } | null = null;
+  private authConfig: { domain: string; chainId: number; battleArena: `0x${string}` } | null = null;
   async authParams(): Promise<{ address: string; signature: string; timestamp: string; nonce: string; domain: string }> {
     if (!this.authConfig) {
-      const p = await (await fetch(`${this.o.api}/api/auth/params`)).json() as { domains: string[]; chainId: number };
-      this.authConfig = { domain: p.domains[0], chainId: p.chainId };
+      const p = await (await fetch(`${this.o.api}/api/auth/params`)).json() as { domains: string[]; chainId: number; contracts: { battleArena: `0x${string}` } };
+      // HARDEN-1: the team commit is bound to the chain + arena the API serves — read them here.
+      this.authConfig = { domain: p.domains[0], chainId: p.chainId, battleArena: p.contracts.battleArena };
     }
     const now = Math.floor(Date.now() / 1000);
     if (!this.authCache || now - this.authCache.ts > 240) {
@@ -162,7 +163,7 @@ export class PlayerAgent {
   /**
    * D-13 + D-08: one transaction pair (approve + deposit) that also commits the team. The commit
    * hash is built here from the queued team and a fresh salt; by default teamId + salt go to the
-   * server too, so it can reveal as soon as both deposits land (the reveal window is 20 s).
+   * server too, so it can reveal as soon as both deposits land (the reveal window is 60 s).
    * `prepareReveal: false` sends only the hash — then call `reveal()` yourself. The server binds
    * the consent (stake of the queued bracket + the opponent Power shown at match time); the
    * contract reverts ConsentMismatch for any other battle. Returns what `reveal()` /
@@ -174,7 +175,8 @@ export class PlayerAgent {
     // One salt per battle: a retry must re-send the commit that is (or will be) on-chain.
     const salt = this.commits.get(battleId)?.salt ?? (keccak256(toHex(`${battleId}:${this.address}:${Date.now()}:${Math.random()}`)) as Hex);
     this.commits.set(battleId, { teamId, salt });
-    const commitHash = teamCommitHash(BigInt(battleId), this.address as Hex, teamId, salt);
+    await this.authParams();
+    const commitHash = teamCommitHash(this.authConfig!.chainId, this.authConfig!.battleArena, BigInt(battleId), this.address as Hex, teamId, salt);
     const body = opts.prepareReveal === false ? { commitHash } : { commitHash, teamId: teamId.toString(), salt };
     const r = await this.post(`/api/game/combat/${battleId}/deposit`, body);
     await this.executeSteps(r.steps);

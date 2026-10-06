@@ -108,5 +108,5 @@ export async function assertPhase(stack: Stack, players: Players, battle: Battle
 
   // ── services stayed up ──
   checks.check(!stack.api.exited && !stack.engine.exited && !stack.indexer.exited, 'api, engine, indexer still running');
-  checks.check(true, 'reveal latency', `${battle.revealLatencyChainSec} s chain / ${battle.revealLatencyWallMs} ms wall (window 20 s)`);
+  checks.check(true, 'reveal latency', `${battle.revealLatencyChainSec} s chain / ${battle.revealLatencyWallMs} ms wall (window 60 s)`);
 }

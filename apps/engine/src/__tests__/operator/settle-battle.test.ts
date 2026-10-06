@@ -9,8 +9,8 @@ const deriveSeedSecret = (master: string, battleId: bigint) =>
 const seedCommitment = (battleId: bigint, secret: `0x${string}`) => keccak256(encodePacked(['uint256', 'bytes32'], [battleId, secret]));
 const loadSeedMasterSecret = () => ({ secret: process.env.BATTLE_SEED_SECRET as string, ephemeral: false });
 // Imported by combat/reveal-watcher (which this job imports): restated like the seed functions.
-const teamCommitHash = (battleId: bigint, player: `0x${string}`, teamId: bigint, salt: `0x${string}`) =>
-  keccak256(encodePacked(['uint256', 'address', 'uint256', 'bytes32'], [battleId, player, teamId, salt]));
+const teamCommitHash = (chainId: bigint | number, arena: `0x${string}`, battleId: bigint, player: `0x${string}`, teamId: bigint, salt: `0x${string}`) =>
+  keccak256(encodePacked(['uint256', 'address', 'uint256', 'address', 'uint256', 'bytes32'], [BigInt(chainId), arena, battleId, player, teamId, salt]));
 
 const MASTER = 'engine-test-master-secret-0123456789abcdef';
 process.env.BATTLE_SEED_SECRET = MASTER;
