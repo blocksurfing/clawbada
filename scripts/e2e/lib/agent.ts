@@ -37,12 +37,22 @@ export class PlayerAgent {
   /** C-01: the EIP-4361 login message, bound to a domain and the API's chain. An agent has no
    *  page origin, so it signs for the API's default domain (the first one /api/auth/params lists). */
   private authConfig: { domain: string; chainId: number; battleArena: `0x${string}` } | null = null;
-  async authParams(): Promise<{ address: string; signature: string; timestamp: string; nonce: string; domain: string }> {
+  /** GET /api/auth/params, once: the login domain, and (HARDEN-1) the chain + arena every team
+   *  commit is bound to. */
+  private async loadAuthConfig(): Promise<NonNullable<typeof this.authConfig>> {
     if (!this.authConfig) {
       const p = await (await fetch(`${this.o.api}/api/auth/params`)).json() as { domains: string[]; chainId: number; contracts: { battleArena: `0x${string}` } };
-      // HARDEN-1: the team commit is bound to the chain + arena the API serves — read them here.
       this.authConfig = { domain: p.domains[0], chainId: p.chainId, battleArena: p.contracts.battleArena };
     }
+    return this.authConfig;
+  }
+  /** HARDEN-1: what `teamCommitHash` is bound to. A method so a unit test can stub it. */
+  async commitDomain(): Promise<{ chainId: number; battleArena: `0x${string}` }> {
+    const c = await this.loadAuthConfig();
+    return { chainId: c.chainId, battleArena: c.battleArena };
+  }
+  async authParams(): Promise<{ address: string; signature: string; timestamp: string; nonce: string; domain: string }> {
+    await this.loadAuthConfig();
     const now = Math.floor(Date.now() / 1000);
     if (!this.authCache || now - this.authCache.ts > 240) {
       const nonce = newAuthNonce();
@@ -175,8 +185,8 @@ export class PlayerAgent {
     // One salt per battle: a retry must re-send the commit that is (or will be) on-chain.
     const salt = this.commits.get(battleId)?.salt ?? (keccak256(toHex(`${battleId}:${this.address}:${Date.now()}:${Math.random()}`)) as Hex);
     this.commits.set(battleId, { teamId, salt });
-    await this.authParams();
-    const commitHash = teamCommitHash(this.authConfig!.chainId, this.authConfig!.battleArena, BigInt(battleId), this.address as Hex, teamId, salt);
+    const domain = await this.commitDomain();
+    const commitHash = teamCommitHash(domain.chainId, domain.battleArena, BigInt(battleId), this.address as Hex, teamId, salt);
     const body = opts.prepareReveal === false ? { commitHash } : { commitHash, teamId: teamId.toString(), salt };
     const r = await this.post(`/api/game/combat/${battleId}/deposit`, body);
     await this.executeSteps(r.steps);
