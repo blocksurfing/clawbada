@@ -52,14 +52,14 @@ export class PlayerAgent {
     return { chainId: c.chainId, battleArena: c.battleArena };
   }
   async authParams(): Promise<{ address: string; signature: string; timestamp: string; nonce: string; domain: string }> {
-    await this.loadAuthConfig();
+    const cfg = await this.loadAuthConfig();
     const now = Math.floor(Date.now() / 1000);
     if (!this.authCache || now - this.authCache.ts > 240) {
       const nonce = newAuthNonce();
-      const message = buildAuthMessage({ domain: this.authConfig.domain, address: this.address, chainId: this.authConfig.chainId, nonce, issuedAt: now });
+      const message = buildAuthMessage({ domain: cfg.domain, address: this.address, chainId: cfg.chainId, nonce, issuedAt: now });
       this.authCache = { ts: now, sig: await this.account.signMessage({ message }), nonce };
     }
-    return { address: this.address, signature: this.authCache.sig, timestamp: String(this.authCache.ts), nonce: this.authCache.nonce, domain: this.authConfig.domain };
+    return { address: this.address, signature: this.authCache.sig, timestamp: String(this.authCache.ts), nonce: this.authCache.nonce, domain: cfg.domain };
   }
   async headers(): Promise<Record<string, string>> {
     const a = await this.authParams();
