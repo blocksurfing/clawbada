@@ -13,7 +13,7 @@ export interface Deployment {
   network: string;
   chainId: number;
   deployer: string;
-  contracts: Record<'GoldToken' | 'LobsterNFT' | 'Treasury' | 'BattleVRF' | 'TeamManager' | 'Faucet' | 'MiningPool' | 'BreedingLab' | 'EvolutionLab' | 'RepairShop' | 'Marketplace' | 'BattleArena', `0x${string}`>;
+  contracts: Record<'GoldToken' | 'LobsterNFT' | 'Treasury' | 'BattleVRF' | 'TeamManager' | 'Faucet' | 'MiningPool' | 'BreedingLab' | 'EvolutionLab' | 'RepairShop' | 'Marketplace' | 'BattleArena' | 'PauseSwitch', `0x${string}`>;
 }
 
 export interface ForgeOpts { repoRoot: string; rpcUrl: string; deployerKey: string; devWallet: string; logDir: string; guardian?: string }

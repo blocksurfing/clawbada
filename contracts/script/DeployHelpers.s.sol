@@ -29,6 +29,7 @@ abstract contract DeployHelpers is Script {
         address repairShop;
         address marketplace;
         address battleArena;
+        address pauseSwitch; // PAUSE-I1: the protocol's emergency stop (inflows only)
     }
 
     // ── Deployment parameters ──
@@ -215,7 +216,8 @@ abstract contract DeployHelpers is Script {
         vm.serializeAddress(contracts, "EvolutionLab", d.evolutionLab);
         vm.serializeAddress(contracts, "RepairShop", d.repairShop);
         vm.serializeAddress(contracts, "Marketplace", d.marketplace);
-        string memory contractsJson = vm.serializeAddress(contracts, "BattleArena", d.battleArena);
+        vm.serializeAddress(contracts, "BattleArena", d.battleArena);
+        string memory contractsJson = vm.serializeAddress(contracts, "PauseSwitch", d.pauseSwitch);
 
         string memory finalJson = vm.serializeString(json, "contracts", contractsJson);
 
@@ -241,13 +243,14 @@ abstract contract DeployHelpers is Script {
         d.repairShop = vm.parseJsonAddress(json, ".contracts.RepairShop");
         d.marketplace = vm.parseJsonAddress(json, ".contracts.Marketplace");
         d.battleArena = vm.parseJsonAddress(json, ".contracts.BattleArena");
+        d.pauseSwitch = vm.parseJsonAddress(json, ".contracts.PauseSwitch");
     }
 
     /// @dev The 7 AccessControl contracts where the deployer holds DEFAULT_ADMIN_ROLE.
     ///      (BreedingLab/EvolutionLab/RepairShop/Marketplace have no admin; Treasury is
     ///      Ownable2Step, handled separately.)
     function _adminContracts(Deployment memory d) internal pure returns (address[] memory a) {
-        a = new address[](7);
+        a = new address[](8);
         a[0] = d.goldToken;
         a[1] = d.lobsterNFT;
         a[2] = d.teamManager;
@@ -255,6 +258,7 @@ abstract contract DeployHelpers is Script {
         a[4] = d.battleArena;
         a[5] = d.battleVRF;
         a[6] = d.faucet;
+        a[7] = d.pauseSwitch;
     }
 
     /// @notice Determine network name from chain ID.

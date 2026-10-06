@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {BattleArena} from "../contracts/BattleArena.sol";
+import {PauseSwitch} from "../contracts/PauseSwitch.sol";
 import {BattleVRF} from "../contracts/BattleVRF.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
@@ -27,6 +28,7 @@ contract BattleArenaRevealBindingTest is Test {
     uint256 internal constant STAKE_LOW = 2_500e18;
 
     BattleArena arena;
+    PauseSwitch ps;
     TeamManager tm;
     LobsterNFT nft;
     GoldToken gold;
@@ -51,9 +53,10 @@ contract BattleArenaRevealBindingTest is Test {
         treasury = new Treasury(admin, makeAddr("dev"));
         BattleVRF vrf = new BattleVRF(admin);
         // D-E: the arena pegs its stakes to MiningPool; a real (season-less) pool keeps the launch amounts.
-        MiningPool pool = new MiningPool(admin, address(gold), address(nft), address(tm));
+        ps = new PauseSwitch(admin);
+        MiningPool pool = new MiningPool(admin, address(gold), address(nft), address(tm), address(ps));
         arena = new BattleArena(
-            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool), address(ps)
         );
 
         nft.grantRole(nft.MINTER_ROLE(), admin);

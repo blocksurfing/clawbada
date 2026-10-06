@@ -60,7 +60,7 @@ contract VerifyDeployment is CheckedDeployHelpers {
         DeploymentChecks.requireFinalized(
             d, _adminContracts(d), deployer, governanceSafe, eligibilityOperator, guardianAddress
         );
-        console2.log("OK: handoff complete - the safe governs all 7 contracts and owns Treasury;");
+        console2.log("OK: handoff complete - the safe governs all 8 contracts and owns Treasury;");
         console2.log("    the deployer holds no governance, eligibility, guardian or mint role. Safe:", governanceSafe);
     }
 

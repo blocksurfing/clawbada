@@ -32,6 +32,7 @@ function lazyAddresses() {
         battleVRF: 'BATTLE_VRF_ADDRESS',
         evolutionLab: 'EVOLUTION_LAB_ADDRESS',
         repairShop: 'REPAIR_SHOP_ADDRESS',
+        pauseSwitch: 'PAUSE_SWITCH_ADDRESS',
       };
 
       const envKey = envMap[prop];
@@ -57,4 +58,5 @@ export const addresses = lazyAddresses() as {
   readonly battleVRF: Address;
   readonly evolutionLab: Address;
   readonly repairShop: Address;
+  readonly pauseSwitch: Address;
 };

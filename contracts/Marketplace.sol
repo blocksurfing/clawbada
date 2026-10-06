@@ -7,6 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
+import {IPauseSwitch} from "./PauseSwitch.sol";
 
 /// @title Marketplace — Escrow-based lobster marketplace for Clawbada
 /// @notice Sellers list lobsters (NFT escrowed in contract), buyers pay in $GOLD.
@@ -47,6 +48,8 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     IERC20 public goldToken;
     LobsterNFT public lobsterNFT;
     Treasury public treasury;
+    /// @dev PAUSE-I1: the protocol's emergency stop; gates only the money-in entry points of this contract.
+    IPauseSwitch public immutable pauseSwitch;
 
     uint256 public nextListingId = 1;
     mapping(uint256 => Listing) private _listings; // listingId → Listing
@@ -81,16 +84,26 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
 
     // ──────────── Constructor ────────────
 
+    /// @dev PAUSE-I1: money-IN entry points only — every exit always works (see PauseSwitch.sol).
+    modifier whenNotPaused() {
+        // Reverted HERE (not bubbled from the switch) so ProtocolPaused is in this contract's ABI.
+        if (pauseSwitch.paused()) revert IPauseSwitch.ProtocolPaused();
+        _;
+    }
+
     /// @param goldToken_ The $GOLD ERC-20 token
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param treasury_ The Treasury fee splitter
-    constructor(address goldToken_, address lobsterNFT_, address treasury_) {
-        if (goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)) {
+    constructor(address goldToken_, address lobsterNFT_, address treasury_, address pauseSwitch_) {
+        if (
+            goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0) || pauseSwitch_ == address(0)
+        ) {
             revert ZeroAddress();
         }
         goldToken = IERC20(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         treasury = Treasury(treasury_);
+        pauseSwitch = IPauseSwitch(pauseSwitch_);
     }
 
     // ──────────── Core ────────────
@@ -102,7 +115,12 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     /// @param price The sale price in $GOLD (full amount buyer pays)
     /// @return listingId The newly created listing ID
     // slither-disable-next-line reentrancy-no-eth — nonReentrant; safeTransferFrom is to the trusted LobsterNFT and the listing write follows escrow receipt.
-    function listLobster(uint256 lobsterId, uint256 price) external nonReentrant returns (uint256 listingId) {
+    function listLobster(uint256 lobsterId, uint256 price)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 listingId)
+    {
         if (price == 0) revert ZeroPrice();
         if (price < MIN_LISTING_PRICE) revert PriceBelowMinimum(price, MIN_LISTING_PRICE);
         if (lobsterToListing[lobsterId] != 0) revert LobsterAlreadyListed(lobsterId);
@@ -142,7 +160,7 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     ///        of pulling the higher amount from the buyer's standing allowance.
     ///        Callers should pass the price they saw in the UI (or
     ///        `type(uint256).max` to explicitly accept any price).
-    function buyLobster(uint256 listingId, uint256 maxPrice) external nonReentrant {
+    function buyLobster(uint256 listingId, uint256 maxPrice) external nonReentrant whenNotPaused {
         Listing storage listing = _listings[listingId];
         if (!listing.active) revert ListingNotActive(listingId);
         if (listing.price > maxPrice) revert PriceExceedsMaximum(listing.price, maxPrice);

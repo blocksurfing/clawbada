@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, Vm, stdStorage, StdStorage} from "forge-std/Test.sol";
 import {MiningPool} from "../contracts/MiningPool.sol";
+import {PauseSwitch} from "../contracts/PauseSwitch.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {GoldToken} from "../contracts/GoldToken.sol";
@@ -12,6 +13,7 @@ contract MiningPoolTest is Test {
     using stdStorage for StdStorage;
 
     MiningPool pool;
+    PauseSwitch ps;
     TeamManager tm;
     LobsterNFT nft;
     GoldToken gold;
@@ -33,7 +35,8 @@ contract MiningPoolTest is Test {
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
         gold = new GoldToken(admin, lpAddress, treasuryAddress);
         tm = new TeamManager(admin, address(nft));
-        pool = new MiningPool(admin, address(gold), address(nft), address(tm));
+        ps = new PauseSwitch(admin);
+        pool = new MiningPool(admin, address(gold), address(nft), address(tm), address(ps));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -100,22 +103,22 @@ contract MiningPoolTest is Test {
 
     function test_constructorZeroAdminReverts() public {
         vm.expectRevert(MiningPool.ZeroAddress.selector);
-        new MiningPool(address(0), address(gold), address(nft), address(tm));
+        new MiningPool(address(0), address(gold), address(nft), address(tm), address(ps));
     }
 
     function test_constructorZeroGoldReverts() public {
         vm.expectRevert(MiningPool.ZeroAddress.selector);
-        new MiningPool(admin, address(0), address(nft), address(tm));
+        new MiningPool(admin, address(0), address(nft), address(tm), address(ps));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(MiningPool.ZeroAddress.selector);
-        new MiningPool(admin, address(gold), address(0), address(tm));
+        new MiningPool(admin, address(gold), address(0), address(tm), address(ps));
     }
 
     function test_constructorZeroTMReverts() public {
         vm.expectRevert(MiningPool.ZeroAddress.selector);
-        new MiningPool(admin, address(gold), address(nft), address(0));
+        new MiningPool(admin, address(gold), address(nft), address(0), address(ps));
     }
 
     // ──────────── Season Management ────────────

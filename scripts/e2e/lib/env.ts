@@ -32,6 +32,7 @@ export function addressEnv(d: Deployment): Record<string, string> {
     BREEDING_LAB_ADDRESS: c.BreedingLab, MINING_POOL_ADDRESS: c.MiningPool, MARKETPLACE_ADDRESS: c.Marketplace,
     TREASURY_ADDRESS: c.Treasury, FAUCET_ADDRESS: c.Faucet, BATTLE_ARENA_ADDRESS: c.BattleArena,
     BATTLE_VRF_ADDRESS: c.BattleVRF, EVOLUTION_LAB_ADDRESS: c.EvolutionLab, REPAIR_SHOP_ADDRESS: c.RepairShop,
+    PAUSE_SWITCH_ADDRESS: c.PauseSwitch,
   };
 }
 

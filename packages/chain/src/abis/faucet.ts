@@ -21,6 +21,11 @@ export const FaucetAbi = [
         "name": "closeTime_",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "pauseSwitch_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -409,6 +414,19 @@ export const FaucetAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pauseSwitch",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPauseSwitch"
       }
     ],
     "stateMutability": "view"
@@ -918,6 +936,11 @@ export const FaucetAbi = [
   {
     "type": "error",
     "name": "NotEligible",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProtocolPaused",
     "inputs": []
   },
   {

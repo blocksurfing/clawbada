@@ -34,7 +34,7 @@ import { join } from 'node:path';
 import type { Hex } from 'viem';
 import { deriveSeedSecret } from '@clawbada/chain';
 import { waitFor } from '../lib/wait';
-import { WEI, PHASE, FREEZE_LONG_STOP_SEC, BattleArenaAbi, GoldTokenAbi, TeamManagerAbi } from '../lib/chain';
+import { WEI, PHASE, FREEZE_LONG_STOP_SEC, BattleArenaAbi, GoldTokenAbi, TeamManagerAbi, PauseSwitchAbi } from '../lib/chain';
 import { KEYS } from '../lib/env';
 import type { Checks } from '../lib/checks';
 import type { Stack } from './00-infra';
@@ -68,6 +68,24 @@ export async function rogueSettlementDrill(stack: Stack, players: Players, flags
   const guardianHasRole = await chain.read<boolean>(arena, BattleArenaAbi, 'hasRole', [guardianRole, KEYS.guardian.address]);
   checks.check(guardianHasRole, 'Configure granted GUARDIAN_ROLE to GUARDIAN_ADDRESS', KEYS.guardian.address);
   if (!guardianHasRole) await chain.tx(KEYS.deployer.key, arena, BattleArenaAbi, 'grantRole', [guardianRole, KEYS.guardian.address]);
+
+  // ── PAUSE-I1: the same guardian key can stop every money-in entry point; only the admin (the
+  //    deployer here, the Safe on mainnet) reopens. Exercised on the matchmaker's own call. ──
+  const pauseSwitch = stack.deployment.contracts.PauseSwitch;
+  await chain.tx(KEYS.guardian.key, pauseSwitch, PauseSwitchAbi, 'pause');
+  checks.check(await chain.read<boolean>(pauseSwitch, PauseSwitchAbi, 'paused'), 'PAUSE: the guardian key paused the protocol');
+  const pausedCreate = await chain.pub.simulateContract({ address: arena, abi: BattleArenaAbi as any, functionName: 'createBattle', args: [a.agent.address, b.agent.address, flags.bracket, 3, 3], account: KEYS.deployer.address as Hex })
+    .then(() => 'no revert', (e: any) => {
+      // The custom error's name sits on the ContractFunctionRevertedError down the cause chain.
+      for (let x = e, depth = 0; x && depth < 8; x = x.cause, depth++) {
+        if (x.data?.errorName) return String(x.data.errorName);
+        if (typeof x.signature === 'string') return `undecoded ${x.signature}`;
+      }
+      return String(e?.shortMessage ?? e?.message ?? e).slice(0, 200);
+    });
+  checks.check(pausedCreate === 'ProtocolPaused', 'PAUSE: createBattle reverts ProtocolPaused while paused', pausedCreate);
+  await chain.tx(KEYS.deployer.key, pauseSwitch, PauseSwitchAbi, 'unpause');
+  checks.check(!(await chain.read<boolean>(pauseSwitch, PauseSwitchAbi, 'paused')), 'PAUSE: the admin reopened the protocol');
 
   /** Match → deposits (each carrying its commit) → revealed → the API is running the session. */
   async function liveBattle(label: string, beforeDeposit?: (battleId: string) => Promise<void>) {

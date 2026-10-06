@@ -9,6 +9,7 @@ import {LobsterNFT} from "./LobsterNFT.sol";
 import {TeamManager} from "./TeamManager.sol";
 import {Treasury, IGoldBurnable} from "./Treasury.sol";
 import {BattleVRF} from "./BattleVRF.sol";
+import {IPauseSwitch} from "./PauseSwitch.sol";
 
 /// @dev D-E: what BattleArena needs from MiningPool — the daily stake reference (0 before any season)
 ///      and the live rate as its fallback.
@@ -179,6 +180,8 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     Treasury public treasury;
     BattleVRF public battleVRF;
     IStakeReference public miningPool; // D-E: the stake peg's source (MiningPool)
+    /// @dev PAUSE-I1: the protocol's emergency stop; gates only the money-in entry points of this contract.
+    IPauseSwitch public immutable pauseSwitch;
 
     uint256 public nextBattleId = 1;
     mapping(uint256 => Battle) private _battles;
@@ -265,6 +268,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
 
     // ──────────── Constructor ────────────
 
+    /// @dev PAUSE-I1: money-IN entry points only — every exit always works (see PauseSwitch.sol).
+    modifier whenNotPaused() {
+        // Reverted HERE (not bubbled from the switch) so ProtocolPaused is in this contract's ABI.
+        if (pauseSwitch.paused()) revert IPauseSwitch.ProtocolPaused();
+        _;
+    }
+
     constructor(
         address admin,
         address goldToken_,
@@ -272,12 +282,13 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         address teamManager_,
         address treasury_,
         address battleVRF_,
-        address miningPool_
+        address miningPool_,
+        address pauseSwitch_
     ) {
         if (
             admin == address(0) || goldToken_ == address(0) || lobsterNFT_ == address(0)
                 || teamManager_ == address(0) || treasury_ == address(0) || battleVRF_ == address(0)
-                || miningPool_ == address(0)
+                || miningPool_ == address(0) || pauseSwitch_ == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -290,6 +301,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
         treasury = Treasury(treasury_);
         battleVRF = BattleVRF(battleVRF_);
         miningPool = IStakeReference(miningPool_);
+        pauseSwitch = IPauseSwitch(pauseSwitch_);
 
         // Review windows: long enough for the watchdog to replay the battle and freeze it.
         reviewWindows[0] = 5 minutes;
@@ -313,6 +325,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     )
         external
         onlyRole(MATCHMAKER_ROLE)
+        whenNotPaused
         returns (uint256 battleId)
     {
         if (playerA == playerB) revert PlayerCannotBeSelf();
@@ -433,6 +446,7 @@ contract BattleArena is AccessControl, ReentrancyGuard {
     function deposit(uint256 battleId, uint256 expectedStake, uint8 maxOpponentPower, bytes32 commitHash)
         external
         nonReentrant
+        whenNotPaused
     {
         Battle storage b = _battles[battleId];
         _requirePhase(battleId, BattlePhase.Deposit);
