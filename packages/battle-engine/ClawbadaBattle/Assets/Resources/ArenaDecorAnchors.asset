@@ -45,8 +45,14 @@ MonoBehaviour:
     content: {x: 0.010416667, y: 0.21875, z: 0.9635417, w: 0.8125}
   - sprite: Bird/Walk
     content: {x: 0.0625, y: 0.21875, z: 0.9453125, w: 0.78125}
+  - sprite: Clouds/Clouds
+    content: {x: 0.01875, y: 0.03125, z: 0.98125, w: 0.96875}
+  - sprite: Clouds/Static_Clouds
+    content: {x: 0.0015625, y: 0.075, z: 1, w: 0.9375}
   - sprite: Elite/BG - 2
     content: {x: 0, y: 0.6666667, z: 1, w: 0.99444443}
+  - sprite: Elite/BG - 2.1
+    content: {x: 0, y: 0, z: 1, w: 0.7916667}
   - sprite: Elite/BG - 3
     content: {x: 0, y: 0, z: 1, w: 1}
   - sprite: Elite/FG - 1 - Rock
@@ -79,6 +85,8 @@ MonoBehaviour:
     content: {x: 0.03125, y: 0, z: 0.9739583, w: 0.9166667}
   - sprite: Foreground Seaweed/FG_Seaweed_2
     content: {x: 0.0390625, y: 0, z: 0.9635417, w: 0.9166667}
+  - sprite: Jelly Fish/JellyFish
+    content: {x: 0.0125, y: 0.0625, z: 0.96875, w: 0.90625}
   - sprite: Lava/Lava
     content: {x: 0, y: 0, z: 1, w: 0.9869792}
   - sprite: Lava/LavaBody
