@@ -229,9 +229,8 @@ contract BreedingLab is ReentrancyGuard {
     ///      so the only rational move is to finalize and accept the offspring (the keeper
     ///      auto-finalizes within the window, so honest breeders never reach this path). The
     ///      5-breed cap and ×1→×8 cost schedule are once again true per-pair roll limiters.
-    ///
-    ///      NOTE: this leaves `LobsterNFT.decrementBreedCount` with no remaining caller — a safe
-    ///      follow-up is to remove it (tracked, separate PR to keep this fix BreedingLab-scoped).
+    ///      (`LobsterNFT.decrementBreedCount`, which this fix orphaned, was removed on 2026-10-06: a
+    ///      breed slot can never be given back.)
     /// @param requestId The breed request ID
     function cancelExpiredRequest(uint256 requestId) external nonReentrant {
         BreedRequest storage req = _breedRequests[requestId];

@@ -2,6 +2,8 @@ import { encodeFunctionData, type Abi, base, baseSepolia } from '@clawbada/chain
 
 const isTestnet = process.env.CHAIN_ENV !== 'mainnet';
 const chain = isTestnet ? baseSepolia : base;
+/** The chain every calldata step (and the team commit, HARDEN-1) is built for. */
+export const chainId: number = chain.id;
 
 export interface CalldataResult {
   to: string;

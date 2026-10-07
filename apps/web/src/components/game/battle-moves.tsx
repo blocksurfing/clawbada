@@ -211,25 +211,29 @@ function PhaseIndicator({ phase }: { phase: string }) {
 function DepositAction({ battleId, address, teamId, stake, opponentPower }: { battleId: string; address: string; teamId: string; stake: string; opponentPower: number }) {
   const { getAuthHeaders } = useAuth();
   const { execute: executeTx, status } = useCalldataTx();
+  // HARDEN-1: the commit is bound to the chain + arena the API serves; ask it rather than guess.
+  const { data: authParams } = useQuery({ queryKey: ['auth', 'params'], queryFn: api.auth.params, staleTime: Infinity });
 
   const handleDeposit = useCallback(async () => {
     if (!address) throw new Error('Wallet not connected');
+    const arena = authParams?.contracts?.battleArena;
+    if (!authParams || !arena) throw new Error('Still loading the arena address from the API — try again in a moment');
     const lower = address.toLowerCase();
     // Re-use a salt from an earlier attempt at this deposit so a retry commits the same team.
     const salt = sessionStorage.getItem(saltKey(battleId, lower)) ?? generateSalt();
     // A2-FU MEDIUM: sessionStorage keys scoped by lowercased wallet address.
     sessionStorage.setItem(saltKey(battleId, lower), salt);
     sessionStorage.setItem(teamKey(battleId, lower), teamId);
-    // F5-01: the commit hash MUST include the player address to match BattleArena
-    // (keccak256(abi.encodePacked(battleId, player, teamId, salt))). The shared
+    // F5-01 / HARDEN-1: the commit hash MUST match BattleArena.teamCommitHash
+    // (keccak256(abi.encodePacked(chainid, arena, battleId, player, teamId, salt))). The shared
     // teamCommitHash helper is the single source of truth.
-    const commitHash = teamCommitHash(BigInt(battleId), address as `0x${string}`, BigInt(teamId), salt as `0x${string}`);
+    const commitHash = teamCommitHash(authParams.chainId, arena as `0x${string}`, BigInt(battleId), address as `0x${string}`, BigInt(teamId), salt as `0x${string}`);
     const auth = await getAuthHeaders();
     // teamId + salt let the server reveal for you as soon as both deposits land (the reveal
-    // window is 20 s); the salt also stays here for the reveal step as a fallback.
+    // window is 60 s); the salt also stays here for the reveal step as a fallback.
     const { steps } = await api.combat.deposit(battleId, { commitHash, teamId, salt }, auth);
     await executeTx(steps);
-  }, [battleId, teamId, address, getAuthHeaders, executeTx]);
+  }, [battleId, teamId, address, authParams, getAuthHeaders, executeTx]);
 
   const busy = status === 'pending' || status === 'confirming';
   const stakeGold = (() => { try { return (BigInt(stake) / 10n ** 18n).toLocaleString(); } catch { return stake; } })();
@@ -407,7 +411,7 @@ function TeamRevealAction({ battleId, address, teamId }: { battleId: string; add
   // F5-01: revealing submits no on-chain tx. The player sends their salt to the server; once
   // BOTH players' salts open their commits, the resolver submits a single atomic revealTeams for
   // both teams. The deposit already handed the server the salt, so this is the fallback — and
-  // it runs by itself (the reveal window is only 20 s). The salt is KEPT locally until the
+  // it runs by itself (the reveal window is 60 s). The salt is KEPT locally until the
   // battle starts: if the server reports the commit unopenable, you open it yourself (D-14).
   const handleReveal = useCallback(async () => {
     setBusy(true);

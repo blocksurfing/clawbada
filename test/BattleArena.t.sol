@@ -107,10 +107,11 @@ contract BattleArenaTest is Test {
 
     function _commitHash(uint256 battleId, address player, uint256 teamId, bytes32 salt)
         internal
-        pure
+        view
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(battleId, player, teamId, salt));
+        // HARDEN-1: the preimage is bound to the chain and the arena.
+        return keccak256(abi.encodePacked(block.chainid, address(arena), battleId, player, teamId, salt));
     }
 
     function _mintEvolvedLobster(address to) internal returns (uint256) {
@@ -266,9 +267,43 @@ contract BattleArenaTest is Test {
         assertEq(arena.nextBattleId(), 1);
         assertEq(arena.refundReserve(), 0);
         assertEq(arena.GUARDIAN_ROLE(), keccak256("GUARDIAN_ROLE"));
-        assertEq(arena.TEAM_REVEAL_WINDOW(), 20 seconds);
+        assertEq(arena.TEAM_REVEAL_WINDOW(), 60 seconds);
         assertEq(arena.REVEAL_GRACE(), 2 minutes);
         assertEq(arena.FREEZE_LONG_STOP(), 72 hours);
+    }
+
+    /// @dev HARDEN-1 known-answer lock, shared with packages/chain/src/__tests__/commit.test.ts: the
+    ///      TypeScript helper and this contract must produce the same commit for the same inputs.
+    function test_teamCommitHash_knownAnswer() public {
+        bytes32 salt = bytes32(uint256(0xdeadbeef));
+        // The preimage, computed by hand for a fixed chain id + arena address.
+        vm.chainId(84532);
+        bytes32 manual = keccak256(
+            abi.encodePacked(uint256(84532), address(0xB2), uint256(42), address(0xA1), uint256(7), salt)
+        );
+        assertEq(manual, 0x3acb94957257bbe0e24d8836673a2f023aa9b77dfe622e81b04409dcea38339f, "TS <> Solidity KAT");
+        // The contract's view uses its own chain id and address.
+        assertEq(
+            arena.teamCommitHash(42, address(0xA1), 7, salt),
+            keccak256(abi.encodePacked(block.chainid, address(arena), uint256(42), address(0xA1), uint256(7), salt)),
+            "view == preimage"
+        );
+        // Bound to the chain: the same inputs on another chain id give another commit.
+        bytes32 onSepolia = arena.teamCommitHash(42, address(0xA1), 7, salt);
+        vm.chainId(8453);
+        assertTrue(arena.teamCommitHash(42, address(0xA1), 7, salt) != onSepolia, "chain-bound");
+    }
+
+    /// @dev HARDEN-1: a commit built without the domain (the pre-2026-10-06 preimage) never opens.
+    function test_revealTeams_rejectsUndomainedCommit() public {
+        uint256 teamIdA = _createEvolvedTeam(alice);
+        uint256 teamIdB = _createEvolvedTeam(bob);
+        uint256 battleId = _createBattle();
+        _deposit(battleId, alice, keccak256(abi.encodePacked(battleId, alice, teamIdA, SALT_A)));
+        _deposit(battleId, bob, _commitHash(battleId, bob, teamIdB, SALT_B));
+        vm.prank(resolver);
+        vm.expectRevert(abi.encodeWithSelector(BattleArena.InvalidCommitHash.selector, battleId));
+        arena.revealTeams(battleId, teamIdA, SALT_A, teamIdB, SALT_B, _seedCommit(battleId));
     }
 
     function test_constructorZeroAddressReverts() public {
@@ -385,7 +420,7 @@ contract BattleArenaTest is Test {
         _assertConservation();
     }
 
-    /// @dev D-13: there is no commit phase — both deposits go straight to TeamReveal with the 20 s clock.
+    /// @dev D-13: there is no commit phase — both deposits go straight to TeamReveal with the 60 s clock.
     function test_depositBothTransitionsStraightToTeamReveal() public {
         uint256 battleId = _createBattle();
         vm.warp(block.timestamp + 30);
@@ -398,7 +433,7 @@ contract BattleArenaTest is Test {
         assertTrue(b.depositA);
         assertTrue(b.depositB);
         assertEq(uint8(b.phase), uint8(BattleArena.BattlePhase.TeamReveal));
-        assertEq(b.phaseDeadline, block.timestamp + 20 seconds, "20 s reveal clock from the second deposit");
+        assertEq(b.phaseDeadline, block.timestamp + 60 seconds, "60 s reveal clock from the second deposit");
         assertEq(b.teamCommitB, _commitHash(battleId, bob, 2, SALT_B));
         _assertConservation();
     }
@@ -1747,8 +1782,8 @@ contract BattleArenaTest is Test {
         assertFalse(b.accusedB);
         assertEq(b.phaseDeadline, block.timestamp + 2 minutes);
 
-        // Past the original 20 s, the battle is not timed out and can still be revealed.
-        vm.warp(block.timestamp + 30);
+        // Past the original 60 s, the battle is not timed out and can still be revealed.
+        vm.warp(block.timestamp + 90);
         vm.expectRevert(abi.encodeWithSelector(BattleArena.PhaseNotTimedOut.selector, battleId));
         arena.handleTimeout(battleId);
         vm.prank(alice);
@@ -2140,7 +2175,7 @@ contract BattleArenaTest is Test {
         vm.prank(resolver);
         arena.accuseRevealFailure(battleId, alice);
         uint256 firstGrace = arena.getBattle(battleId).phaseDeadline;
-        vm.warp(block.timestamp + 30 seconds); // past the original 20 s window, inside the first grace
+        vm.warp(block.timestamp + 90 seconds); // past the original 60 s window, inside the first grace
         vm.prank(resolver);
         arena.accuseRevealFailure(battleId, bob);
         assertEq(arena.getBattle(battleId).phaseDeadline, block.timestamp + arena.REVEAL_GRACE());

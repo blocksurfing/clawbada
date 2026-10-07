@@ -319,8 +319,8 @@ contract BattleArenaHandler is BaseSetup {
             teamIdsB[battleId] = teamB;
 
             uint256 total = stake + _ag(stake);
-            bytes32 hashA = keccak256(abi.encodePacked(battleId, aliceH, teamA, _teamSalt(battleId, true)));
-            bytes32 hashB = keccak256(abi.encodePacked(battleId, bobH, teamB, _teamSalt(battleId, false)));
+            bytes32 hashA = keccak256(abi.encodePacked(block.chainid, address(battleArena), battleId, aliceH, teamA, _teamSalt(battleId, true)));
+            bytes32 hashB = keccak256(abi.encodePacked(block.chainid, address(battleArena), battleId, bobH, teamB, _teamSalt(battleId, false)));
             // D-08: each side consents to exactly this stake and the opponent's real Power.
             _tryDeposit(battleId, aliceH, total, stake, pB, hashA);
             _tryDeposit(battleId, bobH, total, stake, pA, hashB);

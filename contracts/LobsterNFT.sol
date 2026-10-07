@@ -197,15 +197,6 @@ contract LobsterNFT is ERC1155, ERC1155Supply, AccessControl {
         emit LobsterBred(tokenId, _lobsters[tokenId].breedCount);
     }
 
-    /// @notice Decrement the breed count of a lobster (for expired breed request recovery).
-    /// @dev Only callable by BREED_ROLE. Reverts if breed count is already 0.
-    function decrementBreedCount(uint256 tokenId) external onlyRole(BREED_ROLE) {
-        _requireExists(tokenId);
-        if (_lobsters[tokenId].breedCount == 0) revert BreedCountExceeded(tokenId);
-        _lobsters[tokenId].breedCount--;
-        emit LobsterBred(tokenId, _lobsters[tokenId].breedCount);
-    }
-
     // ──────────── View Functions ────────────
 
     /// @notice Get full lobster data.

@@ -22,10 +22,12 @@ const BOB = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' as const;
 const SALT_A = ('0x' + 'aa'.repeat(32)) as `0x${string}`;
 const SALT_B = ('0x' + 'bb'.repeat(32)) as `0x${string}`;
 const WRONG = ('0x' + 'cc'.repeat(32)) as `0x${string}`;
+const ARENA = '0x00000000000000000000000000000000000000a1' as const;
+const CHAIN_ID = 84532;
 const row = (over: Record<string, unknown> = {}) => ({ battleId: 42n, teamA: 11n, teamB: 22n, queuedTeamA: 11n, queuedTeamB: 22n, revealSaltA: SALT_A, revealSaltB: SALT_B, phase: 3, ...over });
 const chain = (over: Partial<RevealOnChain> = {}): RevealOnChain => ({
   phase: 3, playerA: ALICE, playerB: BOB,
-  teamCommitA: teamCommitHash(42n, ALICE, 11n, SALT_A), teamCommitB: teamCommitHash(42n, BOB, 22n, SALT_B),
+  teamCommitA: teamCommitHash(CHAIN_ID, ARENA, 42n, ALICE, 11n, SALT_A), teamCommitB: teamCommitHash(CHAIN_ID, ARENA, 42n, BOB, 22n, SALT_B),
   phaseDeadline: 1_000n, accusedA: false, accusedB: false, openedA: false, openedB: false, ...over,
 });
 
@@ -45,7 +47,8 @@ function makeDeps(selectResults: unknown[], onChain: RevealOnChain, now = 990n -
     arena: { read: { getBattle } },
     readOpenedCommit,
     walletClient: { writeContract },
-    battleArenaAddress: '0x00000000000000000000000000000000000000a1',
+    battleArenaAddress: ARENA,
+    chainId: CHAIN_ID,
     abi: [],
     seedMasterSecret: MASTER,
     log: quiet,
@@ -148,7 +151,7 @@ describe('RevealWatcher — D-14 reveal-failure attribution', () => {
 
   test('D-17: an opened commit for a team the player did NOT queue with is never revealed', async () => {
     const other = ('0x' + 'dd'.repeat(32)) as `0x${string}`;
-    const d = makeDeps([[row({ revealSaltA: WRONG })]], chain({ teamCommitA: teamCommitHash(42n, ALICE, 99n, other), accusedA: true, openedA: true, phaseDeadline: 1_100n }), 1_050n);
+    const d = makeDeps([[row({ revealSaltA: WRONG })]], chain({ teamCommitA: teamCommitHash(CHAIN_ID, ARENA, 42n, ALICE, 99n, other), accusedA: true, openedA: true, phaseDeadline: 1_100n }), 1_050n);
     d.readOpenedCommit.mockImplementation(async () => ({ teamId: 99n, salt: other }));
     await new RevealWatcher(d.deps).tick();
     expect(d.writeContract).not.toHaveBeenCalled();

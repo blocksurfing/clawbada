@@ -507,8 +507,8 @@ contract BoundaryTests is Test {
 
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
-        bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));
-        bytes32 commitB = keccak256(abi.encodePacked(battleId, bob, teamIdB, saltB));
+        bytes32 commitA = keccak256(abi.encodePacked(block.chainid, address(arena), battleId, alice, teamIdA, saltA));
+        bytes32 commitB = keccak256(abi.encodePacked(block.chainid, address(arena), battleId, bob, teamIdB, saltB));
         // D-13: the team commit rides in the deposit.
         _depositBothBattle(battleId, commitA, commitB);
 
@@ -542,8 +542,8 @@ contract BoundaryTests is Test {
 
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
-        bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));
-        bytes32 commitB = keccak256(abi.encodePacked(battleId, bob, teamIdB, saltB));
+        bytes32 commitA = keccak256(abi.encodePacked(block.chainid, address(arena), battleId, alice, teamIdA, saltA));
+        bytes32 commitB = keccak256(abi.encodePacked(block.chainid, address(arena), battleId, bob, teamIdB, saltB));
         // D-13: the team commit rides in the deposit.
         _depositBothBattle(battleId, commitA, commitB);
 
@@ -1267,8 +1267,8 @@ contract BoundaryTests is Test {
         uint256 battleId = arena.createBattle(alice, bob, 0, 3, 3);
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
-        bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));
-        bytes32 commitB = keccak256(abi.encodePacked(battleId, bob, teamIdB, saltB));
+        bytes32 commitA = keccak256(abi.encodePacked(block.chainid, address(arena), battleId, alice, teamIdA, saltA));
+        bytes32 commitB = keccak256(abi.encodePacked(block.chainid, address(arena), battleId, bob, teamIdB, saltB));
         // D-13: the team commit rides in the deposit.
         _depositBothBattle(battleId, commitA, commitB);
 
@@ -1377,8 +1377,8 @@ contract BoundaryTests is Test {
         battleId = arena.createBattle(alice, bob, 0, 3, 3);
         bytes32 saltA = bytes32("saltA");
         bytes32 saltB = bytes32("saltB");
-        bytes32 commitA = keccak256(abi.encodePacked(battleId, alice, teamIdA, saltA));
-        bytes32 commitB = keccak256(abi.encodePacked(battleId, bob, teamIdB, saltB));
+        bytes32 commitA = keccak256(abi.encodePacked(block.chainid, address(arena), battleId, alice, teamIdA, saltA));
+        bytes32 commitB = keccak256(abi.encodePacked(block.chainid, address(arena), battleId, bob, teamIdB, saltB));
         // D-13: the team commit rides in the deposit.
         _depositBothBattle(battleId, commitA, commitB);
 
