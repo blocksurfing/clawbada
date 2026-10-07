@@ -61,6 +61,8 @@ export const LONG_STOP_WARN_SEC = 12n * 3600n;
 export const FROZEN_ALARM_REPEAT_MS = 60 * 60_000;
 /** BattleArena.GUARDIAN_ROLE. */
 export const GUARDIAN_ROLE: `0x${string}` = keccak256(stringToBytes('GUARDIAN_ROLE'));
+/** PauseSwitch.PAUSER_ROLE — the same guardian key is the protocol's emergency stop (PAUSE-I1). */
+export const PAUSER_ROLE: `0x${string}` = keccak256(stringToBytes('PAUSER_ROLE'));
 /** The guardian key must hold at least this much ETH, or a freeze will fail for gas (M3). */
 export const MIN_GUARDIAN_BALANCE_WEI = 2_000_000_000_000_000n; // 0.002 ether
 /** Re-check the guardian key this often after boot. */
@@ -167,6 +169,9 @@ export interface FinalizeWatcherDeps {
   /** GUARDIAN_ROLE signer for `freeze`. A function so a missing GUARDIAN_PRIVATE_KEY fails the
    *  freeze loudly instead of taking the engine down at boot. */
   guardianClient: () => Signer;
+  /** PAUSE-I1: the PauseSwitch, when PAUSE_SWITCH_ADDRESS is set. The preflight warns if the guardian
+   *  key cannot pause (it can still freeze; only the emergency stop would need the Safe). */
+  pauseSwitch?: { read: { hasRole(args: [`0x${string}`, `0x${string}`]): Promise<boolean> } };
   log?: typeof baseLog;
   pollMs?: number;
   now?: () => number;
@@ -225,6 +230,7 @@ export class FinalizeWatcher {
       arena: chain.getBattleArena(publicClient),
       walletClient: chain.getOperatorClient(isTestnet),
       guardianClient: () => (guardian ??= chain.getGuardianClient(isTestnet)),
+      pauseSwitch: process.env.PAUSE_SWITCH_ADDRESS ? chain.getPauseSwitch(publicClient) : undefined,
       pollMs: Number.isFinite(pollRaw) && pollRaw > 0 ? pollRaw : DEFAULT_POLL_MS,
     });
   }
@@ -282,6 +288,10 @@ export class FinalizeWatcher {
           'guardian_preflight_failed — the guardian key cannot freeze: fix it before a bad result reaches review',
         );
         return false;
+      }
+      if (this.deps.pauseSwitch) {
+        const canPause = await this.deps.pauseSwitch.read.hasRole([PAUSER_ROLE, address]);
+        if (!canPause) this.log.warn({ guardian: address }, 'guardian_cannot_pause — the guardian key lacks PauseSwitch PAUSER_ROLE: the emergency stop would need the Safe');
       }
       this.log.info({ guardian: address, balanceWei: balance.toString() }, 'guardian_preflight_ok');
       return true;

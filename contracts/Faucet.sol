@@ -7,6 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {GoldToken} from "./GoldToken.sol";
+import {IPauseSwitch} from "./PauseSwitch.sol";
 import {DNALib} from "./libraries/DNALib.sol";
 
 /// @title Faucet — Temporary onboarding for Clawbada
@@ -40,6 +41,8 @@ contract Faucet is AccessControl, ReentrancyGuard {
     // ──────────── State ────────────
     LobsterNFT public lobsterNFT;
     GoldToken public goldToken;
+    /// @dev PAUSE-I1: the protocol's emergency stop; gates only the money-in entry points of this contract.
+    IPauseSwitch public immutable pauseSwitch;
     uint256 public closeTime;
 
     mapping(address => bool) public hasClaimedLobsters;
@@ -94,18 +97,28 @@ contract Faucet is AccessControl, ReentrancyGuard {
 
     // ──────────── Constructor ────────────
 
+    /// @dev PAUSE-I1: money-IN entry points only — every exit always works (see PauseSwitch.sol).
+    modifier whenNotPaused() {
+        // Reverted HERE (not bubbled from the switch) so ProtocolPaused is in this contract's ABI.
+        if (pauseSwitch.paused()) revert IPauseSwitch.ProtocolPaused();
+        _;
+    }
+
     /// @param admin The DEFAULT_ADMIN_ROLE holder
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param goldToken_ The GoldToken contract
     /// @param closeTime_ Timestamp when faucet closes (~7 days after launch)
-    constructor(address admin, address lobsterNFT_, address goldToken_, uint256 closeTime_) {
-        if (admin == address(0) || lobsterNFT_ == address(0) || goldToken_ == address(0)) {
+    constructor(address admin, address lobsterNFT_, address goldToken_, uint256 closeTime_, address pauseSwitch_) {
+        if (
+            admin == address(0) || lobsterNFT_ == address(0) || goldToken_ == address(0) || pauseSwitch_ == address(0)
+        ) {
             revert ZeroAddress();
         }
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         goldToken = GoldToken(goldToken_);
         closeTime = closeTime_;
+        pauseSwitch = IPauseSwitch(pauseSwitch_);
     }
 
     // ──────────── Eligibility ────────────
@@ -150,7 +163,7 @@ contract Faucet is AccessControl, ReentrancyGuard {
     ///      comes from blockhash(targetBlock), a value that does not exist yet. There is
     ///      nothing to predict and nothing left to revert.
     /// @dev L-05: `nonReentrant` kept as defence in depth (no external call happens here now).
-    function claimLobsters() external nonReentrant returns (uint256 claimId) {
+    function claimLobsters() external nonReentrant whenNotPaused returns (uint256 claimId) {
         if (block.timestamp >= closeTime) revert FaucetIsClosed();
         if (!isEligible[msg.sender]) revert NotEligible();
         if (msg.sender.balance < MIN_ETH_BALANCE) revert InsufficientETHBalance();
@@ -220,7 +233,7 @@ contract Faucet is AccessControl, ReentrancyGuard {
     ///      active re-entry vector, but the guard matches the defence-in-
     ///      depth posture of the rest of the protocol and future-proofs
     ///      against any token-side hooks.
-    function claimGold() external nonReentrant {
+    function claimGold() external nonReentrant whenNotPaused {
         if (block.timestamp >= closeTime) revert FaucetIsClosed();
         if (!isEligible[msg.sender]) revert NotEligible();
         if (msg.sender.balance < MIN_ETH_BALANCE) revert InsufficientETHBalance();

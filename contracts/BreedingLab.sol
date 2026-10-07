@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {Treasury} from "./Treasury.sol";
+import {IPauseSwitch} from "./PauseSwitch.sol";
 import {DNALib} from "./libraries/DNALib.sol";
 
 /// @title BreedingLab — Lobster breeding for Clawbada
@@ -54,6 +55,8 @@ contract BreedingLab is ReentrancyGuard {
     IERC20 public goldToken;
     LobsterNFT public lobsterNFT;
     Treasury public treasury;
+    /// @dev PAUSE-I1: the protocol's emergency stop; gates only the money-in entry points of this contract.
+    IPauseSwitch public immutable pauseSwitch;
 
     uint256 public nextRequestId = 1;
     mapping(uint256 => BreedRequest) private _breedRequests;
@@ -103,16 +106,26 @@ contract BreedingLab is ReentrancyGuard {
 
     // ──────────── Constructor ────────────
 
+    /// @dev PAUSE-I1: money-IN entry points only — every exit always works (see PauseSwitch.sol).
+    modifier whenNotPaused() {
+        // Reverted HERE (not bubbled from the switch) so ProtocolPaused is in this contract's ABI.
+        if (pauseSwitch.paused()) revert IPauseSwitch.ProtocolPaused();
+        _;
+    }
+
     /// @param goldToken_ The $GOLD ERC-20 token
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param treasury_ The Treasury fee splitter
-    constructor(address goldToken_, address lobsterNFT_, address treasury_) {
-        if (goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0)) {
+    constructor(address goldToken_, address lobsterNFT_, address treasury_, address pauseSwitch_) {
+        if (
+            goldToken_ == address(0) || lobsterNFT_ == address(0) || treasury_ == address(0) || pauseSwitch_ == address(0)
+        ) {
             revert ZeroAddress();
         }
         goldToken = IERC20(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         treasury = Treasury(treasury_);
+        pauseSwitch = IPauseSwitch(pauseSwitch_);
     }
 
     // ──────────── Core ────────────
@@ -123,7 +136,12 @@ contract BreedingLab is ReentrancyGuard {
     /// @param parentA First parent lobster ID
     /// @param parentB Second parent lobster ID
     /// @return requestId The breed request ID
-    function requestBreed(uint256 parentA, uint256 parentB) external nonReentrant returns (uint256 requestId) {
+    function requestBreed(uint256 parentA, uint256 parentB)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 requestId)
+    {
         if (parentA == parentB) revert SameParent();
 
         // Validate both parents

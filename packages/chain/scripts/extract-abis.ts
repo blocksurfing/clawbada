@@ -28,6 +28,7 @@ const CONTRACTS = [
   'BattleVRF',
   'EvolutionLab',
   'RepairShop',
+  'PauseSwitch',
   'DNALib',
 ] as const;
 

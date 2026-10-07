@@ -11,4 +11,5 @@ export { BattleResolverAbi } from './battle-resolver';
 export { BattleVRFAbi } from './battle-vrf';
 export { EvolutionLabAbi } from './evolution-lab';
 export { RepairShopAbi } from './repair-shop';
+export { PauseSwitchAbi } from './pause-switch';
 export { DNALibAbi } from './dnalib';

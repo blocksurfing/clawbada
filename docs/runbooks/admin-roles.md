@@ -13,6 +13,7 @@ The contracts are intentionally non-upgradeable. The only governance lever is th
 | `BOOST_ADMIN_ROLE` (MiningPool) | **Hot service wallet** | Quarterly + on suspicion | Weekly boost post: before the 10-day epoch TTL lapses |
 | `RESOLVER_ROLE` (BattleArena) | **Hot service wallet** | Quarterly + on suspicion | Settle: <60s |
 | `GUARDIAN_ROLE` (BattleArena) | **Hot service wallet** (the engine watchdog) | Quarterly + on suspicion | Freeze: inside the review window (5 min / 30 min / 1 h) |
+| `PAUSER_ROLE` (PauseSwitch) | **Hot service wallet** (the same guardian key) | With the guardian key | Pause: minutes from the incident call; unpause is the Safe's (`DEFAULT_ADMIN_ROLE`), 48 h proposal unless the pause was a false alarm |
 | `MATCHMAKER_ROLE` (BattleArena) | **Hot service wallet** | Quarterly + on suspicion | Match: <60s |
 | `OPERATOR_ROLE` (BattleVRF) | **Hot relayer wallet** | Quarterly | Beacon push: per drand round |
 | `ELIGIBILITY_ROLE` (Faucet) | **Hot service wallet** | Faucet lifetime only | Claim eligibility: <5s |
@@ -132,6 +133,17 @@ Both are **hot service wallets** (server-side keys for the off-chain combat engi
   - all services log **`rogue_settlement_proposal`** at error/fatal level when an on-chain result is not the server's own. **Page on it.** Procedure: `docs/runbooks/battle-session.md`.
 - **GUARDIAN** (the engine watchdog, `GUARDIAN_PRIVATE_KEY` / `GUARDIAN_ADDRESS`): can do exactly one thing — `freeze(battleId)` a battle in review (`AwaitingFinalize`, before its `payoutDeadline`). It moves no money and cannot pick a winner. Blast radius of a stolen guardian key: it can freeze every result in review; each freeze then waits for the Safe (or the 72 h expiry, which refunds both players and burns 2 × stake from the refund reserve). Rotate on the first unexplained `BattleFrozen`. The guardian is the check on the resolver, so the two must never share a key (enforced by the deploy scripts and the engine on mainnet). The Safe can also freeze (it holds `DEFAULT_ADMIN_ROLE`).
 - **RESOLVER and battle randomness (D-01)**: the resolver commits each battle's seed secret in `revealTeams` and discloses it in `settle`. It cannot choose the seed (the drand round it is mixed with does not exist yet at commit time), but it can decline to settle a battle whose seed it dislikes, which refunds both players at `ACTIVE_WINDOW`. `BATTLE_SEED_SECRET` is a second secret of the same class as this key: a leak lets the holder foresee every roll of live battles. Rotate it with the key.
+
+- **PAUSER** (PauseSwitch, the same guardian key): can do one more thing — `PauseSwitch.pause()`, which stops every money-IN entry point at once (`createBattle` / `deposit`, `startExpedition`, `requestBreed`, `evolve`, `listLobster` / `buyLobster`, `repair`, the faucet claims; each reverts `ProtocolPaused()`). It cannot unpause, and nothing it pauses can trap funds: every exit — `settle`, `finalizeBattle`, `handleTimeout`, `emergencyWithdraw`, the frozen-battle path, `claimExpedition`, `finalizeBreed` / `cancelExpiredRequest`, `cancelListing`, `finalizeClaim` — keeps working while paused. Blast radius of a stolen key: a visible, reversible outage of new activity until the Safe unpauses and rotates it.
+
+### Pause switch (emergency stop)
+
+Pause when a result, a balance or a contract behaves in a way nobody can explain within minutes — before the analysis, not after. Pausing costs the protocol nothing but new activity; a wrong pause is undone in one Safe transaction.
+
+1. From the guardian key (or the Safe): `cast send $PAUSE_SWITCH_ADDRESS "pause()" --private-key $GUARDIAN_PRIVATE_KEY --rpc-url <net>`. Confirm with `cast call $PAUSE_SWITCH_ADDRESS "paused()(bool)"`. The `Paused(by)` event is the audit trail; the engine keeps running (its exits are not gated).
+2. Announce the pause and what still works (claims, settlements, cancels, refunds).
+3. Investigate; fix or rotate whatever caused it.
+4. From the Safe only: `PauseSwitch.unpause()` (calldata `0x3f4ba83a`). `VerifyDeployment --sig "configured()"` fails while the protocol is paused, so a paused launch is caught.
 
 ### Rotation
 Rotate quarterly or on any suspicion of compromise. Rotation procedure:

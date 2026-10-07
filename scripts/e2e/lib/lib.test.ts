@@ -27,10 +27,11 @@ describe('drand stub', () => {
 });
 
 describe('env assembly', () => {
-  test('maps all twelve contract addresses and the harness-only settings', () => {
+  test('maps all thirteen contract addresses and the harness-only settings', () => {
     const cfg = { rpcUrl: 'http://127.0.0.1:8545', databaseUrl: 'postgresql://x', drandUrl: 'http://127.0.0.1:1', apiPort: 3001, deployment, boostAnchorTs: 123n };
     const addrs = addressEnv(deployment);
-    expect(Object.keys(addrs)).toHaveLength(12);
+    expect(Object.keys(addrs)).toHaveLength(13);
+    expect(addrs.PAUSE_SWITCH_ADDRESS).toBe(deployment.contracts.PauseSwitch);
     expect(addrs.BATTLE_ARENA_ADDRESS).toBe(deployment.contracts.BattleArena);
     const api = apiEnv(cfg);
     expect(api.MATCHMAKER_ADDRESS).toBe(KEYS.deployer.address);

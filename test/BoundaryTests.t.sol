@@ -9,6 +9,7 @@ import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {Treasury} from "../contracts/Treasury.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {MiningPool} from "../contracts/MiningPool.sol";
+import {PauseSwitch} from "../contracts/PauseSwitch.sol";
 import {BreedingLab} from "../contracts/BreedingLab.sol";
 import {EvolutionLab} from "../contracts/EvolutionLab.sol";
 import {RepairShop} from "../contracts/RepairShop.sol";
@@ -135,6 +136,7 @@ contract BoundaryTests is Test {
     RepairShop repair;
     Marketplace market;
     BattleArena arena;
+    PauseSwitch ps;
     BattleVRF vrf;
     Faucet faucet;
     DNABoundaryHarness dnaHarness;
@@ -171,17 +173,18 @@ contract BoundaryTests is Test {
         treasury.setGoldToken(address(gold));
         tm = new TeamManager(admin, address(nft));
         vrf = new BattleVRF(admin);
-        pool = new MiningPool(admin, address(gold), address(nft), address(tm));
-        breeding = new BreedingLab(address(gold), address(nft), address(treasury));
-        evolution = new EvolutionLab(address(gold), address(nft), address(treasury));
-        repair = new RepairShop(address(gold), address(nft), address(treasury), address(pool));
-        market = new Marketplace(address(gold), address(nft), address(treasury));
+        ps = new PauseSwitch(admin);
+        pool = new MiningPool(admin, address(gold), address(nft), address(tm), address(ps));
+        breeding = new BreedingLab(address(gold), address(nft), address(treasury), address(ps));
+        evolution = new EvolutionLab(address(gold), address(nft), address(treasury), address(ps));
+        repair = new RepairShop(address(gold), address(nft), address(treasury), address(pool), address(ps));
+        market = new Marketplace(address(gold), address(nft), address(treasury), address(ps));
         arena = new BattleArena(
-            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool), address(ps)
         );
 
         // Faucet with 7-day window
-        faucet = new Faucet(admin, address(nft), address(gold), block.timestamp + 7 days);
+        faucet = new Faucet(admin, address(nft), address(gold), block.timestamp + 7 days, address(ps));
 
         // Grant all required roles
         nft.grantRole(nft.MINTER_ROLE(), admin);

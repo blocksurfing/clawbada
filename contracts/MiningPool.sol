@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {GoldToken} from "./GoldToken.sol";
 import {LobsterNFT} from "./LobsterNFT.sol";
 import {TeamManager} from "./TeamManager.sol";
+import {IPauseSwitch} from "./PauseSwitch.sol";
 
 /// @title MiningPool — Glide-pegged per-expedition rewards with seasonal budget cap for Clawbada
 /// @notice Manages expeditions across Base/Evolved/Elite/Apex mines. Each expedition earns
@@ -137,6 +138,8 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     GoldToken public goldToken;
     LobsterNFT public lobsterNFT;
     TeamManager public teamManager;
+    /// @dev PAUSE-I1: the protocol's emergency stop; gates only the money-in entry points of this contract.
+    IPauseSwitch public immutable pauseSwitch;
 
     uint256 public currentSeason;
     mapping(uint256 => SeasonConfig) private _seasons;
@@ -229,19 +232,30 @@ contract MiningPool is AccessControl, ReentrancyGuard {
 
     // ──────────── Constructor ────────────
 
+    /// @dev PAUSE-I1: money-IN entry points only — every exit always works (see PauseSwitch.sol).
+    modifier whenNotPaused() {
+        // Reverted HERE (not bubbled from the switch) so ProtocolPaused is in this contract's ABI.
+        if (pauseSwitch.paused()) revert IPauseSwitch.ProtocolPaused();
+        _;
+    }
+
     /// @param admin The DEFAULT_ADMIN_ROLE holder
     /// @param goldToken_ The GoldToken contract
     /// @param lobsterNFT_ The LobsterNFT contract
     /// @param teamManager_ The TeamManager contract
-    constructor(address admin, address goldToken_, address lobsterNFT_, address teamManager_) {
-        if (admin == address(0) || goldToken_ == address(0) || lobsterNFT_ == address(0) || teamManager_ == address(0))
-        {
+    /// @param pauseSwitch_ The protocol PauseSwitch (gates startExpedition only)
+    constructor(address admin, address goldToken_, address lobsterNFT_, address teamManager_, address pauseSwitch_) {
+        if (
+            admin == address(0) || goldToken_ == address(0) || lobsterNFT_ == address(0) || teamManager_ == address(0)
+                || pauseSwitch_ == address(0)
+        ) {
             revert ZeroAddress();
         }
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         goldToken = GoldToken(goldToken_);
         lobsterNFT = LobsterNFT(lobsterNFT_);
         teamManager = TeamManager(teamManager_);
+        pauseSwitch = IPauseSwitch(pauseSwitch_);
     }
 
     // ──────────── Season Management ────────────
@@ -321,7 +335,12 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     /// @param mineTier The mine tier (0=Base, 1=Evolved, 2=Elite, 3=Apex)
     /// @return expeditionId The ID of the started expedition
     // slither-disable-next-line reentrancy-no-eth,divide-before-multiply — nonReentrant; goldToken.mint is to the trusted GoldToken and the expedition write follows the mint. divide-before-multiply is deliberate: the boost is applied to the base BEFORE the tier multiply so the locked reward stays an exact tier-weight multiple (invariant I-4); the truncation is < 1 wei per weight unit on 1e18-scale rewards.
-    function startExpedition(uint256 teamId, uint8 mineTier) external nonReentrant returns (uint256 expeditionId) {
+    function startExpedition(uint256 teamId, uint8 mineTier)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 expeditionId)
+    {
         if (mineTier >= NUM_TIERS) revert InvalidMineTier(mineTier);
         _requireActiveSeason();
 

@@ -776,6 +776,7 @@ contracts/
 ├── BattleVRF.sol       # drand beacon verification for combat randomness
 ├── EvolutionLab.sol    # Lobster evolution: burn 2 fuel + $GOLD → 1 evolved lobster
 ├── RepairShop.sol      # Post-battle damage repair ($GOLD burn)
+├── PauseSwitch.sol     # Emergency stop for money-IN entry points only (PAUSER = guardian key, unpause = the Safe); every exit always works
 └── test/               # Contract tests (Hardhat/Foundry)
 ```
 
@@ -970,6 +971,7 @@ No passive staking yield — the only way to earn $GOLD is by playing (mining, b
 - Mining stakes: locked during expedition
 - Battle stakes: locked during match and its review window (+ 5% anti-grief deposit); a frozen result holds only the stakes
 - Lobster locking: committed to team, active mine, or a battle still being played = cannot sell/transfer (released at settle)
+- Emergency stop (PAUSE-I1, 2026-10-06): one `PauseSwitch` gates only the money-in entry points (`createBattle`/`deposit`, `startExpedition`, `requestBreed`, `evolve`, `listLobster`/`buyLobster`, `repair`, faucet claims — they revert `ProtocolPaused()`); every exit (settle, finalize, timeouts, claims, cancels, emergency withdraw) always works, so a pause can never trap funds. The guardian hot key (`PAUSER_ROLE`) or the Safe pauses; only the Safe unpauses
 
 ### Anti-convergence mechanics
 - Rock-paper-scissors class dynamics across 10 classes (no dominant strategy)

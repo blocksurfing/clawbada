@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EvolutionLab} from "../contracts/EvolutionLab.sol";
+import {PauseSwitch} from "../contracts/PauseSwitch.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
@@ -10,6 +11,7 @@ import {DNALib} from "../contracts/libraries/DNALib.sol";
 
 contract EvolutionLabTest is Test {
     EvolutionLab lab;
+    PauseSwitch ps;
     LobsterNFT nft;
     GoldToken gold;
     Treasury treasury;
@@ -31,7 +33,8 @@ contract EvolutionLabTest is Test {
         gold = new GoldToken(admin, lpAddress, address(treasury));
         treasury.setGoldToken(address(gold));
 
-        lab = new EvolutionLab(address(gold), address(nft), address(treasury));
+        ps = new PauseSwitch(admin);
+        lab = new EvolutionLab(address(gold), address(nft), address(treasury), address(ps));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -87,17 +90,17 @@ contract EvolutionLabTest is Test {
 
     function test_constructorZeroGoldReverts() public {
         vm.expectRevert(EvolutionLab.ZeroAddress.selector);
-        new EvolutionLab(address(0), address(nft), address(treasury));
+        new EvolutionLab(address(0), address(nft), address(treasury), address(ps));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(EvolutionLab.ZeroAddress.selector);
-        new EvolutionLab(address(gold), address(0), address(treasury));
+        new EvolutionLab(address(gold), address(0), address(treasury), address(ps));
     }
 
     function test_constructorZeroTreasuryReverts() public {
         vm.expectRevert(EvolutionLab.ZeroAddress.selector);
-        new EvolutionLab(address(gold), address(nft), address(0));
+        new EvolutionLab(address(gold), address(nft), address(0), address(ps));
     }
 
     // ──────────── evolve() — Happy Paths ────────────

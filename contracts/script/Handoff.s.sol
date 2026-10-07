@@ -13,7 +13,7 @@ import {Faucet} from "../Faucet.sol";
 ///         proof of control between them.
 ///
 ///         Role-handoff cluster (ROLE-M1/M2/M3): the handoff covers every authority the
-///         deploy key holds — DEFAULT_ADMIN_ROLE on the 7 AccessControl contracts,
+///         deploy key holds — DEFAULT_ADMIN_ROLE on the 8 AccessControl contracts (PauseSwitch included),
 ///         Treasury's Ownable2Step ownership, MiningPool.SEASON_ADMIN_ROLE (emission
 ///         control) and Faucet.ELIGIBILITY_ROLE (free lobster + $GOLD minting).
 ///
@@ -21,7 +21,7 @@ import {Faucet} from "../Faucet.sol";
 ///         the deployer in one run. The contracts are not upgradeable, DEFAULT_ADMIN is the
 ///         admin of every role and nothing can re-grant it, so a mistyped GOVERNANCE_SAFE —
 ///         or a Safe address copied from another chain, where it has no code — would have
-///         destroyed admin on all seven contracts for good: frozen battles could never be
+///         destroyed admin on all eight contracts for good: frozen battles could never be
 ///         resolved by the Safe (only the 72 h expiry would remain), no season after the first could start, no hot
 ///         key could ever be rotated. Only Treasury was protected, by Ownable2Step.
 ///
@@ -35,7 +35,7 @@ import {Faucet} from "../Faucet.sol";
 ///                           renounces everything.
 ///
 ///         Hot roles are NOT governance and are not moved: MATCHMAKER, RESOLVER, GUARDIAN
-///         (BattleArena), BOOST_ADMIN (MiningPool), VRF OPERATOR stay with their own keys,
+///         (BattleArena), PAUSER (PauseSwitch), BOOST_ADMIN (MiningPool), VRF OPERATOR stay with their own keys,
 ///         granted by Configure.s.sol. The Safe holds BattleArena DEFAULT_ADMIN, which alone
 ///         can resolveFrozen() a battle the guardian froze (and can freeze too).
 /// @dev Shared by Handoff.s.sol (broadcast as deployer) and the tests (pranked as deployer)
@@ -133,7 +133,7 @@ contract Handoff is CheckedDeployHelpers {
         vm.stopBroadcast();
 
         console2.log("=== Phase 1 sent. The handoff is NOT complete: the deployer still governs. ===");
-        console2.log("DEFAULT_ADMIN (all 7) + SEASON_ADMIN granted to safe:", governanceSafe);
+        console2.log("DEFAULT_ADMIN (all 8) + SEASON_ADMIN granted to safe:", governanceSafe);
         console2.log("ELIGIBILITY_ROLE -> operator:", eligibilityOperator);
         console2.log("NEXT 1: VerifyDeployment.s.sol --sig 'proposed()'   (reads the chain; no --broadcast)");
         console2.log("NEXT 2: from the Safe, call Treasury.acceptOwnership()");

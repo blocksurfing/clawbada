@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {BattleArena} from "../contracts/BattleArena.sol";
+import {PauseSwitch} from "../contracts/PauseSwitch.sol";
 import {BattleVRF} from "../contracts/BattleVRF.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
@@ -39,6 +40,7 @@ contract BattleArenaStakePegTest is Test {
     uint256 constant BPS = 10_000;
 
     BattleArena arena;
+    PauseSwitch ps;
     BattleVRF vrf;
     TeamManager tm;
     LobsterNFT nft;
@@ -65,9 +67,10 @@ contract BattleArenaStakePegTest is Test {
         tm = new TeamManager(admin, address(nft));
         treasury = new Treasury(admin, devWallet);
         vrf = new BattleVRF(admin);
+        ps = new PauseSwitch(admin);
         peg = new StakeReferenceMock();
         arena = new BattleArena(
-            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(peg)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(peg), address(ps)
         );
 
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -388,6 +391,7 @@ contract BattleArenaStakePegTest is Test {
 ///         re-samples once a season-day, and the arena's quotes follow it.
 contract BattleArenaStakePegIntegrationTest is Test {
     BattleArena arena;
+    PauseSwitch ps;
     MiningPool pool;
     LobsterNFT nft;
     GoldToken gold;
@@ -411,9 +415,10 @@ contract BattleArenaStakePegIntegrationTest is Test {
         tm = new TeamManager(admin, address(nft));
         treasury = new Treasury(admin, makeAddr("dev"));
         vrf = new BattleVRF(admin);
-        pool = new MiningPool(admin, address(gold), address(nft), address(tm));
+        ps = new PauseSwitch(admin);
+        pool = new MiningPool(admin, address(gold), address(nft), address(tm), address(ps));
         arena = new BattleArena(
-            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool), address(ps)
         );
         pool.grantRole(pool.SEASON_ADMIN_ROLE(), seasonAdmin);
         arena.grantRole(arena.MATCHMAKER_ROLE(), matchmaker);

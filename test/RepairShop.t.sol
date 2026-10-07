@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {RepairShop} from "../contracts/RepairShop.sol";
+import {PauseSwitch} from "../contracts/PauseSwitch.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {GoldToken} from "../contracts/GoldToken.sol";
 import {Treasury} from "../contracts/Treasury.sol";
@@ -23,6 +24,7 @@ contract MockRewardPeg {
 
 contract RepairShopTest is Test {
     RepairShop shop;
+    PauseSwitch ps;
     MockRewardPeg peg;
     LobsterNFT nft;
     GoldToken gold;
@@ -44,8 +46,9 @@ contract RepairShopTest is Test {
         gold = new GoldToken(admin, lpAddress, address(treasury));
         treasury.setGoldToken(address(gold));
 
+        ps = new PauseSwitch(admin);
         peg = new MockRewardPeg();
-        shop = new RepairShop(address(gold), address(nft), address(treasury), address(peg));
+        shop = new RepairShop(address(gold), address(nft), address(treasury), address(peg), address(ps));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -101,22 +104,22 @@ contract RepairShopTest is Test {
 
     function test_constructorZeroGoldReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(0), address(nft), address(treasury), address(peg));
+        new RepairShop(address(0), address(nft), address(treasury), address(peg), address(ps));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(gold), address(0), address(treasury), address(peg));
+        new RepairShop(address(gold), address(0), address(treasury), address(peg), address(ps));
     }
 
     function test_constructorZeroTreasuryReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(gold), address(nft), address(0), address(peg));
+        new RepairShop(address(gold), address(nft), address(0), address(peg), address(ps));
     }
 
     function test_constructorZeroMiningPoolReverts() public {
         vm.expectRevert(RepairShop.ZeroAddress.selector);
-        new RepairShop(address(gold), address(nft), address(treasury), address(0));
+        new RepairShop(address(gold), address(nft), address(treasury), address(0), address(ps));
     }
 
     // ──────────── repair() — Happy Paths ────────────

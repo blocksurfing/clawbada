@@ -31,6 +31,7 @@ const CONTRACT_ENV_MAP: Record<string, string> = {
   BattleVRF: 'BATTLE_VRF_ADDRESS',
   EvolutionLab: 'EVOLUTION_LAB_ADDRESS',
   RepairShop: 'REPAIR_SHOP_ADDRESS',
+  PauseSwitch: 'PAUSE_SWITCH_ADDRESS',
 };
 
 // ── Parse args ──
