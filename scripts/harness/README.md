@@ -58,6 +58,11 @@ failure shows up, check that column for the turn first.
 | `snap-probe.ts` | pixel-perfect: canvas css/backing size, Unity camera mode, ortho, px/unit (2026-09-16: its picker step stopped reaching the battle page — fs-probe covers the snap check meanwhile) | `DPR` `W` `H` |
 | `fs-probe.ts` | fullscreen enter → exit: the stage returns to the column size (a stale fullscreen canvas is the "third of the arena" report) | `DPR` `VW` `VH` |
 | `autoplay.ts` | `?auto=1&speed=N` review tools advance the battle with no clicks | `TRIO` `SPEED` |
+| `fish-probe.ts` | Elite angler fish (`AnglerSchool`): seed line, first crossing, lane/side/turn rules, frame bursts | `PRESET` `BASE` `FRAMES` `GAP_MS` |
+| `bird-probe.ts` | Evolved gulls (`BirdFlock`): flock arrives, lands on the rocks, leaves one by one; rule checks + frames | `PRESET` `BASE` |
+| `cloud-probe.ts` | Evolved drift clouds (`CloudDrift`, 2026-10-07): seed line, 2–3 clouds in view at once, variants/lanes/speed rules, frames 4 s apart so the drift shows → `out/cloud-<tag>-sky-N.png` | `PRESET` `BASE` `FRAMES` `GAP_MS` |
+| `jelly-probe.ts` | Elite jellyfish (`JellySchool`, 2026-10-07): seed line, first group ≤ 3, surfacing at the floor line between the walls, one heading, first exit → `out/jelly-<tag>-{rise,after}-N.png` | `PRESET` `BASE` `FRAMES` `GAP_MS` |
+| `diag-bind.ts` | Diagnostic when a probe says "HUD never bound": starts a practice battle and dumps whether `/battle/p_…` was reached, the canvas, the Unity script tags and every non-HUD console line (2026-10-07: it showed the login route 500-ing, not Unity) | `PRESET` `BASE` `WAIT_MS` |
 | `gridvis.ts` | hex grid hidden at rest, shown only when the player can act | — |
 | `forfeit.ts` | options menu → forfeit → `battle_ended` | — |
 | `stunprobe.ts` | Kraken Bind as a stun hold: tentacles Spawn on the hit → Idle loop while the victim is stunned (through its skipped turn) → Out when the stun ends; victim's rig frozen meanwhile; follows one victim by id; frames in `out/stun-*.png` | `PRESET` `SPEED` |
