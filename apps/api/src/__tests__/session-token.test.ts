@@ -6,8 +6,10 @@ const mockGetAddress = mock((addr: string) => addr);
 mock.module('@clawbada/chain', () => ({
   verifyMessage: mock(() => Promise.resolve(true)),
   getAddress: mockGetAddress,
-  addresses: { battleArena: '0xBATTLE' },
+  // A getter, so one test can stand in for an API with no contract addresses configured.
+  addresses: { get battleArena() { if (missingAddresses) throw new Error('Missing contract address: BATTLE_ARENA_ADDRESS is not set.'); return '0xBATTLE'; } },
 }));
+let missingAddresses = false;
 
 import { Hono } from 'hono';
 import { walletAuth } from '../middleware/auth';
@@ -208,5 +210,38 @@ describe('POST /api/auth/session', () => {
     expect((await a.request('/api/auth/session/refresh', { method: 'POST' })).status).toBe(401);
     const bad = await a.request('/api/auth/session/refresh', { method: 'POST', headers: { Authorization: 'Bearer clw1.x.y' } });
     expect(bad.status).toBe(401);
+  });
+});
+
+describe('GET /api/auth/params', () => {
+  async function app() {
+    const { authRoutes } = await import('../routes/auth');
+    const a = new Hono();
+    a.route('/api/auth', authRoutes);
+    return a;
+  }
+
+  test('publishes the arena address a client hashes into its team commit (HARDEN-1)', async () => {
+    missingAddresses = false;
+    const res = await (await app()).request('/api/auth/params');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.chainId).toBe(84532);
+    expect(body.contracts).toEqual({ battleArena: '0xBATTLE' });
+  });
+
+  test('still answers when no contract addresses are configured — login must not depend on a deployment', async () => {
+    // Regression: #198 read `addresses.battleArena` inline, which throws without BATTLE_ARENA_ADDRESS,
+    // so every dev/probe stack without contracts got a 500 here and nobody could sign in.
+    missingAddresses = true;
+    try {
+      const res = await (await app()).request('/api/auth/params');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.chainIds).toEqual([84532, 8453]);
+      expect(body.contracts).toEqual({});
+    } finally {
+      missingAddresses = false;
+    }
   });
 });
