@@ -114,8 +114,9 @@ library GovernanceHandoff {
 ///        (Safe transaction)  Treasury.acceptOwnership()
 ///        forge script contracts/script/Handoff.s.sol --rpc-url base --broadcast --sig "finalize()"
 ///        forge script contracts/script/VerifyDeployment.s.sol --rpc-url base --sig "finalized()"
+///        (Safe)  fund the refund reserve; then OPEN the game: Open.s.sol --sig "safeCalls()"
 ///
-///      The handoff is NOT complete until the last command passes. The checks inside this
+///      The handoff is NOT complete until the finalized() command passes. The checks inside this
 ///      script run against forge's local simulation of the broadcast; VerifyDeployment
 ///      (no --broadcast) reads the chain itself, which is what catches a dropped transaction.
 contract Handoff is CheckedDeployHelpers {

@@ -214,6 +214,8 @@ S1 trust assumption: operator submits drand beacons honestly; on-chain BLS verif
 
 ## ELIGIBILITY_ROLE (Faucet) policy
 
+**The signer (M10, 2026-10-06):** `bun run faucet-allowlist --file wallets.txt [--send]` (`packages/chain/scripts/faucet-allowlist.ts`) — checks each wallet against the published rules (0.001 ETH, 3 transactions, 7 days on Base via Basescan; `--skip-age` on testnets) and grants the ones that pass in batches of 500, signed by `ELIGIBILITY_PRIVATE_KEY`. That key is loaded by this script only; no running service holds it. Self-serve eligibility (the agent kit requesting it) is the Phase 3 follow-up.
+
 Lifetime: 6 days 23 hours after launch (per `closeTime`), then permanently mute (no on-chain eligibility checks possible after closure). During the active window the holder marks wallets eligible via off-chain verification (wallet age ≥ 7 days, ≥ 3 prior tx history before the 7-day mark, ≥ 0.001 ETH balance).
 
 ### Compromise blast radius
@@ -253,7 +255,8 @@ The lobster bound matters more than it looks (audit D-02): a faucet lobster mine
 4. **The multisig calls `Treasury.acceptOwnership()`** — the proof that it can sign on this chain.
 5. **Handoff phase 2** — the deployer renounces `DEFAULT_ADMIN_ROLE` on every contract. It cannot run before step 4.
 6. `VerifyDeployment.s.sol --sig "finalized()"`, then log the multisig address publicly so anyone can verify governance (the verify script needs only public addresses).
-7. **The multisig funds the refund reserve** (2M GOLD: `approve` + `BattleArena.fundReserve`), then `VerifyDeployment.s.sol --sig "reserveFunded()"`. Open the game only after this passes.
+7. **The multisig funds the refund reserve** (2M GOLD: `approve` + `BattleArena.fundReserve`), then `VerifyDeployment.s.sol --sig "reserveFunded()"`.
+8. **The multisig opens the game** (D-G): `Open.s.sol --sig "safeCalls()"` prints the two transactions — `Faucet.setCloseTime(now + 7 days)` then `MiningPool.startSeason(352.5M, 1,250)`. Until they land the faucet is closed and no season exists, so nothing can be claimed or mined. Then `VerifyDeployment.s.sol --sig "opened()"`, and set `BOOST_EPOCH_ANCHOR_TS` to the season's start time on the services. The full testnet rehearsal of this sequence is `docs/runbooks/testnet-deploy.md`.
 
 This sequence closes C-06 (deployer-as-admin without timelock) at deploy time.
 

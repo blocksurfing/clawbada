@@ -8,7 +8,7 @@
  * calling `startSeason`, the engine alarms ahead of time with the exact transaction the Safe
  * should submit:
  *   - `season_not_started`      — the contracts answer but `currentSeason()` is 0 and the indexer
- *                                 never saw a `SeasonStarted`: Configure.s.sol has not run (or ran
+ *                                 never saw a `SeasonStarted`: Open.s.sol has not run (or ran
  *                                 against another deploy); repeats daily
  *   - `season_rollover_due`     — from ROLLOVER_DUE_AHEAD_MS before the season ends; repeats daily
  *   - `season_rollover_overdue` — the season gap: the season has ended and no new one started;
@@ -131,7 +131,7 @@ export interface SeasonChainReader {
   lifetimeMinted(): Promise<bigint>;
   /** MiningPool.currentBaseReward(): the glide's live rate, the closing rate once the season has ended. */
   currentBaseReward(): Promise<bigint>;
-  /** MiningPool.currentSeason(): 0 before Configure.s.sol / the Safe starts season 1. */
+  /** MiningPool.currentSeason(): 0 before Open.s.sol / the Safe starts season 1. */
   currentSeason(): Promise<number>;
   getSeasonConfig(season: number): Promise<SeasonChainConfig>;
   /** Chain time (latest block timestamp) in ms — the contracts judge the season by block.timestamp. */
@@ -313,7 +313,7 @@ export class SeasonManager {
     const indexed = chain === undefined || chain === null ? await this.getIndexedSeason() : null;
 
     if (chain === null) {
-      // The contracts answer and no season exists. Configure.s.sol starts S1; until it runs,
+      // The contracts answer and no season exists. Open.s.sol (the Safe on mainnet) starts S1; until it runs,
       // mining cannot start at all. A row in the indexer means it mirrors another deploy.
       if (indexed) {
         if (this.alarmDue('season_chain_db_mismatch', t, NOT_STARTED_REPEAT_MS)) {
@@ -327,7 +327,7 @@ export class SeasonManager {
       if (!this.alarmDue('season_not_started', t, NOT_STARTED_REPEAT_MS)) return null;
       this.log.error(
         { miningPool: addresses.miningPool, chainTime: new Date(t).toISOString() },
-        'season_not_started — currentSeason() is 0 and no SeasonStarted was ever indexed: mining cannot start until startSeason runs (Configure.s.sol / the Safe)',
+        'season_not_started — currentSeason() is 0 and no SeasonStarted was ever indexed: mining cannot start until startSeason runs (Open.s.sol / the Safe)',
       );
       return 'not_started';
     }
