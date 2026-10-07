@@ -56,6 +56,10 @@ read_addr() {
 
 DEPLOYER=$(jq -r ".deployer" "$DEPLOYMENT_FILE")
 DEV_WALLET="${DEV_WALLET:?DEV_WALLET not set}"
+# GoldToken(admin, lpRecipient, treasuryReserve): off mainnet Deploy.s.sol falls back to the deployer
+# for both recipients (DeployHelpers._loadAddresses); on mainnet they are required env vars.
+LP_RECIPIENT="${LP_RECIPIENT:-$DEPLOYER}"
+TREASURY_RESERVE_ADDRESS="${TREASURY_RESERVE_ADDRESS:-$DEPLOYER}"
 
 TREASURY=$(read_addr "Treasury")
 LOBSTER_NFT=$(read_addr "LobsterNFT")
@@ -69,6 +73,7 @@ EVOLUTION_LAB=$(read_addr "EvolutionLab")
 REPAIR_SHOP=$(read_addr "RepairShop")
 MARKETPLACE=$(read_addr "Marketplace")
 BATTLE_ARENA=$(read_addr "BattleArena")
+PAUSE_SWITCH=$(read_addr "PauseSwitch")
 
 # Faucet close time — we can't recover the exact value from the deployment JSON,
 # so we read it from the contract if available. For verification, pass 0 and
@@ -92,6 +97,9 @@ verify() {
 }
 
 # Tier 0
+verify "PauseSwitch" "$PAUSE_SWITCH" \
+    "$(cast abi-encode 'constructor(address)' "$DEPLOYER")"
+
 verify "Treasury" "$TREASURY" \
     "$(cast abi-encode 'constructor(address,address)' "$DEPLOYER" "$DEV_WALLET")"
 
@@ -102,7 +110,7 @@ verify "BattleVRF" "$BATTLE_VRF" \
     "$(cast abi-encode 'constructor(address)' "$DEPLOYER")"
 
 verify "GoldToken" "$GOLD_TOKEN" \
-    "$(cast abi-encode 'constructor(address,address,address)' "$DEPLOYER" "$DEPLOYER" "$TREASURY")"
+    "$(cast abi-encode 'constructor(address,address,address)' "$DEPLOYER" "$LP_RECIPIENT" "$TREASURY_RESERVE_ADDRESS")"
 
 # Tier 1
 verify "TeamManager" "$TEAM_MANAGER" \
@@ -111,25 +119,25 @@ verify "TeamManager" "$TEAM_MANAGER" \
 # Faucet close time: read from the contract
 FAUCET_CLOSE_TIME=$(cast call "$FAUCET" "closeTime()(uint256)" --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
 verify "Faucet" "$FAUCET" \
-    "$(cast abi-encode 'constructor(address,address,address,uint256)' "$DEPLOYER" "$LOBSTER_NFT" "$GOLD_TOKEN" "$FAUCET_CLOSE_TIME")"
+    "$(cast abi-encode 'constructor(address,address,address,uint256,address)' "$DEPLOYER" "$LOBSTER_NFT" "$GOLD_TOKEN" "$FAUCET_CLOSE_TIME" "$PAUSE_SWITCH")"
 
 verify "MiningPool" "$MINING_POOL" \
-    "$(cast abi-encode 'constructor(address,address,address,address)' "$DEPLOYER" "$GOLD_TOKEN" "$LOBSTER_NFT" "$TEAM_MANAGER")"
+    "$(cast abi-encode 'constructor(address,address,address,address,address)' "$DEPLOYER" "$GOLD_TOKEN" "$LOBSTER_NFT" "$TEAM_MANAGER" "$PAUSE_SWITCH")"
 
 verify "BreedingLab" "$BREEDING_LAB" \
-    "$(cast abi-encode 'constructor(address,address,address)' "$GOLD_TOKEN" "$LOBSTER_NFT" "$TREASURY")"
+    "$(cast abi-encode 'constructor(address,address,address,address)' "$GOLD_TOKEN" "$LOBSTER_NFT" "$TREASURY" "$PAUSE_SWITCH")"
 
 verify "EvolutionLab" "$EVOLUTION_LAB" \
-    "$(cast abi-encode 'constructor(address,address,address)' "$GOLD_TOKEN" "$LOBSTER_NFT" "$TREASURY")"
+    "$(cast abi-encode 'constructor(address,address,address,address)' "$GOLD_TOKEN" "$LOBSTER_NFT" "$TREASURY" "$PAUSE_SWITCH")"
 
 verify "RepairShop" "$REPAIR_SHOP" \
-    "$(cast abi-encode 'constructor(address,address,address)' "$GOLD_TOKEN" "$LOBSTER_NFT" "$TREASURY")"
+    "$(cast abi-encode 'constructor(address,address,address,address,address)' "$GOLD_TOKEN" "$LOBSTER_NFT" "$TREASURY" "$MINING_POOL" "$PAUSE_SWITCH")"
 
 verify "Marketplace" "$MARKETPLACE" \
-    "$(cast abi-encode 'constructor(address,address,address)' "$GOLD_TOKEN" "$LOBSTER_NFT" "$TREASURY")"
+    "$(cast abi-encode 'constructor(address,address,address,address)' "$GOLD_TOKEN" "$LOBSTER_NFT" "$TREASURY" "$PAUSE_SWITCH")"
 
 # Tier 2
 verify "BattleArena" "$BATTLE_ARENA" \
-    "$(cast abi-encode 'constructor(address,address,address,address,address,address)' "$DEPLOYER" "$GOLD_TOKEN" "$LOBSTER_NFT" "$TEAM_MANAGER" "$TREASURY" "$BATTLE_VRF")"
+    "$(cast abi-encode 'constructor(address,address,address,address,address,address,address,address)' "$DEPLOYER" "$GOLD_TOKEN" "$LOBSTER_NFT" "$TEAM_MANAGER" "$TREASURY" "$BATTLE_VRF" "$MINING_POOL" "$PAUSE_SWITCH")"
 
 echo "=== Verification complete ==="

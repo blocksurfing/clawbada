@@ -14,6 +14,7 @@ import {RepairShop} from "../../RepairShop.sol";
 import {BattleVRF} from "../../BattleVRF.sol";
 import {BattleArena} from "../../BattleArena.sol";
 import {Faucet} from "../../Faucet.sol";
+import {PauseSwitch} from "../../PauseSwitch.sol";
 import {DNALib} from "../../libraries/DNALib.sol";
 
 /// @dev Shared deployment + role-wiring base for all Clawbada tests.
@@ -38,6 +39,7 @@ abstract contract BaseSetup is Test {
     BattleVRF      internal battleVRF;
     BattleArena    internal battleArena;
     Faucet         internal faucet;
+    PauseSwitch    internal pauseSwitch;
 
     // ── DNA helpers ────────────────────────────────────────────────
 
@@ -134,16 +136,17 @@ abstract contract BaseSetup is Test {
         // 4. NFT + game contracts
         nft       = new LobsterNFT(admin, "https://api.clawbada.xyz/lobster/");
         teamMgr   = new TeamManager(admin, address(nft));
-        miningPool = new MiningPool(admin, address(gold), address(nft), address(teamMgr));
-        marketplace = new Marketplace(address(gold), address(nft), address(treasury));
-        breedingLab = new BreedingLab(address(gold), address(nft), address(treasury));
-        evolutionLab = new EvolutionLab(address(gold), address(nft), address(treasury));
-        repairShop  = new RepairShop(address(gold), address(nft), address(treasury), address(miningPool));
+        pauseSwitch = new PauseSwitch(admin);
+        miningPool = new MiningPool(admin, address(gold), address(nft), address(teamMgr), address(pauseSwitch));
+        marketplace = new Marketplace(address(gold), address(nft), address(treasury), address(pauseSwitch));
+        breedingLab = new BreedingLab(address(gold), address(nft), address(treasury), address(pauseSwitch));
+        evolutionLab = new EvolutionLab(address(gold), address(nft), address(treasury), address(pauseSwitch));
+        repairShop  = new RepairShop(address(gold), address(nft), address(treasury), address(miningPool), address(pauseSwitch));
         battleVRF   = new BattleVRF(admin);
         battleArena = new BattleArena(
-            admin, address(gold), address(nft), address(teamMgr), address(treasury), address(battleVRF), address(miningPool)
+            admin, address(gold), address(nft), address(teamMgr), address(treasury), address(battleVRF), address(miningPool), address(pauseSwitch)
         );
-        faucet = new Faucet(admin, address(nft), address(gold), block.timestamp + 7 days);
+        faucet = new Faucet(admin, address(nft), address(gold), block.timestamp + 7 days, address(pauseSwitch));
 
         // 5. Grant roles — LobsterNFT
         nft.grantRole(nft.MINTER_ROLE(),  address(faucet));

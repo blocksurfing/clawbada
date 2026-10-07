@@ -21,6 +21,11 @@ export const RepairShopAbi = [
         "name": "miningPool_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "pauseSwitch_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -79,6 +84,19 @@ export const RepairShopAbi = [
         "name": "",
         "type": "address",
         "internalType": "contract IMiningPoolPeg"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pauseSwitch",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPauseSwitch"
       }
     ],
     "stateMutability": "view"
@@ -217,6 +235,11 @@ export const RepairShopAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "ProtocolPaused",
+    "inputs": []
   },
   {
     "type": "error",

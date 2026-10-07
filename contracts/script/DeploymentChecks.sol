@@ -13,6 +13,7 @@ import {BattleArena} from "../BattleArena.sol";
 import {BattleVRF} from "../BattleVRF.sol";
 import {Faucet} from "../Faucet.sol";
 import {Treasury} from "../Treasury.sol";
+import {PauseSwitch} from "../PauseSwitch.sol";
 
 /// @dev The two reads Handoff needs from a Safe. Any Safe version answers both.
 interface ISafeView {
@@ -103,6 +104,10 @@ library DeploymentChecks {
         _requireHeldNotBy(
             d.miningPool, MiningPool(d.miningPool).BOOST_ADMIN_ROLE(), k.boostAdmin, deployer, "MiningPool BOOST_ADMIN_ROLE"
         );
+
+        // ── PAUSE-I1: the guardian can pause, nobody has, the deployer is not a pauser ──
+        _requireHeldNotBy(d.pauseSwitch, PauseSwitch(d.pauseSwitch).PAUSER_ROLE(), k.guardian, deployer, "PauseSwitch PAUSER_ROLE");
+        require(!PauseSwitch(d.pauseSwitch).paused(), "verify: the protocol is paused (PauseSwitch.paused)");
 
         // ── Season 1 started ──
         require(MiningPool(d.miningPool).currentSeason() >= 1, "verify: MiningPool season 1 not started");
@@ -209,6 +214,10 @@ library DeploymentChecks {
             require(
                 !IAccessControl(d.battleArena).hasRole(BattleArena(d.battleArena).GUARDIAN_ROLE(), deployer),
                 "verify: deployer still holds BattleArena GUARDIAN_ROLE"
+            );
+            require(
+                !IAccessControl(d.pauseSwitch).hasRole(PauseSwitch(d.pauseSwitch).PAUSER_ROLE(), deployer),
+                "verify: deployer still holds PauseSwitch PAUSER_ROLE"
             );
         }
     }

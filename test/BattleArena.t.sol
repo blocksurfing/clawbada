@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {BattleArena} from "../contracts/BattleArena.sol";
+import {PauseSwitch} from "../contracts/PauseSwitch.sol";
 import {BattleVRF} from "../contracts/BattleVRF.sol";
 import {TeamManager} from "../contracts/TeamManager.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
@@ -28,6 +29,7 @@ contract BattleArenaTest is Test {
     }
 
     BattleArena arena;
+    PauseSwitch ps;
     BattleVRF vrf;
     MiningPool pool; // D-E: the stake peg's source (no season is ever started here → launch amounts)
     TeamManager tm;
@@ -63,10 +65,11 @@ contract BattleArenaTest is Test {
         tm = new TeamManager(admin, address(nft));
         treasury = new Treasury(admin, devWallet);
         vrf = new BattleVRF(admin);
-        pool = new MiningPool(admin, address(gold), address(nft), address(tm));
+        ps = new PauseSwitch(admin);
+        pool = new MiningPool(admin, address(gold), address(nft), address(tm), address(ps));
 
         arena = new BattleArena(
-            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool)
+            admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool), address(ps)
         );
 
         nft.grantRole(nft.MINTER_ROLE(), admin);
@@ -309,13 +312,13 @@ contract BattleArenaTest is Test {
     function test_constructorZeroAddressReverts() public {
         vm.startPrank(admin);
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(address(0), address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool));
+        new BattleArena(address(0), address(gold), address(nft), address(tm), address(treasury), address(vrf), address(pool), address(ps));
 
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(0), address(nft), address(tm), address(treasury), address(vrf), address(pool));
+        new BattleArena(admin, address(0), address(nft), address(tm), address(treasury), address(vrf), address(pool), address(ps));
 
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(gold), address(0), address(tm), address(treasury), address(vrf), address(pool));
+        new BattleArena(admin, address(gold), address(0), address(tm), address(treasury), address(vrf), address(pool), address(ps));
         vm.stopPrank();
     }
 
@@ -2256,13 +2259,13 @@ contract BattleArenaTest is Test {
     function test_constructorZeroAddressRevertsRemainingArgs() public {
         vm.startPrank(admin);
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(gold), address(nft), address(0), address(treasury), address(vrf), address(pool));
+        new BattleArena(admin, address(gold), address(nft), address(0), address(treasury), address(vrf), address(pool), address(ps));
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(gold), address(nft), address(tm), address(0), address(vrf), address(pool));
+        new BattleArena(admin, address(gold), address(nft), address(tm), address(0), address(vrf), address(pool), address(ps));
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(gold), address(nft), address(tm), address(treasury), address(0), address(pool));
+        new BattleArena(admin, address(gold), address(nft), address(tm), address(treasury), address(0), address(pool), address(ps));
         vm.expectRevert(BattleArena.ZeroAddress.selector);
-        new BattleArena(admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(0));
+        new BattleArena(admin, address(gold), address(nft), address(tm), address(treasury), address(vrf), address(0), address(ps));
         vm.stopPrank();
     }
 

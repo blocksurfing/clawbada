@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, stdStorage, StdStorage} from "forge-std/Test.sol";
 import {Faucet} from "../contracts/Faucet.sol";
+import {PauseSwitch} from "../contracts/PauseSwitch.sol";
 import {LobsterNFT} from "../contracts/LobsterNFT.sol";
 import {GoldToken} from "../contracts/GoldToken.sol";
 import {DNALib} from "../contracts/libraries/DNALib.sol";
@@ -11,6 +12,7 @@ contract FaucetTest is Test {
     using stdStorage for StdStorage;
 
     Faucet faucet;
+    PauseSwitch ps;
     LobsterNFT nft;
     GoldToken gold;
 
@@ -29,7 +31,8 @@ contract FaucetTest is Test {
         vm.startPrank(admin);
         nft = new LobsterNFT(admin, "https://api.clawbada.com/lobster/");
         gold = new GoldToken(admin, lpAddress, treasuryAddress);
-        faucet = new Faucet(admin, address(nft), address(gold), closeTime);
+        ps = new PauseSwitch(admin);
+        faucet = new Faucet(admin, address(nft), address(gold), closeTime, address(ps));
 
         // Grant roles
         nft.grantRole(nft.MINTER_ROLE(), address(faucet));
@@ -79,17 +82,17 @@ contract FaucetTest is Test {
 
     function test_constructorZeroAdminReverts() public {
         vm.expectRevert(Faucet.ZeroAddress.selector);
-        new Faucet(address(0), address(nft), address(gold), closeTime);
+        new Faucet(address(0), address(nft), address(gold), closeTime, address(ps));
     }
 
     function test_constructorZeroNFTReverts() public {
         vm.expectRevert(Faucet.ZeroAddress.selector);
-        new Faucet(admin, address(0), address(gold), closeTime);
+        new Faucet(admin, address(0), address(gold), closeTime, address(ps));
     }
 
     function test_constructorZeroGoldReverts() public {
         vm.expectRevert(Faucet.ZeroAddress.selector);
-        new Faucet(admin, address(nft), address(0), closeTime);
+        new Faucet(admin, address(nft), address(0), closeTime, address(ps));
     }
 
     // ──────────── Eligibility ────────────
@@ -411,7 +414,7 @@ contract FaucetTest is Test {
     function test_claimGoldRevertsWhenFaucetBalanceInsufficient() public {
         // Deploy a faucet with no pre-funded balance
         vm.startPrank(admin);
-        Faucet emptyFaucet = new Faucet(admin, address(nft), address(gold), closeTime);
+        Faucet emptyFaucet = new Faucet(admin, address(nft), address(gold), closeTime, address(ps));
         nft.grantRole(nft.MINTER_ROLE(), address(emptyFaucet));
         emptyFaucet.grantRole(emptyFaucet.ELIGIBILITY_ROLE(), eligibilityAdmin);
         vm.stopPrank();

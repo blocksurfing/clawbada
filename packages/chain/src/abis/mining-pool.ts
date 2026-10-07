@@ -21,6 +21,11 @@ export const MiningPoolAbi = [
         "name": "teamManager_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "pauseSwitch_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -757,6 +762,19 @@ export const MiningPoolAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pauseSwitch",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPauseSwitch"
       }
     ],
     "stateMutability": "view"
@@ -1524,6 +1542,11 @@ export const MiningPoolAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "ProtocolPaused",
+    "inputs": []
   },
   {
     "type": "error",

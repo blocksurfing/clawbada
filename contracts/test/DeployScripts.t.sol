@@ -12,6 +12,7 @@ import {GoldToken} from "../GoldToken.sol";
 import {Treasury} from "../Treasury.sol";
 import {MiningPool} from "../MiningPool.sol";
 import {BattleArena} from "../BattleArena.sol";
+import {PauseSwitch, IPauseSwitch} from "../PauseSwitch.sol";
 import {MockSafe} from "./helpers/MockSafe.sol";
 import {REFUND_RESERVE_TARGET} from "../script/DeployHelpers.s.sol";
 
@@ -225,6 +226,64 @@ contract DeployScriptsTest is Test {
         handoffH.checkReserveFunded(d);
         _fundReserveFrom(d, p.reserve, REFUND_RESERVE_TARGET);
         handoffH.checkReserveFunded(d);
+    }
+
+    // ───────────────────────── PAUSE-I1 through the real scripts ─────────────────────────
+
+    /// @dev Configure hands PAUSER to the guardian, the handoff hands the only unpause to the Safe,
+    ///      and a paused protocol fails `configured()` loudly (so nobody launches paused by mistake).
+    function test_pause_switch_wired_through_the_scripts() public {
+        DeployHelpers.Deployment memory d = _deployAndConfigure();
+        PauseSwitch ps = PauseSwitch(d.pauseSwitch);
+        assertTrue(ps.hasRole(ps.PAUSER_ROLE(), p.guardian), "guardian is the pauser");
+        assertFalse(ps.hasRole(ps.PAUSER_ROLE(), p.deployer), "deployer is not a pauser");
+        handoffH.checkConfigured(d);
+
+        vm.prank(p.guardian);
+        ps.pause();
+        vm.expectRevert(bytes("verify: the protocol is paused (PauseSwitch.paused)"));
+        handoffH.checkConfigured(d);
+        // The inflows are shut (the exits are covered in test/PauseGates.t.sol).
+        vm.prank(p.matchmaker);
+        vm.expectRevert(IPauseSwitch.ProtocolPaused.selector);
+        BattleArena(d.battleArena).createBattle(makeAddr("a"), makeAddr("b"), 0, 3, 3);
+        vm.prank(p.deployer);
+        ps.unpause();
+        handoffH.checkConfigured(d);
+
+        handoffH.propose(d);
+        _safeAccepts(d);
+        handoffH.finalizeHandoff(d);
+        handoffH.checkFinalized(d);
+        assertTrue(ps.hasRole(DEFAULT_ADMIN_ROLE, address(safe)), "the safe governs the switch");
+        assertFalse(ps.hasRole(DEFAULT_ADMIN_ROLE, p.deployer), "the deployer lost the switch");
+        assertTrue(ps.hasRole(ps.PAUSER_ROLE(), p.guardian), "the guardian keeps PAUSER_ROLE through the handoff");
+
+        // After the handoff: the guardian can still stop inflows, only the Safe can reopen.
+        vm.prank(p.guardian);
+        ps.pause();
+        vm.prank(p.guardian);
+        vm.expectRevert();
+        ps.unpause();
+        vm.prank(p.deployer);
+        vm.expectRevert();
+        ps.unpause();
+        vm.prank(address(safe));
+        ps.unpause();
+        assertFalse(ps.paused());
+    }
+
+    function test_deployer_holding_pauser_after_finalize_is_caught() public {
+        DeployHelpers.Deployment memory d = _deployAndConfigure();
+        handoffH.propose(d);
+        _safeAccepts(d);
+        handoffH.finalizeHandoff(d);
+        PauseSwitch ps = PauseSwitch(d.pauseSwitch);
+        bytes32 pauser = ps.PAUSER_ROLE();
+        vm.prank(address(safe));
+        ps.grantRole(pauser, p.deployer);
+        vm.expectRevert(bytes("verify: deployer still holds PauseSwitch PAUSER_ROLE"));
+        handoffH.checkFinalized(d);
     }
 
     // ───────────────────────── GUARDIAN + refund reserve ─────────────────────────

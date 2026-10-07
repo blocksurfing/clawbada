@@ -18,7 +18,7 @@ contract GovernanceHandoffTest is BaseSetup {
     address internal eligOperator = makeAddr("eligOperator");
 
     function _admins() internal view returns (address[] memory a) {
-        a = new address[](7);
+        a = new address[](8);
         a[0] = address(gold);
         a[1] = address(nft);
         a[2] = address(teamMgr);
@@ -26,6 +26,7 @@ contract GovernanceHandoffTest is BaseSetup {
         a[4] = address(battleArena);
         a[5] = address(battleVRF);
         a[6] = address(faucet);
+        a[7] = address(pauseSwitch);
     }
 
     function _propose(address to) internal {
