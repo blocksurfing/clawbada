@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { walletAuth, acceptedAuthChainIds, allowedAuthDomains, authChainId } from '../middleware/auth';
 import { AUTH_STATEMENT, AUTH_TTL_SEC } from '@clawbada/chain/src/auth-message';
+import { addresses } from '@clawbada/chain';
 import { catchErrors } from '../lib/errors';
 import { ApiError } from '../lib/errors';
 import {
@@ -20,7 +21,8 @@ export const authRoutes = new Hono();
 
 // ──────────── GET /api/auth/params ────────────
 // Everything a client needs to build the login message without hard-coding it: which domains may
-// ask for a signature, which chain this API serves, and the exact statement. Public.
+// ask for a signature, which chain this API serves, and the exact statement — plus the contract
+// addresses a client must hash into its team commit (HARDEN-1). Public.
 authRoutes.get('/params', (c) =>
   c.json({
     version: 2,
@@ -32,6 +34,9 @@ authRoutes.get('/params', (c) =>
     chainIds: acceptedAuthChainIds(),
     statement: AUTH_STATEMENT,
     ttlSec: AUTH_TTL_SEC,
+    // HARDEN-1: the team commit is keccak256(abi.encodePacked(chainId, battleArena, battleId, you,
+    // teamId, salt)) — `teamCommitHash` in @clawbada/chain. Build it with THIS chainId and arena.
+    contracts: { battleArena: addresses.battleArena },
     headers: ['X-Wallet-Address', 'X-Signature', 'X-Timestamp', 'X-Nonce', 'X-Auth-Domain (optional; defaults to domains[0])'],
   }),
 );

@@ -42,10 +42,10 @@ contract FuzzBattleArena is BaseSetup {
 
     function _commitHash(uint256 battleId, address player, uint256 teamId, bytes32 salt)
         internal
-        pure
+        view
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(battleId, player, teamId, salt));
+        return keccak256(abi.encodePacked(block.chainid, address(battleArena), battleId, player, teamId, salt));
     }
 
     function _saltA(uint256 battleId) internal pure returns (bytes32) {
@@ -527,7 +527,7 @@ contract FuzzBattleArena is BaseSetup {
     }
 
     /// An accused player who opens their commit lets the resolver reveal inside the grace,
-    /// even after the original 20 s reveal window.
+    /// even after the original 60 s reveal window.
     function test_accusedOpens_thenRevealWithinGrace() public {
         (uint256 battleId, uint256 teamA, uint256 teamB) = _setupRevealPhase(LOW_STAKE);
         vm.prank(admin);

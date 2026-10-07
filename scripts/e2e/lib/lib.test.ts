@@ -77,6 +77,8 @@ describe('PlayerAgent reveal salt', () => {
     agent.get = async (path: string) => (path.endsWith('/my-team') ? { myTeamId: '7' } : battle);
     agent.post = async (path: string, body: unknown = {}) => { posts.push({ path, body }); return path.endsWith('/reveal-team') ? { status: revealStatus } : { steps: [], preview: {} }; };
     agent.executeSteps = async () => [];
+    // HARDEN-1: the commit domain normally comes from GET /api/auth/params.
+    agent.commitDomain = async () => ({ chainId: 84532, battleArena: '0x00000000000000000000000000000000000000a1' });
     return { agent, posts, setAccused: (v: boolean) => { battle = { chain: { ...battle.chain, accusedA: v } }; }, setRevealStatus: (s: string) => { revealStatus = s; } };
   }
 

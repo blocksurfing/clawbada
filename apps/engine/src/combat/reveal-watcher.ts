@@ -16,7 +16,7 @@
  *
  * On success the salts are cleared (transient — a revealed team's salt is not retained).
  *
- * D-14 reveal-failure attribution. The commit rides in the deposit; the reveal window (20 s)
+ * D-14 reveal-failure attribution. The commit rides in the deposit; the reveal window (60 s)
  * starts when the second deposit lands. Each tick checks every stored (teamId, salt) against the
  * commit ON-CHAIN before using it:
  *   - a salt that does not open its player's commit → `accuseRevealFailure(battleId, player)` at
@@ -119,6 +119,8 @@ export interface RevealWatcherDeps {
   /** The resolver's address, so the simulation runs with its role (else it reverts on access). */
   resolverAddress?: `0x${string}`;
   battleArenaAddress: `0x${string}`;
+  /** HARDEN-1: the chain the arena is deployed on — part of every team commit's preimage. */
+  chainId: number | bigint;
   abi: readonly unknown[];
   /** D-01: master secret the per-battle seed secret is derived from (BATTLE_SEED_SECRET).
    *  A function is resolved per reveal, so a missing variable fails that reveal loudly instead
@@ -184,6 +186,7 @@ export class RevealWatcher {
       walletClient,
       resolverAddress: walletClient.account?.address,
       battleArenaAddress: chain.addresses.battleArena,
+      chainId: isTestnet ? chain.baseSepolia.id : chain.base.id,
       abi: chain.BattleArenaAbi,
       seedMasterSecret: seedMasterSecretFromEnv,
     });
@@ -298,7 +301,7 @@ export class RevealWatcher {
     const salt = side === 'A' ? row.revealSaltA : row.revealSaltB;
     const refused = side === 'A' ? row.revealRefusedA : row.revealRefusedB;
     const usable = !!salt && teamId !== null && teamId !== undefined && BigInt(teamId) !== 0n
-      && teamCommitHash(battleId, player, BigInt(teamId), salt as `0x${string}`).toLowerCase() === commit;
+      && teamCommitHash(this.deps.chainId, this.deps.battleArenaAddress, battleId, player, BigInt(teamId), salt as `0x${string}`).toLowerCase() === commit;
     if (usable) return { kind: 'ok', teamId: BigInt(teamId), salt: salt as `0x${string}` };
     // No usable salt. If the API refused this side's reveal, that is the server's doing, not the
     // player's: never an accusation.

@@ -20,6 +20,22 @@ Workflow run `wf_2715080f-4ef`, 49 agents on Fable 5.1, code at `7ca5451`.
 
 The nine already-known items (20-second reveal window, reveal watcher never run on a live chain, dead `decrementBreedCount`, unused `MAX_ROUNDS`, no domain separator in commit hashes, `RepairShop.repair` missing `isLocked`, no pause, salt-encoding divergence, stale staking line in the design doc) were given to every agent and excluded unless a worse consequence was found.
 
+### Status of the nine known items (updated 2026-10-06 — the hand-off list for the external audit)
+
+Nothing is deployed anywhere, so every change below is free. This table is the single place that says what we already know about and what we have decided to leave; the external audit team should start here.
+
+| Item | Status | Where / why |
+|---|---|---|
+| 20-second reveal window (A13) | **Fixed** 2026-10-06 — `TEAM_REVEAL_WINDOW = 60 seconds` | `contracts/BattleArena.sol`. Security-neutral (a lapse is a full-refund mutual cancel); 20 s left no slack for API→DB→poll→tx→confirm on a live chain. |
+| Reveal watcher never run on a live chain (A14) | **Open — closes with the first testnet deploy**, which is a later, separate decision | `apps/engine/src/combat/reveal-watcher.ts`; the runbook (`docs/runbooks/testnet-deploy.md`) names the smoke test. |
+| Dead `LobsterNFT.decrementBreedCount` | **Fixed** 2026-10-06 — removed (and its three tests) | A breed slot can never be given back (F5-02 made a committed breed final). |
+| Unused `BattleResolver.MAX_ROUNDS` | **Fixed** earlier (no longer in the contracts) | — |
+| No domain separator in commit hashes (HARDEN-1) | **Fixed** 2026-10-06 — `BattleArena.teamCommitHash` = `keccak256(abi.encodePacked(block.chainid, address(this), battleId, player, teamId, salt))` | Mirrored by `teamCommitHash` in `packages/chain`; a known-answer test on both sides pins them together; `GET /api/auth/params` publishes `chainId` + `contracts.battleArena` for clients. |
+| `RepairShop.repair` missing `isLocked` (REPAIR-I1) | **Accepted, closed** 2026-10-06 | "Locked" means "on a team"; a lobster on a mining team may be repaired by design (its damage only gates battle entry) — `FuzzRepairShop.t.sol::test_repair_lockedLobster_allowed` asserts it, RP-01 in the 2026-04-15 campaign accepted it. Repairing during a review window cannot dodge damage: damage is applied at `settle`, additively, capped at 100. |
+| No pause (PAUSE-I1) | **In progress** — `PauseSwitch` (inflow-only), the PR after the hardening PR | One switch, `PAUSER_ROLE` = guardian hot key, `DEFAULT_ADMIN_ROLE` = the Safe. Pauses only money-in entry points (deposit, startExpedition, requestBreed, evolve, list/buy, repair, faucet claims); every exit (settle, finalize, timeouts, claims, cancels, emergency withdraw) always works, so a pause can never trap funds. |
+| Salt-encoding divergence (S2) | **Fixed** earlier (S2-parity cluster, #21) | — |
+| Stale "staking required" doc line (SPEC-I1) | **Fixed** earlier (docs) | — |
+
 ## Results
 
 | | |
