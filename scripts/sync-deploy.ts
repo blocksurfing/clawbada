@@ -48,7 +48,7 @@ if (!network) {
 const deploymentPath = resolve(ROOT, 'deployments', `${network}.json`);
 if (!existsSync(deploymentPath)) {
   console.error(`Deployment file not found: ${deploymentPath}`);
-  console.error(`Run the deploy script first: forge script contracts/script/Deploy.s.sol --rpc-url ${network} --broadcast`);
+  console.error(`Run the deploy script first: forge script contracts/script/Deploy.s.sol --rpc-url ${network.replace('-', '_')} --broadcast`);
   process.exit(1);
 }
 
@@ -87,6 +87,16 @@ for (const [contractName, envVar] of Object.entries(CONTRACT_ENV_MAP)) {
     envContent += `\n${envVar}=${address}`;
   }
   updated++;
+}
+
+// The indexer's cold-start block: the block the deploy was written at (Deploy.s.sol records it).
+if (typeof deployment.blockNumber === 'number' || typeof deployment.blockNumber === 'string') {
+  const startBlockRegex = /^INDEXER_START_BLOCK=.*$/m;
+  const line = `INDEXER_START_BLOCK=${deployment.blockNumber}`;
+  envContent = startBlockRegex.test(envContent) ? envContent.replace(startBlockRegex, line) : envContent + `\n${line}`;
+  console.log(`INDEXER_START_BLOCK set to: ${deployment.blockNumber}`);
+} else {
+  console.warn('  Warning: no blockNumber in the deployment file — set INDEXER_START_BLOCK by hand (the deploy block)');
 }
 
 // Also set CHAIN_ENV based on network

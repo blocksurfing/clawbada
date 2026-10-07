@@ -109,19 +109,26 @@ library DeploymentChecks {
         _requireHeldNotBy(d.pauseSwitch, PauseSwitch(d.pauseSwitch).PAUSER_ROLE(), k.guardian, deployer, "PauseSwitch PAUSER_ROLE");
         require(!PauseSwitch(d.pauseSwitch).paused(), "verify: the protocol is paused (PauseSwitch.paused)");
 
-        // ── Season 1 started ──
-        require(MiningPool(d.miningPool).currentSeason() >= 1, "verify: MiningPool season 1 not started");
-
         // ── Faucet pre-mint: while the window is open, what it holds plus what it has
         //    paid out covers the 70M allocation. (>=, not ==: anyone can send it tokens.
         //    After close the residual is burned, so the identity no longer applies.) ──
         Faucet faucet = Faucet(d.faucet);
-        if (block.timestamp < faucet.closeTime()) {
+        if (faucet.closeTime() == 0 || block.timestamp < faucet.closeTime()) {
             require(
                 IERC20(d.goldToken).balanceOf(d.faucet) + faucet.totalGoldClaimed() >= 70_000_000e18,
                 "verify: Faucet does not hold its 70M pre-mint"
             );
         }
+    }
+
+    // ───────────────────────── The game is open (Open.s.sol / the Safe) ─────────────────────────
+
+    /// @notice D-G: season 1 is running and the faucet's 7-day window is set and still open.
+    function requireOpened(DeployHelpers.Deployment memory d) internal view {
+        require(MiningPool(d.miningPool).currentSeason() == 1, "verify: season 1 not started (Open.s.sol / the Safe)");
+        uint256 closeTime = Faucet(d.faucet).closeTime();
+        require(closeTime > block.timestamp, "verify: the faucet is closed (Open.s.sol / the Safe sets closeTime)");
+        require(closeTime <= block.timestamp + 7 days, "verify: the faucet window is longer than 7 days");
     }
 
     // ───────────────────────── Stage 2: handoff proposed ─────────────────────────

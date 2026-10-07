@@ -8,7 +8,7 @@ The engine reads the season from the contracts (`currentSeason()` + `getSeasonCo
 
 | Alarm (log `msg`) | When | Meaning |
 |---|---|---|
-| `season_not_started` | the contracts answer, `currentSeason()` is 0 and no `SeasonStarted` was ever indexed; repeated daily | **Season 1 has never been started** (`Configure.s.sol` has not run against this deploy). Mining cannot start at all. |
+| `season_not_started` | the contracts answer, `currentSeason()` is 0 and no `SeasonStarted` was ever indexed; repeated daily | **Season 1 has never been started** (the Open step — `Open.s.sol`, or the Safe's `startSeason` — has not run against this deploy). Mining cannot start at all. |
 | `season_rollover_due` | from 3 days before the season ends, repeated daily | Prepare and collect signatures for the Safe transaction in the alarm. |
 | `season_rollover_overdue` | **the season gap**: the season has ended and no new one started, repeated hourly | **Mining pays nothing until the Safe executes the transaction.** The payload's `seasonGap` says since when and for how long. |
 | `season_allocation_exhausted` (info) | the 705M mining allocation is used up | Nothing to do: mining emissions have ended for good (TOK-M1). |
