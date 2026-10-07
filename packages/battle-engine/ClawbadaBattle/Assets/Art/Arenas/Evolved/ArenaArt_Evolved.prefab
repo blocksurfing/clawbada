@@ -129,6 +129,7 @@ Transform:
   - {fileID: 3607255681786086475}
   - {fileID: 2720167105987713835}
   - {fileID: 6843561142604415304}
+  - {fileID: 308491989138179939}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1647117612609740894
@@ -496,6 +497,77 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!1 &3485521368952765179
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 308491989138179939}
+  - component: {fileID: 3191955337835121831}
+  m_Layer: 0
+  m_Name: Clouds
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &308491989138179939
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3485521368952765179}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3623155446229297478}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3191955337835121831
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3485521368952765179}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95163b0b245ec44e8965a798031b1631, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CloudDrift
+  cloudPrefabs:
+  - {fileID: 100000, guid: a91356f6395449f6b9371e7aac49eaa5, type: 3}
+  - {fileID: 100000, guid: 67e3210a6e684aecb782035e1416efc4, type: 3}
+  - {fileID: 100000, guid: 3af62eddd146471d93ca0757d5fdfa4f, type: 3}
+  - {fileID: 100000, guid: 35438d0569ab4d3384d667c623c88247, type: 3}
+  - {fileID: 100000, guid: 79cc122e5f30412c92a197d2f4978f39, type: 3}
+  - {fileID: 100000, guid: a024711472e74261b387980713bdad29, type: 3}
+  sortingOrder: 1
+  depthZ: -0.1
+  config:
+    minClouds: 2
+    maxClouds: 3
+    laneYMin: 2.35
+    laneYMax: 2.62
+    horizonY: 2.13
+    frameTopY: 2.8125
+    speedMin: 0.04
+    speedMax: 0.09
+    respawnGapMin: 6
+    respawnGapMax: 40
+    bobAmplitude: 0.02
+    bobPeriodMin: 20
+    bobPeriodMax: 40
+    firstPassViewFraction: 0.9
+  offscreenMargin: 0.3
+  seedOverride: 
+  verbose: 0
 --- !u!1 &4285189029720120096
 GameObject:
   m_ObjectHideFlags: 0
