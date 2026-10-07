@@ -19,6 +19,18 @@ import {
  */
 export const authRoutes = new Hono();
 
+/** HARDEN-1: the contract addresses a client hashes into its team commit. The addresses module throws
+ *  when an address is not configured, and a dev or probe stack without contracts (practice battles
+ *  need none) must still be able to log in — so an unset address is simply left out, never a 500.
+ *  Exported for the test. */
+export function clientContracts(): { battleArena?: string } {
+  try {
+    return { battleArena: addresses.battleArena };
+  } catch {
+    return {};
+  }
+}
+
 // ──────────── GET /api/auth/params ────────────
 // Everything a client needs to build the login message without hard-coding it: which domains may
 // ask for a signature, which chain this API serves, and the exact statement — plus the contract
@@ -36,7 +48,8 @@ authRoutes.get('/params', (c) =>
     ttlSec: AUTH_TTL_SEC,
     // HARDEN-1: the team commit is keccak256(abi.encodePacked(chainId, battleArena, battleId, you,
     // teamId, salt)) — `teamCommitHash` in @clawbada/chain. Build it with THIS chainId and arena.
-    contracts: { battleArena: addresses.battleArena },
+    // `battleArena` is absent when the API runs without contract addresses (dev/probe stacks).
+    contracts: clientContracts(),
     headers: ['X-Wallet-Address', 'X-Signature', 'X-Timestamp', 'X-Nonce', 'X-Auth-Domain (optional; defaults to domains[0])'],
   }),
 );
