@@ -86,6 +86,9 @@ public class BattleManager : MonoBehaviour
     /// <summary>(lobster, reason) when a turn is skipped — a stunned lobster's turn, held on screen for a beat.</summary>
     public event Action<LobsterController, string> TurnSkipped;
     public event Action<BattleEndData> BattleEnded;
+    /// <summary>A cinematic Special's effect just started (className, its clip in seconds, the impact beat).
+    /// The arena reacts to it — StormReaction speeds the sea up and scatters the gulls for Tempest's Maelstrom.</summary>
+    public event Action<string, float, float> SpecialEffectStarted;
     public event Action<SelectionData> SelectionChanged;
     /// <summary>(lobster, col, row) after a tentative move (or the return to origin).</summary>
     public event Action<LobsterController, int, int> PreviewMoved;
@@ -719,6 +722,7 @@ public class BattleManager : MonoBehaviour
                             float clip = windup.delay + BattleVfxLibrary.ClipLength(windup.prefab);
                             float t0 = Time.time;
                             Debug.Log($"[BattleManager] special {actor.className} effect clip={clip:F2}s impactAt={windup.impactAt:F2}s");
+                            SpecialEffectStarted?.Invoke(actor.className, clip, windup.impactAt);
                             if (windup.dimAlpha > 0f) ScreenDim.Run(windup.dimAlpha, windup.dimFadeIn, clip - windup.dimFadeOut, windup.dimFadeOut);
                             // The effect owns the beat, so the impact sound is scheduled against it here
                             // rather than fired when the wait below ends — its crack has to START early.
