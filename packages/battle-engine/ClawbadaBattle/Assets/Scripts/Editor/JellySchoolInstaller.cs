@@ -17,6 +17,8 @@ public static class JellySchoolInstaller
 {
     public const string ArenaPrefabPath = "Assets/Art/Arenas/Elite/ArenaArt_Elite.prefab";
     public const string JellyPrefabPath = "Assets/Art/Arenas/Elite/Decoration/Jelly Fish/JellyFish.prefab";
+    /// <summary>Nzib's floor plate (Background/0) — it carries the SpriteMask that hides a jellyfish below its edge.</summary>
+    public const string GroundName = "Ground";
 
     [MenuItem("Clawbada/Arena/Install Elite Jellyfish")]
     public static void Install() => InstallInto();
@@ -64,6 +66,7 @@ public static class JellySchoolInstaller
             if (school == null) { school = t.gameObject.AddComponent<JellySchool>(); changed = true; }
             if (school.jellyPrefab != jelly) { school.jellyPrefab = jelly; changed = true; }
             if (school.config == null) { school.config = new JellySchoolConfig(); changed = true; }
+            changed |= InstallFloorMask(root.transform, school.sortingOrder);
             if (changed) PrefabUtility.SaveAsPrefabAsset(root, ArenaPrefabPath);
         }
         finally
@@ -72,6 +75,29 @@ public static class JellySchoolInstaller
         }
         if (changed) AssetDatabase.SaveAssets();
         Report($"[JellySchoolInstaller] OK — {(changed ? "installed" : "already installed, unchanged")}");
+        return changed;
+    }
+
+    /// <summary>The floor plate masks the jellyfish (user 2026-10-08: "spawn underneath the arena top so they visually
+    /// don't just pop on the screen"): a SpriteMask on Ground with the plate's own sprite, limited to the jellyfish's
+    /// sorting slot, so a jellyfish that starts below the plate's painted edge rises into view from behind it. Only
+    /// the jellyfish opt in (JellySchool sets VisibleOutsideMask); the plate, Nzib's fish and his layers ignore it.
+    /// Returns true when something was changed.</summary>
+    public static bool InstallFloorMask(Transform root, int jellyOrder)
+    {
+        var ground = root.Find(GroundName);
+        if (ground == null) throw new Exception($"[JellySchoolInstaller] ArenaArt_Elite has no '{GroundName}' child to mask the jellyfish with");
+        var sr = ground.GetComponent<SpriteRenderer>();
+        if (sr == null || sr.sprite == null) throw new Exception($"[JellySchoolInstaller] '{GroundName}' has no sprite");
+        bool changed = false;
+        var mask = ground.GetComponent<SpriteMask>();
+        if (mask == null) { mask = ground.gameObject.AddComponent<SpriteMask>(); changed = true; }
+        int layer = SortingLayer.NameToID("Background");
+        if (mask.sprite != sr.sprite) { mask.sprite = sr.sprite; changed = true; }
+        if (!mask.isCustomRangeActive) { mask.isCustomRangeActive = true; changed = true; }
+        if (mask.frontSortingLayerID != layer || mask.backSortingLayerID != layer) { mask.frontSortingLayerID = layer; mask.backSortingLayerID = layer; changed = true; }
+        if (mask.frontSortingOrder != jellyOrder || mask.backSortingOrder != jellyOrder) { mask.frontSortingOrder = jellyOrder; mask.backSortingOrder = jellyOrder; changed = true; }
+        if (Mathf.Abs(mask.alphaCutoff - 0.2f) > 1e-4f) { mask.alphaCutoff = 0.2f; changed = true; }
         return changed;
     }
 

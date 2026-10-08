@@ -347,7 +347,7 @@ public class BattleVfxLibrary : ScriptableObject
         var group = fx.GetComponent<SortingGroup>();
         if (group == null) group = fx.AddComponent<SortingGroup>();
         group.sortingLayerName = DepthSort.Layer;
-        group.sortingOrder = DepthSort.ArenaFrontOrderBase + 60; // crosses the board above lobsters and decor
+        group.sortingOrder = DepthSort.ScreenFxOrder; // crosses the board above lobsters and decor
         var oneShot = fx.GetComponent<OneShotVfx>();
         if (oneShot != null) Destroy(oneShot);   // lifetime is the flight, not the loop clip
         Destroy(fx, duration + 1f);               // safety net if the host coroutine dies mid-flight
@@ -370,7 +370,7 @@ public class BattleVfxLibrary : ScriptableObject
         var group = fx.GetComponent<SortingGroup>();
         if (group == null) group = fx.AddComponent<SortingGroup>();
         group.sortingLayerName = DepthSort.Layer;
-        group.sortingOrder = DepthSort.ArenaFrontOrderBase + 60;
+        group.sortingOrder = DepthSort.ScreenFxOrder;   // the storm's child orders sort inside this wrap (see DepthSort)
         if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
         return fx;
     }
@@ -407,7 +407,7 @@ public class BattleVfxLibrary : ScriptableObject
         // rock or pillar standing a row closer to the camera draws over it — Fortify's dome must not
         // swallow the pillar in front of the caster. An effect with reach (rowsCovered) takes the
         // front-most row it encloses instead, so whoever stands inside it is under its face.
-        group.sortingOrder = slot.onTop ? DepthSort.ArenaFrontOrderBase + 61 : IsGroundMark(slot.prefab) ? DepthSort.GroundOrder : FrontOrder(slot, owner);
+        group.sortingOrder = slot.onTop ? DepthSort.ScreenFxTopOrder : IsGroundMark(slot.prefab) ? DepthSort.GroundOrder : FrontOrder(slot, owner);
         Debug.Log($"[BattleVfxLibrary] {slot.prefab.name} order {group.sortingOrder} ({(slot.onTop ? "on top of the board" : $"row of {owner.className} at {owner.SortingOrder}")})");
 
         var oneShot = fx.GetComponent<OneShotVfx>();
