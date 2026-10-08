@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { isArenaMusicActive } from '@/lib/arena-music';
 import { getMusicPref, setMusicPref, MUSIC_EVENT } from '@/lib/audio-prefs';
 
@@ -8,6 +9,10 @@ import { getMusicPref, setMusicPref, MUSIC_EVENT } from '@/lib/audio-prefs';
  * Persistent music player — lives in the root layout so audio continues
  * across page navigations. Uses a singleton <audio> element attached to
  * the DOM once and never removed.
+ *
+ * Two buttons drive it through `useSiteMusic`: this floating one (the marketing pages, and every page below the
+ * desktop breakpoint) and the pixel toggle beside the logo in Nzib's chrome (`chrome/pixel-music-toggle.tsx`,
+ * game pages at ≥ lg) — so on a game page at desktop width this one hides.
  */
 
 let _audio: HTMLAudioElement | null = null;
@@ -23,7 +28,11 @@ export function getThemeAudio(): HTMLAudioElement {
   return _audio;
 }
 
-export function MusicToggle() {
+/** Marketing routes keep the floating button at every width; everything else carries the pixel chrome at ≥ lg. */
+const MARKETING_PATHS = ['/', '/agents', '/faucet'];
+
+/** The site theme's state + toggle, shared by every music button. */
+export function useSiteMusic() {
   const [playing, setPlaying] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -62,6 +71,14 @@ export function MusicToggle() {
     else if (!isArenaMusicActive()) audio.play().catch(() => {}); // never inside a battle view
   }, []);
 
+  return { playing, ready, toggle };
+}
+
+export function MusicToggle() {
+  const { playing, ready, toggle } = useSiteMusic();
+  const pathname = usePathname();
+  const pixelChrome = !MARKETING_PATHS.includes(pathname ?? '/');
+
   if (!ready) return null;
 
   return (
@@ -69,7 +86,7 @@ export function MusicToggle() {
       onClick={toggle}
       title={playing ? 'Pause music' : 'Play music'}
       data-site-chrome
-      className="fixed bottom-5 right-5 z-50 size-12 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-110 active:scale-95"
+      className={`fixed bottom-5 right-5 z-50 size-12 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-110 active:scale-95${pixelChrome ? ' lg:hidden' : ''}`}
       style={{
         background: playing
           ? 'linear-gradient(135deg, #fbbf24 0%, #d4a017 100%)'

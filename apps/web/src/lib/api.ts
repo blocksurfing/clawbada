@@ -65,10 +65,16 @@ function del<T>(path: string, auth?: AuthHeaders) {
   return request<T>('DELETE', path, undefined, auth);
 }
 
+function patch<T>(path: string, body?: unknown, auth?: AuthHeaders) {
+  return request<T>('PATCH', path, body, auth);
+}
+
 // ── Agent ──
 
 interface AgentProfile {
   address: string;
+  /** The player's chosen name (≤ 20 chars, PATCH /api/agent/profile); the wallet panel shows it in place of the short address. */
+  displayName: string | null;
   elo: number;
   wins: number;
   losses: number;
@@ -106,6 +112,8 @@ interface LobsterData {
 const agent = {
   register: (auth: AuthHeaders) => post<{ registered: true }>('/api/agent/register', undefined, auth),
   profile: (address: string) => get<AgentProfile>(`/api/agent/profile/${address}`),
+  /** Set (1–20 characters) or clear (null) the caller's display name. */
+  updateProfile: (displayName: string | null, auth: AuthHeaders) => patch<AgentProfile>('/api/agent/profile', { displayName }, auth),
   lobsters: (address: string) => get<{ address: string; count: number; lobsters: LobsterData[] }>(`/api/agent/lobsters/${address}`),
 };
 
