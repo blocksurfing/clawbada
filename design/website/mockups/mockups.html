@@ -459,7 +459,7 @@ body.sidebar-compact .sidebar-shell {
 }
 </style>
 </head>
-<body>
+<body class="sidebar-compact">
 <!-- MOBILE DRAWER: backdrop -->
 <button aria-label="Tutup navigasi" hidden="" id="scrim">
 </button>
@@ -916,15 +916,22 @@ window.addEventListener('resize', () => {
   if (busy) return;
   layoutPixels();
 });
-image.onload = () => {
+image.onload = async () => {
   if (image.naturalWidth !== 320 || image.naturalHeight !== 96) {
     console.error('Sidebar.png must remain 320×96; update slicing if sheet changes.');
     return;
   }
+  // First load / reload: paint compact closed state, then reuse normal opening.
+  // Wait for font metrics before measuring Docs and allocating whole tile rows.
+  await document.fonts.ready;
   ready = true;
   layoutPixels();
-  draw(total());
-  lock(false);
+  draw(0);
+  await run(async () => {
+    // Two frames ensure the initial compact pose paints before the slide starts.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await animateTo(total());
+  });
 };
 image.onerror = () => {
   console.error('Sidebar.png failed to load. Keep mockups/ and site/sidebar/ paths together.');
