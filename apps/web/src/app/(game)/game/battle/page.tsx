@@ -42,6 +42,8 @@ const PRESETS = [
   { id: 'team_kraken_ember_abyss_elite', label: 'Kraken · Ember · Abyss (Elite)' },
   { id: 'team_kraken_ember_abyss_apex', label: 'Kraken · Ember · Abyss (Apex)' },
   ...(['Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter', 'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember'] as const).map((c) => ({ id: `trio_${c.toLowerCase()}`, label: `Trio · ${c} (Elite)` })),
+  // Three Tempests on the Evolved arena: a Maelstrom every few turns under the gulls — the storm reaction review.
+  { id: 'trio_tempest_evolved', label: 'Trio · Tempest (Evolved) · storm review' },
 ] as const;
 
 // Pick a random arena scene on page load (Evolved tier default for queue view)
