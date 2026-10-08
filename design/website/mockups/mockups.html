@@ -1,0 +1,1453 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clawbada · Component mockups</title>
+<!--
+CLAWBADA — DEVELOPER HANDOFF / SINGLE-FILE COMPONENT WORKBENCH
+Copy the component style, real component markup and script together. Keep IDs/classes,
+asset-relative paths and Upheaval font, or update references when adapting to your stack.
+The separate placeholder style/main block is composition scaffolding: DO NOT SHIP IT.
+
+ASSETS (relative to this file in design/website/mockups/):
+ ../brand/logo-wordmark-512x512.png — standalone 512×512 PNG displayed at 192×192.
+ ../brand/fonts/upheaval/upheavtt.ttf — menu font.
+ ../site/sidebar/Sidebar.png — 320×96; 16×16 source tile grid.
+ ../site/sidebar/Icons.png — 192×16; twelve icons matching menuItems order.
+ ../site/sidebar/Ribbon.png — 336×16; seven 48px poses, center repeat + fixed caps.
+ ../site/sidebar/Separator.png — 48×16; left / repeatable middle / right tiles.
+Pixel UI uses 3 display pixels per source pixel. Never stretch tile edges or artwork.
+The wordmark is a separately sized brand image, not a 16×16 tile asset.
+
+SIDEBAR CONTRACT:
+- Source width 128px. Height follows Docs, then diagonal taper and one-grid flat cap.
+- Diagonal pairs at y=64 include their inner seam tiles. Open cap is y=48, not y=32.
+- Roll uses cubic ease-in-out over discrete tile poses (20ms nominal per step).
+- Rows reveal top-down and disappear bottom-up as the rolling edge passes them.
+- Ribbon retracts old selection, then extends new selection (250ms each).
+- Active icon/text shift 6px; ribbon stays put. Rapid selection cancels older tweens.
+- Close = roll first, then slide to compact left. Open reverses that sequence.
+- Logo and exposed pole both reopen compact state; logo hover remains transparent.
+- Blue placeholders are never queried by component JS. Route integration point is selectMenu.
+
+KNOWN SCOPE / DO NOT SILENTLY REDESIGN:
+Approved desktop composition fits a 1080px-high viewport with 36px bottom margin.
+Fixed 3× scale + no sidebar scrolling intentionally remains; shorter viewports can clip.
+Mobile drawer is preserved, not a promise of full short-screen responsive fit.
+Reduced-motion currently disables CSS movement; canvas ribbon/roll timings are preserved.
+No backend, router, build dependencies, or production app files are included here.
+-->
+<style id="component-styles">
+/* SHARED SETTINGS — display pixels unless marked source-pixel units.
+   These values preserve the approved mockup; do not use fractional pixel scaling.
+   JS reads these once on initialization; reload after changing settings. */
+:root {
+  --pixel: 3px;
+  --panel-source-width: 128;
+  --sidebar-width: calc(var(--panel-source-width) * var(--pixel));
+  --sidebar-top: 84px;
+  --logo-top: 0px;
+  --logo-left: -24px;
+  --logo-size: 192px;
+  --compact-logo-left: -84px;
+  --compact-pole-left: -156px;
+  --menu-left-units: 4;
+  --menu-right-units: 24;
+  --menu-top-units: 28;
+  --menu-gap: calc(3 * var(--pixel));
+  --menu-padding: 8px;
+  --menu-icon-gap: calc(4 * var(--pixel));
+  --menu-font-size: calc(9 * var(--pixel));
+  --menu-height: calc(16 * var(--pixel));
+  --separator-height: calc(8 * var(--pixel));
+  --active-shift: 6px;
+  --roll-step-ms: 20;
+  --ribbon-duration: 250ms;
+  --compact-duration: 250ms;
+  --active-duration: 250ms;
+  --ui-easing: ease-in-out;
+}
+
+/* BASE — no global button hover paint: component styles own all states. */
+@font-face {
+  font-family: 'Upheaval';
+  src: url('../brand/fonts/upheaval/upheavtt.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap
+}
+
+* {
+  box-sizing: border-box
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden
+}
+
+body {
+  margin: 0;
+  background: #082f4e;
+  color: #e7ebe4;
+  font: 15px/1.5 system-ui, sans-serif
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  color: #f3eedc
+}
+
+button:disabled {
+  opacity: .5;
+  cursor: default
+}
+
+button:focus-visible {
+  outline: 3px solid #f4dd9c;
+  outline-offset: 3px
+}
+
+canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges
+}
+
+[hidden] {
+  display: none !important
+}
+
+/* COMPONENT: STANDALONE LOGO — sibling of sidebar; never rolled/clipped with menu. */
+.standalone-brand {
+  position: fixed;
+  top: var(--logo-top);
+  left: var(--logo-left);
+  width: var(--sidebar-width);
+  height: var(--logo-size);
+  display: flex;
+  justify-content: center;
+  z-index: 21;
+  pointer-events: none;
+  transition: left var(--compact-duration) var(--ui-easing)
+}
+
+.standalone-brand img {
+  display: block;
+  width: var(--logo-size);
+  height: var(--logo-size);
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 3px 0 rgba(15, 20, 27, .8))
+}
+
+body.sidebar-compact .standalone-brand {
+  left: var(--compact-logo-left)
+}
+
+.brand-trigger {
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  pointer-events: none
+}
+
+body.sidebar-compact .brand-trigger {
+  pointer-events: auto;
+  cursor: pointer
+}
+
+.brand-trigger:hover,
+.brand-trigger:active {
+  background: transparent
+}
+
+.brand-trigger:focus-visible {
+  outline: 2px dashed #ffe197
+}
+
+/* COMPONENT: SIDEBAR / POLE */
+.sidebar-shell {
+  position: fixed;
+  inset: var(--sidebar-top) auto 0 0;
+  width: var(--sidebar-width);
+  overflow: clip;
+  z-index: 20;
+  transition: left var(--compact-duration) var(--ui-easing)
+}
+
+body.sidebar-compact .sidebar-shell {
+  left: var(--compact-pole-left)
+}
+
+.sidebar-preview {
+  position: relative;
+  width: var(--sidebar-width);
+  height: auto
+}
+
+.sidebar-preview #panel {
+  max-width: none
+}
+
+#toggle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: var(--menu-height);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  z-index: 4
+}
+
+#toggle:hover {
+  background: transparent
+}
+
+#toggle:focus-visible {
+  outline: 2px dashed #ffe197;
+  outline-offset: -2px
+}
+
+#toggle:disabled {
+  opacity: 1;
+  cursor: wait
+}
+
+/* COMPONENT: MENU / RIBBONS / SEPARATOR */
+.menu-overlay {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--pixel));
+  overflow: visible
+}
+
+.menu-overlay>nav {
+  flex-shrink: 0
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--menu-gap);
+  padding: var(--menu-padding);
+  margin: 0;
+  list-style: none
+}
+
+.menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--menu-icon-gap);
+  width: 100%;
+  height: var(--menu-height);
+  min-height: var(--menu-height);
+  padding: 0 calc(2 * var(--pixel));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #3b2923;
+  text-align: left;
+  font-family: 'Upheaval', sans-serif;
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: var(--menu-font-size);
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap
+}
+
+.menu-item:hover {
+  background: transparent;
+  color: #713622
+}
+
+.menu-item[aria-current="page"] {
+  background: transparent;
+  color: #fff4d6
+}
+
+.menu-item>span {
+  position: relative;
+  z-index: 1;
+  transform: translateX(0);
+  transition: transform var(--active-duration) var(--ui-easing)
+}
+
+.menu-item[aria-current="page"]>span {
+  transform: translateX(var(--active-shift))
+}
+
+.menu-item .active-ribbon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  pointer-events: none;
+  image-rendering: pixelated;
+  z-index: 0
+}
+
+.menu-item:focus-visible {
+  outline: 2px solid #b65330;
+  outline-offset: -2px
+}
+
+.menu-icon {
+  display: block;
+  width: var(--menu-height);
+  height: var(--menu-height);
+  flex: 0 0 var(--menu-height);
+  background-image: url('../site/sidebar/Icons.png');
+  background-repeat: no-repeat;
+  background-size: calc(192 * var(--pixel)) calc(16 * var(--pixel));
+  background-position: calc(var(--icon) * -16 * var(--pixel)) 0;
+  image-rendering: pixelated
+}
+
+.menu-separator {
+  height: var(--separator-height);
+  display: flex;
+  align-items: center;
+  justify-content: center
+}
+
+.menu-separator canvas {
+  display: block;
+  image-rendering: pixelated;
+  flex-shrink: 0
+}
+
+/* COMPONENT: MOBILE DRAWER — breakpoint must match CONFIG.mobileBreakpoint. */
+.mobile-topbar {
+  display: none
+}
+
+#scrim {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  background: #00132299;
+  z-index: 19
+}
+
+@media(max-width:699px) {
+  .standalone-brand {
+    display: none
+  }
+
+  .drawer-open .standalone-brand {
+    display: flex
+  }
+
+  .sidebar-shell {
+    transform: translateX(-100%)
+  }
+
+  .drawer-open .sidebar-shell {
+    transform: translateX(0)
+  }
+
+  .mobile-topbar {
+    display: flex;
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 52px;
+    align-items: center;
+    padding: 4px 12px;
+    background: #124b70;
+    z-index: 10
+  }
+
+  .mobile-topbar button {
+    min-width: 44px;
+    min-height: 44px;
+    background: transparent;
+    border: 1px solid #6491af;
+    border-radius: 8px;
+    padding: 4px;
+    color: #d8e9f4
+  }
+}
+
+@media(prefers-reduced-motion:reduce) {
+
+  .menu-item>span,
+  .standalone-brand,
+  .sidebar-shell {
+    transition: none
+  }
+}
+/* Music: sibling control attached to the logo, never the pole hit target.
+   Music.png: left 16×16 = on; right 16×16 = off. */
+.music-toggle {
+  position: absolute;
+  left: calc(50% + var(--logo-size) / 2);
+  top: 36px;
+  width: calc(16 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent url('../site/Misc/Music.png') no-repeat 0 0;
+  background-size: calc(32 * var(--pixel)) calc(16 * var(--pixel));
+  image-rendering: pixelated;
+  pointer-events: auto;
+}
+.music-toggle[aria-pressed="false"] { background-position: calc(-16 * var(--pixel)) 0; }
+.music-toggle:active { transform: translateY(3px); }
+.music-toggle:focus-visible { outline: 2px dashed #ffe197; outline-offset: 3px; }
+/* COMPONENT: WALLET / PROFILE — source units share the sidebar's integer scale.
+   Top plank: x0..47/y0..31 (16px left, repeatable middle, right).
+   Wheel: x48..111/y0..63. Lower sheet artwork remains unused in this state.
+   Fixed desktop anchor; narrow-screen composition still needs a separate design pass. */
+:root {
+  --user-section-top: 12px;
+  --user-section-right: 12px;
+}
+.user-section {
+  position: fixed;
+  top: var(--user-section-top);
+  right: var(--user-section-right);
+  width: calc(160 * var(--pixel));
+  height: calc(64 * var(--pixel));
+  z-index: 18;
+}
+#user-section-art {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.connect-wallet {
+  visibility: hidden; /* Prevent text flash before the startup panel animation. */
+  position: absolute;
+  z-index: 3;
+  left: calc(40 * var(--pixel));
+  top: calc(24 * var(--pixel));
+  width: calc(68 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff4d6;
+  font-family: 'Upheaval', sans-serif;
+  font-size: calc(7 * var(--pixel));
+  font-weight: 400;
+  font-synthesis: none;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.connect-wallet:hover { background: transparent; color: #ffe197; }
+.connect-wallet:disabled { opacity: 1; cursor: wait; }
+.wallet-loader {
+  display: block;
+  width: calc(16 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  margin: 0 auto;
+  background: url('../site/Misc/Loader/Loader.png') 0 0 / calc(64 * var(--pixel)) calc(16 * var(--pixel)) no-repeat;
+  image-rendering: pixelated;
+  animation: wallet-loading 600ms steps(4) infinite;
+}
+@keyframes wallet-loading { to { background-position-x: calc(-64 * var(--pixel)); } }
+@media (prefers-reduced-motion: reduce) { .wallet-loader { animation: none; } }
+.connect-wallet:focus-visible { outline: 2px dashed #ffe197; outline-offset: -2px; }
+/* Press wrapper owns translation; the inner wheel owns rotation.
+   :active clears on release/cancel, including native keyboard activation. */
+.user-avatar-press {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  transform: translateY(0);
+}
+.user-avatar-press:has(.user-avatar-slot:active:not(:disabled)) {
+  transform: translateY(3px);
+}
+.user-avatar-press .user-avatar-slot { pointer-events: auto; }
+#user-avatar-frame {
+  position: absolute;
+  left: calc(96 * var(--pixel));
+  top: 0;
+  width: calc(64 * var(--pixel));
+  height: calc(64 * var(--pixel));
+  z-index: 2;
+  pointer-events: none;
+  image-rendering: pixelated;
+  transform-origin: center;
+}
+.user-avatar-slot {
+  position: absolute;
+  left: calc(108 * var(--pixel));
+  top: calc(12 * var(--pixel));
+  width: calc(40 * var(--pixel));
+  height: calc(40 * var(--pixel));
+  border-radius: 50%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  z-index: 3;
+}
+.user-avatar-slot:hover { background: transparent; }
+.user-avatar-slot:disabled { opacity: 1; cursor: wait; }
+.user-avatar-slot:focus-visible { outline: 2px dashed #ffe197; outline-offset: 3px; }
+/* Profile actions: no wooden wrapper; each button expands independently. */
+.profile-menu { --action-label-gap: 6px; --action-duration: 180ms; }
+.profile-menu {
+  position: absolute;
+  /* Fixed left anchor: expanding Disconnect never moves Edit Profile. */
+  left: calc(36 * var(--pixel));
+  top: calc(42 * var(--pixel));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  height: 48px;
+  z-index: 1;
+}
+.profile-menu[hidden] { display: none; }
+.profile-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 54px;
+  height: 48px;
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  image-rendering: pixelated;
+  border: 0;
+  border-radius: 0;
+  padding: 0 16.5px;
+  color: #fff4d6;
+  font: 18px 'Upheaval', sans-serif;
+  white-space: nowrap;
+  transition: width var(--action-duration) ease-in-out;
+}
+.profile-action-label {
+  flex: 0 0 auto;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  margin-left: 0;
+  transition: max-width var(--action-duration) ease-in-out, opacity var(--action-duration) ease-in-out, margin-left var(--action-duration) ease-in-out;
+}
+.profile-menu button:is(:hover, :focus-visible) { width: var(--action-open-width, 54px); }
+.profile-menu button:is(:hover, :focus-visible) .profile-action-label {
+  max-width: 140px; opacity: 1; margin-left: var(--action-label-gap);
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-menu button, .profile-action-label { transition: none; }
+}
+/* Chain stays behind the button and the higher wallet-address layer. */
+.profile-menu button::before,
+.profile-menu button::after {
+  content: '';
+  position: absolute;
+  left: 21px;
+  top: -27px;
+  width: 12px;
+  height: 48px;
+  background: url('../site/User Section/Button.png') -162px 0 / 192px 48px no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+  z-index: -2;
+}
+/* At 54px compact width both chains coincide at x21.
+   Right anchoring follows the button width transition directly: no fade/timer. */
+.profile-menu button::after { left: auto; right: 21px; }
+.profile-menu button > canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  z-index: -1; pointer-events: none; image-rendering: pixelated;
+}
+.profile-action-icon {
+  flex: 0 0 21px; width: 21px; height: 21px;
+  background: url('../site/User Section/Icons.png') no-repeat;
+  background-size: 96px 48px; image-rendering: pixelated;
+  pointer-events: none;
+}
+[data-profile-action="edit"] .profile-action-icon { background-position: -60px -12px; }
+[data-profile-action="disconnect"] .profile-action-icon { background-position: -15px -12px; }
+
+.profile-menu button:hover { color: #ffe197; }
+.profile-menu [data-profile-action="disconnect"] .profile-action-label { color: #e83b3b; }
+.profile-menu button:active { transform: translateY(3px); }
+.profile-menu button:focus-visible { outline: 2px dashed #ffe197; outline-offset: -8px; }
+.connect-wallet { overflow: hidden; text-overflow: ellipsis; }
+#profile-editor { background: #38291f; color: #fff4d6; border: 3px solid #9c7855; padding: 24px; max-width: min(360px, 85vw); }
+#profile-editor::backdrop { background: #0009; }
+#profile-editor input { display: block; box-sizing: border-box; width: 100%; margin: 12px 0; padding: 10px; }
+#profile-editor p { font: 14px sans-serif; }
+</style>
+<style id="placeholder-styles">
+/* PLACEHOLDERS ONLY — omit this entire style block from production handoff. */
+.workspace-placeholder {
+  position: fixed;
+  inset: 0 0 0 var(--sidebar-width);
+  max-width: none;
+  margin: 0;
+  padding: 32px;
+  overflow: auto
+}
+
+.placeholder-layout {
+  max-width: 760px;
+  margin: 0 auto;
+  display: grid;
+  gap: 24px
+}
+
+.placeholder {
+  background: #165981;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none
+}
+
+.placeholder-header {
+  height: 48px;
+  width: 45%
+}
+
+.placeholder-hero {
+  height: 200px
+}
+
+.placeholder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px
+}
+
+.placeholder-card {
+  height: 112px
+}
+
+@media(max-width:699px) {
+  .workspace-placeholder {
+    inset: 52px 0 0;
+    padding: 24px 18px
+  }
+
+  .placeholder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr))
+  }
+
+  .placeholder-hero {
+    height: 160px
+  }
+
+  .placeholder-card {
+    height: 92px
+  }
+}
+</style>
+</head>
+<body class="sidebar-compact">
+<!-- MOBILE DRAWER: backdrop -->
+<button aria-label="Tutup navigasi" hidden="" id="scrim">
+</button>
+
+<!-- MOBILE DRAWER: launcher -->
+<div class="mobile-topbar">
+ <button aria-controls="sidebar-shell" aria-expanded="false" aria-label="Buka navigasi" id="mobile-menu">
+  ☰
+ </button>
+</div>
+
+<!-- COMPONENT: standalone wordmark -->
+<header aria-label="Clawbada" class="standalone-brand">
+ <button aria-controls="menu-overlay" aria-label="Buka sidebar" class="brand-trigger" tabindex="-1" type="button">
+  <img alt="Clawbada" src="../brand/logo-wordmark-512x512.png"/>
+ </button>
+ <button class="music-toggle" type="button" aria-label="Turn music off" aria-pressed="true" title="Music on"></button>
+</header>
+
+<!-- COMPONENT: sidebar, menu, pole trigger -->
+<aside aria-label="Sidebar Clawbada" class="sidebar-shell" id="sidebar-shell">
+ <div class="sidebar-preview" id="sidebar">
+  <canvas aria-label="Panel sidebar terbuka" height="336" id="panel" role="img" width="128">
+  </canvas>
+  <div class="menu-overlay" hidden="" id="menu-overlay" inert="">
+   <nav aria-label="Navigasi Clawbada">
+    <ul class="menu-list" id="menu-list">
+    </ul>
+   </nav>
+  </div>
+  <button aria-controls="menu-overlay" aria-expanded="true" aria-label="Tutup sidebar" disabled="" id="toggle" title="Klik pole untuk buka/tutup sidebar" type="button">
+  </button>
+ </div>
+</aside>
+
+<!-- COMPONENT: wallet/profile. Disconnected presentation only; wire provider later. -->
+<section class="user-section" aria-label="Wallet and user profile">
+ <canvas id="user-section-art" width="160" height="64" aria-hidden="true"></canvas>
+ <button class="connect-wallet" type="button" aria-describedby="wallet-preview-note">Connect Wallet</button>
+ <!-- Avatar artwork will occupy the wheel center; keep source frame visible. -->
+ <div class="user-avatar-press">
+  <canvas id="user-avatar-frame" width="64" height="64" aria-hidden="true"></canvas>
+  <button class="user-avatar-slot" type="button" aria-label="Collapse wallet panel" aria-expanded="true" aria-controls="user-section-art" disabled></button>
+ </div>
+ <div id="profile-menu" class="profile-menu" hidden aria-label="Profile actions">
+  <button type="button" data-profile-action="edit" aria-label="Profile"><span class="profile-action-icon" aria-hidden="true"></span><span class="profile-action-label">Profile</span></button>
+  <button type="button" data-profile-action="disconnect" aria-label="Disconnect" title="Disconnect"><span class="profile-action-icon" aria-hidden="true"></span><span class="profile-action-label">Disconnect</span></button>
+ </div>
+ <dialog id="profile-editor" aria-labelledby="profile-editor-title">
+  <form id="profile-form">
+   <h2 id="profile-editor-title">Edit Profile</h2>
+   <label for="profile-name">Display name</label>
+   <input id="profile-name" name="name" maxlength="20" autocomplete="off">
+   <p>Mockup only — no wallet connection or saved account data.</p>
+   <button type="button" id="profile-cancel">Cancel</button>
+   <button type="submit">Save</button>
+  </form>
+ </dialog>
+ <span id="wallet-preview-note" hidden>Design preview only. No wallet provider is connected.</span>
+</section>
+
+<!-- PLACEHOLDER MARKUP: remove this main element for production integration. -->
+<main aria-label="Placeholder komponen web; fokus desain saat ini: sidebar" class="workspace-placeholder">
+ <div class="placeholder-layout">
+  <div aria-label="Header placeholder" class="placeholder placeholder-header" role="img">
+  </div>
+  <div aria-label="Panel utama placeholder" class="placeholder placeholder-hero" role="img">
+  </div>
+  <div class="placeholder-grid">
+   <div aria-label="Card placeholder" class="placeholder placeholder-card" role="img">
+   </div>
+   <div aria-label="Card placeholder" class="placeholder placeholder-card" role="img">
+   </div>
+   <div aria-label="Card placeholder" class="placeholder placeholder-card" role="img">
+   </div>
+   <div aria-label="Card placeholder" class="placeholder placeholder-card" role="img">
+   </div>
+   <div aria-label="Card placeholder" class="placeholder placeholder-card" role="img">
+   </div>
+   <div aria-label="Card placeholder" class="placeholder placeholder-card" role="img">
+   </div>
+  </div>
+ </div>
+</main>
+
+<script>
+'use strict';
+// 1. SETTINGS / ASSET CONTRACT
+// Edit CSS tokens below :root for layout/timing. Source geometry stays on 16px tiles.
+const cssTokens = getComputedStyle(document.documentElement);
+const tokenNumber = name => parseFloat(cssTokens.getPropertyValue(name));
+const CONFIG = Object.freeze({
+  pixelScale: tokenNumber('--pixel'),
+  panelSourceWidth: tokenNumber('--panel-source-width'),
+  menuLeft: tokenNumber('--menu-left-units'),
+  menuRight: tokenNumber('--menu-right-units'),
+  menuTop: tokenNumber('--menu-top-units'),
+  rollStepMs: tokenNumber('--roll-step-ms'),
+  ribbonMs: tokenNumber('--ribbon-duration'),
+  compactMs: tokenNumber('--compact-duration'),
+  compactSettleMs: 20,
+  mobileBreakpoint: 700,
+  assets: Object.freeze({
+    panel: '../site/sidebar/Sidebar.png',
+    ribbon: '../site/sidebar/Ribbon.png',
+    separator: '../site/sidebar/Separator.png'
+  })
+});
+// 2. DOM / STATE / CONTENT-DRIVEN GEOMETRY
+
+const canvas = document.querySelector('#panel'),
+  ctx = canvas.getContext('2d');
+const toggle = document.querySelector('#toggle');
+const image = new Image();
+let step = 0,
+  busy = false,
+  ready = false;
+const sidebar = document.querySelector('#sidebar'),
+  menuOverlay = document.querySelector('#menu-overlay'),
+  menuList = document.querySelector('#menu-list');
+let pixelScale = CONFIG.pixelScale;
+
+function layoutPixels() {
+  const oldTotal = Number(canvas.dataset.total || 0),
+    wasOpen = !ready || step === oldTotal;
+  const oldStep = step;
+  pixelScale = CONFIG.pixelScale;
+  sidebar.style.setProperty('--pixel', `${pixelScale}px`);
+  document.documentElement.style.setProperty('--pixel', `${pixelScale}px`);
+  sidebar.dataset.pixelScale = String(pixelScale);
+  canvas.width = CONFIG.panelSourceWidth;
+  // Measure the real menu, even while rolled up. Keep each source tile whole.
+  const width = canvas.width * pixelScale;
+  document.documentElement.style.setProperty('--sidebar-width', `${width}px`);
+  sidebar.style.width = `${width}px`;
+  sidebar.style.marginLeft = '0';
+  menuOverlay.style.left = `${CONFIG.menuLeft*pixelScale}px`;
+  menuOverlay.style.right = `${CONFIG.menuRight*pixelScale}px`;
+  menuOverlay.style.top = `${CONFIG.menuTop*pixelScale}px`;
+  menuOverlay.style.bottom = 'auto';
+  const wasHidden = menuOverlay.hidden,
+    oldVisibility = menuOverlay.style.visibility;
+  menuOverlay.style.visibility = 'hidden';
+  menuOverlay.hidden = false;
+  const docs = menuList.querySelector('[data-menu="docs"]');
+  const docsBottom = (docs.getBoundingClientRect().bottom - sidebar.getBoundingClientRect().top) / pixelScale;
+  const menuEndRow = Math.ceil(docsBottom / 16);
+  // After Docs: taper and bottom cap, with no extra empty body row.
+  const taperExtraRows = (canvas.width / 16 - 4) / 2;
+  const sourceHeight = (menuEndRow + 1 + taperExtraRows) * 16;
+  sidebar.dataset.docsEndRow = String(Math.ceil(docsBottom / 16));
+  sidebar.dataset.contentEndRow = String(menuEndRow);
+  sidebar.dataset.emptyRows = '0';
+  menuOverlay.hidden = wasHidden;
+  menuOverlay.style.visibility = oldVisibility;
+  if (canvas.height !== sourceHeight) canvas.height = sourceHeight;
+  const height = canvas.height * pixelScale;
+  sidebar.style.height = `${height}px`;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  if (ready) {
+    draw(wasOpen ? total() : Math.min(oldStep, total()));
+    refreshRibbons();
+  }
+}
+// 3. MENU / RIBBON / SEPARATOR
+// Menu order also indexes the 12 source tiles in Icons.png. Keep them in sync.
+const menuItems = ['Dashboard', 'Mining', 'Battle', 'Dojo', 'Breeding', 'Evolve', 'Repair', 'Teams', 'Market', 'Activity', 'Ranks', 'Docs'];
+let selectedMenu = 'Dashboard';
+const ribbonImage = new Image();
+let ribbonReady = false,
+  ribbonToken = 0;
+const ribbonLevels = new Map(),
+  ribbonCanvases = new Map();
+// Cubic ease-in-out for raster step/ribbon progression.
+const ribbonEase = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+function paintRibbon(label, amount) {
+  ribbonLevels.set(label, amount);
+  const c = ribbonCanvases.get(label);
+  if (!c || !ribbonReady) return;
+  const button = c.parentElement;
+  // Logical raster pixels always render at the SAME integer scale as panel/icons.
+  // A narrow menu clips a natural-sized ribbon instead of squeezing its pixels.
+  // Extend to the canvas's left edge, beyond the banner's inset wooden edge.
+  // Keep the previous right edge INSIDE the menu/banner instead of stretching
+  // outward on both sides. Text/icon positions remain unchanged.
+  const leftExtension = Math.max(0, Math.round(button.getBoundingClientRect().left - sidebar.getBoundingClientRect().left));
+  c.style.left = `${-leftExtension}px`;
+  c.width = Math.max(1, Math.floor((button.clientWidth + leftExtension) / pixelScale));
+  c.height = 16;
+  c.style.width = `${c.width*pixelScale}px`;
+  c.style.height = `${16*pixelScale}px`;
+  const r = c.getContext('2d');
+  r.imageSmoothingEnabled = false;
+  r.clearRect(0, 0, c.width, 16);
+  if (amount <= 0) return;
+  const length = Math.max(1, Math.round(c.width * amount));
+  if (length >= 48) {
+    r.drawImage(ribbonImage, 0, 0, 16, 16, 0, 0, 16, 16);
+    // Fixed endcaps; only center tile is repeated. Canvas clipping preserves
+    // the endcap without stretching a texture or resizing the original PNG.
+    r.save();
+    r.beginPath();
+    r.rect(16, 0, length - 32, 16);
+    r.clip();
+    for (let x = 16; x < length - 16; x += 16) r.drawImage(ribbonImage, 16, 0, 16, 16, x, 0, 16, 16);
+    r.restore();
+    r.drawImage(ribbonImage, 32, 0, 16, 16, length - 16, 0, 16, 16);
+  } else {
+    const lengths = [48, 40, 32, 24, 16, 9, 5];
+    let frame = 0;
+    for (let i = 1; i < lengths.length; i++)
+      if (Math.abs(lengths[i] - length) < Math.abs(lengths[frame] - length)) frame = i;
+    for (let col = 0; col < 3; col++) r.drawImage(ribbonImage, frame * 48 + col * 16, 0, 16, 16, col * 16, 0, 16, 16);
+  }
+}
+
+function tweenRibbon(label, to, token) {
+  const from = ribbonLevels.get(label) || 0,
+    duration = CONFIG.ribbonMs;
+  return new Promise(resolve => {
+    let start;
+
+    function tick(now) {
+      if (token !== ribbonToken) {
+        resolve(false);
+        return;
+      }
+      if (start === undefined) start = now;
+      const t = Math.min(1, (now - start) / duration);
+      paintRibbon(label, from + (to - from) * ribbonEase(t));
+      if (t < 1) requestAnimationFrame(tick);
+      else resolve(true);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+async function selectMenu(label) {
+  if (selectedMenu === label) return;
+  selectedMenu = label;
+  const token = ++ribbonToken;
+  // Rapid clicks cancel old tweens; shrink all visible ribbons before new one.
+  const visible = [...ribbonLevels].filter(([, level]) => level > 0).map(([name]) => name);
+  await Promise.all(visible.map(name => tweenRibbon(name, 0, token)));
+  if (token !== ribbonToken) return;
+  menuList.querySelectorAll('button').forEach(b => {
+    if (b.dataset.menu === label.toLowerCase()) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  // DEV INTEGRATION: connect your router here; selection currently changes UI only.
+  await tweenRibbon(label, 1, token);
+}
+const separatorImage = new Image();
+
+function paintSeparator() {
+  const c = document.querySelector('.menu-separator canvas');
+  if (!c || !separatorImage.complete || separatorImage.naturalWidth !== 48) return;
+  // One extra repeated center tile; fixed end ornaments remain centered.
+  const cols = Math.max(3, Math.floor(c.parentElement.clientWidth / (16 * pixelScale)) + 1);
+  c.width = cols * 16;
+  c.height = 16;
+  c.style.width = `${c.width*pixelScale}px`;
+  c.style.height = `${16*pixelScale}px`;
+  const r = c.getContext('2d');
+  r.imageSmoothingEnabled = false;
+  for (let col = 0; col < cols; col++) r.drawImage(separatorImage, (col === 0 ? 0 : col === cols - 1 ? 2 : 1) * 16, 0, 16, 16, col * 16, 0, 16, 16);
+}
+separatorImage.onload = paintSeparator;
+separatorImage.src = CONFIG.assets.separator;
+menuItems.forEach((label, index) => {
+  if (label === 'Activity') {
+    const separator = document.createElement('li');
+    separator.className = 'menu-separator';
+    separator.setAttribute('role', 'separator');
+    const art = document.createElement('canvas');
+    art.setAttribute('aria-hidden', 'true');
+    separator.append(art);
+    menuList.append(separator);
+  }
+  const li = document.createElement('li');
+  li.dataset.menu = label.toLowerCase();
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'menu-item';
+  button.dataset.menu = label.toLowerCase();
+  if (label === selectedMenu) button.setAttribute('aria-current', 'page');
+  const icon = document.createElement('span');
+  icon.className = 'menu-icon';
+  icon.style.setProperty('--icon', index);
+  icon.setAttribute('aria-hidden', 'true');
+  const text = document.createElement('span');
+  text.textContent = label;
+  const ribbon = document.createElement('canvas');
+  ribbon.className = 'active-ribbon';
+  ribbon.setAttribute('aria-hidden', 'true');
+  ribbon.width = 48;
+  ribbon.height = 16;
+  ribbonCanvases.set(label, ribbon);
+  ribbonLevels.set(label, label === selectedMenu ? 1 : 0);
+  button.append(ribbon, icon, text);
+  button.addEventListener('click', () => selectMenu(label));
+  li.append(button);
+  menuList.append(li);
+});
+
+function refreshRibbons() {
+  if (ribbonReady && !menuOverlay.hidden)
+    for (const [label, level] of ribbonLevels) paintRibbon(label, level);
+}
+new ResizeObserver(refreshRibbons).observe(menuList);
+ribbonImage.onload = () => {
+  if (ribbonImage.naturalWidth !== 336 || ribbonImage.naturalHeight !== 16) {
+    console.error('Ribbon.png must remain 336×16; update slicing if sheet changes.');
+    return;
+  }
+  ribbonReady = true;
+  refreshRibbons();
+};
+ribbonImage.onerror = () => {
+  console.error('Ribbon.png failed to load. Check the asset path.');
+};
+ribbonImage.src = CONFIG.assets.ribbon;
+
+function syncMenu() {
+  const visible = ready && step > 0;
+  const interactive = visible && !busy;
+  if (!interactive && menuOverlay.contains(document.activeElement)) toggle.focus();
+  // Keep the menu layer while rolling; hide each row only when the roll
+  // reaches it. Visibility (not display) preserves all positions and spacing.
+  menuOverlay.hidden = !visible;
+  menuOverlay.inert = !interactive;
+  if (visible) {
+    const rollEdge = sidebar.getBoundingClientRect().top + Number(canvas.dataset.rollY) * pixelScale;
+    for (const row of menuList.children) {
+      const revealed = step === total() || row.getBoundingClientRect().bottom <= rollEdge;
+      row.style.visibility = revealed ? 'visible' : 'hidden';
+      row.setAttribute('aria-hidden', String(!revealed));
+      row.inert = !revealed || busy;
+    }
+    refreshRibbons();
+    paintSeparator();
+  }
+}
+// 4. TILE RENDERER
+// Every crop/destination uses the original 16×16 tile grid.
+// Five 64px-wide pose columns. Open pose cap is y=48, rolling caps y=16/32.
+// Extra diagonal pairs use y=64 (two tiles per side, never replace inner seams).
+// Preserve transparent padding: never crop to the visible artwork bounds.
+const TILE = 16,
+  COLS = 4;
+const tileRows = () => canvas.height / TILE;
+// Closed -> fixed roll travels down -> one partial pose -> fully open.
+// Reverse to close: the two long-panel poses occur ONCE, at full length.
+const total = () => tileRows() + 1;
+
+function tile(pose, sourceCol, sourceRow, destRow, destCol) {
+  ctx.drawImage(image, (pose * COLS + sourceCol) * TILE, sourceRow * TILE, TILE, TILE, destCol * TILE, destRow * TILE, TILE, TILE);
+}
+
+function tileRow(pose, sourceRow, destRow, inset = 0) {
+  const columns = canvas.width / TILE - 2 * inset;
+  for (let col = 0; col < columns; col++) {
+    // Selected pole tile is column 1 (x16..31), NOT the right pole tip.
+    // Repeat this center column for banner and rolling edge too, preserving
+    // original left column and both original right columns without stretching.
+    const sourceCol = col === 0 ? 0 : col >= columns - 2 ? col - (columns - COLS) : 1;
+    tile(pose, sourceCol, sourceRow, destRow, col + inset);
+  }
+}
+// Extra sheet row supplies diagonal EDGES, not a complete footer image.
+// Two inward steps leave three cloth tiles for the original flat-ended cap:
+// its two corner tiles converge on one central, horizontal tile.
+const taperDepth = () => Math.max(0, (canvas.width / TILE - 4) / 2);
+const taperStart = () => tileRows() - 1 - taperDepth();
+
+function taperRow(destRow, inset) {
+  const rightCol = canvas.width / TILE - 2 - inset;
+  // Each diagonal border spans TWO source tiles, including its inner seam.
+  // Repeat plain fill only BETWEEN these edge pairs, never over the seam.
+  for (let col = inset; col <= rightCol; col++) {
+    const sourceCol = col === inset ? 0 : col === inset + 1 ? 1 : col === rightCol - 1 ? 2 : col === rightCol ? 3 : null;
+    if (sourceCol === null) tile(0, 1, 1, destRow, col);
+    else ctx.drawImage(image, sourceCol * TILE, 64, TILE, TILE, col * TILE, destRow * TILE, TILE, TILE);
+  }
+}
+
+function draw(n) {
+  step = Math.max(0, Math.min(total(), Math.round(n)));
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  let frontRow = 0,
+    pose = 4;
+  if (step === 0) {
+    tileRow(4, 0, 0);
+  } else {
+    const lastRow = tileRows() - 1;
+    frontRow = Math.min(step, lastRow);
+    // Pose 3's entire bottom tile row is the SAME cap at every travel step.
+    // Poses 2 and 1 are only used after reaching full length, never per row.
+    pose = step === 1 ? 3 : step <= lastRow ? 2 : step === lastRow + 1 ? 1 : 0;
+    const bodyPose = pose === 1 ? 1 : 0;
+    tileRow(bodyPose, 0, 0);
+    for (let row = 1; row < frontRow; row++) {
+      if (row >= taperStart()) taperRow(row, row - taperStart());
+      else tileRow(bodyPose, 1, row);
+    }
+    const inset = Math.max(0, frontRow - taperStart());
+    // Open pose's ornamented cap is at y=48; y=32 is a straight body row.
+    // Rolling poses still use their original y=16 / y=32 cap rows.
+    tileRow(pose, pose === 0 ? 3 : pose === 3 ? 1 : 2, frontRow, inset);
+  }
+  const label = step === 0 ? 'Tergulung' : step === total() ? 'Terbuka' : busy ? 'Animasi per tile' : 'Posisi manual';
+  canvas.dataset.step = String(step);
+  canvas.dataset.rollY = String(frontRow * TILE);
+  canvas.dataset.total = String(total());
+  canvas.dataset.pose = String(pose);
+  canvas.setAttribute('aria-label', label);
+  toggle.setAttribute('aria-label', step === 0 ? 'Buka sidebar' : 'Tutup sidebar');
+  toggle.setAttribute('aria-expanded', String(step > 0));
+  syncMenu();
+}
+// 5. MOTION SEQUENCING / INPUT
+// Close: roll up, THEN slide left. Open: slide back, THEN unroll.
+// Lock input throughout; menu visibility follows the roll edge, not separate timers.
+function lock(value) {
+  busy = value;
+  toggle.disabled = value;
+  syncMenu();
+}
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const brandTrigger = document.querySelector('.brand-trigger');
+brandTrigger.addEventListener('click', () => toggle.click());
+async function setCompact(compact) {
+  if (document.body.classList.contains('sidebar-compact') === compact) return;
+  document.body.classList.toggle('sidebar-compact', compact);
+  brandTrigger.tabIndex = compact ? 0 : -1;
+  await wait(matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : CONFIG.compactMs + CONFIG.compactSettleMs);
+}
+async function animateTo(target) {
+  if (target > 0) await setCompact(false);
+  const startStep = step,
+    distance = Math.abs(target - startStep);
+  if (!distance) return;
+  const duration = distance * CONFIG.rollStepMs;
+  // Ease the existing whole-tile sequence; do not scale/morph the artwork.
+  await new Promise(resolve => {
+    let start;
+
+    function tick(now) {
+      if (start === undefined) start = now;
+      const t = Math.min(1, (now - start) / duration);
+      const next = Math.round(startStep + (target - startStep) * ribbonEase(t));
+      if (next !== step) draw(next);
+      if (t < 1) requestAnimationFrame(tick);
+      else {
+        draw(target);
+        resolve();
+      }
+    }
+    requestAnimationFrame(tick);
+  });
+  if (target === 0) await setCompact(true);
+}
+async function run(action) {
+  if (busy || !ready) return;
+  const restorePoleFocus = document.activeElement === toggle;
+  lock(true);
+  try {
+    await action();
+  } finally {
+    lock(false);
+    draw(step);
+    layoutPixels();
+    if (restorePoleFocus) toggle.focus({
+      preventScroll: true
+    });
+  }
+}
+toggle.addEventListener('click', () => run(() => animateTo(step === 0 ? total() : 0)));
+window.addEventListener('resize', () => {
+  if (busy) return;
+  layoutPixels();
+});
+image.onload = async () => {
+  if (image.naturalWidth !== 320 || image.naturalHeight !== 96) {
+    console.error('Sidebar.png must remain 320×96; update slicing if sheet changes.');
+    return;
+  }
+  // First load / reload: paint compact closed state, then reuse normal opening.
+  // Wait for font metrics before measuring Docs and allocating whole tile rows.
+  await document.fonts.ready;
+  ready = true;
+  layoutPixels();
+  draw(0);
+  await run(async () => {
+    // Two frames ensure the initial compact pose paints before the slide starts.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await animateTo(total());
+  });
+};
+image.onerror = () => {
+  console.error('Sidebar.png failed to load. Keep mockups/ and site/sidebar/ paths together.');
+};
+image.src = CONFIG.assets.panel;
+
+// 6. MOBILE DRAWER (independent of the banner roll state)
+const mobileMenu = document.querySelector('#mobile-menu'),
+  scrim = document.querySelector('#scrim');
+
+function setDrawer(open) {
+  document.body.classList.toggle('drawer-open', open);
+  mobileMenu.setAttribute('aria-expanded', String(open));
+  scrim.hidden = !open;
+}
+mobileMenu.addEventListener('click', () => setDrawer(!document.body.classList.contains('drawer-open')));
+scrim.addEventListener('click', () => setDrawer(false));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') setDrawer(false);
+});
+menuList.addEventListener('click', e => {
+  if (e.target.closest('.menu-item') && innerWidth < CONFIG.mobileBreakpoint) setDrawer(false);
+});
+// 7. WALLET / PROFILE — local presentation only; no wallet provider calls.
+// Avatar click: 360deg clockwise + retract; second click reverses both.
+const USER_MOTION = Object.freeze({ durationMs: 450, openWidth: 96, rightEdge: 128 });
+const userSectionImage = new Image();
+const userArt = document.querySelector('#user-section-art');
+const userWheel = document.querySelector('#user-avatar-frame');
+const userAvatar = document.querySelector('.user-avatar-slot');
+const connectWallet = document.querySelector('.connect-wallet');
+let userOpen = true, userBusy = false;
+function paintUserPanel(amount) {
+  const paint = userArt.getContext('2d');
+  paint.imageSmoothingEnabled = false;
+  paint.clearRect(0, 0, userArt.width, userArt.height);
+  const width = Math.round(USER_MOTION.openWidth * amount);
+  const left = USER_MOTION.rightEdge - width;
+  if (width > 0) {
+    // Fixed caps + repeated middle, clipped at the retracting edge, never stretched.
+    paint.save();
+    paint.beginPath();paint.rect(left, 16, width, 32);paint.clip();
+    paint.drawImage(userSectionImage, 0, 0, 16, 32, left, 16, 16, 32);
+    for (let x = left + 16; x < USER_MOTION.rightEdge - 16; x += 16) {
+      paint.drawImage(userSectionImage, 16, 0, 16, 32, x, 16, 16, 32);
+    }
+    paint.drawImage(userSectionImage, 32, 0, 16, 32, USER_MOTION.rightEdge - 16, 16, 16, 32);
+    paint.restore();
+  }
+  // Text fades/slides on the same progress as the plank: no independent timers.
+  // Reveal only once 55% open, reaching full opacity at the open endpoint.
+  const textProgress = ribbonEase(Math.max(0, Math.min(1, (amount - 0.55) / 0.45)));
+  connectWallet.style.opacity = String(textProgress);
+  connectWallet.style.transform = `translateX(${12 * (1 - textProgress)}px)`;
+  // Keep the existing edge mask so text never floats beyond the wooden backing.
+  connectWallet.style.clipPath = `inset(0 0 0 ${Math.max(0, Math.min(68, left - 40)) * CONFIG.pixelScale}px)`;
+  connectWallet.style.visibility = width ? 'visible' : 'hidden';
+  userArt.dataset.amount = String(amount);
+}
+async function toggleUserPanel() {
+  if (userBusy || userArt.dataset.ready !== 'true') return;
+  const restoreAvatarFocus = document.activeElement === userAvatar;
+  closeProfileMenu();
+  userBusy = true;userAvatar.disabled = true;connectWallet.inert = true;
+  const closing = userOpen;
+  const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : USER_MOTION.durationMs;
+  await new Promise(resolve => {
+    let start;
+    function tick(now) {
+      if (start === undefined) start = now;
+      const t = duration ? Math.min(1, (now - start) / duration) : 1;
+      const eased = ribbonEase(t);
+      const amount = closing ? 1 - eased : eased;
+      paintUserPanel(amount);
+      const degrees = closing ? eased * 360 : (1 - eased) * 360;
+      userWheel.style.transform = `rotate(${degrees}deg)`;
+      userWheel.dataset.degrees = String(degrees);
+      if (t < 1) requestAnimationFrame(tick);else resolve();
+    }
+    requestAnimationFrame(tick);
+  });
+  userOpen = !closing;
+  userAvatar.setAttribute('aria-expanded', String(userOpen));
+  userAvatar.setAttribute('aria-label', userOpen ? 'Collapse wallet panel' : 'Expand wallet panel');
+  connectWallet.inert = !userOpen;
+  userBusy = false;userAvatar.disabled = false;
+  if (restoreAvatarFocus) userAvatar.focus({ preventScroll: true });
+}
+userAvatar.addEventListener('click', toggleUserPanel);
+userSectionImage.onload = async () => {
+  if (userSectionImage.naturalWidth !== 112 || userSectionImage.naturalHeight !== 80) {
+    console.error('Wooden-panel.png must remain 112×80; review slicing if changed.');return;
+  }
+  const wheelPaint = userWheel.getContext('2d');
+  wheelPaint.imageSmoothingEnabled = false;
+  wheelPaint.drawImage(userSectionImage, 48, 0, 64, 64, 0, 0, 64, 64);
+  // First load / reload: paint closed before replaying the normal open motion.
+  userOpen = false;
+  userAvatar.setAttribute('aria-expanded', 'false');
+  userAvatar.setAttribute('aria-label', 'Expand wallet panel');
+  connectWallet.inert = true;
+  userWheel.style.transform = 'rotate(360deg)';
+  userWheel.dataset.degrees = '360';
+  paintUserPanel(0);
+  await document.fonts.ready;
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  userArt.dataset.ready = 'true';
+  await toggleUserPanel();
+};
+userSectionImage.onerror = () => console.error('Wooden-panel.png failed to load.');
+userSectionImage.src = '../site/User Section/Wooden-panel.png';
+// 8. MUSIC TOGGLE — presentation state only until an audio source is supplied.
+// Integration: listen for music-toggle and set the music player's muted state.
+const musicToggle = document.querySelector('.music-toggle');
+musicToggle.addEventListener('click', () => {
+  const enabled = musicToggle.getAttribute('aria-pressed') !== 'true';
+  musicToggle.setAttribute('aria-pressed', String(enabled));
+  musicToggle.setAttribute('aria-label', enabled ? 'Turn music off' : 'Turn music on');
+  musicToggle.title = enabled ? 'Music on' : 'Music off';
+  musicToggle.dispatchEvent(new CustomEvent('music-toggle', { bubbles: true, detail: { enabled } }));
+});
+// 9. PROFILE ACTIONS / DEMO ADAPTER
+// Integration boundaries:
+// - Replace the demo connection delay with the wallet provider's promise.
+// - Populate previewProfile from application state; persist edits outside this file.
+// - Disconnect below only resets local preview state, not a real wallet session.
+// - Sprite drawing works under file://: never export these canvases to data URLs.
+const PROFILE_CONFIG = Object.freeze({
+  buttonAsset: '../site/User Section/Button.png',
+  sheetWidth: 64,
+  sheetHeight: 16,
+  tileSize: 16,
+  capWidth: 5,
+  leftCapX: 11,
+  middleX: 16,
+  rightCapX: 32,
+  demoDelayMs: 1500,
+});
+const profileMenu = document.querySelector('#profile-menu');
+const profileEditor = document.querySelector('#profile-editor');
+const profileName = document.querySelector('#profile-name');
+const previewProfile = { connected: false, name: '', addressLabel: 'Demo…7K2p' };
+let profileMenuOpen = false;
+let profileMenuAnimation = null;
+const PROFILE_MENU_MOTION = Object.freeze({ duration: 180, distance: 12 });
+function setProfileMenu(open) {
+  if (profileMenuOpen === open) return;
+  profileMenuOpen = open;
+  const current = getComputedStyle(profileMenu);
+  const from = profileMenu.hidden
+    ? { transform: `translateY(-${PROFILE_MENU_MOTION.distance}px)` }
+    : { transform: current.transform };
+  profileMenuAnimation?.cancel();
+  profileMenu.hidden = false;
+  profileMenu.inert = !open;
+  connectWallet.setAttribute('aria-expanded', String(open));
+  const animation = profileMenu.animate([from, {
+    transform: `translateY(${open ? 0 : -PROFILE_MENU_MOTION.distance}px)`
+  }], { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : PROFILE_MENU_MOTION.duration,
+    easing: 'ease-in-out', fill: 'forwards' });
+  profileMenuAnimation = animation;
+  animation.onfinish = () => {
+    if (profileMenuAnimation !== animation) return;
+    profileMenu.hidden = !open;
+    animation.cancel();profileMenuAnimation = null;
+  };
+  if (open) profileMenu.querySelector('button').focus({ preventScroll: true });
+}
+function closeProfileMenu(restoreFocus = false) {
+  setProfileMenu(false);
+  if (restoreFocus) connectWallet.focus();
+}
+function refreshPreviewProfile() {
+  connectWallet.textContent = previewProfile.connected ? (previewProfile.name || previewProfile.addressLabel) : 'Connect Wallet';
+  connectWallet.title = previewProfile.connected ? 'Simulated wallet — ' + (previewProfile.name || previewProfile.addressLabel) : 'Connect Wallet (demo only)';
+  if (previewProfile.connected) {
+    connectWallet.setAttribute('aria-expanded', 'false');
+    connectWallet.setAttribute('aria-controls', 'profile-menu');
+  } else {
+    connectWallet.removeAttribute('aria-expanded');
+    connectWallet.removeAttribute('aria-controls');
+  }
+}
+// Content-sized expansion measured with the loaded font, rounded to the 3px grid.
+function sizeProfileActions() {
+  const ctx = document.createElement('canvas').getContext('2d');
+  profileMenu.querySelectorAll('button').forEach(button => {
+    const style = getComputedStyle(button);
+    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const textWidth = ctx.measureText(button.querySelector('.profile-action-label').textContent).width;
+    const iconWidth = parseFloat(getComputedStyle(button.querySelector('.profile-action-icon')).width);
+    const contentWidth = iconWidth + parseFloat(style.getPropertyValue('--action-label-gap')) + textWidth
+      + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    const width = Math.ceil(contentWidth / CONFIG.pixelScale) * CONFIG.pixelScale;
+    button.style.setProperty('--action-open-width', `${width}px`);
+  });
+}
+sizeProfileActions();
+document.fonts.ready.then(sizeProfileActions);
+document.fonts.addEventListener('loadingdone', sizeProfileActions);
+// Draw button art directly, repeating pixels instead of stretching during expansion.
+const profileButtonImage = new Image();
+function paintProfileButton(button) {
+  if (!profileButtonImage.complete || profileButtonImage.naturalWidth !== PROFILE_CONFIG.sheetWidth
+      || profileButtonImage.naturalHeight !== PROFILE_CONFIG.sheetHeight) return;
+  let art = button.querySelector('canvas');
+  if (!art) { art = document.createElement('canvas');art.setAttribute('aria-hidden', 'true');button.prepend(art); }
+  art.width = Math.ceil(button.getBoundingClientRect().width / CONFIG.pixelScale);
+  art.height = PROFILE_CONFIG.sheetHeight;
+  art.style.width = `${art.width * CONFIG.pixelScale}px`;
+  const ctx = art.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const { capWidth, sheetHeight, tileSize, leftCapX, middleX, rightCapX } = PROFILE_CONFIG;
+  ctx.drawImage(profileButtonImage, leftCapX, 0, capWidth, sheetHeight,
+    0, 0, capWidth, sheetHeight);
+  for (let x = capWidth; x < art.width - capWidth; x += tileSize) {
+    const width = Math.min(tileSize, art.width - capWidth - x);
+    ctx.drawImage(profileButtonImage, middleX, 0, width, sheetHeight,
+      x, 0, width, sheetHeight);
+  }
+  ctx.drawImage(profileButtonImage, rightCapX, 0, capWidth, sheetHeight,
+    art.width - capWidth, 0, capWidth, sheetHeight);
+}
+const profileButtonResize = new ResizeObserver(entries => entries.forEach(({target}) => {
+  if (target.getBoundingClientRect().width) paintProfileButton(target);
+}));
+profileMenu.querySelectorAll('button').forEach(button => profileButtonResize.observe(button));
+profileButtonImage.onload = () => profileMenu.querySelectorAll('button').forEach(button => {
+  if (button.getBoundingClientRect().width) paintProfileButton(button);
+});
+profileButtonImage.onerror = () => console.error('Button.png failed to load');
+profileButtonImage.src = PROFILE_CONFIG.buttonAsset;
+let walletConnecting = false;
+// Preview delay only. Production must await the wallet provider, not this timer.
+// Keep this adapter separate from menu rendering and sprite geometry.
+connectWallet.addEventListener('click', async () => {
+  if (userBusy || !userOpen || walletConnecting) return;
+  if (!previewProfile.connected) {
+    walletConnecting = true;
+    connectWallet.disabled = true;
+    connectWallet.setAttribute('aria-busy', 'true');
+    connectWallet.setAttribute('aria-label', 'Connecting wallet (demo)');
+    connectWallet.title = 'Connecting wallet (demo only)';
+    const loader = document.createElement('span');
+    loader.className = 'wallet-loader';loader.setAttribute('aria-hidden', 'true');
+    connectWallet.replaceChildren(loader);
+    try {
+      await new Promise(resolve => setTimeout(resolve, PROFILE_CONFIG.demoDelayMs));
+      previewProfile.connected = true;
+    } finally {
+      walletConnecting = false;
+      connectWallet.disabled = false;
+      connectWallet.removeAttribute('aria-busy');
+      connectWallet.removeAttribute('aria-label');
+      refreshPreviewProfile();
+    }
+    return;
+  }
+  setProfileMenu(!profileMenuOpen);
+});
+profileMenu.addEventListener('click', e => {
+  const action = e.target.closest('[data-profile-action]')?.dataset.profileAction;
+  if (!action) return;
+  closeProfileMenu();
+  if (action === 'disconnect') {
+    previewProfile.connected = false;previewProfile.name = '';refreshPreviewProfile();connectWallet.focus();
+  } else {
+    profileName.value = previewProfile.name;profileEditor.showModal();profileName.focus();
+  }
+});
+document.querySelector('#profile-form').addEventListener('submit', e => {
+  e.preventDefault();previewProfile.name = profileName.value.trim();refreshPreviewProfile();profileEditor.close();
+});
+document.querySelector('#profile-cancel').addEventListener('click', () => profileEditor.close());
+profileEditor.addEventListener('close', () => connectWallet.focus());
+document.addEventListener('pointerdown', e => {
+  if (!profileMenu.contains(e.target) && !connectWallet.contains(e.target)) closeProfileMenu();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !profileMenu.hidden) { e.preventDefault();closeProfileMenu(true); }
+});
+refreshPreviewProfile();
+</script>
+</body>
+</html>
