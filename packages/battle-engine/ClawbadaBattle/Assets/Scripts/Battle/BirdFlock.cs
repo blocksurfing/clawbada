@@ -61,11 +61,19 @@ public class BirdFlock : MonoBehaviour
     [Range(0f, 1f)] public float turnChance = 0.2f;
 
     [Header("Panic — a Maelstrom breaks (StormReaction → Panic)")]
-    [Tooltip("Sorting layer for the flight out. The storm prefab sorts on Foreground, so the gulls switch to it to fly in FRONT of the storm clouds (user 2026-10-07).")]
-    public string panicSortingLayer = "Foreground";
-    [Tooltip("Order on that layer: above the storm's clouds (10) and leaves (12), below its lightning flash (30). StormReactionSmokeTest checks it against the prefab.")]
-    public int panicSortingOrder = 20;
-    [Tooltip("Units/s of the flight out — \"fly quickly off the screen\" (cruise is flySpeed).")]
+    [Tooltip("Sorting layer for the take-off and flight out. At runtime the storm effect is wrapped in a SortingGroup on DepthSort.Layer at DepthSort.ScreenFxOrder (BattleVfxLibrary.SpawnScreen), so the gulls must sort above THAT wrap — not above the prefab's cloud layers — to be seen in front of the storm clouds (user 2026-10-07/08). BirdFlockInstaller pins both values to DepthSort.")]
+    public string panicSortingLayer = DepthSort.Layer;
+    [Tooltip("Order on that layer: DepthSort.AboveScreenFxOrder, over the storm's wrap. StormReactionSmokeTest checks it.")]
+    public int panicSortingOrder = DepthSort.AboveScreenFxOrder;
+    [Tooltip("Seconds before the gulls react — a beat after the storm breaks.")]
+    public float panicDelay = 0.25f;
+    [Tooltip("After the take-off, a startled climb over the rock for this long (flapping up slowly) while the storm clouds roll in — so the gulls are SEEN in front of the clouds before the burst out (user 2026-10-08: they were gone before the clouds had arrived).")]
+    public float panicHoverSeconds = 0.7f;
+    [Tooltip("Height gained during that climb, arena units.")]
+    public float panicHoverRise = 0.35f;
+    [Tooltip("Sideways drift toward the exit edge during that climb, arena units.")]
+    public float panicHoverDx = 0.15f;
+    [Tooltip("Units/s of the burst out — \"fly quickly off the screen\" (cruise is flySpeed).")]
     public float panicSpeed = 3.6f;
     [Tooltip("Centre y the gull flies to: above the frame top (2.8125) plus its half-height.")]
     public float panicExitY = 3.3f;
@@ -73,8 +81,11 @@ public class BirdFlock : MonoBehaviour
     public float panicExitDx = 2.5f;
     [Tooltip("How much of the Jump clip a perched gull plays before it is airborne (its last frames are in the air).")]
     [Range(0.1f, 1f)] public float panicJumpFraction = 0.6f;
-    [Tooltip("Seconds after the storm clears before the next flock may come.")]
-    public float afterStormGap = 4f;
+    [Tooltip("Seconds after the storm clears (its clip ends) before the gulls may come back — the sea's ease-out.")]
+    public float afterStormGap = 2f;
+    [Tooltip("After a scatter the next flock comes this long after afterStormGap — instead of the usual flockGap — so the gulls are back soon once the storm has passed (user 2026-10-08).")]
+    public float returnGapMin = 3f;
+    public float returnGapMax = 8f;
 
     [Header("Debug")]
     [Tooltip("Non-empty: replaces the battle-id seed (probes).")]
@@ -254,9 +265,14 @@ public class BirdFlock : MonoBehaviour
             foreach (var b in birds) if (!b.done) { b.go.SetActive(false); b.done = true; } // safety net
             current = null;
 
-            float flockGap = rng.Range(flockGapMin, flockGapMax);
-            if (panicked) Debug.Log($"[BirdFlock] flock {flockIndex} scattered by the storm; next flock {flockGap:F0}s after it clears");
-            yield return new WaitForSeconds(flockGap);
+            if (panicked)
+            {
+                // Back soon after the storm: the sea's ease-out, then a short gap (not the long between-flock one).
+                float back = rng.Range(returnGapMin, returnGapMax);
+                Debug.Log($"[BirdFlock] flock {flockIndex} scattered by the storm; next flock {back:F0}s after it clears");
+                while (Time.time < stormClearAt + afterStormGap + back) yield return null;
+            }
+            else yield return new WaitForSeconds(rng.Range(flockGapMin, flockGapMax));
         }
     }
 
@@ -294,26 +310,44 @@ public class BirdFlock : MonoBehaviour
         Debug.Log($"[BirdFlock] panic: {fleeing} gulls flee (storm {stormSeconds:F1}s) on {panicSortingLayer}/{panicSortingOrder}");
     }
 
-    /// <summary>Jump (if perched), switch to the storm's layer so the gull is seen over the clouds, then a fast eased
-    /// climb toward the nearer edge and off the top of the frame. The sprite goes back to its own layer when hidden.</summary>
+    /// <summary>A beat, then: switch to the panic depth (over the storm's wrap — everything from here is seen in front
+    /// of the clouds), Jump if perched, a startled climb over the rock while the clouds roll in, then a fast eased
+    /// burst toward the nearer edge and off the top of the frame. The sprite goes back to its own layer when hidden.</summary>
     private IEnumerator PanicRoutine(Bird b)
     {
+        float total = 0f;
+        float d = 0f;
+        while (d < panicDelay) { d += Time.deltaTime; yield return null; }
+        total += d;
         float viewHalf = ViewHalfWidthLocal();
         Vector3 from = b.t.localPosition;
         var target = BirdFlockPlanner.PanicTarget(from.x, viewHalf, panicExitDx, panicExitY);
         Face(b, target.dir);
+        string layer = b.sr.sortingLayerName;
+        int order = b.sr.sortingOrder;
+        b.sr.sortingLayerName = panicSortingLayer;
+        b.sr.sortingOrder = panicSortingOrder;
         if (b.landed)
         {
             Play(b, HJump, 0f);
             float hop = Len(HJump) * panicJumpFraction;
             float h = 0f;
             while (h < hop) { h += Time.deltaTime; yield return null; }
+            total += h;
         }
-        string layer = b.sr.sortingLayerName;
-        int order = b.sr.sortingOrder;
-        b.sr.sortingLayerName = panicSortingLayer;
-        b.sr.sortingOrder = panicSortingOrder;
         Play(b, HFly, b.rng.NextFloat());
+        // Startled climb: flapping up over the rock as the storm clouds arrive, so the gull is seen in front of them.
+        from = b.t.localPosition;
+        var hoverTo = from + new Vector3(target.dir * panicHoverDx, panicHoverRise, 0f);
+        float hover = Mathf.Max(0f, panicHoverSeconds);
+        float s = 0f;
+        while (s < hover)
+        {
+            s += Time.deltaTime;
+            b.t.localPosition = Vector3.Lerp(from, hoverTo, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(s / hover)));
+            yield return null;
+        }
+        total += s;
         from = b.t.localPosition;
         var to = new Vector3(target.x, target.y, 0f);
         float duration = Mathf.Max(0.2f, Vector3.Distance(from, to) / Mathf.Max(0.5f, panicSpeed));
@@ -326,11 +360,12 @@ public class BirdFlock : MonoBehaviour
             b.t.localPosition = Vector3.Lerp(from, to, e);
             yield return null;
         }
+        total += t;
         b.go.SetActive(false);
         b.sr.sortingLayerName = layer;
         b.sr.sortingOrder = order;
         b.done = true; b.landed = true; b.panicking = false;
-        Debug.Log($"[BirdFlock] flock {flockIndex} bird {b.index} fled {(target.dir > 0 ? "R" : "L")} off the top in {duration:F1}s");
+        Debug.Log($"[BirdFlock] flock {flockIndex} bird {b.index} fled {(target.dir > 0 ? "R" : "L")} off the top in {total:F1}s (burst {duration:F1}s)");
     }
 
     private static bool AllLanded(List<Bird> birds) { foreach (var b in birds) if (!b.landed) return false; return true; }

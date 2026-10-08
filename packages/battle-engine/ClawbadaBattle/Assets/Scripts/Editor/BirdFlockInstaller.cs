@@ -57,6 +57,15 @@ public static class BirdFlockInstaller
                 flock.perches = BirdFlock.DefaultPerches();
                 changed = true;
             }
+            // The panic depth is the engine's, not the designer's: the storm effect is wrapped at DepthSort.ScreenFxOrder at
+            // runtime, so the flight out must sort above that wrap (2026-10-08: a prefab still carrying the older "above
+            // the clouds' child order" value, Foreground/20, sent the gulls off behind the storm).
+            if (flock.panicSortingLayer != DepthSort.Layer || flock.panicSortingOrder != DepthSort.AboveScreenFxOrder)
+            {
+                flock.panicSortingLayer = DepthSort.Layer;
+                flock.panicSortingOrder = DepthSort.AboveScreenFxOrder;
+                changed = true;
+            }
             if (changed) PrefabUtility.SaveAsPrefabAsset(root, ArenaPrefabPath);
         }
         finally

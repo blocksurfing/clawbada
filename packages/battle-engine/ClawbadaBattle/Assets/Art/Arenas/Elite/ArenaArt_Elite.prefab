@@ -138,7 +138,7 @@ Transform:
   - {fileID: 5871777550503852304}
   - {fileID: 5541106068248650518}
   - {fileID: 5163573578103221033}
-  - {fileID: 1701982622336429459}
+  - {fileID: 7014573050499923848}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2876649940999499766
@@ -242,6 +242,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8953195429046410728}
   - component: {fileID: 5589203178959972407}
+  - component: {fileID: 1165373321659247223}
   m_Layer: 0
   m_Name: Ground
   m_TagString: Untagged
@@ -323,6 +324,65 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!331 &1165373321659247223
+SpriteMask:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3057074345348963805}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 0
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 10758, guid: 0000000000000000f000000000000000, type: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_Sprite: {fileID: 21300000, guid: 8ebe4e0bdae3da046a35f0911de4cbc4, type: 3}
+  m_MaskAlphaCutoff: 0.2
+  m_FrontSortingLayerID: -2071762453
+  m_BackSortingLayerID: -2071762453
+  m_FrontSortingLayer: -1
+  m_BackSortingLayer: -1
+  m_FrontSortingOrder: 2
+  m_BackSortingOrder: 2
+  m_IsCustomRangeActive: 1
+  m_SpriteSortPoint: 0
+  m_MaskSource: 0
 --- !u!1 &3229941157781510927
 GameObject:
   m_ObjectHideFlags: 0
@@ -505,84 +565,6 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!1 &6599752141925623645
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1701982622336429459}
-  - component: {fileID: 1263356040004450748}
-  m_Layer: 0
-  m_Name: Jellies
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1701982622336429459
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6599752141925623645}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2227674113820425240}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1263356040004450748
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6599752141925623645}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: efb85b8589ce64bd49a1b2d307830504, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::JellySchool
-  jellyPrefab: {fileID: 7458024204085759599, guid: dd30ee70b3d34182afb6797340579dfe, type: 3}
-  sortingOrder: 2
-  depthZ: -0.01
-  config:
-    minJellies: 1
-    maxJellies: 3
-    weightOne: 1
-    weightTwo: 2
-    weightThree: 2
-    spawnXCenter: -1.1
-    spawnXHalfWidth: 0.6
-    memberXSpread: 0.3
-    memberDelayMax: 2.5
-    spawnY: 2
-    exitY: 3.1
-    visibleXMin: -2
-    visibleXMax: -0.1
-    riseSpeedMin: 0.08
-    riseSpeedMax: 0.15
-    memberSpeedJitter: 0.15
-    driftRatioMin: 0.3
-    driftRatioMax: 0.8
-    scaleMin: 0.8
-    scaleMax: 1.2
-    swayAmplitude: 0.06
-    swayPeriodMin: 2.5
-    swayPeriodMax: 4
-    fadeInSeconds: 1
-    firstGroupDelayMin: 5
-    firstGroupDelayMax: 20
-    groupGapMin: 25
-    groupGapMax: 60
-  seedOverride: 
-  verbose: 0
 --- !u!1 &6915355940114072183
 GameObject:
   m_ObjectHideFlags: 0
@@ -765,6 +747,86 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!1 &7976600858549014810
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7014573050499923848}
+  - component: {fileID: 3781388877384605106}
+  m_Layer: 0
+  m_Name: Jellies
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7014573050499923848
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7976600858549014810}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2227674113820425240}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3781388877384605106
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7976600858549014810}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: efb85b8589ce64bd49a1b2d307830504, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::JellySchool
+  jellyPrefab: {fileID: 7458024204085759599, guid: dd30ee70b3d34182afb6797340579dfe, type: 3}
+  sortingOrder: 2
+  depthZ: -0.01
+  hideBehindFloor: 1
+  config:
+    minJellies: 1
+    maxJellies: 3
+    weightOne: 1
+    weightTwo: 2
+    weightThree: 2
+    spawnXCenter: -1.1
+    spawnXHalfWidth: 0.6
+    memberSpacing: 0.65
+    memberXJitter: 0.06
+    memberDelayMax: 4
+    spawnY: 1.3
+    exitY: 3.1
+    visibleXMin: -2
+    visibleXMax: -0.1
+    riseSpeedMin: 0.1
+    riseSpeedMax: 0.18
+    memberSpeedJitter: 0.15
+    driftRatioMin: 0.3
+    driftRatioMax: 0.8
+    scaleMin: 0.8
+    scaleMax: 1.2
+    swayAmplitude: 0.06
+    swayPeriodMin: 2.5
+    swayPeriodMax: 4
+    fadeInSeconds: 1
+    firstGroupDelayMin: 5
+    firstGroupDelayMax: 20
+    groupGapMin: 25
+    groupGapMax: 60
+  seedOverride: 
+  verbose: 0
 --- !u!1 &8130244778048170956
 GameObject:
   m_ObjectHideFlags: 0

@@ -1141,12 +1141,14 @@ MonoBehaviour:
   idleCyclesMax: 3
   turnChance: 0.2
   panicSortingLayer: Foreground
-  panicSortingOrder: 20
+  panicSortingOrder: 270
   panicSpeed: 3.6
   panicExitY: 3.3
   panicExitDx: 2.5
   panicJumpFraction: 0.6
-  afterStormGap: 4
+  afterStormGap: 2
+  returnGapMin: 3
+  returnGapMax: 8
   seedOverride: 
   verbose: 0
 --- !u!1 &8257666742137668130

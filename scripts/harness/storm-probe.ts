@@ -14,7 +14,7 @@ async function rectClick(b: Browser, selector: string, text?: string) {
   if (!r) throw new Error(`no element ${selector} ${text ?? ''}`);
   await b.clickAt(r.x, r.y);
 }
-const grab = (b: Browser, re: RegExp) => b.logs.filter((l) => re.test(l)).map((l) => l.replace(/^\[log\] /, ''));
+const grab = (b: Browser, re: RegExp) => b.logs.filter((l) => re.test(l)).map((l) => l.replace(/^\[log\] /, '').split('\n')[0]);
 async function burst(b: Browser, name: string, frames = 3, gapMs = 700) {
   await b.eval(`document.querySelector('canvas')?.scrollIntoView({ block: 'start' })`);
   for (let i = 1; i <= frames; i++) {
@@ -23,13 +23,16 @@ async function burst(b: Browser, name: string, frames = 3, gapMs = 700) {
   }
 }
 
-/** The Maelstrom reaction (StormReaction + BirdFlock.Panic, 2026-10-07): three Tempests on the Evolved arena in
- *  autoplay, so a Maelstrom comes every few turns. For every storm: the arena reacts within 1.5 s
- *  (`[StormReaction] storm start`), the sea calms again after the clip (`storm end`), and — when a flock was on
- *  the rocks — the gulls flee (`[BirdFlock] panic: N gulls flee`) in front of the storm clouds; frame bursts of
- *  the first such storm (`out/storm-panic-N.png`) and of the storm's sea (`out/storm-sea-N.png`). A flock is on
- *  screen roughly half the time, so the probe watches up to MAX_STORMS storms. Fails on a storm nobody reacted
- *  to, on no panic after MAX_STORMS storms, and on any runtime exception. */
+/** The Maelstrom reaction (StormReaction + BirdFlock.Panic, 2026-10-07; depth + quick return 2026-10-08): three
+ *  Tempests on the Evolved arena in autoplay, so a Maelstrom comes every few turns. For every storm: the arena
+ *  reacts within 1.5 s (`[StormReaction] storm start`), the sea calms again after the clip (`storm end`), and —
+ *  when a flock was on the rocks — the gulls flee (`[BirdFlock] panic: N gulls flee on Foreground/270`, above
+ *  the storm's runtime wrap at 260) in front of the storm clouds, and the next flock is back within ~25 s of the
+ *  last storm clearing (`flock N+1:`); a tight frame burst of the first scatter, taken the moment the storm breaks
+ *  (`out/storm-panic-N.png`, ~120 ms apart — the take-off and flight are over in ~1.2 s) and of the storm's sea
+ *  (`out/storm-sea-N.png`). A flock is on screen roughly
+ *  half the time, so the probe watches up to MAX_STORMS storms. Fails on a storm nobody reacted to, on gulls that
+ *  did not flee, on a panic depth under the wrap, on no return, and on any runtime exception. */
 export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
   await b.send('Network.clearBrowserCache', {});
@@ -66,6 +69,7 @@ export default async function (b: Browser) {
   /** Gulls on screen right now, from the flock's own log: landed minus departed minus fled. */
   const gullsOnScreen = () => grab(b, /\[BirdFlock\] flock \d+ bird \d+ landed/).length - grab(b, /\[BirdFlock\] flock \d+ bird \d+ (departed|fled)/).length;
   let seenStorms = 0, reacted = 0, panics = 0, quietStorms = 0, dueStorms = 0, seaBurst = false, panicBurst = false, lastClip = 6;
+  let scatteredFlock = -1, scatteredAt = 0, returnChecked = false;
   const t0 = Date.now();
   while (Date.now() - t0 < WATCH_MS && seenStorms < MAX_STORMS) {
     const storms = grab(b, stormRe);
@@ -73,7 +77,12 @@ export default async function (b: Browser) {
       const present = gullsOnScreen();          // sampled BEFORE the reaction had time to scatter them
       seenStorms = storms.length;
       lastClip = Number(stormRe.exec(storms[seenStorms - 1])![1]);
-      await b.sleep(1500);
+      // Frames of the scatter must be taken NOW: the take-off (0.4 s hop) and the flight out (0.8 s) are over
+      // ~1.2 s after the storm breaks; the log check below can wait.
+      const tStorm = Date.now();
+      if (present > 0 && !panicBurst) { panicBurst = true; await burst(b, 'panic', 7, 120); }
+      const left = 1500 - (Date.now() - tStorm);
+      if (left > 0) await b.sleep(left);
       const reactions = grab(b, reactRe);
       if (reactions.length < seenStorms) fail(`storm ${seenStorms}: no [StormReaction] within 1.5 s — is the Storm child in ArenaArt_Evolved.prefab?`);
       else { reacted = reactions.length; console.log('[storm-log]', reactions[reactions.length - 1].slice(0, 160)); }
@@ -84,7 +93,14 @@ export default async function (b: Browser) {
       else if (m && Number(m[1]) > 0) {
         panics++;
         console.log('[storm-log]', last.slice(0, 160));
-        if (!panicBurst) { panicBurst = true; await burst(b, 'panic', 4, 300); }
+        const depth = /on (\w+)\/(\d+)/.exec(last);
+        if (!depth) fail(`panic line carries no sorting depth: ${last.slice(0, 120)}`);
+        else if (depth[1] !== 'Foreground' || Number(depth[2]) <= 261) fail(`gulls flee on ${depth[1]}/${depth[2]} — under the storm's runtime wrap (Foreground/260, onTop effects 261): they would vanish behind the clouds`);
+        if (scatteredFlock < 0) {
+          const flocks = grab(b, /\[BirdFlock\] flock (\d+): /);
+          scatteredFlock = flocks.length ? Number(/flock (\d+):/.exec(flocks[flocks.length - 1])![1]) : 0;
+          scatteredAt = Date.now();
+        }
         const fled = await (async () => { const tf = Date.now(); while (Date.now() - tf < 4000 && grab(b, /\[BirdFlock\] flock \d+ bird \d+ fled /).length < Number(m[1])) await b.sleep(200); return grab(b, /\[BirdFlock\] flock \d+ bird \d+ fled /); })();
         if (fled.length === 0) fail('gulls panicked but none logged a flight out');
         for (const l of fled.slice(-3)) console.log('[storm-log]', l.slice(0, 140));
@@ -95,9 +111,23 @@ export default async function (b: Browser) {
       }
       if (!seaBurst) { seaBurst = true; await burst(b, 'sea', 3, 400); }
     }
+    // Quick return: after a scatter the next flock is planned afterStormGap (2 s) + 3–8 s after the storm clears
+    // (clip 6 s) — ~11–16 s after the storm broke; later storms push it out by their own clip.
+    if (scatteredFlock >= 0 && !returnChecked) {
+      const back = grab(b, /\[BirdFlock\] flock (\d+): /).find((l) => Number(/flock (\d+):/.exec(l)![1]) > scatteredFlock);
+      const lastStorm = grab(b, reactRe).length;
+      if (back) {
+        returnChecked = true;
+        console.log('[storm-log]', `${back.slice(0, 100)} — ${((Date.now() - scatteredAt) / 1000).toFixed(0)} s after the scatter (${lastStorm} storm reactions so far)`);
+      } else if (Date.now() - scatteredAt > (lastStorm + 1) * (lastClip + 10) * 1000 + 20000) {
+        returnChecked = true;
+        fail(`no flock came back within ${((Date.now() - scatteredAt) / 1000).toFixed(0)} s of the scatter`);
+      }
+    }
     if (grab(b, /\[BattleHud\] banner/).length > 0) { console.log('[storm] battle ended'); break; }
-    await b.sleep(500);
+    await b.sleep(100);
   }
+  if (scatteredFlock >= 0 && !returnChecked) console.log('[storm-log]', `the ${grab(b, /\[BattleHud\] banner/).length > 0 ? 'battle' : 'watch'} ended ${((Date.now() - scatteredAt) / 1000).toFixed(0)} s after the scatter, before the gulls came back: return unverified this run`);
   // The sea calms (clip + 2 s ease-out) after the LAST storm or extension — back-to-back Maelstroms keep it rough.
   if (seenStorms > 0) {
     const tEnd = Date.now();
