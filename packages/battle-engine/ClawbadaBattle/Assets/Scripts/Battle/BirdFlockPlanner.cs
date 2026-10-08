@@ -88,6 +88,15 @@ public sealed class BirdFlockPlan
 
 /// <summary>XorShift32, the same generator ObstacleLayoutGenerator keeps private: platform-independent,
 /// unlike System.Random.</summary>
+/// <summary>Where a gull flees when a storm breaks (BirdFlock.Panic): the nearer edge, up and out above the frame.</summary>
+public struct PanicTarget
+{
+    /// <summary>+1 flees right, −1 left.</summary>
+    public int dir;
+    public float x;
+    public float y;
+}
+
 public struct BirdRng
 {
     private uint state;
@@ -117,6 +126,16 @@ public static class BirdFlockPlanner
 {
     /// <summary>n entry sides with |right − left| ≤ 1 (3 → 2:1 or 1:2, 4 → 2:2, 5 → 3:2 or 2:3), in a
     /// shuffled arrival order.</summary>
+    /// <summary>The panic flight from arena-local x: toward the nearer edge (a gull on the left rocks flees left), exitDx
+    /// sideways and up to exitY — off the top of the frame (2.8125 + the sprite's half-height), the quickest way out.
+    /// Pure, so StormReactionSmokeTest can check it over many positions.</summary>
+    public static PanicTarget PanicTarget(float x, float viewHalf, float exitDx, float exitY)
+    {
+        int dir = x >= 0f ? 1 : -1;
+        float dx = Math.Max(0f, exitDx);
+        return new PanicTarget { dir = dir, x = x + dir * dx, y = Math.Max(exitY, 2.8125f + 0.25f) };
+    }
+
     public static int[] SplitSides(int n, bool majorityRight, ref BirdRng rng)
     {
         if (n <= 0) return Array.Empty<int>();
