@@ -1,0 +1,477 @@
+/*
+ * Nzib's website chrome (design/website/mockups/mockups.html, 2026-10-08): the rolling pixel sidebar, the
+ * wallet/profile panel and the music toggle. The rules are his `#component-styles` block with the asset paths
+ * moved to /ui, the font to next/font's --font-upheaval, and the few page-wide base rules (button/canvas/[hidden])
+ * scoped under .pixel-chrome so the rest of the app keeps its own styling. The placeholder styles and the mobile
+ * drawer are left out: below the desktop breakpoint the game shell keeps its bottom nav.
+ *
+ * SHARED SETTINGS — display pixels unless marked source-pixel units. These values preserve the approved mockup;
+ * do not use fractional pixel scaling. SidebarRoll reads them once on initialization.
+ */
+:root {
+  --pixel: 3px;
+  --panel-source-width: 128;
+  --sidebar-width: calc(var(--panel-source-width) * var(--pixel));
+  --sidebar-top: 84px;
+  --logo-top: 0px;
+  --logo-left: -24px;
+  --logo-size: 192px;
+  --compact-logo-left: -84px;
+  --compact-pole-left: -156px;
+  --menu-left-units: 4;
+  --menu-right-units: 24;
+  --menu-top-units: 28;
+  --menu-gap: calc(3 * var(--pixel));
+  --menu-padding: 8px;
+  --menu-icon-gap: calc(4 * var(--pixel));
+  --menu-font-size: calc(9 * var(--pixel));
+  --menu-height: calc(16 * var(--pixel));
+  --separator-height: calc(8 * var(--pixel));
+  --active-shift: 6px;
+  --roll-step-ms: 20;
+  --ribbon-duration: 250ms;
+  --compact-duration: 250ms;
+  --active-duration: 250ms;
+  --ui-easing: ease-in-out;
+  --user-section-top: 12px;
+  --user-section-right: 12px;
+}
+
+/* BASE — scoped: no global button hover paint; component styles own all states. */
+.pixel-chrome button {
+  font: inherit;
+  cursor: pointer;
+  color: #f3eedc;
+}
+.pixel-chrome button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+.pixel-chrome button:focus-visible {
+  outline: 3px solid #f4dd9c;
+  outline-offset: 3px;
+}
+.pixel-chrome canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.pixel-chrome [hidden] {
+  display: none !important;
+}
+
+/* COMPONENT: STANDALONE LOGO — sibling of sidebar; never rolled/clipped with menu. */
+.standalone-brand {
+  position: fixed;
+  top: var(--logo-top);
+  left: var(--logo-left);
+  width: var(--sidebar-width);
+  height: var(--logo-size);
+  display: flex;
+  justify-content: center;
+  z-index: 21;
+  pointer-events: none;
+  transition: left var(--compact-duration) var(--ui-easing);
+}
+.standalone-brand img {
+  display: block;
+  width: var(--logo-size);
+  height: var(--logo-size);
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 3px 0 rgba(15, 20, 27, .8));
+}
+body.sidebar-compact .standalone-brand {
+  left: var(--compact-logo-left);
+}
+.brand-trigger {
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  pointer-events: none;
+}
+body.sidebar-compact .brand-trigger {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.brand-trigger:hover,
+.brand-trigger:active {
+  background: transparent;
+}
+.brand-trigger:focus-visible {
+  outline: 2px dashed #ffe197;
+}
+
+/* COMPONENT: SIDEBAR / POLE */
+.sidebar-shell {
+  position: fixed;
+  inset: var(--sidebar-top) auto 0 0;
+  width: var(--sidebar-width);
+  overflow: clip;
+  z-index: 20;
+  transition: left var(--compact-duration) var(--ui-easing);
+}
+body.sidebar-compact .sidebar-shell {
+  left: var(--compact-pole-left);
+}
+.sidebar-preview {
+  position: relative;
+  width: var(--sidebar-width);
+  height: auto;
+}
+.sidebar-preview .sidebar-panel {
+  max-width: none;
+}
+.sidebar-toggle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: var(--menu-height);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  z-index: 4;
+}
+.sidebar-toggle:hover {
+  background: transparent;
+}
+.sidebar-toggle:focus-visible {
+  outline: 2px dashed #ffe197;
+  outline-offset: -2px;
+}
+.sidebar-toggle:disabled {
+  opacity: 1;
+  cursor: wait;
+}
+
+/* COMPONENT: MENU / RIBBONS / SEPARATOR */
+.menu-overlay {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--pixel));
+  overflow: visible;
+}
+.menu-overlay > nav {
+  flex-shrink: 0;
+}
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--menu-gap);
+  padding: var(--menu-padding);
+  margin: 0;
+  list-style: none;
+}
+.menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--menu-icon-gap);
+  width: 100%;
+  height: var(--menu-height);
+  min-height: var(--menu-height);
+  padding: 0 calc(2 * var(--pixel));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #3b2923;
+  text-align: left;
+  text-decoration: none;
+  font-family: var(--font-upheaval), 'Upheaval', sans-serif;
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: var(--menu-font-size);
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.menu-item:hover {
+  background: transparent;
+  color: #713622;
+}
+.menu-item[aria-current="page"] {
+  background: transparent;
+  color: #fff4d6;
+}
+.menu-item > span {
+  position: relative;
+  z-index: 1;
+  transform: translateX(0);
+  transition: transform var(--active-duration) var(--ui-easing);
+}
+.menu-item[aria-current="page"] > span {
+  transform: translateX(var(--active-shift));
+}
+.menu-item .active-ribbon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  pointer-events: none;
+  image-rendering: pixelated;
+  z-index: 0;
+}
+.menu-item:focus-visible {
+  outline: 2px solid #b65330;
+  outline-offset: -2px;
+}
+.menu-icon {
+  display: block;
+  width: var(--menu-height);
+  height: var(--menu-height);
+  flex: 0 0 var(--menu-height);
+  background-image: url('/ui/sidebar/Icons.png');
+  background-repeat: no-repeat;
+  background-size: calc(192 * var(--pixel)) calc(16 * var(--pixel));
+  background-position: calc(var(--icon) * -16 * var(--pixel)) 0;
+  image-rendering: pixelated;
+}
+.menu-separator {
+  height: var(--separator-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.menu-separator canvas {
+  display: block;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-item > span,
+  .standalone-brand,
+  .sidebar-shell {
+    transition: none;
+  }
+}
+
+/* Music: sibling control attached to the logo, never the pole hit target.
+   Music.png: left 16×16 = on; right 16×16 = off. */
+.music-toggle {
+  position: absolute;
+  left: calc(50% + var(--logo-size) / 2);
+  top: 36px;
+  width: calc(16 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent url('/ui/misc/Music.png') no-repeat 0 0;
+  background-size: calc(32 * var(--pixel)) calc(16 * var(--pixel));
+  image-rendering: pixelated;
+  pointer-events: auto;
+}
+.music-toggle[aria-pressed="false"] { background-position: calc(-16 * var(--pixel)) 0; }
+.music-toggle:active { transform: translateY(3px); }
+.music-toggle:focus-visible { outline: 2px dashed #ffe197; outline-offset: 3px; }
+
+/* COMPONENT: WALLET / PROFILE — source units share the sidebar's integer scale.
+   Top plank: x0..47/y0..31 (16px left, repeatable middle, right).
+   Wheel: x48..111/y0..63. Lower sheet artwork remains unused in this state.
+   Fixed desktop anchor; narrow-screen composition still needs a separate design pass (Nzib). */
+.user-section {
+  position: fixed;
+  top: var(--user-section-top);
+  right: var(--user-section-right);
+  width: calc(160 * var(--pixel));
+  height: calc(64 * var(--pixel));
+  z-index: 18;
+}
+.user-section-art {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.connect-wallet {
+  visibility: hidden; /* Prevent text flash before the startup panel animation. */
+  position: absolute;
+  z-index: 3;
+  left: calc(40 * var(--pixel));
+  top: calc(24 * var(--pixel));
+  width: calc(68 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff4d6;
+  font-family: var(--font-upheaval), 'Upheaval', sans-serif;
+  font-size: calc(7 * var(--pixel));
+  font-weight: 400;
+  font-synthesis: none;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.connect-wallet:hover { background: transparent; color: #ffe197; }
+.connect-wallet:disabled { opacity: 1; cursor: wait; }
+.connect-wallet:focus-visible { outline: 2px dashed #ffe197; outline-offset: -2px; }
+.wallet-loader {
+  display: block;
+  width: calc(16 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  margin: 0 auto;
+  background: url('/ui/misc/Loader.png') 0 0 / calc(64 * var(--pixel)) calc(16 * var(--pixel)) no-repeat;
+  image-rendering: pixelated;
+  animation: wallet-loading 600ms steps(4) infinite;
+}
+@keyframes wallet-loading { to { background-position-x: calc(-64 * var(--pixel)); } }
+@media (prefers-reduced-motion: reduce) { .wallet-loader { animation: none; } }
+
+/* Press wrapper owns translation; the inner wheel owns rotation.
+   :active clears on release/cancel, including native keyboard activation. */
+.user-avatar-press {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  transform: translateY(0);
+}
+.user-avatar-press:has(.user-avatar-slot:active:not(:disabled)) {
+  transform: translateY(3px);
+}
+.user-avatar-press .user-avatar-slot { pointer-events: auto; }
+.user-avatar-frame {
+  position: absolute;
+  left: calc(96 * var(--pixel));
+  top: 0;
+  width: calc(64 * var(--pixel));
+  height: calc(64 * var(--pixel));
+  z-index: 2;
+  pointer-events: none;
+  image-rendering: pixelated;
+  transform-origin: center;
+}
+.user-avatar-slot {
+  position: absolute;
+  left: calc(108 * var(--pixel));
+  top: calc(12 * var(--pixel));
+  width: calc(40 * var(--pixel));
+  height: calc(40 * var(--pixel));
+  border-radius: 50%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  z-index: 3;
+}
+.user-avatar-slot:hover { background: transparent; }
+.user-avatar-slot:disabled { opacity: 1; cursor: wait; }
+.user-avatar-slot:focus-visible { outline: 2px dashed #ffe197; outline-offset: 3px; }
+
+/* Profile actions: no wooden wrapper; each button expands independently. */
+.profile-menu { --action-label-gap: 6px; --action-duration: 180ms; }
+.profile-menu {
+  position: absolute;
+  /* Fixed left anchor: expanding Disconnect never moves Profile. */
+  left: calc(36 * var(--pixel));
+  top: calc(42 * var(--pixel));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  height: 48px;
+  z-index: 1;
+}
+.profile-menu[hidden] { display: none; }
+.profile-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 54px;
+  height: 48px;
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  image-rendering: pixelated;
+  border: 0;
+  border-radius: 0;
+  padding: 0 16.5px;
+  color: #fff4d6;
+  font: 18px var(--font-upheaval), 'Upheaval', sans-serif;
+  white-space: nowrap;
+  transition: width var(--action-duration) ease-in-out;
+}
+.profile-action-label {
+  flex: 0 0 auto;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  margin-left: 0;
+  transition: max-width var(--action-duration) ease-in-out, opacity var(--action-duration) ease-in-out, margin-left var(--action-duration) ease-in-out;
+}
+.profile-menu button:is(:hover, :focus-visible) { width: var(--action-open-width, 54px); }
+.profile-menu button:is(:hover, :focus-visible) .profile-action-label {
+  max-width: 140px; opacity: 1; margin-left: var(--action-label-gap);
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-menu button, .profile-action-label { transition: none; }
+}
+/* Chain stays behind the button and the higher wallet-address layer. */
+.profile-menu button::before,
+.profile-menu button::after {
+  content: '';
+  position: absolute;
+  left: 21px;
+  top: -27px;
+  width: 12px;
+  height: 48px;
+  background: url('/ui/user/Button.png') -162px 0 / 192px 48px no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+  z-index: -2;
+}
+/* At 54px compact width both chains coincide at x21.
+   Right anchoring follows the button width transition directly: no fade/timer. */
+.profile-menu button::after { left: auto; right: 21px; }
+.profile-menu button > canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  z-index: -1; pointer-events: none; image-rendering: pixelated;
+}
+.profile-action-icon {
+  flex: 0 0 21px; width: 21px; height: 21px;
+  background: url('/ui/user/Icons.png') no-repeat;
+  background-size: 96px 48px; image-rendering: pixelated;
+  pointer-events: none;
+}
+[data-profile-action="edit"] .profile-action-icon { background-position: -60px -12px; }
+[data-profile-action="disconnect"] .profile-action-icon { background-position: -15px -12px; }
+.profile-menu button:hover { color: #ffe197; }
+.profile-menu [data-profile-action="disconnect"] .profile-action-label { color: #e83b3b; }
+.profile-menu button:active { transform: translateY(3px); }
+.profile-menu button:focus-visible { outline: 2px dashed #ffe197; outline-offset: -8px; }
+
+.profile-editor { background: #38291f; color: #fff4d6; border: 3px solid #9c7855; padding: 24px; max-width: min(360px, 85vw); }
+.profile-editor::backdrop { background: #0009; }
+.profile-editor h2 { font: 24px var(--font-upheaval), 'Upheaval', sans-serif; margin: 0 0 8px; }
+.profile-editor label { font: 14px sans-serif; }
+.profile-editor input { display: block; box-sizing: border-box; width: 100%; margin: 12px 0; padding: 10px; color: #1c120d; background: #fff4d6; border: 2px solid #9c7855; }
+.profile-editor p { font: 14px sans-serif; margin: 0 0 12px; }
+.profile-editor .profile-editor-error { color: #ffb0a8; }
+.profile-editor .profile-editor-actions { display: flex; gap: 12px; justify-content: flex-end; }
+.profile-editor .profile-editor-actions button { padding: 8px 14px; border: 2px solid #9c7855; background: #5a3d2b; font: 16px var(--font-upheaval), 'Upheaval', sans-serif; }
+.profile-editor .profile-editor-actions button[type="submit"] { background: #b65330; }
+
+/* Dev only: the burner wallet chip sits under the wheel so the browser harness can still press "burner wallet". */
+.pixel-chrome-dev {
+  position: fixed;
+  top: calc(var(--user-section-top) + 64 * var(--pixel) + 8px);
+  right: calc(var(--user-section-right) + 12px);
+  z-index: 18;
+}

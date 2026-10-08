@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Black_Han_Sans, Titillium_Web } from 'next/font/google';
+import localFont from 'next/font/local';
 import { Web3Provider } from '@/providers/web3-provider';
 import { MusicToggle } from '@/components/music-toggle';
 import { CursorPressTracker } from '@/components/cursor-press-tracker';
@@ -9,6 +10,14 @@ const blackHanSans = Black_Han_Sans({
   weight: '400',
   subsets: ['latin'],
   variable: '--font-heading',
+  display: 'swap',
+});
+
+/** Nzib's menu/UI face for the pixel chrome (freeware by Brian Kent; the licence text sits beside the file). */
+const upheaval = localFont({
+  src: '../fonts/upheaval/upheavtt.ttf',
+  weight: '400',
+  variable: '--font-upheaval',
   display: 'swap',
 });
 
@@ -31,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Figma capture script — remove after design handoff */}
         <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async />
       </head>
-      <body className={`${blackHanSans.variable} ${titillium.variable}`}>
+      <body className={`${blackHanSans.variable} ${titillium.variable} ${upheaval.variable}`}>
         <Web3Provider>
           <CursorPressTracker />
           {children}
