@@ -60,6 +60,20 @@ public static class DepthSort
     /// between FG layers is preserved.</summary>
     public const int ArenaFrontOrderBase = 200;
 
+    /// <summary>Screen-wide effects — Maelstrom's storm, Fortify's dome — are wrapped in a SortingGroup at this
+    /// order by BattleVfxLibrary.SpawnScreen: over every row's band and the arena's front art. The prefab's own child
+    /// orders (clouds 10/11, leaves 12, flash 30) sort only INSIDE the wrap, so anything that must be seen over such
+    /// an effect sorts above this constant, not above the children.</summary>
+    public const int ScreenFxOrder = ArenaFrontOrderBase + 60;
+
+    /// <summary>Per-target effects flagged onTop ride just over the screen effects.</summary>
+    public const int ScreenFxTopOrder = ScreenFxOrder + 1;
+
+    /// <summary>Decor that must show IN FRONT of a screen effect: the gulls fleeing over the storm clouds (user
+    /// 2026-10-08 — on Foreground/20, above the clouds' child order but under the wrap, they took off behind the
+    /// storm and vanished).</summary>
+    public const int AboveScreenFxOrder = ScreenFxOrder + 10;
+
     /// <summary>Obstacles are nudged this far up the sort axis (farther from camera) so a
     /// character on the same row — identical feet Y — wins the tie and stays readable.
     /// 0.001 units is 1/16 px at PPU 64: invisible. (Belt and braces now that the row band
