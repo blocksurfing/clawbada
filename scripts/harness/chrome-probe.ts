@@ -32,8 +32,9 @@ const labelText = `(document.querySelector('.connect-wallet')?.textContent || ''
  *  logo reopens; the avatar closes the plank (amount 0, wheel 360°) with clicks locked mid-motion, and reopens;
  *  the dev burner connects → the label is the short address; the label opens the two profile actions, hover
  *  expands Profile; Profile → the dialog saves a name through PATCH /api/agent/profile (shown in the label and
- *  returned by GET /api/agent/profile); the music toggle flips the stored preference; Disconnect → Connect Wallet.
- *  Frames `out/chrome-*.png`. Fails on any step and on runtime errors (the mainnet RPC CORS noise excluded). */
+ *  returned by GET /api/agent/profile); the music toggle flips the stored preference; Disconnect → Connect Wallet;
+ *  then, on a 1440×760 viewport, the banner scrolls on its own (wheel over it moves the menu, not the page, Docs
+ *  comes into view, closing scrolls it back to the top). Frames `out/chrome-*.png`. Fails on any step and on runtime errors (the mainnet RPC CORS noise excluded). */
 export default async function (b: Browser) {
   let ok = true;
   const fail = (msg: string) => { ok = false; console.log(`[chrome-fail] ${msg}`); };
@@ -169,8 +170,34 @@ export default async function (b: Browser) {
   if (!menuGone) fail('the profile menu stayed after disconnecting');
   await shot(b, 'disconnected');
 
+  // 10. Short viewport (a 13" laptop): the banner is taller than the window and scrolls on its own.
+  await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 760, deviceScaleFactor: 1, mobile: false });
+  await b.goto(`${BASE}/game`);
+  const openedShort = await b.waitFor(`(() => { const c = document.querySelector('#panel'); return !!c && c.dataset.step && c.dataset.step === c.dataset.total; })()`, 20000, 100);
+  if (!openedShort) fail('short viewport: the sidebar did not open');
+  await b.sleep(300);
+  const scrollable = await b.eval(`(() => { const s = document.querySelector('#sidebar-shell'); return { sh: s.scrollHeight, ch: s.clientHeight, top: s.scrollTop, docsBottom: document.querySelector('[data-menu="docs"]').getBoundingClientRect().bottom, inner: innerHeight }; })()`);
+  if (!(scrollable.sh > scrollable.ch)) fail(`short viewport: the banner is not scrollable (scrollHeight ${scrollable.sh} ≤ clientHeight ${scrollable.ch})`);
+  if (!(scrollable.docsBottom > scrollable.inner)) fail(`short viewport: Docs already fits (${scrollable.docsBottom} ≤ ${scrollable.inner}) — the check needs a shorter window`);
+  await shot(b, 'short-top');
+  const over = await rect(b, '.menu-item[data-menu="battle"]');
+  if (!over) throw new Error('no Battle item');
+  for (let i = 0; i < 12; i++) await b.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: over.x, y: over.y, deltaX: 0, deltaY: 120 });
+  await b.sleep(400);
+  const after = await b.eval(`(() => { const s = document.querySelector('#sidebar-shell'); return { top: s.scrollTop, max: s.scrollHeight - s.clientHeight, pageY: window.scrollY, docsBottom: document.querySelector('[data-menu="docs"]').getBoundingClientRect().bottom, inner: innerHeight }; })()`);
+  if (!(after.top > 0)) fail('short viewport: wheel over the banner did not scroll it');
+  if (after.pageY !== 0) fail(`short viewport: the page scrolled (${after.pageY}px) under the wheel — the banner must isolate it`);
+  if (!(after.docsBottom <= after.inner + 1)) fail(`short viewport: Docs still below the fold after scrolling (${after.docsBottom} > ${after.inner}; scrollTop ${after.top}/${after.max})`);
+  console.log('[chrome-log]', `short viewport: banner ${scrollable.sh}px in ${scrollable.ch}px, wheel → scrollTop ${after.top}/${after.max}, page ${after.pageY}, Docs bottom ${Math.round(after.docsBottom)} ≤ ${after.inner}`);
+  await shot(b, 'short-scrolled');
+  // (Docs is an external link — clicking it would open a tab and background this one, freezing rAF; reaching it is enough.)
+  await rectClick(b, '#toggle').catch(async () => { await b.eval(`document.querySelector('#sidebar-shell').scrollTo({ top: 0 })`); await rectClick(b, '#toggle'); });
+  const closedShort = await b.waitFor(`document.body.classList.contains('sidebar-compact') && document.querySelector('#sidebar-shell').scrollTop === 0`, 6000, 50);
+  if (!closedShort) fail('short viewport: closing did not roll up with the banner scrolled back to the top');
+  await b.send('Emulation.clearDeviceMetricsOverride', {});
+
   const errs = grab(b, /^\[(error|exception)\]|^\[log:error\]|Uncaught|Exception/).filter((l) => !/eth\.merkle\.io|CORS|Failed to load resource|hydrat|Aave|Family/i.test(l));
   if (errs.length) fail(`${errs.length} runtime errors`);
   for (const e of errs.slice(0, 6)) console.log('[chrome-err]', e.slice(0, 220));
-  console.log(`[chrome] ${TAG}: ${ok ? 'OK' : 'FAILED'} — frames in out/${TAG}-{open,mining,compact,wallet-closed,connected,profile-menu,profile-hover,named,disconnected}.png`);
+  console.log(`[chrome] ${TAG}: ${ok ? 'OK' : 'FAILED'} — frames in out/${TAG}-{open,mining,compact,wallet-closed,connected,profile-menu,profile-hover,named,disconnected,short-top,short-scrolled}.png`);
 }

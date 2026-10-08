@@ -20,6 +20,8 @@
 export interface SidebarRollElements {
   /** The sizing wrapper (`.sidebar-preview`). */
   sidebar: HTMLElement;
+  /** The fixed shell around it (`.sidebar-shell`): the scroll container on short viewports. */
+  scroller?: HTMLElement;
   /** The banner canvas. */
   canvas: HTMLCanvasElement;
   /** The pole hit target. */
@@ -405,6 +407,8 @@ export class SidebarRoll {
   }
 
   private async animateTo(target: number) {
+    // A banner scrolled down (short viewport) rolls up from its top: bring it back so the pole stays reachable.
+    if (target === 0) this.els.scroller?.scrollTo({ top: 0 });
     if (target > 0) await this.setCompact(false);
     const startStep = this.step;
     const distance = Math.abs(target - startStep);
@@ -461,6 +465,7 @@ export class SidebarRoll {
     await document.fonts.ready;
     if (this.destroyed) return;
     this.ready = true;
+    this.els.scroller?.scrollTo({ top: 0 });
     this.layoutPixels();
     this.draw(0);
     await this.run(async () => {

@@ -110,9 +110,17 @@ body.sidebar-compact .brand-trigger {
   position: fixed;
   inset: var(--sidebar-top) auto 0 0;
   width: var(--sidebar-width);
-  overflow: clip;
+  /* Its own scroll container (user 2026-10-08: a laptop viewport clipped the banner at Activity with no way down):
+     wheel/trackpad over the banner scrolls just the menu, never the page, with no scrollbar over the pixel art. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
   z-index: 20;
   transition: left var(--compact-duration) var(--ui-easing);
+}
+.sidebar-shell::-webkit-scrollbar {
+  display: none;
 }
 body.sidebar-compact .sidebar-shell {
   left: var(--compact-pole-left);
