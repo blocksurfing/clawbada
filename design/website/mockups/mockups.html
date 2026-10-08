@@ -430,6 +430,8 @@ body.sidebar-compact .sidebar-shell {
   z-index: 18;
 }
 #user-section-art {
+  position: relative;
+  z-index: 2;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -438,6 +440,7 @@ body.sidebar-compact .sidebar-shell {
 .connect-wallet {
   visibility: hidden; /* Prevent text flash before the startup panel animation. */
   position: absolute;
+  z-index: 3;
   left: calc(40 * var(--pixel));
   top: calc(24 * var(--pixel));
   width: calc(68 * var(--pixel));
@@ -456,13 +459,25 @@ body.sidebar-compact .sidebar-shell {
   white-space: nowrap;
 }
 .connect-wallet:hover { background: transparent; color: #ffe197; }
+.connect-wallet:disabled { opacity: 1; cursor: wait; }
+.wallet-loader {
+  display: block;
+  width: calc(16 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  margin: 0 auto;
+  background: url('../site/Misc/Loader/Loader.png') 0 0 / calc(64 * var(--pixel)) calc(16 * var(--pixel)) no-repeat;
+  image-rendering: pixelated;
+  animation: wallet-loading 600ms steps(4) infinite;
+}
+@keyframes wallet-loading { to { background-position-x: calc(-64 * var(--pixel)); } }
+@media (prefers-reduced-motion: reduce) { .wallet-loader { animation: none; } }
 .connect-wallet:focus-visible { outline: 2px dashed #ffe197; outline-offset: -2px; }
 /* Press wrapper owns translation; the inner wheel owns rotation.
    :active clears on release/cancel, including native keyboard activation. */
 .user-avatar-press {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 4;
   pointer-events: none;
   transform: translateY(0);
 }
@@ -496,6 +511,95 @@ body.sidebar-compact .sidebar-shell {
 .user-avatar-slot:hover { background: transparent; }
 .user-avatar-slot:disabled { opacity: 1; cursor: wait; }
 .user-avatar-slot:focus-visible { outline: 2px dashed #ffe197; outline-offset: 3px; }
+/* Profile actions: no wooden wrapper; each button expands independently. */
+.profile-menu { --action-label-gap: 6px; --action-duration: 180ms; }
+.profile-menu {
+  position: absolute;
+  /* Fixed left anchor: expanding Disconnect never moves Edit Profile. */
+  left: calc(36 * var(--pixel));
+  top: calc(42 * var(--pixel));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  height: 48px;
+  z-index: 1;
+}
+.profile-menu[hidden] { display: none; }
+.profile-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 54px;
+  height: 48px;
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  image-rendering: pixelated;
+  border: 0;
+  border-radius: 0;
+  padding: 0 16.5px;
+  color: #fff4d6;
+  font: 18px 'Upheaval', sans-serif;
+  white-space: nowrap;
+  transition: width var(--action-duration) ease-in-out;
+}
+.profile-action-label {
+  flex: 0 0 auto;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  margin-left: 0;
+  transition: max-width var(--action-duration) ease-in-out, opacity var(--action-duration) ease-in-out, margin-left var(--action-duration) ease-in-out;
+}
+.profile-menu button:is(:hover, :focus-visible) { width: var(--action-open-width, 54px); }
+.profile-menu button:is(:hover, :focus-visible) .profile-action-label {
+  max-width: 140px; opacity: 1; margin-left: var(--action-label-gap);
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-menu button, .profile-action-label { transition: none; }
+}
+/* Chain stays behind the button and the higher wallet-address layer. */
+.profile-menu button::before,
+.profile-menu button::after {
+  content: '';
+  position: absolute;
+  left: 21px;
+  top: -27px;
+  width: 12px;
+  height: 48px;
+  background: url('../site/User Section/Button.png') -162px 0 / 192px 48px no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+  z-index: -2;
+}
+/* At 54px compact width both chains coincide at x21.
+   Right anchoring follows the button width transition directly: no fade/timer. */
+.profile-menu button::after { left: auto; right: 21px; }
+.profile-menu button > canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  z-index: -1; pointer-events: none; image-rendering: pixelated;
+}
+.profile-action-icon {
+  flex: 0 0 21px; width: 21px; height: 21px;
+  background: url('../site/User Section/Icons.png') no-repeat;
+  background-size: 96px 48px; image-rendering: pixelated;
+  pointer-events: none;
+}
+[data-profile-action="edit"] .profile-action-icon { background-position: -60px -12px; }
+[data-profile-action="disconnect"] .profile-action-icon { background-position: -15px -12px; }
+
+.profile-menu button:hover { color: #ffe197; }
+.profile-menu [data-profile-action="disconnect"] .profile-action-label { color: #e83b3b; }
+.profile-menu button:active { transform: translateY(3px); }
+.profile-menu button:focus-visible { outline: 2px dashed #ffe197; outline-offset: -8px; }
+.connect-wallet { overflow: hidden; text-overflow: ellipsis; }
+#profile-editor { background: #38291f; color: #fff4d6; border: 3px solid #9c7855; padding: 24px; max-width: min(360px, 85vw); }
+#profile-editor::backdrop { background: #0009; }
+#profile-editor input { display: block; box-sizing: border-box; width: 100%; margin: 12px 0; padding: 10px; }
+#profile-editor p { font: 14px sans-serif; }
 </style>
 <style id="placeholder-styles">
 /* PLACEHOLDERS ONLY — omit this entire style block from production handoff. */
@@ -606,6 +710,20 @@ body.sidebar-compact .sidebar-shell {
   <canvas id="user-avatar-frame" width="64" height="64" aria-hidden="true"></canvas>
   <button class="user-avatar-slot" type="button" aria-label="Collapse wallet panel" aria-expanded="true" aria-controls="user-section-art" disabled></button>
  </div>
+ <div id="profile-menu" class="profile-menu" hidden aria-label="Profile actions">
+  <button type="button" data-profile-action="edit" aria-label="Profile"><span class="profile-action-icon" aria-hidden="true"></span><span class="profile-action-label">Profile</span></button>
+  <button type="button" data-profile-action="disconnect" aria-label="Disconnect" title="Disconnect"><span class="profile-action-icon" aria-hidden="true"></span><span class="profile-action-label">Disconnect</span></button>
+ </div>
+ <dialog id="profile-editor" aria-labelledby="profile-editor-title">
+  <form id="profile-form">
+   <h2 id="profile-editor-title">Edit Profile</h2>
+   <label for="profile-name">Display name</label>
+   <input id="profile-name" name="name" maxlength="20" autocomplete="off">
+   <p>Mockup only — no wallet connection or saved account data.</p>
+   <button type="button" id="profile-cancel">Cancel</button>
+   <button type="submit">Save</button>
+  </form>
+ </dialog>
  <span id="wallet-preview-note" hidden>Design preview only. No wallet provider is connected.</span>
 </section>
 
@@ -1110,6 +1228,7 @@ function paintUserPanel(amount) {
 async function toggleUserPanel() {
   if (userBusy || userArt.dataset.ready !== 'true') return;
   const restoreAvatarFocus = document.activeElement === userAvatar;
+  closeProfileMenu();
   userBusy = true;userAvatar.disabled = true;connectWallet.inert = true;
   const closing = userOpen;
   const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : USER_MOTION.durationMs;
@@ -1168,6 +1287,167 @@ musicToggle.addEventListener('click', () => {
   musicToggle.title = enabled ? 'Music on' : 'Music off';
   musicToggle.dispatchEvent(new CustomEvent('music-toggle', { bubbles: true, detail: { enabled } }));
 });
+// 9. PROFILE ACTIONS / DEMO ADAPTER
+// Integration boundaries:
+// - Replace the demo connection delay with the wallet provider's promise.
+// - Populate previewProfile from application state; persist edits outside this file.
+// - Disconnect below only resets local preview state, not a real wallet session.
+// - Sprite drawing works under file://: never export these canvases to data URLs.
+const PROFILE_CONFIG = Object.freeze({
+  buttonAsset: '../site/User Section/Button.png',
+  sheetWidth: 64,
+  sheetHeight: 16,
+  tileSize: 16,
+  capWidth: 5,
+  leftCapX: 11,
+  middleX: 16,
+  rightCapX: 32,
+  demoDelayMs: 1500,
+});
+const profileMenu = document.querySelector('#profile-menu');
+const profileEditor = document.querySelector('#profile-editor');
+const profileName = document.querySelector('#profile-name');
+const previewProfile = { connected: false, name: '', addressLabel: 'Demo…7K2p' };
+let profileMenuOpen = false;
+let profileMenuAnimation = null;
+const PROFILE_MENU_MOTION = Object.freeze({ duration: 180, distance: 12 });
+function setProfileMenu(open) {
+  if (profileMenuOpen === open) return;
+  profileMenuOpen = open;
+  const current = getComputedStyle(profileMenu);
+  const from = profileMenu.hidden
+    ? { transform: `translateY(-${PROFILE_MENU_MOTION.distance}px)` }
+    : { transform: current.transform };
+  profileMenuAnimation?.cancel();
+  profileMenu.hidden = false;
+  profileMenu.inert = !open;
+  connectWallet.setAttribute('aria-expanded', String(open));
+  const animation = profileMenu.animate([from, {
+    transform: `translateY(${open ? 0 : -PROFILE_MENU_MOTION.distance}px)`
+  }], { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : PROFILE_MENU_MOTION.duration,
+    easing: 'ease-in-out', fill: 'forwards' });
+  profileMenuAnimation = animation;
+  animation.onfinish = () => {
+    if (profileMenuAnimation !== animation) return;
+    profileMenu.hidden = !open;
+    animation.cancel();profileMenuAnimation = null;
+  };
+  if (open) profileMenu.querySelector('button').focus({ preventScroll: true });
+}
+function closeProfileMenu(restoreFocus = false) {
+  setProfileMenu(false);
+  if (restoreFocus) connectWallet.focus();
+}
+function refreshPreviewProfile() {
+  connectWallet.textContent = previewProfile.connected ? (previewProfile.name || previewProfile.addressLabel) : 'Connect Wallet';
+  connectWallet.title = previewProfile.connected ? 'Simulated wallet — ' + (previewProfile.name || previewProfile.addressLabel) : 'Connect Wallet (demo only)';
+  if (previewProfile.connected) {
+    connectWallet.setAttribute('aria-expanded', 'false');
+    connectWallet.setAttribute('aria-controls', 'profile-menu');
+  } else {
+    connectWallet.removeAttribute('aria-expanded');
+    connectWallet.removeAttribute('aria-controls');
+  }
+}
+// Content-sized expansion measured with the loaded font, rounded to the 3px grid.
+function sizeProfileActions() {
+  const ctx = document.createElement('canvas').getContext('2d');
+  profileMenu.querySelectorAll('button').forEach(button => {
+    const style = getComputedStyle(button);
+    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const textWidth = ctx.measureText(button.querySelector('.profile-action-label').textContent).width;
+    const iconWidth = parseFloat(getComputedStyle(button.querySelector('.profile-action-icon')).width);
+    const contentWidth = iconWidth + parseFloat(style.getPropertyValue('--action-label-gap')) + textWidth
+      + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    const width = Math.ceil(contentWidth / CONFIG.pixelScale) * CONFIG.pixelScale;
+    button.style.setProperty('--action-open-width', `${width}px`);
+  });
+}
+sizeProfileActions();
+document.fonts.ready.then(sizeProfileActions);
+document.fonts.addEventListener('loadingdone', sizeProfileActions);
+// Draw button art directly, repeating pixels instead of stretching during expansion.
+const profileButtonImage = new Image();
+function paintProfileButton(button) {
+  if (!profileButtonImage.complete || profileButtonImage.naturalWidth !== PROFILE_CONFIG.sheetWidth
+      || profileButtonImage.naturalHeight !== PROFILE_CONFIG.sheetHeight) return;
+  let art = button.querySelector('canvas');
+  if (!art) { art = document.createElement('canvas');art.setAttribute('aria-hidden', 'true');button.prepend(art); }
+  art.width = Math.ceil(button.getBoundingClientRect().width / CONFIG.pixelScale);
+  art.height = PROFILE_CONFIG.sheetHeight;
+  art.style.width = `${art.width * CONFIG.pixelScale}px`;
+  const ctx = art.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const { capWidth, sheetHeight, tileSize, leftCapX, middleX, rightCapX } = PROFILE_CONFIG;
+  ctx.drawImage(profileButtonImage, leftCapX, 0, capWidth, sheetHeight,
+    0, 0, capWidth, sheetHeight);
+  for (let x = capWidth; x < art.width - capWidth; x += tileSize) {
+    const width = Math.min(tileSize, art.width - capWidth - x);
+    ctx.drawImage(profileButtonImage, middleX, 0, width, sheetHeight,
+      x, 0, width, sheetHeight);
+  }
+  ctx.drawImage(profileButtonImage, rightCapX, 0, capWidth, sheetHeight,
+    art.width - capWidth, 0, capWidth, sheetHeight);
+}
+const profileButtonResize = new ResizeObserver(entries => entries.forEach(({target}) => {
+  if (target.getBoundingClientRect().width) paintProfileButton(target);
+}));
+profileMenu.querySelectorAll('button').forEach(button => profileButtonResize.observe(button));
+profileButtonImage.onload = () => profileMenu.querySelectorAll('button').forEach(button => {
+  if (button.getBoundingClientRect().width) paintProfileButton(button);
+});
+profileButtonImage.onerror = () => console.error('Button.png failed to load');
+profileButtonImage.src = PROFILE_CONFIG.buttonAsset;
+let walletConnecting = false;
+// Preview delay only. Production must await the wallet provider, not this timer.
+// Keep this adapter separate from menu rendering and sprite geometry.
+connectWallet.addEventListener('click', async () => {
+  if (userBusy || !userOpen || walletConnecting) return;
+  if (!previewProfile.connected) {
+    walletConnecting = true;
+    connectWallet.disabled = true;
+    connectWallet.setAttribute('aria-busy', 'true');
+    connectWallet.setAttribute('aria-label', 'Connecting wallet (demo)');
+    connectWallet.title = 'Connecting wallet (demo only)';
+    const loader = document.createElement('span');
+    loader.className = 'wallet-loader';loader.setAttribute('aria-hidden', 'true');
+    connectWallet.replaceChildren(loader);
+    try {
+      await new Promise(resolve => setTimeout(resolve, PROFILE_CONFIG.demoDelayMs));
+      previewProfile.connected = true;
+    } finally {
+      walletConnecting = false;
+      connectWallet.disabled = false;
+      connectWallet.removeAttribute('aria-busy');
+      connectWallet.removeAttribute('aria-label');
+      refreshPreviewProfile();
+    }
+    return;
+  }
+  setProfileMenu(!profileMenuOpen);
+});
+profileMenu.addEventListener('click', e => {
+  const action = e.target.closest('[data-profile-action]')?.dataset.profileAction;
+  if (!action) return;
+  closeProfileMenu();
+  if (action === 'disconnect') {
+    previewProfile.connected = false;previewProfile.name = '';refreshPreviewProfile();connectWallet.focus();
+  } else {
+    profileName.value = previewProfile.name;profileEditor.showModal();profileName.focus();
+  }
+});
+document.querySelector('#profile-form').addEventListener('submit', e => {
+  e.preventDefault();previewProfile.name = profileName.value.trim();refreshPreviewProfile();profileEditor.close();
+});
+document.querySelector('#profile-cancel').addEventListener('click', () => profileEditor.close());
+profileEditor.addEventListener('close', () => connectWallet.focus());
+document.addEventListener('pointerdown', e => {
+  if (!profileMenu.contains(e.target) && !connectWallet.contains(e.target)) closeProfileMenu();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !profileMenu.hidden) { e.preventDefault();closeProfileMenu(true); }
+});
+refreshPreviewProfile();
 </script>
 </body>
 </html>
