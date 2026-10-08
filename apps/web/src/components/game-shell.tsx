@@ -1,14 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { ConnectKitButton } from 'connectkit';
-import { DevBurnerButton } from '@/components/dev-burner-button';
 import { cn } from '@/lib/utils';
 import { MoreHorizontal, X } from 'lucide-react';
 import { useState } from 'react';
-import { SidebarFrame } from '@/components/sidebar-frame';
+import { PixelChrome } from '@/components/chrome/pixel-chrome';
 
 /** Pixel art nav icon from /assets/icons/ */
 function NavIcon({ name, className }: { name: string; className?: string }) {
@@ -31,25 +29,6 @@ function makeIcon(name: string) {
   Icon.displayName = `NavIcon_${name}`;
   return Icon;
 }
-
-const NAV_GAME = [
-  { href: '/game', label: 'Dashboard', icon: makeIcon('Dashboard') },
-  { href: '/game/mining', label: 'Mining', icon: makeIcon('Mining') },
-  { href: '/game/battle', label: 'Battle', icon: makeIcon('Battle') },
-  // No Dojo.svg yet — borrows the Battle icon until the designer draws one.
-  { href: '/dojo', label: 'Dojo', icon: makeIcon('Battle') },
-  { href: '/game/breeding', label: 'Breeding', icon: makeIcon('Breeding') },
-  { href: '/game/evolution', label: 'Evolve', icon: makeIcon('Evolve') },
-  { href: '/game/repair', label: 'Repair', icon: makeIcon('Repair') },
-  { href: '/game/teams', label: 'Teams', icon: makeIcon('Teams') },
-  { href: '/market', label: 'Market', icon: makeIcon('Market') },
-];
-
-const NAV_SOCIAL = [
-  { href: '/activity', label: 'Activity', icon: makeIcon('Activity') },
-  { href: '/leaderboard', label: 'Ranks', icon: makeIcon('Ranks') },
-  { href: 'https://docs.clawbada.com', label: 'Docs', icon: makeIcon('Docs'), external: true },
-];
 
 /* Bottom nav shows 4 primary + More drawer */
 const BOTTOM_NAV = [
@@ -74,116 +53,19 @@ function isActive(pathname: string, href: string) {
   return pathname.startsWith(href);
 }
 
-function NavItem({
-  href,
-  label,
-  icon: Icon,
-  active,
-  external,
-  onClick,
-}: {
-  href: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  active: boolean;
-  external?: boolean;
-  onClick?: () => void;
-}) {
-  const cls = cn(
-    'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-pixel transition-colors relative',
-    active
-      ? 'bg-sand-light text-foreground font-medium'
-      : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/50',
-  );
-
-  const activeBar = active && (
-    <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-coral" />
-  );
-
-  const content = (
-    <>
-      {activeBar}
-      <Icon className="size-7 shrink-0" />
-      <span>{label}</span>
-    </>
-  );
-
-  if (external) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={cls} onClick={onClick}>
-        {content}
-      </a>
-    );
-  }
-
-  return (
-    <Link href={href} className={cls} onClick={onClick}>
-      {content}
-    </Link>
-  );
-}
-
 export function GameShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
-
-  const sidebarContent = (
-    <>
-      {/* Logo */}
-      <div className="flex items-center px-6 pt-5 pb-4">
-        <Link href="/">
-          <Image
-            src="/assets/logo-text.png"
-            alt="Clawbada"
-            width={160}
-            height={47}
-            className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
-          />
-        </Link>
-      </div>
-
-      {/* Game nav */}
-      <nav className="flex-1 px-4 space-y-0.5">
-        {NAV_GAME.map((link) => (
-          <NavItem
-            key={link.href}
-            {...link}
-            active={isActive(pathname, link.href)}
-          />
-        ))}
-
-        {/* Divider */}
-        <div className="my-3 mx-2 border-t border-sidebar-border/50" />
-
-        {NAV_SOCIAL.map((link) => (
-          <NavItem
-            key={link.href}
-            {...link}
-            active={'external' in link ? false : isActive(pathname, link.href)}
-            external={'external' in link}
-          />
-        ))}
-      </nav>
-
-      {/* Wallet */}
-      <div className="px-5 pb-6 pt-3">
-        <DevBurnerButton />
-        <ConnectKitButton />
-      </div>
-    </>
-  );
 
   const isMoreActive = MORE_NAV.some((link) => isActive(pathname, link.href));
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Desktop sidebar */}
-      <aside data-site-chrome className="hidden lg:block fixed inset-y-0 left-0 z-40 w-60">
-        <SidebarFrame className="h-full w-full" scale={0.5}>{sidebarContent}</SidebarFrame>
-      </aside>
+      {/* Desktop: Nzib's pixel sidebar + wallet panel (≥ lg) */}
+      <PixelChrome />
 
-      {/* Main content */}
-      <main className="flex-1 min-h-screen lg:ml-60 pb-20 lg:pb-0">
+      {/* Main content — the sidebar is 128 source px at the 3 px pixel; the compact state does not reflow it */}
+      <main className="flex-1 min-h-screen lg:ml-[384px] pb-20 lg:pb-0">
         {children}
       </main>
 

@@ -4,6 +4,7 @@ import { db, agents } from '@clawbada/db';
 import { decodeDNA, getBaseStats, scaleStats, EvolutionTier, LegendStatus, CLASS_NAMES, CLASS_ROLES } from '@clawbada/game-logic';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
+import { validateDisplayName } from '../../lib/display-name';
 import { readLobstersByOwner, serializeBigInts } from '../../lib/chain';
 
 export const agentRoutes = new Hono();
@@ -40,6 +41,7 @@ agentRoutes.get(
       // Return a default profile for unregistered agents
       return c.json({
         address: address.toLowerCase(),
+        displayName: null,
         elo: 1200,
         wins: 0,
         losses: 0,
@@ -51,6 +53,24 @@ agentRoutes.get(
     }
 
     return c.json({ ...result[0], registered: true });
+  }),
+);
+
+// PATCH /api/agent/profile — set or clear the caller's display name (the wallet panel's Profile dialog, 2026-10-08).
+// Registers the agent row if it does not exist yet, like /register.
+agentRoutes.patch(
+  '/profile',
+  walletAuth,
+  catchErrors(async (c) => {
+    const address = (c.get('address') as string).toLowerCase();
+    const body = (await c.req.json().catch(() => ({}))) as { displayName?: unknown };
+    const displayName = validateDisplayName(body.displayName);
+    const [agent] = await db
+      .insert(agents)
+      .values({ address, displayName })
+      .onConflictDoUpdate({ target: agents.address, set: { displayName } })
+      .returning();
+    return c.json({ ...agent, registered: true });
   }),
 );
 

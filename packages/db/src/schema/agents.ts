@@ -2,6 +2,9 @@ import { pgTable, text, integer, bigint, smallint, timestamp, index, uniqueIndex
 
 export const agents = pgTable('agents', {
   address: text('address').primaryKey(),
+  /** The player's chosen name (≤ 20 characters; PATCH /api/agent/profile), shown by the wallet panel in place of
+   *  the short address (Nzib's chrome, 2026-10-08). Null = none set. */
+  displayName: text('display_name'),
   elo: integer('elo').notNull().default(1200),
   wins: integer('wins').notNull().default(0),
   losses: integer('losses').notNull().default(0),
