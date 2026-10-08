@@ -50,6 +50,7 @@ export function activeMenuLabel(pathname: string | null): string | null {
 
 export function PixelSidebar() {
   const pathname = usePathname();
+  const shellRef = useRef<HTMLElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -67,7 +68,7 @@ export function PixelSidebar() {
     const create = () => {
       if (rollRef.current || !sidebarRef.current || !canvasRef.current || !toggleRef.current || !overlayRef.current || !listRef.current || !brandRef.current) return;
       rollRef.current = new SidebarRoll(
-        { sidebar: sidebarRef.current, canvas: canvasRef.current, toggle: toggleRef.current, menuOverlay: overlayRef.current, menuList: listRef.current, brandTrigger: brandRef.current },
+        { sidebar: sidebarRef.current, scroller: shellRef.current ?? undefined, canvas: canvasRef.current, toggle: toggleRef.current, menuOverlay: overlayRef.current, menuList: listRef.current, brandTrigger: brandRef.current },
         { assets: ASSETS, initialSelection: activeMenuLabel(pathnameRef.current) },
       );
     };
@@ -92,7 +93,7 @@ export function PixelSidebar() {
       </header>
 
       {/* COMPONENT: sidebar, menu, pole trigger */}
-      <aside aria-label="Clawbada sidebar" className="sidebar-shell" id="sidebar-shell">
+      <aside ref={shellRef} aria-label="Clawbada sidebar" className="sidebar-shell" id="sidebar-shell">
         <div ref={sidebarRef} className="sidebar-preview" id="sidebar">
           <canvas ref={canvasRef} aria-label="Sidebar" className="sidebar-panel" height={336} id="panel" role="img" width={128} />
           <div ref={overlayRef} className="menu-overlay" hidden id="menu-overlay" inert>
