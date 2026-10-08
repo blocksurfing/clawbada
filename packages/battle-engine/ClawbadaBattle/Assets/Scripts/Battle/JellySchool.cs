@@ -13,9 +13,11 @@ using UnityEngine;
 ///   - where a PLAYER can see them: the water band right of x ≈ 0.2 sits under the opponent's HUD panels
 ///     and left of ≈ −2.3 behind the ruined wall, so groups surface in x −1.7…−0.5 and never drift out of
 ///     −2.0…−0.1 (the first probe run put one straight under the HUD);
-///   - "from the bottom": the floor plate (Ground, Background/0) is painted below y ≈ 1.72 and this sprite
-///     sorts above it, so a jellyfish fades in AT the floor line as if surfacing from behind the plate — a
-///     literal start at the frame bottom would float it over the sand beside the board.
+///   - "from the bottom": the floor plate (Ground, Background/0) is painted below y ≈ 1.6–1.8 and this sprite
+///     sorts above it, so the plate MASKS the jellyfish (JellySchoolInstaller puts a SpriteMask on Ground; every
+///     jellyfish renders VisibleOutsideMask): it starts below the plate's edge and rises into view from behind
+///     it — "they visually don't just pop on the screen, out of thin air" (user 2026-10-08);
+///   - members of a group are a loose line, spaced and surfacing one after another, not a bunch (same review).
 /// Depth: Nzib's prefab sorts Background/2, level with his BG - 2.1 layer and the angler fish; a small
 /// negative z puts the jellyfish just in front of both and still behind the ruined walls (Background/3).
 /// The JellyFish animator has one looping state (Swim); playback starts at a random phase so a group does
@@ -37,6 +39,8 @@ public class JellySchool : MonoBehaviour
     [Tooltip("Local z of every jellyfish. Negative = nearer the camera: at the same sorting order it draws AFTER " +
              "BG - 2.1 and the angler fish (z 0), i.e. just in front of them.")]
     public float depthZ = -0.01f;
+    [Tooltip("Hide each jellyfish where the floor plate (Ground) is painted: the installer's SpriteMask on Ground covers this sorting order and the jellyfish render VisibleOutsideMask, so one that starts below the plate's edge rises into view from behind it instead of popping in (user 2026-10-08).")]
+    public bool hideBehindFloor = true;
 
     [Header("School")]
     public JellySchoolConfig config = new JellySchoolConfig();
@@ -96,10 +100,14 @@ public class JellySchool : MonoBehaviour
             go.name = "Jelly_" + i;
             go.SetActive(false);
             var sr = go.GetComponent<SpriteRenderer>();
-            if (sr != null) { sr.sortingLayerName = "Background"; sr.sortingOrder = sortingOrder; }
+            if (sr != null)
+            {
+                sr.sortingLayerName = "Background"; sr.sortingOrder = sortingOrder;
+                sr.maskInteraction = hideBehindFloor ? SpriteMaskInteraction.VisibleOutsideMask : SpriteMaskInteraction.None;
+            }
             pool[i] = new Jelly { go = go, t = go.transform, sr = sr, anim = go.GetComponent<Animator>() };
         }
-        Debug.Log($"[JellySchool] seed={seedKey} max={config.maxJellies} spawnY={config.spawnY:F2} exitY={config.exitY:F2} rise=[{config.riseSpeedMin:F3},{config.riseSpeedMax:F3}] order=Background/{sortingOrder} z={depthZ:F2}");
+        Debug.Log($"[JellySchool] seed={seedKey} max={config.maxJellies} spawnY={config.spawnY:F2} exitY={config.exitY:F2} rise=[{config.riseSpeedMin:F3},{config.riseSpeedMax:F3}] order=Background/{sortingOrder} z={depthZ:F2} mask={(hideBehindFloor ? "outside" : "none")} spacing={config.memberSpacing:F2}");
 
         for (int g = 0; ; g++)
         {
