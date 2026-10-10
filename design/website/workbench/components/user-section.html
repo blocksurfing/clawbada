@@ -1,0 +1,25 @@
+<!-- COMPONENT: wallet/profile. Disconnected presentation only; wire provider later. -->
+<section class="user-section" aria-label="Wallet and user profile">
+ <canvas id="user-section-art" width="160" height="64" aria-hidden="true"></canvas>
+ <button class="connect-wallet" type="button" aria-describedby="wallet-preview-note">Connect Wallet</button>
+ <!-- Avatar artwork will occupy the wheel center; keep source frame visible. -->
+ <div class="user-avatar-press">
+  <canvas id="user-avatar-frame" width="64" height="64" aria-hidden="true"></canvas>
+  <button class="user-avatar-slot" type="button" aria-label="Collapse wallet panel" aria-expanded="true" aria-controls="user-section-art" disabled></button>
+ </div>
+ <div id="profile-menu" class="profile-menu" hidden aria-label="Profile actions">
+  <button type="button" data-profile-action="edit" aria-label="Profile"><span class="profile-action-icon" aria-hidden="true"></span><span class="profile-action-label">Profile</span></button>
+  <button type="button" data-profile-action="disconnect" aria-label="Disconnect" title="Disconnect"><span class="profile-action-icon" aria-hidden="true"></span><span class="profile-action-label">Disconnect</span></button>
+ </div>
+ <dialog id="profile-editor" aria-labelledby="profile-editor-title">
+  <form id="profile-form">
+   <h2 id="profile-editor-title">Edit Profile</h2>
+   <label for="profile-name">Display name</label>
+   <input id="profile-name" name="name" maxlength="20" autocomplete="off">
+   <p>Mockup only — no wallet connection or saved account data.</p>
+   <button type="button" id="profile-cancel">Cancel</button>
+   <button type="submit">Save</button>
+  </form>
+ </dialog>
+ <span id="wallet-preview-note" hidden>Design preview only. No wallet provider is connected.</span>
+</section>

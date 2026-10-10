@@ -1,0 +1,13 @@
+body {
+  --page-ink: #2e222f;
+  transition: background-color 240ms ease-out;
+}
+body[data-page-theme="mid"] { --page-ink: #08060c; }
+body[data-page-theme="dark"] { --page-ink: #ffffff; }
+#page-content, #page-content .page-title { color: var(--page-ink); }
+/* Light cream text on wooden surfaces; original panel artwork stays unchanged. */
+#page-content [data-pixel-panel="woodenPanel"],
+#page-content [data-pixel-panel="woodenPanel"] .pixel-button {
+  color: #fff4d6;
+}
+@media (prefers-reduced-motion: reduce) { body { transition: none; } }
