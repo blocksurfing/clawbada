@@ -1,0 +1,20 @@
+/* Shared nine-slice panel. Source/frame details live in pixel-assets.js.
+   Canvas repeats whole source pixels, including center; no border-image stretch. */
+.pixel-panel, .wooden-panel {
+  position: relative;
+  isolation: isolate;
+  width: round(down, 100%, var(--pixel));
+  height: calc-size(auto, round(up, size, var(--pixel)));
+  justify-self: start;
+  border: calc(var(--panel-tile, 16) * var(--pixel)) solid transparent;
+  min-width: calc(3 * var(--panel-tile, 16) * var(--pixel));
+  min-height: calc(3 * var(--panel-tile, 16) * var(--pixel));
+}
+.pixel-panel-art {
+  position: absolute;
+  top: calc(-1 * var(--panel-tile, 16) * var(--pixel));
+  left: calc(-1 * var(--panel-tile, 16) * var(--pixel));
+  z-index: -1;
+  pointer-events: none;
+  image-rendering: pixelated;
+}

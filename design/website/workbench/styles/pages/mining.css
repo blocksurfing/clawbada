@@ -1,0 +1,66 @@
+/* Mining only: existing wooden artwork, shared pixel grid, and text. */
+[data-page="mining"] .page-subtitle {
+  margin: 12px 0 0;
+  font-size: 24px;
+  line-height: 1.5;
+}
+[data-page="mining"] h2,
+[data-page="mining"] h3,
+[data-page="mining"] .mine-reward {
+  font-family: 'Upheaval', sans-serif;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: normal;
+  -webkit-text-stroke: 0;
+  line-height: 1.2;
+}
+[data-page="mining"] h2 {
+  margin: 0 0 24px;
+  font-size: 30px;
+}
+[data-page="mining"] .mining-card {
+  min-width: 0;
+  padding: 0;
+}
+[data-page="mining"] h3 {
+  margin: 0 0 24px;
+  font-size: 30px;
+}
+#page-content[data-page="mining"] .mine-reward {
+  -webkit-text-stroke: 0;
+  margin: 0;
+  font-size: 30px;
+}
+[data-page="mining"] .mine-reward-caption {
+  margin: 6px 0 0;
+  font-size: 21px;
+  line-height: 1.4;
+}
+[data-page="mining"] .mine-art-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: calc(48 * var(--pixel));
+  margin-bottom: calc(8 * var(--pixel));
+  border: var(--pixel) dashed #fff4d680;
+  background: #2e222f33;
+  color: #fff4d6;
+  font-size: 21px;
+  letter-spacing: normal;
+}
+[data-page="mining"] .mine-details {
+  display: grid;
+  gap: 12px;
+  margin: 30px 0 0;
+  font-size: 21px;
+  line-height: 1.4;
+}
+[data-page="mining"] .mine-details > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 3px 12px;
+}
+[data-page="mining"] .mine-details dd {
+  margin: 0;
+}
