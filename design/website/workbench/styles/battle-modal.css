@@ -1,0 +1,20 @@
+.battle-modal {
+  box-sizing:border-box;
+  width:min(1080px, calc(100vw - 48px));
+  max-width:calc(100vw - 24px);
+  max-height:calc(100dvh - 48px);
+  margin:auto;
+  padding:24px;
+  border:3px solid #fff4d680;
+  background:#183158;
+  color:#fff4d6;
+  overflow:auto;
+  overscroll-behavior:contain;
+}
+.battle-modal::backdrop { background:#08091199; }
+.battle-modal-header { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-bottom:24px; }
+.battle-modal-header h1 { margin:0; font:400 36px/1.2 'Upheaval',sans-serif; }
+.battle-modal-close { padding:9px 15px; border:3px solid #fff4d680; color:#fff; background:#2e222f; cursor:pointer; font:400 21px/1.2 'Upheaval',sans-serif; }
+@media(max-width:699px) {
+  .battle-modal { width:calc(100vw - 24px); max-height:calc(100dvh - 24px); padding:12px; }
+}

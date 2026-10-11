@@ -31,7 +31,7 @@ const audioState = (b: Browser) => b.eval(`(() => { const m = window.__clawbadaA
 const prefs = (b: Browser) => b.eval(`({ music: localStorage.getItem('clawbada_battle_music'), sfx: localStorage.getItem('clawbada_sfx') })`);
 
 async function connectAndStart(b: Browser) {
-  await b.goto(`${ORIGIN}/game/battle?preset=${PRESET}&auto=1&speed=3`);
+  await b.goto(`${ORIGIN}/dojo?preset=${PRESET}&auto=1&speed=3`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let i = 0; i < 4; i++) {
     await b.sleep(800);

@@ -1,0 +1,81 @@
+
+/* PLACEHOLDERS ONLY — omit this entire style block from production handoff. */
+.workspace-placeholder {
+  position: fixed;
+  inset: 0 0 0 var(--sidebar-width);
+  max-width: none;
+  margin: 0;
+  padding: 48px;
+  overflow: auto;
+  transition: left var(--compact-duration) var(--ui-easing);
+}
+
+/* Use the pole's existing frame progress for BOTH offsets. Independent CSS
+   transitions restart as --sidebar-width changes and make the header overshoot. */
+@media (min-width: 700px) {
+  .workspace-placeholder {
+    --body-expansion: calc(48 * var(--pixel) * (1 - var(--sidebar-expand-progress, 1)));
+    left: calc(var(--sidebar-width) - var(--body-expansion));
+    transition: none;
+  }
+
+  .workspace-placeholder > .page-header {
+    margin-left: calc(var(--body-expansion) * var(--header-top-progress, 1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-placeholder { transition: none; }
+}
+
+.placeholder-layout {
+  max-width: 760px;
+  margin: 0 auto;
+  display: grid;
+  gap: 24px
+}
+
+.placeholder {
+  background: #165981;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none
+}
+
+.placeholder-header {
+  height: 48px;
+  width: 45%
+}
+
+.placeholder-hero {
+  height: 200px
+}
+
+.placeholder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px
+}
+
+.placeholder-card {
+  height: 112px
+}
+
+@media(max-width:699px) {
+  .workspace-placeholder {
+    inset: 52px 0 0;
+    padding: 24px 18px
+  }
+
+  .placeholder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr))
+  }
+
+  .placeholder-hero {
+    height: 160px
+  }
+
+  .placeholder-card {
+    height: 92px
+  }
+}

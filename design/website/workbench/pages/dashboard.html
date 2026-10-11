@@ -1,0 +1,65 @@
+<!-- Shell basecamp: viewport-fitted layered room art and local lineup choices only. -->
+<section class="shell-room" aria-label="Shell basecamp">
+  <div class="shell-art" aria-hidden="true">
+    <div class="shell-art-layer" data-shell-layer="background-rock-2"></div>
+    <div class="shell-art-layer" data-shell-layer="background-rock"></div>
+    <div class="shell-art-layer" data-shell-layer="coral"></div>
+    <div class="shell-art-layer" data-shell-layer="back-sand"></div>
+    <div class="shell-art-layer" data-shell-layer="shell"></div>
+    <div class="shell-art-layer" data-shell-layer="sand"></div>
+  </div>
+  <div class="shell-art-layer" data-shell-layer="rock" aria-hidden="true"></div>
+  <div class="shell-seaweed shell-seaweed--left" data-seaweed="1" aria-hidden="true"></div>
+  <div class="shell-seaweed shell-seaweed--right" data-seaweed="2" aria-hidden="true"></div>
+  <nav class="shell-tabs" aria-label="Shell panels">
+    <button class="pixel-button" type="button"  id="shell-tab-queue" data-shell-tab="queue" aria-controls="shell-queue" aria-expanded="false">Queue</button>
+    <button class="pixel-button" type="button"  id="shell-tab-active" data-shell-tab="active" aria-controls="shell-active" aria-expanded="false">Active</button>
+    <button class="pixel-button" type="button"  id="shell-tab-history" data-shell-tab="history" aria-controls="shell-history" aria-expanded="false">History</button>
+  </nav>
+  <div id="shell-arena" class="shell-arena" aria-label="Arena">
+  <div class="shell-lineup" aria-label="Your battle lineup">
+    <button type="button" class="lobby-slot" data-slot="0" aria-label="Choose lobster for slot 1" aria-haspopup="dialog">
+      <span class="character-stage" aria-hidden="true"></span>
+      <span class="stage-lighting" aria-hidden="true"></span>
+      <span class="slot-character" aria-hidden="true" hidden></span>
+      <span class="slot-name">Choose Lobster</span>
+    </button>
+    <button type="button" class="lobby-slot" data-slot="1" aria-label="Choose lobster for slot 2" aria-haspopup="dialog">
+      <span class="character-stage" aria-hidden="true"></span>
+      <span class="stage-lighting" aria-hidden="true"></span>
+      <span class="slot-character" aria-hidden="true" hidden></span>
+      <span class="slot-name">Choose Lobster</span>
+    </button>
+    <button type="button" class="lobby-slot" data-slot="2" aria-label="Choose lobster for slot 3" aria-haspopup="dialog">
+      <span class="character-stage" aria-hidden="true"></span>
+      <span class="stage-lighting" aria-hidden="true"></span>
+      <span class="slot-character" aria-hidden="true" hidden></span>
+      <span class="slot-name">Choose Lobster</span>
+    </button>
+  </div>
+  <footer class="shell-hud">
+    <button class="shell-battle" type="button" aria-label="Battle" aria-haspopup="dialog" disabled title="Choose a character first"></button>
+  </footer>
+  </div>
+  <section id="shell-queue" class="shell-records" role="region" aria-labelledby="shell-tab-queue" tabindex="0" hidden>
+    <h2>Battle queue</h2>
+    <p class="shell-records-label">Design preview · Not connected</p>
+    <p>Matchmaking is unavailable. No live queue service is connected to this workbench.</p>
+  </section>
+  <section id="shell-active" class="shell-records" role="region" aria-labelledby="shell-tab-active" tabindex="0" hidden>
+    <h2>Active battles</h2>
+    <p class="shell-records-label">Design preview · Not connected</p>
+    <p>Active battles are unavailable. No live battle service is connected to this workbench.</p>
+  </section>
+  <section id="shell-history" class="shell-records" role="region" aria-labelledby="shell-tab-history" tabindex="0" hidden>
+    <h2>Battle history</h2>
+    <p class="shell-records-label">Design preview · Not connected</p>
+    <p>Battle history is unavailable. No match results are loaded in this workbench.</p>
+  </section>
+</section>
+<dialog class="lobster-picker" aria-labelledby="picker-title">
+  <header class="picker-heading"><h2 id="picker-title">Choose Lobster</h2><button type="button" class="picker-close" aria-label="Close lobster picker">Close</button></header>
+  <p>Sample classes for this mockup, not your owned lobsters.</p>
+  <div class="picker-options"></div>
+  <button type="button" class="picker-clear">Clear slot</button>
+</dialog>

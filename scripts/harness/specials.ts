@@ -43,7 +43,7 @@ export default async function (b: Browser) {
   // SPEED scales Unity's playback (0.25-4) through to the battle page — a short Special such as
   // Crush (0.7 s) only yields one screenshot at 1x, so slow it down when the frames are the point.
   const speed = process.env.SPEED ? `&speed=${process.env.SPEED}` : '';
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${process.env.PRESET_ID ?? `trio_${CLASS.toLowerCase()}`}${speed}`);
+  await b.goto(`http://127.0.0.1:3000/dojo?preset=${process.env.PRESET_ID ?? `trio_${CLASS.toLowerCase()}`}${speed}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);

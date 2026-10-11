@@ -1,0 +1,12 @@
+.page-header {
+  margin-bottom: 32px;
+}
+.page-title {
+  margin: 0;
+  color: #2e222f;
+  font-family: 'Upheaval', sans-serif;
+  font-size: calc(24 * var(--pixel));
+  font-weight: 400;
+  line-height: 1;
+  text-align: left;
+}

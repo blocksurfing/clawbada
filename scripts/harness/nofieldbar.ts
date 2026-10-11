@@ -38,7 +38,7 @@ export default async function (b: Browser) {
   const fails: string[] = [];
   const expect = (ok: boolean, what: string) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails.push(what); };
   await b.send('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`${BASE}/game/battle?preset=${PRESET}&stay=1`);
+  await b.goto(`${BASE}/dojo?preset=${PRESET}&stay=1`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);

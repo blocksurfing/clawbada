@@ -21,7 +21,7 @@ export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
   // Record every WebSocket the page opens so the test can close the live one on demand.
   await b.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const O = window.WebSocket; const list = []; window.__wsList = list; const W = function(...a) { const w = new O(...a); list.push(w); return w; }; W.prototype = O.prototype; Object.assign(W, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 }); window.WebSocket = W; })();` });
-  await b.goto('http://127.0.0.1:3000/game/battle?preset=random_apex');
+  await b.goto('http://127.0.0.1:3000/dojo?preset=random_apex');
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let a = 0; a < 4; a++) { await b.sleep(800); await rectClick(b, 'button', 'burner wallet').catch(() => {}); if (await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner ✓'))`, 8000, 250)) break; }
   await b.sleep(400); await rectClick(b, 'button', 'Start practice');

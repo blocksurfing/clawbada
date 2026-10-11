@@ -1,0 +1,36 @@
+
+<!-- MOBILE DRAWER: backdrop -->
+<button aria-label="Tutup navigasi" hidden="" id="scrim">
+</button>
+
+<!-- MOBILE DRAWER: launcher -->
+<div class="mobile-topbar">
+ <button aria-controls="sidebar-shell" aria-expanded="false" aria-label="Buka navigasi" id="mobile-menu">
+  ☰
+ </button>
+</div>
+
+<!-- COMPONENT: standalone wordmark -->
+<header aria-label="Clawbada" class="standalone-brand">
+ <button aria-controls="menu-overlay" aria-label="Buka sidebar" class="brand-trigger" tabindex="-1" type="button">
+  <img alt="Clawbada" src="../brand/logo-wordmark-512x512.png"/>
+ </button>
+ <button class="music-toggle" type="button" aria-label="Turn music off" aria-pressed="true" title="Music on"></button>
+</header>
+
+<!-- COMPONENT: sidebar, menu, pole trigger -->
+<aside aria-label="Sidebar Clawbada" class="sidebar-shell" id="sidebar-shell">
+ <div class="sidebar-preview" id="sidebar">
+  <canvas aria-hidden="true" height="16" id="sidebar-pole" width="128"></canvas>
+  <canvas aria-label="Panel sidebar terbuka" height="336" id="panel" role="img" width="128">
+  </canvas>
+  <div class="menu-overlay" hidden="" id="menu-overlay" inert="">
+   <nav aria-label="Navigasi Clawbada">
+    <ul class="menu-list" id="menu-list">
+    </ul>
+   </nav>
+  </div>
+  <button aria-controls="menu-overlay" aria-expanded="true" aria-label="Tutup sidebar" disabled="" id="toggle" title="Klik pole untuk buka/tutup sidebar" type="button">
+  </button>
+ </div>
+</aside>

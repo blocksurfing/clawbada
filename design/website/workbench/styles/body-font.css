@@ -1,0 +1,25 @@
+@font-face {
+  font-family: 'Rainy Hearts';
+  src: url('../../brand/fonts/rainyhearts/rainyhearts.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+/* Slight optical weight for body copy; no changes to headings/actions. */
+#page-content p {
+  -webkit-text-stroke: 0.25px currentColor;
+}
+
+/* Text uses Rainy Hearts; headings and actions retain the display face. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Upheaval', sans-serif;
+  font-weight: 400;
+  font-synthesis: none;
+}
+input, textarea, select { font-family: 'Rainy Hearts', sans-serif; }
+
+/* Tighten Rainy Hearts only; display/action lettering stays unchanged. */
+body, input, textarea, select { letter-spacing: -0.5px; }
+h1, h2, h3, h4, h5, h6,
+button, .menu-item, .connect-wallet, .profile-action-label,
+.dashboard-button { letter-spacing: normal; }

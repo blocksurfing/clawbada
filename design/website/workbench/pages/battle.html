@@ -1,0 +1,15 @@
+<!-- Arena choice is a local design setting, not a matchmaking request. -->
+<section class="wooden-panel battle-lobby" data-pixel-panel="woodenPanel" aria-labelledby="arena-title">
+  <header class="lobby-heading">
+    <div><h2 id="arena-title">Choose arena</h2><p>Your lineup stays in Shell.</p></div>
+  </header>
+  <div class="arena-choice">
+    <label for="battle-arena">Arena tier</label>
+    <select id="battle-arena" aria-describedby="arena-preview-note"><option value="match">Match Team</option><option value="evolved">Evolved</option><option value="elite">Elite</option><option value="apex">Apex</option></select>
+    <p id="arena-preview-note" class="battle-help">Preview choices only — availability and eligibility are not checked.</p>
+  </div>
+  <footer class="battle-start">
+    <div><h2>Matchmaking unavailable</h2><p class="battle-help" id="battle-unavailable">Not connected. Finding an opponent and the match countdown require a live battle service.</p></div>
+    <button class="pixel-button" type="button" disabled aria-describedby="battle-unavailable">Find Match</button>
+  </footer>
+</section>
