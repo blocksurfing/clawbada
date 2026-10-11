@@ -7,33 +7,35 @@ import { SidebarRoll } from './sidebar-roll';
 import { PixelMusicToggle } from './pixel-music-toggle';
 
 /**
- * Nzib's sidebar (design/website/mockups/mockups.html): the standalone wordmark with the music toggle beside it,
- * and the rolling banner with the twelve menu items. Order matters — it also indexes the icons in Icons.png.
- * Items are real links; the active one follows the route, and a route change drives the ribbon transition
- * (so back/forward animate too). The motion lives in `SidebarRoll`.
+ * Nzib's sidebar (design/website/workbench, baseline 3295433): the standalone wordmark with the music toggle
+ * beside it, the pole, and the rolling banner — compact with icons only after every load, expanded with labels
+ * on a pole click. `icon` indexes Icons.png (twelve tiles; Battle's tile 2 is unused since Battle opens from the
+ * Shell). Items are real links; the active one follows the route, and a route change drives the ribbon
+ * transition (so back/forward animate too). The motion lives in `SidebarRoll`.
  */
 const MENU = [
-  { label: 'Dashboard', href: '/game' },
-  { label: 'Mining', href: '/game/mining' },
-  { label: 'Battle', href: '/game/battle' },
-  { label: 'Dojo', href: '/dojo' },
-  { label: 'Breeding', href: '/game/breeding' },
-  { label: 'Evolve', href: '/game/evolution' },
-  { label: 'Repair', href: '/game/repair' },
-  { label: 'Teams', href: '/game/teams' },
-  { label: 'Market', href: '/market' },
-  { label: 'Activity', href: '/activity' },
-  { label: 'Ranks', href: '/leaderboard' },
-  { label: 'Docs', href: 'https://docs.clawbada.com', external: true },
+  { label: 'Shell', href: '/game', icon: 0 },
+  { label: 'Mining', href: '/game/mining', icon: 1 },
+  { label: 'Dojo', href: '/dojo', icon: 3 },
+  { label: 'Breeding', href: '/game/breeding', icon: 4 },
+  { label: 'Evolve', href: '/game/evolution', icon: 5 },
+  { label: 'Repair', href: '/game/repair', icon: 6 },
+  { label: 'Teams', href: '/game/teams', icon: 7 },
+  { label: 'Market', href: '/market', icon: 8 },
+  { label: 'Activity', href: '/activity', icon: 9 },
+  { label: 'Ranks', href: '/leaderboard', icon: 10 },
+  { label: 'Docs', href: 'https://docs.clawbada.com', icon: 11, external: true },
 ] as const;
 
 /** The chrome ships at the desktop breakpoint only (Tailwind `lg`); below it the game shell keeps its bottom nav. */
 export const PIXEL_CHROME_MEDIA = '(min-width: 1024px)';
-/** 128 source px × the 3 px pixel. */
+/** The expanded pole: 128 source px × the 3 px pixel (compact is 96 × 3 = 288). The live value is `--sidebar-width`. */
 export const SIDEBAR_WIDTH_PX = 384;
+export const SIDEBAR_COMPACT_WIDTH_PX = 288;
 
 const ASSETS = {
-  panel: '/ui/sidebar/Sidebar.png',
+  banner: '/ui/sidebar/Banner.png',
+  pole: '/ui/sidebar/Pole.png',
   ribbon: '/ui/sidebar/Ribbon.png',
   separator: '/ui/sidebar/Separator.png',
 };
@@ -53,6 +55,7 @@ export function PixelSidebar() {
   const shellRef = useRef<HTMLElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const poleRef = useRef<HTMLCanvasElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -66,9 +69,9 @@ export function PixelSidebar() {
   useLayoutEffect(() => {
     const mq = window.matchMedia(PIXEL_CHROME_MEDIA);
     const create = () => {
-      if (rollRef.current || !sidebarRef.current || !canvasRef.current || !toggleRef.current || !overlayRef.current || !listRef.current || !brandRef.current) return;
+      if (rollRef.current || !sidebarRef.current || !canvasRef.current || !poleRef.current || !toggleRef.current || !overlayRef.current || !listRef.current) return;
       rollRef.current = new SidebarRoll(
-        { sidebar: sidebarRef.current, scroller: shellRef.current ?? undefined, canvas: canvasRef.current, toggle: toggleRef.current, menuOverlay: overlayRef.current, menuList: listRef.current, brandTrigger: brandRef.current },
+        { sidebar: sidebarRef.current, scroller: shellRef.current ?? undefined, canvas: canvasRef.current, pole: poleRef.current, toggle: toggleRef.current, menuOverlay: overlayRef.current, menuList: listRef.current },
         { assets: ASSETS, initialSelection: activeMenuLabel(pathnameRef.current) },
       );
     };
@@ -85,7 +88,7 @@ export function PixelSidebar() {
     <>
       {/* COMPONENT: standalone wordmark — sibling of the sidebar; never rolled/clipped with the menu. */}
       <header aria-label="Clawbada" className="standalone-brand">
-        <button ref={brandRef} aria-controls="menu-overlay" aria-label="Open sidebar" className="brand-trigger" tabIndex={-1} type="button">
+        <button ref={brandRef} aria-hidden="true" className="brand-trigger" tabIndex={-1} type="button">
           {/* eslint-disable-next-line @next/next/no-img-element -- a 512 px pixel-art wordmark shown at 192 px, unoptimised on purpose */}
           <img alt="Clawbada" src="/ui/brand/logo-wordmark-512.png" width={192} height={192} />
         </button>
@@ -95,17 +98,18 @@ export function PixelSidebar() {
       {/* COMPONENT: sidebar, menu, pole trigger */}
       <aside ref={shellRef} aria-label="Clawbada sidebar" className="sidebar-shell" id="sidebar-shell">
         <div ref={sidebarRef} className="sidebar-preview" id="sidebar">
-          <canvas ref={canvasRef} aria-label="Sidebar" className="sidebar-panel" height={336} id="panel" role="img" width={128} />
+          <canvas ref={poleRef} aria-hidden="true" className="sidebar-pole" height={16} id="sidebar-pole" width={96} />
+          <canvas ref={canvasRef} aria-label="Sidebar" className="sidebar-panel" height={336} id="panel" role="img" width={48} />
           <div ref={overlayRef} className="menu-overlay" hidden id="menu-overlay" inert>
             <nav aria-label="Clawbada navigation">
               <ul ref={listRef} className="menu-list" id="menu-list">
-                {MENU.map((item, index) => {
+                {MENU.map((item) => {
                   const key = item.label.toLowerCase();
                   const content = (
                     <>
                       <canvas aria-hidden="true" className="active-ribbon" data-ribbon={item.label} height={16} width={48} />
-                      <span aria-hidden="true" className="menu-icon" style={{ '--icon': index } as CSSProperties} />
-                      <span>{item.label}</span>
+                      <span aria-hidden="true" className="menu-icon" style={{ '--icon': item.icon } as CSSProperties} />
+                      <span className="menu-label">{item.label}</span>
                     </>
                   );
                   return (
@@ -117,9 +121,9 @@ export function PixelSidebar() {
                       )}
                       <li data-menu={key}>
                         {'external' in item ? (
-                          <a className="menu-item" data-menu={key} href={item.href} rel="noopener noreferrer" target="_blank">{content}</a>
+                          <a aria-label={item.label} className="menu-item" data-menu={key} href={item.href} rel="noopener noreferrer" target="_blank" title={item.label}>{content}</a>
                         ) : (
-                          <Link className="menu-item" data-menu={key} href={item.href}>{content}</Link>
+                          <Link aria-label={item.label} className="menu-item" data-menu={key} href={item.href} title={item.label}>{content}</Link>
                         )}
                       </li>
                     </Fragment>
@@ -128,7 +132,7 @@ export function PixelSidebar() {
               </ul>
             </nav>
           </div>
-          <button ref={toggleRef} aria-controls="menu-overlay" aria-expanded="true" aria-label="Close sidebar" className="sidebar-toggle" disabled id="toggle" title="Click the pole to open or close the sidebar" type="button" />
+          <button ref={toggleRef} aria-controls="menu-overlay" aria-expanded="false" aria-label="Expand sidebar" className="sidebar-toggle" disabled id="toggle" title="Click the pole to expand or collapse the sidebar" type="button" />
         </div>
       </aside>
     </>

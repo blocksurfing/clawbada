@@ -64,8 +64,8 @@ export function GameShell({ children }: { children: React.ReactNode }) {
       {/* Desktop: Nzib's pixel sidebar + wallet panel (≥ lg) */}
       <PixelChrome />
 
-      {/* Main content — the sidebar is 128 source px at the 3 px pixel; the compact state does not reflow it */}
-      <main className="flex-1 min-h-screen lg:ml-[384px] pb-20 lg:pb-0">
+      {/* Main content follows the pole: 96 source px compact (every load), 128 expanded, at the 3 px pixel */}
+      <main className="flex-1 min-h-screen lg:ml-[var(--sidebar-width,288px)] pb-20 lg:pb-0">
         {children}
       </main>
 

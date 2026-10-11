@@ -39,10 +39,12 @@ export default function BattlePage() {
   // After the result the view closes itself and comes back here. A practice session is gone
   // once it ends (in-memory), so Back must not lead into it: replace. A chain battle keeps its
   // settlement page reachable: push.
+  // Practice (the Dojo) is gone once it ends: replace, so Back never lands in it. A chain battle goes back to
+  // the Shell, where its settlement stays reachable from History.
   const leave = useCallback(() => {
-    console.log(`[BattlePage] leaving ${battleId} → /game/battle`);
-    if (practice) router.replace('/game/battle');
-    else router.push('/game/battle');
+    console.log(`[BattlePage] leaving ${battleId} → ${practice ? '/dojo' : '/game'}`);
+    if (practice) router.replace('/dojo');
+    else router.push('/game');
   }, [practice, router, battleId]);
 
   const { data: battleData, isLoading, error } = useQuery({

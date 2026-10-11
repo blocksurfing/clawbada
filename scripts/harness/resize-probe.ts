@@ -8,7 +8,7 @@ export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
   const dpr = Number(process.env.DPR ?? '2');
   await b.send('Emulation.setDeviceMetricsOverride', { width: Number(process.env.VW ?? '1400'), height: Number(process.env.VH ?? '900'), deviceScaleFactor: dpr, mobile: false });
-  await b.goto('http://127.0.0.1:3000/game/battle?preset=trio_bulwark');
+  await b.goto('http://127.0.0.1:3000/dojo?preset=trio_bulwark');
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let a = 0; a < 4; a++) { await b.sleep(800); await rectClick(b, 'button', 'burner wallet').catch(() => {}); if (await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner ✓'))`, 8000, 250)) break; }
   await b.sleep(500); await rectClick(b, 'button', 'Start practice');

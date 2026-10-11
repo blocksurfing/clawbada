@@ -21,6 +21,14 @@ const upheaval = localFont({
   display: 'swap',
 });
 
+/** Nzib's body face for the Shell's copy (DaFont lists it 100% free; its README sits beside the file). */
+const rainyHearts = localFont({
+  src: '../fonts/rainyhearts/rainyhearts.ttf',
+  weight: '400',
+  variable: '--font-rainy',
+  display: 'swap',
+});
+
 const titillium = Titillium_Web({
   weight: ['300', '400', '600', '700', '900'],
   subsets: ['latin'],
@@ -40,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Figma capture script — remove after design handoff */}
         <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async />
       </head>
-      <body className={`${blackHanSans.variable} ${titillium.variable} ${upheaval.variable}`}>
+      <body className={`${blackHanSans.variable} ${titillium.variable} ${upheaval.variable} ${rainyHearts.variable}`}>
         <Web3Provider>
           <CursorPressTracker />
           {children}
