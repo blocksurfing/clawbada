@@ -1,0 +1,57 @@
+/* Battle setup only; no live matchmaking integration in this workbench. */
+[data-page="battle"] .arena-choice { max-width:540px; }
+[data-page="battle"] .arena-choice label { font:400 24px/1.2 'Upheaval',sans-serif; }
+[data-page="battle"] .arena-choice .battle-help { margin-top:12px; }
+[data-page="battle"] .battle-start .pixel-button:disabled { opacity:0.6; }
+[data-page="battle"] .page-subtitle { margin: 12px 0 0; font-size: 24px; line-height: 1.5; }
+[data-page="battle"] h2 { margin: 0; font-size: 30px; line-height: 1.2; }
+[data-page="battle"] p { margin: 0; font-size: 21px; line-height: 1.5; }
+[data-page="battle"] .battle-tabs { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:24px; }
+[data-page="battle"] .battle-tab { color:#fff4d6; border-color:#fff4d680; }
+[data-page="battle"] .battle-tab[aria-current="page"] { border-color:#fff4d6; }
+[data-page="battle"] .battle-lobby { min-width:0; padding:0; container-type:inline-size; }
+[data-page="battle"] .lobby-heading { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:18px; margin-bottom:24px; }
+[data-page="battle"] .lobby-heading p { margin-top:9px; }
+[data-page="battle"] .lobby-mode { font-size:21px; }
+[data-page="battle"] .lobby-room { background:#14151f; padding:24px; border:3px solid #fff4d626; }
+[data-page="battle"] .lobby-room-label { display:block; color:#b7b5c3; font-size:18px; text-align:center; }
+[data-page="battle"] .lobby-slots { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; padding:36px 0 24px; }
+[data-page="battle"] .lobby-slot { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:12px; min-width:0; min-height:294px; padding:18px 9px; background:transparent; color:#fff4d6; border:0; border-bottom:3px solid #fff4d64d; font-weight:400; font-synthesis:none; letter-spacing:normal; cursor:pointer; }
+[data-page="battle"] .slot-number { font:18px/1.5 'Rainy Hearts',sans-serif; color:#b7b5c3; }
+[data-page="battle"] .slot-art { display:grid; place-items:center; width:100%; max-width:144px; height:156px; border:3px dashed #fff4d640; color:#b7b5c3; font:400 36px/1 'Upheaval',sans-serif; }
+[data-page="battle"] .slot-name { font:400 24px/1.25 'Upheaval',sans-serif; overflow-wrap:anywhere; }
+[data-page="battle"] .slot-hint { font:18px/1.5 'Rainy Hearts',sans-serif; }
+[data-page="battle"] .lobby-slot:hover { background:#ffffff08; border-bottom-color:#fff4d6; }
+[data-page="battle"] .lobby-slot[data-selected="true"] .slot-art { font:18px/1.5 'Rainy Hearts',sans-serif; border-color:#fff4d699; overflow-wrap:anywhere; padding:3px; }
+[data-page="battle"] .lobby-status { text-align:center; }
+[data-page="battle"] .lobby-settings { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; margin-top:24px; }
+[data-page="battle"] .lobby-settings label { min-width:0; font-size:21px; }
+[data-page="battle"] select { display:block; width:100%; min-width:0; min-height:48px; margin-top:9px; padding:9px; border:3px solid #fff4d680; border-radius:0; background:#2e222f; color:#fff4d6; font-size:21px; }
+[data-page="battle"] .battle-start { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:24px; margin-top:24px; }
+[data-page="battle"] .battle-help { font-size:18px; }
+[data-page="battle"] .battle-start .pixel-button { color:#fff4d6; }
+[data-page="battle"] :is(button,select):focus-visible { outline:3px solid #fff4d6; outline-offset:3px; }
+[data-page="battle"] .lobster-picker { width:570px; max-width:calc(100vw - 36px); max-height:calc(100dvh - 48px); padding:24px; border:3px solid #fff4d680; background:#1b1a25; color:#fff4d6; }
+[data-page="battle"] .lobster-picker::backdrop { background:#080911cc; }
+[data-page="battle"] .picker-heading { display:flex; justify-content:space-between; align-items:center; gap:18px; margin-bottom:12px; }
+[data-page="battle"] .picker-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:24px 0; }
+[data-page="battle"] :is(.picker-options button,.picker-close,.picker-clear) { padding:12px; min-width:0; border:3px solid #fff4d640; background:#2e222f; color:#fff4d6; font:400 18px/1.5 'Upheaval',sans-serif; font-synthesis:none; letter-spacing:normal; }
+[data-page="battle"] .picker-options button[aria-pressed="true"] { border-color:#fff4d6; }
+@container (max-width: 620px) {
+  [data-page="battle"] .lobby-room { padding:12px; }
+  [data-page="battle"] .lobby-slots { gap:12px; padding-top:24px; }
+  [data-page="battle"] .lobby-slot { padding:12px 3px; min-height:240px; }
+  [data-page="battle"] .slot-art { height:120px; }
+  [data-page="battle"] .slot-name { font-size:18px; }
+  [data-page="battle"] .slot-hint { font-size:15px; }
+  [data-page="battle"] .lobby-settings { grid-template-columns:1fr; gap:18px; }
+}
+@container (max-width: 330px) {
+  [data-page="battle"] .lobby-room { padding:9px; }
+  [data-page="battle"] .lobby-slots { gap:6px; }
+  [data-page="battle"] .slot-art { height:96px; }
+  [data-page="battle"] .slot-name { font-size:15px; }
+  [data-page="battle"] .slot-hint { display:none; }
+  [data-page="battle"] .slot-number { font-size:15px; }
+  [data-page="battle"] .lobby-slot { min-height:192px; }
+}

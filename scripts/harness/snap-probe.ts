@@ -7,7 +7,7 @@ const W = Number(process.env.W ?? '1600'), H = Number(process.env.H ?? '1000');
 export default async function (b: Browser) {
   await b.send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: DPR, mobile: false });
   await b.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`${ORIGIN}/game/battle?preset=trio_tempest&auto=1&speed=3`);
+  await b.goto(`${ORIGIN}/dojo?preset=trio_tempest&auto=1&speed=3`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let i = 0; i < 4; i++) {
     await b.sleep(800);

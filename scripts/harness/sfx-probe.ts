@@ -3,7 +3,7 @@ const CLASS = process.env.TRIO ?? 'Kraken';
 
 export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${process.env.PRESET ?? 'trio_' + CLASS.toLowerCase()}&auto=1&speed=3${process.env.ARENA ? `&arena=${process.env.ARENA}` : ''}`);
+  await b.goto(`http://127.0.0.1:3000/dojo?preset=${process.env.PRESET ?? 'trio_' + CLASS.toLowerCase()}&auto=1&speed=3${process.env.ARENA ? `&arena=${process.env.ARENA}` : ''}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let i = 0; i < 4; i++) {
     await b.sleep(800);

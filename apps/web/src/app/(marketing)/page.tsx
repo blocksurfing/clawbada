@@ -528,7 +528,7 @@ const GAME_MODES = [
     reward: '1,250 - 31,250 $GOLD per expedition',
   },
   {
-    href: '/game/battle',
+    href: '/game',
     image: '/marketing/how-to-play/battle.png',
     title: 'Battle',
     description: 'Commit-reveal PvP combat. Wager $GOLD, pick moves each round, winner takes the pot.',

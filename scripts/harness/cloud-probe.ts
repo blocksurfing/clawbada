@@ -38,7 +38,7 @@ export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
   // The Unity bundle keeps its URL across builds: drop Chrome's HTTP cache too (2026-10-05 lesson).
   await b.send('Network.clearBrowserCache', {});
-  await b.goto(`${BASE}/game/battle?preset=${PRESET}`);
+  await b.goto(`${BASE}/dojo?preset=${PRESET}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);

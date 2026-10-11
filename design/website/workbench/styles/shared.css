@@ -1,0 +1,576 @@
+
+/* SHARED SETTINGS — display pixels unless marked source-pixel units.
+   These values preserve the approved mockup; do not use fractional pixel scaling.
+   JS reads these once on initialization; reload after changing settings. */
+:root {
+  --pixel: 3px;
+  --panel-source-width: 128;
+  --sidebar-width: calc(var(--panel-source-width) * var(--pixel));
+  --sidebar-top: 84px;
+  --logo-top: 0px;
+  --logo-left: -24px;
+  --logo-size: 192px;
+  --compact-logo-left: 0px;
+  --menu-left-units: 4;
+  --menu-right-units: 24;
+  --menu-top-units: 28;
+  --menu-gap: calc(3 * var(--pixel));
+  --menu-padding: 8px;
+  --menu-icon-gap: calc(4 * var(--pixel));
+  --menu-font-size: calc(9 * var(--pixel));
+  --menu-height: calc(16 * var(--pixel));
+  --separator-height: calc(8 * var(--pixel));
+  --active-shift: 6px;
+  --roll-step-ms: 20;
+  --ribbon-duration: 250ms;
+  --compact-duration: 250ms;
+  --active-duration: 250ms;
+  --ui-easing: ease-in-out;
+}
+
+/* BASE — no global button hover paint: component styles own all states. */
+@font-face {
+  font-family: 'Upheaval';
+  src: url('../../brand/fonts/upheaval/upheavtt.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap
+}
+
+* {
+  box-sizing: border-box
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden
+}
+
+body {
+  margin: 0;
+  background: #264793;
+  color: #e7ebe4;
+  font: 15px/1.5 'Rainy Hearts', sans-serif
+}
+
+button {
+  font: inherit;
+  font-family: 'Upheaval', sans-serif;
+  cursor: pointer;
+  color: #f3eedc
+}
+
+button:disabled {
+  opacity: .5;
+  cursor: default
+}
+
+button:focus-visible {
+  outline: 3px solid #f4dd9c;
+  outline-offset: 3px
+}
+
+canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges
+}
+
+[hidden] {
+  display: none !important
+}
+
+/* COMPONENT: STANDALONE LOGO — sibling of sidebar; never rolled/clipped with menu. */
+.standalone-brand {
+  position: fixed;
+  top: var(--logo-top);
+  left: calc(var(--compact-logo-left) + (var(--logo-left) + (var(--panel-source-width) * var(--pixel) - var(--logo-size)) / 2 - var(--compact-logo-left)) * var(--sidebar-expand-progress, 1));
+  width: var(--logo-size);
+  height: var(--logo-size);
+  display: flex;
+  justify-content: center;
+  z-index: 21;
+  pointer-events: none;
+  /* Position is driven by the same frame progress as pole length. */
+  transition: none
+}
+
+.standalone-brand img {
+  display: block;
+  width: var(--logo-size);
+  height: var(--logo-size);
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 3px 0 rgba(15, 20, 27, .8))
+}
+
+
+.brand-trigger {
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  pointer-events: none
+}
+
+body.sidebar-compact .brand-trigger {
+  pointer-events: none
+}
+
+.brand-trigger:hover,
+.brand-trigger:active {
+  background: transparent
+}
+
+.brand-trigger:focus-visible {
+  outline: 2px dashed #ffe197
+}
+
+/* COMPONENT: SIDEBAR / POLE */
+.sidebar-shell {
+  position: fixed;
+  inset: var(--sidebar-top) auto 0 0;
+  width: var(--sidebar-width);
+  overflow: clip;
+  z-index: 20;
+  transition: left var(--compact-duration) var(--ui-easing)
+}
+
+body.sidebar-compact .sidebar-shell {
+  left: 0
+}
+
+.sidebar-preview {
+  position: relative;
+  width: var(--sidebar-width);
+  height: auto
+}
+
+.sidebar-preview #panel {
+  max-width: none
+}
+
+#sidebar-pole {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+#toggle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 100%;
+  height: var(--menu-height);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  z-index: 4
+}
+
+#toggle:hover {
+  background: transparent
+}
+
+#toggle:focus-visible {
+  outline: 2px dashed #ffe197;
+  outline-offset: -2px
+}
+
+#toggle:disabled {
+  opacity: 1;
+  cursor: wait
+}
+
+/* COMPONENT: MENU / RIBBONS / SEPARATOR */
+.menu-overlay {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--pixel));
+  overflow: visible
+}
+
+.menu-overlay>nav {
+  flex-shrink: 0
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--menu-gap);
+  padding: var(--menu-padding);
+  margin: 0;
+  list-style: none
+}
+
+.menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--menu-icon-gap);
+  width: 100%;
+  height: var(--menu-height);
+  min-height: var(--menu-height);
+  padding: 0 calc(2 * var(--pixel));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #3b2923;
+  text-align: left;
+  font-family: 'Upheaval', sans-serif;
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: var(--menu-font-size);
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap
+}
+
+.menu-item:hover {
+  background: transparent;
+  color: #713622
+}
+
+.menu-item[aria-current="page"] {
+  background: transparent;
+  color: #fff4d6
+}
+
+.menu-item>span {
+  position: relative;
+  z-index: 1;
+  transform: translateX(0);
+  transition: transform var(--active-duration) var(--ui-easing)
+}
+
+.menu-item[aria-current="page"]>span {
+  transform: translateX(var(--active-shift))
+}
+
+.menu-item .active-ribbon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  pointer-events: none;
+  image-rendering: pixelated;
+  z-index: 0
+}
+
+.menu-item:focus-visible {
+  outline: 2px solid #b65330;
+  outline-offset: -2px
+}
+
+.menu-icon {
+  display: block;
+  outline: 0;
+  width: var(--menu-height);
+  height: var(--menu-height);
+  flex: 0 0 var(--menu-height);
+  background-image: url('../../site/sidebar/Icons.png');
+  background-repeat: no-repeat;
+  background-size: calc(192 * var(--pixel)) calc(16 * var(--pixel));
+  background-position: calc(var(--icon) * -16 * var(--pixel)) 0;
+  image-rendering: pixelated
+}
+
+.menu-separator {
+  height: var(--separator-height);
+  display: flex;
+  align-items: center;
+  justify-content: center
+}
+
+.menu-separator canvas {
+  display: block;
+  image-rendering: pixelated;
+  flex-shrink: 0
+}
+
+/* Two cloth tiles wide; leave the pole overhang outside the icon column. */
+body.sidebar-compact .menu-list { padding: 0; }
+body.sidebar-compact .menu-item { justify-content: center; padding: 0; gap: 0; }
+body.sidebar-compact .menu-label { display: none; }
+body.sidebar-compact .menu-item>span { transform: none; }
+body.sidebar-compact .menu-separator { overflow: hidden; }
+
+
+/* COMPONENT: MOBILE DRAWER — breakpoint must match CONFIG.mobileBreakpoint. */
+.mobile-topbar {
+  display: none
+}
+
+#scrim {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  background: #00132299;
+  z-index: 19
+}
+
+@media(max-width:699px) {
+  .standalone-brand {
+    display: none
+  }
+
+  .drawer-open .standalone-brand {
+    display: flex
+  }
+
+  .sidebar-shell {
+    transform: translateX(-100%)
+  }
+
+  .drawer-open .sidebar-shell {
+    transform: translateX(0)
+  }
+
+  .mobile-topbar {
+    display: flex;
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 52px;
+    align-items: center;
+    padding: 4px 12px;
+    background: #124b70;
+    z-index: 10
+  }
+
+  .mobile-topbar button {
+    min-width: 44px;
+    min-height: 44px;
+    background: transparent;
+    border: 1px solid #6491af;
+    border-radius: 8px;
+    padding: 4px;
+    color: #d8e9f4
+  }
+}
+
+@media(prefers-reduced-motion:reduce) {
+
+  .menu-item>span,
+  .standalone-brand,
+  .sidebar-shell {
+    transition: none
+  }
+}
+/* Music: sibling control attached to the logo, never the pole hit target.
+   Music.png: left 16×16 = on; right 16×16 = off. */
+.music-toggle {
+  position: absolute;
+  left: calc(50% + var(--logo-size) / 2);
+  top: 36px;
+  width: calc(16 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent url('../../site/Misc/Music.png') no-repeat 0 0;
+  background-size: calc(32 * var(--pixel)) calc(16 * var(--pixel));
+  image-rendering: pixelated;
+  pointer-events: auto;
+}
+.music-toggle[aria-pressed="false"] { background-position: calc(-16 * var(--pixel)) 0; }
+.music-toggle:active { transform: translateY(3px); }
+.music-toggle:focus-visible { outline: 2px dashed #ffe197; outline-offset: 3px; }
+/* COMPONENT: WALLET / PROFILE — source units share the sidebar's integer scale.
+   Top plank: x0..47/y0..31 (16px left, repeatable middle, right).
+   Wheel: x48..111/y0..63. Lower sheet artwork remains unused in this state.
+   Fixed desktop anchor; narrow-screen composition still needs a separate design pass. */
+:root {
+  --user-section-top: 12px;
+  --user-section-right: 12px;
+}
+.user-section {
+  position: fixed;
+  top: var(--user-section-top);
+  right: var(--user-section-right);
+  width: calc(160 * var(--pixel));
+  height: calc(64 * var(--pixel));
+  z-index: 18;
+}
+#user-section-art {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.connect-wallet {
+  visibility: hidden; /* Prevent text flash before the startup panel animation. */
+  position: absolute;
+  z-index: 3;
+  left: calc(40 * var(--pixel));
+  top: calc(24 * var(--pixel));
+  width: calc(68 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff4d6;
+  font-family: 'Upheaval', sans-serif;
+  font-size: calc(7 * var(--pixel));
+  font-weight: 400;
+  font-synthesis: none;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.connect-wallet:hover { background: transparent; color: #ffe197; }
+.connect-wallet:disabled { opacity: 1; cursor: wait; }
+.wallet-loader {
+  display: block;
+  width: calc(16 * var(--pixel));
+  height: calc(16 * var(--pixel));
+  margin: 0 auto;
+  background: url('../../site/Misc/Loader/Loader.png') 0 0 / calc(64 * var(--pixel)) calc(16 * var(--pixel)) no-repeat;
+  image-rendering: pixelated;
+  animation: wallet-loading 600ms steps(4) infinite;
+}
+@keyframes wallet-loading { to { background-position-x: calc(-64 * var(--pixel)); } }
+@media (prefers-reduced-motion: reduce) { .wallet-loader { animation: none; } }
+.connect-wallet:focus-visible { outline: 2px dashed #ffe197; outline-offset: -2px; }
+/* Press wrapper owns translation; the inner wheel owns rotation.
+   :active clears on release/cancel, including native keyboard activation. */
+.user-avatar-press {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  transform: translateY(0);
+}
+.user-avatar-press:has(.user-avatar-slot:active:not(:disabled)) {
+  transform: translateY(3px);
+}
+.user-avatar-press .user-avatar-slot { pointer-events: auto; }
+#user-avatar-frame {
+  position: absolute;
+  left: calc(96 * var(--pixel));
+  top: 0;
+  width: calc(64 * var(--pixel));
+  height: calc(64 * var(--pixel));
+  z-index: 2;
+  pointer-events: none;
+  image-rendering: pixelated;
+  transform-origin: center;
+}
+.user-avatar-slot {
+  position: absolute;
+  left: calc(108 * var(--pixel));
+  top: calc(12 * var(--pixel));
+  width: calc(40 * var(--pixel));
+  height: calc(40 * var(--pixel));
+  border-radius: 50%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  z-index: 3;
+}
+.user-avatar-slot:hover { background: transparent; }
+.user-avatar-slot:disabled { opacity: 1; cursor: wait; }
+.user-avatar-slot:focus-visible { outline: 2px dashed #ffe197; outline-offset: 3px; }
+/* Profile actions: no wooden wrapper; each button expands independently. */
+.profile-menu { --action-label-gap: 6px; --action-duration: 180ms; }
+.profile-menu {
+  position: absolute;
+  /* Fixed left anchor: expanding Disconnect never moves Edit Profile. */
+  left: calc(36 * var(--pixel));
+  top: calc(42 * var(--pixel));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  height: 48px;
+  z-index: 1;
+}
+.profile-menu[hidden] { display: none; }
+.profile-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 54px;
+  height: 48px;
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  image-rendering: pixelated;
+  border: 0;
+  border-radius: 0;
+  padding: 0 16.5px;
+  color: #fff4d6;
+  font: 18px 'Upheaval', sans-serif;
+  white-space: nowrap;
+  transition: width var(--action-duration) ease-in-out;
+}
+.profile-action-label {
+  flex: 0 0 auto;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  margin-left: 0;
+  transition: max-width var(--action-duration) ease-in-out, opacity var(--action-duration) ease-in-out, margin-left var(--action-duration) ease-in-out;
+}
+.profile-menu button:is(:hover, :focus-visible) { width: var(--action-open-width, 54px); }
+.profile-menu button:is(:hover, :focus-visible) .profile-action-label {
+  max-width: 140px; opacity: 1; margin-left: var(--action-label-gap);
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-menu button, .profile-action-label { transition: none; }
+}
+/* Chain stays behind the button and the higher wallet-address layer. */
+.profile-menu button::before,
+.profile-menu button::after {
+  content: '';
+  position: absolute;
+  left: 21px;
+  top: -27px;
+  width: 12px;
+  height: 48px;
+  background: url('../../site/User Section/Button.png') -162px 0 / 192px 48px no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+  z-index: -2;
+}
+/* At 54px compact width both chains coincide at x21.
+   Right anchoring follows the button width transition directly: no fade/timer. */
+.profile-menu button::after { left: auto; right: 21px; }
+.profile-menu button > canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  z-index: -1; pointer-events: none; image-rendering: pixelated;
+}
+.profile-action-icon {
+  flex: 0 0 21px; width: 21px; height: 21px;
+  background: url('../../site/User Section/Icons.png') no-repeat;
+  background-size: 96px 48px; image-rendering: pixelated;
+  pointer-events: none;
+}
+[data-profile-action="edit"] .profile-action-icon { background-position: -60px -12px; }
+[data-profile-action="disconnect"] .profile-action-icon { background-position: -15px -12px; }
+
+.profile-menu button:hover { color: #ffe197; }
+.profile-menu [data-profile-action="disconnect"] .profile-action-label { color: #e83b3b; }
+.profile-menu button:active { transform: translateY(3px); }
+.profile-menu button:focus-visible { outline: 2px dashed #ffe197; outline-offset: -8px; }
+.connect-wallet { overflow: hidden; text-overflow: ellipsis; }
+#profile-editor { background: #38291f; color: #fff4d6; border: 3px solid #9c7855; padding: 24px; max-width: min(360px, 85vw); }
+#profile-editor::backdrop { background: #0009; }
+#profile-editor input { display: block; box-sizing: border-box; width: 100%; margin: 12px 0; padding: 10px; }
+#profile-editor p { font: 14px/1.5 'Rainy Hearts', sans-serif; }

@@ -38,7 +38,7 @@ export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
   // Seed on the picker page itself — an extra page load before the battle is one more chance
   // for headless Chrome to burn the WebGL context Unity needs. Prefs are read at battle start.
-  await b.goto(`${ORIGIN}/game/battle?preset=${PRESET}&auto=1&speed=1`); // real time: the battle must outlive every window below
+  await b.goto(`${ORIGIN}/dojo?preset=${PRESET}&auto=1&speed=1`); // real time: the battle must outlive every window below
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   await b.eval(`(() => { localStorage.setItem('clawbada_battle_music', ${JSON.stringify(seed.music ?? 'off')}); localStorage.setItem('clawbada_sfx', ${JSON.stringify(seed.sfx ?? 'off')}); return true; })()`);
   console.log('seeded on picker:', await b.eval(`JSON.stringify({ music: localStorage.getItem('clawbada_battle_music'), sfx: localStorage.getItem('clawbada_sfx') })`));

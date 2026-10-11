@@ -9,13 +9,13 @@ async function rectClick(b: Browser, selector: string, text?: string) {
 }
 const grab = (b: Browser, re: RegExp) => b.logs.filter((l) => re.test(l)).map((l) => l.replace(/^\[log\] /, ''));
 
-/** After the result banner the view closes itself and returns to /game/battle: countdown under the
+/** After the result banner the view closes itself and returns to /dojo: countdown under the
  *  result, Unity quit, music faded, no exceptions. STAY=1 checks the ?stay=1 opt-out instead. */
 export default async function (b: Browser) {
   const fails: string[] = [];
   const expect = (ok: boolean, what: string) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails.push(what); };
   await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${PRESET}&auto=1&speed=${SPEED}${STAY ? '&stay=1' : ''}`);
+  await b.goto(`http://127.0.0.1:3000/dojo?preset=${PRESET}&auto=1&speed=${SPEED}${STAY ? '&stay=1' : ''}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);
@@ -70,9 +70,9 @@ export default async function (b: Browser) {
     expect(!!(await b.eval(`!!document.querySelector('canvas')`)), 'stay=1: Unity canvas still mounted');
   } else {
     expect(/back to the arena in \d+s/i.test(row), 'countdown shown over the canvas');   // innerText carries the pixel font's uppercase
-    const left = await b.waitFor(`location.pathname === '/game/battle'`, 12000, 200);
+    const left = await b.waitFor(`location.pathname === '/dojo'`, 12000, 200);
     const tLeft = Math.round((Date.now() - bannerAt) / 100) / 10;
-    expect(left, `returned to /game/battle (${tLeft}s after the banner)`);
+    expect(left, `returned to /dojo (${tLeft}s after the banner)`);
     expect(tLeft >= 5 && tLeft <= 9, `left after the countdown, not before or long after (${tLeft}s)`);
     expect(grab(b, /\[BattleStage\] closing/).length === 1, 'stage closed before leaving');
     expect(b.logs.some((l) => /React Unity WebGL: Detaching Unity instance/.test(l)), 'Unity detached (Quit) on unmount');

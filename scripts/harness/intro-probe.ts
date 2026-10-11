@@ -15,7 +15,7 @@ async function rectClick(b: Browser, selector: string, text: string) {
 export default async function (b: Browser) {
   const fails: string[] = [];
   const expect = (ok: boolean, what: string) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails.push(what); };
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=trio_${CLASS.toLowerCase()}`);
+  await b.goto(`http://127.0.0.1:3000/dojo?preset=trio_${CLASS.toLowerCase()}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let i = 0; i < 4; i++) {
     await b.sleep(800); await rectClick(b, 'button', 'burner wallet').catch(() => {});
