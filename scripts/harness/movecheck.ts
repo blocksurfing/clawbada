@@ -11,7 +11,7 @@ const grab = (b: Browser, re: RegExp) => b.logs.filter((l) => re.test(l)).map((l
 /** Let the bot play both sides and time a real hex hop, so the walk speed is measured, not assumed. */
 export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=trio_${CLASS.toLowerCase()}&auto=1`);
+  await b.goto(`http://127.0.0.1:3000/dojo?preset=trio_${CLASS.toLowerCase()}&auto=1`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let i = 0; i < 4; i++) {
     await b.sleep(800);

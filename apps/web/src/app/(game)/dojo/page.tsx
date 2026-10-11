@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { api } from '@/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +13,27 @@ import { getArenaBackground } from '@/lib/assets';
 import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { Swords, Loader2, Dumbbell } from 'lucide-react';
 import { exitBattleFullscreen, requestBattleFullscreen } from '@/lib/battle-fullscreen';
+
+/** Dev review rosters (moved here from the old /game/battle Practice tab when Battle became a modal on the Shell,
+ *  2026-10-11): every Special whose VFX is finished, random/fixed trios per tier, and the storm-review trio. The
+ *  API resolves `trio_<class>_<tier>` and the named ids. Gated like before. */
+const REVIEW_PRESETS = [
+  { id: 'specials', label: 'Live specials · Bulwark/Tempest/Specter (Elite)' },
+  { id: 'specials_evolved', label: 'Live specials · Evolved' },
+  { id: 'specials_apex', label: 'Live specials · Apex' },
+  { id: 'random_evolved', label: 'Random team · Evolved' },
+  { id: 'random_elite', label: 'Random team · Elite' },
+  { id: 'random_apex', label: 'Random team · Apex' },
+  { id: 'evolved_mix', label: 'Evolved trio' },
+  { id: 'elite_mix', label: 'Elite trio' },
+  { id: 'apex_mix', label: 'Apex trio' },
+  { id: 'team_kraken_ember_abyss_elite', label: 'Kraken · Ember · Abyss (Elite)' },
+  { id: 'team_kraken_ember_abyss_apex', label: 'Kraken · Ember · Abyss (Apex)' },
+  ...(['Bulwark', 'Mantis', 'Leviathan', 'Tempest', 'Specter', 'Sentinel', 'Reaver', 'Abyss', 'Kraken', 'Ember'] as const).map((c) => ({ id: `trio_${c.toLowerCase()}`, label: `Trio · ${c} (Elite)` })),
+  // Three Tempests on the Evolved arena: a Maelstrom every few turns under the gulls — the storm reaction review.
+  { id: 'trio_tempest_evolved', label: 'Trio · Tempest (Evolved) · storm review' },
+] as const;
+const presetsAllowed = process.env.NEXT_PUBLIC_PRACTICE_PRESETS === 'true' || process.env.NODE_ENV !== 'production';
 
 /**
  * The dojo: build any three-class team at any tier and purity and fight a bot with it.
@@ -59,6 +79,8 @@ export default function DojoPage() {
   const [arena, setArena] = useState<Arena>('match');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Review presets (dev review stack + the browser harness): /dojo?preset=trio_tempest_evolved&auto=1.
+  const [preset, setPreset] = useState('');
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -76,7 +98,29 @@ export default function DojoPage() {
     if (a && (TIERS as readonly string[]).includes(a)) setArena(a as Tier);
     const o = q.get('opponent');
     if (o === 'mirror' || o === 'random') setOpponent(o);
+    const pr = q.get('preset');
+    if (presetsAllowed && pr && REVIEW_PRESETS.some((x) => x.id === pr)) { setPreset(pr); if (pr.startsWith('random_')) setOpponent('random'); }
   }, []);
+
+  const startPreset = useCallback(async () => {
+    if (!preset) return;
+    requestBattleFullscreen();
+    setBusy(true);
+    setErr(null);
+    try {
+      const auth = await getAuthHeaders();
+      const base = { preset, bot, opponent };
+      const res = await api.combat.createPractice(arena === 'match' ? base : { ...base, arena }, auth);
+      const q = new URLSearchParams(window.location.search);
+      const carry = new URLSearchParams();
+      for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
+      router.push(`/battle/${res.battleId}${carry.size ? `?${carry}` : ''}`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not start the practice battle');
+      setBusy(false);
+      exitBattleFullscreen();
+    }
+  }, [preset, bot, opponent, arena, getAuthHeaders, router]);
 
   const start = useCallback(async () => {
     requestBattleFullscreen();   // must run inside the click; the battle view fills it as it loads
@@ -118,10 +162,34 @@ export default function DojoPage() {
             <h1 className="font-pixel text-xl text-foreground">Dojo</h1>
           </div>
           <p className="text-sm text-text-secondary mt-1">
-            Build any team and train against a bot. Off-chain: no stakes, no rating, no repair. Want your own lobsters instead? Use{' '}
-            <Link href="/game/battle" className="text-ocean hover:underline">Practice</Link>.
+            Build any team and train against a bot. Off-chain: no stakes, no rating, no repair.
           </p>
         </div>
+
+        {presetsAllowed && (
+          <FrostedPanel className="space-y-3" data-testid="dojo-presets">
+            <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Review presets (dev)</h2>
+            <p className="text-xs text-text-secondary">Fixed rosters for VFX review and the browser harness — the bot, opponent roster and arena below apply. Deep link: <code>?preset=…&amp;auto=1</code>.</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-[280px] flex-1">
+                <Select value={preset} onValueChange={(v) => { setPreset(v); if (v.startsWith('random_')) setOpponent('random'); }}>
+                  <SelectTrigger className="bg-ocean-mid/50 border-border" aria-label="Review preset"><SelectValue placeholder="Preset (dev only)" /></SelectTrigger>
+                  <SelectContent>
+                    {REVIEW_PRESETS.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <button
+                onClick={startPreset}
+                disabled={busy || !preset}
+                className="frosted-panel-highlight px-4 py-2 text-xs font-pixel text-claw-gold hover:border-[rgba(255,210,128,0.3)] transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {busy && <Loader2 className="size-3 animate-spin" />}
+                {busy ? 'Starting…' : 'Start practice'}
+              </button>
+            </div>
+          </FrostedPanel>
+        )}
 
         <FrostedPanel className="space-y-5">
           <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Your team</h2>

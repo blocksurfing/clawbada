@@ -11,13 +11,14 @@
 :root {
   --pixel: 3px;
   --panel-source-width: 128;
-  --sidebar-width: calc(var(--panel-source-width) * var(--pixel));
+  /* The live value follows the pole (SidebarRoll): 96 source px compact after every load, 128 expanded. */
+  --sidebar-width: calc(96 * var(--pixel));
+  --sidebar-expand-progress: 0;
   --sidebar-top: 84px;
   --logo-top: 0px;
   --logo-left: -24px;
   --logo-size: 192px;
-  --compact-logo-left: -84px;
-  --compact-pole-left: -156px;
+  --compact-logo-left: 0px;
   --menu-left-units: 4;
   --menu-right-units: 24;
   --menu-top-units: 28;
@@ -60,18 +61,19 @@
   display: none !important;
 }
 
-/* COMPONENT: STANDALONE LOGO — sibling of sidebar; never rolled/clipped with menu. */
+/* COMPONENT: STANDALONE LOGO — sibling of sidebar; never rolled/clipped with menu.
+   Position is driven by the same frame progress as the pole length (no transition of its own). */
 .standalone-brand {
   position: fixed;
   top: var(--logo-top);
-  left: var(--logo-left);
-  width: var(--sidebar-width);
+  left: calc(var(--compact-logo-left) + (var(--logo-left) + (var(--panel-source-width) * var(--pixel) - var(--logo-size)) / 2 - var(--compact-logo-left)) * var(--sidebar-expand-progress, 1));
+  width: var(--logo-size);
   height: var(--logo-size);
   display: flex;
   justify-content: center;
   z-index: 21;
   pointer-events: none;
-  transition: left var(--compact-duration) var(--ui-easing);
+  transition: none;
 }
 .standalone-brand img {
   display: block;
@@ -81,9 +83,7 @@
   image-rendering: pixelated;
   filter: drop-shadow(0 3px 0 rgba(15, 20, 27, .8));
 }
-body.sidebar-compact .standalone-brand {
-  left: var(--compact-logo-left);
-}
+/* The wordmark is not a control any more: the pole is the only toggle. */
 .brand-trigger {
   display: block;
   padding: 0;
@@ -92,10 +92,6 @@ body.sidebar-compact .standalone-brand {
   border-radius: 0;
   background: transparent;
   pointer-events: none;
-}
-body.sidebar-compact .brand-trigger {
-  pointer-events: auto;
-  cursor: pointer;
 }
 .brand-trigger:hover,
 .brand-trigger:active {
@@ -117,13 +113,19 @@ body.sidebar-compact .brand-trigger {
   overscroll-behavior-y: contain;
   scrollbar-width: none;
   z-index: 20;
-  transition: left var(--compact-duration) var(--ui-easing);
 }
 .sidebar-shell::-webkit-scrollbar {
   display: none;
 }
 body.sidebar-compact .sidebar-shell {
-  left: var(--compact-pole-left);
+  left: 0;
+}
+.sidebar-pole {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 2;
 }
 .sidebar-preview {
   position: relative;
@@ -135,7 +137,7 @@ body.sidebar-compact .sidebar-shell {
 }
 .sidebar-toggle {
   position: absolute;
-  left: 0;
+  right: 0;
   top: 0;
   width: 100%;
   height: var(--menu-height);
@@ -234,6 +236,7 @@ body.sidebar-compact .sidebar-shell {
 }
 .menu-icon {
   display: block;
+  outline: 0;
   width: var(--menu-height);
   height: var(--menu-height);
   flex: 0 0 var(--menu-height);
@@ -254,6 +257,13 @@ body.sidebar-compact .sidebar-shell {
   image-rendering: pixelated;
   flex-shrink: 0;
 }
+
+/* Compact: two cloth tiles wide, icons only; the pole overhang stays outside the icon column. */
+body.sidebar-compact .menu-list { padding: 0; }
+body.sidebar-compact .menu-item { justify-content: center; padding: 0; gap: 0; }
+body.sidebar-compact .menu-label { display: none; }
+body.sidebar-compact .menu-item > span { transform: none; }
+body.sidebar-compact .menu-separator { overflow: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   .menu-item > span,
@@ -476,10 +486,11 @@ body.sidebar-compact .sidebar-shell {
 .profile-editor .profile-editor-actions button { padding: 8px 14px; border: 2px solid #9c7855; background: #5a3d2b; font: 16px var(--font-upheaval), 'Upheaval', sans-serif; }
 .profile-editor .profile-editor-actions button[type="submit"] { background: #b65330; }
 
-/* Dev only: the burner wallet chip sits under the wheel so the browser harness can still press "burner wallet". */
+/* Dev only: the burner wallet chip sits just left of the plank, clear of the Shell's Queue/Active/History buttons
+   (which start at top 210 px under the wheel), so the browser harness can still press "burner wallet". */
 .pixel-chrome-dev {
   position: fixed;
-  top: calc(var(--user-section-top) + 64 * var(--pixel) + 8px);
-  right: calc(var(--user-section-right) + 12px);
+  top: calc(var(--user-section-top) + 48px);
+  right: calc(var(--user-section-right) + 160 * var(--pixel) + 12px);
   z-index: 18;
 }

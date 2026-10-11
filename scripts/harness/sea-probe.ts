@@ -17,7 +17,7 @@ const grab = (b: Browser, re: RegExp) => b.logs.filter((l) => re.test(l)).map((l
  *  (`out/sea-<tag>-N.png`). Defaults to the Evolved preset; `PRESET=random_elite` etc. for others. */
 export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`http://127.0.0.1:3000/game/battle?preset=${PRESET}`);
+  await b.goto(`http://127.0.0.1:3000/dojo?preset=${PRESET}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);

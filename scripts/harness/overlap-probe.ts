@@ -9,7 +9,7 @@ const S = `${import.meta.dir}/out`;
 const count = (b: Browser, re: RegExp) => b.logs.filter((l) => re.test(l)).length;
 export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  await b.goto(`${ORIGIN}/game/battle?preset=trio_bulwark&auto=1&speed=${SPEED}`);
+  await b.goto(`${ORIGIN}/dojo?preset=trio_bulwark&auto=1&speed=${SPEED}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let i = 0; i < 4; i++) {
     await b.sleep(800);

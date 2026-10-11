@@ -42,7 +42,7 @@ export default async function (b: Browser) {
   await b.send('Page.enable');
   await b.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__sockets = []; const W = window.WebSocket; window.WebSocket = function (...a) { const s = new W(...a); window.__sockets.push(s); return s; }; window.WebSocket.prototype = W.prototype; Object.assign(window.WebSocket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });` });
   // SPEED (0.25-4) slows Unity's playback, e.g. to catch a 0.33 s effect in screenshots.
-  await b.goto(`${BASE}/game/battle?preset=${PRESET}${process.env.SPEED ? `&speed=${process.env.SPEED}` : ''}`);
+  await b.goto(`${BASE}/dojo?preset=${PRESET}${process.env.SPEED ? `&speed=${process.env.SPEED}` : ''}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);

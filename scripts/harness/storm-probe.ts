@@ -36,7 +36,7 @@ async function burst(b: Browser, name: string, frames = 3, gapMs = 700) {
 export default async function (b: Browser) {
   await b.send('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
   await b.send('Network.clearBrowserCache', {});
-  await b.goto(`${BASE}/game/battle?preset=${PRESET}&auto=1&speed=${SPEED}`);
+  await b.goto(`${BASE}/dojo?preset=${PRESET}&auto=1&speed=${SPEED}`);
   await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
   for (let attempt = 0; attempt < 4; attempt++) {
     await b.sleep(800);
