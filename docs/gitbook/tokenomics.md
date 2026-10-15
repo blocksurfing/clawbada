@@ -11,7 +11,7 @@
 | Mining emissions | 70.5% | 705M | Earned through gameplay — a **hard lifetime cap enforced on-chain**; mining stops when it is spent |
 | DEX liquidity | 12.5% | 125M | Uniswap V3 pool ($GOLD/ETH) |
 | Treasury | 10% | 100M | Protocol reserves, bug bounties |
-| Faucet | 7% | 70M | Pre-minted onboarding drip (~10K wallets × 7K $GOLD). **Unclaimed funds are burned** when the faucet closes (6 days 23 hours after the game opens) — the burn is the only thing the contract can do with them; nobody can redirect them. |
+| Faucet | 7% | 70M | Pre-minted onboarding drip (~10K wallets × 7K $GOLD). **Unclaimed funds are burned** when the faucet closes (7 days after the game opens — the close time is set on-chain at launch, in the same transaction batch that starts Season 1) — the burn is the only thing the contract can do with them; nobody can redirect them. |
 
 No airdrop. No team tokens. No VC allocation.
 
@@ -76,21 +76,21 @@ $GOLD is designed to be **net deflationary**:
 | **Evolution** | 2K / 10K / 50K $GOLD burned per tier, plus two fuel lobsters destroyed |
 | **Breeding** | Costs scale exponentially by generation |
 | **Protocol fees** | 85% of all fees burned |
-| **Frozen results** | A battle result the Safe never resolves is closed after 72 hours by burning the held stakes (players are repaid from a reserve) |
+| **Frozen results** | A battle result the Safe never resolves is closed after 72 hours by burning the held stakes; both players are repaid from a 2M $GOLD refund reserve funded from the Treasury allocation (if the reserve is ever short, the held stakes are returned to the players instead of burned — nobody is left unpaid) |
 | **Faucet residual** | Everything unclaimed when the faucet closes |
 
 As mining emissions halve each season, sinks increasingly outpace new supply; once the 705M allocation is spent there is no new supply at all.
 
 ## Token Locks
 
-While playing, your $GOLD and lobsters can be locked into active game state:
+While playing, your lobsters, battle stakes and pending mining rewards can be locked into active game state:
 
 | What | Lock Trigger | Released When |
 |------|-------------|--------------|
-| **Mining stake** | Sending a team on an expedition | Expedition completes (4 hours) and you claim |
-| **Battle stake** | Depositing for a match (the amount is fixed when the match is created) | Paid out after the result's review window — 5 min (Low) / 30 min (Mid) / 1 hour (High). A frozen result is resolved by the governance Safe within 72 hours, or both players are repaid from a reserve |
+| **Mining reward** | Minted into the mining pool's escrow the moment your expedition starts (nothing is staked — mining costs you no $GOLD) | Paid to you when you claim, 4 hours after the start |
+| **Battle stake** | Depositing for a match (the amount is fixed when the match is created) | Paid out after the result's review window — 5 min (Low) / 30 min (Mid) / 1 hour (High). A frozen result is resolved by the governance Safe within 72 hours, or both players are repaid from the refund reserve |
 | **Anti-grief deposit** | 5% of stake, deposited with it | Returned with the payout; forfeited by a player who resigns, times out three turns in a row, or fails to open a playable team commit |
-| **Lobster (team)** | Assigned to a team slot | Removed from the team |
+| **Lobster (team)** | Assigned to a team slot | The team is disbanded — teams are disbanded whole (there is no single-lobster removal) and only while idle; a team that is mining or in a battle is released first, then disbanded |
 | **Lobster (mining)** | On an active expedition | Expedition claimed |
 | **Lobster (battle)** | In a battle being played | The moment the result is recorded on-chain — before the payout, review or any freeze |
 

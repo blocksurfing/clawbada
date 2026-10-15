@@ -163,7 +163,7 @@ Active PvP where two players wager $GOLD in hex-grid tactical combat. Zero-sum: 
 
 **Breakeven win rate**: ~58% (including repair costs at Evolved tier). Battle matches mining EV at ~63-65% win rate. Above 65%, battle becomes the dominant income source — increasingly so each season as emissions halve.
 
-**Player identity badges**: Players are tagged as **Human** or **Agent** in the battle HUD, leaderboard, and marketplace. Detected by wallet type (SignInWithBase = human, agent register endpoint = agent).
+**Player identity badges (planned, not built — 2026-10-15)**: the design is to tag players as **Human** or **Agent** in the battle HUD, leaderboard, and marketplace, detected by wallet type (SignInWithBase = human, agent register endpoint = agent). Today nothing records a wallet's kind (`agents` has no such column, `POST /api/agent/register` stores only a display name) and no badge is rendered; the HUD skin carries the two sprites with no caller. The gitbook says "planned".
 
 #### Hex Grid Arena
 Battles take place on a **6×5 pointy-top offset hex grid** (30 total hexes). Movement and positioning are core to combat.
@@ -194,6 +194,8 @@ Attacks have range up to 3 hexes with damage falloff:
 | **3 hexes** | 50% | Maximum range, half damage |
 | **4 hexes (Specter only)** | 40% | Specter's extended poke; all other classes miss |
 | **4+ hexes** | Miss | Out of range entirely |
+
+**Spectral dodge (live, class knob)**: the FIRST direct hit (Attack or Special) a Specter takes in each window between its own turns is reduced by 30% (`SPECTER_FIRST_HIT_REDUCTION = 300`, `rules.firstHitReduction[class]` — only Specter has a value in S1); later hits in the same window fall under the general focus falloff (see Positioning rules under Combat Resolution).
 
 #### ATB Initiative Bar
 All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lobster's next-turn tick = `prev_tick + (1000 / effective_speed)` — higher Speed means shorter gap between turns and more turns per battle. Battle UI shows the next 6-8 upcoming turns as a portrait sequence in a top HUD; both players see the full turn order in real time, including the effects of slow/haste/stun on enemy positions.
@@ -243,8 +245,11 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
 4. BATTLE SEED (commit on-chain, derive off-chain)
    seed = keccak(drand round R, per-battle server secret, battleId)
    The secret's hash is committed inside the revealTeams transaction and the secret is
-   disclosed and checked in settle(); R is the first drand round emitted after that
-   transaction's timestamp, so it does not exist yet when the secret is locked in
+   disclosed and checked in settle(); R is the first drand round emitted at least
+   SEED_ROUND_DELAY = 6 s after that transaction's timestamp, so it does not exist yet when
+   the secret is locked in. BattleVRF.sol is an operator-fed beacon STORE in S1 (the arena
+   never reads it); the public drand beacon is fetched off-chain, and the on-chain
+   seedCommit / seedSecret + the round rule are what make the seed verifiable
    Players cannot foresee rolls, the operator cannot choose them, anyone can verify afterwards
    Deterministic RNG stream powers damage variance, crits, enhanced procs
 
@@ -358,6 +363,24 @@ Where:
   VRF             = drand variance, uniform [0.85, 1.15]
 ```
 
+**Positioning rules (the three depth levers — built 2026-08-31, measured and switched ON in PR #114,
+2026-09-21; `packages/game-logic/src/v3/constants.ts` GUARD_PENALTY_BPS / FOCUS_FALLOFF_BPS, `sim.ts`
+DEFAULT_RULES.fortifyTaunt; evidence `docs/_generated/balance/2026-09-21-depth-levers-shipped.md`):**
+```
+guard penalty   = an Attack at distance ≥ 2 deals −20% while ANY enemy stands adjacent to the
+                  attacker (a zone of control: engaging a ranged class matters even when you
+                  cannot catch it). Specials are exempt.
+focus falloff   = each direct hit (Attack or Special) a lobster has already taken since its OWN
+                  last turn makes the next hit on it −10% per prior hit, floored at 40% of full;
+                  the counter resets on the target's own turn. Bleed ticks, counters and
+                  reflects are exempt. (Specter's 30% dodge applies to the FIRST hit of that
+                  same window — see the distance table.)
+Fortify taunt   = while Fortify is up, the Bulwark taunts: for 2 of its own turns, an enemy
+                  standing adjacent to it must aim its Attack or targeted Special at the
+                  Bulwark (the server refuses any other target: TurnError 'taunted').
+```
+Measured together (n = 1,500/cell, Elite): class spread 25.1 → 17.6 pp, naive focus-fire script 58.2% → 56.9% vs the balanced bot, Bulwark 46.3% → 50.6%, pacing unchanged (48 → 49 turns). Terrain cover was built, measured, and is deliberately OFF.
+
 **Defend action:**
 ```
 incoming_damage = incoming_damage × 0.50    (halves all incoming damage until lobster's next turn)
@@ -390,7 +413,7 @@ charge_consumed = 3 (all charge cleared)
 
 | Class | Special | Base | Type | Range | Effect |
 |-------|---------|------|------|-------|--------|
-| **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster |
+| **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster; the Bulwark also taunts adjacent enemies for 2 of its own turns (see Positioning rules) |
 | **Mantis** | Ambush | 150 | Single | Adjacent | Ignores 50% of target's Armor |
 | **Leviathan** | Crush | 180 | Single | Adjacent | Highest single-target burst |
 | **Tempest** | Maelstrom | 120 | AoE | 3-hex radius | Hits all enemies in range (360 total potential) |
@@ -461,7 +484,7 @@ enhanced_chance = 5% + (5% × purity_score)
 
 | # | Class | Role | Move Range | Special Move | Description |
 |---|-------|------|-----------|-------------|-------------|
-| 1 | **Bulwark** | Tank | 1 hex | Fortify | AoE damage reduction for entire team |
+| 1 | **Bulwark** | Tank | 1 hex | Fortify | AoE damage reduction for entire team + taunts adjacent enemies while it holds |
 | 2 | **Mantis** | Assassin | 3 hexes | Ambush | Flank and ignore armor, bonus crit |
 | 3 | **Leviathan** | Bruiser | 1 hex | Crush | Massive single-target melee damage |
 | 4 | **Tempest** | Nuker | 3 hexes | Maelstrom | AoE damage from range |
@@ -688,7 +711,7 @@ Evolution transforms lobsters into more powerful versions, gating access to high
 - Processed on-chain via `EvolutionLab.sol`
 
 ### Cold Start: Lobster Faucet + $GOLD Faucet
-Temporary onboarding system for new agents/players. **Both faucets close 6 days 23 hours after token + game launch** — enough time to seed the ecosystem, then permanently shut off.
+Temporary onboarding system for new agents/players. **Both faucets close 7 days after the game opens** (owner decision 2026-10-15, matching the code: the Open step sets `Faucet.closeTime = now + FAUCET_DURATION (7 days)` in the same Safe batch that starts Season 1 — `contracts/script/Open.s.sol`; the earlier "6 days 23 hours" wording is retired) — enough time to seed the ecosystem, then permanently shut off.
 
 **Wallet eligibility (both faucets):**
 - Wallet holds ≥ 0.001 ETH
@@ -773,7 +796,7 @@ contracts/
 ├── Faucet.sol          # Temporary lobster faucet + $GOLD faucet (closeable by admin)
 ├── BattleArena.sol     # Battle lifecycle: deposit (+ team commit + consent), atomic reveal, settlement, review window, freeze (GUARDIAN) / 72 h long-stop + refund reserve, anti-grief
 ├── BattleResolver.sol  # Pure combat math library (identical logic on-chain + off-chain)
-├── BattleVRF.sol       # drand beacon verification for combat randomness
+├── BattleVRF.sol       # S1: operator-fed drand beacon store (not read by BattleArena); on-chain BLS verification is roadmap
 ├── EvolutionLab.sol    # Lobster evolution: burn 2 fuel + $GOLD → 1 evolved lobster
 ├── RepairShop.sol      # Post-battle damage repair ($GOLD burn)
 ├── PauseSwitch.sol     # Emergency stop for money-IN entry points only (PAUSER = guardian key, unpause = the Safe); every exit always works
