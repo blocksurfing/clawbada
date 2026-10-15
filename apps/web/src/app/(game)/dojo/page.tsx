@@ -40,14 +40,14 @@ const presetsAllowed = process.env.NEXT_PUBLIC_PRACTICE_PRESETS === 'true' || pr
  *
  * Off-chain like every practice battle — no stakes, no rating, no repair. It speaks the API's
  * `team_<a>_<b>_<c>_<tier>` preset plus `purity`, which the API keeps open even when the dev
- * presets are switched off. The quick-start Practice tab on /game/battle is separate and
- * unchanged; the harness and the designer's `?preset=` deep links depend on it.
+ * presets are switched off. The review presets block below (dev only) is what the harness and the
+ * designer's `?preset=` deep links use since practice moved here from the old /game/battle page.
  *
  * Bots come from lib/bot-catalog.ts: easiest first, each with how it plays and what it teaches.
  *
  * Deep links: ?class=kraken (three of one class) or ?team=kraken,ember,abyss, plus
  * ?tier= ?purity= ?bot= ?arena= ?opponent=. Review params ?auto= ?speed= ?stay= are carried
- * through to the battle page, as on the Practice tab.
+ * through to the battle page.
  */
 
 const CLASSES = CLASS_NAMES_LIST.map((n) => n.toLowerCase());

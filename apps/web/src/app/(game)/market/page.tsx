@@ -20,8 +20,18 @@ import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
 import { formatGold, formatAddress, tierLabel } from '@/lib/format';
 import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
-import { MOCK_LISTINGS, classImagePath, marketLobsterImage, CLASS_CARD_COLORS, type MockListing } from '@/lib/mock-data';
-import { Store, SlidersHorizontal, X, Sparkles, ExternalLink, ChevronLeft, Egg, Clock } from 'lucide-react';
+import { classImagePath, marketLobsterImage, CLASS_CARD_COLORS } from '@/lib/mock-data';
+import { Store, SlidersHorizontal, X, Sparkles, ExternalLink, ChevronLeft, Clock } from 'lucide-react';
+
+/** A listing as the grid draws it: the row from the listings route plus the lobster shape the cards expect. */
+interface MarketListing {
+  listingId: string;
+  tokenId: string;
+  seller: string;
+  price: string;
+  listedAt: number;
+  lobster: LobsterData;
+}
 import { cn } from '@/lib/utils';
 
 const TIER_COLORS = [
@@ -35,16 +45,16 @@ export default function MarketplacePage() {
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [expanded, setExpanded] = useState<MockListing | null>(null);
-  const [typeFilter, setTypeFilter] = useState<'all' | 'lobster' | 'egg'>('all');
+  const [expanded, setExpanded] = useState<MarketListing | null>(null);
   const [page, setPage] = useState(0);
   const perPage = 18;
 
-  const [filters, setFilters] = useState<MarketFilters>({ sort: 'recent', limit: 24 });
+  const [filters, setFilters] = useState<MarketFilters>({ sort: 'recent' });
 
-  const { data: listingsData } = useQuery({
-    queryKey: ['listings', filters],
-    queryFn: () => api.market.listings(filters),
+  // The API pages by offset and sorts server-side; it reports the page's own count, not a total.
+  const { data: listingsData, isLoading, isError, refetch } = useQuery({
+    queryKey: ['listings', filters, page],
+    queryFn: () => api.market.listings({ ...filters, limit: perPage, offset: page * perPage }),
     refetchInterval: 30_000,
   });
 
@@ -61,65 +71,43 @@ export default function MarketplacePage() {
 
   const unlockedLobsters = lobstersData?.lobsters.filter((l) => !l.locked && !l.soulbound) ?? [];
 
-  // Use mock data as fallback when API returns nothing
+  // Real listings only. An empty market shows its empty state — never the mock catalogue the page
+  // used to fall back to (the 2026-10-15 audit found it showing fake lobsters and eggs silently).
   const apiListings = listingsData?.listings ?? [];
-  const useMock = apiListings.length === 0;
-
-  // Apply filters to mock data client-side
-  let displayListings: MockListing[] = useMock
-    ? MOCK_LISTINGS.filter((ml) => {
-        if (typeFilter === 'lobster' && ml.isEgg) return false;
-        if (typeFilter === 'egg' && !ml.isEgg) return false;
-        if (!ml.isEgg) {
-          if (filters.class != null && ml.lobster.class !== filters.class) return false;
-          if (filters.tier != null && ml.lobster.evolutionTier !== filters.tier) return false;
-          if (filters.legend === true && ml.lobster.legend === 0) return false;
-          if (filters.minPurity != null && ml.lobster.purity < filters.minPurity) return false;
-        }
-        if (filters.minPrice != null && Number(ml.price) < filters.minPrice) return false;
-        if (filters.maxPrice != null && Number(ml.price) > filters.maxPrice) return false;
-        return true;
-      })
-    : apiListings.map((l) => ({
-        ...l,
-        isEgg: false,
-        lobster: {
-          tokenId: l.tokenId,
-          owner: l.seller,
-          dna: '0',
-          class: l.class ?? 0,
-          className: CLASS_NAMES_LIST[l.class ?? 0] ?? 'Unknown',
-          classRole: '',
-          legend: l.legend ? 1 : 0,
-          breedType: 0,
-          purity: l.purity ?? 0,
-          evolutionTier: l.evolutionTier ?? 0,
-          tierName: tierLabel(l.evolutionTier ?? 0),
-          damage: 0,
-          breedCount: 0,
-          generation: 0,
-          soulbound: false,
-          locked: false,
-          stats: { hp: '0', attack: '0', armor: '0', speed: '0', critical: '0' },
-          bodyParts: [],
-        } as LobsterData,
-      }));
-
-  // Sort mock data
-  if (useMock && filters.sort === 'price_asc') {
-    displayListings = [...displayListings].sort((a, b) => Number(a.price) - Number(b.price));
-  } else if (useMock && filters.sort === 'price_desc') {
-    displayListings = [...displayListings].sort((a, b) => Number(b.price) - Number(a.price));
-  }
-
-  // Pagination
-  const totalListings = displayListings.length;
-  const totalPages = Math.ceil(totalListings / perPage);
-  const safePage = Math.min(page, Math.max(totalPages - 1, 0));
-  const pagedListings = displayListings.slice(safePage * perPage, (safePage + 1) * perPage);
+  const displayListings: MarketListing[] = apiListings.map((l) => ({
+    listingId: l.listingId,
+    tokenId: l.tokenId,
+    seller: l.seller,
+    price: l.price,
+    listedAt: l.listedAt,
+    // The grid row carries class, tier, purity and legend; the detail view fetches the whole lobster.
+    lobster: {
+      tokenId: l.tokenId,
+      owner: l.seller,
+      dna: '0',
+      class: l.class ?? 0,
+      className: CLASS_NAMES_LIST[l.class ?? 0] ?? 'Unknown',
+      classRole: '',
+      legend: l.legend ? 1 : 0,
+      breedType: 0,
+      purity: l.purity ?? 0,
+      evolutionTier: l.evolutionTier ?? 0,
+      tierName: tierLabel(l.evolutionTier ?? 0),
+      damage: 0,
+      breedCount: 0,
+      generation: 0,
+      soulbound: false,
+      locked: false,
+      stats: { hp: '0', attack: '0', armor: '0', speed: '0', critical: '0' },
+      bodyParts: [],
+    } as LobsterData,
+  }));
+  const pagedListings = displayListings;
+  const hasPrev = page > 0;
+  const hasNext = apiListings.length === perPage;
 
   // Reset page when filters change
-  const filterKey = `${typeFilter}-${filters.class}-${filters.tier}-${filters.legend}-${filters.minPurity}-${filters.minPrice}-${filters.maxPrice}-${filters.sort}`;
+  const filterKey = `${filters.class}-${filters.tier}-${filters.legend}-${filters.minPurity}-${filters.minPrice}-${filters.maxPrice}-${filters.sort}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -127,7 +115,6 @@ export default function MarketplacePage() {
   }
 
   const activeFilterCount = [
-    typeFilter !== 'all',
     filters.class != null,
     filters.tier != null,
     filters.legend != null,
@@ -137,28 +124,6 @@ export default function MarketplacePage() {
 
   const filterPanel = (
     <div className="space-y-5">
-      {/* Type filter */}
-      <div className="space-y-2">
-        <label className="font-pixel text-xs text-text-accent uppercase tracking-wider">Type</label>
-        <div className="flex flex-wrap gap-1.5">
-          {([['all', 'All'], ['lobster', 'Lobsters'], ['egg', 'Eggs']] as const).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setTypeFilter(val)}
-              className={cn(
-                'text-sm px-2.5 py-1.5 rounded-md transition-colors font-medium flex items-center gap-1.5',
-                typeFilter === val
-                  ? 'bg-coral/20 text-coral'
-                  : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
-              )}
-            >
-              {val === 'egg' && <Egg className="size-3.5" />}
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Sort */}
       <div className="space-y-2">
         <label className="font-pixel text-xs text-text-accent uppercase tracking-wider">Sort By</label>
@@ -365,7 +330,7 @@ export default function MarketplacePage() {
               <h1 className="font-pixel text-2xl text-foreground">Marketplace</h1>
             </div>
             <p className="text-text-secondary mt-1">
-              {totalListings} lobster{totalListings !== 1 ? 's' : ''} for sale
+              {isLoading ? 'Loading…' : `${displayListings.length}${hasNext ? '+' : ''} lobster${displayListings.length !== 1 || hasNext ? 's' : ''} for sale`}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -416,7 +381,16 @@ export default function MarketplacePage() {
 
           {/* Listings grid */}
           <div className="flex-1 min-w-0">
-            {displayListings.length === 0 ? (
+            {isLoading ? (
+              <FrostedPanel className="py-16 text-center">
+                <p className="text-text-secondary">Loading listings…</p>
+              </FrostedPanel>
+            ) : isError ? (
+              <FrostedPanel className="py-16 text-center">
+                <p className="text-lg font-medium text-foreground mb-1">Couldn&rsquo;t load listings</p>
+                <button type="button" onClick={() => void refetch()} className="text-sm text-ocean hover:underline">Retry</button>
+              </FrostedPanel>
+            ) : displayListings.length === 0 ? (
               <FrostedPanel className="py-16 text-center">
                 <Image
                   src="/assets/characters/kraken.png"
@@ -426,8 +400,11 @@ export default function MarketplacePage() {
                   className="mx-auto mb-4 opacity-60"
                   style={{ imageRendering: 'pixelated' }}
                 />
-                <p className="text-lg font-medium text-foreground mb-1">No lobsters listed yet</p>
-                <p className="text-text-secondary mb-4">Be the first to list a lobster for sale!</p>
+                <p className="text-lg font-medium text-foreground mb-1">{page > 0 ? 'No more listings' : 'No lobsters listed yet'}</p>
+                <p className="text-text-secondary mb-4">{page > 0 ? 'You have reached the end of the market.' : 'Be the first to list a lobster for sale!'}</p>
+                {page > 0 && (
+                  <button type="button" onClick={() => setPage(page - 1)} className="text-sm text-ocean hover:underline mb-4">Previous page</button>
+                )}
                 {address && (
                   <ListLobsterDialog lobsters={unlockedLobsters} onSuccess={invalidate} />
                 )}
@@ -445,73 +422,28 @@ export default function MarketplacePage() {
                   ))}
                 </div>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
+                {/* Pagination — the API pages by offset; another page exists while this one is full */}
+                {(hasPrev || hasNext) && (
                   <div className="flex items-center justify-center gap-4 mt-8">
                     <button
-                      onClick={() => { setPage(Math.max(0, safePage - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                      disabled={safePage === 0}
-                      className={cn(
-                        'font-pixel text-base px-6 py-2.5 rounded-lg transition-all',
-                        safePage === 0
-                          ? 'opacity-30 cursor-not-allowed bg-ocean-surface/40 text-text-secondary'
-                          : 'cursor-pointer text-white hover:translate-y-[1px] hover:brightness-110',
-                      )}
-                      style={safePage === 0 ? undefined : {
-                        background: 'linear-gradient(to bottom, #e8824a 0%, #d4673a 50%, #c25a30 100%)',
-                        border: '2px solid #5c2a14',
-                        boxShadow: '0 3px 0 #5c2a14, inset 0 1px 0 rgba(255,255,255,0.25)',
-                      }}
+                      type="button"
+                      onClick={() => { setPage(page - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      disabled={!hasPrev}
+                      className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground disabled:opacity-40"
                     >
                       Previous
                     </button>
-
-                    <div className="flex items-center gap-2">
-                      {Array.from({ length: totalPages }, (_, i) => {
-                        const show = i === 0 || i === totalPages - 1 || Math.abs(i - safePage) <= 2;
-                        const showEllipsis = !show && (i === 1 || i === totalPages - 2);
-                        if (showEllipsis) return <span key={i} className="font-pixel text-base text-text-secondary px-1">...</span>;
-                        if (!show) return null;
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => { setPage(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                            className={cn(
-                              'font-pixel text-base w-10 h-10 rounded-lg transition-colors',
-                              i === safePage
-                                ? 'bg-coral text-white border-2 border-[#a03020] shadow-[0_2px_0_#8b2518]'
-                                : 'text-white/70 hover:text-white hover:bg-ocean-surface/50',
-                            )}
-                          >
-                            {i + 1}
-                          </button>
-                        );
-                      })}
-                    </div>
-
+                    <span className="font-pixel text-sm text-text-secondary">Page {page + 1}</span>
                     <button
-                      onClick={() => { setPage(Math.min(totalPages - 1, safePage + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                      disabled={safePage >= totalPages - 1}
-                      className={cn(
-                        'font-pixel text-base px-6 py-2.5 rounded-lg transition-all',
-                        safePage >= totalPages - 1
-                          ? 'opacity-30 cursor-not-allowed bg-ocean-surface/40 text-text-secondary'
-                          : 'cursor-pointer text-white hover:translate-y-[1px] hover:brightness-110',
-                      )}
-                      style={safePage >= totalPages - 1 ? undefined : {
-                        background: 'linear-gradient(to bottom, #e8824a 0%, #d4673a 50%, #c25a30 100%)',
-                        border: '2px solid #5c2a14',
-                        boxShadow: '0 3px 0 #5c2a14, inset 0 1px 0 rgba(255,255,255,0.25)',
-                      }}
+                      type="button"
+                      onClick={() => { setPage(page + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      disabled={!hasNext}
+                      className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground disabled:opacity-40"
                     >
                       Next
                     </button>
                   </div>
                 )}
-
-                <p className="text-center font-pixel text-sm text-text-secondary mt-3">
-                  Showing {safePage * perPage + 1}-{Math.min((safePage + 1) * perPage, totalListings)} of {totalListings} listings
-                </p>
               </>
             )}
           </div>
@@ -538,67 +470,13 @@ function MarketCard({
   isOwner,
   onClick,
 }: {
-  listing: MockListing;
+  listing: MarketListing;
   isOwner: boolean;
   onClick: () => void;
 }) {
   const { lobster } = listing;
   const isLegend = lobster.legend > 0;
   const classColor = CLASS_CARD_COLORS[lobster.class] ?? '#4682B4';
-
-  if (listing.isEgg) {
-    return (
-      <div
-        onClick={onClick}
-        className="frosted-panel p-0 overflow-hidden rounded-xl cursor-pointer transition-all hover:border-[rgba(255,210,128,0.35)] card-hover group"
-      >
-        {/* Egg image area */}
-        <div
-          className="relative aspect-square flex items-center justify-center overflow-hidden p-4"
-          style={{
-            background: 'radial-gradient(ellipse at 50% 60%, rgba(205,112,0,0.35) 0%, rgba(205,112,0,0.10) 50%, transparent 80%)',
-          }}
-        >
-          <Image
-            src="/assets/characters/egg.png"
-            alt="Egg"
-            width={192}
-            height={192}
-            className="w-[65%] h-[65%] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform duration-200"
-            style={{ imageRendering: 'pixelated' }}
-          />
-
-          {/* Egg badge */}
-          <div className="absolute top-2 left-2">
-            <span className="text-xs font-bold px-2 py-1 rounded-md backdrop-blur-sm bg-amber-600/40 text-white flex items-center gap-1">
-              <Egg className="size-3" /> Egg
-            </span>
-          </div>
-
-          {/* Gen badge */}
-          <div className="absolute top-2 right-2">
-            <span className="text-xs px-2 py-1 rounded-md bg-ocean-deep/60 text-text-secondary backdrop-blur-sm">
-              Gen {lobster.generation}
-            </span>
-          </div>
-        </div>
-
-        {/* Info area */}
-        <div className="px-3 py-3.5 space-y-2">
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-text-secondary">Class unknown until hatched</span>
-            <span className="text-xs text-text-secondary ml-auto">#{listing.tokenId}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-lg font-bold text-claw-gold font-mono">
-              {Number(listing.price).toLocaleString()}
-              <span className="text-xs text-claw-gold/70 ml-1">$GOLD</span>
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -616,7 +494,7 @@ function MarketCard({
         }}
       >
         <Image
-          src={listing.isEgg ? '/assets/characters/egg.png' : marketLobsterImage(listing.tokenId)}
+          src={marketLobsterImage(listing.tokenId)}
           alt={lobster.className}
           width={192}
           height={192}
@@ -698,13 +576,19 @@ function ExpandedView({
   onClose,
   onAction,
 }: {
-  listing: MockListing;
+  listing: MarketListing;
   isOwner: boolean;
   onClose: () => void;
   onAction: () => void;
 }) {
   const [tab, setTab] = useState<CardTab>('Info');
-  const { lobster } = listing;
+  // The grid row knows class, tier, purity and legend; the detail route returns the whole lobster
+  // (stats, damage, genes), so a buyer sees real numbers instead of zeros.
+  const { data: detail } = useQuery({
+    queryKey: ['listing', listing.listingId],
+    queryFn: () => api.market.getListing(listing.listingId),
+  });
+  const lobster: LobsterData = detail?.lobster ? { ...listing.lobster, ...detail.lobster } : listing.lobster;
   const classColor = CLASS_CARD_COLORS[lobster.class] ?? '#4682B4';
   const isLegend = lobster.legend > 0;
 
@@ -739,25 +623,14 @@ function ExpandedView({
                   background: `radial-gradient(ellipse at 50% 60%, ${classColor}40 0%, ${classColor}15 50%, transparent 80%)`,
                 }}
               >
-                {listing.isEgg ? (
-                  <Image
-                    src="/assets/characters/egg.png"
-                    alt="Egg"
-                    width={384}
-                    height={384}
-                    className="w-[85%] h-[85%] object-contain drop-shadow-[0_6px_24px_rgba(0,0,0,0.5)] animate-idle-bob"
-                    style={{ imageRendering: 'pixelated' }}
-                  />
-                ) : (
-                  <AnimatedLobster
+                <AnimatedLobster
                     dna={lobster.dna}
                     evolutionTier={lobster.evolutionTier}
                     displaySize={320}
                     frameSize={160}
                     frames={16}
                     className="drop-shadow-[0_6px_24px_rgba(0,0,0,0.5)]"
-                  />
-                )}
+                />
                 {isLegend && (
                   <div className="absolute top-3 right-3 bg-claw-gold/90 rounded-md px-2.5 py-1 flex items-center gap-1.5 animate-pulse-glow">
                     <Sparkles className="size-4 text-white" />
@@ -901,7 +774,7 @@ function ExpandedView({
                     {lobster.bodyParts.length > 0 ? (
                       <DNAViewer bodyParts={lobster.bodyParts} lobsterClass={lobster.class} purity={lobster.purity} />
                     ) : (
-                      <p className="text-text-secondary text-center py-8">DNA data not available for eggs</p>
+                      <p className="text-text-secondary text-center py-8">Genes not loaded yet</p>
                     )}
                   </div>
                 )}
