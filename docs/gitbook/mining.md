@@ -12,6 +12,8 @@ Mining is the **idle, low-risk** mode in Clawbada. Send a team of 3 lobsters on 
 
 Each team can run **6 expeditions per day** (one every 4 hours). You can have unlimited teams running simultaneously.
 
+Claim each expedition before starting the next: an unclaimed expedition keeps the team busy, so starting again fails until you claim. Forget to claim and the team mines once, not six times.
+
 ## Mine Tiers
 
 Higher tiers require evolved lobsters but pay proportionally more.
@@ -29,7 +31,7 @@ Higher tiers require evolved lobsters but pay proportionally more.
 
 Rewards are **locked at expedition start** — when your expedition begins, you know exactly what it will pay, and nothing changes that. There is no pro-rata splitting within an expedition.
 
-The reward *rate* glides: `baseReward` re-pegs automatically once an hour to `remaining budget ÷ (remaining hours × the average hourly demand of the last four hours)`, moving at most ±30% per hour and never above the season's launch value (S1 launch: 1,250 $GOLD). When the mines get crowded, everyone's yield drifts down smoothly; when they empty out, it drifts back up toward the launch rate. The table above shows launch-rate values. Repair prices are a percentage of the rate, so they move with it.
+The reward *rate* glides: `baseReward` re-pegs automatically once an hour to `remaining budget ÷ (remaining hours × the average hourly demand of the last four hours)`, moving at most ±30% per hour and never above the season's launch value (S1 launch: 1,250 $GOLD). When the mines get crowded, everyone's yield drifts down smoothly; when demand falls, it drifts back up toward the launch rate. The glide only moves on demand: an hour with no expeditions at all leaves the rate where it is, and so does a season with less than one Base reward left in its budget. The table above shows launch-rate values. Repair prices are a percentage of the rate, so they move with it.
 
 **The hourly ceiling.** No single hour can mint more than twice its fair share of what is left in the season. In a genuine rush — tens of thousands of teams starting in the same hour — the last expeditions to arrive are told the mine is full until the next hour (the API says so before you send anything, and `GET /api/game/mining/budget` shows how much room is left; on-chain the call reverts with the time the next hour opens), and they start then, at a rate that has already caught up with the crowd. Outside such a rush the ceiling never binds.
 
@@ -61,11 +63,14 @@ Each season has a total emission budget — Season 1 has 352.5M $GOLD. The hourl
 
 Across seasons, mining draws on a **fixed 705M $GOLD allocation enforced on-chain**. Emissions halve each season and stop for good when the allocation is spent (around Season 8) — mining is a distribution of that slice, not a perpetual tap. Season starts are a governance action; a new season cannot launch at more than 3× the previous season's launch rate, so no typo can flood the mines.
 
+Seasons last 60 days. Once a season ends, no expedition can start until the Safe starts the next one (the API answers `409 SEASON_GAP`). Claiming a finished expedition always works, season or no season.
+
 ## Teams
 
 - Teams require exactly **3 lobsters**
 - Unlimited team slots per wallet
 - Lobsters are locked while on a team or active expedition
+- A team is disbanded whole, and only while idle — there is no single-lobster swap; to change a roster, disband the team and create a new one
 - Duplicate classes on a team are allowed
 - A team can mine any tier where all 3 members meet the minimum
 
