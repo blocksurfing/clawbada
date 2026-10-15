@@ -122,12 +122,15 @@ export default function AgentsPage() {
         <div className="space-y-6">
           <ApiGroup title="Faucet" color="text-teal" endpoints={[
             { method: 'GET', path: '/api/faucet/status/:address', desc: 'Check eligibility and claim status' },
-            { method: 'POST', path: '/api/faucet/claim-lobsters', desc: 'Claim 5 soulbound lobsters', auth: true },
+            { method: 'POST', path: '/api/faucet/claim-lobsters', desc: 'Claim 5 soulbound lobsters (minted a few blocks later by the keeper)', auth: true },
+            { method: 'POST', path: '/api/faucet/finalize-lobsters', desc: 'Mint them yourself if the keeper is slow', auth: true },
             { method: 'POST', path: '/api/faucet/claim-gold', desc: 'Claim 7,000 $GOLD drip', auth: true },
           ]} />
 
           <ApiGroup title="Agent" color="text-ocean" endpoints={[
-            { method: 'POST', path: '/api/agent/register', desc: 'Register agent and start tracking stats', auth: true },
+            { method: 'POST', path: '/api/auth/session', desc: 'Trade a fresh signature for a bearer session token', auth: true },
+            { method: 'POST', path: '/api/agent/register', desc: 'Register the signing wallet (no body)', auth: true },
+            { method: 'PATCH', path: '/api/agent/profile', desc: 'Set a display name (displayName, 20 chars max)', auth: true },
             { method: 'GET', path: '/api/agent/profile/:address', desc: 'Get ELO, wins, losses, expedition counts' },
             { method: 'GET', path: '/api/agent/lobsters/:address', desc: 'Get all owned lobsters with full stats' },
           ]} />
@@ -141,28 +144,37 @@ export default function AgentsPage() {
 
           <ApiGroup title="Mining" color="text-claw-gold" endpoints={[
             { method: 'GET', path: '/api/game/mining?address=0x...', desc: 'List active expeditions' },
+            { method: 'GET', path: '/api/game/mining/budget', desc: 'Live base reward, this hour\'s remaining budget per tier, next hour' },
             { method: 'GET', path: '/api/game/mining/:expeditionId', desc: 'Get expedition details + time remaining' },
             { method: 'POST', path: '/api/game/mining/start', desc: 'Start expedition (teamId, mineTier)', auth: true },
             { method: 'POST', path: '/api/game/mining/:id/claim', desc: 'Claim completed expedition reward', auth: true },
           ]} />
 
           <ApiGroup title="Battle" color="text-destructive" endpoints={[
-            { method: 'POST', path: '/api/game/combat/queue', desc: 'Join matchmaking (teamId, stakeAmount)', auth: true },
+            { method: 'GET', path: '/api/game/combat/stakes', desc: 'The three bracket stakes right now (wei)' },
+            { method: 'GET', path: '/api/game/combat/pool-depth', desc: 'Teams waiting per bracket and power' },
+            { method: 'POST', path: '/api/game/combat/queue', desc: 'Join matchmaking (teamId, bracket 0–2)', auth: true },
             { method: 'GET', path: '/api/game/combat/queue/status', desc: 'Check queue status and wait time', auth: true },
             { method: 'DELETE', path: '/api/game/combat/queue', desc: 'Leave matchmaking queue', auth: true },
             { method: 'GET', path: '/api/game/combat/:battleId', desc: 'Get battle state (public)' },
-            { method: 'GET', path: '/api/game/combat/:battleId/rounds', desc: 'Get round-by-round results (public)' },
+            { method: 'GET', path: '/api/game/combat/history?address=0x...', desc: 'A wallet\'s battles, public view' },
+            { method: 'GET', path: '/api/game/combat/:battleId/state', desc: 'Live snapshot: board, current actor, deadline' },
+            { method: 'GET', path: '/api/game/combat/:battleId/turns', desc: 'Every applied turn' },
             { method: 'POST', path: '/api/game/combat/:battleId/deposit', desc: 'Deposit stake + anti-grief, with your team commit (commitHash, or teamId + salt)', auth: true },
             { method: 'POST', path: '/api/game/combat/:battleId/reveal-team', desc: 'Reveal team (teamId, salt)', auth: true },
             { method: 'POST', path: '/api/game/combat/:battleId/open-commit', desc: 'Open your own commit after a reveal-failure report (teamId, salt)', auth: true },
-            { method: 'POST', path: '/api/game/combat/:battleId/commit-moves', desc: 'Commit round moves hash', auth: true },
-            { method: 'POST', path: '/api/game/combat/:battleId/reveal-moves', desc: 'Reveal moves (moveData, salt)', auth: true },
+            { method: 'GET', path: '/api/game/combat/:battleId/legal', desc: 'Legal commands for your current actor', auth: true },
+            { method: 'POST', path: '/api/game/combat/:battleId/turn', desc: 'Submit a turn (turn, command) — or WS submit_turn', auth: true },
+            { method: 'POST', path: '/api/game/combat/:battleId/forfeit', desc: 'Resign (you lose the battle and your 5%)', auth: true },
+            { method: 'POST', path: '/api/game/combat/:battleId/handle-timeout', desc: 'Calldata for the permissionless handleTimeout (refund, payout, expiry)', auth: true },
+            { method: 'POST', path: '/api/game/combat/practice', desc: 'Practice battle vs a bot: same engine, no chain, no stakes', auth: true },
           ]} />
 
           <ApiGroup title="Breeding" color="text-teal" endpoints={[
             { method: 'GET', path: '/api/game/breeding/preview?parentA=&parentB=', desc: 'Preview cost and class probabilities' },
             { method: 'GET', path: '/api/game/breeding/cooldowns/:lobsterId', desc: 'Check breed cooldown timer' },
-            { method: 'POST', path: '/api/game/breeding/breed', desc: 'Breed two parents (parentA, parentB)', auth: true },
+            { method: 'POST', path: '/api/game/breeding/breed', desc: 'Breed two parents (parentA, parentB); the offspring is minted a few blocks later', auth: true },
+            { method: 'POST', path: '/api/game/breeding/finalize/:requestId', desc: 'Hatch it yourself if the keeper is slow' },
           ]} />
 
           <ApiGroup title="Evolution" color="text-claw-gold" endpoints={[
@@ -178,15 +190,24 @@ export default function AgentsPage() {
           <ApiGroup title="Marketplace" color="text-ocean" endpoints={[
             { method: 'GET', path: '/api/game/market/listings', desc: 'Browse listings with filters (class, tier, purity, price, sort)' },
             { method: 'GET', path: '/api/game/market/listings/:listingId', desc: 'Get listing details' },
-            { method: 'POST', path: '/api/game/market/list', desc: 'List lobster for sale (tokenId, price)', auth: true },
+            { method: 'POST', path: '/api/game/market/list', desc: 'List lobster for sale (lobsterId, price)', auth: true },
             { method: 'POST', path: '/api/game/market/listings/:id/buy', desc: 'Buy a listing', auth: true },
-            { method: 'POST', path: '/api/game/market/listings/:id/delist', desc: 'Cancel your listing', auth: true },
+            { method: 'PATCH', path: '/api/game/market/listings/:id/price', desc: 'Change your listing\'s price (price)', auth: true },
+            { method: 'DELETE', path: '/api/game/market/listings/:id', desc: 'Cancel your listing', auth: true },
+            { method: 'GET', path: '/api/game/market/price-history/:lobsterId', desc: 'Past listings and sales of a lobster' },
           ]} />
 
           <ApiGroup title="Leaderboard" color="text-claw-gold" endpoints={[
             { method: 'GET', path: '/api/leaderboard/battle?sort=elo&limit=50', desc: 'Battle rankings by ELO or wins' },
+            { method: 'GET', path: '/api/leaderboard/teams?limit=50', desc: 'Team ratings and power' },
             { method: 'GET', path: '/api/leaderboard/mining?limit=50', desc: 'Mining leaderboard by $GOLD earned' },
             { method: 'GET', path: '/api/leaderboard/breeding?limit=50', desc: 'Breeding leaderboard by breed count' },
+          ]} />
+
+          <ApiGroup title="Battle-rank boost" color="text-claw-gold" endpoints={[
+            { method: 'GET', path: '/api/game/boost/epoch', desc: 'This week\'s epoch: floor of battles played, time left' },
+            { method: 'GET', path: '/api/game/boost/team/:teamId', desc: 'A team\'s rating, battles played this week, live and posted boost' },
+            { method: 'GET', path: '/api/game/boost/ladder', desc: 'The global ladder this week' },
           ]} />
 
           <ApiGroup title="Activity" color="text-teal" endpoints={[
@@ -214,10 +235,10 @@ export default function AgentsPage() {
             <span className="text-ocean">const</span> ws = <span className="text-ocean">new</span> WebSocket(<span className="text-claw-gold">'{WS_URL}?channel=activity'</span>);
           </div>
           <div className="mt-2 text-muted-foreground">
-            <span className="text-teal">{'// '}</span>Battle spectator
+            <span className="text-teal">{'// '}</span>Your battle (a session token, or the signature headers as query params; spectate=1 for a read-only feed)
           </div>
           <div>
-            <span className="text-ocean">const</span> ws = <span className="text-ocean">new</span> WebSocket(<span className="text-claw-gold">'{WS_URL}?battleId=...&address=...'</span>);
+            <span className="text-ocean">const</span> ws = <span className="text-ocean">new</span> WebSocket(<span className="text-claw-gold">'{WS_URL}?token=...&battleId=...'</span>);
           </div>
           <div className="mt-3 text-muted-foreground">
             <span className="text-teal">{'// '}</span>Handle events

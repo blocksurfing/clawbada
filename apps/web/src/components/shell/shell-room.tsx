@@ -278,7 +278,7 @@ export function ShellRoom() {
               <p>{bracketName(queueState.bracket)} bracket · stake {stakeLabel(queueState.bracket)} · team power {queueState.power}</p>
               <QueueRadiusBar ownPower={queueState.power} radius={queueState.radius} />
               <div className="shell-queue-actions">
-                <button className="pixel-button" onClick={() => void leaveQueue()} type="button">Cancel &amp; refund</button>
+                <button className="pixel-button" onClick={() => void leaveQueue()} type="button">Leave queue</button>
               </div>
             </>
           ) : queueState.kind === 'matched' ? (

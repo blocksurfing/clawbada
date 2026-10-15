@@ -131,7 +131,6 @@ interface FaucetStatus {
    *  from a block that did not exist when the claim was signed, a few seconds later. */
   lobsterClaimPending: boolean;
   canFinalizeLobsters: boolean;
-  reason?: string;
 }
 
 const faucet = {
@@ -260,6 +259,21 @@ interface ListingData {
   evolutionTier?: number;
   purity?: number;
   legend?: boolean;
+  /** `GET /api/game/market/listings/:id` carries the whole lobster (stats, damage, genes) — the
+   *  only public read of a lobster someone else owns. */
+  lobster?: Omit<LobsterData, 'className' | 'classRole' | 'tierName'>;
+}
+
+interface PriceHistoryEntry {
+  id?: number;
+  tokenId: string;
+  listingId?: string;
+  price: string;
+  eventType?: string;
+  seller?: string;
+  buyer?: string;
+  timestamp: number;
+  txHash?: string;
 }
 
 interface ListingsResponse {
@@ -295,9 +309,13 @@ const market = {
     return get<ListingsResponse>(`/api/game/market/listings${qs ? `?${qs}` : ''}`);
   },
   getListing: (listingId: string) => get<ListingData>(`/api/game/market/listings/${listingId}`),
-  list: (tokenId: string, price: string, auth: AuthHeaders) => post<StepsResponse>('/api/game/market/list', { tokenId, price }, auth),
-  buy: (listingId: string, auth: AuthHeaders) => post<StepsResponse>('/api/game/market/buy', { listingId }, auth),
-  delist: (listingId: string, auth: AuthHeaders) => post<StepsResponse>(`/api/game/market/listings/${listingId}/delist`, undefined, auth),
+  // These mirror apps/api/src/routes/game/market.ts exactly — the 2026-10-15 audit found `list`
+  // sending `tokenId`, and `buy` / `delist` calling paths the API never had.
+  list: (lobsterId: string, price: string, auth: AuthHeaders) => post<StepsResponse>('/api/game/market/list', { lobsterId, price }, auth),
+  buy: (listingId: string, auth: AuthHeaders) => post<StepsResponse>(`/api/game/market/listings/${listingId}/buy`, undefined, auth),
+  delist: (listingId: string, auth: AuthHeaders) => del<StepsResponse>(`/api/game/market/listings/${listingId}`, auth),
+  updatePrice: (listingId: string, price: string, auth: AuthHeaders) => patch<StepsResponse>(`/api/game/market/listings/${listingId}/price`, { price }, auth),
+  priceHistory: (lobsterId: string) => get<{ lobsterId: string; count: number; history: PriceHistoryEntry[] }>(`/api/game/market/price-history/${lobsterId}`),
 };
 
 // ── Combat ──

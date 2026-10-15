@@ -31,7 +31,8 @@ export default function RepairPage() {
   });
 
   const lobsters = lobstersData?.lobsters ?? [];
-  const damaged = lobsters.filter((l) => l.damage > 0);
+  // Base lobsters cannot battle, so the shop refuses them (INSUFFICIENT_TIER): only Evolved and up are listed.
+  const damaged = lobsters.filter((l) => l.damage > 0 && l.evolutionTier >= 1);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['lobsters'] });
