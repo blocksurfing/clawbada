@@ -1,1 +1,39 @@
-<!-- Market: empty design canvas. -->
+<!-- Local marketplace layout only; all listings and values are demo fixtures. -->
+<section class="market" data-market aria-label="Demo marketplace">
+  <div class="market-hero" role="img" aria-label="Reserved space for animated shopkeeper artwork"><span class="market-hero-placeholder" aria-hidden="true">Shopkeeper artwork</span></div>
+  <div class="market-layout market-catalog wooden-panel" data-pixel-panel="woodenPanel">
+    <form class="market-filters wooden-panel" data-pixel-panel="woodenPanel" aria-labelledby="market-filter-title">
+      <h2 id="market-filter-title">Filters</h2>
+      <label>Type<select name="type" aria-label="Type"><option value="">All</option><option>Lobsters</option><option>Eggs</option></select></label>
+      <label>Sort<select name="sort" aria-label="Sort"><option value="">Demo order</option><option value="price-asc">Price: low to high</option><option value="price-desc">Price: high to low</option><option value="purity-desc">Purity: high to low</option></select></label>
+      <fieldset class="market-class-filter"><legend>Class</legend>
+        <label class="market-class-choice"><input type="radio" name="klass" value="" checked><span>All classes</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Bulwark"><span data-pixel-sprite="classBadges" data-frame="0" aria-hidden="true"></span><span>Bulwark</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Mantis"><span data-pixel-sprite="classBadges" data-frame="1" aria-hidden="true"></span><span>Mantis</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Leviathan"><span data-pixel-sprite="classBadges" data-frame="2" aria-hidden="true"></span><span>Leviathan</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Tempest"><span data-pixel-sprite="classBadges" data-frame="3" aria-hidden="true"></span><span>Tempest</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Specter"><span data-pixel-sprite="classBadges" data-frame="4" aria-hidden="true"></span><span>Specter</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Sentinel"><span data-pixel-sprite="classBadges" data-frame="5" aria-hidden="true"></span><span>Sentinel</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Reaver"><span data-pixel-sprite="classBadges" data-frame="6" aria-hidden="true"></span><span>Reaver</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Abyss"><span data-pixel-sprite="classBadges" data-frame="7" aria-hidden="true"></span><span>Abyss</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Kraken"><span data-pixel-sprite="classBadges" data-frame="8" aria-hidden="true"></span><span>Kraken</span></label>
+        <label class="market-class-choice"><input type="radio" name="klass" value="Ember"><span data-pixel-sprite="classBadges" data-frame="9" aria-hidden="true"></span><span>Ember</span></label>
+      </fieldset>
+      <label>Tier<select name="tier" aria-label="Tier"><option value="">All tiers</option><option>Base</option><option>Evolved</option><option>Elite</option><option>Apex</option></select></label>
+      <label>Min purity<select name="purity" aria-label="Min purity"><option value="">Any</option><option value="0">0 ★+</option><option value="1">1 ★+</option><option value="2">2 ★+</option><option value="3">3 ★+</option><option value="4">4 ★+</option><option value="5">5 ★+</option><option value="6">6 ★</option></select></label>
+      <label>Min price (GOLD)<input name="minPrice" type="number" min="0" step="1" placeholder="0"></label>
+      <label>Max price (GOLD)<input name="maxPrice" type="number" min="0" step="1" placeholder="No limit"></label>
+      <label>Rarity (demo)<select name="rarity" aria-label="Rarity (demo)"><option value="">All rarities</option><option>Common</option><option>Rare</option><option>Epic</option></select></label>
+      <button class="pixel-button" type="reset">Reset filters</button>
+    </form>
+    <div class="market-results" aria-label="Demo listings">
+      <div class="market-grid pixel-grid" data-pixel-grid data-columns="4" data-min-width="270"></div>
+      <p class="market-empty" data-market-empty hidden>No demo listings match. Change or reset the filters.</p>
+      <nav class="market-pagination" aria-label="Demo listing pages">
+        <button class="pixel-button" type="button" data-market-prev>Previous</button>
+        <p data-market-page></p>
+        <button class="pixel-button" type="button" data-market-next>Next</button>
+      </nav>
+    </div>
+  </div>
+</section>

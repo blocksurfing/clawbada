@@ -36,6 +36,14 @@ test('every existing sidebar destination resolves to its own editable page; unkn
       assert.match(html, /<button[^>]*disabled[^>]*>Find Match<\/button>/);
       assert.ok(html.includes('Not connected'));
       assert.ok(!/<img|data-pixel-sprite/.test(html), 'no new Battle artwork');
+    } else if (slug === 'market') {
+      assert.equal(routes.market, 'Market');
+      assert.ok(html.includes('data-market'));
+      assert.ok(html.includes('data-pixel-panel="woodenPanel"'));
+      assert.ok(html.includes('data-columns="4"'));
+      assert.ok(!html.includes('List Lobster'));
+      assert.equal((html.match(/data-pixel-sprite="classBadges"/g) || []).length, 10);
+      assert.ok(!/<select[^>]*name="klass"/.test(html), 'class choices are directly visible');
     } else {
       assert.equal(html.replace(/<!--[\s\S]*?-->/g, '').trim(), '', 'other pages remain empty');
     }

@@ -1,0 +1,55 @@
+/* Typography-only role mapping. Loaded after component styles.
+   Room composition, artwork, component geometry and animation stay untouched. */
+#page-content .page-title { font-size:var(--type-heading-xl); line-height:var(--type-display-leading); }
+#page-content .page-subtitle { font-size:var(--type-body-lg); }
+#page-content :is(h2,h3,h4,h5,h6), .battle-modal :is(h1,h2), #profile-editor h2 {
+  font-family:var(--type-display); font-weight:400;
+  line-height:var(--type-display-leading); letter-spacing:var(--type-display-tracking);
+  overflow-wrap:anywhere;
+}
+#page-content h2, #page-content .mining-card h3,
+.battle-modal-header h1, #profile-editor h2 { font-size:var(--type-heading-lg); }
+#page-content :is(h4,h5,h6), .battle-modal h2 { font-size:var(--type-heading-sm); }
+#page-content .picker-heading h2 { font-size:var(--type-heading-lg); min-width:0; }
+#page-content .picker-heading .picker-close { flex-shrink:0; }
+
+/* Explicit body rules also cover text nested inside Upheaval controls. */
+#page-content :is(p,dl,.slot-number,.slot-hint,.mine-art-placeholder),
+.battle-modal :is(p,label,select), #profile-editor :is(p,label,input) {
+  font-family:var(--type-body); font-weight:400;
+  line-height:var(--type-body-leading); letter-spacing:var(--type-body-tracking);
+  font-synthesis:none;
+}
+#page-content :is(.shell-records p,.lobby-status), .battle-modal p { font-size:var(--type-body-md); }
+#page-content :is(.lobster-picker p,.slot-hint,.slot-number,.mine-art-placeholder),
+#profile-editor p { font-size:var(--type-body-sm); }
+#page-content .shell-records .shell-records-label,
+#page-content .mine-reward-caption, .battle-modal .battle-help { font-size:var(--type-caption); }
+#page-content[data-page="mining"] .mine-reward,
+#page-content .mine-details { font:400 var(--type-stat)/var(--type-body-leading) var(--type-body); letter-spacing:var(--type-body-tracking); }
+#page-content .mine-details dt { font-size:var(--type-label); letter-spacing:var(--type-body-tracking); }
+#page-content .mine-details dd { font-size:var(--type-stat); letter-spacing:var(--type-body-tracking); }
+.battle-modal .arena-choice label, #profile-editor label {
+  font:400 var(--type-label)/var(--type-body-leading) var(--type-body);
+  letter-spacing:var(--type-body-tracking);
+}
+.battle-modal select, #profile-editor input { font-size:var(--type-input); }
+
+/* Standard action typography, including navigation and bounded HUD labels. */
+.menu-item, .connect-wallet, .profile-menu button,
+#page-content .pixel-button, #page-content :is(.picker-options button,.picker-close,.picker-clear),
+.battle-modal :is(button,.pixel-button), #profile-editor button {
+  font:400 var(--type-button)/var(--type-display-leading) var(--type-display);
+  letter-spacing:var(--type-action-tracking); font-synthesis:none;
+}
+.profile-action-label { letter-spacing:inherit; }
+#page-content[data-page="dashboard"] .lobby-slot > .slot-name,
+#page-content .shell-team-label {
+  font:400 var(--type-heading-sm)/var(--type-display-leading) var(--type-display);
+  letter-spacing:var(--type-display-tracking);
+}
+
+/* Keep mobile stage names at their original responsive minimum. */
+@media(max-width:699px) {
+  #page-content[data-page="dashboard"] .lobby-slot > .slot-name { font-size:20px; }
+}
