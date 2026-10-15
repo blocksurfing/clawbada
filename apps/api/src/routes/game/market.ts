@@ -85,16 +85,26 @@ marketRoutes.get(
     const listing = await readListing(BigInt(listingId));
     const lobster = await readLobster(listing.lobsterId);
 
+    // The whole lobster, so a listing's detail view can show real stats and genes to a buyer
+    // who does not own it (the owner-only lobsters route is the only other source).
     return c.json(serializeBigInts({
       ...listing,
       lobster: {
         tokenId: lobster.tokenId,
+        owner: lobster.owner,
+        dna: lobster.dna.toString(),
         class: lobster.decoded.class,
         legend: lobster.decoded.legend,
+        breedType: lobster.decoded.breedType,
         purity: lobster.purity,
         evolutionTier: lobster.evolutionTier,
         damage: lobster.damage,
+        breedCount: lobster.breedCount,
+        generation: lobster.generation,
+        soulbound: lobster.soulbound,
+        locked: lobster.locked,
         stats: lobster.stats,
+        bodyParts: lobster.decoded.bodyParts,
       },
     }));
   }),

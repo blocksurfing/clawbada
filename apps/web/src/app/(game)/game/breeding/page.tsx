@@ -31,6 +31,18 @@ export default function BreedingPage() {
     queryFn: () => api.breeding.preview(parentA!, parentB!),
     enabled: !!parentA && !!parentB,
   });
+  // A parent inside its 48 h cooldown makes requestBreed revert (COOLDOWN_ACTIVE) — say so before the click.
+  const { data: cooldownA } = useQuery({
+    queryKey: ['breedCooldown', parentA],
+    queryFn: () => api.breeding.cooldown(parentA!),
+    enabled: !!parentA,
+  });
+  const { data: cooldownB } = useQuery({
+    queryKey: ['breedCooldown', parentB],
+    queryFn: () => api.breeding.cooldown(parentB!),
+    enabled: !!parentB,
+  });
+  const cooling = [cooldownA, cooldownB].filter((c): c is NonNullable<typeof c> => !!c && !c.isReady);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['lobsters'] });
@@ -51,7 +63,8 @@ export default function BreedingPage() {
   }
 
   const lobsters = lobstersData?.lobsters ?? [];
-  const breedable = lobsters.filter((l) => l.breedCount < 5);
+  // The contract refuses a locked parent (on a team, mining or in a battle) and one out of breeds.
+  const breedable = lobsters.filter((l) => l.breedCount < 5 && !l.locked);
 
   const selectParent = (tokenId: string) => {
     if (parentA === tokenId) { setParentA(null); return; }
@@ -154,8 +167,14 @@ export default function BreedingPage() {
               </div>
             </div>
 
+            {cooling.length > 0 && (
+              <p className="text-sm text-coral">
+                {cooling.map((c) => `#${c.lobsterId} is on cooldown — ready in ${Math.max(1, Math.ceil(c.remainingSeconds / 3600))} h`).join(' · ')}
+              </p>
+            )}
             <TransactionButton
               label={`Breed — ${formatGold(preview.totalCost)}`}
+              disabled={cooling.length > 0}
               fetchSteps={(auth) => api.breeding.breed(parentA!, parentB!, auth)}
               onSuccess={invalidate}
             />
