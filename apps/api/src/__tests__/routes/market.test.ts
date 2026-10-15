@@ -197,7 +197,9 @@ describe('market routes', () => {
 
   describe('POST /market/listings/:listingId/buy', () => {
     test('returns approve+buy calldata for active listing', async () => {
-      mockReadListing.mockResolvedValue(mockListing());
+      const listing = mockListing();
+      mockReadListing.mockResolvedValue(listing);
+      mockEncodeFunctionData.mockClear();
 
       const res = await app.request('/market/listings/1/buy', {
         method: 'POST',
@@ -206,6 +208,18 @@ describe('market routes', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.steps).toHaveLength(2);
+
+      // The buy is bound to the quoted price: `buyLobster(listingId, maxPrice)` (M-04). A
+      // one-argument encode used to throw an ABI length mismatch in the real encoder.
+      const buyCall = mockEncodeFunctionData.mock.calls
+        .map((c: any[]) => c[0])
+        .find((c: any) => c.functionName === 'buyLobster');
+      expect(buyCall).toBeDefined();
+      expect(buyCall.args).toEqual([1n, listing.price]);
+      const approveCall = mockEncodeFunctionData.mock.calls
+        .map((c: any[]) => c[0])
+        .find((c: any) => c.functionName === 'approve');
+      expect(approveCall.args).toEqual(['0xMKT', listing.price]);
     });
 
     test('returns 404 when listing inactive', async () => {

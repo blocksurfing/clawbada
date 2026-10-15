@@ -170,11 +170,14 @@ marketRoutes.post(
       [addresses.marketplace, listing.price],
     );
 
+    // `buyLobster(listingId, maxPrice)` — M-04: the purchase is bound to the price the buyer was
+    // quoted here, so a seller's `updatePrice` landing first makes the buy revert instead of
+    // charging more. (Encoding with one argument used to throw an ABI length mismatch.)
     const buyCalldata = buildCalldata(
       addresses.marketplace,
       MarketplaceAbi as any,
       'buyLobster',
-      [BigInt(listingId)],
+      [BigInt(listingId), listing.price],
     );
 
     return c.json({
