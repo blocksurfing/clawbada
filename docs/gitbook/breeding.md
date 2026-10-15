@@ -9,6 +9,7 @@ Breeding produces new lobsters from two parents. It's the primary way to create 
 - Each lobster can breed up to **5 times** (lifetime cap)
 - **48-hour cooldown** per parent after each breed
 - Parents are **not consumed** (unlike evolution fuel)
+- Both parents must be **unlocked** — not on a team, not mining, not in a battle
 - Soulbound parents produce **tradeable** offspring
 
 ## Cost
@@ -30,6 +31,12 @@ Breeding cost is calculated per parent based on that parent's breed count and ge
 **Example**: Two fresh Gen 0 parents, 5 breeds = 17,000 $GOLD total for 5 offspring. Breakeven at 3,400 $GOLD per offspring.
 
 Higher-generation parents cost more due to the 1.5^generation multiplier. Gen 2 parents cost 2.25x more than Gen 0.
+
+## How a Breed Lands
+
+Breeding is two transactions. The first (`requestBreed`) charges the full fee, uses one breed slot on each parent and starts both 48-hour cooldowns at once. The offspring is minted by the second (`finalizeBreed`) a few blocks later, from a block hash that did not exist when you requested — so nobody, including you, can preview the roll. The game's keeper finalises every request within seconds; the call is permissionless, so you can also do it yourself (`POST /api/game/breeding/finalize/:requestId`). Whoever finalises, the offspring is always minted to the wallet that made the request.
+
+A committed breed is final. If a request is somehow left unfinalised for about 8.5 minutes it expires, and neither the fee nor the breed slots come back — there is no re-roll.
 
 ## Offspring Properties
 

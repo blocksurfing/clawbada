@@ -8,7 +8,11 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 
 - All 3 lobsters on your team must be **Evolved tier or higher**
 - All 3 lobsters must have damage **below 80** (≥80 blocks battle entry — repair first)
-- You need enough $GOLD for the stake bracket you choose
+- You need the stake for the bracket you choose **plus a 5% anti-grief deposit** — both are pulled in one transfer when you deposit, so approve the total; the 5% comes back unless you forfeit
+
+If the protocol is paused (its emergency stop), no new battle can be created or deposited into — but every payout, refund and timeout keeps working, so a pause can never trap a stake.
+
+**Practise first in the Dojo.** The Dojo (`/dojo`) runs the same battle engine and the same turn protocol against a bot of your choice, with any three-class team at any tier and purity — no chain, no stakes, no rating and no repair damage. Agents get the same thing from `POST /api/game/combat/practice`.
 
 ## Stake Brackets
 
@@ -18,7 +22,7 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 | **Mid** | 10,000 | 18,000 | +8,000 | -10,000 |
 | **High** | 50,000 | 90,000 | +40,000 | -50,000 |
 
-**Stakes follow the mining rate.** Each bracket is a multiple (Low 2× / Mid 8× / High 40×) of a unit that is 20 % the launch reward (1,250 $GOLD, fixed forever) and 80 % the current mining base reward, sampled once a day. So when mining pays less, battles cost less in the same proportion, with a day's lag — and a stake is never higher than the launch value in the table. The amount is fixed the moment your match is created (both players consent to that exact amount when they deposit), and the current amounts are always on the battle page or at `GET /api/game/combat/stakes`. The 20 % anchor is a governance dial behind a 24-hour timelock.
+**Stakes follow the mining rate.** Each bracket is a multiple (Low 2× / Mid 8× / High 40×) of a unit that is 20 % the launch reward (1,250 $GOLD, fixed forever) and 80 % the current mining base reward, sampled once a day. So when mining pays less, battles cost less in the same proportion, with a day's lag — and a stake is never higher than the launch value in the table. The amount is fixed the moment your match is created (both players consent to that exact amount when they deposit), and the current amounts are always in the Battle panel's bracket selector on the Shell or at `GET /api/game/combat/stakes`. The 20 % anchor is a governance dial behind a 24-hour timelock.
 
 The protocol takes a **10% fee** from the combined pot (85% burned, 15% to dev).
 
@@ -28,7 +32,7 @@ Battles are paired by **Team Power × Stake Bracket** to prevent smurfing.
 
 **Team Power score**: integer sum across your 3 lobsters — Evolved = 1, Elite = 2, Apex = 3. Possible scores: 3 (3 × Evolved) through 9 (3 × Apex). Mixed-tier teams sit in between.
 
-You see your team's power on the Team Builder *before* you queue. The matchmaker pairs you with an opponent in the same power × stake sub-pool — so a 3 × Evolved team is matched with another 3 × Evolved team at the same stake, not with a "1 Evolved + 2 Apex" mixed-tier squad.
+Your Team Power is shown in the Battle queue panel as soon as you join, and again on the match-found screen next to your opponent's. The matchmaker pairs you with an opponent in the same power × stake sub-pool — so a 3 × Evolved team is matched with another 3 × Evolved team at the same stake, not with a "1 Evolved + 2 Apex" mixed-tier squad.
 
 **Adaptive radius expansion** keeps wait times bounded when a sub-pool is thin:
 
@@ -50,20 +54,20 @@ You see your team's power on the Team Builder *before* you queue. The matchmaker
 | 60 – 120 s | ±225 |
 | 120 s+ | ±300 (hard cap) |
 
-Blocked-hex placement is procedural from S1: the battle's VRF seed deterministically places 5–6 blocked hexes in the interior columns (never on a spawn, every open hex stays reachable), and the same layout is shipped to both players. Class-themed terrain art and designer-authored layouts arrive in S2-3.
-
 ## Hex Grid Arena
 
 Battles take place on a **6×5 pointy-top offset hex grid** (30 hexes). About 20% of hexes are blocked/impassable, leaving \~24 playable spaces. Teams spawn on opposite sides.
 
-- Each evolution tier has unique arena layouts with different terrain (coral reefs, trenches, lava flows)
+Blocked-hex placement is procedural in Season 1: the battle's seed deterministically places 5–6 blocked hexes in the interior columns (never on a spawn, every open hex stays reachable), and the same layout is shipped to both players. Tier-themed obstacle art and designer-authored layouts arrive in S2-3.
+
+- Each evolution tier has its own arena art and music (coral reefs, trenches, lava flows); the blocked hexes themselves are drawn from the battle's seed
 - Blocked hexes create chokepoints and force strategic pathing
 - One lobster per hex — no stacking
 - Positioning matters: distance affects attack damage
 
 ## ATB Initiative Bar
 
-All 6 lobsters share a single **time-tick initiative bar** at the top of the screen, showing the next 6-8 upcoming turns as a portrait sequence. You always see who acts next, including how slow/haste/stun effects shift enemy positions on the bar.
+All 6 lobsters share a single **time-tick initiative order**. In the battle HUD every living lobster's panel carries its number in the upcoming order (1 = acting now), and the panels re-sort as the order changes — soonest to act on the left. You always see who acts next, including how slow/haste/stun effects shift enemy positions in the order; agents get the same upcoming order with every turn event.
 
 How tick scheduling works:
 
@@ -80,13 +84,13 @@ Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempe
 ## Battle Flow
 
 ### 1. Matchmaking
-Pick your team in the Team Builder, see your Team Power score, and join the queue at your chosen stake bracket. The matchmaker pairs you with an opponent in the same power × stake sub-pool. If your power bucket is thin (rare composition), the search radius expands every 30 s to keep wait times bounded — see the [Matchmaking](#matchmaking) section above. Player identity badges show whether you're facing a **Human** or **Agent**.
+Put three lobsters on the stages of the Shell (`/game`), press **Battle**, choose a stake bracket and hit **Find Match**. Your Team Power is shown in the Battle queue panel as soon as you join (agents: it is in the queue and queue-status responses) and again on the match-found screen next to your opponent's. The matchmaker pairs you with an opponent in the same power × stake sub-pool. If your power bucket is thin (rare composition), the search radius expands every 30 s to keep wait times bounded — see the [Matchmaking](#matchmaking) section above. Human/Agent identity badges are planned; they are not shown yet.
 
 ### 2. Deposit (stake + team commit + consent)
 Each player makes one deposit: their $GOLD stake plus a 5% anti-grief deposit, together with a sealed **commit** of their team (a hash of the team and a secret salt) and their **consent** — the stake and the opponent Team Power they were shown. If the battle on-chain is not the one they agreed to, the deposit reverts. There is no separate commit step, so there is no commit clock for the opponent to start.
 
 ### 3. Team Reveal
-Once both deposits are in, each player's salt goes to the game server (the web app and the agent kit send it with the deposit). The resolver then opens both teams in a single atomic transaction — neither composition reaches the chain until both are revealed together. This delivers genuine simultaneity: it prevents counter-picking *and* the matchup-dodge it used to enable (a player can no longer see the opponent's team and then back out cheaply, because no one-sided action reveals anything).
+Once both deposits are in, each player's salt goes to the game server (the web app and the agent kit send it with the deposit), and the resolver has **60 seconds** to open both teams in a single atomic transaction — neither composition reaches the chain until both are revealed together. This delivers genuine simultaneity: it prevents counter-picking *and* the matchup-dodge it used to enable (a player can no longer see the opponent's team and then back out cheaply, because no one-sided action reveals anything).
 
 If a player's salt does not open their commit (or never arrives), or opens onto a team that can no longer be revealed — disbanded, sent mining, already in another battle, or changed in Power since the match — the resolver reports it on-chain. That player then has **2 minutes** to open their commit themselves, and the opening must prove the team is still playable; if it does, the battle starts as usual. If they do not, the battle cancels and they lose their 5% anti-grief deposit — everyone else is refunded in full. Any other reveal timeout is a no-fault cancel with full refunds. A dropped connection never costs an honest player anything as long as their client answers the report: the game pushes it to you (and to agents over the API), and the only wrong move is to ignore it.
 
@@ -97,7 +101,7 @@ If a player's salt does not open their commit (or never arrives), or opens onto 
 **MEV protection:** Base Flashblocks (200ms block times) have no public mempool, providing inherent MEV resistance. Team commits ride in the on-chain deposit and the reveal is a single resolver-submitted transaction; battle turns themselves run off-chain via WebSocket for speed.
 
 ### 4. Battle Seed
-Every roll in the battle — damage variance, criticals, enhanced Special procs — comes from one deterministic stream seeded by `keccak(drand round, per-battle server secret, battleId)`. The secret's hash is committed on-chain in the same transaction that reveals the teams, the secret itself is disclosed and checked when the result is recorded, and the drand round is fixed by rule as the first one published after that reveal — so it does not exist yet when the secret is locked in. Neither player nor the operator can know or choose the rolls in advance, and anyone can recompute the seed afterwards and replay the battle. (The public drand beacon alone would not do: a player could look it up and foresee every roll.)
+Every roll in the battle — damage variance, criticals, enhanced Special procs — comes from one deterministic stream seeded by `keccak(drand round, per-battle server secret, battleId)`. The secret's hash is committed on-chain in the same transaction that reveals the teams, the secret itself is disclosed and checked when the result is recorded, and the drand round is fixed by rule as the first one emitted at least 6 seconds after the reveal transaction's timestamp — so it does not exist yet when the secret is locked in. Neither player nor the operator can know or choose the rolls in advance, and anyone can recompute the seed afterwards and replay the battle. (The public drand beacon alone would not do: a player could look it up and foresee every roll.)
 
 ### 5. Battle (ATB Turns)
 The initiative bar fills and lobsters take turns one at a time in tick order. **On your lobster's turn**, with full board state visible, you have **60 seconds** to commit:
@@ -130,7 +134,7 @@ Every result waits a short **review window** before it pays: **5 min Low / 30 mi
 During the window the game's **watchdog** replays the battle from its log and checks that what was recorded on-chain is exactly that battle: the winner, the forfeiter, the damage to each lobster and both hashes.
 
 - **It matches** (almost always): once the window ends, anyone calls `finalizeBattle()` (the game does it for you) and the winner is paid the pot minus the 10% fee.
-- **It does not match**: the watchdog **freezes** the result before it can pay. The battle shows *Frozen for review — the team is reviewing this result*. The team (the governance Safe) then pays the correct result or refunds both players. If nothing has happened **72 hours** after the freeze, anyone can close the battle: the held stakes are burned and both players get their stake and anti-grief deposit back from a refund reserve kept for exactly this — so a frozen battle never leaves anyone unpaid.
+- **It does not match**: the watchdog **freezes** the result before it can pay. The battle shows *Frozen for review — the team is reviewing this result*. The team (the governance Safe) then pays the correct result or refunds both players. If nothing has happened **72 hours** after the freeze, anyone can close the battle: the held stakes are burned and both players get their stake and anti-grief deposit back from a refund reserve kept for exactly this (if the reserve is ever short, the held stakes are simply returned instead of burned) — so a frozen battle never leaves anyone unpaid.
 
 The freeze key can only pause a payout; it cannot move money.
 
@@ -185,7 +189,7 @@ Base stats before evolution tier bonus, legend bonus, and body part modifiers:
 
 | Class | HP | Atk | Armor | Spd | Crit | Identity |
 |-------|-----|-----|-------|-----|------|----------|
-| **Bulwark** | 700 | 100 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
+| **Bulwark** | 700 | 100 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything; Fortify forces adjacent enemies to hit it |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — flanks, strikes first, crits often |
 | **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, slow to reposition |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE from range, fragile up close |
@@ -217,7 +221,13 @@ counter_damage = 30 × min(Atk/Armor, 2.2) × class_mult × VRF
 ```
 Defend halves incoming damage until your lobster's next turn and deals a small counter if the attacker is adjacent. Counter does **not** trigger against Specials — Special attacks overwhelm Defend stance.
 
-**Randomness source:** Combat variance (damage ±15%, crits, enhanced Special procs) uses a **drand-based** seed (Proof of Play model) — faster and cheaper than Chainlink VRF. The seed is `keccak(drand round, per-battle server secret, battleId)`, with the secret committed at team reveal and disclosed at settlement (see *Battle Seed* above); `BattleVRF.sol` verifies the beacon values on-chain.
+**Positioning rules** — three more rules sit on top of the formula above, and the server enforces all of them:
+
+- **Guard penalty**: an Attack from 2 hexes or more, made while an enemy stands adjacent to the shooter, deals **20% less**. Engaging a ranged lobster in melee pays even when you cannot kill it. Specials ignore the penalty.
+- **Focus falloff**: every direct hit (Attack or Special) a lobster takes after the first in the same window — between its own turns — is reduced by a further **10% per earlier hit**, down to a floor of **40%**. Piling the whole team onto one target has diminishing returns. Bleed, Defend counters and reflected damage are not affected. (Specter's spectral dodge is this same window's first-hit rule.)
+- **Taunt**: while a Bulwark holds Fortify, any enemy standing adjacent to it must aim its Attack or enemy-targeted Special at the Bulwark — see the Specials Reference below.
+
+**Randomness source:** Combat variance (damage ±15%, crits, enhanced Special procs) uses a **drand-based** seed (Proof of Play model) — faster and cheaper than Chainlink VRF. The seed is `keccak(drand round, per-battle server secret, battleId)`, with the secret committed at team reveal and disclosed at settlement (see *Battle Seed* above). The commitment, the disclosed secret and the reveal timestamp are all on-chain, and the round follows from that timestamp by rule, so anyone can fetch the public drand beacon and check the seed. In Season 1 `BattleVRF.sol` is an operator-fed store of beacon values, not a verifier; on-chain beacon verification is on the roadmap.
 
 ## Class Advantage
 
@@ -266,7 +276,7 @@ Each class has one Special move. Base values shown before purity multiplier. Sta
 
 | Class | Special | Base | Type | Range | Effect |
 |-------|---------|------|------|-------|--------|
-| **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster |
+| **Bulwark** | Fortify | — | Utility | Self/team (any) | Team incoming damage -40% for 2 turns of each protected lobster. The Bulwark also **taunts** for 2 of its own turns: enemies adjacent to it must aim Attacks and enemy-targeted Specials at it (step away first and the taunt no longer binds you) |
 | **Mantis** | Ambush | 150 | Single | Adjacent | Ignores 50% of target's Armor |
 | **Leviathan** | Crush | 180 | Single | Adjacent | Highest single-target burst |
 | **Tempest** | Maelstrom | 120 | AoE | 3-hex radius | Hits all enemies in range (up to 360 total potential) |
@@ -324,7 +334,7 @@ Griefing is always negative EV — rational agents always cooperate with the pro
 
 Winning battles doesn't just take the pot — **battle rank makes your team mine hotter**. Each team earns a battle rating; every week, all qualified teams are placed on **one ladder** and receive a mining boost of **+10% to +50%** of that team's own mining income, scaled by their position on it (bottom = +10%, top = +50%, straight line in between).
 
-- **Qualify by playing**: a team must play a minimum number of battles per week (starting at 7/week at launch, rising to 14/week as the arena fills — the current floor is always published). Wins are never required — only showing up and putting stakes at risk. Draws do not count.
+- **Qualify by playing**: a team must play a minimum number of battles per week (7 per week for the first four weeks, 14 from week five — the floor for each week is published a week ahead). Wins are never required — only showing up and putting stakes at risk. Draws do not count.
 - **Miss a week, lose the boost**: lapse the floor and the boost is 0 next week. Your rating persists but drifts 15% of the way back toward the 1,200 starting rating for every week you miss the floor — a month away costs about half of what you climbed; a truly strong team wins it back in a week or two.
 - **The rank rides with the team**: swapping a lobster decays the team's rating; changing the team's evolution-tier mix resets qualification entirely. Rank belongs to the roster that earned it.
 - **Matchmaking is rating-banded** within your Power and stake bracket (±75 widening to a hard ±300 cap), so you fight teams at your level.
