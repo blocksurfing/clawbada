@@ -23,7 +23,7 @@ Evolution transforms lobsters into more powerful versions, unlocking higher mini
 - The $GOLD cost is burned (85% burn / 15% dev split)
 - Evolution applies to a **single lobster** — the 2 fuel are sacrificed
 - Fuel lobsters must be the **same tier** as the evolving lobster's current tier
-- Fuel lobsters must not be locked (not on a team, mining, or in battle)
+- Neither the lobster you evolve nor the two fuel lobsters may be locked (on a team, mining, or in battle) — disband the team first, evolve, then create the team again
 
 ## NFT Sink Math
 
@@ -42,18 +42,18 @@ A full Apex team of 3 burns 78 Base-tier lobsters across the upgrade chains. Thi
 
 ## Total $GOLD Cost
 
-| Target | $GOLD for Evolution Alone |
-|--------|--------------------------|
-| 1 Evolved | 2,000 |
-| 1 Elite | 2,000 + 10,000 = 12,000 |
-| 1 Apex | 2,000 + 10,000 + 50,000 = 62,000 |
-| Apex team of 3 | 186,000 |
+| Target | $GOLD for Evolution Alone (fuel bought already evolved) | All-in if you make the fuel yourself |
+|--------|--------------------------|--------------------------|
+| 1 Evolved | 2,000 | 2,000 |
+| 1 Elite | 2,000 + 10,000 = 12,000 | 3 × 2,000 + 10,000 = 16,000 |
+| 1 Apex | 2,000 + 10,000 + 50,000 = 62,000 | 9 × 2,000 + 3 × 10,000 + 50,000 = 98,000 |
+| Apex team of 3 | 186,000 | 294,000 |
 
-Plus the cost of breeding or buying the fuel lobsters.
+The first column counts only the target lobster's own evolutions and assumes you buy fuel that is already at the right tier. Fuel must match the target's current tier, so if you raise the fuel from Base lobsters yourself, their evolutions are part of the bill — that is the second column. Either way, add the cost of breeding or buying the Base lobsters that go in.
 
 ## Strategy
 
 - Start by evolving your best 3 lobsters to Evolved to unlock 3x mining rewards and battle mode
-- Use faucet lobsters as fuel — they're soulbound but can still be burned
+- Faucet lobsters can be evolved *and* used as fuel — soulbound only blocks transfer, never evolution or burning
 - The marketplace is your fuel source once faucet lobsters run out
 - Evolution pressure applies equally to mining and battle teams

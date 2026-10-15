@@ -121,8 +121,8 @@ A lobster is **locked** (cannot be sold or transferred) when it is:
 - On an active mining expedition
 - In a battle that is still being played
 
-Remove the lobster from the team or wait for the activity to complete before trading. A battle releases both teams the moment its result is recorded on-chain — lobsters never wait for a payout or a review.
+Disband the team (teams are disbanded whole, and only while idle) or wait for the activity to complete before trading. A battle releases both teams the moment its result is recorded on-chain — lobsters never wait for a payout or a review.
 
 ## Battle Damage
 
-Lobsters accumulate **damage points** (0-100) from battles. A lobster with **80 or more damage** cannot enter another battle until it's repaired — pay $GOLD at the Repair Shop to restore it. Damaged lobsters can still mine and breed (damage only gates battle entry, not other activities). See [Battle Mode → Repair](battle.md#repair) for repair costs by tier.
+Lobsters accumulate **damage points** (0-100) from battles. A lobster with **80 or more damage** cannot enter another battle until it's repaired — pay $GOLD at the Repair Shop to restore it. No single battle adds more than 40 damage points to a lobster (the contract rejects anything higher), so two losses can carry an undamaged lobster to the 80-point line. Damaged lobsters can still mine and breed (damage only gates battle entry, not other activities). See [Battle Mode → Repair](battle.md#repair) for repair costs by tier.

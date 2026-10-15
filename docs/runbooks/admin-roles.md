@@ -216,7 +216,7 @@ S1 trust assumption: operator submits drand beacons honestly; on-chain BLS verif
 
 **The signer (M10, 2026-10-06):** `bun run faucet-allowlist --file wallets.txt [--send]` (`packages/chain/scripts/faucet-allowlist.ts`) — checks each wallet against the published rules (0.001 ETH, 3 transactions, 7 days on Base via Basescan; `--skip-age` on testnets) and grants the ones that pass in batches of 500, signed by `ELIGIBILITY_PRIVATE_KEY`. That key is loaded by this script only; no running service holds it. Self-serve eligibility (the agent kit requesting it) is the Phase 3 follow-up.
 
-Lifetime: 6 days 23 hours after launch (per `closeTime`), then permanently mute (no on-chain eligibility checks possible after closure). During the active window the holder marks wallets eligible via off-chain verification (wallet age ≥ 7 days, ≥ 3 prior tx history before the 7-day mark, ≥ 0.001 ETH balance).
+Lifetime: 7 days after launch (`closeTime = now + FAUCET_DURATION`, set by the Open step in the same Safe batch that starts Season 1), then permanently mute (no on-chain eligibility checks possible after closure). During the active window the holder marks wallets eligible via off-chain verification (wallet age ≥ 7 days, ≥ 3 prior tx history before the 7-day mark, ≥ 0.001 ETH balance).
 
 ### Compromise blast radius
 A compromised key can mark arbitrary wallets eligible. Each eligible wallet can claim 5 soulbound lobsters + 7,000 GOLD. Worst case, both hard-bounded on-chain: the 70M GOLD pre-mint drained, and `MAX_FAUCET_LOBSTERS` = 50,000 lobsters minted (10,000 wallets × 5 — the population the drip is sized for).
