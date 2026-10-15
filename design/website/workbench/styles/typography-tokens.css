@@ -1,0 +1,24 @@
+/* Approved typography: shared by the web UI and typography reference page. */
+@font-face { font-family:'Big Shot'; src:url('../../brand/fonts/big-shot/big-shot.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Upheaval'; src:url('../../brand/fonts/upheaval/upheavtt.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+:root {
+  --type-display:'Upheaval',sans-serif;
+  --type-body:'Big Shot',sans-serif;
+  --type-heading-xl:60px;
+  --type-heading-lg:40px;
+  --type-heading-sm:28px;
+  --type-body-lg:18px;
+  --type-body-md:16px;
+  --type-body-sm:14px;
+  --type-caption:12px;
+  --type-label:14px;
+  --type-stat:16px;
+  --type-input:16px;
+  --type-button:24px;
+  --type-body-leading:2.05;
+  --type-body-tracking:-0.03em;
+  --type-display-leading:1.2;
+  --type-display-tracking:max(0px, calc(0.0833333333em - 2px));
+  --type-action-tracking:normal;
+  --body-leading:var(--type-body-leading);
+}

@@ -35,7 +35,7 @@
   color:#fff4d6;
 }
 [data-page="dashboard"] .shell-records h2 { margin:0 0 18px; font:400 30px/1.2 'Upheaval',sans-serif; }
-[data-page="dashboard"] .shell-records p { margin:12px 0 0; font-size:21px; line-height:1.3; }
+[data-page="dashboard"] .shell-records p { margin:12px 0 0; font-size:21px; line-height: var(--body-leading); }
 [data-page="dashboard"] .shell-records-label { color:#ffe4a0; }
 @media(max-width:699px) {
   [data-page="dashboard"] .shell-tabs { right:12px; width:96px; }
@@ -180,7 +180,7 @@
   font-synthesis:none;
   letter-spacing:normal;
 }
-[data-page="dashboard"] .slot-number { font:18px/1.25 'Rainy Hearts',sans-serif; color:#aaa7b7; }
+[data-page="dashboard"] .slot-number { font:18px/var(--body-leading) 'Big Shot',sans-serif; color:#aaa7b7; }
 [data-page="dashboard"] .slot-art {
   position:relative;
   display:grid;
@@ -282,8 +282,8 @@
   background-repeat:no-repeat;
   image-rendering:pixelated;
 }
-[data-page="dashboard"] .slot-hint { font:18px/1.25 'Rainy Hearts',sans-serif; }
-[data-page="dashboard"] .lobby-slot[data-selected="true"] .slot-art { font:18px/1.25 'Rainy Hearts',sans-serif; }
+[data-page="dashboard"] .slot-hint { font:18px/var(--body-leading) 'Big Shot',sans-serif; }
+[data-page="dashboard"] .lobby-slot[data-selected="true"] .slot-art { font:18px/var(--body-leading) 'Big Shot',sans-serif; }
 
 [data-page="dashboard"] .shell-hud {
   position:absolute;
@@ -297,7 +297,7 @@
   pointer-events:none;
 }
 [data-page="dashboard"] .shell-team-label { font:400 24px/1.25 'Upheaval',sans-serif; letter-spacing:normal; }
-[data-page="dashboard"] .lobby-status { margin:6px 0 0; font-size:21px; line-height:1.25; }
+[data-page="dashboard"] .lobby-status { margin:6px 0 0; font-size:21px; line-height: var(--body-leading); }
 #page-content[data-page="dashboard"] .shell-battle {
   margin-left:auto;
   width:calc(80 * var(--pixel));
