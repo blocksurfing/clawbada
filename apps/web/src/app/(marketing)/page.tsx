@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { TransactionButton } from '@/components/game/transaction-button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { LandingNav } from '@/components/landing-nav';
-import { ActivityTicker } from '@/components/game/activity-ticker';
 import { Check, X, Terminal } from 'lucide-react';
 
 export default function Home() {
@@ -253,7 +252,7 @@ export default function Home() {
               <h3 className="font-pixel text-base sm:text-2xl text-claw-gold font-bold">Season 1</h3>
               <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center">
                 <div>
-                  <p className="font-pixel text-2xl sm:text-4xl text-white font-bold">387.5M</p>
+                  <p className="font-pixel text-2xl sm:text-4xl text-white font-bold">352.5M</p>
                   <p className="text-xs sm:text-base text-white/70 font-medium mt-1 sm:mt-2">$GOLD Emissions</p>
                 </div>
                 <div>
@@ -531,7 +530,7 @@ const GAME_MODES = [
     href: '/game',
     image: '/marketing/how-to-play/battle.png',
     title: 'Battle',
-    description: 'Commit-reveal PvP combat. Wager $GOLD, pick moves each round, winner takes the pot.',
+    description: 'Hex-grid tactical PvP. Stake $GOLD, take turns on the initiative bar, winner takes the pot minus the 10% fee.',
     reward: 'Zero-sum — skill pays',
   },
   {

@@ -44,10 +44,6 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        {/* Figma capture script — remove after design handoff */}
-        <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async />
-      </head>
       <body className={`${blackHanSans.variable} ${titillium.variable} ${upheaval.variable} ${rainyHearts.variable}`}>
         <Web3Provider>
           <CursorPressTracker />

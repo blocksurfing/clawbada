@@ -84,7 +84,7 @@ export default function FaucetPage() {
             <FrostedPanel className="text-center space-y-3">
               <p className="font-pixel text-sm text-foreground">Not Eligible</p>
               <p className="text-sm text-text-secondary">
-                {faucetStatus.reason ?? 'Your wallet must hold \u2265 0.001 ETH, be \u2265 7 days old on Base, and have \u2265 3 prior transactions.'}
+                Your wallet must hold \u2265 0.001 ETH, be \u2265 7 days old on Base, and have \u2265 3 prior transactions. The game marks qualifying wallets eligible; there is nothing to apply for.
               </p>
             </FrostedPanel>
           ) : (
