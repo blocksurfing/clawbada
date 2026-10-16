@@ -8,12 +8,72 @@ import {
   LobsterClass,
   CLASS_NAMES,
 } from '@clawbada/game-logic';
+import { eq } from 'drizzle-orm';
+import { db, breeds, lobsters } from '@clawbada/db';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
 import { readLobster, readCooldownEnd, readBreedCost, serializeBigInts } from '../../lib/chain';
 import { buildCalldata, multiStep } from '../../lib/calldata';
 
 export const breedingRoutes = new Hono();
+
+/** A lobster's family tree from the indexer's breed records: the lobster, its parents, their parents.
+ *  A faucet-born lobster has no breed record and so no parents. Depth 2 = grandparents. */
+interface LineageNode {
+  tokenId: bigint;
+  class: number;
+  evolutionTier: number;
+  purity: number;
+  legend: number;
+  generation: number;
+  dna: string;
+  parents: LineageNode[];
+}
+
+async function lineageNode(tokenId: bigint, depth: number): Promise<LineageNode | null> {
+  const [row] = await db
+    .select({
+      tokenId: lobsters.tokenId,
+      class: lobsters.class,
+      evolutionTier: lobsters.evolutionTier,
+      purity: lobsters.purity,
+      legend: lobsters.legend,
+      generation: lobsters.generation,
+      dna: lobsters.dna,
+    })
+    .from(lobsters)
+    .where(eq(lobsters.tokenId, tokenId))
+    .limit(1);
+  if (!row) return null;
+  let parents: LineageNode[] = [];
+  if (depth > 0) {
+    const [breed] = await db
+      .select({ parentA: breeds.parentA, parentB: breeds.parentB })
+      .from(breeds)
+      .where(eq(breeds.offspringId, tokenId))
+      .limit(1);
+    if (breed) {
+      // Sequential on purpose: two tiny reads, and a deterministic order (A then B) for callers and tests.
+      for (const parent of [breed.parentA, breed.parentB]) {
+        const node = await lineageNode(parent, depth - 1);
+        if (node) parents.push(node);
+      }
+    }
+  }
+  return { ...row, parents };
+}
+
+// GET /api/game/breeding/lineage/:tokenId — parents and grandparents (public; the market's Lineage tab)
+breedingRoutes.get(
+  '/lineage/:tokenId',
+  catchErrors(async (c) => {
+    const raw = c.req.param('tokenId');
+    if (!/^\d+$/.test(raw)) throw new ApiError('INVALID_INPUT', 'tokenId must be a number');
+    const node = await lineageNode(BigInt(raw), 2);
+    if (!node) throw new ApiError('NOT_FOUND', `Lobster #${raw} is not indexed`);
+    return c.json(serializeBigInts(node));
+  }),
+);
 
 // GET /api/game/breeding/preview — preview breed cost and offspring probabilities
 breedingRoutes.get(

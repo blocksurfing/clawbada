@@ -4,11 +4,9 @@ import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import Image from 'next/image';
-import { api, type MarketFilters, type LobsterData } from '@/lib/api';
+import { api, type ListingData, type LobsterData, type LineageNode } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { LobsterCard } from '@/components/game/lobster-card';
 import { AnimatedLobster } from '@/components/game/animated-lobster';
@@ -17,13 +15,14 @@ import { BodyPartsGrid } from '@/components/game/body-parts-grid';
 import { DNAViewer } from '@/components/game/dna-viewer';
 import { TransactionButton } from '@/components/game/transaction-button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
-import { PageBackground } from '@/components/ui/page-background';
-import { formatGold, formatAddress, tierLabel } from '@/lib/format';
+import { MarketCatalog } from '@/components/market/market-catalog';
+import { formatAddress, tierLabel } from '@/lib/format';
 import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
-import { classImagePath, marketLobsterImage, CLASS_CARD_COLORS } from '@/lib/mock-data';
-import { Store, SlidersHorizontal, X, Sparkles, ExternalLink, ChevronLeft, Clock } from 'lucide-react';
+import { CLASS_CARD_COLORS } from '@/lib/mock-data';
+import { Sparkles, ExternalLink, ChevronLeft, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-/** A listing as the grid draws it: the row from the listings route plus the lobster shape the cards expect. */
+/** A listing as the detail view draws it: the row from the listings route plus the lobster shape the view expects. */
 interface MarketListing {
   listingId: string;
   tokenId: string;
@@ -32,7 +31,6 @@ interface MarketListing {
   listedAt: number;
   lobster: LobsterData;
 }
-import { cn } from '@/lib/utils';
 
 const TIER_COLORS = [
   'bg-slate-500/20 text-slate-300',
@@ -41,22 +39,47 @@ const TIER_COLORS = [
   'bg-claw-gold/20 text-claw-gold',
 ] as const;
 
+/** The grid row carries class, tier, purity, legend, dna, damage, breeds and generation; the detail view
+ *  fetches the rest (stats, genes) from the listing route. */
+function toMarketListing(l: ListingData): MarketListing {
+  return {
+    listingId: l.listingId,
+    tokenId: l.tokenId,
+    seller: l.seller,
+    price: l.price,
+    listedAt: l.listedAt,
+    lobster: {
+      tokenId: l.tokenId,
+      owner: l.seller,
+      dna: l.dna ?? '0',
+      class: l.class ?? 0,
+      className: CLASS_NAMES_LIST[l.class ?? 0] ?? 'Unknown',
+      classRole: '',
+      legend: l.legend ? 1 : 0,
+      breedType: 0,
+      purity: l.purity ?? 0,
+      evolutionTier: l.evolutionTier ?? 0,
+      tierName: tierLabel(l.evolutionTier ?? 0),
+      damage: l.damage ?? 0,
+      breedCount: l.breedCount ?? 0,
+      generation: l.generation ?? 0,
+      soulbound: false,
+      locked: false,
+      stats: { hp: '0', attack: '0', armor: '0', speed: '0', critical: '0' },
+      bodyParts: [],
+    } as LobsterData,
+  };
+}
+
+/**
+ * The Market: Nzib's catalogue (design/website ee1219f) on the real listings, with the detail view and the
+ * List dialog kept from before until he designs them. No page header — his `main.js` lists the market with the
+ * Shell — and his reserved shopkeeper band stays as a placeholder until the artwork exists.
+ */
 export default function MarketplacePage() {
   const { address } = useAccount();
   const queryClient = useQueryClient();
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [expanded, setExpanded] = useState<MarketListing | null>(null);
-  const [page, setPage] = useState(0);
-  const perPage = 18;
-
-  const [filters, setFilters] = useState<MarketFilters>({ sort: 'recent' });
-
-  // The API pages by offset and sorts server-side; it reports the page's own count, not a total.
-  const { data: listingsData, isLoading, isError, refetch } = useQuery({
-    queryKey: ['listings', filters, page],
-    queryFn: () => api.market.listings({ ...filters, limit: perPage, offset: page * perPage }),
-    refetchInterval: 30_000,
-  });
 
   const { data: lobstersData } = useQuery({
     queryKey: ['lobsters', address],
@@ -71,384 +94,19 @@ export default function MarketplacePage() {
 
   const unlockedLobsters = lobstersData?.lobsters.filter((l) => !l.locked && !l.soulbound) ?? [];
 
-  // Real listings only. An empty market shows its empty state — never the mock catalogue the page
-  // used to fall back to (the 2026-10-15 audit found it showing fake lobsters and eggs silently).
-  const apiListings = listingsData?.listings ?? [];
-  const displayListings: MarketListing[] = apiListings.map((l) => ({
-    listingId: l.listingId,
-    tokenId: l.tokenId,
-    seller: l.seller,
-    price: l.price,
-    listedAt: l.listedAt,
-    // The grid row carries class, tier, purity and legend; the detail view fetches the whole lobster.
-    lobster: {
-      tokenId: l.tokenId,
-      owner: l.seller,
-      dna: '0',
-      class: l.class ?? 0,
-      className: CLASS_NAMES_LIST[l.class ?? 0] ?? 'Unknown',
-      classRole: '',
-      legend: l.legend ? 1 : 0,
-      breedType: 0,
-      purity: l.purity ?? 0,
-      evolutionTier: l.evolutionTier ?? 0,
-      tierName: tierLabel(l.evolutionTier ?? 0),
-      damage: 0,
-      breedCount: 0,
-      generation: 0,
-      soulbound: false,
-      locked: false,
-      stats: { hp: '0', attack: '0', armor: '0', speed: '0', critical: '0' },
-      bodyParts: [],
-    } as LobsterData,
-  }));
-  const pagedListings = displayListings;
-  const hasPrev = page > 0;
-  const hasNext = apiListings.length === perPage;
-
-  // Reset page when filters change
-  const filterKey = `${filters.class}-${filters.tier}-${filters.legend}-${filters.minPurity}-${filters.minPrice}-${filters.maxPrice}-${filters.sort}`;
-  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
-  if (filterKey !== prevFilterKey) {
-    setPrevFilterKey(filterKey);
-    if (page !== 0) setPage(0);
-  }
-
-  const activeFilterCount = [
-    filters.class != null,
-    filters.tier != null,
-    filters.legend != null,
-    filters.minPurity != null,
-    filters.minPrice != null || filters.maxPrice != null,
-  ].filter(Boolean).length;
-
-  const filterPanel = (
-    <div className="space-y-5">
-      {/* Sort */}
-      <div className="space-y-2">
-        <label className="font-pixel text-xs text-text-accent uppercase tracking-wider">Sort By</label>
-        <Select
-          value={filters.sort ?? 'recent'}
-          onValueChange={(v) => setFilters((f) => ({ ...f, sort: v as MarketFilters['sort'] }))}
-        >
-          <SelectTrigger className="bg-ocean-mid/50 border-border">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="recent">Most Recent</SelectItem>
-            <SelectItem value="price_asc">Price: Low to High</SelectItem>
-            <SelectItem value="price_desc">Price: High to Low</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Class filter */}
-      <div className="space-y-2">
-        <label className="font-pixel text-xs text-text-accent uppercase tracking-wider">Class</label>
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            onClick={() => setFilters((f) => ({ ...f, class: undefined }))}
-            className={cn(
-              'text-sm px-2.5 py-1.5 rounded-md transition-colors font-medium',
-              filters.class == null
-                ? 'bg-coral/20 text-coral'
-                : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
-            )}
-          >
-            All
-          </button>
-          {CLASS_NAMES_LIST.map((name, i) => (
-            <button
-              key={i}
-              onClick={() => setFilters((f) => ({ ...f, class: f.class === i ? undefined : i }))}
-              className={cn(
-                'text-sm px-2.5 py-1.5 rounded-md transition-colors text-left font-medium flex items-center gap-2',
-                filters.class === i
-                  ? 'bg-coral/20 text-coral'
-                  : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
-              )}
-            >
-              <span
-                className="size-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: CLASS_CARD_COLORS[i] }}
-              />
-              {name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tier filter */}
-      <div className="space-y-2">
-        <label className="font-pixel text-xs text-text-accent uppercase tracking-wider">Tier</label>
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            onClick={() => setFilters((f) => ({ ...f, tier: undefined }))}
-            className={cn(
-              'text-sm px-3 py-1.5 rounded-md transition-colors font-medium',
-              filters.tier == null
-                ? 'bg-ocean/20 text-ocean'
-                : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
-            )}
-          >
-            All
-          </button>
-          {[0, 1, 2, 3].map((t) => (
-            <button
-              key={t}
-              onClick={() => setFilters((f) => ({ ...f, tier: f.tier === t ? undefined : t }))}
-              className={cn(
-                'text-sm px-3 py-1.5 rounded-md transition-colors font-medium',
-                filters.tier === t
-                  ? TIER_COLORS[t]
-                  : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
-              )}
-            >
-              {tierLabel(t)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Purity filter */}
-      <div className="space-y-2">
-        <label className="font-pixel text-xs text-text-accent uppercase tracking-wider">Min Purity</label>
-        <div className="grid grid-cols-3 gap-1.5">
-          <button
-            onClick={() => setFilters((f) => ({ ...f, minPurity: undefined }))}
-            className={cn(
-              'text-sm px-2 py-1.5 rounded-md transition-colors font-medium',
-              filters.minPurity == null
-                ? 'bg-claw-gold/20 text-claw-gold'
-                : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
-            )}
-          >
-            Any
-          </button>
-          {[3, 4, 5, 6].map((p) => (
-            <button
-              key={p}
-              onClick={() => setFilters((f) => ({ ...f, minPurity: f.minPurity === p ? undefined : p }))}
-              className={cn(
-                'text-sm px-2 py-1.5 rounded-md transition-colors font-medium',
-                filters.minPurity === p
-                  ? 'bg-claw-gold/20 text-claw-gold'
-                  : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
-              )}
-            >
-              {p}★
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Price range */}
-      <div className="space-y-2">
-        <label className="font-pixel text-xs text-text-accent uppercase tracking-wider">Price Range</label>
-        <div className="flex gap-2">
-          <Input
-            type="number"
-            placeholder="Min"
-            value={filters.minPrice ?? ''}
-            onChange={(e) => setFilters((f) => ({
-              ...f,
-              minPrice: e.target.value ? Number(e.target.value) : undefined,
-            }))}
-            className="bg-ocean-mid/50 border-border text-sm"
-          />
-          <Input
-            type="number"
-            placeholder="Max"
-            value={filters.maxPrice ?? ''}
-            onChange={(e) => setFilters((f) => ({
-              ...f,
-              maxPrice: e.target.value ? Number(e.target.value) : undefined,
-            }))}
-            className="bg-ocean-mid/50 border-border text-sm"
-          />
-        </div>
-      </div>
-
-      {/* Legend toggle */}
-      <div className="space-y-2">
-        <label className="font-pixel text-xs text-text-accent uppercase tracking-wider">Rarity</label>
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => setFilters((f) => ({ ...f, legend: undefined }))}
-            className={cn(
-              'text-sm px-3 py-1.5 rounded-md transition-colors font-medium',
-              filters.legend == null
-                ? 'bg-claw-gold/20 text-claw-gold'
-                : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
-            )}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilters((f) => ({ ...f, legend: f.legend === true ? undefined : true }))}
-            className={cn(
-              'text-sm px-3 py-1.5 rounded-md transition-colors font-medium flex items-center gap-1.5',
-              filters.legend === true
-                ? 'bg-claw-gold/20 text-claw-gold'
-                : 'text-text-secondary hover:text-foreground hover:bg-ocean-surface/30',
-            )}
-          >
-            <Sparkles className="size-3.5" /> Legends
-          </button>
-        </div>
-      </div>
-
-      {/* Clear all */}
-      {activeFilterCount > 0 && (
-        <button
-          onClick={() => setFilters({ sort: filters.sort, limit: 24 })}
-          className="text-sm text-text-secondary hover:text-coral transition-colors font-medium"
-        >
-          Clear filters ({activeFilterCount})
-        </button>
-      )}
-    </div>
-  );
-
   return (
-    <div
-      className="min-h-screen w-full"
-      style={{
-        backgroundImage:
-          "linear-gradient(rgba(7,16,32,0.55), rgba(7,16,32,0.55)), url('/marketing/gutter.png')",
-        backgroundSize: '100vw auto',
-        backgroundRepeat: 'repeat-y',
-        backgroundPosition: 'center top',
-      }}
-    >
-      <div className="p-4 md:p-8 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <img src="/assets/icons/Market.svg" alt="" width={28} height={28} style={{ imageRendering: 'pixelated' as const }} />
-              <h1 className="font-pixel text-2xl text-foreground">Marketplace</h1>
-            </div>
-            <p className="text-text-secondary mt-1">
-              {isLoading ? 'Loading…' : `${displayListings.length}${hasNext ? '+' : ''} lobster${displayListings.length !== 1 || hasNext ? 's' : ''} for sale`}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Mobile filter toggle */}
-            <button
-              onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-              className="md:hidden frosted-panel px-3 py-2 text-sm text-text-secondary flex items-center gap-1.5"
-            >
-              <SlidersHorizontal className="size-4" />
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="bg-coral text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-            {address && (
-              <ListLobsterDialog lobsters={unlockedLobsters} onSuccess={invalidate} />
-            )}
-          </div>
+    <div className="market-page">
+      <section className="market" data-market aria-label="Marketplace">
+        <div className="market-hero" role="img" aria-label="Reserved space for animated shopkeeper artwork">
+          <span className="market-hero-placeholder" aria-hidden="true">Shopkeeper artwork</span>
         </div>
-
-        {/* Mobile filters drawer */}
-        {mobileFiltersOpen && (
-          <div className="md:hidden mb-4">
-            <FrostedPanel className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="font-pixel text-sm text-text-accent">Filters</span>
-                <button onClick={() => setMobileFiltersOpen(false)}>
-                  <X className="size-5 text-text-secondary" />
-                </button>
-              </div>
-              {filterPanel}
-            </FrostedPanel>
-          </div>
-        )}
-
-        {/* Main layout: sidebar + grid */}
-        <div className="flex gap-6">
-          {/* Desktop sidebar */}
-          <aside className="hidden md:block w-[260px] shrink-0">
-            <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto scrollbar-hide">
-              <FrostedPanel className="p-6">
-                {filterPanel}
-              </FrostedPanel>
-            </div>
-          </aside>
-
-          {/* Listings grid */}
-          <div className="flex-1 min-w-0">
-            {isLoading ? (
-              <FrostedPanel className="py-16 text-center">
-                <p className="text-text-secondary">Loading listings…</p>
-              </FrostedPanel>
-            ) : isError ? (
-              <FrostedPanel className="py-16 text-center">
-                <p className="text-lg font-medium text-foreground mb-1">Couldn&rsquo;t load listings</p>
-                <button type="button" onClick={() => void refetch()} className="text-sm text-ocean hover:underline">Retry</button>
-              </FrostedPanel>
-            ) : displayListings.length === 0 ? (
-              <FrostedPanel className="py-16 text-center">
-                <Image
-                  src="/assets/characters/kraken.png"
-                  alt="No listings"
-                  width={128}
-                  height={128}
-                  className="mx-auto mb-4 opacity-60"
-                  style={{ imageRendering: 'pixelated' }}
-                />
-                <p className="text-lg font-medium text-foreground mb-1">{page > 0 ? 'No more listings' : 'No lobsters listed yet'}</p>
-                <p className="text-text-secondary mb-4">{page > 0 ? 'You have reached the end of the market.' : 'Be the first to list a lobster for sale!'}</p>
-                {page > 0 && (
-                  <button type="button" onClick={() => setPage(page - 1)} className="text-sm text-ocean hover:underline mb-4">Previous page</button>
-                )}
-                {address && (
-                  <ListLobsterDialog lobsters={unlockedLobsters} onSuccess={invalidate} />
-                )}
-              </FrostedPanel>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
-                  {pagedListings.map((listing) => (
-                    <MarketCard
-                      key={listing.listingId}
-                      listing={listing}
-                      isOwner={!!address && listing.seller.toLowerCase() === address.toLowerCase()}
-                      onClick={() => setExpanded(listing)}
-                    />
-                  ))}
-                </div>
-
-                {/* Pagination — the API pages by offset; another page exists while this one is full */}
-                {(hasPrev || hasNext) && (
-                  <div className="flex items-center justify-center gap-4 mt-8">
-                    <button
-                      type="button"
-                      onClick={() => { setPage(page - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                      disabled={!hasPrev}
-                      className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground disabled:opacity-40"
-                    >
-                      Previous
-                    </button>
-                    <span className="font-pixel text-sm text-text-secondary">Page {page + 1}</span>
-                    <button
-                      type="button"
-                      onClick={() => { setPage(page + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                      disabled={!hasNext}
-                      className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground disabled:opacity-40"
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+        <MarketCatalog
+          address={address}
+          onOpen={(l) => setExpanded(toMarketListing(l))}
+          onChanged={invalidate}
+          listAction={address ? <ListLobsterDialog lobsters={unlockedLobsters} onSuccess={invalidate} /> : null}
+        />
+      </section>
 
       {/* Expanded detail overlay */}
       {expanded && (
@@ -463,109 +121,9 @@ export default function MarketplacePage() {
   );
 }
 
-/* ── Market Card ── */
+/* ── Detail view ── */
 
-function MarketCard({
-  listing,
-  isOwner,
-  onClick,
-}: {
-  listing: MarketListing;
-  isOwner: boolean;
-  onClick: () => void;
-}) {
-  const { lobster } = listing;
-  const isLegend = lobster.legend > 0;
-  const classColor = CLASS_CARD_COLORS[lobster.class] ?? '#4682B4';
-
-  return (
-    <div
-      onClick={onClick}
-      className={cn(
-        'frosted-panel p-0 overflow-hidden rounded-xl cursor-pointer transition-all hover:border-[rgba(255,210,128,0.35)] card-hover group',
-        isLegend && 'ring-1 ring-claw-gold/30',
-      )}
-    >
-      {/* Image area */}
-      <div
-        className="relative aspect-square flex items-center justify-center overflow-hidden p-4"
-        style={{
-          background: `radial-gradient(ellipse at 50% 60%, ${classColor}45 0%, ${classColor}15 50%, transparent 80%)`,
-        }}
-      >
-        <Image
-          src={marketLobsterImage(listing.tokenId)}
-          alt={lobster.className}
-          width={192}
-          height={192}
-          className="w-[70%] h-[70%] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.5)] group-hover:animate-idle-bob transition-transform duration-200"
-          style={{ imageRendering: 'pixelated' }}
-        />
-
-        {/* Class badge — top left */}
-        <div className="absolute top-2 left-2">
-          <span
-            className="text-xs font-bold px-2 py-1 rounded-md backdrop-blur-sm"
-            style={{ backgroundColor: `${classColor}40`, color: 'white' }}
-          >
-            {lobster.className}
-          </span>
-        </div>
-
-        {/* Tier + breed — top right */}
-        <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
-          <span className={cn('text-xs font-bold px-2 py-1 rounded-md', TIER_COLORS[lobster.evolutionTier])}>
-            {tierLabel(lobster.evolutionTier)}
-          </span>
-          <span className="text-xs px-2 py-0.5 rounded-md bg-ocean-deep/60 text-text-secondary backdrop-blur-sm">
-            Breed {lobster.breedCount}/5
-          </span>
-        </div>
-
-        {/* Legend sparkle */}
-        {isLegend && (
-          <div className="absolute bottom-2 left-2 bg-claw-gold/90 rounded-md px-2 py-0.5 flex items-center gap-1">
-            <Sparkles className="size-3 text-white" />
-            <span className="text-xs font-bold text-white">Legend</span>
-          </div>
-        )}
-      </div>
-
-      {/* Info area */}
-      <div className="px-3 py-3.5 space-y-2">
-        {/* Purity stars */}
-        <div className="flex items-center gap-1">
-          <div className="flex gap-0.5">
-            {Array.from({ length: 6 }, (_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  'text-sm leading-none',
-                  i < lobster.purity ? 'text-claw-gold' : 'text-ocean-surface/50',
-                )}
-              >
-                ★
-              </span>
-            ))}
-          </div>
-          <span className="text-xs text-text-secondary ml-auto">#{listing.tokenId}</span>
-        </div>
-
-        {/* Price */}
-        <div className="flex items-center justify-between">
-          <span className="text-lg font-bold text-claw-gold font-mono">
-            {Number(listing.price).toLocaleString()}
-            <span className="text-xs text-claw-gold/70 ml-1">$GOLD</span>
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Expanded Detail View ── */
-
-const CARD_TABS = ['Info', 'Body Parts', 'DNA', 'History'] as const;
+const CARD_TABS = ['Info', 'Body Parts', 'DNA', 'Lineage', 'History'] as const;
 type CardTab = typeof CARD_TABS[number];
 
 const TIER_PROGRESSION = ['Base', 'Evolved', 'Elite', 'Apex'] as const;
@@ -779,6 +337,8 @@ function ExpandedView({
                   </div>
                 )}
 
+                {tab === 'Lineage' && <LineageTab tokenId={listing.tokenId} />}
+
                 {tab === 'History' && (
                   <div className="text-center py-12">
                     <Clock className="size-8 mx-auto mb-3 text-text-secondary/40" />
@@ -841,9 +401,7 @@ function ListLobsterDialog({ lobsters, onSuccess }: { lobsters: LobsterData[]; o
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelected(null); setPrice(''); } }}>
       <DialogTrigger asChild>
-        <button className="frosted-panel-highlight px-4 py-2 text-sm font-pixel text-claw-gold flex items-center gap-1.5 hover:border-[rgba(255,210,128,0.3)] transition-colors">
-          <Store className="size-4" /> List Lobster
-        </button>
+        <button type="button" className="pixel-button">List a lobster</button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-ocean-deep border-border">
         <DialogHeader>
@@ -919,5 +477,49 @@ function ListLobsterDialog({ lobsters, onSuccess }: { lobsters: LobsterData[]; o
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ── Lineage: parents and grandparents from the indexer's breed records ── */
+
+function LineageTab({ tokenId }: { tokenId: string }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['lineage', tokenId],
+    queryFn: () => api.breeding.lineage(tokenId),
+  });
+  if (isLoading) return <p className="text-text-secondary text-center py-8">Loading lineage…</p>;
+  if (isError || !data) return <p className="text-text-secondary text-center py-8">Lineage unavailable for #{tokenId}.</p>;
+  if (data.parents.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-text-secondary font-medium">Faucet-born — no parents</p>
+        <p className="text-sm text-text-secondary/60 mt-1">Generation {data.generation}. Its own offspring will show it as a parent.</p>
+      </div>
+    );
+  }
+  const grandparents = data.parents.flatMap((p) => p.parents);
+  return (
+    <div className="space-y-6">
+      <LineageRow title="Parents" nodes={data.parents} />
+      {grandparents.length > 0 && <LineageRow title="Grandparents" nodes={grandparents} />}
+      <p className="text-xs text-text-secondary/60">Generation {data.generation}. Lineage comes from the breed records the game indexes; faucet-born ancestors end a branch.</p>
+    </div>
+  );
+}
+
+function LineageRow({ title, nodes }: { title: string; nodes: LineageNode[] }) {
+  return (
+    <div>
+      <h3 className="font-pixel text-sm text-text-accent mb-3">{title}</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {nodes.map((n) => (
+          <Link key={n.tokenId} href={`/lobster/${n.tokenId}`} className="frosted-panel p-3 flex flex-col items-center gap-2 hover:border-[rgba(255,210,128,0.35)] transition-colors">
+            <AnimatedLobster dna={n.dna} evolutionTier={n.evolutionTier} displaySize={96} frameSize={80} frames={16} />
+            <span className="text-sm font-medium text-foreground">#{n.tokenId} {CLASS_NAMES_LIST[n.class] ?? ''}</span>
+            <span className="text-xs text-text-secondary text-center">{tierLabel(n.evolutionTier)} · Gen {n.generation} · purity {n.purity}/6{n.legend ? ' · Legend' : ''}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }

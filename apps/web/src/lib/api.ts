@@ -198,9 +198,23 @@ interface CooldownData {
   isReady: boolean;
 }
 
+/** One ancestor in a lobster's family tree (`GET /api/game/breeding/lineage/:tokenId`): parents, then
+ *  their parents. A faucet-born lobster has no parents. */
+export interface LineageNode {
+  tokenId: string;
+  class: number;
+  evolutionTier: number;
+  purity: number;
+  legend: number;
+  generation: number;
+  dna: string;
+  parents: LineageNode[];
+}
+
 const breeding = {
   preview: (parentA: string, parentB: string) => get<BreedPreview>(`/api/game/breeding/preview?parentA=${parentA}&parentB=${parentB}`),
   cooldown: (lobsterId: string) => get<CooldownData>(`/api/game/breeding/cooldowns/${lobsterId}`),
+  lineage: (tokenId: string) => get<LineageNode>(`/api/game/breeding/lineage/${tokenId}`),
   breed: (parentA: string, parentB: string, auth: AuthHeaders) => post<StepsResponse>('/api/game/breeding/breed', { parentA, parentB }, auth),
 };
 
@@ -259,6 +273,14 @@ interface ListingData {
   evolutionTier?: number;
   purity?: number;
   legend?: boolean;
+  /** The listing rows also carry what the market cards draw: the lobster's own sprite (dna), its
+   *  breed count, damage and generation. */
+  dna?: string;
+  damage?: number;
+  breedCount?: number;
+  generation?: number;
+  /** Eggs are a planned sellable asset (owner decision 2026-10-16); the API sends no type until they exist. */
+  type?: 'lobster' | 'egg';
   /** `GET /api/game/market/listings/:id` carries the whole lobster (stats, damage, genes) — the
    *  only public read of a lobster someone else owns. */
   lobster?: Omit<LobsterData, 'className' | 'classRole' | 'tierName'>;

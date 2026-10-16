@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useLobsterSpriteSheet } from '@/hooks/use-lobster-sprite-sheet';
 import { useLobsterImage } from '@/hooks/use-lobster-image';
 import { cn } from '@/lib/utils';
@@ -14,6 +15,8 @@ interface AnimatedLobsterProps {
   /** Number of animation frames (8 or 16) */
   frames?: number;
   className?: string;
+  /** Shown while the sheet loads and when neither render is available (the Market shows the tier frame). */
+  fallback?: ReactNode;
 }
 
 const SCALE_FOR_FALLBACK: Record<number, number> = { 96: 2, 128: 2, 192: 4, 256: 4, 320: 8, 384: 8 };
@@ -25,19 +28,22 @@ export function AnimatedLobster({
   frameSize = 240,
   frames = 16,
   className,
+  fallback,
 }: AnimatedLobsterProps) {
   const { spriteUrl, loading, error } = useLobsterSpriteSheet(dna, evolutionTier, frameSize, frames);
 
-  // Fallback to static image if sprite sheet fails
+  // Fallback to static image if sprite sheet fails — unless the caller brought its own fallback art, which
+  // then stands in without a second request (the static route's own placeholder would otherwise win).
   const fallbackScale = SCALE_FOR_FALLBACK[displaySize] ?? 4;
   const { dataUrl: staticUrl } = useLobsterImage(
-    error ? dna : undefined,
+    error && !fallback ? dna : undefined,
     evolutionTier,
     fallbackScale,
   );
 
   // Loading state
   if (loading && !spriteUrl) {
+    if (fallback) return <>{fallback}</>;
     return (
       <div
         className={cn('animate-pulse bg-ocean-mid/40', className)}
@@ -46,8 +52,9 @@ export function AnimatedLobster({
     );
   }
 
-  // Error fallback — show static image
+  // Error fallback — the caller's art, else the static image
   if (error || !spriteUrl) {
+    if (fallback) return <>{fallback}</>;
     if (staticUrl) {
       return (
         <img
@@ -60,6 +67,7 @@ export function AnimatedLobster({
         />
       );
     }
+    if (fallback) return <>{fallback}</>;
     return (
       <div
         className={cn('bg-ocean-mid/30', className)}

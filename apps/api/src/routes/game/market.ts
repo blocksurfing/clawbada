@@ -41,6 +41,12 @@ marketRoutes.get(
         evolutionTier: lobsters.evolutionTier,
         purity: lobsters.purity,
         legend: lobsters.legend,
+        // The market cards draw each lobster's own sprite (dna) and its breed count; the detail
+        // view wants damage and generation without a second read.
+        dna: lobsters.dna,
+        damage: lobsters.damage,
+        breedCount: lobsters.breedCount,
+        generation: lobsters.generation,
       })
       .from(listings)
       .innerJoin(lobsters, eq(listings.tokenId, lobsters.tokenId))

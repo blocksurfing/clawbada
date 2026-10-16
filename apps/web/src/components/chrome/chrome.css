@@ -10,6 +10,26 @@
  */
 :root {
   --pixel: 3px;
+  /* Nzib's shared typography (design/website ee1219f, styles/typography-tokens.css): Upheaval display,
+     Big Shot body. Every pixel surface (chrome, Shell, Battle modal, Market) reads these; change the tokens,
+     never add local font overrides. The two family tokens live on `body` below: next/font sets
+     `--font-upheaval` / `--font-bigshot` on the body element, so a `:root` declaration could not see them. */
+  --type-heading-xl: 60px;
+  --type-heading-lg: 40px;
+  --type-heading-sm: 28px;
+  --type-body-lg: 18px;
+  --type-body-md: 16px;
+  --type-body-sm: 14px;
+  --type-caption: 12px;
+  --type-label: 14px;
+  --type-stat: 16px;
+  --type-input: 16px;
+  --type-button: 24px;
+  --type-body-leading: 2.05;
+  --type-body-tracking: -0.03em;
+  --type-display-leading: 1.2;
+  --type-display-tracking: max(0px, calc(0.0833333333em - 2px));
+  --type-action-tracking: normal;
   --panel-source-width: 128;
   /* The live value follows the pole (SidebarRoll): 96 source px compact after every load, 128 expanded. */
   --sidebar-width: calc(96 * var(--pixel));
@@ -36,6 +56,12 @@
   --ui-easing: ease-in-out;
   --user-section-top: 12px;
   --user-section-right: 12px;
+}
+
+/* The font families resolve here, where next/font puts the `--font-*` variables. */
+body {
+  --type-display: var(--font-upheaval), 'Upheaval', sans-serif;
+  --type-body: var(--font-bigshot), 'Big Shot', sans-serif;
 }
 
 /* BASE — scoped: no global button hover paint; component styles own all states. */
@@ -199,7 +225,8 @@ body.sidebar-compact .sidebar-shell {
   font-family: var(--font-upheaval), 'Upheaval', sans-serif;
   font-weight: 400;
   font-synthesis: none;
-  font-size: var(--menu-font-size);
+  font-size: var(--type-button);
+  letter-spacing: var(--type-action-tracking);
   line-height: 1;
   text-transform: uppercase;
   white-space: nowrap;
@@ -327,7 +354,8 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
   background: transparent;
   color: #fff4d6;
   font-family: var(--font-upheaval), 'Upheaval', sans-serif;
-  font-size: calc(7 * var(--pixel));
+  font-size: var(--type-button);
+  letter-spacing: var(--type-action-tracking);
   font-weight: 400;
   font-synthesis: none;
   line-height: 1;
@@ -422,7 +450,8 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
   border-radius: 0;
   padding: 0 16.5px;
   color: #fff4d6;
-  font: 18px var(--font-upheaval), 'Upheaval', sans-serif;
+  font: 400 var(--type-button)/var(--type-display-leading) var(--font-upheaval), 'Upheaval', sans-serif;
+  letter-spacing: var(--type-action-tracking);
   white-space: nowrap;
   transition: width var(--action-duration) ease-in-out;
 }
@@ -477,13 +506,13 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
 
 .profile-editor { background: #38291f; color: #fff4d6; border: 3px solid #9c7855; padding: 24px; max-width: min(360px, 85vw); }
 .profile-editor::backdrop { background: #0009; }
-.profile-editor h2 { font: 24px var(--font-upheaval), 'Upheaval', sans-serif; margin: 0 0 8px; }
-.profile-editor label { font: 14px sans-serif; }
-.profile-editor input { display: block; box-sizing: border-box; width: 100%; margin: 12px 0; padding: 10px; color: #1c120d; background: #fff4d6; border: 2px solid #9c7855; }
-.profile-editor p { font: 14px sans-serif; margin: 0 0 12px; }
+.profile-editor h2 { font: 400 var(--type-heading-lg)/var(--type-display-leading) var(--font-upheaval), 'Upheaval', sans-serif; letter-spacing: var(--type-display-tracking); margin: 0 0 8px; overflow-wrap: anywhere; }
+.profile-editor label { font: 400 var(--type-label)/var(--type-body-leading) var(--font-bigshot), 'Big Shot', sans-serif; letter-spacing: var(--type-body-tracking); }
+.profile-editor input { display: block; box-sizing: border-box; width: 100%; margin: 12px 0; padding: 10px; color: #1c120d; background: #fff4d6; border: 2px solid #9c7855; font: 400 var(--type-input)/var(--type-body-leading) var(--font-bigshot), 'Big Shot', sans-serif; letter-spacing: var(--type-body-tracking); }
+.profile-editor p { font: 400 var(--type-body-sm)/var(--type-body-leading) var(--font-bigshot), 'Big Shot', sans-serif; letter-spacing: var(--type-body-tracking); margin: 0 0 12px; }
 .profile-editor .profile-editor-error { color: #ffb0a8; }
 .profile-editor .profile-editor-actions { display: flex; gap: 12px; justify-content: flex-end; }
-.profile-editor .profile-editor-actions button { padding: 8px 14px; border: 2px solid #9c7855; background: #5a3d2b; font: 16px var(--font-upheaval), 'Upheaval', sans-serif; }
+.profile-editor .profile-editor-actions button { padding: 8px 14px; border: 2px solid #9c7855; background: #5a3d2b; font: 400 var(--type-button)/var(--type-display-leading) var(--font-upheaval), 'Upheaval', sans-serif; letter-spacing: var(--type-action-tracking); }
 .profile-editor .profile-editor-actions button[type="submit"] { background: #b65330; }
 
 /* Dev only: the burner wallet chip sits just left of the plank, clear of the Shell's Queue/Active/History buttons
