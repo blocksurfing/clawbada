@@ -78,7 +78,7 @@ function readSummary(): Pick<Chapter, 'title' | 'file' | 'slug'>[] {
 function renderChapter(file: string, slug: string): string {
   const proc = Bun.spawnSync([
     'pandoc', join(GITBOOK, file),
-    '-f', 'gfm-tex_math_dollars-tex_math_gfm', // $GOLD and $ prices are never math
+    '-f', 'gfm-tex_math_dollars-tex_math_gfm+implicit_figures', // $GOLD and $ prices are never math; a lone image is a <figure>
     '-t', 'html5', '--wrap=none', '--syntax-highlighting=none', `--id-prefix=${slug}-`,
   ]);
   if (proc.exitCode !== 0) fail(`pandoc failed on ${file}:\n${proc.stderr.toString()}`);
@@ -231,6 +231,26 @@ async function loadSharp(): Promise<any> {
   }
 }
 
+/**
+ * Chapter images (`![caption](images/x.png)` in docs/gitbook) become data URIs so the HTML stays one file. Anything
+ * wider than 1400 px is reduced first (the screenshots are Retina captures); JPEG stays JPEG, everything else PNG.
+ */
+async function embedImages(sharp: any, html: string, file: string): Promise<string> {
+  const srcs = [...new Set([...html.matchAll(/<img[^>]*\ssrc="([^"]+)"/g)].map((m) => m[1]))].filter((s) => !/^(data:|https?:)/.test(s));
+  for (const src of srcs) {
+    const path = join(GITBOOK, src);
+    if (!existsSync(path)) fail(`${file} references ${src}, which does not exist under docs/gitbook`);
+    const image = sharp(path);
+    const meta = await image.metadata();
+    const jpeg = meta.format === 'jpeg';
+    const resized = meta.width && meta.width > 1400 ? image.resize({ width: 1400, kernel: 'lanczos3' }) : image;
+    const buf: Buffer = await (jpeg ? resized.jpeg({ quality: 86, mozjpeg: true }) : resized.png({ compressionLevel: 9 })).toBuffer();
+    const uri = `data:image/${jpeg ? 'jpeg' : 'png'};base64,${buf.toString('base64')}`;
+    html = html.split(`src="${src}"`).join(`src="${uri}"`);
+  }
+  return html;
+}
+
 /** A region of a sheet, upscaled ×3 nearest-neighbour so border-image stays pixel-crisp. */
 async function crop(sharp: any, sheet: string, left: number, top: number, width: number, height: number): Promise<string> {
   const buf: Buffer = await sharp(join(PUBLIC, sheet))
@@ -357,16 +377,19 @@ async function printPdf(htmlPath: string, pdfPath: string): Promise<void> {
 
 if (!Bun.which('pandoc')) fail('pandoc is not installed');
 
+const sharp = await loadSharp();
 const order = readSummary();
 const slugs = new Set(order.map((c) => c.slug));
-const chapters: Chapter[] = order.map((c) => {
+const chapters: Chapter[] = [];
+for (const c of order) {
   const markdown = readFileSync(join(GITBOOK, c.file), 'utf8');
   let html = renderChapter(c.file, c.slug);
   html = rewriteCrossLinks(html, slugs, c.file);
   html = transformTables(html);
+  html = await embedImages(sharp, html, c.file);
   const { h1, sections } = headings(html);
-  return { ...c, markdown, html, h1, sections };
-});
+  chapters.push({ ...c, markdown, html, h1, sections });
+}
 log(`${chapters.length} chapters: ${chapters.map((c) => c.slug).join(' · ')}`);
 log(`tables → ${tableStats.endpoints} endpoint lists, ${tableStats.classCards} class card sets, ${tableStats.kv} key/value lists, ${tableStats.records} record lists, ${tableStats.ledgers} ledgers`);
 
@@ -375,7 +398,6 @@ const frontmatter = `---\ntitle: "${BOOK.title}"\nsubtitle: "${BOOK.subtitle}"\n
 writeFileSync(OUT_MD, frontmatter + chapters.map((c) => c.markdown.trimEnd() + '\n').join('\n'));
 log(`combined markdown written: ${OUT_MD}`);
 
-const sharp = await loadSharp();
 const assets: Record<string, string> = {
   upheaval: dataUri(join(REPO, 'apps/web/src/fonts/upheaval/upheavtt.ttf'), 'font/ttf'),
   titilliumRegular: dataUri(join(import.meta.dir, 'fonts/TitilliumWeb-Regular.ttf'), 'font/ttf'),

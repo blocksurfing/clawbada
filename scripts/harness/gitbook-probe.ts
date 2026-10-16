@@ -47,6 +47,10 @@ export default async function (b: Browser) {
       endpoints: document.querySelectorAll('.ep').length, kv: document.querySelectorAll('dl.kv:not(.kv-inline)').length, records: document.querySelectorAll('.rec').length, ledgers: document.querySelectorAll('table.ledger').length,
       className: fam(document.querySelector('.class-name')), kvDt: fam(document.querySelector('.kv-row:not(.kv-head) dt')), kvDd: fam(document.querySelector('.kv-row:not(.kv-head) dd')),
       bodySize: getComputedStyle(document.querySelector('.chapter p')).fontSize,
+      tocSize: getComputedStyle(document.querySelector('.toc-list ul li')).fontSize,
+      figures: document.querySelectorAll('.chapter figure').length,
+      figuresLoaded: [...document.querySelectorAll('.chapter figure img')].filter((i) => i.complete && i.naturalWidth > 0 && i.getAttribute('src').startsWith('data:image/')).length,
+      captions: document.querySelectorAll('.chapter figcaption').length,
       rowLayout: (() => { const tr = document.querySelector('table.ledger tbody tr'); return tr ? getComputedStyle(tr).display : null; })(),
       links: links.length, broken: broken.slice(0, 5), tables: document.querySelectorAll('table.ledger').length,
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -69,6 +73,8 @@ export default async function (b: Browser) {
   if (summary.kv < 14 || summary.records < 3 || summary.ledgers < 8) fail(`layouts: kv ${summary.kv}, records ${summary.records}, ledgers ${summary.ledgers}`);
   if (summary.className !== 'Upheaval' || summary.kvDt !== 'Upheaval' || summary.kvDd !== 'Titillium Web') fail(`component fonts: name ${summary.className}, dt ${summary.kvDt}, dd ${summary.kvDd}`);
   if (summary.bodySize !== '18px') fail(`body copy is ${summary.bodySize}, expected 18px`);
+  if (summary.tocSize !== '19px') fail(`contents entries are ${summary.tocSize}, expected 19px`);
+  if (summary.figures < 4 || summary.figuresLoaded !== summary.figures || summary.captions !== summary.figures) fail(`figures ${summary.figures}, loaded as data URIs ${summary.figuresLoaded}, captions ${summary.captions}`);
   if (summary.rowLayout !== 'table-row') fail(`ledger rows lay out as ${summary.rowLayout}`);
   if (summary.overflow) fail('horizontal overflow at 1440');
   if (!summary.printFrame || !summary.pageRule) fail('print rules missing (per-page frame / @page)');
@@ -83,6 +89,7 @@ export default async function (b: Browser) {
   await scrollTo('.class-rows'); await b.eval(`window.scrollBy(0, -120)`); await b.sleep(200); await shot(b, 'table');
   await scrollTo('.endpoints'); await b.eval(`window.scrollBy(0, -120)`); await b.sleep(200); await shot(b, 'endpoints');
   await scrollTo('dl.kv'); await b.eval(`window.scrollBy(0, -160)`); await b.sleep(200); await shot(b, 'kv');
+  await scrollTo('.chapter figure'); await b.eval(`window.scrollBy(0, -200)`); await b.sleep(300); await shot(b, 'arena');
   await scrollTo('pre'); await b.eval(`window.scrollBy(0, -160)`); await b.sleep(200); await shot(b, 'code');
 
   await b.send('Emulation.setDeviceMetricsOverride', { width: 900, height: 1000, deviceScaleFactor: 1, mobile: false });
