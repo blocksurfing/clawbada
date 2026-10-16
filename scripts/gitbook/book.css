@@ -20,15 +20,17 @@
   --type-heading-xl: 60px; --type-heading-lg: 40px; --type-heading-sm: 28px; --type-button: 24px;
   --type-display-leading: 1.2;
   --type-display-tracking: max(0px, calc(0.0833333333em - 2px));
-  --type-body-md: 16px; --type-body-sm: 14px; --type-caption: 12px;
-  --type-body-leading: 1.6;
+  --type-body-lg: 18px; --type-body-md: 16px; --type-body-sm: 14px; --type-caption: 12px;
+  --type-body-leading: 1.55;
+  --ink-wash: rgba(14, 14, 14, 0.16);   /* a translucent ink panel on wood */
+  --rule: rgba(14, 14, 14, 0.22);       /* hairline between list rows */
 }
 
 * { box-sizing: border-box; }
 html { background: var(--page); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body {
   margin: 0; background: var(--page); color: var(--cream);
-  font: 400 var(--type-body-md)/var(--type-body-leading) var(--type-body);
+  font: 400 var(--type-body-lg)/var(--type-body-leading) var(--type-body);   /* 18 px: the owner asked for larger body copy */
   font-synthesis: none; -webkit-font-smoothing: antialiased;
 }
 .book { max-width: 984px; margin: 0 auto; padding: 48px 24px 96px; }
@@ -102,8 +104,8 @@ h4, h5, h6 { font-size: var(--type-button); letter-spacing: normal; }
 .chapter > h1 { margin: 0; }
 .chapter > h1::after { content: ''; }
 
-p { margin: 0 0 1em; max-width: 72ch; }
-li { max-width: 72ch; }
+p { margin: 0 0 1em; max-width: 84ch; }
+li { max-width: 84ch; }
 a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 strong { font-weight: 600; }
 em { font-style: italic; }
@@ -112,15 +114,71 @@ li + li { margin-top: 9px; }
 li > ul, li > ol { margin-top: 9px; }
 small { font-size: var(--type-caption); }
 
-/* ── Tables: the filter panel's inputs, as a ledger. Scoped to chapter content — the print sheet is a table too. ── */
-.chapter table { border-collapse: collapse; width: 100%; margin: 12px 0 24px; font-size: var(--type-body-sm); line-height: 1.45; color: var(--ink); background: var(--cream); border: 3px solid var(--ink); }
-.chapter th, .chapter td { border: 3px solid var(--ink); padding: 6px 9px; text-align: left; vertical-align: top; }
+/* ── Ledgers: the small numeric grids stay tables in the filter panel's input look, shrink-wrapped to their content.
+      Scoped to chapter content — the print sheet is a table too. ── */
+.chapter table { border-collapse: collapse; width: auto; max-width: 100%; margin: 12px 0 24px; font-size: 15px; line-height: 1.45; color: var(--ink); background: var(--cream); border: 3px solid var(--ink); }
+.chapter th, .chapter td { border: 3px solid var(--ink); padding: 6px 12px; text-align: left; vertical-align: top; max-width: 40ch; }
 .chapter th { background: var(--ink); color: var(--accent); font: 400 18px/1.2 var(--type-display); letter-spacing: normal; }
 .chapter tbody tr:nth-child(even) td { background: var(--parchment-alt); }
 .chapter td.has-icon { white-space: nowrap; }
 .chapter td .icon { margin-right: 9px; }
-.chapter td code, .chapter th code { font-size: 12px; }
+.chapter td code, .chapter th code { font-size: 13px; }
 .chapter table p { margin: 0; }
+
+/* ── Key/value lists (two-column tables): label in Upheaval, value beside it, a hairline between rows ── */
+.kv { margin: 6px 0 24px; padding: 0; }
+.kv-row { display: grid; grid-template-columns: minmax(160px, 32%) 1fr; gap: 3px 24px; padding: 9px 0; border-bottom: 3px solid var(--rule); break-inside: avoid; }
+.kv-row:last-child { border-bottom: 0; }
+.kv-row dt { margin: 0; font: 400 18px/1.3 var(--type-display); letter-spacing: normal; color: var(--accent); display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.kv-row dd { margin: 0; max-width: none; }
+.kv-head { padding: 0 0 6px; }
+.kv-head dt, .kv-head dd { font: 400 13px/1.3 var(--type-display); letter-spacing: normal; color: var(--muted); }
+.kv-stack .kv-row { grid-template-columns: 1fr; gap: 0; }
+.kv-stack .kv-head { display: none; }
+.kv-inline { margin: 0; }
+.kv-inline .kv-row { grid-template-columns: minmax(84px, max-content) 1fr; gap: 3px 18px; padding: 6px 0; border-bottom: 3px solid var(--rule); }
+.kv-inline .kv-row dt { font-size: 14px; }
+
+/* ── Endpoint lists (Endpoint | Auth | Input | Returns): one entry per route ── */
+.endpoints { display: grid; gap: 12px; margin: 6px 0 24px; }
+.ep { border: 3px solid var(--ink); background: var(--ink-wash); break-inside: avoid; }
+.ep-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--ink); color: var(--accent); padding: 6px 12px; }
+.ep-path code { background: transparent; color: var(--accent); font-size: 15px; padding: 0; }
+.ep-auth { font: 400 14px/1.2 var(--type-display); letter-spacing: normal; color: var(--cream); white-space: nowrap; background: rgba(255, 228, 160, 0.16); border: 3px solid rgba(255, 228, 160, 0.35); padding: 3px 9px; }
+.ep-auth.ep-open { color: var(--muted); border-color: transparent; background: transparent; }
+.ep-auth code { background: transparent; color: inherit; font: 400 13px/1.2 var(--type-mono); padding: 0; }
+.ep .kv { padding: 3px 12px; }
+.ep .kv-row:last-child { border-bottom: 0; }
+
+/* ── Record lists (tables with long prose cells): the first cell titles the record ── */
+.records { display: grid; gap: 12px; margin: 6px 0 24px; }
+.rec { border: 3px solid var(--ink); background: var(--ink-wash); padding: 9px 12px; break-inside: avoid; }
+.rec-title { font: 400 22px/1.2 var(--type-display); letter-spacing: normal; color: var(--accent); display: flex; align-items: center; gap: 9px; margin-bottom: 3px; }
+
+/* ── Class cards: the Apex character on the class's Market swatch, name + badge, stat chips, the row's other columns ── */
+.class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; margin: 12px 0 30px; }
+.class-rows { display: grid; gap: 12px; margin: 12px 0 30px; }
+.class-card { display: grid; break-inside: avoid; color: var(--cream); }
+.class-grid .class-card { border: 36px solid transparent; border-image: var(--art-card) 96 fill / 96px round; }
+.class-rows .class-card { grid-template-columns: 128px 1fr; border: 3px solid var(--ink); background: var(--ink); }
+.class-art { display: grid; place-items: center; background: var(--class-bg, var(--ink)); padding: 12px 0; }
+.class-grid .class-art { margin: -12px -12px 0; }
+/* The sprites are 128 px squares whose lobster occupies the middle 96 rows (measured over all ten), so the art box
+   crops the empty top and bottom: 256×192 at 2×, 128×96 at 1× — no dead space above or below the character. */
+.apex { display: block; width: 256px; height: 192px; background-size: 256px 256px; background-repeat: no-repeat; background-position: center; image-rendering: pixelated; filter: drop-shadow(6px 6px 0 var(--shadow)); }
+.apex-sm { width: 128px; height: 96px; background-size: 128px 128px; filter: drop-shadow(3px 3px 0 var(--shadow)); }
+.class-body { padding: 12px 6px 0; }
+.class-rows .class-body { padding: 9px 12px; }
+.class-head { display: flex; align-items: center; gap: 9px; margin: 0 0 9px; flex-wrap: wrap; }
+.class-name { font: 400 var(--type-button)/1.2 var(--type-display); letter-spacing: normal; color: var(--cream); }
+.class-sub { margin-left: auto; font: 400 16px/1.2 var(--type-display); letter-spacing: normal; color: var(--accent); }
+.class-card .kv-row { border-bottom-color: rgba(255, 244, 214, 0.14); }
+.class-card .kv-row dt { color: var(--accent); }
+.chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 9px; padding: 0; }
+.chips li { display: grid; justify-items: center; min-width: 60px; padding: 3px 9px; background: rgba(255, 228, 160, 0.1); border: 3px solid var(--outline); max-width: none; margin: 0; }
+.chips b { font: 400 12px/1.2 var(--type-display); letter-spacing: normal; color: var(--accent); }
+.chips span { font: 600 18px/1.2 var(--type-body); color: var(--cream); }
+.class-card-plain { border: 3px solid var(--ink); background: var(--ink-wash); padding: 9px 12px; }
 
 /* ── Code ── */
 pre { background: var(--ink); color: var(--cream); border: 3px solid var(--outline); padding: 12px 15px; margin: 0 0 1.2em; font: 400 13px/1.5 var(--type-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -138,7 +196,7 @@ blockquote p:last-child { margin-bottom: 0; }
 .print-frame, .print-tab { display: none; }
 /* the print sheet is an ordinary block stack on screen */
 @media screen {
-  .print-sheet, .print-sheet > thead, .print-sheet > tbody, .print-sheet > tfoot, .print-sheet tr, .print-sheet > * > tr > td { display: block; border: 0; padding: 0; background: transparent; width: auto; margin: 0; }
+  .print-sheet, .print-sheet > thead, .print-sheet > tbody, .print-sheet > tfoot, .print-sheet > * > tr, .print-sheet > * > tr > td { display: block; border: 0; padding: 0; background: transparent; width: auto; margin: 0; }
   .sheet-gap { display: none; }
 }
 .print-sheet { border-collapse: collapse; border: 0; background: transparent; }
@@ -155,7 +213,7 @@ blockquote p:last-child { margin-bottom: 0; }
   .print-sheet > thead { display: table-header-group; }
   .print-sheet > tfoot { display: table-footer-group; }
   .print-sheet > tbody { display: table-row-group; }
-  .print-sheet tr { display: table-row; }
+  .print-sheet > * > tr { display: table-row; }
   .print-sheet > * > tr > td { display: table-cell; vertical-align: top; }
   .print-sheet > * > tr > .sheet-gap { display: table-cell; height: 14mm; padding: 0; border: 0; }
   .print-sheet > tbody > tr > .sheet-body { padding: 0 14mm; border: 0; background: transparent; }
@@ -169,8 +227,19 @@ blockquote p:last-child { margin-bottom: 0; }
   .chapter { border: 0; border-image: none; padding: 0; margin: 0; break-before: page; }
   .chapter > h1::after { margin-bottom: 24px; }
   h1, h2, h3, h4 { break-after: avoid; }
-  .chapter tr, blockquote { break-inside: avoid; }
+  .chapter tr, blockquote, .class-card, .ep, .rec, .kv-row { break-inside: avoid; }
   .chapter thead { display: table-header-group; }
+  /* two rows of hero cards per A4 page: the art area is exactly the 2× sprite, nothing else grows */
+  .class-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+  .class-grid .class-art { padding: 0; }
+  .class-grid .class-body { padding: 6px 6px 0; }
+  .class-grid .class-head { margin-bottom: 3px; }
+  .class-grid .class-name { font-size: 20px; }
+  .class-grid .class-sub { font-size: 14px; white-space: nowrap; }
+  .class-grid .kv-inline .kv-row { padding: 3px 0; gap: 3px 12px; }
+  .class-grid .kv-inline .kv-row dt { font-size: 12px; }
+  .class-grid .kv-inline .kv-row dd { font-size: 15px; line-height: 1.4; }
+  .apex { filter: drop-shadow(6px 6px 0 var(--shadow)); }
   a { color: var(--accent); }
   .colophon { margin-top: 24px; }
 }
