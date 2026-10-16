@@ -31,6 +31,11 @@ resetting temporary demo state. Don't open `index.html` with `file://`.
 - **Battle** is enabled after choosing a character and opens a setup modal without leaving Shell.
   The arena selector is a mock setting; Find Match remains disabled. There is no practice mode
   or Battle sidebar item. The legacy `#/battle` URL opens the modal (on Shell for a fresh load).
+- **Marketplace** contains local demo listings, combined filters/sorts, eight-item pagination,
+  tier/class sprites, animated eggs and artwork-backed price/Buy and Bid buttons. These buttons
+  do not perform transactions. The shopkeeper area remains an artwork placeholder.
+- Shared typography uses Upheaval headings/actions and Big Shot body text. `typography.html`
+  is the editable reference page, not a temporary debug artifact.
 - **Mining** has four static tier/reward cards. **Dojo** and the remaining sidebar destinations
   are empty design canvases with page headers.
 - The shared navigation/profile shell stays mounted across page changes. Compact navigation
@@ -54,6 +59,12 @@ art folders. Keep the repository layout intact: the workbench folder alone is no
 source bundle. `assets/apex-class-sheet.png` is an unchanged copy of the supplied Apex sheet,
 so character rendering no longer depends on a `base/Apex` folder outside the repository.
 Local bubble sheets also live in `assets/`. Vite bundles referenced assets into `dist/`.
+Marketplace tier sheets live in `assets/market/<Tier>/Sheet.png`, so a fresh clone needs no
+sibling art workspace. During development, `tools/market-sheet-sync.js` automatically copies
+existing sibling `../base/<Tier>/Sheet.png` exports (relative to the repository root) into these
+local assets and watches further exports. Missing external sources leave the committed copies
+untouched. Production builds read only the repository-local copies; commit updated copies with
+art changes. PNG exports update the preview automatically; saving `.aseprite` alone does not.
 
 ## Verify / build
 

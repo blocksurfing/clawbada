@@ -79,15 +79,33 @@ export function mountPixelUI(root) {
     for (const {element,asset,canvas,image} of panels) {
       if (!image) continue;
       const rect=element.getBoundingClientRect();
+      // Hidden panels have zero bounds. Their ResizeObserver schedules a repaint
+      // when shown; never pass zero dimensions into the fixed-corner tiler.
+      if (!rect.width || !rect.height) continue;
       const width=Math.round(rect.width/unit), height=Math.round(rect.height/unit);
+      // Responsive layout can briefly leave nonzero bounds below the fixed
+      // corners. Keep the last paint until ResizeObserver supplies usable bounds.
+      const minimum=(asset.sliceSpan ?? asset.tile)*2;
+      if (width<minimum || (!asset.horizontal && height<minimum)) continue;
       // Canvas resolution is in source pixels. CSS displays exactly unit x source dimensions.
-      if (canvas.width===width && canvas.height===height && element.dataset.pixelReady==='true') continue;
-      canvas.width=width; canvas.height=height;
-      canvas.style.width=`${width*unit}px`; canvas.style.height=`${height*unit}px`;
+      const pad=asset.identityJoins ? 2 : 0;
+      if (canvas.width===width+pad*2 && canvas.height===height+pad*2 && element.dataset.pixelReady==='true') continue;
+      canvas.width=width+pad*2; canvas.height=height+pad*2;
+      canvas.style.width=`${canvas.width*unit}px`; canvas.style.height=`${canvas.height*unit}px`;
+      if (pad) { canvas.style.top=`${-pad*unit}px`; canvas.style.left=`${-pad*unit}px`; }
       const ctx=canvas.getContext('2d'); ctx.imageSmoothingEnabled=false;
+      ctx.translate(pad,pad);
       const [sx,sy]=asset.region;
-      for (const row of tileAxis(height,asset.tile)) for (const col of tileAxis(width,asset.tile)) {
+      const rows=asset.horizontal ? Array.from({length:asset.region[3]/asset.tile},(_,i)=>({source:i*asset.tile,dest:i*asset.tile,size:asset.tile})) : tileAxis(height,asset.tile,asset.sliceSpan);
+      for (const row of rows) for (const col of tileAxis(width,asset.tile,asset.sliceSpan)) {
         ctx.drawImage(image,sx+col.source,sy+row.source,col.size,row.size,col.dest,row.dest,col.size,row.size);
+      }
+      if (asset.identityJoins) {
+        const [x,y,w,h]=asset.identityJoins;
+        // Only the top-left cream corner of this single tile is opaque.
+        // Draw its visible 2x2 pixels outside each junction, not the full cross.
+        ctx.drawImage(image,x,y,2,2,width,0,2,2);
+        ctx.drawImage(image,x,y,2,2,0,height,2,2);
       }
       element.dataset.pixelReady='true';
     }

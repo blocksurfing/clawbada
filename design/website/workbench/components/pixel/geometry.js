@@ -4,12 +4,18 @@ export function gridTracks(available, scale, gap, minWidth, maxColumns) {
 }
 
 // Source-pixel slices: repeat only whole pixels; final partial tile is clipped.
-export function tileAxis(length, tile) {
-  if (!Number.isInteger(length) || length < tile*2) throw new Error('Panel too small for fixed corners');
-  const parts = [{ source: 0, dest: 0, size: tile }];
-  for (let at=tile; at<length-tile; at+=tile) parts.push({source:tile,dest:at,size:Math.min(tile,length-tile-at)});
-  parts.push({source:tile*2,dest:length-tile,size:tile});
-  return parts;
+export function tileAxis(length, tile, sliceSpan=tile) {
+  if (!Number.isInteger(tile) || tile<1 || !Number.isInteger(sliceSpan) || sliceSpan<tile || sliceSpan%tile) throw new Error('Invalid panel tile group');
+  if (!Number.isInteger(length) || length < sliceSpan*2) throw new Error('Panel too small for fixed corners');
+  const groups = [{ source: 0, dest: 0, size: sliceSpan }];
+  for (let at=sliceSpan; at<length-sliceSpan; at+=sliceSpan) groups.push({source:sliceSpan,dest:at,size:Math.min(sliceSpan,length-sliceSpan-at)});
+  groups.push({source:sliceSpan*2,dest:length-sliceSpan,size:sliceSpan});
+  // Keep multi-tile ornaments intact, but every draw uses the common tile grid.
+  return groups.flatMap(group => {
+    const parts=[];
+    for (let offset=0; offset<group.size; offset+=tile) parts.push({source:group.source+offset,dest:group.dest+offset,size:Math.min(tile,group.size-offset)});
+    return parts;
+  });
 }
 
 export function frameRect(asset, index=0) {

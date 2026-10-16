@@ -10,7 +10,8 @@ export function pixelSourceWatch(assets) {
     if (png.width !== asset.width || png.height !== asset.height) throw new Error(`${name}: source is ${png.width}x${png.height}; update pixel-assets.js if the sheet layout changed.`);
     if (asset.kind==='panel') {
       const [x,y,w,h]=asset.region;
-      if (w!==asset.tile*3 || h!==asset.tile*3 || x<0 || y<0 || x+w>png.width || y+h>png.height) throw new Error(`${name}: invalid nine-slice region`);
+      const span=asset.sliceSpan ?? asset.tile;
+      if (!Number.isInteger(asset.tile) || asset.tile<1 || !Number.isInteger(span) || span<asset.tile || span%asset.tile || w!==span*3 || (asset.horizontal ? h<asset.tile || h%asset.tile : h!==span*3) || x<0 || y<0 || x+w>png.width || y+h>png.height) throw new Error(`${name}: invalid nine-slice region`);
     } else if (png.width%asset.frame[0] || png.height%asset.frame[1]) throw new Error(`${name}: frames do not fit the sheet`);
   }
   return {
