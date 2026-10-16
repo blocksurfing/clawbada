@@ -173,6 +173,7 @@ export default function AgentsPage() {
           <ApiGroup title="Breeding" color="text-teal" endpoints={[
             { method: 'GET', path: '/api/game/breeding/preview?parentA=&parentB=', desc: 'Preview cost and class probabilities' },
             { method: 'GET', path: '/api/game/breeding/cooldowns/:lobsterId', desc: 'Check breed cooldown timer' },
+            { method: 'GET', path: '/api/game/breeding/lineage/:tokenId', desc: 'Parents and grandparents from the indexed breed records' },
             { method: 'POST', path: '/api/game/breeding/breed', desc: 'Breed two parents (parentA, parentB); the offspring is minted a few blocks later', auth: true },
             { method: 'POST', path: '/api/game/breeding/finalize/:requestId', desc: 'Hatch it yourself if the keeper is slow' },
           ]} />

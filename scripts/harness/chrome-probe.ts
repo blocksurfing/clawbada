@@ -194,8 +194,9 @@ export default async function (b: Browser) {
   if (!(scrollable.sh > scrollable.ch)) fail(`short viewport: the banner is not scrollable (scrollHeight ${scrollable.sh} ≤ clientHeight ${scrollable.ch})`);
   if (!(scrollable.docsBottom > scrollable.inner)) fail(`short viewport: Docs already fits (${scrollable.docsBottom} ≤ ${scrollable.inner}) — the check needs a shorter window`);
   await shot(b, 'short-top');
-  const over = await rect(b, '.menu-item[data-menu="battle"]');
-  if (!over) throw new Error('no Battle item');
+  // Any item inside the banner works as the wheel target (Battle left the menu with the Shell, 2026-10-11).
+  const over = await rect(b, '.menu-item[data-menu="mining"]');
+  if (!over) throw new Error('no Mining item');
   for (let i = 0; i < 12; i++) await b.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: over.x, y: over.y, deltaX: 0, deltaY: 120 });
   await b.sleep(400);
   const after = await b.eval(`(() => { const s = document.querySelector('#sidebar-shell'); return { top: s.scrollTop, max: s.scrollHeight - s.clientHeight, pageY: window.scrollY, docsBottom: document.querySelector('[data-menu="docs"]').getBoundingClientRect().bottom, inner: innerHeight }; })()`);

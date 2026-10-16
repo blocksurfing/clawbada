@@ -2,10 +2,12 @@
 
 The marketplace is where players buy and sell lobsters using $GOLD. It's the primary way to acquire lobsters after the faucet closes and the main exit for breeders.
 
+The Market page is a wooden catalogue: a filter panel on the left (type, sort, class, tier, minimum purity, price range, legends only, reset), listing cards on the right, eight to a page. Each card shows the lobster's own sprite, its tier and class, its purity and breed count, and two buttons: the price (**Buy**, or **Delist** on your own listing) and **Details**, which opens the lobster's stats, genes, lineage and history without leaving the page. Eggs will be listed here too once the breeding update mints them; until then the Eggs filter is empty.
+
 ## Listing a Lobster
 
-1. Go to the Marketplace page
-2. Click "List Lobster"
+1. Go to the Market page
+2. Press "List a lobster" above the listings
 3. Select an eligible lobster from your collection
 4. Set your price in $GOLD
 5. Approve the marketplace for your lobsters (a one-time approval), then confirm the listing — two transactions the first time, one afterwards
@@ -18,8 +20,8 @@ The marketplace is where players buy and sell lobsters using $GOLD. It's the pri
 
 ## Buying a Lobster
 
-1. Browse or filter listings (by class, tier, purity, legend status, price)
-2. Click "Buy Now" on a listing
+1. Browse or filter listings (by class, tier, purity, legend status, price); sort by newest or by price
+2. Press the price button on a card (or "Buy Now" in its Details view)
 3. Approve the $GOLD amount, then confirm the purchase — two transactions
 
 The lobster transfers to your wallet immediately.
@@ -48,6 +50,7 @@ A **2.5% fee** is taken from the sale price: the buyer pays the listed price and
 | **Legend** | +10% stats + unique visuals. Rare and prestigious. |
 | **Breed count** | Lower = more breeds remaining. Valuable for breeders. |
 | **Generation** | Lower = cheaper to breed from. Gen 0 is most cost-effective. |
+| **Lineage** | The Details view's Lineage tab shows the parents and grandparents the game indexed at each breed, so you can judge the genes behind a listing. A faucet-born lobster has no parents. |
 | **Damage** | High damage means repair costs before battling. |
 
 ## Price Discovery

@@ -59,6 +59,21 @@ function filterTemplateByTier(template: PixelTemplate, evolutionTier: number): P
 // ──────────── Primary API ────────────
 
 /**
+ * Whether any of this lobster's six parts has a pixel template installed.
+ *
+ * The renderers skip a missing template silently, so a lobster with no templates at all renders as a fully
+ * transparent image. Callers that would rather show placeholder art (the API answers 404, the web falls back
+ * to the class-and-tier frame) ask here first. Missing templates are cached as missing, so this is cheap.
+ */
+export async function hasArt(dna: bigint, evolutionTier = 0): Promise<boolean> {
+  const params = dnaToRenderParams(dna, evolutionTier);
+  for (const part of params.parts) {
+    if (await loadTemplate(part.bodyPart, part.classAffinity)) return true;
+  }
+  return false;
+}
+
+/**
  * Render a complete lobster from DNA to a PixelGrid.
  *
  * Full pipeline: DNA decode → template lookup → variant generation →

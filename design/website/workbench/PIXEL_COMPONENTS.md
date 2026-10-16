@@ -25,6 +25,9 @@ Add an entry in `pixel-assets.js`. Use a static `new URL('../site/...png', impor
 so Vite resolves, bundles and watches the real source. Set source `width`/`height` and:
 - `kind: 'sprite'`, `frame: [width, height]` for icons or standalone images (whole image = one frame).
 - `kind: 'panel'`, `region: [x, y, width, height]`, `tile: 16` for a 3-by-3 nine-slice region.
+- Larger ornaments can span multiple 16px tiles: `marketCard` uses a 96×96 region (6×6 tiles), `tile: 16`, `sliceSpan: 32`. Each corner/edge group spans two tiles per axis; drawing still uses at most 16×16 source chunks. Repeat the paired center tiles in order, preserving the original artwork. `sliceSpan` defaults to `tile` for existing panels; the source watcher validates the grouped region too.
+
+- Horizontal button strips use `kind:'panel'`, `horizontal:true`, `tile:16`; all source rows are preserved in 16px chunks while the middle column repeats horizontally. Current Buy/Bid regions are `[0,96,48,32]` and `[48,96,48,32]` in the 208×128 export. Canvas height96px at3×; alpha gutters outer4/inner1/top7/bottom6 source pixels, visible art height19px. Footer spans card width with CSS gap0 and margin-bottom:-42px against36px border. Content padding: Buy T18/R3/B21/L12, Bid T18/R12/B21/L3. Verify opaque-art outer/bottom12px and central6px using `tests/market-footer-gaps.py`. Reinspect alpha after every artist export.
 
 Never add per-asset scales. `styles/shared.css` owns `--pixel: 3px`.
 
@@ -68,6 +71,16 @@ Edit Aseprite → **export the existing PNG** → local Vite preview reloads aut
 It checks source dimensions and regions on dev startup/build and exports. It never rewrites art.
 If sheet dimensions change, update the registry once. Saving only `.aseprite` does not export PNG.
 The old cropped-panel pipeline is superseded; no generated PNG needs manual refresh.
+
+## Shared typography
+
+Approved typography lives in `styles/typography-tokens.css`, shared by the web and `typography.html`. `body-font.css` supplies base semantics; `typography-roles.css` maps existing components after their styles. Change shared tokens instead of adding local font overrides.
+
+- Upheaval regular: page title 60px, card/dialog title 40px, subheading 28px, actions 24px; line-height 1.2, heading tracking `max(0px, calc(0.0833333333em - 2px))`; 24px actions/navigation use `normal` tracking.
+- Big Shot regular at natural scale (no `size-adjust`): intro 18px, body/stats/input 16px, secondary/label 14px, caption/helper 12px; line-height 2.05, tracking -0.03em.
+- Mining numeric rewards use the body/stat role, not the display heading font. Sprite-baked lettering is not replaced.
+- Preserve art layout and animation. Fit larger dialog headings by allowing title wrapping and preventing Close from shrinking, not by changing room composition.
+- Run `uv run --with playwright python tests/typography.py` for main/reference parity and component role checks, plus relevant layout/interaction tests. Native selects may report normal computed line-height; nine-slice art intentionally overhangs content boxes, so check text bounds separately.
 
 ## Checks
 

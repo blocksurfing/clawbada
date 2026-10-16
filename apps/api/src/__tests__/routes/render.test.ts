@@ -2,9 +2,13 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 // ── Mock @clawbada/asset-gen ──
 const mockRenderLobsterPng = mock(() => Promise.resolve(Buffer.from('fake-png-data')));
+const mockRenderIdleSpriteSheetPng = mock(() => Promise.resolve(Buffer.from('fake-sheet-data')));
+const mockHasArt = mock(() => Promise.resolve(true));
 
 mock.module('@clawbada/asset-gen', () => ({
   renderLobsterPng: mockRenderLobsterPng,
+  renderIdleSpriteSheetPng: mockRenderIdleSpriteSheetPng,
+  hasArt: mockHasArt,
   VALID_SIZES: [64, 128, 256, 512],
 }));
 
@@ -39,6 +43,34 @@ describe('render routes', () => {
   beforeEach(() => {
     mockReadLobster.mockReset();
     mockRenderLobsterPng.mockImplementation(() => Promise.resolve(Buffer.from('fake-png-data')));
+    mockRenderIdleSpriteSheetPng.mockClear();
+    mockHasArt.mockReset();
+    mockHasArt.mockImplementation(() => Promise.resolve(true));
+  });
+
+  // ──────────── No art installed ────────────
+
+  describe('when no part template exists for the lobster', () => {
+    test('every render route answers 404 and renders nothing', async () => {
+      mockHasArt.mockImplementation(() => Promise.resolve(false));
+      mockReadLobster.mockResolvedValue(mockLobster({ dna: 12345n }));
+
+      for (const path of ['/render/dna/12345', '/render/sprite/dna/12345?size=80&frames=16', '/render/1', '/render/sprite/1']) {
+        const res = await app.request(path);
+        expect(res.status).toBe(404);
+        const body = await res.json();
+        expect(body.error).toBe('NOT_FOUND');
+      }
+      expect(mockRenderLobsterPng).not.toHaveBeenCalled();
+      expect(mockRenderIdleSpriteSheetPng).not.toHaveBeenCalled();
+    });
+
+    test('a sprite sheet renders when at least one template exists', async () => {
+      const res = await app.request('/render/sprite/dna/12345?size=80&frames=16');
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe('image/png');
+      expect(mockHasArt).toHaveBeenCalledWith(12345n, 0);
+    });
   });
 
   // ──────────── GET /render/dna/:dna ────────────
