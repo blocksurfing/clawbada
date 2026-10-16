@@ -1,75 +1,26 @@
 #!/usr/bin/env bash
-# Rebuild docs/gitbook/gitbook-combined.md from the individual section files,
-# then regenerate docs/Clawbada-Gitbook.pdf via pandoc + xelatex.
+# Rebuild the Clawbada book from docs/gitbook/*.md (order = SUMMARY.md):
+#   docs/gitbook/gitbook-combined.md   clean single-file Markdown (GitHub renders it)
+#   docs/Clawbada-Gitbook.html         one self-contained page in Nzib's Market look (fonts + art embedded)
+#   docs/Clawbada-Gitbook.pdf          the page printed by headless Chrome (A4, wooden frame on every page)
 #
-# Usage: bash scripts/build-gitbook.sh
-# Requires: pandoc, xelatex (from MacTeX).
+# Usage: bash scripts/build-gitbook.sh          (SKIP_PDF=1 for the HTML only; BOOK_DATE="October 2026" to pin the cover date)
+# Requires: pandoc, bun (~/.bun/bin), Google Chrome (CHROME_BIN overrides the path). No LaTeX any more.
 #
-# Section order matches docs/gitbook/SUMMARY.md. During concat we:
-#   - Escape literal "$" to "\$" so pandoc's tex_math_dollars doesn't treat
-#     $GOLD etc. as inline math mode.
-#   - Replace "→" with "$\to$" because Helvetica Neue's xelatex mapping doesn't
-#     ship a glyph for U+2192; LaTeX math mode has one built in.
-#
-# The pandoc YAML frontmatter is preserved from the current gitbook-combined.md,
-# so edit that block in place when you need to change title-page settings,
-# fonts, or header-includes. We use pandoc's default template (not Eisvogel) so
-# no LaTeX template install is required — the Eisvogel-specific keys in the
-# YAML (titlepage-color, titlepage-rule-*) are silently ignored.
+# The look is scripts/gitbook/book.css + template.html; the renderer is scripts/gitbook/build.ts. Art and type
+# tokens are read from apps/web (ui/tileset, ui/market, ui/shell, ui/sidebar, src/fonts/upheaval), so the book
+# follows the website. Typecheck the renderer with: bunx tsc -p scripts/gitbook/tsconfig.json
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-GITBOOK_DIR="$REPO_ROOT/docs/gitbook"
-DOCS_DIR="$REPO_ROOT/docs"
-OUT_MD="$GITBOOK_DIR/gitbook-combined.md"
-OUT_PDF="$DOCS_DIR/Clawbada-Gitbook.pdf"
+export PATH="$HOME/.bun/bin:$PATH"
 
-SECTIONS=(
-  README.md
-  getting-started.md
-  lobsters.md
-  mining.md
-  battle.md
-  breeding.md
-  evolution.md
-  marketplace.md
-  tokenomics.md
-  agents.md
-)
-
-cd "$GITBOOK_DIR"
-
-# --- Step 1: rebuild the combined markdown file ---
-echo ">> Rebuilding $OUT_MD"
-TMP_OUT="${OUT_MD}.tmp"
-
-# Preserve the existing pandoc YAML frontmatter (everything up to and including the second '---').
-awk '/^---$/{c++} {print} c==2{exit}' "$OUT_MD" > "$TMP_OUT"
-echo "" >> "$TMP_OUT"
-
-# Concatenate each section with a \newpage separator. Two sed passes per file:
-#   1. $ -> \$  (escape literal dollars)
-#   2. → -> $\to$  (swap to LaTeX math arrow; safe after step 1 since the new $s are intended)
-for section in "${SECTIONS[@]}"; do
-  if [[ ! -f "$section" ]]; then
-    echo "!! Missing section file: $section" >&2
-    exit 1
-  fi
-  printf '\\newpage\n\n' >> "$TMP_OUT"
-  sed -e 's/\$/\\$/g' -e 's/→/$\\to$/g' "$section" >> "$TMP_OUT"
-  echo "" >> "$TMP_OUT"
+for tool in pandoc bun; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "!! $tool is not installed" >&2; exit 1; }
 done
 
-mv "$TMP_OUT" "$OUT_MD"
-echo "   Combined markdown written: $(wc -l < "$OUT_MD") lines"
-
-# --- Step 2: regenerate the PDF ---
-echo ">> Rebuilding $OUT_PDF"
-pandoc "$OUT_MD" \
-  --pdf-engine=xelatex \
-  -o "$OUT_PDF"
-
-echo "   PDF written: $(ls -lh "$OUT_PDF" | awk '{print $5, $NF}')"
+cd "$REPO_ROOT"
+bun scripts/gitbook/build.ts
 echo ">> Done."
