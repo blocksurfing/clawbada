@@ -94,17 +94,118 @@ function rewriteCrossLinks(html: string, slugs: Set<string>, file: string): stri
   });
 }
 
-/** Class and tier names in a table row's first cell get the Market's badge / tier symbol in front of them. */
-function decorateTables(html: string): string {
-  return html.replace(/<tr>(\s*)<td([^>]*)>([\s\S]*?)<\/td>/g, (m, ws: string, attrs: string, inner: string) => {
-    const text = stripTags(inner);
-    const classIdx = CLASSES.indexOf(text);
-    const tierIdx = TIERS.indexOf(text);
-    if (classIdx === -1 && tierIdx === -1) return m;
-    const icon = classIdx !== -1
-      ? `<span class="icon badge badge-${classIdx}" aria-hidden="true"></span>`
-      : `<span class="icon tier tier-${tierIdx}" aria-hidden="true"></span>`;
-    return `<tr>${ws}<td${attrs} class="has-icon">${icon}<span class="icon-label">${inner}</span></td>`;
+// ──────────── tables → compact layouts (owner: "no dead space in the data displays") ────────────
+
+/** The Market card's class swatches (market-catalog.tsx CLASS_BACKGROUNDS, sampled by Nzib from Avatar_BG). */
+const CLASS_BG = ['#202644', '#00283a', '#000065', '#302922', '#200b64', '#416e82', '#5f020f', '#0e1b2c', '#002e32', '#1d1922'];
+
+interface ParsedTable { headers: string[]; rows: string[][] }
+
+/** pandoc's gfm tables are plain `<table><thead><tr><th>…` with no colgroup, so a regex parse is enough. */
+function parseTable(table: string): ParsedTable | null {
+  // `<th(?:\s[^>]*)?>` and not `<th[^>]*>`: the latter also matches `<thead>` and drags a stray `<tr><th>` into the output.
+  const headers = [...table.matchAll(/<th(?:\s[^>]*)?>([\s\S]*?)<\/th>/g)].map((m) => m[1].trim());
+  const body = table.slice(table.indexOf('<tbody>'));
+  const rows = [...body.matchAll(/<tr(?:\s[^>]*)?>([\s\S]*?)<\/tr>/g)]
+    .map((r) => [...r[1].matchAll(/<td(?:\s[^>]*)?>([\s\S]*?)<\/td>/g)].map((m) => m[1].trim()))
+    .filter((r) => r.length);
+  return headers.length && rows.length ? { headers, rows } : null;
+}
+
+const classIndexOf = (cell: string) => CLASSES.indexOf(stripTags(cell));
+const tierIndexOf = (cell: string) => TIERS.indexOf(stripTags(cell));
+
+/** A class badge or tier symbol in front of a cell that is exactly a class or tier name; '' otherwise. */
+function iconFor(cell: string, size: '' | ' badge-lg' = ''): string {
+  const c = classIndexOf(cell);
+  if (c !== -1) return `<span class="icon badge badge-${c}${size}" aria-hidden="true"></span>`;
+  const t = tierIndexOf(cell);
+  if (t !== -1) return `<span class="icon tier tier-${t}" aria-hidden="true"></span>`;
+  return '';
+}
+
+const kvRow = (dt: string, dd: string, cls = '') => `<div class="kv-row${cls}"><dt>${dt}</dt><dd>${dd}</dd></div>`;
+
+/** The agents chapter's `Endpoint | Auth | Input | Returns` tables: one entry per route, the path on a dark plank. */
+function renderEndpoints({ headers, rows }: ParsedTable): string {
+  const idx = (name: string) => headers.findIndex((h) => stripTags(h).toLowerCase() === name);
+  const iE = idx('endpoint'), iA = idx('auth'), iI = idx('input'), iR = idx('returns');
+  const known = new Set([iE, iA, iI, iR]);
+  return `<div class="endpoints">${rows.map((r) => {
+    const authText = stripTags(r[iA] ?? '');
+    const auth = !authText || authText === '—' ? '<span class="ep-auth ep-open">no auth</span>' : `<span class="ep-auth">${r[iA]}</span>`;
+    const extra = headers.map((h, i) => (known.has(i) ? '' : kvRow(h, r[i] ?? ''))).join('');
+    return `<article class="ep"><div class="ep-head"><span class="ep-path">${r[iE] ?? ''}</span>${auth}</div><dl class="kv kv-inline">${kvRow('Input', r[iI] || '—')}${kvRow('Returns', r[iR] || '—')}${extra}</dl></article>`;
+  }).join('')}</div>`;
+}
+
+/** The column that holds a class name on (nearly) every row, or -1. */
+function classColumn(rows: string[][]): number {
+  const cols = Math.max(...rows.map((r) => r.length));
+  for (let c = 0; c < cols; c++) {
+    const hits = rows.filter((r) => classIndexOf(r[c] ?? '') !== -1).length;
+    if (hits >= Math.max(3, Math.ceil(rows.length * 0.8))) return c;
+  }
+  return -1;
+}
+
+/**
+ * Class tables become class cards with the Apex character art: the roster (the table with a Description column) as a
+ * gallery of hero cards; stat and Special tables as compact rows. Short numeric columns become stat chips.
+ */
+function renderClassCards({ headers, rows }: ParsedTable, col: number, hero: boolean): string {
+  const text = (i: number) => rows.map((r) => stripTags(r[i] ?? ''));
+  const skip = new Set<number>([col]);
+  headers.forEach((h, i) => { if (stripTags(h) === '#') skip.add(i); });
+  const chipCols = headers.map((_, i) => i).filter((i) => !skip.has(i) && text(i).every((t) => t.length <= 8 && /^[\d.,%×x+\-–—\s]*$/.test(t)));
+  const roleIdx = headers.findIndex((h, i) => !skip.has(i) && /^(role|special|special move)$/i.test(stripTags(h)));
+  const restCols = headers.map((_, i) => i).filter((i) => !skip.has(i) && !chipCols.includes(i) && i !== roleIdx);
+  return `<div class="${hero ? 'class-grid' : 'class-rows'}">${rows.map((r) => {
+    const ci = classIndexOf(r[col]);
+    if (ci === -1) return `<article class="class-card class-card-plain"><div class="class-body">${headers.map((h, i) => kvRow(h, r[i] ?? '')).join('')}</div></article>`;
+    const name = CLASSES[ci];
+    const sub = roleIdx !== -1 ? `<span class="class-sub">${r[roleIdx] ?? ''}</span>` : '';
+    const chips = chipCols.length ? `<ul class="chips">${chipCols.map((i) => `<li><b>${headers[i]}</b><span>${r[i] ?? ''}</span></li>`).join('')}</ul>` : '';
+    const rest = restCols.length ? `<dl class="kv kv-inline">${restCols.map((i) => kvRow(headers[i], r[i] ?? '')).join('')}</dl>` : '';
+    return `<article class="class-card" style="--class-bg:${CLASS_BG[ci]}"><div class="class-art"><span class="apex apex-${ci}${hero ? '' : ' apex-sm'}" role="img" aria-label="${name}, Apex tier"></span></div><div class="class-body"><header class="class-head"><span class="icon badge badge-${ci}${hero ? ' badge-lg' : ''}" aria-hidden="true"></span><span class="class-name">${name}</span>${sub}</header>${chips}${rest}</div></article>`;
+  }).join('')}</div>`;
+}
+
+/** Two-column tables become key/value lists; long values stack the value under its label. */
+function renderKv({ headers, rows }: ParsedTable): string {
+  const avg = rows.reduce((s, r) => s + stripTags(r[1] ?? '').length, 0) / rows.length;
+  const head = kvRow(headers[0], headers[1] ?? '', ' kv-head');
+  return `<dl class="kv ${avg > 60 ? 'kv-stack' : 'kv-list'}">${head}${rows.map((r) => kvRow(`${iconFor(r[0])}${r[0]}`, r[1] ?? '')).join('')}</dl>`;
+}
+
+/** Tables with long prose cells become one record per row: the first cell is the title, the rest label/value lines. */
+function renderRecords({ headers, rows }: ParsedTable): string {
+  return `<div class="records">${rows.map((r) => `<article class="rec"><div class="rec-title">${iconFor(r[0])}${r[0]}</div><dl class="kv kv-inline">${headers.slice(1).map((h, i) => kvRow(h, r[i + 1] ?? '')).join('')}</dl></article>`).join('')}</div>`;
+}
+
+/** Small numeric grids stay tables (the Market's cream ledger look), shrink-wrapped, with class/tier icons in the first cell. */
+function renderLedger(table: string): string {
+  return table.replace('<table>', '<table class="ledger">').replace(/<tr>(\s*)<td([^>]*)>([\s\S]*?)<\/td>/g, (m, ws: string, attrs: string, inner: string) => {
+    const icon = iconFor(inner);
+    return icon ? `<tr>${ws}<td${attrs} class="has-icon">${icon}<span class="icon-label">${inner}</span></td>` : m;
+  });
+}
+
+const tableStats = { endpoints: 0, classCards: 0, kv: 0, records: 0, ledgers: 0 };
+
+function transformTables(html: string): string {
+  return html.replace(/<table>[\s\S]*?<\/table>/g, (table) => {
+    const parsed = parseTable(table);
+    if (!parsed) return table;
+    const { headers, rows } = parsed;
+    if (stripTags(headers[0]).toLowerCase() === 'endpoint') { tableStats.endpoints++; return renderEndpoints(parsed); }
+    const classCol = classColumn(rows);
+    if (classCol !== -1) { tableStats.classCards++; return renderClassCards(parsed, classCol, headers.some((h) => /^description$/i.test(stripTags(h)))); }
+    if (headers.length === 2) { tableStats.kv++; return renderKv(parsed); }
+    const maxCell = Math.max(...rows.flat().map((c) => stripTags(c).length));
+    if (maxCell > 120) { tableStats.records++; return renderRecords(parsed); }
+    tableStats.ledgers++;
+    return renderLedger(table);
   });
 }
 
@@ -169,6 +270,13 @@ function assertIntegrity(html: string, chapters: Chapter[]): void {
   }
   const sectionsFound = chapters.filter((c) => html.includes(`<section class="chapter" id="${c.slug}">`)).length;
   if (sectionsFound !== chapters.length) fail(`${sectionsFound} of ${chapters.length} chapter sections made it into the page`);
+  // Unbalanced table tags make the browser re-parent everything after them (bold, centred, panels broken).
+  const markup = html.replace(/<!--[\s\S]*?-->/g, '');
+  for (const tag of ['table', 'thead', 'tbody', 'tr', 'td', 'th', 'dl', 'div', 'section', 'article']) {
+    const opens = (markup.match(new RegExp(`<${tag}(?=[\\s>])`, 'g')) ?? []).length;
+    const closes = (markup.match(new RegExp(`</${tag}>`, 'g')) ?? []).length;
+    if (opens !== closes) fail(`unbalanced <${tag}>: ${opens} opened, ${closes} closed`);
+  }
   const tables = (html.match(/<table>/g) ?? []).length;
   const pres = (html.match(/<pre>/g) ?? []).length;
   log(`integrity: ${chapters.length} chapters, ${tables} tables, ${pres} code blocks, ${ids.size} ids, every internal link resolves`);
@@ -255,11 +363,12 @@ const chapters: Chapter[] = order.map((c) => {
   const markdown = readFileSync(join(GITBOOK, c.file), 'utf8');
   let html = renderChapter(c.file, c.slug);
   html = rewriteCrossLinks(html, slugs, c.file);
-  html = decorateTables(html);
+  html = transformTables(html);
   const { h1, sections } = headings(html);
   return { ...c, markdown, html, h1, sections };
 });
 log(`${chapters.length} chapters: ${chapters.map((c) => c.slug).join(' · ')}`);
+log(`tables → ${tableStats.endpoints} endpoint lists, ${tableStats.classCards} class card sets, ${tableStats.kv} key/value lists, ${tableStats.records} record lists, ${tableStats.ledgers} ledgers`);
 
 // The clean single-file Markdown copy.
 const frontmatter = `---\ntitle: "${BOOK.title}"\nsubtitle: "${BOOK.subtitle}"\nauthor: "${BOOK.author}"\ndate: "${BOOK.date}"\n---\n\n`;
@@ -279,7 +388,16 @@ const assets: Record<string, string> = {
   icons: dataUri(join(PUBLIC, 'ui/sidebar/Icons.png'), 'image/png'),         // 192×16, frame 8 = coin
   wood: await crop(sharp, 'ui/tileset/WoodenPanel.png', 0, 0, 48, 48),      // the Shell/Market wooden panel
   divider: await crop(sharp, 'ui/market/Tileset.png', 96, 64, 96, 16),       // the card divider strip
+  card: await crop(sharp, 'ui/market/Tileset.png', 0, 0, 96, 96),            // the listing card frame
 };
+// The Apex character art (apps/web/public/assets/characters/apex, 1280 px = 10× of 128-px pixel art) at native size;
+// CSS scales it by whole numbers so it stays crisp.
+const apexArt = await Promise.all(CLASSES.map(async (name) => {
+  const buf: Buffer = await sharp(join(PUBLIC, `assets/characters/apex/${name.toLowerCase()}.png`))
+    .resize(128, 128, { kernel: 'nearest' }).png({ compressionLevel: 9 }).toBuffer();
+  return `data:image/png;base64,${buf.toString('base64')}`;
+}));
+const apexCss = apexArt.map((uri, i) => `.apex-${i} { background-image: url(${uri}); }`).join('\n');
 
 const css = readFileSync(join(import.meta.dir, 'book.css'), 'utf8');
 const template = readFileSync(join(import.meta.dir, 'template.html'), 'utf8');
@@ -291,7 +409,8 @@ const vars: Record<string, string> = {
   css,
   fontUpheaval: assets.upheaval, fontTitilliumRegular: assets.titilliumRegular, fontTitilliumItalic: assets.titilliumItalic,
   fontTitilliumSemiBold: assets.titilliumSemiBold, fontTitilliumBold: assets.titilliumBold,
-  logo: assets.logo, badges: assets.badges, tileset: assets.tileset, icons: assets.icons, wood: assets.wood, divider: assets.divider,
+  logo: assets.logo, badges: assets.badges, tileset: assets.tileset, icons: assets.icons, wood: assets.wood, divider: assets.divider, card: assets.card,
+  apexCss,
   cover: coverHtml(),
   toc: tocHtml(chapters),
   body,

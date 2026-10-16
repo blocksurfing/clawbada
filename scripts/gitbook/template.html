@@ -20,16 +20,19 @@
   --art-badges: url({{badges}});
   --art-tileset: url({{tileset}});
   --art-icons: url({{icons}});
+  --art-card: url({{card}});
 }
 {{css}}
+/* ── The ten Apex characters (apps/web/public/assets/characters/apex, native 128 px) ── */
+{{apexCss}}
 </style>
 </head>
 <body>
 <div class="print-frame" aria-hidden="true"></div>
 <div class="print-tab" aria-hidden="true">Clawbada</div>
 <main class="book">
-<!-- In print this is a one-cell table: Chrome repeats <thead>/<tfoot> on every page, which is the only way to
-     keep a per-page top/bottom gap between the fixed wooden frame and the text. On screen every part is a block. -->
+<!-- In print this is a one-cell table: Chrome repeats the header and footer row groups on every page, which is the
+     only way to keep a per-page top/bottom gap between the fixed wooden frame and the text. On screen every part is a block. -->
 <table class="print-sheet" role="presentation">
   <thead><tr><td class="sheet-gap"></td></tr></thead>
   <tfoot><tr><td class="sheet-gap"></td></tr></tfoot>
