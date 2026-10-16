@@ -29,13 +29,7 @@
 }
 
 /* BASE — no global button hover paint: component styles own all states. */
-@font-face {
-  font-family: 'Upheaval';
-  src: url('../../brand/fonts/upheaval/upheavtt.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap
-}
+/* Font faces and typography tokens live in typography-tokens.css. */
 
 * {
   box-sizing: border-box
@@ -50,9 +44,9 @@ body {
 
 body {
   margin: 0;
-  background: #264793;
+  background: #192c53;
   color: #e7ebe4;
-  font: 15px/1.5 'Rainy Hearts', sans-serif
+  font: 400 var(--type-body-md)/var(--type-body-leading) var(--type-body)
 }
 
 button {
@@ -573,4 +567,4 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
 #profile-editor { background: #38291f; color: #fff4d6; border: 3px solid #9c7855; padding: 24px; max-width: min(360px, 85vw); }
 #profile-editor::backdrop { background: #0009; }
 #profile-editor input { display: block; box-sizing: border-box; width: 100%; margin: 12px 0; padding: 10px; }
-#profile-editor p { font: 14px/1.5 'Rainy Hearts', sans-serif; }
+#profile-editor p { font: 14px/var(--body-leading) 'Big Shot', sans-serif; }

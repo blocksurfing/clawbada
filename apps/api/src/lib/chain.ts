@@ -587,6 +587,7 @@ export async function readStakeQuote(): Promise<StakeQuote> {
 export function serializeBigInts<T>(obj: T): T {
   if (typeof obj === 'bigint') return obj.toString() as unknown as T;
   if (obj === null || obj === undefined) return obj;
+  if (obj instanceof Date) return obj.toISOString() as unknown as T;
   if (Array.isArray(obj)) return obj.map(serializeBigInts) as unknown as T;
   if (typeof obj === 'object') {
     const result: Record<string, unknown> = {};

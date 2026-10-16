@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { renderLobsterPng, renderIdleSpriteSheetPng, VALID_SIZES } from '@clawbada/asset-gen';
+import { renderLobsterPng, renderIdleSpriteSheetPng, hasArt, VALID_SIZES } from '@clawbada/asset-gen';
 import { readLobster } from '../../lib/chain';
 import { ApiError, catchErrors } from '../../lib/errors';
 
@@ -43,6 +43,16 @@ function parseSpriteSize(raw: string | undefined): number {
   return n;
 }
 
+/**
+ * A lobster none of whose parts has a pixel template would render as a transparent image; answer 404 instead
+ * so clients show their placeholder art (the Market card falls back to the class-and-tier frame).
+ */
+async function requireArt(dna: bigint, tier: number): Promise<void> {
+  if (!(await hasArt(dna, tier))) {
+    throw new ApiError('NOT_FOUND', 'No art is installed for this lobster yet');
+  }
+}
+
 function parseDna(raw: string): bigint {
   try {
     return BigInt(raw);
@@ -63,6 +73,7 @@ renderRoutes.get(
     const tier = parseTier(c.req.query('tier'));
     const frames = parseFrames(c.req.query('frames'));
 
+    await requireArt(dna, tier);
     const png = await renderIdleSpriteSheetPng(dna, tier, { frames, size });
 
     return c.body(png as any, 200, {
@@ -84,6 +95,7 @@ renderRoutes.get(
     const frames = parseFrames(c.req.query('frames'));
 
     const lobster = await readLobster(tokenId);
+    await requireArt(lobster.dna, lobster.evolutionTier);
     const png = await renderIdleSpriteSheetPng(lobster.dna, lobster.evolutionTier, { frames, size });
 
     return c.body(png as any, 200, {
@@ -107,6 +119,7 @@ renderRoutes.get(
     const size = parseSize(c.req.query('size'));
     const tier = parseTier(c.req.query('tier'));
 
+    await requireArt(dna, tier);
     const png = await renderLobsterPng(dna, tier, { size });
 
     return c.body(png as any, 200, {
@@ -127,6 +140,7 @@ renderRoutes.get(
     const size = parseSize(c.req.query('size'));
 
     const lobster = await readLobster(tokenId);
+    await requireArt(lobster.dna, lobster.evolutionTier);
     const png = await renderLobsterPng(lobster.dna, lobster.evolutionTier, { size });
 
     return c.body(png as any, 200, {

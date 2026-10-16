@@ -44,8 +44,8 @@
   background:#183158ee;
   color:#fff4d6;
 }
-[data-page="dashboard"] .shell-records h2 { margin:0 0 18px; font:400 30px/1.2 var(--font-upheaval), 'Upheaval',sans-serif; }
-[data-page="dashboard"] .shell-records p { margin:12px 0 0; font-size:21px; line-height:1.3; }
+[data-page="dashboard"] .shell-records h2 { margin:0 0 18px; font:400 var(--type-heading-lg)/var(--type-display-leading) var(--font-upheaval), 'Upheaval',sans-serif; letter-spacing:var(--type-display-tracking); }
+[data-page="dashboard"] .shell-records p { margin:12px 0 0; font-size:var(--type-body-md); line-height:var(--type-body-leading); }
 [data-page="dashboard"] .shell-records-label { color:#ffe4a0; }
 @media(max-width:699px) {
   [data-page="dashboard"] .shell-tabs { right:12px; width:96px; }
@@ -190,7 +190,7 @@
   font-synthesis:none;
   letter-spacing:normal;
 }
-[data-page="dashboard"] .slot-number { font:18px/1.25 var(--font-rainy), 'Rainy Hearts',sans-serif; color:#aaa7b7; }
+[data-page="dashboard"] .slot-number { font:18px/var(--type-body-leading) var(--font-bigshot), 'Big Shot',sans-serif; color:#aaa7b7; }
 [data-page="dashboard"] .slot-art {
   position:relative;
   display:grid;
@@ -292,8 +292,8 @@
   background-repeat:no-repeat;
   image-rendering:pixelated;
 }
-[data-page="dashboard"] .slot-hint { font:18px/1.25 var(--font-rainy), 'Rainy Hearts',sans-serif; }
-[data-page="dashboard"] .lobby-slot[data-selected="true"] .slot-art { font:18px/1.25 var(--font-rainy), 'Rainy Hearts',sans-serif; }
+[data-page="dashboard"] .slot-hint { font:18px/var(--type-body-leading) var(--font-bigshot), 'Big Shot',sans-serif; }
+[data-page="dashboard"] .lobby-slot[data-selected="true"] .slot-art { font:18px/var(--type-body-leading) var(--font-bigshot), 'Big Shot',sans-serif; }
 
 [data-page="dashboard"] .shell-hud {
   position:absolute;
@@ -307,7 +307,7 @@
   pointer-events:none;
 }
 [data-page="dashboard"] .shell-team-label { font:400 24px/1.25 var(--font-upheaval), 'Upheaval',sans-serif; letter-spacing:normal; }
-[data-page="dashboard"] .lobby-status { margin:6px 0 0; font-size:21px; line-height:1.25; }
+[data-page="dashboard"] .lobby-status { margin:6px 0 0; font-size:var(--type-body-md); line-height:var(--type-body-leading); }
 .shell-page .shell-battle {
   margin-left:auto;
   width:calc(80 * var(--pixel));
@@ -336,10 +336,10 @@
 [data-page="dashboard"] .lobster-picker { width:570px; max-width:calc(100vw - 36px); max-height:calc(100dvh - 36px); padding:24px; border:3px solid #fff4d680; background:#1b1a25; color:#fff4d6; }
 [data-page="dashboard"] .lobster-picker::backdrop { background:#080911cc; }
 [data-page="dashboard"] .picker-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; }
-[data-page="dashboard"] .picker-heading h2 { margin:0; font-size:24px; }
-[data-page="dashboard"] .lobster-picker p { margin:12px 0; font-size:18px; }
+[data-page="dashboard"] .picker-heading h2 { margin:0; font-size:var(--type-heading-lg); min-width:0; }
+[data-page="dashboard"] .lobster-picker p { margin:12px 0; font-size:var(--type-body-sm); }
 [data-page="dashboard"] .picker-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:18px 0; }
-[data-page="dashboard"] :is(.picker-options button,.picker-close,.picker-clear) { min-width:0; padding:9px; border:3px solid #fff4d640; background:#2e222f; color:#fff4d6; font:400 18px/1.25 var(--font-upheaval), 'Upheaval',sans-serif; font-synthesis:none; letter-spacing:normal; }
+[data-page="dashboard"] :is(.picker-options button,.picker-close,.picker-clear) { min-width:0; padding:9px; border:3px solid #fff4d640; background:#2e222f; color:#fff4d6; font:400 var(--type-button)/var(--type-display-leading) var(--font-upheaval), 'Upheaval',sans-serif; font-synthesis:none; letter-spacing:var(--type-action-tracking); }
 [data-page="dashboard"] .picker-options button[aria-pressed="true"] { border-color:#fff4d6; }
 /* Pointer targets follow opaque art, not the transparent layout boxes.
    Stage hit shape lives separately so its selection outline is not clipped. */
@@ -434,8 +434,8 @@ html[data-shell] .sidebar-shell :is(button, a) { pointer-events:auto; } /* ours:
 }
 .battle-modal::backdrop { background:#08091199; }
 .battle-modal-header { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-bottom:24px; }
-.battle-modal-header h1 { margin:0; font:400 36px/1.2 var(--font-upheaval), 'Upheaval',sans-serif; }
-.battle-modal-close { padding:9px 15px; border:3px solid #fff4d680; color:#fff; background:#2e222f; cursor:pointer; font:400 21px/1.2 var(--font-upheaval), 'Upheaval',sans-serif; }
+.battle-modal-header h1 { margin:0; font:400 var(--type-heading-lg)/var(--type-display-leading) var(--font-upheaval), 'Upheaval',sans-serif; letter-spacing:var(--type-display-tracking); overflow-wrap:anywhere; min-width:0; }
+.battle-modal-close { flex-shrink:0; padding:9px 15px; border:3px solid #fff4d680; color:#fff; background:#2e222f; cursor:pointer; font:400 var(--type-button)/var(--type-display-leading) var(--font-upheaval), 'Upheaval',sans-serif; letter-spacing:var(--type-action-tracking); }
 @media(max-width:699px) {
   .battle-modal { width:calc(100vw - 24px); max-height:calc(100dvh - 24px); padding:12px; }
 }
@@ -443,12 +443,12 @@ html[data-shell] .sidebar-shell :is(button, a) { pointer-events:auto; } /* ours:
 /* ── pages/battle.css (the modal's content) ── */
 /* Battle setup only; no live matchmaking integration in this workbench. */
 [data-page="battle"] .arena-choice { max-width:540px; }
-[data-page="battle"] .arena-choice label { font:400 24px/1.2 var(--font-upheaval), 'Upheaval',sans-serif; }
+[data-page="battle"] .arena-choice label { font:400 var(--type-label)/var(--type-body-leading) var(--font-bigshot), 'Big Shot',sans-serif; letter-spacing:var(--type-body-tracking); }
 [data-page="battle"] .arena-choice .battle-help { margin-top:12px; }
 [data-page="battle"] .battle-start .pixel-button:disabled { opacity:0.6; }
 [data-page="battle"] .page-subtitle { margin: 12px 0 0; font-size: 24px; line-height: 1.5; }
-[data-page="battle"] h2 { margin: 0; font-size: 30px; line-height: 1.2; }
-[data-page="battle"] p { margin: 0; font-size: 21px; line-height: 1.5; }
+[data-page="battle"] h2 { margin: 0; font-size: var(--type-heading-sm); line-height: var(--type-display-leading); letter-spacing: var(--type-display-tracking); }
+[data-page="battle"] p { margin: 0; font-size: var(--type-body-md); line-height: var(--type-body-leading); }
 [data-page="battle"] .battle-tabs { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:24px; }
 [data-page="battle"] .battle-tab { color:#fff4d6; border-color:#fff4d680; }
 [data-page="battle"] .battle-tab[aria-current="page"] { border-color:#fff4d6; }
@@ -460,25 +460,25 @@ html[data-shell] .sidebar-shell :is(button, a) { pointer-events:auto; } /* ours:
 [data-page="battle"] .lobby-room-label { display:block; color:#b7b5c3; font-size:18px; text-align:center; }
 [data-page="battle"] .lobby-slots { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; padding:36px 0 24px; }
 [data-page="battle"] .lobby-slot { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:12px; min-width:0; min-height:294px; padding:18px 9px; background:transparent; color:#fff4d6; border:0; border-bottom:3px solid #fff4d64d; font-weight:400; font-synthesis:none; letter-spacing:normal; cursor:pointer; }
-[data-page="battle"] .slot-number { font:18px/1.5 var(--font-rainy), 'Rainy Hearts',sans-serif; color:#b7b5c3; }
+[data-page="battle"] .slot-number { font:18px/var(--type-body-leading) var(--font-bigshot), 'Big Shot',sans-serif; color:#b7b5c3; }
 [data-page="battle"] .slot-art { display:grid; place-items:center; width:100%; max-width:144px; height:156px; border:3px dashed #fff4d640; color:#b7b5c3; font:400 36px/1 var(--font-upheaval), 'Upheaval',sans-serif; }
 [data-page="battle"] .slot-name { font:400 24px/1.25 var(--font-upheaval), 'Upheaval',sans-serif; overflow-wrap:anywhere; }
-[data-page="battle"] .slot-hint { font:18px/1.5 var(--font-rainy), 'Rainy Hearts',sans-serif; }
+[data-page="battle"] .slot-hint { font:18px/var(--type-body-leading) var(--font-bigshot), 'Big Shot',sans-serif; }
 [data-page="battle"] .lobby-slot:hover { background:#ffffff08; border-bottom-color:#fff4d6; }
-[data-page="battle"] .lobby-slot[data-selected="true"] .slot-art { font:18px/1.5 var(--font-rainy), 'Rainy Hearts',sans-serif; border-color:#fff4d699; overflow-wrap:anywhere; padding:3px; }
+[data-page="battle"] .lobby-slot[data-selected="true"] .slot-art { font:18px/var(--type-body-leading) var(--font-bigshot), 'Big Shot',sans-serif; border-color:#fff4d699; overflow-wrap:anywhere; padding:3px; }
 [data-page="battle"] .lobby-status { text-align:center; }
 [data-page="battle"] .lobby-settings { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; margin-top:24px; }
 [data-page="battle"] .lobby-settings label { min-width:0; font-size:21px; }
-[data-page="battle"] select { display:block; width:100%; min-width:0; min-height:48px; margin-top:9px; padding:9px; border:3px solid #fff4d680; border-radius:0; background:#2e222f; color:#fff4d6; font-size:21px; }
+[data-page="battle"] select { display:block; width:100%; min-width:0; min-height:48px; margin-top:9px; padding:9px; border:3px solid #fff4d680; border-radius:0; background:#2e222f; color:#fff4d6; font-size:var(--type-input); }
 [data-page="battle"] .battle-start { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:24px; margin-top:24px; }
-[data-page="battle"] .battle-help { font-size:18px; }
+[data-page="battle"] .battle-help { font-size:var(--type-caption); }
 [data-page="battle"] .battle-start .pixel-button { color:#fff4d6; }
 [data-page="battle"] :is(button,select):focus-visible { outline:3px solid #fff4d6; outline-offset:3px; }
 [data-page="battle"] .lobster-picker { width:570px; max-width:calc(100vw - 36px); max-height:calc(100dvh - 48px); padding:24px; border:3px solid #fff4d680; background:#1b1a25; color:#fff4d6; }
 [data-page="battle"] .lobster-picker::backdrop { background:#080911cc; }
 [data-page="battle"] .picker-heading { display:flex; justify-content:space-between; align-items:center; gap:18px; margin-bottom:12px; }
 [data-page="battle"] .picker-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:24px 0; }
-[data-page="battle"] :is(.picker-options button,.picker-close,.picker-clear) { padding:12px; min-width:0; border:3px solid #fff4d640; background:#2e222f; color:#fff4d6; font:400 18px/1.5 var(--font-upheaval), 'Upheaval',sans-serif; font-synthesis:none; letter-spacing:normal; }
+[data-page="battle"] :is(.picker-options button,.picker-close,.picker-clear) { padding:12px; min-width:0; border:3px solid #fff4d640; background:#2e222f; color:#fff4d6; font:400 var(--type-button)/var(--type-display-leading) var(--font-upheaval), 'Upheaval',sans-serif; font-synthesis:none; letter-spacing:var(--type-action-tracking); }
 [data-page="battle"] .picker-options button[aria-pressed="true"] { border-color:#fff4d6; }
 @container (max-width: 620px) {
   [data-page="battle"] .lobby-room { padding:12px; }
@@ -555,11 +555,11 @@ html[data-shell] .sidebar-shell :is(button, a) { pointer-events:auto; } /* ours:
 }
 
 /* ── body-font.css, scoped to the Shell and its modal ── */
-.shell-page, .battle-modal { font: 15px/1.5 var(--font-rainy), 'Rainy Hearts', sans-serif; letter-spacing: -0.5px; }
+.shell-page, .battle-modal { font: 400 var(--type-body-md)/var(--type-body-leading) var(--font-bigshot), 'Big Shot', sans-serif; letter-spacing: var(--type-body-tracking); font-synthesis: none; }
 .shell-page p, .battle-modal p { -webkit-text-stroke: 0.25px currentColor; }
-.shell-page :is(h1,h2,h3,h4,h5,h6), .battle-modal :is(h1,h2,h3,h4,h5,h6) { font-family: var(--font-upheaval), 'Upheaval', sans-serif; font-weight: 400; font-synthesis: none; letter-spacing: normal; }
-.shell-page :is(input,textarea,select), .battle-modal :is(input,textarea,select) { font-family: var(--font-rainy), 'Rainy Hearts', sans-serif; letter-spacing: -0.5px; }
-.shell-page button, .battle-modal button { font-family: var(--font-upheaval), 'Upheaval', sans-serif; letter-spacing: normal; cursor: pointer; color: #f3eedc; }
+.shell-page :is(h1,h2,h3,h4,h5,h6), .battle-modal :is(h1,h2,h3,h4,h5,h6) { font-family: var(--font-upheaval), 'Upheaval', sans-serif; font-weight: 400; font-synthesis: none; line-height: var(--type-display-leading); letter-spacing: var(--type-display-tracking); }
+.shell-page :is(input,textarea,select), .battle-modal :is(input,textarea,select) { font: 400 var(--type-input)/var(--type-body-leading) var(--font-bigshot), 'Big Shot', sans-serif; letter-spacing: var(--type-body-tracking); }
+.shell-page button, .battle-modal button { font: 400 var(--type-button)/var(--type-display-leading) var(--font-upheaval), 'Upheaval', sans-serif; letter-spacing: var(--type-action-tracking); font-synthesis: none; cursor: pointer; color: #f3eedc; }
 .shell-page button:focus-visible, .battle-modal button:focus-visible { outline: 3px solid #f4dd9c; outline-offset: 3px; }
 .shell-page [hidden], .battle-modal [hidden] { display: none !important; }
 .shell-page canvas, .battle-modal canvas { display: block; image-rendering: pixelated; }
@@ -571,7 +571,7 @@ html[data-shell] .sidebar-shell :is(button, a) { pointer-events:auto; } /* ours:
 .shell-page [data-pixel-panel="woodenPanel"] .pixel-button, .battle-modal [data-pixel-panel="woodenPanel"] .pixel-button { color: #fff4d6; }
 /* Live records inside the overlays. */
 .shell-records ul { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 9px; }
-.shell-records li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 15px; font-size: 21px; line-height: 1.3; }
+.shell-records li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 15px; font-size: var(--type-body-md); line-height: var(--type-body-leading); }
 .shell-records li a, .shell-records p a { color: #ffe4a0; text-decoration: underline; }
 .shell-records .shell-record-id { font-family: var(--font-upheaval), 'Upheaval', sans-serif; letter-spacing: normal; }
 .shell-records .shell-record-win { color: #9be78f; }
@@ -581,15 +581,15 @@ html[data-shell] .sidebar-shell :is(button, a) { pointer-events:auto; } /* ours:
 .shell-records .shell-queue-elapsed { font-family: var(--font-upheaval), 'Upheaval', sans-serif; letter-spacing: normal; }
 /* The picker lists real lobsters: a tier/id line under the class name. */
 .shell-page .picker-options button { display: flex; align-items: center; gap: 9px; text-align: left; }
-.shell-page .picker-options button .picker-meta { margin-left: auto; font: 15px/1.25 var(--font-rainy), 'Rainy Hearts', sans-serif; letter-spacing: -0.5px; color: #cfc9d8; }
+.shell-page .picker-options button .picker-meta { margin-left: auto; font: 400 var(--type-body-sm)/1.25 var(--font-bigshot), 'Big Shot', sans-serif; letter-spacing: var(--type-body-tracking); color: #cfc9d8; }
 .shell-page .picker-options button:disabled { opacity: 0.45; cursor: not-allowed; }
-.shell-page .picker-empty { margin: 18px 0; font-size: 18px; }
+.shell-page .picker-empty { margin: 18px 0; font-size: var(--type-body-sm); }
 .shell-page .picker-empty a { color: #ffe4a0; text-decoration: underline; }
 /* A real lobster on its stage: the app's own idle sheet, sized by the stage unit from React. */
 .shell-page .lobby-slot > .slot-character.slot-character--lobster { background: none; width: auto; height: auto; }
 .shell-page .lobby-slot > .slot-character.slot-character--lobster > * { display: block; }
 /* The lineup summary and the stake/eligibility rows inside the modal. */
-.battle-modal .lobby-summary { display: flex; flex-wrap: wrap; gap: 9px 24px; margin: 0 0 24px; font-size: 21px; }
+.battle-modal .lobby-summary { display: flex; flex-wrap: wrap; gap: 9px 24px; margin: 0 0 24px; font-size: var(--type-body-md); }
 .battle-modal .lobby-summary .class-icon { display: inline-block; width: calc(16 * var(--pixel)); height: calc(16 * var(--pixel)); vertical-align: middle; margin-right: calc(3 * var(--pixel)); background-image: url('/ui/shell/class-badges.png'); background-size: calc(160 * var(--pixel)) calc(16 * var(--pixel)); background-position: calc(-16 * var(--class-frame) * var(--pixel)) 0; background-repeat: no-repeat; image-rendering: pixelated; }
 .battle-modal .battle-help a { color: #ffe4a0; text-decoration: underline; }
 /* Below the desktop breakpoint the game shell keeps its bottom nav: lift the HUD above it. */
