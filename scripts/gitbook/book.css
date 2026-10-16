@@ -84,7 +84,7 @@ hr { width: auto; }
 .toc-chapter:hover { color: var(--accent); }
 .toc-n { color: var(--accent); font-size: var(--type-button); }
 .toc-list ul { list-style: none; margin: 6px 0 0 48px; padding: 0; columns: 2; column-gap: 24px; }
-.toc-list ul li { font-size: var(--type-body-sm); line-height: 1.5; margin: 0 0 3px; break-inside: avoid; }
+.toc-list ul li { font-size: 19px; line-height: 1.5; margin: 0 0 3px; break-inside: avoid; max-width: none; }   /* owner: body size or 1 px larger */
 .toc-list ul a { color: var(--cream); text-decoration: none; }
 .toc-list ul a:hover { color: var(--accent); text-decoration: underline; }
 
@@ -185,6 +185,14 @@ pre { background: var(--ink); color: var(--cream); border: 3px solid var(--outli
 pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
 code { font-family: var(--type-mono); font-size: 0.875em; background: var(--ink); color: var(--accent); padding: 1px 5px; border-radius: 0; overflow-wrap: anywhere; }
 
+/* ── Figures: screenshots from the game, framed like a ledger ── */
+figure { margin: 18px 0 30px; max-width: none; break-inside: avoid; }
+figure img { display: block; width: 100%; height: auto; border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--shadow); image-rendering: auto; }
+figcaption { margin: 12px 6px 0; font-size: 16px; line-height: 1.45; color: var(--cream); }
+figcaption::before { content: '▸ '; color: var(--accent); }
+.figure-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+.figure-row figure { margin: 0; }
+
 /* ── Quotes ── */
 blockquote { margin: 0 0 1.2em; padding: 3px 0 3px 18px; border-left: 6px solid var(--accent); color: var(--cream); }
 blockquote p:last-child { margin-bottom: 0; }
@@ -227,7 +235,10 @@ blockquote p:last-child { margin-bottom: 0; }
   .chapter { border: 0; border-image: none; padding: 0; margin: 0; break-before: page; }
   .chapter > h1::after { margin-bottom: 24px; }
   h1, h2, h3, h4 { break-after: avoid; }
-  .chapter tr, blockquote, .class-card, .ep, .rec, .kv-row { break-inside: avoid; }
+  .chapter tr, blockquote, .class-card, .ep, .rec, .kv-row, figure { break-inside: avoid; }
+  figure { margin: 12px 0 18px; }
+  figure img { box-shadow: none; max-height: 84mm; width: auto; max-width: 100%; margin: 0 auto; }
+  figcaption { font-size: 14px; margin-top: 9px; }
   .chapter thead { display: table-header-group; }
   /* two rows of hero cards per A4 page: the art area is exactly the 2× sprite, nothing else grows */
   .class-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
