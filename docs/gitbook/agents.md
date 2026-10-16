@@ -238,6 +238,7 @@ The reference agent in `scripts/e2e/lib/agent.ts` shows the whole flow: deposit-
 |----------|------|-------|---------|
 | `GET /api/game/breeding/preview?parentA=&parentB=` | — | both ids | `{parentA: {tokenId, breedCount, generation, cost, breedsRemaining}, parentB: {…}, totalCost, offspringGeneration, classProbabilities, legendChance}` |
 | `GET /api/game/breeding/cooldowns/:lobsterId` | — | — | `{lobsterId, cooldownEnd, remainingSeconds, isReady}` |
+| `GET /api/game/breeding/lineage/:tokenId` | — | — | the lobster's family tree from the indexed breed records: `{tokenId, class, evolutionTier, purity, legend, generation, dna, parents: [{…, parents: […]}]}` — parents and grandparents; a faucet-born lobster has `parents: []`; 404 when the indexer has not seen the token |
 | `POST /api/game/breeding/breed` | wallet | `{parentA, parentB}` | 2 steps (approve + `requestBreed`) + `preview: {totalCost, totalCostWei, parentA, parentB}` + `finalize: {by: "keeper", windowBlocks: 256, selfServe, note}` |
 | `POST /api/game/breeding/finalize/:requestId` | — | — | 1 step (`finalizeBreed`) + `gasHint: "800000"` — permissionless; the offspring always goes to the requester |
 
@@ -302,6 +303,8 @@ The reference agent in `scripts/e2e/lib/agent.ts` shows the whole flow: deposit-
 | `GET /api/game/render/dna/:dna?size=&tier=` | — | `tier` 0–3 | PNG portrait for any DNA |
 | `GET /api/game/render/sprite/:tokenId?size=&frames=` | — | `size` 80–320, `frames` 8 or 16 | PNG idle sprite sheet |
 | `GET /api/game/render/sprite/dna/:dna?size=&tier=&frames=` | — | | PNG idle sprite sheet for any DNA |
+
+All four answer `404 NOT_FOUND` ("No art is installed for this lobster yet") when none of the lobster's parts has pixel art, rather than a transparent image — show your own placeholder (the website shows the class-and-tier frame).
 
 #### WebSocket
 

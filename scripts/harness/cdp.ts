@@ -83,6 +83,10 @@ async function connect(): Promise<Browser> {
       case 'Log.entryAdded':
         logs.push(`[log:${msg.params.entry.level}] ${msg.params.entry.text}`);
         break;
+      case 'Network.requestWillBeSent':
+        // Every request the page makes, so a probe can assert on query strings (market filters → listings query).
+        logs.push(`[net] ${msg.params.request?.method ?? 'GET'} ${msg.params.request?.url ?? ''}`);
+        break;
       case 'Page.loadEventFired':
         loadedAt = Date.now();
         break;
@@ -208,9 +212,15 @@ async function forfeitIfLive(b: Browser) {
   }
 }
 
+// A probe that throws must say so: `process.exit` inside `finally` used to swallow the exception (exit 0, no
+// output), so a probe that died halfway looked like a pass without a verdict line.
+let exitCode = 0;
 try {
   await run(browser);
+} catch (e) {
+  console.error(`[harness] probe threw: ${(e as Error)?.stack ?? String(e)}`);
+  exitCode = 1;
 } finally {
   if (!mod.keepBattle && !process.env.KEEP) await forfeitIfLive(browser);
-  process.exit(0);
+  process.exit(exitCode);
 }

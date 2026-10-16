@@ -21,11 +21,12 @@ const upheaval = localFont({
   display: 'swap',
 });
 
-/** Nzib's body face for the Shell's copy (DaFont lists it 100% free; its README sits beside the file). */
-const rainyHearts = localFont({
-  src: '../fonts/rainyhearts/rainyhearts.ttf',
+/** Nzib's body face (his shared typography, design/website ee1219f): Big Shot regular at natural scale, no
+ *  synthetic bold. Replaces Rainy Hearts. The README beside the file records its source. */
+const bigShot = localFont({
+  src: '../fonts/big-shot/big-shot.ttf',
   weight: '400',
-  variable: '--font-rainy',
+  variable: '--font-bigshot',
   display: 'swap',
 });
 
@@ -44,7 +45,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${blackHanSans.variable} ${titillium.variable} ${upheaval.variable} ${rainyHearts.variable}`}>
+      <body className={`${blackHanSans.variable} ${titillium.variable} ${upheaval.variable} ${bigShot.variable}`}>
         <Web3Provider>
           <CursorPressTracker />
           {children}

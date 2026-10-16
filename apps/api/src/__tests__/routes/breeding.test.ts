@@ -40,6 +40,24 @@ mock.module('../../lib/chain', () => ({
   serializeBigInts: _serializeBigInts,
 }));
 
+// ── Mock @clawbada/db (the lineage route reads the indexer's breed records) ──
+// Each awaited query takes the next result from this queue, so a test can script
+// "the lobster row, then its breed row, then each parent's row".
+const dbQueue: any[][] = [];
+function mockDbChain() {
+  const chain: any = {};
+  for (const m of ['select', 'from', 'innerJoin', 'where', 'orderBy', 'limit', 'offset']) chain[m] = mock(() => chain);
+  chain.then = (resolve: Function) => resolve(dbQueue.length ? dbQueue.shift() : []);
+  return chain;
+}
+const mockDb = mockDbChain();
+mock.module('@clawbada/db', () => ({
+  db: { select: () => mockDb },
+  breeds: { parentA: 'parentA', parentB: 'parentB', offspringId: 'offspringId' },
+  lobsters: { tokenId: 'tokenId', class: 'class', evolutionTier: 'evolutionTier', purity: 'purity', legend: 'legend', generation: 'generation', dna: 'dna' },
+}));
+mock.module('drizzle-orm', () => ({ eq: (...args: any[]) => args, desc: (c: any) => c, asc: (c: any) => c }));
+
 // ── Import AFTER mocking ──
 import { breedingRoutes } from '../../routes/game/breeding';
 import {
@@ -240,6 +258,50 @@ describe('breeding routes', () => {
       expect(res.status).toBe(409);
       const body = await res.json();
       expect(body.error).toBe('COOLDOWN_ACTIVE');
+    });
+  });
+
+  // ──────────── GET /breeding/lineage/:tokenId ────────────
+
+  describe('GET /breeding/lineage/:tokenId', () => {
+    const row = (tokenId: bigint, extra: Record<string, unknown> = {}) => ({
+      tokenId, class: 8, evolutionTier: 1, purity: 2, legend: 0, generation: 0, dna: '12345', ...extra,
+    });
+
+    test('a faucet-born lobster has no parents', async () => {
+      dbQueue.length = 0;
+      dbQueue.push([row(7n)], []); // the lobster row, then no breed record
+      const res = await app.request('/breeding/lineage/7');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.tokenId).toBe('7');
+      expect(body.parents).toEqual([]);
+    });
+
+    test('a bred lobster carries its two parents, and their parents', async () => {
+      dbQueue.length = 0;
+      // Reads happen depth-first, parent A before parent B; grandparents (depth 0) skip the breed read.
+      dbQueue.push(
+        [row(50n, { generation: 2 })], [{ parentA: 10n, parentB: 11n }], // the lobster, its breed
+        [row(10n, { generation: 1 })], [{ parentA: 1n, parentB: 2n }],   // parent A, its breed
+        [row(1n)], [row(2n)],                                            // A's parents
+        [row(11n, { generation: 1 })], [],                               // parent B, faucet-born
+      );
+      const res = await app.request('/breeding/lineage/50');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.generation).toBe(2);
+      expect(body.parents.map((p: any) => p.tokenId)).toEqual(['10', '11']);
+      expect(body.parents[0].parents.map((p: any) => p.tokenId)).toEqual(['1', '2']);
+      expect(body.parents[0].parents[0].parents).toEqual([]);
+      expect(body.parents[1].parents).toEqual([]);
+    });
+
+    test('404 for a lobster the indexer has not seen, 400 for a non-numeric id', async () => {
+      dbQueue.length = 0;
+      dbQueue.push([]);
+      expect((await app.request('/breeding/lineage/999')).status).toBe(404);
+      expect((await app.request('/breeding/lineage/abc')).status).toBe(400);
     });
   });
 });

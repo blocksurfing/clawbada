@@ -1,85 +1,85 @@
 'use client';
 
-import { useEffect, useRef, type HTMLAttributes } from 'react';
+import { createElement, useEffect, useRef, type HTMLAttributes, type RefObject } from 'react';
+import { PIXEL_ASSETS, loadPixelImage, pixelScale, tileAxis, type PanelAsset, type PanelAssetName } from '@/components/pixel/pixel-assets';
 
 /**
- * Nzib's nine-slice wooden panel (`components/pixel/index.js` + `geometry.js`, baseline 3295433): the art is
- * drawn from the original sheet into a source-resolution canvas displayed at the global 3× pixel. Corners stay
- * fixed; edges AND the centre repeat whole source pixels; a partial end tile clips. No border-image stretch.
- * WoodenPanel.png (192×192): region [0, 0, 48, 48] on a 16 px tile.
+ * Nzib's nine-slice panels (`components/pixel/index.js` + `geometry.js`, drop ee1219f): the art is drawn from
+ * the original sheet into a source-resolution canvas displayed at the global 3× pixel. Corners stay fixed;
+ * edges AND the centre repeat whole source pixels; a partial end tile clips. No border-image stretch.
+ * `usePixelPanel` paints any element (the market's Buy button is a panel too); `PixelPanel` is the element.
  */
-const ASSET = { src: '/ui/tileset/WoodenPanel.png', region: [0, 0, 48, 48] as const, tile: 16 };
-
-const images = new Map<string, Promise<HTMLImageElement>>();
-function loadImage(src: string) {
-  let p = images.get(src);
-  if (!p) {
-    p = new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error(`Pixel asset failed to load: ${src}`));
-      image.src = src;
-    });
-    images.set(src, p);
-  }
-  return p;
-}
-
-/** Source-pixel slices: repeat only whole pixels; the final partial tile is clipped. */
-export function tileAxis(length: number, tile: number) {
-  if (!Number.isInteger(length) || length < tile * 2) throw new Error('Panel too small for fixed corners');
-  const parts = [{ source: 0, dest: 0, size: tile }];
-  for (let at = tile; at < length - tile; at += tile) parts.push({ source: tile, dest: at, size: Math.min(tile, length - tile - at) });
-  parts.push({ source: tile * 2, dest: length - tile, size: tile });
-  return parts;
-}
-
-const pixelScale = () => {
-  const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pixel'));
-  return Number.isInteger(value) && value >= 1 ? value : 3;
-};
-
-export function PixelPanel({ children, className, ...rest }: HTMLAttributes<HTMLElement>) {
-  const ref = useRef<HTMLElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
+export function usePixelPanel(ref: RefObject<HTMLElement | null>, canvasRef: RefObject<HTMLCanvasElement | null>, asset: PanelAsset) {
   useEffect(() => {
     const element = ref.current, canvas = canvasRef.current;
     if (!element || !canvas) return;
     let disposed = false, scheduled = 0, image: HTMLImageElement | null = null;
-    element.style.setProperty('--panel-tile', String(ASSET.tile));
+    element.style.setProperty('--panel-tile', String(asset.tile));
     const update = () => {
       scheduled = 0;
       if (disposed || !image) return;
       const unit = pixelScale();
       const rect = element.getBoundingClientRect();
+      // Hidden panels have zero bounds; a responsive layout can briefly sit below the fixed corners.
+      // Keep the last paint until the observer supplies usable bounds.
+      if (!rect.width || !rect.height) return;
       const width = Math.round(rect.width / unit), height = Math.round(rect.height / unit);
-      if (width < ASSET.tile * 2 || height < ASSET.tile * 2) return;
+      const minimum = (asset.sliceSpan ?? asset.tile) * 2;
+      if (width < minimum || (!asset.horizontal && height < minimum)) return;
       // Canvas resolution is in source pixels; CSS displays exactly unit × source dimensions.
-      if (canvas.width === width && canvas.height === height && element.dataset.pixelReady === 'true') return;
-      canvas.width = width; canvas.height = height;
-      canvas.style.width = `${width * unit}px`; canvas.style.height = `${height * unit}px`;
+      const pad = asset.identityJoins ? 2 : 0;
+      if (canvas.width === width + pad * 2 && canvas.height === height + pad * 2 && element.dataset.pixelReady === 'true') return;
+      canvas.width = width + pad * 2; canvas.height = height + pad * 2;
+      canvas.style.width = `${canvas.width * unit}px`; canvas.style.height = `${canvas.height * unit}px`;
+      if (pad) { canvas.style.top = `${-pad * unit}px`; canvas.style.left = `${-pad * unit}px`; }
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       ctx.imageSmoothingEnabled = false;
-      const [sx, sy] = ASSET.region;
-      for (const row of tileAxis(height, ASSET.tile)) for (const col of tileAxis(width, ASSET.tile)) {
+      ctx.translate(pad, pad);
+      const [sx, sy] = asset.region;
+      const rows = asset.horizontal
+        ? Array.from({ length: asset.region[3] / asset.tile }, (_, i) => ({ source: i * asset.tile, dest: i * asset.tile, size: asset.tile }))
+        : tileAxis(height, asset.tile, asset.sliceSpan);
+      for (const row of rows) for (const col of tileAxis(width, asset.tile, asset.sliceSpan)) {
         ctx.drawImage(image, sx + col.source, sy + row.source, col.size, row.size, col.dest, row.dest, col.size, row.size);
+      }
+      if (asset.identityJoins) {
+        const [x, y] = asset.identityJoins;
+        // Only the top-left cream corner of this single tile is opaque: paint its 2×2 outside each junction.
+        ctx.drawImage(image, x, y, 2, 2, width, 0, 2, 2);
+        ctx.drawImage(image, x, y, 2, 2, 0, height, 2, 2);
       }
       element.dataset.pixelReady = 'true';
     };
     const schedule = () => { if (!disposed && !scheduled) scheduled = requestAnimationFrame(update); };
-    loadImage(ASSET.src).then((img) => { if (!disposed) { image = img; schedule(); } }).catch(console.error);
+    loadPixelImage(asset.src).then((img) => { if (!disposed) { image = img; schedule(); } }).catch(console.error);
     const observer = new ResizeObserver(schedule);
     observer.observe(element);
     void document.fonts.ready.then(schedule);
     return () => { disposed = true; cancelAnimationFrame(scheduled); observer.disconnect(); };
-  }, []);
+  }, [ref, canvasRef, asset]);
+}
 
-  return (
-    <section ref={ref} className={`wooden-panel pixel-panel${className ? ` ${className}` : ''}`} data-pixel-panel="woodenPanel" {...rest}>
-      <canvas ref={canvasRef} aria-hidden="true" className="pixel-panel-art" />
-      {children}
-    </section>
+type PanelTag = 'section' | 'div' | 'article' | 'form' | 'nav' | 'aside';
+
+interface PixelPanelProps extends HTMLAttributes<HTMLElement> {
+  /** Registry name; the wooden panel by default. */
+  asset?: PanelAssetName;
+  as?: PanelTag;
+}
+
+export function PixelPanel({ asset = 'woodenPanel', as = 'section', children, className, ...rest }: PixelPanelProps) {
+  const ref = useRef<HTMLElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  usePixelPanel(ref, canvasRef, PIXEL_ASSETS[asset]);
+  const classes = `${asset === 'woodenPanel' ? 'wooden-panel ' : ''}pixel-panel${className ? ` ${className}` : ''}`;
+  return createElement(
+    as,
+    { ref, className: classes, 'data-pixel-panel': asset, ...rest },
+    createElement('canvas', { ref: canvasRef, 'aria-hidden': 'true', className: 'pixel-panel-art' }),
+    children,
   );
 }
+
+// Kept for the battle modal and the Shell, which import it from here.
+export { tileAxis };
