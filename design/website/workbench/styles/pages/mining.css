@@ -2,7 +2,7 @@
 [data-page="mining"] .page-subtitle {
   margin: 12px 0 0;
   font-size: 24px;
-  line-height: 1.5;
+  line-height: var(--body-leading);
 }
 [data-page="mining"] h2,
 [data-page="mining"] h3,
@@ -34,7 +34,7 @@
 [data-page="mining"] .mine-reward-caption {
   margin: 6px 0 0;
   font-size: 21px;
-  line-height: 1.4;
+  line-height: var(--body-leading);
 }
 [data-page="mining"] .mine-art-placeholder {
   display: grid;
@@ -53,7 +53,7 @@
   gap: 12px;
   margin: 30px 0 0;
   font-size: 21px;
-  line-height: 1.4;
+  line-height: var(--body-leading);
 }
 [data-page="mining"] .mine-details > div {
   display: flex;

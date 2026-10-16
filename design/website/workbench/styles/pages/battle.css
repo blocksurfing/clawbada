@@ -3,9 +3,9 @@
 [data-page="battle"] .arena-choice label { font:400 24px/1.2 'Upheaval',sans-serif; }
 [data-page="battle"] .arena-choice .battle-help { margin-top:12px; }
 [data-page="battle"] .battle-start .pixel-button:disabled { opacity:0.6; }
-[data-page="battle"] .page-subtitle { margin: 12px 0 0; font-size: 24px; line-height: 1.5; }
+[data-page="battle"] .page-subtitle { margin: 12px 0 0; font-size: 24px; line-height: var(--body-leading); }
 [data-page="battle"] h2 { margin: 0; font-size: 30px; line-height: 1.2; }
-[data-page="battle"] p { margin: 0; font-size: 21px; line-height: 1.5; }
+[data-page="battle"] p { margin: 0; font-size: 21px; line-height: var(--body-leading); }
 [data-page="battle"] .battle-tabs { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:24px; }
 [data-page="battle"] .battle-tab { color:#fff4d6; border-color:#fff4d680; }
 [data-page="battle"] .battle-tab[aria-current="page"] { border-color:#fff4d6; }
@@ -17,12 +17,12 @@
 [data-page="battle"] .lobby-room-label { display:block; color:#b7b5c3; font-size:18px; text-align:center; }
 [data-page="battle"] .lobby-slots { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; padding:36px 0 24px; }
 [data-page="battle"] .lobby-slot { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:12px; min-width:0; min-height:294px; padding:18px 9px; background:transparent; color:#fff4d6; border:0; border-bottom:3px solid #fff4d64d; font-weight:400; font-synthesis:none; letter-spacing:normal; cursor:pointer; }
-[data-page="battle"] .slot-number { font:18px/1.5 'Rainy Hearts',sans-serif; color:#b7b5c3; }
+[data-page="battle"] .slot-number { font:18px/var(--body-leading) 'Big Shot',sans-serif; color:#b7b5c3; }
 [data-page="battle"] .slot-art { display:grid; place-items:center; width:100%; max-width:144px; height:156px; border:3px dashed #fff4d640; color:#b7b5c3; font:400 36px/1 'Upheaval',sans-serif; }
 [data-page="battle"] .slot-name { font:400 24px/1.25 'Upheaval',sans-serif; overflow-wrap:anywhere; }
-[data-page="battle"] .slot-hint { font:18px/1.5 'Rainy Hearts',sans-serif; }
+[data-page="battle"] .slot-hint { font:18px/var(--body-leading) 'Big Shot',sans-serif; }
 [data-page="battle"] .lobby-slot:hover { background:#ffffff08; border-bottom-color:#fff4d6; }
-[data-page="battle"] .lobby-slot[data-selected="true"] .slot-art { font:18px/1.5 'Rainy Hearts',sans-serif; border-color:#fff4d699; overflow-wrap:anywhere; padding:3px; }
+[data-page="battle"] .lobby-slot[data-selected="true"] .slot-art { font:18px/var(--body-leading) 'Big Shot',sans-serif; border-color:#fff4d699; overflow-wrap:anywhere; padding:3px; }
 [data-page="battle"] .lobby-status { text-align:center; }
 [data-page="battle"] .lobby-settings { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; margin-top:24px; }
 [data-page="battle"] .lobby-settings label { min-width:0; font-size:21px; }

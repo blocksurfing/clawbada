@@ -16,9 +16,11 @@ import { mountBattleLobby } from './components/battle-lobby.js';
 import { mountShellArt } from './components/shell-art.js';
 import { createBattleModal } from './components/battle-modal.js';
 import { mountShellTabs } from './components/shell-tabs.js';
+import { mountMarket } from './components/market.js';
 
 const pages = import.meta.glob('./pages/*.html', { query: '?raw', import: 'default', eager: true });
 import.meta.glob('./styles/pages/*.css', { eager: true });
+import './styles/typography-roles.css';
 const logo = new URL('../brand/logo-wordmark-512x512.png', import.meta.url).href;
 document.querySelector('#app').innerHTML = sidebar.replace('../brand/logo-wordmark-512x512.png', logo) + userSection + '<main id="page-content" class="workspace-placeholder"></main>';
 const main = document.querySelector('#page-content');
@@ -31,18 +33,19 @@ main.addEventListener('scroll', syncHeaderScroll, { passive: true });
 let disposePixelUI = () => {};
 function render(slug) {
   disposePixelUI();
-  main.innerHTML = (slug === 'dashboard' ? '' : `<header class="page-header"><h1 class="page-title">${routes[slug]}</h1>${slug === 'mining' ? '<p class="page-subtitle">Send teams on 4-hour expeditions to earn $GOLD</p>' : slug === 'battle' ? '<p class="page-subtitle">PvP combat — wager $GOLD, winner takes the pot</p>' : ''}</header>`) + pages[`./pages/${slug}.html`];
+  main.innerHTML = (['dashboard', 'market'].includes(slug) ? '' : `<header class="page-header"><h1 class="page-title">${routes[slug]}</h1>${slug === 'mining' ? '<p class="page-subtitle">Send teams on 4-hour expeditions to earn $GOLD</p>' : slug === 'battle' ? '<p class="page-subtitle">PvP combat — wager $GOLD, winner takes the pot</p>' : ''}</header>`) + pages[`./pages/${slug}.html`];
   main.dataset.page = slug;
   document.body.style.backgroundColor = pageColors[slug];
   document.body.dataset.pageTheme = pageThemes[slug];
   main.setAttribute('aria-label', `${routes[slug]} design placeholder`);
   main.scrollTop = 0;
   syncHeaderScroll();
+  const disposeMarket = mountMarket(main);
   const disposePanels = mountPixelUI(main);
   const disposeLobby = mountBattleLobby(main);
   const disposeArt = mountShellArt(main);
   const disposeTabs = mountShellTabs(main);
-  disposePixelUI = () => { disposeTabs(); disposeLobby(); disposeArt(); disposePanels(); };
+  disposePixelUI = () => { disposeMarket(); disposeTabs(); disposeLobby(); disposeArt(); disposePanels(); };
   document.title = `Clawbada · ${routes[slug]} · Design workbench`;
 }
 const battleModal = createBattleModal();
