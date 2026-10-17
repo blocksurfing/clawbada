@@ -2,6 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {Treasury} from "../../Treasury.sol";
 import {GoldToken} from "../../GoldToken.sol";
 
@@ -344,5 +347,83 @@ contract FuzzTreasury is Test {
         vm.prank(deployer);
         vm.expectRevert(Treasury.InvalidDevWallet.selector);
         new Treasury(admin, futureTreasury);
+    }
+
+    // ── IA-05: strays leave through the split, other tokens through the owner ──
+
+    function test_sweepGold_splits_strays_85_15() public {
+        uint256 stray = 1_000e18;
+        vm.prank(lpWallet);
+        gold.transfer(address(treasury), stray); // a mistake, not a fee
+
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
+        uint256 burned = (stray * 8_500) / 10_000;
+        address anyone = makeAddr("anyone");
+
+        vm.expectEmit(true, false, false, true, address(treasury));
+        emit Treasury.GoldSwept(anyone, stray, burned, stray - burned);
+        vm.prank(anyone);
+        treasury.sweepGold();
+
+        assertEq(gold.balanceOf(address(treasury)), 0, "nothing left behind");
+        assertEq(supplyBefore - gold.totalSupply(), burned, "85% burned");
+        assertEq(gold.balanceOf(devWallet) - devBefore, stray - burned, "15% to dev");
+    }
+
+    function testFuzz_sweepGold_any_stray(uint256 stray) public {
+        stray = bound(stray, treasury.BPS_DENOMINATOR(), gold.balanceOf(lpWallet));
+        vm.prank(lpWallet);
+        gold.transfer(address(treasury), stray);
+        uint256 devBefore = gold.balanceOf(devWallet);
+        uint256 supplyBefore = gold.totalSupply();
+
+        treasury.sweepGold();
+
+        assertEq(gold.balanceOf(address(treasury)), 0, "swept clean");
+        assertEq((supplyBefore - gold.totalSupply()) + (gold.balanceOf(devWallet) - devBefore), stray, "burn + dev == stray");
+        assertEq(supplyBefore - gold.totalSupply(), (stray * 8_500) / 10_000, "exactly the burn share");
+    }
+
+    function test_sweepGold_below_minimum_reverts() public {
+        vm.prank(lpWallet);
+        gold.transfer(address(treasury), 9_999);
+        vm.expectRevert(abi.encodeWithSelector(Treasury.AmountBelowMinimum.selector, 9_999, 10_000));
+        treasury.sweepGold();
+    }
+
+    function test_recoverERC20_returns_other_tokens_owner_only() public {
+        ERC20Mock other = new ERC20Mock();
+        other.mint(address(treasury), 5e18);
+        address rescuer = makeAddr("rescuer");
+
+        vm.prank(rescuer);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, rescuer));
+        treasury.recoverERC20(IERC20(address(other)), rescuer, 5e18);
+
+        vm.expectEmit(true, true, false, true, address(treasury));
+        emit Treasury.TokensRecovered(address(other), rescuer, 5e18);
+        vm.prank(admin);
+        treasury.recoverERC20(IERC20(address(other)), rescuer, 5e18);
+        assertEq(other.balanceOf(rescuer), 5e18, "returned");
+        assertEq(other.balanceOf(address(treasury)), 0, "none kept");
+    }
+
+    function test_recoverERC20_refuses_gold_and_zero_inputs() public {
+        vm.prank(lpWallet);
+        gold.transfer(address(treasury), 1e18);
+
+        vm.prank(admin);
+        vm.expectRevert(Treasury.CannotRecoverGold.selector);
+        treasury.recoverERC20(IERC20(address(gold)), admin, 1e18);
+        assertEq(gold.balanceOf(address(treasury)), 1e18, "GOLD only leaves through sweepGold");
+
+        ERC20Mock other = new ERC20Mock();
+        vm.prank(admin);
+        vm.expectRevert(Treasury.ZeroAddress.selector);
+        treasury.recoverERC20(IERC20(address(other)), address(0), 1);
+        vm.prank(admin);
+        vm.expectRevert(Treasury.ZeroAmount.selector);
+        treasury.recoverERC20(IERC20(address(other)), admin, 0);
     }
 }

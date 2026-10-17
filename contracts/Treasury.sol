@@ -6,17 +6,21 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @title Treasury — Protocol fee splitter for Clawbada
-/// @notice Receives $GOLD fees from game contracts and splits: 85% burn / 15% dev wallet.
-/// @dev All game contracts that collect fees call processFee() after approving this contract.
-///      Treasury does NOT accumulate tokens — each processFee call is atomic pull-split-burn.
+/// @dev The one thing Treasury needs from $GOLD beyond ERC-20: burning. BattleArena imports this too.
 interface IGoldBurnable is IERC20 {
     function burn(uint256 amount) external;
 }
 
+/// @title Treasury — Protocol fee splitter for Clawbada
+/// @notice Receives $GOLD fees from game contracts and splits: 85% burn / 15% dev wallet.
+/// @dev All game contracts that collect fees call processFee() after approving this contract.
+///      Treasury does NOT accumulate tokens — each processFee call is atomic pull-split-burn. Anything that lands
+///      here by mistake has a mechanical way out (IA-05, independent audit A1): stray $GOLD is swept by anyone through
+///      the same 85/15 split, other tokens are returned by the owner.
 /// @custom:security-contact security@clawbada.com
 contract Treasury is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using SafeERC20 for IGoldBurnable;
 
     // ──────────── Constants ────────────
     uint256 public constant BURN_BPS = 8500;
@@ -30,6 +34,8 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
 
     // ──────────── Events ────────────
     event FeeProcessed(address indexed from, uint256 amount, uint256 burned, uint256 toDev);
+    event GoldSwept(address indexed caller, uint256 amount, uint256 burned, uint256 toDev);
+    event TokensRecovered(address indexed token, address indexed to, uint256 amount);
     event DevWalletUpdated(address indexed oldWallet, address indexed newWallet);
     event AuthorizationUpdated(address indexed account, bool isAuthorized);
     event GoldTokenSet(address indexed token);
@@ -41,6 +47,8 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
     error TokenAlreadySet();
     error AmountBelowMinimum(uint256 amount, uint256 minimum);
     error InvalidDevWallet();
+    /// @dev IA-05: $GOLD only ever leaves the Treasury through the 85/15 split — use sweepGold().
+    error CannotRecoverGold();
 
     // ──────────── Modifiers ────────────
     modifier onlyAuthorized() {
@@ -74,9 +82,9 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
     /// @notice Update the dev wallet address.
     function setDevWallet(address newDevWallet) external onlyOwner {
         if (newDevWallet == address(0)) revert ZeroAddress();
-        // T-04: reject self-routing. Under OZ ERC20, Treasury transferring to
-        // itself is a no-op in balance terms, so the 15% leg would silently
-        // accumulate inside Treasury with no sweep path.
+        // T-04: reject self-routing. Under OZ ERC20, Treasury transferring to itself is a no-op in
+        // balance terms, so the 15% leg would accumulate inside Treasury — and sweepGold() would then
+        // re-split the same tokens forever instead of paying the dev share out.
         if (newDevWallet == address(this)) revert InvalidDevWallet();
         address oldWallet = devWallet;
         devWallet = newDevWallet;
@@ -88,6 +96,20 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
         if (account == address(0)) revert ZeroAddress();
         authorized[account] = isAuthorized;
         emit AuthorizationUpdated(account, isAuthorized);
+    }
+
+    /// @notice Return a token that was sent here by mistake — any token except $GOLD.
+    /// @dev IA-05 (independent audit A1): without this, mis-sent tokens were stuck forever. $GOLD is refused so the
+    ///      owner can never route protocol money anywhere but through the split; stray $GOLD goes through sweepGold().
+    /// @param token The token to return
+    /// @param to The recipient
+    /// @param amount How much to return
+    function recoverERC20(IERC20 token, address to, uint256 amount) external onlyOwner {
+        if (address(token) == address(0) || to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        if (address(token) == address(goldToken)) revert CannotRecoverGold();
+        token.safeTransfer(to, amount);
+        emit TokensRecovered(address(token), to, amount);
     }
 
     // ──────────── Core ────────────
@@ -106,22 +128,40 @@ contract Treasury is Ownable2Step, ReentrancyGuard {
         // (smallest realistic fee ≈ 5 × 10^18 wei); the guard is defensive.
         if (amount < BPS_DENOMINATOR) revert AmountBelowMinimum(amount, BPS_DENOMINATOR);
 
-        uint256 burnAmount = (amount * BURN_BPS) / BPS_DENOMINATOR;
-        uint256 devAmount = amount - burnAmount; // remainder to dev, avoids rounding dust
+        // I-04 (SafeERC20): pull, then split. GoldToken is well-behaved (returns true on every
+        // path), but Safe* future-proofs against tokens that revert without a revert string or
+        // that return false instead.
+        goldToken.safeTransferFrom(msg.sender, address(this), amount);
+        (uint256 burnAmount, uint256 devAmount) = _split(amount);
 
-        // I-04 (SafeERC20): pull, burn, distribute. GoldToken is well-behaved
-        // (returns true on every path), but Safe* future-proofs against tokens
-        // that revert without a revert string or that return false instead.
-        IERC20(address(goldToken)).safeTransferFrom(msg.sender, address(this), amount);
+        emit FeeProcessed(msg.sender, amount, burnAmount, devAmount);
+    }
+
+    /// @notice Route any $GOLD sitting in the Treasury through the normal 85% burn / 15% dev split.
+    /// @dev IA-05 (independent audit A1): $GOLD sent here by mistake used to be stuck. Anyone may call this; the
+    ///      split is the very code path processFee uses, so nobody — the owner included — chooses where protocol
+    ///      money goes. Nothing rests here between fee calls (each one is atomic), so the balance is only ever strays.
+    function sweepGold() external nonReentrant {
+        uint256 amount = goldToken.balanceOf(address(this));
+        if (amount < BPS_DENOMINATOR) revert AmountBelowMinimum(amount, BPS_DENOMINATOR);
+        (uint256 burnAmount, uint256 devAmount) = _split(amount);
+
+        emit GoldSwept(msg.sender, amount, burnAmount, devAmount);
+    }
+
+    // ──────────── Internal ────────────
+
+    /// @dev Burn 85% of `amount` held by this contract and send the remainder to the dev wallet. The remainder
+    ///      (not a second rounded share) goes to dev, so burn + dev == amount exactly; with amount ≥ 10_000 the dev
+    ///      share is at least 1_500 wei, so there is nothing to guard against a zero transfer (I-03).
+    function _split(uint256 amount) internal returns (uint256 burnAmount, uint256 devAmount) {
+        burnAmount = (amount * BURN_BPS) / BPS_DENOMINATOR;
+        devAmount = amount - burnAmount;
 
         // Burn 85% (GoldToken-specific; not part of IERC20)
         goldToken.burn(burnAmount);
 
         // Send 15% to dev wallet
-        if (devAmount > 0) {
-            IERC20(address(goldToken)).safeTransfer(devWallet, devAmount);
-        }
-
-        emit FeeProcessed(msg.sender, amount, burnAmount, devAmount);
+        goldToken.safeTransfer(devWallet, devAmount);
     }
 }
