@@ -20,6 +20,7 @@
     "sync-deploy": "bun run scripts/sync-deploy.ts",
     "faucet-allowlist": "bun run packages/chain/scripts/faucet-allowlist.ts",
     "extract-abis": "bun run packages/chain/scripts/extract-abis.ts",
+    "tab-icons": "bun run scripts/build-tab-icons.ts",
     "forge:build": "forge build",
     "forge:test": "forge test",
     "prepare": "husky",
