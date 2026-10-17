@@ -153,10 +153,19 @@ contract MiningPoolTest is Test {
         pool.startSeason(0, BASE_REWARD);
     }
 
-    function test_startSeasonZeroBaseRewardReverts() public {
+    /// @dev IA-03: zero and anything under one $GOLD are refused — a dust launch reward would price repairs
+    ///      below Treasury's minimum and lock damaged lobsters out of battle.
+    function test_startSeasonBelowFloorReverts() public {
+        uint256 floor = pool.MIN_BASE_REWARD();
+        assertEq(floor, 1e18, "the floor is one GOLD");
+
         vm.prank(seasonAdmin);
-        vm.expectRevert(MiningPool.ZeroBaseReward.selector);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.BaseRewardTooLow.selector, 0, floor));
         pool.startSeason(S1_EMISSION, 0);
+
+        vm.prank(seasonAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.BaseRewardTooLow.selector, floor - 1, floor));
+        pool.startSeason(S1_EMISSION, floor - 1);
     }
 
     function test_startSeasonWhileActiveReverts() public {
@@ -213,12 +222,23 @@ contract MiningPoolTest is Test {
         pool.setBaseReward(2_000e18);
     }
 
-    function test_setBaseRewardZeroReverts() public {
+    /// @dev IA-03: the emergency override cannot push the peg under one $GOLD, so no admin call can brick repairs.
+    function test_setBaseRewardBelowFloorReverts() public {
         _startSeason();
+        uint256 floor = pool.MIN_BASE_REWARD();
 
         vm.prank(seasonAdmin);
-        vm.expectRevert(MiningPool.ZeroBaseReward.selector);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.BaseRewardTooLow.selector, 0, floor));
         pool.setBaseReward(0);
+
+        vm.prank(seasonAdmin);
+        vm.expectRevert(abi.encodeWithSelector(MiningPool.BaseRewardTooLow.selector, floor - 1, floor));
+        pool.setBaseReward(floor - 1);
+
+        // Exactly the floor is allowed
+        vm.prank(seasonAdmin);
+        pool.setBaseReward(floor);
+        assertEq(pool.currentBaseReward(), floor);
     }
 
     function test_setBaseRewardDoesNotAffectInFlight() public {

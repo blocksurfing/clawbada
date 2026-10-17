@@ -226,13 +226,14 @@ contract MiningPoolHandler is BaseSetup {
         ghostGlideSteps++;
 
         uint256 launch = miningPool.getSeasonConfig(seasonBefore).launchBaseReward;
-        if (base == 0) return _flagGlide("glide reached zero");
+        uint256 floor = miningPool.MIN_BASE_REWARD();
+        if (base < floor) return _flagGlide("glide went below the one-GOLD floor (IA-03)");
         if (baseBefore > launch) {
             if (base > baseBefore) _flagGlide("an override above launch grew");
             return;
         }
         uint256 hi = (baseBefore * 13_000) / 10_000;
-        if (hi == 0) hi = 1;
+        if (hi < floor) hi = floor;
         if (base > launch) _flagGlide("glide above the launch reward");
         if (base < (baseBefore * 7_000) / 10_000) _flagGlide("one step fell by more than 30%");
         if (base > hi) _flagGlide("one step rose by more than 30%");
@@ -243,14 +244,14 @@ contract MiningPoolHandler is BaseSetup {
     }
 
     function handler_setBaseReward(uint256 newReward) external {
-        newReward = bound(newReward, 1, 100_000e18);
+        newReward = bound(newReward, 1e18, 100_000e18); // IA-03: the contract refuses anything under the floor
         vm.prank(admin);
         try miningPool.setBaseReward(newReward) {} catch {}
     }
 
     function handler_startNewSeason(uint256 emission, uint256 baseReward) external {
         emission   = bound(emission, 1e18, 1_000_000_000e18);
-        baseReward = bound(baseReward, 1, 10_000e18);
+        baseReward = bound(baseReward, 1e18, 10_000e18); // IA-03
         vm.prank(admin);
         try miningPool.startSeason(emission, baseReward) {} catch {}
     }
