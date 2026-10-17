@@ -47,7 +47,12 @@ contract RepairShop is ReentrancyGuard {
     error ExceedsCurrentDamage(uint256 lobsterId, uint8 requested, uint8 actual);
     error CannotRepairBaseTier(uint256 lobsterId);
     error ZeroRepairPoints();
+    /// @dev Only before the first season: `currentBaseReward()` is 0 until Season 1 opens. Inside a season the peg
+    ///      never falls below MiningPool.MIN_BASE_REWARD (IA-03), so every tier's rate stays above zero.
     error RewardPegUnset();
+    /// @notice The live cost is above the ceiling the caller set — the glide moved the peg between the quote and the call.
+    ///         IA-02 (independent audit A1): mirrors Marketplace's PriceExceedsMaximum.
+    error CostExceedsMax(uint256 cost, uint256 maxCost);
 
     // ──────────── Constructor ────────────
 
@@ -86,9 +91,14 @@ contract RepairShop is ReentrancyGuard {
     // ──────────── Core ────────────
 
     /// @notice Repair battle damage on a lobster. Partial repairs allowed.
+    /// @dev IA-02: the price is read at execution and the glide may step the peg by up to 30% at an hourly epoch
+    ///      boundary, so the caller passes the cost they were quoted (`repairRate(tier) × points`) as a ceiling; a
+    ///      higher live price reverts CostExceedsMax instead of charging more than agreed. A lower live price simply
+    ///      costs less. Integrators that want the next step priced in can call MiningPool.repeg() first.
     /// @param lobsterId The lobster to repair
     /// @param pointsToRepair Number of damage points to remove
-    function repair(uint256 lobsterId, uint8 pointsToRepair) external nonReentrant whenNotPaused {
+    /// @param maxCost The most $GOLD (wei) the caller agrees to pay for this repair
+    function repair(uint256 lobsterId, uint8 pointsToRepair, uint256 maxCost) external nonReentrant whenNotPaused {
         if (pointsToRepair == 0) revert ZeroRepairPoints();
 
         // Validate ownership
@@ -105,8 +115,9 @@ contract RepairShop is ReentrancyGuard {
         uint256 rate = repairRate(tier);
         if (rate == 0) revert RewardPegUnset();
 
-        // Calculate cost
+        // Calculate cost; IA-02: never above what the caller agreed to
         uint256 cost = uint256(pointsToRepair) * rate;
+        if (cost > maxCost) revert CostExceedsMax(cost, maxCost);
 
         // Pull $GOLD from user (I-04 SafeERC20)
         goldToken.safeTransferFrom(msg.sender, address(this), cost);
