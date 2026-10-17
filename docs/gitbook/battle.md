@@ -58,7 +58,15 @@ Your Team Power is shown in the Battle queue panel as soon as you join, and agai
 
 Battles take place on a **6×5 pointy-top offset hex grid** (30 hexes). About 20% of hexes are blocked/impassable, leaving \~24 playable spaces. Teams spawn on opposite sides.
 
+![An Evolved-tier arena at the start of a turn. The beach board's blocked hexes are drawn as crates, statues and a rock, the outlined hexes are where the active lobster may move, the six portraits along the top and bottom are the initiative order, the hexagon at the top left is the 60-second shot clock, and the four buttons at the lower right are Attack, Special, Defend and Wait.](images/arena-evolved-board.jpg)
+
+![The same Evolved board a few turns later. The outlined lobster is the one whose turn it is, and the portraits re-order as the initiative bar advances.](images/arena-evolved-turn.jpg)
+
 Blocked-hex placement is procedural in Season 1: the battle's seed deterministically places 5–6 blocked hexes in the interior columns (never on a spawn, every open hex stays reachable), and the same layout is shipped to both players. Tier-themed obstacle art and designer-authored layouts arrive in S2-3.
+
+![An Apex-tier arena: lava flows and volcanic rock. The outlined lobster has just fired its Special and the bolt is crossing the board toward its target.](images/arena-apex-special.jpg)
+
+![Aiming a Special on the Apex board. The outlined hexes are the legal targets, the glowing ring marks the chosen lobster, and the Special's icon above the board waits for the player to confirm — nothing fires without that second tap.](images/arena-apex-targeting.jpg)
 
 - Each evolution tier has its own arena art and music (coral reefs, trenches, lava flows); the blocked hexes themselves are drawn from the battle's seed
 - Blocked hexes create chokepoints and force strategic pathing
