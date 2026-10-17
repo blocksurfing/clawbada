@@ -81,6 +81,12 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
     ///         with `updatePrice` to extract more GOLD than the buyer intended.
     error PriceExceedsMaximum(uint256 currentPrice, uint256 maxPrice);
     error SelfPurchase(address seller);
+    /// @dev IA-04 (independent audit A1): the ERC-1155 receiver's own reasons — a direct transfer from a token that is
+    ///      not LobsterNFT, a transfer not started by listLobster, a supply other than one, or a batch transfer.
+    error UnauthorizedTokenContract(address sender);
+    error UnauthorizedOperator(address operator);
+    error InvalidSupply(uint256 value);
+    error BatchTransfersNotSupported();
 
     // ──────────── Constructor ────────────
 
@@ -233,20 +239,20 @@ contract Marketplace is ReentrancyGuard, ERC1155Holder {
         override
         returns (bytes4)
     {
-        if (msg.sender != address(lobsterNFT)) revert ZeroAddress(); // foreign token
-        if (operator != address(this)) revert NotLobsterOwner(0);    // not via listLobster
-        if (value != 1) revert ZeroPrice();                           // supply=1 invariant
+        if (msg.sender != address(lobsterNFT)) revert UnauthorizedTokenContract(msg.sender); // foreign token
+        if (operator != address(this)) revert UnauthorizedOperator(operator);                 // not via listLobster
+        if (value != 1) revert InvalidSupply(value);                                          // supply=1 invariant
         return this.onERC1155Received.selector;
     }
 
     /// @dev Always reject batch transfers — Marketplace only handles single-
-    ///      token listings. M-05 hardening.
+    ///      token listings. M-05 hardening; IA-04 names the reason.
     function onERC1155BatchReceived(address, address, uint256[] memory, uint256[] memory, bytes memory)
         public
         pure
         override
         returns (bytes4)
     {
-        revert ZeroAddress();
+        revert BatchTransfersNotSupported();
     }
 }

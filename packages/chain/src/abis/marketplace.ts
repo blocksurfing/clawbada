@@ -473,6 +473,22 @@ export const MarketplaceAbi = [
   },
   {
     "type": "error",
+    "name": "BatchTransfersNotSupported",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSupply",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ListingNotActive",
     "inputs": [
       {
@@ -574,6 +590,28 @@ export const MarketplaceAbi = [
     "inputs": [
       {
         "name": "seller",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnauthorizedOperator",
+    "inputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnauthorizedTokenContract",
+    "inputs": [
+      {
+        "name": "sender",
         "type": "address",
         "internalType": "address"
       }
