@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{{title}}</title>
+<meta name="description" content="{{description}}" />
+<style>
+/* ── Fonts (embedded) ── Upheaval: freeware by Brian Kent (apps/web/src/fonts/upheaval/upheaval.txt).
+   Titillium Web: SIL OFL 1.1 (scripts/gitbook/fonts/OFL.txt). */
+@font-face { font-family: 'Upheaval'; src: url({{fontUpheaval}}) format('truetype'); font-weight: 400; font-style: normal; font-display: block; }
+@font-face { font-family: 'Titillium Web'; src: url({{fontTitilliumRegular}}) format('truetype'); font-weight: 400; font-style: normal; font-display: block; }
+@font-face { font-family: 'Titillium Web'; src: url({{fontTitilliumItalic}}) format('truetype'); font-weight: 400; font-style: italic; font-display: block; }
+@font-face { font-family: 'Titillium Web'; src: url({{fontTitilliumSemiBold}}) format('truetype'); font-weight: 600; font-style: normal; font-display: block; }
+@font-face { font-family: 'Titillium Web'; src: url({{fontTitilliumBold}}) format('truetype'); font-weight: 700; font-style: normal; font-display: block; }
+/* ── Art (embedded; cropped from apps/web/public/ui at build time) ── */
+:root {
+  --art-wood: url({{wood}});
+  --art-divider: url({{divider}});
+  --art-badges: url({{badges}});
+  --art-tileset: url({{tileset}});
+  --art-icons: url({{icons}});
+  --art-card: url({{card}});
+}
+{{css}}
+/* ── The ten Apex characters (apps/web/public/assets/characters/apex, native 128 px) ── */
+{{apexCss}}
+</style>
+</head>
+<body>
+<div class="print-frame" aria-hidden="true"></div>
+<div class="print-tab" aria-hidden="true">Clawbada</div>
+<main class="book">
+<!-- In print this is a one-cell table: Chrome repeats the header and footer row groups on every page, which is the
+     only way to keep a per-page top/bottom gap between the fixed wooden frame and the text. On screen every part is a block. -->
+<table class="print-sheet" role="presentation">
+  <thead><tr><td class="sheet-gap"></td></tr></thead>
+  <tfoot><tr><td class="sheet-gap"></td></tr></tfoot>
+  <tbody><tr><td class="sheet-body">
+{{cover}}
+  <nav class="toc panel" aria-label="Contents">
+    <h2 class="toc-title">Contents</h2>
+    <ol class="toc-list">{{toc}}
+    </ol>
+  </nav>
+{{body}}
+  <footer class="colophon">
+    <p>{{title}} · {{subtitle}} · Built {{date}} from <code>docs/gitbook</code>.</p>
+  </footer>
+  </td></tr></tbody>
+</table>
+</main>
+</body>
+</html>

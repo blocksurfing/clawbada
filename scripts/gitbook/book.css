@@ -1,0 +1,256 @@
+/* ──────────────────────────────────────────────────────────────────────────────────────────────────
+   The Clawbada book — Nzib's Market look, hybrid typography (owner decision 2026-10-16).
+   Tokens mirror apps/web/src/components/chrome/chrome.css; art and colours mirror
+   apps/web/src/components/market/market.css. Integer 3× pixel scale only; never blur pixel art.
+   ────────────────────────────────────────────────────────────────────────────────────────────────── */
+:root {
+  --pixel: 3px;
+  --page: #192c53;          /* every page, like the Market */
+  --cream: #fff4d6;         /* text on wood */
+  --ink: #2e222f;           /* pixel-button / input borders and dark fills */
+  --accent: #ffe4a0;        /* links, button text */
+  --outline: #0e0e0e;
+  --shadow: #101729;
+  --parchment-alt: #f3e6c4;
+  --muted: #d9cfb4;
+
+  --type-display: 'Upheaval', 'Titillium Web', sans-serif;
+  --type-body: 'Titillium Web', 'Helvetica Neue', Arial, sans-serif;
+  --type-mono: ui-monospace, Menlo, Consolas, 'Liberation Mono', monospace;
+  --type-heading-xl: 60px; --type-heading-lg: 40px; --type-heading-sm: 28px; --type-button: 24px;
+  --type-display-leading: 1.2;
+  --type-display-tracking: max(0px, calc(0.0833333333em - 2px));
+  --type-body-lg: 18px; --type-body-md: 16px; --type-body-sm: 14px; --type-caption: 12px;
+  --type-body-leading: 1.55;
+  --ink-wash: rgba(14, 14, 14, 0.16);   /* a translucent ink panel on wood */
+  --rule: rgba(14, 14, 14, 0.22);       /* hairline between list rows */
+}
+
+* { box-sizing: border-box; }
+html { background: var(--page); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0; background: var(--page); color: var(--cream);
+  font: 400 var(--type-body-lg)/var(--type-body-leading) var(--type-body);   /* 18 px: the owner asked for larger body copy */
+  font-synthesis: none; -webkit-font-smoothing: antialiased;
+}
+.book { max-width: 984px; margin: 0 auto; padding: 48px 24px 96px; }
+
+/* ── Pixel art primitives ── */
+.icon { display: inline-block; vertical-align: middle; image-rendering: pixelated; background-repeat: no-repeat; flex: 0 0 auto; }
+/* class badges: 160×16 sheet, frame = class index; 2× in tables, 3× on the cover */
+.badge { width: 32px; height: 32px; background-image: var(--art-badges); background-size: 320px 32px; }
+.badge-0 { background-position: 0 0; }      .badge-1 { background-position: -32px 0; }  .badge-2 { background-position: -64px 0; }
+.badge-3 { background-position: -96px 0; }  .badge-4 { background-position: -128px 0; } .badge-5 { background-position: -160px 0; }
+.badge-6 { background-position: -192px 0; } .badge-7 { background-position: -224px 0; } .badge-8 { background-position: -256px 0; }
+.badge-9 { background-position: -288px 0; }
+.badge-lg { width: 48px; height: 48px; background-size: 480px 48px; filter: drop-shadow(6px 6px 0 var(--shadow)); }
+.badge-lg.badge-0 { background-position: 0 0; }      .badge-lg.badge-1 { background-position: -48px 0; }  .badge-lg.badge-2 { background-position: -96px 0; }
+.badge-lg.badge-3 { background-position: -144px 0; } .badge-lg.badge-4 { background-position: -192px 0; } .badge-lg.badge-5 { background-position: -240px 0; }
+.badge-lg.badge-6 { background-position: -288px 0; } .badge-lg.badge-7 { background-position: -336px 0; } .badge-lg.badge-8 { background-position: -384px 0; }
+.badge-lg.badge-9 { background-position: -432px 0; }
+/* tier symbols: Tileset 208×128, 16×16 frames 35–38 at (144 + 16·tier, 32); shown at 2× */
+.tier { width: 32px; height: 32px; background-image: var(--art-tileset); background-size: 416px 256px; }
+.tier-0 { background-position: -288px -64px; } .tier-1 { background-position: -320px -64px; }
+.tier-2 { background-position: -352px -64px; } .tier-3 { background-position: -384px -64px; }
+/* the Market coin: Icons 192×16, frame 8; 2× */
+.coin { width: 32px; height: 32px; background-image: var(--art-icons); background-size: 384px 32px; background-position: -256px 0; margin-right: 6px; }
+
+/* the wooden nine-slice (WoodenPanel.png region [0,0,48,48] at 3×): 48 px borders, the middle tile fills */
+.panel {
+  border: 48px solid transparent;
+  border-image: var(--art-wood) 48 fill round;
+  padding: 0 12px;
+}
+/* the card divider strip (Tileset [96,64,96,16] at 3×): 96 px end caps, middle repeats */
+.strip, hr, .chapter > h1::after {
+  display: block; height: 48px; border-style: solid; border-width: 0 96px; border-color: transparent;
+  border-image: var(--art-divider) 0 96 fill repeat; margin: 18px 0 30px;
+}
+hr { width: auto; }
+
+/* ── Cover ── */
+.cover { text-align: center; padding: 24px 0 48px; }
+.cover-logo { display: block; margin: 0 auto; width: 512px; max-width: 100%; height: auto; image-rendering: pixelated; filter: drop-shadow(9px 9px 0 var(--shadow)); }
+.cover-subtitle { margin: 0 auto 36px; max-width: 32ch; font-size: 22px; line-height: 1.4; color: var(--cream); }
+.cover-badges { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 0 0 36px; max-width: none; }
+.cover-meta { margin: 0; max-width: none; font-size: var(--type-body-sm); color: var(--muted); display: flex; justify-content: center; align-items: center; gap: 6px; }
+
+/* ── Contents ── */
+.toc { margin-bottom: 48px; }
+.toc-title { margin: 0 0 12px; }
+.toc-list { list-style: none; margin: 0; padding: 0; column-gap: 36px; }
+.toc-list > li { margin: 0 0 18px; break-inside: avoid; }
+.toc-chapter { font: 400 var(--type-heading-sm)/var(--type-display-leading) var(--type-display); letter-spacing: var(--type-display-tracking); color: var(--cream); text-decoration: none; display: flex; gap: 12px; align-items: baseline; }
+.toc-chapter:hover { color: var(--accent); }
+.toc-n { color: var(--accent); font-size: var(--type-button); }
+.toc-list ul { list-style: none; margin: 6px 0 0 48px; padding: 0; columns: 2; column-gap: 24px; }
+.toc-list ul li { font-size: 19px; line-height: 1.5; margin: 0 0 3px; break-inside: avoid; max-width: none; }   /* owner: body size or 1 px larger */
+.toc-list ul a { color: var(--cream); text-decoration: none; }
+.toc-list ul a:hover { color: var(--accent); text-decoration: underline; }
+
+/* ── Chapters: each one a wooden panel on screen ── */
+.chapter { border: 48px solid transparent; border-image: var(--art-wood) 48 fill round; padding: 0 12px; margin: 0 0 48px; }
+.chapter > :last-child { margin-bottom: 12px; }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--type-display); font-weight: 400; font-synthesis: none;
+  line-height: var(--type-display-leading); letter-spacing: var(--type-display-tracking);
+  color: var(--cream); overflow-wrap: anywhere; margin: 1.6em 0 0.5em;
+}
+h1 { font-size: var(--type-heading-xl); margin-top: 0; }
+h2 { font-size: var(--type-heading-lg); }
+h3 { font-size: var(--type-heading-sm); }
+h4, h5, h6 { font-size: var(--type-button); letter-spacing: normal; }
+.chapter > h1 { margin: 0; }
+.chapter > h1::after { content: ''; }
+
+p { margin: 0 0 1em; max-width: 84ch; }
+li { max-width: 84ch; }
+a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+strong { font-weight: 600; }
+em { font-style: italic; }
+ul, ol { padding-left: 24px; margin: 0 0 1em; }
+li + li { margin-top: 9px; }
+li > ul, li > ol { margin-top: 9px; }
+small { font-size: var(--type-caption); }
+
+/* ── Ledgers: the small numeric grids stay tables in the filter panel's input look, shrink-wrapped to their content.
+      Scoped to chapter content — the print sheet is a table too. ── */
+.chapter table { border-collapse: collapse; width: auto; max-width: 100%; margin: 12px 0 24px; font-size: 15px; line-height: 1.45; color: var(--ink); background: var(--cream); border: 3px solid var(--ink); }
+.chapter th, .chapter td { border: 3px solid var(--ink); padding: 6px 12px; text-align: left; vertical-align: top; max-width: 40ch; }
+.chapter th { background: var(--ink); color: var(--accent); font: 400 18px/1.2 var(--type-display); letter-spacing: normal; }
+.chapter tbody tr:nth-child(even) td { background: var(--parchment-alt); }
+.chapter td.has-icon { white-space: nowrap; }
+.chapter td .icon { margin-right: 9px; }
+.chapter td code, .chapter th code { font-size: 13px; }
+.chapter table p { margin: 0; }
+
+/* ── Key/value lists (two-column tables): label in Upheaval, value beside it, a hairline between rows ── */
+.kv { margin: 6px 0 24px; padding: 0; }
+.kv-row { display: grid; grid-template-columns: minmax(160px, 32%) 1fr; gap: 3px 24px; padding: 9px 0; border-bottom: 3px solid var(--rule); break-inside: avoid; }
+.kv-row:last-child { border-bottom: 0; }
+.kv-row dt { margin: 0; font: 400 18px/1.3 var(--type-display); letter-spacing: normal; color: var(--accent); display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.kv-row dd { margin: 0; max-width: none; }
+.kv-head { padding: 0 0 6px; }
+.kv-head dt, .kv-head dd { font: 400 13px/1.3 var(--type-display); letter-spacing: normal; color: var(--muted); }
+.kv-stack .kv-row { grid-template-columns: 1fr; gap: 0; }
+.kv-stack .kv-head { display: none; }
+.kv-inline { margin: 0; }
+.kv-inline .kv-row { grid-template-columns: minmax(84px, max-content) 1fr; gap: 3px 18px; padding: 6px 0; border-bottom: 3px solid var(--rule); }
+.kv-inline .kv-row dt { font-size: 14px; }
+
+/* ── Endpoint lists (Endpoint | Auth | Input | Returns): one entry per route ── */
+.endpoints { display: grid; gap: 12px; margin: 6px 0 24px; }
+.ep { border: 3px solid var(--ink); background: var(--ink-wash); break-inside: avoid; }
+.ep-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--ink); color: var(--accent); padding: 6px 12px; }
+.ep-path code { background: transparent; color: var(--accent); font-size: 15px; padding: 0; }
+.ep-auth { font: 400 14px/1.2 var(--type-display); letter-spacing: normal; color: var(--cream); white-space: nowrap; background: rgba(255, 228, 160, 0.16); border: 3px solid rgba(255, 228, 160, 0.35); padding: 3px 9px; }
+.ep-auth.ep-open { color: var(--muted); border-color: transparent; background: transparent; }
+.ep-auth code { background: transparent; color: inherit; font: 400 13px/1.2 var(--type-mono); padding: 0; }
+.ep .kv { padding: 3px 12px; }
+.ep .kv-row:last-child { border-bottom: 0; }
+
+/* ── Record lists (tables with long prose cells): the first cell titles the record ── */
+.records { display: grid; gap: 12px; margin: 6px 0 24px; }
+.rec { border: 3px solid var(--ink); background: var(--ink-wash); padding: 9px 12px; break-inside: avoid; }
+.rec-title { font: 400 22px/1.2 var(--type-display); letter-spacing: normal; color: var(--accent); display: flex; align-items: center; gap: 9px; margin-bottom: 3px; }
+
+/* ── Class cards: the Apex character on the class's Market swatch, name + badge, stat chips, the row's other columns ── */
+.class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; margin: 12px 0 30px; }
+.class-rows { display: grid; gap: 12px; margin: 12px 0 30px; }
+.class-card { display: grid; break-inside: avoid; color: var(--cream); }
+.class-grid .class-card { border: 36px solid transparent; border-image: var(--art-card) 96 fill / 96px round; }
+.class-rows .class-card { grid-template-columns: 128px 1fr; border: 3px solid var(--ink); background: var(--ink); }
+.class-art { display: grid; place-items: center; background: var(--class-bg, var(--ink)); padding: 12px 0; }
+.class-grid .class-art { margin: -12px -12px 0; }
+/* The sprites are 128 px squares whose lobster occupies the middle 96 rows (measured over all ten), so the art box
+   crops the empty top and bottom: 256×192 at 2×, 128×96 at 1× — no dead space above or below the character. */
+.apex { display: block; width: 256px; height: 192px; background-size: 256px 256px; background-repeat: no-repeat; background-position: center; image-rendering: pixelated; filter: drop-shadow(6px 6px 0 var(--shadow)); }
+.apex-sm { width: 128px; height: 96px; background-size: 128px 128px; filter: drop-shadow(3px 3px 0 var(--shadow)); }
+.class-body { padding: 12px 6px 0; }
+.class-rows .class-body { padding: 9px 12px; }
+.class-head { display: flex; align-items: center; gap: 9px; margin: 0 0 9px; flex-wrap: wrap; }
+.class-name { font: 400 var(--type-button)/1.2 var(--type-display); letter-spacing: normal; color: var(--cream); }
+.class-sub { margin-left: auto; font: 400 16px/1.2 var(--type-display); letter-spacing: normal; color: var(--accent); }
+.class-card .kv-row { border-bottom-color: rgba(255, 244, 214, 0.14); }
+.class-card .kv-row dt { color: var(--accent); }
+.chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 9px; padding: 0; }
+.chips li { display: grid; justify-items: center; min-width: 60px; padding: 3px 9px; background: rgba(255, 228, 160, 0.1); border: 3px solid var(--outline); max-width: none; margin: 0; }
+.chips b { font: 400 12px/1.2 var(--type-display); letter-spacing: normal; color: var(--accent); }
+.chips span { font: 600 18px/1.2 var(--type-body); color: var(--cream); }
+.class-card-plain { border: 3px solid var(--ink); background: var(--ink-wash); padding: 9px 12px; }
+
+/* ── Code ── */
+pre { background: var(--ink); color: var(--cream); border: 3px solid var(--outline); padding: 12px 15px; margin: 0 0 1.2em; font: 400 13px/1.5 var(--type-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+code { font-family: var(--type-mono); font-size: 0.875em; background: var(--ink); color: var(--accent); padding: 1px 5px; border-radius: 0; overflow-wrap: anywhere; }
+
+/* ── Figures: screenshots from the game, framed like a ledger ── */
+figure { margin: 18px 0 30px; max-width: none; break-inside: avoid; }
+figure img { display: block; width: 100%; height: auto; border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--shadow); image-rendering: auto; }
+figcaption { margin: 12px 6px 0; font-size: 16px; line-height: 1.45; color: var(--cream); }
+figcaption::before { content: '▸ '; color: var(--accent); }
+.figure-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+.figure-row figure { margin: 0; }
+
+/* ── Quotes ── */
+blockquote { margin: 0 0 1.2em; padding: 3px 0 3px 18px; border-left: 6px solid var(--accent); color: var(--cream); }
+blockquote p:last-child { margin-bottom: 0; }
+
+.colophon { text-align: center; color: var(--muted); font-size: var(--type-caption); }
+.colophon code { background: transparent; color: var(--muted); padding: 0; }
+
+/* ── Print: A4, wood around every page, one chapter per page start ── */
+.print-frame, .print-tab { display: none; }
+/* the print sheet is an ordinary block stack on screen */
+@media screen {
+  .print-sheet, .print-sheet > thead, .print-sheet > tbody, .print-sheet > tfoot, .print-sheet > * > tr, .print-sheet > * > tr > td { display: block; border: 0; padding: 0; background: transparent; width: auto; margin: 0; }
+  .sheet-gap { display: none; }
+}
+.print-sheet { border-collapse: collapse; border: 0; background: transparent; }
+@media print {
+  /* Fixed elements repeat on every printed page, but only inside the page's content box and never in its margins:
+     so the margins are the frame's 6 mm, the wood sits at inset 0, and the repeating header/footer rows of
+     .print-sheet keep 14 mm between the wood and the text on every page (left/right clearance = cell padding). */
+  @page { size: A4; margin: 6mm; }
+  /* the page colour comes from the root canvas; body stays transparent so the z-index:-1 frame shows through */
+  html { background: var(--page); }
+  body { background: transparent; }
+  .book { max-width: none; padding: 0; }
+  .print-sheet { display: table; width: 100%; table-layout: fixed; }
+  .print-sheet > thead { display: table-header-group; }
+  .print-sheet > tfoot { display: table-footer-group; }
+  .print-sheet > tbody { display: table-row-group; }
+  .print-sheet > * > tr { display: table-row; }
+  .print-sheet > * > tr > td { display: table-cell; vertical-align: top; }
+  .print-sheet > * > tr > .sheet-gap { display: table-cell; height: 14mm; padding: 0; border: 0; }
+  .print-sheet > tbody > tr > .sheet-body { padding: 0 14mm; border: 0; background: transparent; }
+  .print-frame { display: block; position: fixed; inset: 0; border: 48px solid transparent; border-image: var(--art-wood) 48 fill round; z-index: -1; pointer-events: none; }
+  .print-tab { display: block; position: fixed; top: 3mm; left: 14mm; background: var(--ink); color: var(--accent); border: 3px solid var(--outline); padding: 3px 18px; font: 400 var(--type-button)/1.2 var(--type-display); letter-spacing: normal; z-index: 1; }
+  .cover { break-after: page; padding: 28mm 0 0; }
+  .cover-logo { filter: none; }
+  .badge-lg { filter: none; }
+  .toc { break-after: page; border: 0; border-image: none; padding: 0; margin: 0; }
+  .toc-list ul { columns: 2; }
+  .chapter { border: 0; border-image: none; padding: 0; margin: 0; break-before: page; }
+  .chapter > h1::after { margin-bottom: 24px; }
+  h1, h2, h3, h4 { break-after: avoid; }
+  .chapter tr, blockquote, .class-card, .ep, .rec, .kv-row, figure { break-inside: avoid; }
+  figure { margin: 12px 0 18px; }
+  figure img { box-shadow: none; max-height: 84mm; width: auto; max-width: 100%; margin: 0 auto; }
+  figcaption { font-size: 14px; margin-top: 9px; }
+  .chapter thead { display: table-header-group; }
+  /* two rows of hero cards per A4 page: the art area is exactly the 2× sprite, nothing else grows */
+  .class-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+  .class-grid .class-art { padding: 0; }
+  .class-grid .class-body { padding: 6px 6px 0; }
+  .class-grid .class-head { margin-bottom: 3px; }
+  .class-grid .class-name { font-size: 20px; }
+  .class-grid .class-sub { font-size: 14px; white-space: nowrap; }
+  .class-grid .kv-inline .kv-row { padding: 3px 0; gap: 3px 12px; }
+  .class-grid .kv-inline .kv-row dt { font-size: 12px; }
+  .class-grid .kv-inline .kv-row dd { font-size: 15px; line-height: 1.4; }
+  .apex { filter: drop-shadow(6px 6px 0 var(--shadow)); }
+  a { color: var(--accent); }
+  .colophon { margin-top: 24px; }
+}
