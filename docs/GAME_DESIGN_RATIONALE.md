@@ -623,7 +623,7 @@ A complete reference of every tuned parameter for Season 1, with the reasoning b
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
-| Max supply | 1,000,000,000 $GOLD | Round number, large enough for sub-cent pricing |
+| Max supply | 1,000,000,000 $GOLD (lifetime — burned tokens are never re-minted) | Round number, large enough for sub-cent pricing |
 | S1 emission | 352,500,000 (50% of mining pool) | Gold rush — massive early rewards attract agents |
 | LP seed | 125M $GOLD + 6 ETH | ~$100K FDV, thin but sufficient for price discovery |
 | Initial price | ~$0.0001/GOLD | Low enough that faucet 7K drip feels generous |

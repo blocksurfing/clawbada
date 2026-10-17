@@ -254,7 +254,7 @@ None=0 → Deposit=1 → TeamCommit=2 → TeamReveal=3 → Active=4 → Awaiting
 7. **Dispute window** (on-chain, optional) — loser may `disputeBattle(battleId, evidence)` with a 10% bond. Windows per bracket: 5 min / 30 min / 1 h. Rate-limited to 5/24h per address.
    - **S1**: `adminResolveDispute()` — DEFAULT_ADMIN_ROLE multisig, 24h SLA.
    - **S2** (roadmap): `BattleResolver.replay()` — on-chain deterministic re-execution from `{initial state + VRF beacon + ordered turn submissions}`.
-8. **Repair** (on-chain) — both players call `RepairShop.repair(lobsterId, points)`. $GOLD burned. Lobsters ≥80 damage blocked from battle until repaired.
+8. **Repair** (on-chain) — both players call `RepairShop.repair(lobsterId, points, maxCost)` with the cost they were quoted as the ceiling (a higher live price reverts `CostExceedsMax`). $GOLD burned. Lobsters ≥80 damage blocked from battle until repaired.
 
 #### 2.5.5 Repair system
 
@@ -340,7 +340,7 @@ Sybil defense relies on the chained dependency (lobster → $GOLD), wallet age +
 
 ### 3.1 Supply and distribution
 
-- **Fixed max supply: 1,000,000,000 $GOLD** (1B).
+- **Fixed max supply: 1,000,000,000 $GOLD** (1B) — a lifetime cap: burned tokens are never re-minted.
 - **100% fair launch — no team/VC allocation.** Dev funded through the 15% protocol-fee share.
 
 | Allocation | % | Amount | Purpose |
