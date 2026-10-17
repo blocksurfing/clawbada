@@ -4,7 +4,7 @@
  *
  *   docs/gitbook/*.md  (order = docs/gitbook/SUMMARY.md)
  *     → docs/gitbook/gitbook-combined.md   a clean single-file Markdown copy (GitHub renders it)
- *     → docs/Clawbada-Gitbook.html         ONE self-contained file: fonts and art embedded as data: URIs
+ *     → docs/Clawbada-Gitbook.html         ONE self-contained file: fonts, art and the tab icon embedded as data: URIs
  *     → docs/Clawbada-Gitbook.pdf          the HTML printed by headless Chrome (A4, backgrounds on)
  *
  * Run it through `bash scripts/build-gitbook.sh` (which checks the tools). Needs pandoc, bun and Google
@@ -19,6 +19,7 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
+import { TAB_ICON_SOURCE, tabIconComposite, tabIconPng } from './tab-icon.ts';
 
 const REPO = resolve(import.meta.dir, '../..');
 const GITBOOK = join(REPO, 'docs/gitbook');
@@ -414,6 +415,12 @@ const assets: Record<string, string> = {
   divider: await crop(sharp, 'ui/market/Tileset.png', 96, 64, 96, 16),       // the card divider strip
   card: await crop(sharp, 'ui/market/Tileset.png', 0, 0, 96, 96),            // the listing card frame
 };
+// The browser-tab icon (scripts/gitbook/tab-icon.ts): the wordmark emblem on a rounded navy tile, embedded so the one
+// file carries its own favicon on docs.clawbada.com and when opened from disk. apps/web/src/app ships the same icon
+// as files (bun run tab-icons), so the game and the book never show different tabs.
+const tabIcon = await tabIconComposite(sharp, join(PUBLIC, TAB_ICON_SOURCE));
+const tabIconUri = async (size: number) => `data:image/png;base64,${(await tabIconPng(sharp, tabIcon, size)).toString('base64')}`;
+const [icon16, icon32, iconApple] = await Promise.all([16, 32, 180].map(tabIconUri));
 // The Apex character art (apps/web/public/assets/characters/apex, 1280 px = 10× of 128-px pixel art) at native size;
 // CSS scales it by whole numbers so it stays crisp.
 const apexArt = await Promise.all(CLASSES.map(async (name) => {
@@ -434,6 +441,7 @@ const vars: Record<string, string> = {
   fontUpheaval: assets.upheaval, fontTitilliumRegular: assets.titilliumRegular, fontTitilliumItalic: assets.titilliumItalic,
   fontTitilliumSemiBold: assets.titilliumSemiBold, fontTitilliumBold: assets.titilliumBold,
   logo: assets.logo, badges: assets.badges, tileset: assets.tileset, icons: assets.icons, wood: assets.wood, divider: assets.divider, card: assets.card,
+  icon16, icon32, iconApple,
   apexCss,
   cover: coverHtml(),
   toc: tocHtml(chapters),
