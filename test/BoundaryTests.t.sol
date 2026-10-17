@@ -634,7 +634,7 @@ contract BoundaryTests is Test {
         vm.prank(alice);
         gold.approve(address(repair), cost);
         vm.prank(alice);
-        repair.repair(id, 1);
+        repair.repair(id, 1, type(uint256).max);
 
         assertEq(nft.getDamage(id), 49);
     }
@@ -648,7 +648,7 @@ contract BoundaryTests is Test {
         vm.prank(alice);
         gold.approve(address(repair), cost);
         vm.prank(alice);
-        repair.repair(id, 100);
+        repair.repair(id, 100, type(uint256).max);
 
         assertEq(nft.getDamage(id), 0);
     }
@@ -663,7 +663,7 @@ contract BoundaryTests is Test {
         vm.prank(alice);
         gold.approve(address(repair), cost);
         vm.prank(alice);
-        repair.repair(id, 10);
+        repair.repair(id, 10, type(uint256).max);
 
         assertEq(nft.getDamage(id), 80);
         // damage > 79, would be rejected at battle reveal
@@ -679,7 +679,7 @@ contract BoundaryTests is Test {
         vm.prank(alice);
         gold.approve(address(repair), cost);
         vm.prank(alice);
-        repair.repair(id, 11);
+        repair.repair(id, 11, type(uint256).max);
 
         assertEq(nft.getDamage(id), 79);
         // damage <= 79, would be accepted at battle reveal
@@ -1011,11 +1011,13 @@ contract BoundaryTests is Test {
         vm.prank(alice);
         gold.burn(1_000e18);
 
-        // remainingMintable should reflect burned amount
-        assertEq(gold.remainingMintable(), 1_000e18);
+        // IA-01: the cap is lifetime — the burn hands nothing back
+        assertEq(gold.remainingMintable(), 0);
+        assertEq(gold.totalMinted(), gold.MAX_SUPPLY());
 
-        // Can mint again
+        // Cannot mint again
         vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(GoldToken.ExceedsMaxSupply.selector, 1_000e18, 0));
         gold.mint(bob, 1_000e18);
 
         assertEq(gold.remainingMintable(), 0);
@@ -1253,7 +1255,7 @@ contract BoundaryTests is Test {
         vm.prank(alice);
         gold.approve(address(repair), cost);
         vm.prank(alice);
-        repair.repair(lob, 6);
+        repair.repair(lob, 6, type(uint256).max);
 
         assertEq(nft.getDamage(lob), 79);
 

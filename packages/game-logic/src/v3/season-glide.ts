@@ -36,6 +36,9 @@ export const SEASON_DAYS = 60;
 export const S1_EMISSION_WEI = 352_500_000n * WEI;
 export const S1_LAUNCH_WEI = 1_250n * WEI;
 export const MINING_ALLOCATION_WEI = 705_000_000n * WEI;
+/** IA-03 (independent audit A1, 2026-10): MiningPool.MIN_BASE_REWARD — the glide, a season's launch value and the
+ *  emergency override never go below one $GOLD, so repair prices (basis points of the rate) can never collapse. */
+export const MIN_BASE_REWARD_WEI = 1n * WEI;
 
 // ──────────── The controller ────────────
 
@@ -122,7 +125,7 @@ export function repegIfNeeded(s: GlideState, epoch: number, totalEpochs: number,
   const hi = (s.base * BigInt(10_000 + p.upStepBps)) / BPS;
   let next = target < lo ? lo : target > hi ? hi : target;
   if (next > s.launch) next = s.launch;
-  if (next === 0n) next = 1n;
+  if (next < MIN_BASE_REWARD_WEI) next = MIN_BASE_REWARD_WEI; // IA-03: the floor (launch ≥ floor on-chain)
   s.base = next;
 }
 
@@ -281,7 +284,7 @@ export function runGlideSeason(cfg: GlideRunConfig): GlideRunResult {
         const epochsLeft = totalEpochs - epoch;
         if (unitsBps > 0n && left > 0n) {
           const ideal = (left * BPS) / (BigInt(epochsLeft) * unitsBps);
-          s.base = ideal > s.launch ? s.launch : ideal === 0n ? 1n : ideal;
+          s.base = ideal > s.launch ? s.launch : ideal < MIN_BASE_REWARD_WEI ? MIN_BASE_REWARD_WEI : ideal;
         }
       } else {
         repegIfNeeded(s, epoch, totalEpochs, p);

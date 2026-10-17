@@ -31,8 +31,10 @@ repairRoutes.get(
     // Live rate from the contract (bps of MiningPool.currentBaseReward — drifts with the glide);
     // game-logic's static table is only the launch value.
     const rateWei = await readRepairRate(lobster.evolutionTier);
-    const cost = (rateWei * BigInt(actualPoints)) / WEI;
-    const fullRepairCost = (rateWei * BigInt(lobster.damage)) / WEI;
+    const costWei = rateWei * BigInt(actualPoints);
+    const fullRepairCostWei = rateWei * BigInt(lobster.damage);
+    const cost = costWei / WEI;
+    const fullRepairCost = fullRepairCostWei / WEI;
     const ratePerPoint = REPAIR_RATES[lobster.evolutionTier as EvolutionTier];
 
     return c.json(serializeBigInts({
@@ -40,7 +42,9 @@ repairRoutes.get(
       currentDamage: lobster.damage,
       pointsToRepair: actualPoints,
       cost,
+      costWei, // IA-02: the exact figure the repair call is bound to (whole-GOLD `cost` rounds down)
       fullRepairCost,
+      fullRepairCostWei,
       ratePerPoint,
       tierName: EvolutionTier[lobster.evolutionTier],
       battleBlocked: lobster.damage >= DAMAGE_THRESHOLD,
@@ -94,11 +98,14 @@ repairRoutes.post(
       [addresses.repairShop, costWei],
     );
 
+    // IA-02: the repair is bound to the price quoted in THIS response — `maxCost` is the same amount the
+    // approve step grants, so a glide step up between quote and inclusion reverts (CostExceedsMax)
+    // instead of drawing more than the player agreed to. A step down just costs less.
     const repairCalldata = buildCalldata(
       addresses.repairShop,
       RepairShopAbi as any,
       'repair',
-      [lobsterId, actualPoints],
+      [lobsterId, actualPoints, costWei],
     );
 
     return c.json({
@@ -110,6 +117,7 @@ repairRoutes.post(
         lobsterId,
         pointsRepaired: actualPoints,
         cost,
+        maxCostWei: costWei,
         damageAfterRepair: lobster.damage - actualPoints,
       }),
     });

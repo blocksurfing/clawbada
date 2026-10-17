@@ -133,9 +133,9 @@ Mining uses **glide-pegged per-expedition rewards** with a **seasonal budget cap
 | **Apex Mine** | All 3 lobsters at Apex | 25x | 31,250 $GOLD |
 
 - **Locked rewards**: each expedition earns exactly `baseReward × tierWeight`, reserved at start
-- **TOK-G1 auto-glide**: `baseReward` re-pegs **hourly** (`REPEG_EPOCH = 1 hours`, D-19 2026-10-02) to `remaining / (remainingEpochs × demand per epoch)`, where demand is the **average of the last 4 epochs** (`DEMAND_WINDOW = 4`, one expedition cycle; D-C 2026-10-03 — the single-epoch rule read a population that starts everything in one hour of four as four times its size; untouched epochs count as quiet, a gap longer than the window holds), damped ±30%/epoch, capped at the season's launch reward, held whenever less than one Base reward is left — crowding compresses yield instead of exhausting the budget; permissionless `repeg()`. A daily re-peg could not track a crowd (15,000 teams spent 38% of S1 in week one; 20,000 arriving on day one drained it by day four — `docs/audits/2026-10-02-d19-glide-simulation.md`)
+- **TOK-G1 auto-glide**: `baseReward` re-pegs **hourly** (`REPEG_EPOCH = 1 hours`, D-19 2026-10-02) to `remaining / (remainingEpochs × demand per epoch)`, where demand is the **average of the last 4 epochs** (`DEMAND_WINDOW = 4`, one expedition cycle; D-C 2026-10-03 — the single-epoch rule read a population that starts everything in one hour of four as four times its size; untouched epochs count as quiet, a gap longer than the window holds), damped ±30%/epoch, capped at the season's launch reward, **never below `MIN_BASE_REWARD = 1 $GOLD`** (IA-03, independent audit A1 2026-10-17: repair prices are basis points of this reward, so the floor keeps them above Treasury's fee minimum whatever the crowd or an override does), held whenever less than one Base reward is left — crowding compresses yield instead of exhausting the budget; permissionless `repeg()`. A daily re-peg could not track a crowd (15,000 teams spent 38% of S1 in week one; 20,000 arriving on day one drained it by day four — `docs/audits/2026-10-02-d19-glide-simulation.md`)
 - **D-19 spend ceiling**: no epoch may mint more than `EPOCH_SPEND_CAP_BPS = 20,000` (2×) of its fair share of the budget left (`left / epochsLeft`), never less than one Apex expedition at +50%; past it `startExpedition` reverts `EpochBudgetFull(nextEpochAt)` and the expedition starts next hour. `epochBudget()` → `(cap, minted, nextEpochAt)` (all zero without a season or after its 60 days); every roll emits `EpochRolled(season, epoch, trailing, cap)`; the API pre-checks it (`MINE_FULL` with the opening time; `GET /api/game/mining/budget`)
-- **D-D season guards (2026-10-03)**: `startSeason` reverts `SeasonBudgetTooSmall` when the budget cannot pay one Base expedition (a missing `e18`) and `BaseRewardTooHigh` when a season's launch reward exceeds **3×** the previous season's launch (`MAX_BASE_REWARD_STEP_X`); `setBaseReward` reverts `BaseRewardTooHigh` above 3× the season's launch or above the budget left. The engine proposes `min(2 × closing rate, 1,250)` for the next season (D-B)
+- **D-D season guards (2026-10-03)**: `startSeason` reverts `SeasonBudgetTooSmall` when the budget cannot pay one Base expedition (a missing `e18`) and `BaseRewardTooHigh` when a season's launch reward exceeds **3×** the previous season's launch (`MAX_BASE_REWARD_STEP_X`); `setBaseReward` reverts `BaseRewardTooHigh` above 3× the season's launch or above the budget left; both `startSeason` and `setBaseReward` revert `BaseRewardTooLow` under `MIN_BASE_REWARD` (1 $GOLD; IA-03). The engine proposes `min(2 × closing rate, 1,250)` for the next season (D-B)
 - **Season budget cap**: `totalMinted + reward > totalEmission` still reverts (`SeasonBudgetExhausted`) as a backstop, structurally unreachable under the glide
 - **Emergency override**: `setBaseReward()` via SEASON_ADMIN_ROLE remains on top of the glide (above-launch values snap back at the next re-peg — within the hour, since D-19)
 - **S1 launch baseReward**: 1,250 $GOLD (= the glide cap for S1)
@@ -293,7 +293,8 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
    S2 evolution: BattleResolver.replay() — deterministic on-chain re-execution from VRF beacon + turn log
 
 8. REPAIR (on-chain)
-   Both players call RepairShop.repair(lobsterId) for damaged lobsters
+   Both players call RepairShop.repair(lobsterId, points, maxCost) for damaged lobsters (maxCost = the
+   quoted cost; IA-02 — a glide step up between quote and call reverts CostExceedsMax instead of overcharging)
    $GOLD burned for repairs (scales with tier + damage severity)
    Lobsters with ≥80 damage points cannot enter battle until repaired
 ```
@@ -567,7 +568,7 @@ Every battle inflicts damage on all participating lobsters:
 | **Winner** | 5-15 (VRF) |
 | **Loser** | 20-40 (VRF) |
 
-**Repair is instant** — player calls `RepairShop.repair(lobsterId, pointsToRepair)`, pays $GOLD, damage is removed immediately. No time delay or cooldown. Partial repairs allowed (repair just enough to stay under 80 threshold).
+**Repair is instant** — player calls `RepairShop.repair(lobsterId, pointsToRepair, maxCost)`, pays $GOLD, damage is removed immediately. No time delay or cooldown. Partial repairs allowed (repair just enough to stay under 80 threshold). `maxCost` is the cost the player was quoted (`repairRate(tier) × points`): the price is read at execution and the hourly glide can move it by up to 30%, so a higher live price reverts `CostExceedsMax` rather than charging more than agreed (IA-02; the API passes the amount it approves).
 
 **Repair cost formula:**
 ```
@@ -792,7 +793,7 @@ contracts/
 ├── BreedingLab.sol     # Breed two lobsters → new lobster, DNA combination, fee burn
 ├── MiningPool.sol      # Stake team to mine, claim rewards on-chain settlement; weekly battle-rank boost table (BOOST_ADMIN_ROLE)
 ├── Marketplace.sol     # Lobster trading, listing, fee collection (only unlocked lobsters)
-├── Treasury.sol        # Protocol fee splitter — 85% burn / 15% dev wallet
+├── Treasury.sol        # Protocol fee splitter — 85% burn / 15% dev wallet; holds nothing — stray $GOLD is swept through the same split by anyone, other tokens returned by the Safe (IA-05)
 ├── Faucet.sol          # Temporary lobster faucet + $GOLD faucet (closeable by admin)
 ├── BattleArena.sol     # Battle lifecycle: deposit (+ team commit + consent), atomic reveal, settlement, review window, freeze (GUARDIAN) / 72 h long-stop + refund reserve, anti-grief
 ├── BattleResolver.sol  # Pure combat math library (identical logic on-chain + off-chain)
@@ -910,7 +911,7 @@ New human flow:
 ## Tokenomics: $GOLD (ERC-20, fair launch on Base)
 
 ### Supply & Distribution
-- **Fixed max supply: 1,000,000,000 $GOLD (1B)**
+- **Fixed max supply: 1,000,000,000 $GOLD (1B)** — a **lifetime** cap: `GoldToken.mint` checks `totalMinted`, not circulating supply, so burned tokens are never re-minted (IA-01, independent audit A1)
 - **100% fair launch** — no team/VC token allocation
 - Dev funded through protocol fee share, not token allocation
 

@@ -310,7 +310,7 @@ Lobsters at **80+ damage** cannot enter battle until repaired.
 
 **Repair is instant** — pay $GOLD, damage is removed immediately. Partial repairs are allowed.
 
-Repair rates track the mining economy: each tier's rate is a fixed fraction of the current `baseReward` (Evolved 0.40% / Elite 1.20% / Apex 3.20% per damage point — 5 / 15 / 40 $GOLD at the S1 launch reward). As mining yields glide with crowding, repair costs glide with them, so battle stays rationally priced all season.
+Repair rates track the mining economy: each tier's rate is a fixed fraction of the current `baseReward` (Evolved 0.40% / Elite 1.20% / Apex 3.20% per damage point — 5 / 15 / 40 $GOLD at the S1 launch reward). As mining yields glide with crowding, repair costs glide with them, so battle stays rationally priced all season. Two guards around that: the rate never falls below one $GOLD per Base expedition (so the cheapest repair stays a real price and repairs can never be bricked by a bad override), and every repair carries the cost you were quoted as a ceiling — if the hourly re-peg moves the price up before your transaction lands, the repair reverts instead of charging more, and you simply quote again.
 
 | Tier | Cost per Damage Point |
 |------|---------------------|
