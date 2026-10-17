@@ -145,7 +145,8 @@ contract FuzzMiningGlideTest is BaseSetup {
         uint256 target = (left * filled) / (epochsLeft * windowSum);
         uint256 lo = (m.base * 7_000) / BPS;
         uint256 hi = (m.base * 13_000) / BPS;
-        uint256 next = _max(1, _min(m.launch, _min(hi, _max(lo, target))));
+        // IA-03: the floor is one GOLD (launch ≥ floor, so the min with launch never undercuts it)
+        uint256 next = _max(1e18, _min(m.launch, _min(hi, _max(lo, target))));
 
         if (next > m.base) sawUp++;
         if (next < m.base) sawDown++;
@@ -234,11 +235,11 @@ contract FuzzMiningGlideTest is BaseSetup {
     function _checkStep(uint256 oldBase) internal view {
         uint256 base = miningPool.currentBaseReward();
         assertEq(base, m.base, "baseReward != reference model");
-        assertGe(base, 1, "glide must never reach zero (dust floor)");
+        assertGe(base, 1e18, "glide must never go below the one-GOLD floor (IA-03)");
         if (oldBase <= m.launch) {
             assertLe(base, m.launch, "glide must never exceed the launch reward");
             assertGe(base, (oldBase * 7_000) / BPS, "one step fell by more than 30%");
-            assertLe(base, _max(1, (oldBase * 13_000) / BPS), "one step rose by more than 30%");
+            assertLe(base, _max(1e18, (oldBase * 13_000) / BPS), "one step rose by more than 30%");
         } else {
             // An admin override above launch is pulled back to launch by the next re-peg.
             assertLe(base, oldBase, "override above launch must not grow");
@@ -304,7 +305,7 @@ contract FuzzMiningGlideTest is BaseSetup {
             // Sometimes an admin override, up to 3x launch (an "emergency" value). D-D: the
             // contract refuses anything above 3x launch or above what the budget can still pay.
             if ((seed >> 16) % 7 == 0) {
-                uint256 forced = bound(seed >> 24, 1, m.launch * 3 + m.launch / 2);
+                uint256 forced = bound(seed >> 24, 1e18, m.launch * 3 + m.launch / 2); // IA-03: never under the floor
                 uint256 limit = _min(m.launch * 3, _left());
                 vm.prank(admin);
                 if (forced > limit) {
@@ -352,20 +353,22 @@ contract FuzzMiningGlideTest is BaseSetup {
         _run(emission, base, seeds, true);
     }
 
-    /// @dev Dust: a launch reward of a few wei. The floor divisions in lo / hi / target all
-    ///      collapse here; the rate must stay >= 1 and the model must still match.
-    function testFuzz_glide_at_dust_scale(uint256 baseSeed, uint256[STEPS] memory seeds) public {
-        _run(1e22, bound(baseSeed, 1, 1_000), seeds, false);
+    /// @dev The floor (IA-03): a launch reward of one to ten GOLD. The -30% bound lands under the floor
+    ///      for anything below 1.43 GOLD and the target often sits far below it; the rate must hold at
+    ///      MIN_BASE_REWARD and the model must still match.
+    function testFuzz_glide_at_the_floor(uint256 baseSeed, uint256[STEPS] memory seeds) public {
+        _run(1e22, bound(baseSeed, 1e18, 10e18), seeds, false);
     }
 
-    /// @dev Dust budget AND dust rate: a season of a few thousand wei with a rate of 1..50 wei.
-    ///      This is where the target floors to 0 (the dust floor must lift it back to 1), where
-    ///      the ceiling's fair share floors to 0 (the one-expedition floor must carry it), and
-    ///      where a budget gets spent to a remainder under one reward (the rate must then hold).
-    function testFuzz_glide_with_a_dust_budget(uint256 emissionSeed, uint256 baseSeed, uint256[STEPS] memory seeds)
+    /// @dev A small budget AND a rate at the floor: a season of a few GOLD with a rate of 1..1.5 GOLD.
+    ///      This is where the target collapses far under the rate (the floor must hold it at one GOLD),
+    ///      where the ceiling's fair share is tiny (the one-expedition floor must carry it), and where a
+    ///      budget gets spent to a remainder under one reward (the rate must then hold).
+    function testFuzz_glide_with_a_small_budget(uint256 emissionSeed, uint256 baseSeed, uint256[STEPS] memory seeds)
         public
     {
-        _run(bound(emissionSeed, 100, 20_000), bound(baseSeed, 1, 50), seeds, false);
+        uint256 base = bound(baseSeed, 1e18, 15e17);
+        _run(bound(emissionSeed, base, 20e18), base, seeds, false);
     }
 
     /// @dev D-20: near the end of the 705M allocation the lifetime cap, not the season budget,
@@ -501,17 +504,19 @@ contract FuzzMiningGlideTest is BaseSetup {
         assertEq(sawHoldNoDemand, 1);
     }
 
-    /// @dev The dust floor: at a rate of 1 wei the -30% bound floors to 0, and a target of 0
-    ///      would set the reward to zero — which would also zero every repair price.
-    function test_glide_dust_floor_never_reaches_zero() public {
-        _begin(1_000, 1); // 1,000 wei season, 1 wei per Base expedition
-        assertTrue(_start(0, 3), "25 units -> 25 wei: exactly the ceiling's one-expedition floor");
+    /// @dev The floor (IA-03): at one GOLD the -30% bound is 0.7 GOLD and the target a few hundredths;
+    ///      the reward must hold at exactly one GOLD — never lower, so repair prices can never collapse
+    ///      under Treasury's minimum.
+    function test_glide_floor_holds_at_one_gold() public {
+        _begin(1_000e18, 1e18); // 1,000 GOLD season, 1 GOLD per Base expedition
+        assertTrue(_start(0, 3), "25 units -> 25 GOLD: exactly the ceiling's one-expedition floor");
         _hour(1);
         uint256 old = m.base;
-        _modelRepeg(block.timestamp); // target = 975 / (1,439 * 25) = 0
+        _modelRepeg(block.timestamp); // target = 975e18 / (1,439 * 25) ~ 0.027 GOLD -> lo 0.7 GOLD -> floor
         miningPool.repeg();
         _checkStep(old);
-        assertEq(miningPool.currentBaseReward(), 1, "floored at 1 wei, never 0");
+        assertEq(miningPool.currentBaseReward(), 1e18, "floored at one GOLD, never lower");
+        assertEq(miningPool.currentBaseReward(), miningPool.MIN_BASE_REWARD(), "the floor is MIN_BASE_REWARD");
     }
 
     /// @dev D-19(c): a budget spent to the last wei is not a demand signal. The rate holds, so

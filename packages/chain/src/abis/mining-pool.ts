@@ -201,6 +201,19 @@ export const MiningPoolAbi = [
   },
   {
     "type": "function",
+    "name": "MIN_BASE_REWARD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "NUM_TIERS",
     "inputs": [],
     "outputs": [
@@ -1415,6 +1428,22 @@ export const MiningPoolAbi = [
   },
   {
     "type": "error",
+    "name": "BaseRewardTooLow",
+    "inputs": [
+      {
+        "name": "baseReward",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "BatchTooLarge",
     "inputs": [
       {
@@ -1652,11 +1681,6 @@ export const MiningPoolAbi = [
   {
     "type": "error",
     "name": "ZeroAddress",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ZeroBaseReward",
     "inputs": []
   },
   {

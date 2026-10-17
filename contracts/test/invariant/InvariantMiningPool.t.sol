@@ -42,12 +42,12 @@ contract InvariantMiningPool is Test {
         assertEq(handler.glideViolation(), "", "a glide step broke its bound");
     }
 
-    /// @dev The rate is never zero while a season exists — RepairShop prices are basis points
-    ///      of it, and a zero rate makes every repair revert RewardPegUnset.
-    function invariant_baseRewardNeverZero() public view {
+    /// @dev The rate never goes below one GOLD while a season exists (IA-03) — RepairShop prices are
+    ///      basis points of it, and a dust rate would make every repair revert under Treasury's minimum.
+    function invariant_baseRewardAtLeastTheFloor() public view {
         MiningPool pool = handler.getMiningPool();
         if (pool.currentSeason() == 0) return;
-        assertGt(pool.currentBaseReward(), 0, "baseReward is zero inside a season");
+        assertGe(pool.currentBaseReward(), pool.MIN_BASE_REWARD(), "baseReward under the floor inside a season");
     }
 
     // ─── D-19 ceiling: an epoch never mints past the ceiling it opened with ───
