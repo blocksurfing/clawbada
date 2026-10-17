@@ -261,7 +261,10 @@ function RepairSection({
 }) {
   const [points, setPoints] = useState<number>(repairCost.currentDamage);
 
-  const cost = Number(repairCost.ratePerPoint) * points;
+  // The live rate: the API's full-repair quote over the damage it covers. `ratePerPoint` is the launch-rate
+  // table value and drifts from the real price as the mining glide moves.
+  const liveRate = repairCost.currentDamage > 0 ? Number(repairCost.fullRepairCost) / repairCost.currentDamage : 0;
+  const cost = Math.round(liveRate * points);
 
   return (
     <FrostedPanel variant="danger" className="space-y-3">
@@ -274,7 +277,7 @@ function RepairSection({
           Damage: <span className={repairCost.battleBlocked ? 'text-destructive font-medium' : 'text-foreground'}>{repairCost.currentDamage}/100</span>
         </div>
         <div className="text-text-secondary">
-          Rate: <span className="text-foreground font-mono">{formatGold(repairCost.ratePerPoint)}</span>/point
+          Rate: <span className="text-foreground font-mono">{formatGold(liveRate)}</span>/point
         </div>
       </div>
       <div className="space-y-1">

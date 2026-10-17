@@ -237,7 +237,7 @@ contract ProtocolHandler is BaseSetup {
 
             vm.startPrank(actor);
             gold.approve(address(repairShop), type(uint256).max);
-            try repairShop.repair(id, repairPts) {
+            try repairShop.repair(id, repairPts, type(uint256).max) {
                 vm.stopPrank();
                 ghostRepairs++;
                 ghostRepairPaid += cost;
@@ -420,13 +420,17 @@ contract InvariantProtocol is Test {
         );
     }
 
-    function invariant_supply_plus_remaining_equals_max() public view {
+    /// @dev IA-01: the cap is lifetime — what has ever been minted plus what can still be minted is
+    ///      MAX_SUPPLY whatever has been burned, and supply can only sit at or below what was minted.
+    function invariant_minted_plus_remaining_equals_max() public view {
         GoldToken gold = handler.getGold();
         assertEq(
-            gold.totalSupply() + gold.remainingMintable(),
+            gold.totalMinted() + gold.remainingMintable(),
             gold.MAX_SUPPLY(),
-            "totalSupply + remainingMintable must equal MAX_SUPPLY"
+            "totalMinted + remainingMintable must equal MAX_SUPPLY"
         );
+        assertLe(gold.totalMinted(), gold.MAX_SUPPLY(), "totalMinted must never exceed MAX_SUPPLY");
+        assertLe(gold.totalSupply(), gold.totalMinted(), "totalSupply can never exceed totalMinted");
     }
 
     // ── Invariant: lobster state bounds ───────────────────────────

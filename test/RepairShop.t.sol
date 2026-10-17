@@ -133,7 +133,7 @@ contract RepairShopTest is Test {
         _approveGold(alice, cost);
 
         vm.prank(alice);
-        shop.repair(id, 20);
+        shop.repair(id, 20, type(uint256).max);
 
         assertEq(nft.getDamage(id), 0);
     }
@@ -147,7 +147,7 @@ contract RepairShopTest is Test {
         _approveGold(alice, cost);
 
         vm.prank(alice);
-        shop.repair(id, 30);
+        shop.repair(id, 30, type(uint256).max);
 
         assertEq(nft.getDamage(id), 0);
     }
@@ -161,7 +161,7 @@ contract RepairShopTest is Test {
         _approveGold(alice, cost);
 
         vm.prank(alice);
-        shop.repair(id, 10);
+        shop.repair(id, 10, type(uint256).max);
 
         assertEq(nft.getDamage(id), 0);
     }
@@ -175,7 +175,7 @@ contract RepairShopTest is Test {
         _approveGold(alice, cost);
 
         vm.prank(alice);
-        shop.repair(id, 10);
+        shop.repair(id, 10, type(uint256).max);
 
         assertEq(nft.getDamage(id), 40);
     }
@@ -189,7 +189,7 @@ contract RepairShopTest is Test {
         _approveGold(alice, cost);
 
         vm.prank(alice);
-        shop.repair(id, 80);
+        shop.repair(id, 80, type(uint256).max);
 
         assertEq(nft.getDamage(id), 0);
     }
@@ -205,7 +205,7 @@ contract RepairShopTest is Test {
         vm.prank(alice);
         vm.expectEmit(true, false, false, true);
         emit RepairShop.LobsterRepaired(id, 15, 15, cost);
-        shop.repair(id, 15);
+        shop.repair(id, 15, type(uint256).max);
     }
 
     // ──────────── repair() — Reverts ────────────
@@ -219,7 +219,7 @@ contract RepairShopTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(RepairShop.CannotRepairBaseTier.selector, id));
-        shop.repair(id, 10);
+        shop.repair(id, 10, type(uint256).max);
     }
 
     function test_repairZeroDamageReverts() public {
@@ -228,7 +228,7 @@ contract RepairShopTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(RepairShop.NothingToRepair.selector, id));
-        shop.repair(id, 1);
+        shop.repair(id, 1, type(uint256).max);
     }
 
     function test_repairExceedsDamageReverts() public {
@@ -240,7 +240,7 @@ contract RepairShopTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(RepairShop.ExceedsCurrentDamage.selector, id, 21, 20));
-        shop.repair(id, 21);
+        shop.repair(id, 21, type(uint256).max);
     }
 
     function test_repairNotOwnerReverts() public {
@@ -249,7 +249,7 @@ contract RepairShopTest is Test {
 
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(RepairShop.NotLobsterOwner.selector, id));
-        shop.repair(id, 10);
+        shop.repair(id, 10, type(uint256).max);
     }
 
     function test_repairDeductsCorrectGold() public {
@@ -263,7 +263,7 @@ contract RepairShopTest is Test {
         uint256 balBefore = gold.balanceOf(alice);
 
         vm.prank(alice);
-        shop.repair(id, 10);
+        shop.repair(id, 10, type(uint256).max);
 
         assertEq(balBefore - gold.balanceOf(alice), expectedCost);
     }
@@ -278,7 +278,7 @@ contract RepairShopTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(); // ERC20 insufficient balance
-        shop.repair(id, 10);
+        shop.repair(id, 10, type(uint256).max);
     }
 
     function test_repairZeroPointsReverts() public {
@@ -287,7 +287,7 @@ contract RepairShopTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(RepairShop.ZeroRepairPoints.selector);
-        shop.repair(id, 0);
+        shop.repair(id, 0, type(uint256).max);
     }
 
     // ──────────── TOK-G1 peg ────────────
@@ -301,7 +301,7 @@ contract RepairShopTest is Test {
         _approveGold(alice, cost);
         uint256 balBefore = gold.balanceOf(alice);
         vm.prank(alice);
-        shop.repair(id, 20);
+        shop.repair(id, 20, type(uint256).max);
         assertEq(balBefore - gold.balanceOf(alice), cost);
     }
 
@@ -311,7 +311,7 @@ contract RepairShopTest is Test {
         peg.set(0);
         vm.prank(alice);
         vm.expectRevert(RepairShop.RewardPegUnset.selector);
-        shop.repair(id, 10);
+        shop.repair(id, 10, type(uint256).max);
     }
 
     // ──────────── Fuzz ────────────
@@ -332,9 +332,78 @@ contract RepairShopTest is Test {
         uint256 balBefore = gold.balanceOf(alice);
 
         vm.prank(alice);
-        shop.repair(id, points);
+        shop.repair(id, points, type(uint256).max);
 
         assertEq(balBefore - gold.balanceOf(alice), expectedCost);
         assertEq(nft.getDamage(id), 0);
+    }
+
+    // ──────────── IA-02: maxCost ────────────
+
+    function test_repairAtTheQuotedCostPasses() public {
+        uint256 id = _mintLobsterAtTier(alice, 1);
+        _setDamage(id, 20);
+        uint256 quote = shop.repairRate(1) * 20; // 5 GOLD x 20 at the launch peg
+        _giveGold(alice, quote);
+        _approveGold(alice, quote);
+
+        vm.prank(alice);
+        shop.repair(id, 20, quote);
+        assertEq(nft.getDamage(id), 0);
+        assertEq(gold.balanceOf(alice), 0, "charged exactly the quote");
+    }
+
+    function test_repairRevertsWhenThePegStepsUpPastTheQuote() public {
+        uint256 id = _mintLobsterAtTier(alice, 1);
+        _setDamage(id, 20);
+        uint256 quote = shop.repairRate(1) * 20;
+        _giveGold(alice, quote * 2);
+        _approveGold(alice, quote * 2);
+
+        peg.set((1_250e18 * 13) / 10); // +30%: one glide step up between the quote and the call
+        uint256 live = shop.repairRate(1) * 20;
+        assertGt(live, quote);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(RepairShop.CostExceedsMax.selector, live, quote));
+        shop.repair(id, 20, quote);
+        assertEq(nft.getDamage(id), 20, "nothing repaired");
+        assertEq(gold.balanceOf(alice), quote * 2, "nothing charged");
+    }
+
+    function test_repairPaysTheLowerLivePriceWhenThePegStepsDown() public {
+        uint256 id = _mintLobsterAtTier(alice, 1);
+        _setDamage(id, 20);
+        uint256 quote = shop.repairRate(1) * 20;
+        _giveGold(alice, quote);
+        _approveGold(alice, quote);
+
+        peg.set((1_250e18 * 7) / 10); // -30%
+        uint256 live = shop.repairRate(1) * 20;
+        assertLt(live, quote);
+
+        vm.prank(alice);
+        shop.repair(id, 20, quote);
+        assertEq(nft.getDamage(id), 0);
+        assertEq(gold.balanceOf(alice), quote - live, "charged the live price, not the quote");
+    }
+
+    function testFuzz_repairMaxCostBoundary(uint256 maxCost) public {
+        uint256 id = _mintLobsterAtTier(alice, 2);
+        _setDamage(id, 10);
+        uint256 cost = shop.repairRate(2) * 10;
+        _giveGold(alice, cost);
+        _approveGold(alice, cost);
+        maxCost = bound(maxCost, 0, cost * 2);
+
+        vm.prank(alice);
+        if (maxCost < cost) {
+            vm.expectRevert(abi.encodeWithSelector(RepairShop.CostExceedsMax.selector, cost, maxCost));
+            shop.repair(id, 10, maxCost);
+            assertEq(nft.getDamage(id), 10);
+        } else {
+            shop.repair(id, 10, maxCost);
+            assertEq(nft.getDamage(id), 0);
+        }
     }
 }

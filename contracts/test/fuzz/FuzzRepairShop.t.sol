@@ -43,7 +43,7 @@ contract FuzzRepairShop is BaseSetup {
 
         vm.startPrank(alice);
         gold.approve(address(repairShop), type(uint256).max);
-        repairShop.repair(tokenId, pointsToRepair);
+        repairShop.repair(tokenId, pointsToRepair, type(uint256).max);
         vm.stopPrank();
 
         // Check damage reduced
@@ -58,24 +58,21 @@ contract FuzzRepairShop is BaseSetup {
     // ── D-30: the cost formula at ANY peg value, not only the launch reward ──
     //
     // Repair prices are basis points of MiningPool.currentBaseReward(), and the glide moves
-    // that every hour. Every existing test pinned it at the 1,250 launch value. Across the
-    // whole range a repair has exactly three outcomes, decided by the numbers alone:
-    //   rate == 0                 -> RewardPegUnset        (peg below 10_000/bps wei)
-    //   0 < cost < 10_000 wei     -> Treasury AmountBelowMinimum (dust, T-03 floor)
-    //   otherwise                 -> succeeds, charged points x rate, split 85/15
-    // The two failure bands exist only when the base reward is under ~250 wei — a rate the
-    // glide cannot reach in practice: 120 consecutive -30% steps from 1,250e18, each needing
-    // the target (what is left, over the epochs left, per unit of demand) to sit under the
-    // rate, which at 250 wei means ~10^18 expeditions an hour. So this documents the edge
-    // rather than guarding a live one. What it guards: a repair can never
-    // succeed at the wrong price, and can never be free.
+    // that every hour. Every existing test pinned it at the 1,250 launch value. IA-03 gave the
+    // peg a floor of one GOLD (MiningPool.MIN_BASE_REWARD), so across the whole reachable range
+    // a repair has exactly one outcome: it succeeds, charged points x rate, split 85/15. The old
+    // RewardPegUnset / Treasury AmountBelowMinimum bands lived under ~250 wei and are unreachable
+    // now — the smallest rate, Evolved at the floor, is 0.004 GOLD per point, 4 × 10^11 wei over
+    // Treasury's 10,000-wei minimum. IA-02: the caller passes the quote as maxCost; here it is
+    // exact, so a repair can never succeed at the wrong price, and can never be free.
     function testFuzz_repair_at_any_peg(uint256 pegSeed, uint8 tier, uint8 damage, uint8 points) public {
         tier = uint8(bound(tier, 1, 3));
         damage = uint8(bound(damage, 1, 100));
         points = uint8(bound(points, 1, damage));
-        // Half the runs at dust scale, where the failure bands live; half across the real range.
+        // Half the runs hug the floor; half span the real range.
         // D-D: an override may not exceed 3x the season's launch reward (1,250 here).
-        uint256 peg = pegSeed % 2 == 0 ? bound(pegSeed >> 1, 1, 100_000) : bound(pegSeed >> 1, 1e15, 3_750e18);
+        uint256 floor = miningPool.MIN_BASE_REWARD();
+        uint256 peg = pegSeed % 2 == 0 ? bound(pegSeed >> 1, floor, 3e18) : bound(pegSeed >> 1, floor, 3_750e18);
         vm.prank(admin);
         miningPool.setBaseReward(peg);
 
@@ -86,6 +83,7 @@ contract FuzzRepairShop is BaseSetup {
         uint256 rate = (peg * bps) / 10_000;
         uint256 cost = uint256(points) * rate;
         assertEq(repairShop.repairRate(tier), rate, "rate = peg x bps / 10_000");
+        assertGe(cost, 10_000, "IA-03: a repair is never priced under Treasury's minimum");
 
         _giveGold(alice, cost + 1e18);
         uint256 aliceBefore = gold.balanceOf(alice);
@@ -94,22 +92,9 @@ contract FuzzRepairShop is BaseSetup {
 
         vm.startPrank(alice);
         gold.approve(address(repairShop), type(uint256).max);
-        if (rate == 0) {
-            vm.expectRevert(RepairShop.RewardPegUnset.selector);
-            repairShop.repair(tokenId, points);
-        } else if (cost < 10_000) {
-            vm.expectRevert(abi.encodeWithSelector(Treasury.AmountBelowMinimum.selector, cost, 10_000));
-            repairShop.repair(tokenId, points);
-        } else {
-            repairShop.repair(tokenId, points);
-        }
+        repairShop.repair(tokenId, points, cost); // IA-02: the exact quote as the ceiling
         vm.stopPrank();
 
-        if (rate == 0 || cost < 10_000) {
-            assertEq(nft.getDamage(tokenId), damage, "a refused repair repairs nothing");
-            assertEq(gold.balanceOf(alice), aliceBefore, "and charges nothing");
-            return;
-        }
         assertEq(nft.getDamage(tokenId), damage - points, "damage reduced by the points paid for");
         assertEq(aliceBefore - gold.balanceOf(alice), cost, "charged exactly points x rate");
         uint256 burned = supplyBefore - gold.totalSupply();
@@ -131,7 +116,7 @@ contract FuzzRepairShop is BaseSetup {
         vm.startPrank(alice);
         gold.approve(address(repairShop), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(RepairShop.CannotRepairBaseTier.selector, tokenId));
-        repairShop.repair(tokenId, 10);
+        repairShop.repair(tokenId, 10, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -148,7 +133,7 @@ contract FuzzRepairShop is BaseSetup {
         vm.startPrank(alice);
         gold.approve(address(repairShop), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(RepairShop.NothingToRepair.selector, tokenId));
-        repairShop.repair(tokenId, 1);
+        repairShop.repair(tokenId, 1, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -162,7 +147,7 @@ contract FuzzRepairShop is BaseSetup {
         vm.startPrank(alice);
         gold.approve(address(repairShop), type(uint256).max);
         vm.expectRevert(RepairShop.ZeroRepairPoints.selector);
-        repairShop.repair(tokenId, 0);
+        repairShop.repair(tokenId, 0, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -182,7 +167,7 @@ contract FuzzRepairShop is BaseSetup {
         vm.expectRevert(
             abi.encodeWithSelector(RepairShop.ExceedsCurrentDamage.selector, tokenId, tooMany, damage)
         );
-        repairShop.repair(tokenId, tooMany);
+        repairShop.repair(tokenId, tooMany, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -195,7 +180,7 @@ contract FuzzRepairShop is BaseSetup {
 
         vm.startPrank(alice);
         gold.approve(address(repairShop), type(uint256).max);
-        repairShop.repair(tokenId, 10); // repair only 10 of 80
+        repairShop.repair(tokenId, 10, type(uint256).max); // repair only 10 of 80
         vm.stopPrank();
 
         assertEq(nft.getDamage(tokenId), 70, "partial repair leaves 70 damage");
@@ -212,7 +197,7 @@ contract FuzzRepairShop is BaseSetup {
         vm.startPrank(bob);
         gold.approve(address(repairShop), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(RepairShop.NotLobsterOwner.selector, tokenId));
-        repairShop.repair(tokenId, 10);
+        repairShop.repair(tokenId, 10, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -245,7 +230,7 @@ contract FuzzRepairShop is BaseSetup {
 
         vm.startPrank(alice);
         gold.approve(address(repairShop), cost);
-        repairShop.repair(tokenId, 40);
+        repairShop.repair(tokenId, 40, type(uint256).max);
         vm.stopPrank();
 
         assertEq(nft.getDamage(tokenId), 0, "damage cleared while locked");
@@ -263,7 +248,7 @@ contract FuzzRepairShop is BaseSetup {
 
         vm.startPrank(alice);
         gold.approve(address(repairShop), cost);
-        repairShop.repair(tokenId, 25);
+        repairShop.repair(tokenId, 25, type(uint256).max);
         vm.stopPrank();
 
         assertEq(nft.getDamage(tokenId), 0);
@@ -282,7 +267,7 @@ contract FuzzRepairShop is BaseSetup {
 
         vm.startPrank(alice);
         gold.approve(address(repairShop), cost);
-        repairShop.repair(tokenId, 20);
+        repairShop.repair(tokenId, 20, type(uint256).max);
         vm.stopPrank();
 
         uint256 burned = supplyBefore - gold.totalSupply();
@@ -302,7 +287,7 @@ contract FuzzRepairShop is BaseSetup {
         vm.startPrank(alice);
         gold.approve(address(repairShop), type(uint256).max);
         vm.expectRevert();
-        repairShop.repair(tokenId, 10);
+        repairShop.repair(tokenId, 10, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -316,7 +301,7 @@ contract FuzzRepairShop is BaseSetup {
 
         vm.startPrank(alice);
         gold.approve(address(repairShop), cost);
-        repairShop.repair(tokenId, 100);
+        repairShop.repair(tokenId, 100, type(uint256).max);
         vm.stopPrank();
 
         assertEq(nft.getDamage(tokenId), 0);
@@ -331,7 +316,7 @@ contract FuzzRepairShop is BaseSetup {
 
         vm.startPrank(alice);
         gold.approve(address(repairShop), cost);
-        repairShop.repair(tokenId, 37);
+        repairShop.repair(tokenId, 37, type(uint256).max);
         vm.stopPrank();
 
         assertEq(nft.getDamage(tokenId), 0);

@@ -114,6 +114,11 @@ export const RepairShopAbi = [
         "name": "pointsToRepair",
         "type": "uint8",
         "internalType": "uint8"
+      },
+      {
+        "name": "maxCost",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -188,6 +193,22 @@ export const RepairShopAbi = [
     "inputs": [
       {
         "name": "lobsterId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "CostExceedsMax",
+    "inputs": [
+      {
+        "name": "cost",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxCost",
         "type": "uint256",
         "internalType": "uint256"
       }
