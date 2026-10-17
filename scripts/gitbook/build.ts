@@ -16,7 +16,7 @@
  *
  * Options: BOOK_DATE="October 2026" pins the cover date; SKIP_PDF=1 stops after the HTML.
  */
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
@@ -26,6 +26,8 @@ const PUBLIC = join(REPO, 'apps/web/public');
 const OUT_MD = join(GITBOOK, 'gitbook-combined.md');
 const OUT_HTML = join(REPO, 'docs/Clawbada-Gitbook.html');
 const OUT_PDF = join(REPO, 'docs/Clawbada-Gitbook.pdf');
+/** The hosted copy: the web app serves it at /book/ and docs.clawbada.com rewrites to it (apps/web/next.config.ts). */
+const HOSTED_DIR = join(PUBLIC, 'book');
 
 const BOOK = {
   title: 'Clawbada',
@@ -448,7 +450,12 @@ if (unfilled) fail(`template placeholders left unfilled: ${[...new Set(unfilled)
 assertIntegrity(page, chapters);
 writeFileSync(OUT_HTML, page);
 log(`HTML written: ${OUT_HTML} (${(page.length / 1024).toFixed(0)} KB)`);
+mkdirSync(HOSTED_DIR, { recursive: true });
+copyFileSync(OUT_HTML, join(HOSTED_DIR, 'index.html'));
+log(`hosted copy: ${join(HOSTED_DIR, 'index.html')} (served at /book/ and docs.clawbada.com)`);
 
 if (process.env.SKIP_PDF) { log('SKIP_PDF set — no PDF'); process.exit(0); }
 await printPdf(OUT_HTML, OUT_PDF);
 log(`PDF written: ${OUT_PDF} (${(Bun.file(OUT_PDF).size / 1024).toFixed(0)} KB)`);
+copyFileSync(OUT_PDF, join(HOSTED_DIR, 'Clawbada-Gitbook.pdf'));
+log(`hosted copy: ${join(HOSTED_DIR, 'Clawbada-Gitbook.pdf')} (served at /book/Clawbada-Gitbook.pdf and docs.clawbada.com/pdf)`);
