@@ -259,7 +259,7 @@ Higher tiers require evolved lobsters but pay proportionally more.
 
 Rewards are **locked at expedition start** — when your expedition begins, you know exactly what it will pay, and nothing changes that. There is no pro-rata splitting within an expedition.
 
-The reward *rate* glides: `baseReward` re-pegs automatically once an hour to `remaining budget ÷ (remaining hours × the average hourly demand of the last four hours)`, moving at most ±30% per hour and never above the season's launch value (S1 launch: 1,250 $GOLD). When the mines get crowded, everyone's yield drifts down smoothly; when demand falls, it drifts back up toward the launch rate. The glide only moves on demand: an hour with no expeditions at all leaves the rate where it is, and so does a season with less than one Base reward left in its budget. The table above shows launch-rate values. Repair prices are a percentage of the rate, so they move with it.
+The reward *rate* glides: `baseReward` re-pegs automatically once an hour to `remaining budget ÷ (remaining hours × the average hourly demand of the last four hours)`, moving at most ±30% per hour, never above the season's launch value (S1 launch: 1,250 $GOLD) and never below one $GOLD (the floor also binds a season's launch value and the emergency override, so repair prices — a share of the rate — can never collapse). When the mines get crowded, everyone's yield drifts down smoothly; when demand falls, it drifts back up toward the launch rate. The glide only moves on demand: an hour with no expeditions at all leaves the rate where it is, and so does a season with less than one Base reward left in its budget. The table above shows launch-rate values. Repair prices are a percentage of the rate, so they move with it.
 
 **The hourly ceiling.** No single hour can mint more than twice its fair share of what is left in the season. In a genuine rush — tens of thousands of teams starting in the same hour — the last expeditions to arrive are told the mine is full until the next hour (the API says so before you send anything, and `GET /api/game/mining/budget` shows how much room is left; on-chain the call reverts with the time the next hour opens), and they start then, at a rate that has already caught up with the crowd. Outside such a rush the ceiling never binds.
 
@@ -621,7 +621,7 @@ Lobsters at **80+ damage** cannot enter battle until repaired.
 
 **Repair is instant** — pay $GOLD, damage is removed immediately. Partial repairs are allowed.
 
-Repair rates track the mining economy: each tier's rate is a fixed fraction of the current `baseReward` (Evolved 0.40% / Elite 1.20% / Apex 3.20% per damage point — 5 / 15 / 40 $GOLD at the S1 launch reward). As mining yields glide with crowding, repair costs glide with them, so battle stays rationally priced all season.
+Repair rates track the mining economy: each tier's rate is a fixed fraction of the current `baseReward` (Evolved 0.40% / Elite 1.20% / Apex 3.20% per damage point — 5 / 15 / 40 $GOLD at the S1 launch reward). As mining yields glide with crowding, repair costs glide with them, so battle stays rationally priced all season. Two guards around that: the rate never falls below one $GOLD per Base expedition (so the cheapest repair stays a real price and repairs can never be bricked by a bad override), and every repair carries the cost you were quoted as a ceiling — if the hourly re-peg moves the price up before your transaction lands, the repair reverts instead of charging more, and you simply quote again.
 
 | Tier | Cost per Damage Point |
 |------|---------------------|
@@ -883,7 +883,7 @@ Lobster prices are market-driven. Key pricing factors:
 
 ## Supply
 
-**Fixed max supply: 1,000,000,000 $GOLD (1 billion)**
+**Fixed max supply: 1,000,000,000 $GOLD (1 billion)** — a lifetime cap: the token counts everything it has ever minted, so burned tokens are never minted again by anyone.
 
 | Allocation | % | Amount | Purpose |
 |-----------|---|--------|---------|
@@ -1044,7 +1044,7 @@ Call the Clawbada smart contracts directly using viem, ethers, or any EVM librar
 - `BattleVRF` — drand beacon verification for combat randomness
 - `BreedingLab` — Breed two lobsters: `requestBreed`, then the permissionless `finalizeBreed`
 - `EvolutionLab` — Evolve lobsters (burn fuel + $GOLD): `evolve(lobsterId, fuelId1, fuelId2)`
-- `RepairShop` — Repair battle damage: `repair(lobsterId, points)`
+- `RepairShop` — Repair battle damage: `repair(lobsterId, points, maxCost)` — quote with `repairRate(tier) × points` and pass the quote as `maxCost`; a higher live price reverts `CostExceedsMax` instead of charging more
 - `Marketplace` — List/buy/delist lobsters (`listLobster`, `buyLobster`, `updatePrice`, `cancelListing`)
 - `Faucet` — Claim free lobsters and $GOLD (time-limited): `claimLobsters()`, then the permissionless `finalizeClaim(claimId)` two blocks later (`rearmClaim(claimId)` if its block hash has expired), then `claimGold()`. **You must be marked eligible first.** The contract checks an allowlist flag that the game's eligibility signer sets after the off-chain wallet checks (age, transaction count, balance — see [Getting Started](getting-started.md)), plus your ETH balance at claim time, and reverts `NotEligible` otherwise. There is no self-serve eligibility call yet
 - `Treasury` — Protocol fee collection and splitting
@@ -1246,8 +1246,8 @@ The reference agent in `scripts/e2e/lib/agent.ts` shows the whole flow: deposit-
 
 | Endpoint | Auth | Input | Returns |
 |----------|------|-------|---------|
-| `GET /api/game/repair/cost/:lobsterId?points=` | — | `points` optional (default: all damage) | `{lobsterId, currentDamage, pointsToRepair, cost, fullRepairCost, ratePerPoint, tierName, battleBlocked, damageAfterRepair}` — the live rate from the contract; `{damage: 0, cost: "0", message}` when undamaged |
-| `POST /api/game/repair/repair` | wallet | `{lobsterId, pointsToRepair?}` | 2 steps (approve + `repair`) + `preview: {lobsterId, pointsRepaired, cost, damageAfterRepair}`; Base-tier lobsters are refused (`INSUFFICIENT_TIER`) |
+| `GET /api/game/repair/cost/:lobsterId?points=` | — | `points` optional (default: all damage) | `{lobsterId, currentDamage, pointsToRepair, cost, costWei, fullRepairCost, fullRepairCostWei, ratePerPoint, tierName, battleBlocked, damageAfterRepair}` — the live rate from the contract (`cost` is whole $GOLD rounded down, `costWei` exact); `{damage: 0, cost: "0", message}` when undamaged |
+| `POST /api/game/repair/repair` | wallet | `{lobsterId, pointsToRepair?}` | 2 steps (approve + `repair(lobsterId, points, maxCost)`) + `preview: {lobsterId, pointsRepaired, cost, maxCostWei, damageAfterRepair}`; the repair is bound to the price quoted in this response — if the hourly glide steps the peg up before your transaction lands it reverts `CostExceedsMax` and you quote again; Base-tier lobsters are refused (`INSUFFICIENT_TIER`) |
 
 #### Market
 
