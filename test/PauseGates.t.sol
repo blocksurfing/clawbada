@@ -183,12 +183,12 @@ contract PauseGatesTest is BaseSetup {
         _pause();
         vm.prank(alice);
         _expectPaused();
-        repairShop.repair(id, 10);
+        repairShop.repair(id, 10, type(uint256).max);
 
         vm.prank(admin);
         pauseSwitch.unpause();
         vm.prank(alice);
-        repairShop.repair(id, 10);
+        repairShop.repair(id, 10, type(uint256).max);
         assertEq(nft.getDamage(id), 20);
     }
 

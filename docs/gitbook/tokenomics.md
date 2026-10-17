@@ -4,7 +4,7 @@
 
 ## Supply
 
-**Fixed max supply: 1,000,000,000 $GOLD (1 billion)**
+**Fixed max supply: 1,000,000,000 $GOLD (1 billion)** — a lifetime cap: the token counts everything it has ever minted, so burned tokens are never minted again by anyone.
 
 | Allocation | % | Amount | Purpose |
 |-----------|---|--------|---------|

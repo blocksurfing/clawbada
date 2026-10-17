@@ -112,14 +112,22 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     ///         a mistyped startSeason / setBaseReward (a missing e18, an extra zero) reverts instead
     ///         of paying a season out in hours.
     uint256 public constant MAX_BASE_REWARD_STEP_X = 3;
+    /// @notice IA-03 (independent audit A1, 2026-10): the base reward never goes below one $GOLD — not by the
+    ///         glide, not by a season's launch value, not by an emergency override. RepairShop prices are basis
+    ///         points of this reward (Evolved 40 bps = 0.004 $GOLD per damage point at the floor), far above
+    ///         Treasury's 10,000-wei fee minimum, so no admin call or crowd can make repairs revert and lock
+    ///         damaged lobsters out of battle. The glide cannot reach the floor organically (the demand needed
+    ///         grows as 1/baseReward); this guards the one-call misconfiguration.
+    uint256 public constant MIN_BASE_REWARD = 1e18;
     /// @notice An epoch may mint at most this share (bps) of its fair slice of the budget left:
     ///         20,000 = twice `left / epochsLeft`.
     uint256 public constant EPOCH_SPEND_CAP_BPS = 20_000;
     // TOK-M1: hard on-chain lifetime cap on cumulative mining emissions = the 705M
     // (70.5%) fair-launch allocation. Without this, the budget is enforced only by
-    // per-season admin discipline (`startSeason` totalEmission), and Treasury burns
-    // reopen GoldToken's MAX_SUPPLY headroom — so mining could mint past 705M (the
-    // documented perpetual floor crosses it by ~S8). This makes 705M a true cap.
+    // per-season admin discipline (`startSeason` totalEmission). GoldToken's own cap is
+    // lifetime too since IA-01 (burns never reopen it); this one bounds mining's share
+    // of it, so mining can never mint past 705M (the documented perpetual floor crossed
+    // it by ~S8). This makes 705M a true cap.
     uint256 public constant MINING_ALLOCATION = 705_000_000e18;
     // Battle-rank mining boost (S1): +10%..+50% of a team's own mining income, linear in the
     // team's weekly ELO percentile. The curve lives off-chain; the chain enforces the cap.
@@ -203,7 +211,8 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     error SeasonNotActive();
     error SeasonStillActive();
     error ZeroEmission();
-    error ZeroBaseReward();
+    /// @dev IA-03: a base reward below MIN_BASE_REWARD (one $GOLD) — zero, dust, or a missing e18.
+    error BaseRewardTooLow(uint256 baseReward, uint256 minimum);
     /// @dev D-D: the season's budget could not pay even one Base expedition (a missing e18?).
     error SeasonBudgetTooSmall(uint256 totalEmission, uint256 baseReward);
     /// @dev D-D: the base reward exceeds what the budget left or the step limit allows.
@@ -265,7 +274,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     /// @param baseReward $GOLD per Base expedition (multiplied by tier weight for higher tiers)
     function startSeason(uint256 totalEmission, uint256 baseReward) external onlyRole(SEASON_ADMIN_ROLE) {
         if (totalEmission == 0) revert ZeroEmission();
-        if (baseReward == 0) revert ZeroBaseReward();
+        if (baseReward < MIN_BASE_REWARD) revert BaseRewardTooLow(baseReward, MIN_BASE_REWARD);
         // D-20: a season's budget is bounded by what is left of the 705M lifetime allocation. The
         // schedule's nominal figure overshoots it in the final season; clamping (the effective
         // number is in SeasonStarted) keeps the glide pacing against real budget instead of
@@ -314,7 +323,9 @@ contract MiningPool is AccessControl, ReentrancyGuard {
     ///         by MAX_BASE_REWARD_STEP_X the season's launch reward.
     /// @param newBaseReward New $GOLD per Base expedition
     function setBaseReward(uint256 newBaseReward) external onlyRole(SEASON_ADMIN_ROLE) {
-        if (newBaseReward == 0) revert ZeroBaseReward();
+        // IA-03: never below the floor — a dust override would price repairs below Treasury's minimum
+        // and lock every damaged lobster out of battle until the peg recovered.
+        if (newBaseReward < MIN_BASE_REWARD) revert BaseRewardTooLow(newBaseReward, MIN_BASE_REWARD);
         _requireActiveSeason();
 
         SeasonConfig storage season = _seasons[currentSeason];
@@ -694,9 +705,9 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         // D-20: never pace against budget that cannot be minted (the 705M allocation if less is left).
         uint256 remaining = _budgetLeft(season);
         // D-19(c): an exhausted budget is not a demand signal. Re-pegging toward a target of ~zero
-        // would walk baseReward down 30% an epoch to 1 wei, and RepairShop prices — basis points of
-        // baseReward — with it, so anyone could call repeg() to make repairs free for the rest of
-        // the season. Expeditions are discrete, so an exhausted season normally keeps a remainder
+        // would walk baseReward down 30% an epoch to the floor, and RepairShop prices — basis points
+        // of baseReward — with it, so anyone could call repeg() to make repairs near-free for the rest
+        // of the season. Expeditions are discrete, so an exhausted season normally keeps a remainder
         // smaller than one reward (the #99 fix held only at exactly zero): hold the last real rate
         // whenever less than one Base expedition is left, since nothing can be started anyway.
         if (remaining < season.baseReward) return;
@@ -707,7 +718,7 @@ contract MiningPool is AccessControl, ReentrancyGuard {
         uint256 hi = (old * (10_000 + REPEG_MAX_STEP_BPS)) / 10_000;
         uint256 next = target < lo ? lo : (target > hi ? hi : target);
         if (next > season.launchBaseReward) next = season.launchBaseReward;
-        if (next == 0) next = 1; // dust floor preserves the nonzero-reward invariant
+        if (next < MIN_BASE_REWARD) next = MIN_BASE_REWARD; // IA-03: the floor (launch ≥ floor, so this never exceeds launch)
         if (next != old) {
             season.baseReward = next;
             emit BaseRewardRepegged(currentSeason, epoch, old, next, trailing);

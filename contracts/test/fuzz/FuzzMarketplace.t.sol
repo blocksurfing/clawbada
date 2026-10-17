@@ -2,7 +2,17 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "../helpers/BaseSetup.t.sol";
+
+/// @dev IA-04: a token that is not LobsterNFT, to prove the receiver names it.
+contract ForeignERC1155 is ERC1155 {
+    constructor() ERC1155("") {}
+
+    function mint(address to, uint256 id, uint256 amount) external {
+        _mint(to, id, amount, "");
+    }
+}
 
 /// @dev Fuzz tests for Marketplace: fee calculation, escrow correctness, listing lifecycle.
 contract FuzzMarketplace is BaseSetup {
@@ -406,13 +416,31 @@ contract FuzzMarketplace is BaseSetup {
         nft.setApprovalForAll(address(marketplace), true);
         // Pre-M-05 this succeeded silently, stranding the NFT. Post-fix
         // the onERC1155Received hook rejects non-Marketplace-initiated
-        // transfers.
-        vm.expectRevert();
+        // transfers — IA-04: naming the operator that tried.
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.UnauthorizedOperator.selector, alice));
         nft.safeTransferFrom(alice, address(marketplace), lobsterId, 1, "");
         vm.stopPrank();
 
         // Alice still owns the NFT; nothing stranded.
         assertEq(nft.ownerOf(lobsterId), alice, "alice retained NFT after rejected direct transfer");
+    }
+
+    // IA-04: a token that is not LobsterNFT is refused by name.
+    function test_IA04_foreignToken_rejected() public {
+        ForeignERC1155 foreign = new ForeignERC1155();
+        foreign.mint(alice, 7, 1);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.UnauthorizedTokenContract.selector, address(foreign)));
+        foreign.safeTransferFrom(alice, address(marketplace), 7, 1, "");
+        assertEq(foreign.balanceOf(alice, 7), 1, "nothing stranded");
+    }
+
+    // IA-04: a supply other than one is refused by name, even on the Marketplace's own flow.
+    function test_IA04_invalidSupply_rejected() public {
+        vm.prank(address(nft));
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.InvalidSupply.selector, 2));
+        marketplace.onERC1155Received(address(marketplace), alice, 1, 2, "");
     }
 
     // M-05: batch transfers to Marketplace are also rejected outright
@@ -430,7 +458,7 @@ contract FuzzMarketplace is BaseSetup {
 
         vm.startPrank(alice);
         nft.setApprovalForAll(address(marketplace), true);
-        vm.expectRevert();
+        vm.expectRevert(Marketplace.BatchTransfersNotSupported.selector); // IA-04: named
         nft.safeBatchTransferFrom(alice, address(marketplace), ids, amounts, "");
         vm.stopPrank();
     }

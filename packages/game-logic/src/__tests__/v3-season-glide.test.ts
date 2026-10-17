@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  WEI, ONCHAIN, D19_SINGLE_EPOCH, LEGACY_DAILY, S1_EMISSION_WEI, S1_LAUNCH_WEI, MINING_ALLOCATION_WEI,
+  WEI, ONCHAIN, D19_SINGLE_EPOCH, LEGACY_DAILY, S1_EMISSION_WEI, S1_LAUNCH_WEI, MINING_ALLOCATION_WEI, MIN_BASE_REWARD_WEI,
   newGlideState, repegIfNeeded, runGlideSeason, D19_SCENARIOS, SHAPE_SCENARIOS,
 } from '../v3/season-glide';
 
@@ -106,10 +106,13 @@ describe('repegIfNeeded reproduces the contract', () => {
     last.ring = [1n, 1n, 1n, 1n];
     repegIfNeeded(last, EPOCHS - 1, EPOCHS, ONCHAIN);
     expect(last.base).toBe(120n * WEI); // target 120 × 4 / (1 epoch × 4 units) = 120, inside [70, 130]
-    const dust = newGlideState(S1_EMISSION_WEI, BASE);
-    dust.base = 1n; dust.minted = S1_EMISSION_WEI - 1n; dust.lifetimeMinted = dust.minted; dust.servedBps = 10_000n * 10_000n;
-    repegIfNeeded(dust, 2, EPOCHS, ONCHAIN);
-    expect(dust.base).toBe(1n);
+    // IA-03: at the floor with a huge demand signal the target is a few wei and the −30 % bound 0.7 GOLD; the
+    // rate holds at exactly one GOLD (MiningPool.MIN_BASE_REWARD), never lower.
+    const floor = newGlideState(S1_EMISSION_WEI, BASE);
+    floor.base = MIN_BASE_REWARD_WEI; floor.minted = S1_EMISSION_WEI - 2n * WEI; floor.lifetimeMinted = floor.minted; floor.servedBps = 10_000n * 10_000n;
+    repegIfNeeded(floor, 2, EPOCHS, ONCHAIN);
+    expect(floor.base).toBe(MIN_BASE_REWARD_WEI);
+    expect(MIN_BASE_REWARD_WEI).toBe(WEI);
   });
 
   test('D-20: paces against the 705M allocation when less of it is left than the season budget', () => {
@@ -119,7 +122,7 @@ describe('repegIfNeeded reproduces the contract', () => {
     expect(s.base).toBe((BASE * 7_000n) / 10_000n); // target 6,000/(1,439×100) ≈ 0.04 → clamp
   });
 
-  test('property: next ∈ [0.7·old, 1.3·old], ≤ launch, ≥ 1, equals the target when in band, holds under one reward', () => {
+  test('property: next ∈ [0.7·old, 1.3·old], ≤ launch, ≥ the one-GOLD floor, equals the target when in band, holds under one reward', () => {
     let seed = 7;
     const rnd = () => { seed = (seed * 1103515245 + 12345) % 2 ** 31; return seed / 2 ** 31; };
     for (let i = 0; i < 2_000; i++) {
@@ -139,10 +142,10 @@ describe('repegIfNeeded reproduces the contract', () => {
       expect(s.trailing).toBe(served / filled);
       const target = (left * filled) / (BigInt(EPOCHS - epoch) * served);
       const lo = (old * 7_000n) / 10_000n, hi = (old * 13_000n) / 10_000n;
-      expect(s.base >= lo || s.base === 1n).toBe(true);
+      expect(s.base >= lo || s.base === MIN_BASE_REWARD_WEI).toBe(true);
       expect(s.base <= hi || s.base === S1_LAUNCH_WEI).toBe(true);
       expect(s.base <= S1_LAUNCH_WEI).toBe(true);
-      expect(s.base >= 1n).toBe(true);
+      expect(s.base >= MIN_BASE_REWARD_WEI).toBe(true);
       if (target >= lo && target <= hi && target <= S1_LAUNCH_WEI) expect(s.base).toBe(target);
     }
   });

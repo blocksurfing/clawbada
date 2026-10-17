@@ -96,13 +96,33 @@ contract FuzzGoldToken is Test {
         burnAmt = bound(burnAmt, 1, lpBalance);
 
         uint256 supplyBefore = gold.totalSupply();
+        uint256 remainingBefore = gold.remainingMintable();
+        uint256 mintedBefore = gold.totalMinted();
 
         vm.prank(lpWallet);
         gold.burn(burnAmt);
 
         assertEq(gold.totalSupply(), supplyBefore - burnAmt, "burn reduces totalSupply");
-        // remainingMintable increases after burn
-        assertEq(gold.remainingMintable(), gold.MAX_SUPPLY() - gold.totalSupply());
+        // IA-01: the cap is lifetime — a burn hands nothing back to the minters
+        assertEq(gold.remainingMintable(), remainingBefore, "remainingMintable unchanged by a burn");
+        assertEq(gold.totalMinted(), mintedBefore, "totalMinted unchanged by a burn");
+        assertEq(gold.totalMinted() + gold.remainingMintable(), gold.MAX_SUPPLY(), "minted + remaining == cap");
+    }
+
+    // IA-01 (independent audit A1): mint to the cap, burn, try to re-mint — the lifetime cap holds.
+    function test_burned_tokens_are_never_reminted() public {
+        uint256 remaining = gold.remainingMintable();
+        vm.prank(minter);
+        gold.mint(alice, remaining);
+        assertEq(gold.totalMinted(), gold.MAX_SUPPLY(), "everything ever mintable has been minted");
+
+        vm.prank(alice);
+        gold.burn(1_000e18);
+        assertEq(gold.remainingMintable(), 0, "a burn opens no headroom");
+
+        vm.prank(minter);
+        vm.expectRevert(abi.encodeWithSelector(GoldToken.ExceedsMaxSupply.selector, 1, 0));
+        gold.mint(alice, 1);
     }
 
     // ── Zero address reverts ──────────────────────────────────────

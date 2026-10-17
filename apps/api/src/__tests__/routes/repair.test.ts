@@ -128,6 +128,20 @@ describe('repair routes', () => {
       // Approve is rate(tier) × points in wei — the display cost is that divided by 1e18.
       const approve = (mockEncodeFunctionData.mock.calls as unknown as any[][]).find((c) => c[0]?.functionName === 'approve');
       expect(approve?.[0]?.args?.[1]).toBe(BigInt(body.preview.cost) * 10n ** 18n);
+      // IA-02: repair(lobsterId, points, maxCost) — the ceiling is exactly the approved amount.
+      const repair = (mockEncodeFunctionData.mock.calls as unknown as any[][]).find((c) => c[0]?.functionName === 'repair');
+      expect(repair?.[0]?.args).toEqual([1n, 40, approve?.[0]?.args?.[1]]);
+      expect(body.preview.maxCostWei).toBe(String(approve?.[0]?.args?.[1]));
+    });
+
+    test('GET /cost carries the wei figures the repair is bound to', async () => {
+      mockReadLobster.mockResolvedValue(mockLobster({ damage: 40, evolutionTier: 1 }));
+      const res = await app.request('/repair/cost/1?points=10');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.costWei).toBe(String(5n * 10n ** 18n * 10n));
+      expect(body.fullRepairCostWei).toBe(String(5n * 10n ** 18n * 40n));
+      expect(body.cost).toBe('50');
     });
 
     test('returns 400 when lobster has no damage', async () => {

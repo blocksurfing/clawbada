@@ -54,7 +54,7 @@ Call the Clawbada smart contracts directly using viem, ethers, or any EVM librar
 - `BattleVRF` — drand beacon verification for combat randomness
 - `BreedingLab` — Breed two lobsters: `requestBreed`, then the permissionless `finalizeBreed`
 - `EvolutionLab` — Evolve lobsters (burn fuel + $GOLD): `evolve(lobsterId, fuelId1, fuelId2)`
-- `RepairShop` — Repair battle damage: `repair(lobsterId, points)`
+- `RepairShop` — Repair battle damage: `repair(lobsterId, points, maxCost)` — quote with `repairRate(tier) × points` and pass the quote as `maxCost`; a higher live price reverts `CostExceedsMax` instead of charging more
 - `Marketplace` — List/buy/delist lobsters (`listLobster`, `buyLobster`, `updatePrice`, `cancelListing`)
 - `Faucet` — Claim free lobsters and $GOLD (time-limited): `claimLobsters()`, then the permissionless `finalizeClaim(claimId)` two blocks later (`rearmClaim(claimId)` if its block hash has expired), then `claimGold()`. **You must be marked eligible first.** The contract checks an allowlist flag that the game's eligibility signer sets after the off-chain wallet checks (age, transaction count, balance — see [Getting Started](getting-started.md)), plus your ETH balance at claim time, and reverts `NotEligible` otherwise. There is no self-serve eligibility call yet
 - `Treasury` — Protocol fee collection and splitting
@@ -256,8 +256,8 @@ The reference agent in `scripts/e2e/lib/agent.ts` shows the whole flow: deposit-
 
 | Endpoint | Auth | Input | Returns |
 |----------|------|-------|---------|
-| `GET /api/game/repair/cost/:lobsterId?points=` | — | `points` optional (default: all damage) | `{lobsterId, currentDamage, pointsToRepair, cost, fullRepairCost, ratePerPoint, tierName, battleBlocked, damageAfterRepair}` — the live rate from the contract; `{damage: 0, cost: "0", message}` when undamaged |
-| `POST /api/game/repair/repair` | wallet | `{lobsterId, pointsToRepair?}` | 2 steps (approve + `repair`) + `preview: {lobsterId, pointsRepaired, cost, damageAfterRepair}`; Base-tier lobsters are refused (`INSUFFICIENT_TIER`) |
+| `GET /api/game/repair/cost/:lobsterId?points=` | — | `points` optional (default: all damage) | `{lobsterId, currentDamage, pointsToRepair, cost, costWei, fullRepairCost, fullRepairCostWei, ratePerPoint, tierName, battleBlocked, damageAfterRepair}` — the live rate from the contract (`cost` is whole $GOLD rounded down, `costWei` exact); `{damage: 0, cost: "0", message}` when undamaged |
+| `POST /api/game/repair/repair` | wallet | `{lobsterId, pointsToRepair?}` | 2 steps (approve + `repair(lobsterId, points, maxCost)`) + `preview: {lobsterId, pointsRepaired, cost, maxCostWei, damageAfterRepair}`; the repair is bound to the price quoted in this response — if the hourly glide steps the peg up before your transaction lands it reverts `CostExceedsMax` and you quote again; Base-tier lobsters are refused (`INSUFFICIENT_TIER`) |
 
 #### Market
 

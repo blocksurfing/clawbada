@@ -246,7 +246,11 @@ interface RepairCost {
   currentDamage: number;
   pointsToRepair: number;
   cost: string;
+  /** IA-02: the exact wei figure a repair is bound to (`cost` is whole $GOLD, rounded down). */
+  costWei?: string;
   fullRepairCost: string;
+  fullRepairCostWei?: string;
+  /** The launch-rate table value, not the live rate — show `fullRepairCost / currentDamage` for the live price. */
   ratePerPoint: string;
   tierName: string;
   battleBlocked: boolean;

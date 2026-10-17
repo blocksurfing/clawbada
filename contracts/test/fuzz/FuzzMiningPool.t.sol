@@ -492,7 +492,7 @@ contract FuzzMiningPool is BaseSetup {
     function testFuzz_setBaseReward_doesNotAffectInflight(uint256 newReward) public {
         // D-D: an override is bounded by 3x the season's launch reward (and by the budget left,
         // which is far larger here).
-        newReward = bound(newReward, 1, 3 * BASE_REWARD);
+        newReward = bound(newReward, 1e18, 3 * BASE_REWARD); // IA-03: never under the one-GOLD floor
 
         uint256[3] memory ids = _mint3(alice);
         vm.prank(alice);

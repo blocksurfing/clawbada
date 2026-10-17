@@ -185,7 +185,7 @@ export default function AgentsPage() {
 
           <ApiGroup title="Repair" color="text-coral" endpoints={[
             { method: 'GET', path: '/api/game/repair/cost/:lobsterId', desc: 'Get repair cost estimate' },
-            { method: 'POST', path: '/api/game/repair/repair', desc: 'Repair battle damage (lobsterId, pointsToRepair)', auth: true },
+            { method: 'POST', path: '/api/game/repair/repair', desc: 'Repair battle damage (lobsterId, pointsToRepair) — bound to the quoted cost', auth: true },
           ]} />
 
           <ApiGroup title="Marketplace" color="text-ocean" endpoints={[

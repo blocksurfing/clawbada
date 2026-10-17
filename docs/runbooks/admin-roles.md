@@ -102,6 +102,8 @@ Every hot key — `MATCHMAKER_ADDRESS`, `RESOLVER_ADDRESS`, `VRF_OPERATOR_ADDRES
 |--------|-----|-------|
 | BattleArena `resolveFrozen` | **24h target, 72h hard limit from `BattleFrozen`** | Past `FREEZE_LONG_STOP` (72 h) anyone can `expireFrozen`: both players are refunded and 2 × stake is burned from the refund reserve. See "Frozen battles" below. |
 | Treasury `setDevWallet` | **48h proposal + 24h delay** | Use a Safe transaction with comment + scheduling. Never single-step. |
+| Treasury `recoverERC20(token, to, amount)` | **Safe, as needed** | Returns a token someone sent to the Treasury by mistake. Refuses $GOLD (`CannotRecoverGold`) — protocol money only ever leaves through the 85/15 split. IA-05. |
+| Treasury `sweepGold()` | **anyone, no key** | Routes stray $GOLD through the normal 85% burn / 15% dev split; nothing to decide, nothing to sign from the Safe. IA-05. |
 | Treasury `setAuthorized` | **48h proposal** | Adding a new fee-emitting contract requires audit review. |
 | Any `grantRole` post-deploy | **48h proposal** | New role grants are exception, not routine. |
 
@@ -109,7 +111,7 @@ If the Safe cannot reach quorum on a frozen battle, nothing is trapped: at 72 h 
 
 ## SEASON_ADMIN_ROLE policy
 
-`MiningPool.setBaseReward(uint256)` lets the holder set the per-expedition reward to any value up to the remaining season budget. M-02 documented that a compromised holder can drain the entire remaining budget into one expedition.
+`MiningPool.setBaseReward(uint256)` lets the holder set the per-expedition reward to any value between one $GOLD (`MIN_BASE_REWARD`, IA-03 — below it `BaseRewardTooLow`; a dust value would have priced repairs under the Treasury minimum and locked damaged lobsters out of battle) and the lesser of 3× the season's launch reward and the remaining season budget. M-02 documented that a compromised holder can drain the entire remaining budget into one expedition.
 
 ### Required holder (mainnet)
 
