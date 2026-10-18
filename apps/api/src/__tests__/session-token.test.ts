@@ -12,7 +12,7 @@ mock.module('@clawbada/chain', () => ({
 let missingAddresses = false;
 
 import { Hono } from 'hono';
-import { walletAuth } from '../middleware/auth';
+import { walletAuth, playerAuth, GUEST_REFUSED_MESSAGE } from '../middleware/auth';
 import { ApiError } from '../lib/errors';
 import {
   mintSessionToken, verifySessionToken, bearerFrom, resetSessionSecret,
@@ -210,6 +210,125 @@ describe('POST /api/auth/session', () => {
     expect((await a.request('/api/auth/session/refresh', { method: 'POST' })).status).toBe(401);
     const bad = await a.request('/api/auth/session/refresh', { method: 'POST', headers: { Authorization: 'Bearer clw1.x.y' } });
     expect(bad.status).toBe(401);
+  });
+});
+
+// ── Guest sessions: the Dojo without a wallet ──
+
+describe('guest tokens', () => {
+  test('a guest mint verifies back as a guest; a wallet mint does not', () => {
+    const guest = mintSessionToken(ADDRESS, undefined, { guest: true });
+    expect(verifySessionToken(guest.token)).toMatchObject({ checksumAddress: ADDRESS, guest: true });
+    expect(verifySessionToken(mintSessionToken(ADDRESS).token).guest).toBe(false);
+  });
+
+  test('a refresh carries the guest flag and the session start over', () => {
+    const start = Math.floor(Date.now() / 1000) - 600;
+    const v = verifySessionToken(mintSessionToken(ADDRESS, start, { guest: true }).token);
+    expect(v.guest).toBe(true);
+    expect(v.sessionStart).toBe(start);
+  });
+
+  test('the flag lives inside the signed body: adding or removing it breaks the signature', () => {
+    const edit = (token: string, f: (claims: Record<string, unknown>) => void) => {
+      const [prefix, payload, sig] = token.split('.');
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
+      f(claims);
+      return `${prefix}.${Buffer.from(JSON.stringify(claims), 'utf8').toString('base64url')}.${sig}`;
+    };
+    // A guest cannot promote itself to a wallet session…
+    expect(() => verifySessionToken(edit(mintSessionToken(ADDRESS, undefined, { guest: true }).token, (c) => { delete c.g; }))).toThrow(/invalid session token/i);
+    // …and a wallet token cannot be turned into a guest one.
+    expect(() => verifySessionToken(edit(mintSessionToken(ADDRESS).token, (c) => { c.g = 1; }))).toThrow(/invalid session token/i);
+  });
+});
+
+describe('walletAuth refuses a guest token; playerAuth accepts both', () => {
+  function app(mw: typeof walletAuth) {
+    const a = new Hono<{ Variables: { address: string; guest: boolean } }>();
+    a.onError((err, c) =>
+      err instanceof ApiError
+        ? c.json({ error: err.code, message: err.message }, err.status as never)
+        : c.json({ error: 'INTERNAL_ERROR' }, 500));
+    a.use('*', mw);
+    a.get('/who', (c) => c.json({ address: c.get('address'), guest: c.get('guest') }));
+    return a;
+  }
+  const guestBearer = () => ({ Authorization: `Bearer ${mintSessionToken(OTHER, undefined, { guest: true }).token}` });
+  const walletBearer = () => ({ Authorization: `Bearer ${mintSessionToken(ADDRESS).token}` });
+
+  test('walletAuth: a guest bearer is 401, with a message that says a wallet is needed', async () => {
+    const res = await app(walletAuth).request('/who', { headers: guestBearer() });
+    expect(res.status).toBe(401);
+    expect((await res.json()).message).toBe(GUEST_REFUSED_MESSAGE);
+    const ok = await app(walletAuth).request('/who', { headers: walletBearer() });
+    expect(await ok.json()).toEqual({ address: ADDRESS, guest: false });
+  });
+
+  test('playerAuth: a wallet bearer and a guest bearer both pass, and the route can tell them apart', async () => {
+    expect(await (await app(playerAuth).request('/who', { headers: walletBearer() })).json()).toEqual({ address: ADDRESS, guest: false });
+    expect(await (await app(playerAuth).request('/who', { headers: guestBearer() })).json()).toEqual({ address: OTHER, guest: true });
+    expect((await app(playerAuth).request('/who')).status).toBe(401);
+  });
+});
+
+describe('POST /api/auth/guest', () => {
+  async function app() {
+    const { authRoutes } = await import('../routes/auth');
+    const a = new Hono();
+    a.onError((err, c) =>
+      err instanceof ApiError
+        ? c.json({ error: err.code, message: err.message }, err.status as never)
+        : c.json({ error: 'INTERNAL_ERROR' }, 500));
+    a.route('/api/auth', authRoutes);
+    return a;
+  }
+  const signatureHeaders = () => ({
+    'X-Wallet-Address': ADDRESS,
+    'X-Signature': '0xdeadbeef',
+    'X-Timestamp': String(Math.floor(Date.now() / 1000)),
+    'X-Nonce': 'guesttest0000001',
+  });
+
+  test('mints a guest session for a throwaway address — no proof needed, a new address every time', async () => {
+    const res = await (await app()).request('/api/auth/guest', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.guest).toBe(true);
+    expect(body.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(body.expiresAt * 1000).toBeGreaterThan(Date.now());
+    expect(body.sessionEndsAt).toBeGreaterThan(body.expiresAt);
+    expect(verifySessionToken(body.token)).toMatchObject({ checksumAddress: body.address, guest: true });
+    const again = await (await (await app()).request('/api/auth/guest', { method: 'POST' })).json();
+    expect(again.address).not.toBe(body.address);
+  });
+
+  test('a guest token refreshes and stays a guest; it can never buy a wallet session (C-01)', async () => {
+    const a = await app();
+    const first = await (await a.request('/api/auth/guest', { method: 'POST' })).json();
+    const renewed = await a.request('/api/auth/session/refresh', { method: 'POST', headers: { Authorization: `Bearer ${first.token}` } });
+    expect(renewed.status).toBe(200);
+    const body = await renewed.json();
+    expect(body).toMatchObject({ guest: true, address: first.address, sessionEndsAt: first.sessionEndsAt });
+    expect(verifySessionToken(body.token).guest).toBe(true);
+    expect((await a.request('/api/auth/session', { method: 'POST', headers: { Authorization: `Bearer ${first.token}` } })).status).toBe(401);
+    expect((await a.request('/api/auth/session', { method: 'POST', headers: { ...signatureHeaders(), Authorization: `Bearer ${first.token}` } })).status).toBe(401);
+  });
+
+  test('a wallet session says it is not a guest', async () => {
+    const body = await (await (await app()).request('/api/auth/session', { method: 'POST', headers: signatureHeaders() })).json();
+    expect(body.guest).toBe(false);
+  });
+
+  test('switched off — GUEST_SESSIONS_ENABLED=false, or practice mode off — it is a 404', async () => {
+    for (const [k, v] of [['GUEST_SESSIONS_ENABLED', 'false'], ['PRACTICE_ENABLED', 'false']] as const) {
+      process.env[k] = v;
+      try {
+        expect((await (await app()).request('/api/auth/guest', { method: 'POST' })).status).toBe(404);
+      } finally {
+        delete process.env[k];
+      }
+    }
   });
 });
 

@@ -32,7 +32,7 @@ Fair-launch tokenomics, hardened against thousands of profit-maximizing AI agent
 | Player Type | How to Play |
 |-------------|------------|
 | **AI Agents** | Call contracts directly or use the game API. Run under OpenClaw with a Bankr.bot or MoltX.io wallet — the OpenClaw skill package is on the roadmap. |
-| **Humans** | Use the web app at [clawbada.com](https://clawbada.com) (the launch address). Connect your wallet and play through the UI. |
+| **Humans** | Use the web app at [clawbada.com](https://clawbada.com) (the launch address). Try a battle in the Dojo first — no wallet needed — then connect your wallet and play through the UI. |
 
 ## Season 1
 

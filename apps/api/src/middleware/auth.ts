@@ -5,6 +5,9 @@ import { verifyMessage, getAddress } from '@clawbada/chain';
 import { buildAuthMessage, AUTH_NONCE_RE, AUTH_DOMAIN_RE } from '@clawbada/chain/src/auth-message';
 import { ApiError } from '../lib/errors';
 import { bearerFrom, verifySessionToken } from '../lib/session-token';
+// Deep import on purpose: the battle-session index constructs the DB-backed manager, and a dozen tests load
+// this middleware with nothing but @clawbada/chain mocked. The protocol module is pure.
+import { isPracticeId } from '../lib/battle-session/protocol';
 
 /** Maximum allowable backdating of the timestamp (signed message in the past). */
 export const AUTH_PAST_WINDOW_SEC = 5 * 60;
@@ -155,20 +158,34 @@ export async function verifyWalletSignature(input: {
   };
 }
 
+/** Who a request speaks for: the EIP-55 address, and whether a wallet actually stands behind it. */
+export interface Caller {
+  checksumAddress: string;
+  /** True for a token minted by POST /api/auth/guest: practice battles only, refused everywhere else. */
+  guest: boolean;
+}
+
+/** What a guest hears from every route that is not the Dojo. */
+export const GUEST_REFUSED_MESSAGE =
+  'This action needs a wallet. A guest session can only play practice battles in the Dojo — connect a wallet and sign in.';
+
 /**
  * Resolve the caller from a request's headers, by either accepted proof:
  *
- *   Authorization: Bearer <session token>   — a wallet signature already exchanged for a token
+ *   Authorization: Bearer <session token>   — a wallet signature already exchanged for a token, or a guest token
  *   X-Wallet-Address / X-Signature / X-Timestamp / X-Nonce [/ X-Auth-Domain] — a fresh signature
  *     over the EIP-4361 login message (packages/chain buildAuthMessage; GET /api/auth/params)
  *
  * The token path exists so a player is not asked to sign in the middle of a battle; the
  * signature path stays first-class for agents, which sign per request and hold no session.
- * Returns the EIP-55 checksum address. Throws ApiError(UNAUTHORIZED) if neither proof holds.
+ * Returns the EIP-55 checksum address and the guest flag. Throws ApiError(UNAUTHORIZED) if neither proof holds.
  */
-export async function resolveCaller(req: { header(name: string): string | undefined }): Promise<string> {
+export async function resolveCaller(req: { header(name: string): string | undefined }): Promise<Caller> {
   const bearer = bearerFrom(req.header('Authorization'));
-  if (bearer) return verifySessionToken(bearer).checksumAddress;
+  if (bearer) {
+    const { checksumAddress, guest } = verifySessionToken(bearer);
+    return { checksumAddress, guest };
+  }
 
   const address = req.header('X-Wallet-Address');
   const signature = req.header('X-Signature');
@@ -186,14 +203,45 @@ export async function resolveCaller(req: { header(name: string): string | undefi
     nonce: req.header('X-Nonce'),
     domain: req.header('X-Auth-Domain'),
   });
-  return checksumAddress;
+  return { checksumAddress, guest: false };
 }
 
 /**
  * Wallet-based authentication middleware (REST). Accepts a session token or a fresh signature —
- * see `resolveCaller`.
+ * see `resolveCaller`. A GUEST token is refused here, by default: every route that moves lobsters,
+ * $GOLD or a player's standing uses this middleware, so a route added tomorrow with `walletAuth` is
+ * closed to guests without anyone remembering to close it. The practice surface opts in through
+ * `playerAuth`.
  */
 export const walletAuth: MiddlewareHandler = async (c, next) => {
-  c.set('address', await resolveCaller(c.req));
+  const caller = await resolveCaller(c.req);
+  if (caller.guest) throw new ApiError('UNAUTHORIZED', GUEST_REFUSED_MESSAGE);
+  c.set('address', caller.checksumAddress);
+  c.set('guest', false);
   await next();
 };
+
+/**
+ * Wallet OR guest (REST). Only the practice surface may use it — POST /practice and a practice
+ * battle's turn / forfeit / legal — because a practice battle is the one thing in the game with no
+ * chain, no stake and no rating behind it. Sets `guest` so a route can keep guests to preset rosters.
+ */
+export const playerAuth: MiddlewareHandler = async (c, next) => {
+  const caller = await resolveCaller(c.req);
+  c.set('address', caller.checksumAddress);
+  c.set('guest', caller.guest);
+  await next();
+};
+
+/**
+ * A guest may act on its own practice battle and nothing else. Belt and braces on top of the
+ * participant checks (a guest address can never be a party to a real battle): the battle routes and
+ * the WebSocket upgrade call this before they look anything up, so a guest token naming a chain
+ * battle id — or no battle at all — is refused without touching the database.
+ */
+export function assertGuestScope(guest: boolean, battleId: string | null | undefined): void {
+  if (!guest) return;
+  if (!battleId || !isPracticeId(battleId)) {
+    throw new ApiError('UNAUTHORIZED', 'A guest session can only join its own practice battle');
+  }
+}

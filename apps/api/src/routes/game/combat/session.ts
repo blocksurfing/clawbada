@@ -9,12 +9,13 @@
  * GET  /api/game/combat/:battleId/turns   — applied turns (replaces V2 /rounds)
  * GET  /api/game/combat/:battleId/legal   — legal commands for the caller's current actor
  *
- * Practice battles are private to their owner; real battles are public reads.
+ * Practice battles are private to their owner — a wallet, or a guest session (POST /api/auth/guest), which is
+ * why these routes take `playerAuth` instead of `walletAuth`; real battles are public reads.
  */
 import { Hono } from 'hono';
 import { v3, EvolutionTier, LobsterClass } from '@clawbada/game-logic';
 import { rollRandomRoster, rollTrioRoster, rollSpecialsRoster, rollTeamRoster, RANDOM_PRESET_RE, TRIO_PRESET_RE, SPECIALS_PRESET_RE, TEAM_PRESET_RE } from '../../../lib/battle-session/random-roster';
-import { walletAuth, resolveCaller } from '../../../middleware/auth';
+import { playerAuth, resolveCaller, assertGuestScope } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
 import { evidenceBundle } from '../../../lib/battle-session/evidence';
 import { readLobster, readTeam, serializeBigInts } from '../../../lib/chain';
@@ -44,15 +45,23 @@ function presetsEnabled(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+/** The Dojo's ceiling on live practice battles (PRACTICE_MAX_LIVE, default 500). A guest session makes a battle
+ *  free to start, so the server's memory and bot time get a hard bound: past it POST /practice answers 429 until
+ *  battles end — an abandoned one ends itself in about four minutes. */
+function practiceMaxLive(): number {
+  const n = Number(process.env.PRACTICE_MAX_LIVE);
+  return Number.isInteger(n) && n > 0 ? n : 500;
+}
+
 function assertBattleId(id: string): void {
   if (!isPracticeId(id) && !CHAIN_ID_RE.test(id)) throw new ApiError('INVALID_INPUT', 'Invalid battleId');
 }
 
-/** Practice battles are owner-only: require headers and a participant match. */
+/** Practice battles are owner-only: require headers and a participant match. A guest is a fine owner here. */
 async function requireParticipantIfPractice(c: { req: { header(name: string): string | undefined } }, battleId: string): Promise<string | null> {
   if (!isPracticeId(battleId)) return null;
   // Either proof is fine here (session token or signature) — resolveCaller throws if neither holds.
-  const lower = (await resolveCaller(c.req)).toLowerCase();
+  const lower = (await resolveCaller(c.req)).checksumAddress.toLowerCase();
   if (!(await battleSessions.isParticipant(battleId, lower))) throw new ApiError('UNAUTHORIZED', 'Not a participant in this battle');
   return lower;
 }
@@ -85,10 +94,14 @@ async function persistedSnapshot(battleId: string): Promise<BattleSnapshot | nul
 
 sessionRoutes.post(
   '/practice',
-  walletAuth,
+  playerAuth,
   catchErrors(async (c) => {
     if (process.env.PRACTICE_ENABLED === 'false') throw new ApiError('NOT_FOUND', 'Practice mode is disabled');
+    if (battleSessions.livePracticeCount() >= practiceMaxLive()) {
+      throw new ApiError('RATE_LIMITED', 'The Dojo is full right now — try again in a minute');
+    }
     const address = (c.get('address') as string).toLowerCase();
+    const guest = c.get('guest') === true;
     const body = await c.req.json<{ teamId?: string; lobsterIds?: string[]; bot?: string; opponent?: string; layoutId?: string; preset?: string; arena?: string; purity?: number }>().catch(() => ({} as Record<string, never>));
 
     const bot = body.bot ?? 'balanced';
@@ -126,6 +139,10 @@ sessionRoutes.post(
         lobsters = p.classes.map((cls, i) => ({ input: { id: `preset-${i}`, class: cls, tier: p.tier, purity: purity ?? 3, legend: false } }));
       }
     } else {
+      // A guest owns nothing on-chain; the ownership reads below would only say so more slowly.
+      if (guest) {
+        throw new ApiError('INVALID_INPUT', 'Guest sessions play preset rosters only — connect a wallet to train with your own lobsters (teamId / lobsterIds)');
+      }
       let tokenIds: bigint[];
       if (body.teamId) {
         if (!/^\d+$/.test(body.teamId)) throw new ApiError('INVALID_INPUT', 'teamId must be a decimal id');
@@ -163,10 +180,11 @@ sessionRoutes.post(
 
 sessionRoutes.post(
   '/:battleId/turn',
-  walletAuth,
+  playerAuth,
   catchErrors(async (c) => {
     const { battleId } = c.req.param();
     assertBattleId(battleId);
+    assertGuestScope(c.get('guest') === true, battleId);
     const address = (c.get('address') as string).toLowerCase();
     const body = await c.req.json<{ turn?: unknown; command?: unknown }>().catch(() => ({} as Record<string, never>));
     if (typeof body.turn !== 'number' || !Number.isInteger(body.turn) || body.turn < 0) throw new ApiError('INVALID_INPUT', 'turn must be a non-negative integer');
@@ -185,10 +203,11 @@ sessionRoutes.post(
 
 sessionRoutes.post(
   '/:battleId/forfeit',
-  walletAuth,
+  playerAuth,
   catchErrors(async (c) => {
     const { battleId } = c.req.param();
     assertBattleId(battleId);
+    assertGuestScope(c.get('guest') === true, battleId);
     const address = (c.get('address') as string).toLowerCase();
     const res = battleSessions.forfeit(battleId, address);
     if (!res.ok) {
@@ -259,10 +278,11 @@ sessionRoutes.get(
 
 sessionRoutes.get(
   '/:battleId/legal',
-  walletAuth,
+  playerAuth,
   catchErrors(async (c) => {
     const { battleId } = c.req.param();
     assertBattleId(battleId);
+    assertGuestScope(c.get('guest') === true, battleId);
     const address = (c.get('address') as string).toLowerCase();
     const session = battleSessions.get(battleId);
     if (!session) throw new ApiError('NOT_FOUND', 'No live battle with that id');

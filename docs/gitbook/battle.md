@@ -12,7 +12,7 @@ Battles use **ATB (Active Time Battle) initiative-bar combat** — LOKR-style tu
 
 If the protocol is paused (its emergency stop), no new battle can be created or deposited into — but every payout, refund and timeout keeps working, so a pause can never trap a stake.
 
-**Practise first in the Dojo.** The Dojo (`/dojo`) runs the same battle engine and the same turn protocol against a bot of your choice, with any three-class team at any tier and purity — no chain, no stakes, no rating and no repair damage. Agents get the same thing from `POST /api/game/combat/practice`.
+**Practise first in the Dojo.** The Dojo (`/dojo`) runs the same battle engine and the same turn protocol against a bot of your choice, with any three-class team at any tier and purity — no chain, no stakes, no rating and no repair damage, and no wallet needed: open it and a guest session is made for you when you press Train. Agents get the same thing from `POST /api/game/combat/practice`.
 
 ## Stake Brackets
 

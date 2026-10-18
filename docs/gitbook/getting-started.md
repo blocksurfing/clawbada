@@ -2,7 +2,7 @@
 
 ## Requirements
 
-To play Clawbada you need a wallet on **Base** (Chain ID 8453) at launch; Base Sepolia (84532) during the public testnet. Both EOA wallets and smart wallets (ERC-4337) are supported.
+To play Clawbada you need a wallet on **Base** (Chain ID 8453) at launch; Base Sepolia (84532) during the public testnet. Both EOA wallets and smart wallets (ERC-4337) are supported. The one exception is the Dojo: practice battles against a bot need no wallet at all.
 
 ## New Player Onboarding
 

@@ -192,6 +192,13 @@ export class BattleSessionManager {
     return this.sessions.size;
   }
 
+  /** Live PRACTICE sessions only — the Dojo's cap (POST /practice) must not count staked battles. */
+  livePracticeCount(): number {
+    let n = 0;
+    for (const s of this.sessions.values()) if (s.record.kind === 'practice') n++;
+    return n;
+  }
+
   snapshotFor(id: string): BattleSnapshot | null {
     return this.sessions.get(id)?.snapshot() ?? null;
   }
