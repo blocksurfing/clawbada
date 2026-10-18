@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
 import { api } from '@/lib/api';
 import { buildAuthMessage, newAuthNonce } from '@clawbada/chain';
@@ -9,6 +9,10 @@ const CACHE_TTL_MS = 4.5 * 60 * 1000; // 4.5 minutes (server TTL = 5 min)
 /** Renew a session token once its remaining life drops below this. */
 const TOKEN_REFRESH_MARGIN_MS = 20 * 60 * 1000;
 const SESSION_STORAGE_PREFIX = 'clawbada.session.';
+/** The guest session's slot in localStorage (one per browser; the wallet sessions are keyed by address). */
+const GUEST_STORAGE_KEY = 'guest';
+/** How long an action waits for wagmi to finish probing connectors before concluding there is no wallet. */
+const WALLET_SETTLE_MS = 5_000;
 
 interface CachedAuth {
   address: string;
@@ -67,9 +71,46 @@ interface Session {
   address: string;
   expiresAtMs: number;
   sessionEndsAtMs: number;
+  /** A guest session: no wallet behind the address; the API accepts it for practice battles only. */
+  guest?: boolean;
 }
 const sessions = new Map<string, Session>();
 const sessionInFlight = new Map<string, Promise<Session>>();
+
+/**
+ * The guest session — the Dojo without a wallet.
+ *
+ * One per browser, held at module scope like the wallet caches and mirrored into localStorage, so a
+ * reload or the battle page finds the same throwaway identity. It is minted only inside an action (the
+ * Dojo's Train, a forfeit) and only for a page that opted in with `allowGuest` — never on page load, so
+ * a visitor who merely looks around is never given an identity, and a wallet that wagmi is still
+ * reconnecting is never mistaken for a guest. A wallet always wins when one is connected.
+ */
+let guestSession: Session | null = null;
+let guestLoaded = false;
+let guestInFlight: Promise<Session> | null = null;
+const guestListeners = new Set<() => void>();
+function setGuest(s: Session | null): void {
+  guestSession = s;
+  try {
+    if (s) window.localStorage.setItem(SESSION_STORAGE_PREFIX + GUEST_STORAGE_KEY, JSON.stringify(s));
+    else window.localStorage.removeItem(SESSION_STORAGE_PREFIX + GUEST_STORAGE_KEY);
+  } catch {
+    /* private mode, quota — the in-memory copy still covers this tab */
+  }
+  for (const l of guestListeners) l();
+}
+/** Read the stored guest once per tab (client only — called from an effect). */
+function loadGuestOnce(): void {
+  if (guestLoaded) return;
+  guestLoaded = true;
+  const s = loadStoredSession(GUEST_STORAGE_KEY);
+  if (s?.guest && Date.now() < s.sessionEndsAtMs) guestSession = s;
+  for (const l of guestListeners) l();
+}
+const subscribeGuest = (l: () => void) => { guestListeners.add(l); return () => { guestListeners.delete(l); }; };
+const guestAddressSnapshot = (): string | null => guestSession?.address ?? null;
+const noGuest = (): string | null => null;
 
 function loadStoredSession(lowerAddr: string): Session | null {
   try {
@@ -101,11 +142,12 @@ function clearStoredSession(lowerAddr: string): void {
   }
 }
 
-const toSession = (r: { token: string; address: string; expiresAt: number; sessionEndsAt: number }): Session => ({
+const toSession = (r: { token: string; address: string; expiresAt: number; sessionEndsAt: number; guest?: boolean }): Session => ({
   token: r.token,
   address: r.address,
   expiresAtMs: r.expiresAt * 1000,
   sessionEndsAtMs: r.sessionEndsAt * 1000,
+  ...(r.guest ? { guest: true } : {}),
 });
 
 export interface AuthParams {
@@ -116,15 +158,75 @@ export interface AuthParams {
   domain: string;
 }
 
-export function useAuth() {
+export interface UseAuthOptions {
+  /** Let the page work without a wallet through a guest session (the Dojo; practice battles only). */
+  allowGuest?: boolean;
+  /** Act as THIS identity when it is the stored guest, even if a wallet has since connected: the battle
+   *  page pins the guest that started a practice battle so the battle does not change hands midway. */
+  forAddress?: string;
+}
+
+export function useAuth(opts: UseAuthOptions = {}) {
   // `chainId` here is the CONNECTION's chain — what the wallet is actually on.
   // NOT `useChainId()`, which returns `config.state.chainId`: the config's own chain,
   // seeded from `chains[0]` and only updated when the connector reports a change. That
   // reads as the API's chain while the wallet sits on another one, so a guard against it
   // passes and the wallet then rejects the message. See the switch below.
-  const { address, chainId: connectedChainId } = useAccount();
+  const { address, chainId: connectedChainId, status } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { switchChainAsync } = useSwitchChain();
+
+  // ── Guest identity (see the module-scope notes above) ──
+  const allowGuest = !!opts.allowGuest;
+  const guestAddress = useSyncExternalStore(subscribeGuest, guestAddressSnapshot, noGuest);
+  const [guestHydrated, setGuestHydrated] = useState(false);
+  useEffect(() => {
+    if (!allowGuest) return;
+    loadGuestOnce();
+    setGuestHydrated(true);
+  }, [allowGuest]);
+  // wagmi reconnects a remembered wallet after mount — and ConnectKit's connectors keep the status at
+  // 'connecting' for a few seconds while they probe (longer in a headless browser). Until it has decided,
+  // nobody is a guest; an action started in that window waits for the decision (see getSessionToken).
+  const settling = status === 'reconnecting' || status === 'connecting';
+  const resolving = settling || (allowGuest && !guestHydrated);
+  const pinnedGuest = !!opts.forAddress && !!guestAddress && opts.forAddress.toLowerCase() === guestAddress.toLowerCase();
+  const asGuest = allowGuest && (opts.forAddress ? pinnedGuest : !address && !resolving);
+  // Live values for a callback that outlives the render it was created in (the wait below).
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const addressRef = useRef(address);
+  addressRef.current = address;
+
+  /** The guest's bearer token: the stored one, a silent refresh, or a brand-new guest (a new one is as good as the old). */
+  const getGuestToken = useCallback(async (): Promise<string> => {
+    const current = guestSession;
+    if (current && Date.now() < current.expiresAtMs - TOKEN_REFRESH_MARGIN_MS) return current.token;
+    if (guestInFlight) {
+      const s = await guestInFlight;
+      if (Date.now() < s.expiresAtMs) return s.token;
+    }
+    const promise = (async (): Promise<Session> => {
+      if (current && Date.now() < current.expiresAtMs && Date.now() < current.sessionEndsAtMs) {
+        try {
+          const refreshed = toSession(await api.auth.refresh(current.token));
+          setGuest(refreshed);
+          return refreshed;
+        } catch {
+          /* fall through to a fresh guest */
+        }
+      }
+      const minted = toSession(await api.auth.guest());
+      setGuest(minted);
+      return minted;
+    })();
+    guestInFlight = promise;
+    try {
+      return (await promise).token;
+    } finally {
+      if (guestInFlight === promise) guestInFlight = null;
+    }
+  }, []);
 
   /** Acquire the cached signed challenge or sign a fresh one. Shared between
    *  the REST and WebSocket auth paths so a single signMessage call covers
@@ -284,6 +386,7 @@ export function useAuth() {
    * yet elapsed.
    */
   const invalidateAuthCache = useCallback(() => {
+    if (asGuest) { setGuest(null); return; }   // the next call mints a fresh guest
     if (!address) return;
     const lowerAddr = address.toLowerCase();
     cached.delete(lowerAddr);
@@ -292,7 +395,7 @@ export function useAuth() {
     clearStoredSession(lowerAddr);
     // Don't touch in-flight promises — letting any pending popup resolve is
     // safer than aborting it. The next call will re-sign cleanly.
-  }, [address]);
+  }, [address, asGuest]);
 
   /**
    * The bearer token for this wallet, signing only when there is no usable session.
@@ -302,6 +405,18 @@ export function useAuth() {
    * the token outlives a match, and renewing it never touches the wallet.
    */
   const getSessionToken = useCallback(async (): Promise<string> => {
+    if (asGuest) return getGuestToken();
+    if (allowGuest && !opts.forAddress && !address) {
+      // Clicked while wagmi was still probing connectors: wait for it to settle before deciding there is
+      // no wallet, instead of failing a visitor who has none with "Wallet not connected".
+      const deadline = Date.now() + WALLET_SETTLE_MS;
+      while ((statusRef.current === 'connecting' || statusRef.current === 'reconnecting') && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      if (!addressRef.current) return getGuestToken();
+      // A remembered wallet came back during the wait: this closure predates it, so ask for one more click.
+      throw new Error('Your wallet just reconnected — try again.');
+    }
     if (!address) throw new Error('Wallet not connected');
     const lowerAddr = address.toLowerCase();
     const now = Date.now();
@@ -349,7 +464,7 @@ export function useAuth() {
       const { address: a, signature, timestamp, nonce, domain } = await getAuthParams();
       return { 'X-Wallet-Address': a, 'X-Signature': signature, 'X-Timestamp': String(timestamp), 'X-Nonce': nonce, 'X-Auth-Domain': domain };
     }
-  }, [address, getAuthParams]);
+  }, [address, asGuest, allowGuest, opts.forAddress, getAuthParams, getGuestToken]);
 
   /** REST auth: a bearer token. Falls back to nothing else — a failure here is a real failure. */
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -361,6 +476,18 @@ export function useAuth() {
     getAuthParams,
     getSessionToken,
     invalidateAuthCache,
+    /** A wallet is connected. Unchanged by guests: transaction buttons and the queue key off this. */
     isConnected: !!address,
+    /** Who the page acts as: the wallet when one is connected, else the guest once a page allowed one and it exists. */
+    address: asGuest ? guestAddress : (address ?? null),
+    kind: (asGuest ? (guestAddress ? 'guest' : null) : address ? 'wallet' : null) as 'wallet' | 'guest' | null,
+    /** True while wagmi is still reconnecting a remembered wallet or the stored guest has not been read yet. */
+    resolving,
+    /** wagmi's connection status, for pages (and probes) that want to show why `resolving` is still true. */
+    walletStatus: status,
+    /** The stored guest has been read (client only). The battle page uses it to recognise its guest without waiting on wagmi. */
+    guestReady: !allowGuest || guestHydrated,
+    /** The stored guest's address, whether or not it is the identity in use (the battle page matches it against a battle's owner). */
+    guestAddress,
   };
 }

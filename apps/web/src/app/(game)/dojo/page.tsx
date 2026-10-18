@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import { useModal } from 'connectkit';
 import { useRouter } from 'next/navigation';
 import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { api } from '@/lib/api';
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
 import { useAuth } from '@/hooks/use-auth';
+import { formatAddress } from '@/lib/format';
+import { rememberPracticeOwner } from '@/lib/practice-owner';
 import { getArenaBackground } from '@/lib/assets';
 import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { Swords, Loader2, Dumbbell } from 'lucide-react';
@@ -43,6 +45,11 @@ const presetsAllowed = process.env.NEXT_PUBLIC_PRACTICE_PRESETS === 'true' || pr
  * presets are switched off. The review presets block below (dev only) is what the harness and the
  * designer's `?preset=` deep links use since practice moved here from the old /game/battle page.
  *
+ * No wallet needed (owner decision 2026-10-18, the community's "come try it" hook): without one, the
+ * first Train mints a guest session (POST /api/auth/guest) that the API accepts for practice battles
+ * only. A connected wallet always wins; it also has nothing more to offer here, since the builder
+ * only ever sends preset rosters.
+ *
  * Bots come from lib/bot-catalog.ts: easiest first, each with how it plays and what it teaches.
  *
  * Deep links: ?class=kraken (three of one class) or ?team=kraken,ember,abyss, plus
@@ -68,9 +75,9 @@ const chip = (on: boolean) =>
   `px-3 py-1.5 rounded text-xs font-pixel border ${on ? 'border-claw-gold text-claw-gold bg-claw-gold/10' : 'border-border text-text-secondary hover:text-foreground'}`;
 
 export default function DojoPage() {
-  const { address } = useAccount();
   const router = useRouter();
-  const { getAuthHeaders } = useAuth();
+  const { getAuthHeaders, address: identity, kind, resolving, walletStatus } = useAuth({ allowGuest: true });
+  const { setOpen: openWalletPicker } = useModal();
   const [team, setTeam] = useState<string[]>(DEFAULT_TEAM);
   const [tier, setTier] = useState<Tier>(DEFAULT_TIER);
   const [purity, setPurity] = useState(DEFAULT_PURITY);
@@ -111,6 +118,7 @@ export default function DojoPage() {
       const auth = await getAuthHeaders();
       const base = { preset, bot, opponent };
       const res = await api.combat.createPractice(arena === 'match' ? base : { ...base, arena }, auth);
+      rememberPracticeOwner(res.battleId, res.snapshot?.session?.playerA);
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
       for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
@@ -130,6 +138,7 @@ export default function DojoPage() {
       const auth = await getAuthHeaders();
       const base = { preset: `team_${team.join('_')}_${tier}`, purity, bot, opponent };
       const res = await api.combat.createPractice(arena === 'match' ? base : { ...base, arena }, auth);
+      rememberPracticeOwner(res.battleId, res.snapshot?.session?.playerA);
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
       for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
@@ -141,18 +150,6 @@ export default function DojoPage() {
     }
   }, [team, tier, purity, bot, opponent, arena, getAuthHeaders, router]);
 
-  if (!address) {
-    return (
-      <PageBackground variant="deep" scene={arenaScene} sceneDark>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-          <Swords className="size-8 text-text-secondary mb-3" />
-          <h1 className="font-pixel text-2xl text-foreground mb-2">Dojo</h1>
-          <p className="text-sm text-text-secondary">Connect your wallet to train. Nothing is staked and nothing is on-chain; the wallet only proves who you are.</p>
-        </div>
-      </PageBackground>
-    );
-  }
-
   return (
     <PageBackground variant="deep" scene={arenaScene} sceneDark>
       <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
@@ -163,6 +160,20 @@ export default function DojoPage() {
           </div>
           <p className="text-sm text-text-secondary mt-1">
             Build any team and train against a bot. Off-chain: no stakes, no rating, no repair.
+          </p>
+          {/* The data attributes are for probes; wagmi's status differs between the server render and the client, hence the suppression. */}
+          <p className="text-xs text-text-secondary mt-2" data-testid="dojo-identity" data-kind={kind ?? 'none'} data-resolving={resolving ? '1' : '0'} data-wallet-status={walletStatus} suppressHydrationWarning>
+            {kind === 'wallet' && identity ? (
+              <>Training as {formatAddress(identity)}.</>
+            ) : (
+              <>
+                Training as a guest — nothing to install, nothing to sign.{' '}
+                <button type="button" onClick={() => openWalletPicker(true)} className="underline underline-offset-2 hover:text-foreground">
+                  Connect a wallet
+                </button>{' '}
+                when you want to mine, breed and battle for stakes.
+              </>
+            )}
           </p>
         </div>
 

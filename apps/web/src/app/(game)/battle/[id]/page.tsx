@@ -5,12 +5,15 @@
  *   - real, pre-Active: header + the on-chain prep flow (deposit / commit / reveal) for participants
  *   - real, Active+ or practice: the live V3 session (Unity stage or SVG board + HUD + actions)
  */
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 import { api } from '@/lib/api';
+import { useAuth } from '@/hooks/use-auth';
 import { isPracticeId } from '@/lib/battle-protocol';
+import { readPracticeOwner } from '@/lib/practice-owner';
 import { Badge } from '@/components/ui/badge';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
@@ -25,8 +28,37 @@ export default function BattlePage() {
   const params = useParams();
   const router = useRouter();
   const battleId = params.id as string;
-  const { address } = useAccount();
+  const { address: walletAddress } = useAccount();
   const practice = isPracticeId(battleId);
+  // A practice battle may belong to a guest session (the Dojo without a wallet). The Dojo records which
+  // identity started each battle in this browser; the page acts as that one, so a guest's battle stays the
+  // guest's even after a wallet connects, and a wallet's battle is never mistaken for the guest's. Without
+  // a record (opened in another browser) it is the wallet, then the guest. A guest identity is PINNED once
+  // chosen: connecting a wallet mid-battle must not flip sides or re-authenticate the socket as someone the
+  // battle has never heard of. Chain battles keep the wallet, as before.
+  const identity = useAuth({ allowGuest: practice });
+  const [owner, setOwner] = useState<string | null | undefined>(undefined);   // undefined = not read yet (client only)
+  useEffect(() => { setOwner(practice ? readPracticeOwner(battleId) : null); }, [practice, battleId]);
+  const pinnedGuest = useRef<string | null>(null);
+  const guest = identity.guestAddress;
+  let address: string | undefined = walletAddress;
+  let identityPending = false;
+  if (practice) {
+    if (pinnedGuest.current) {
+      address = pinnedGuest.current;
+    } else if (owner === undefined || !identity.guestReady) {
+      address = undefined; identityPending = true;
+    } else if (owner && guest && owner === guest.toLowerCase()) {
+      address = guest;                                   // the guest's own battle: no need to wait for wagmi
+    } else if (owner) {
+      address = walletAddress && owner === walletAddress.toLowerCase() ? walletAddress : undefined;
+      identityPending = !address && identity.resolving;
+    } else {
+      address = walletAddress ?? guest ?? undefined;
+      identityPending = !address && identity.resolving;
+    }
+    if (address && guest && address === guest && !pinnedGuest.current) pinnedGuest.current = guest;
+  }
   // Review tools (designer VFX passes, harness): ?auto=1 lets the bot policy play this wallet's
   // turns; ?speed=2 scales Unity playback; ?stay=1 keeps the view open after the result instead
   // of returning to the arena page. Read after mount to avoid a Suspense boundary.
@@ -64,8 +96,15 @@ export default function BattlePage() {
           <Header title="Practice battle" subtitle="Off-chain — no stakes, no rating. Beat the bot." />
           {address ? (
             <LiveBattle battleId={battleId} address={address} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} onClose={leave} />
+          ) : identityPending ? (
+            <FrostedPanel className="py-10 text-center text-sm text-text-secondary flex items-center justify-center gap-2">
+              <Loader2 className="size-4 animate-spin" /> Opening your practice battle…
+            </FrostedPanel>
           ) : (
-            <FrostedPanel className="py-10 text-center text-sm text-text-secondary">Connect the wallet that started this practice battle.</FrostedPanel>
+            <FrostedPanel className="py-10 text-center text-sm text-text-secondary">
+              This practice battle belongs to another session.{' '}
+              <Link href="/dojo" className="underline underline-offset-2 hover:text-foreground">Start a new one from the Dojo.</Link>
+            </FrostedPanel>
           )}
         </div>
       </PageBackground>

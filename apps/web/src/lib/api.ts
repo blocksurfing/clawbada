@@ -603,6 +603,8 @@ export interface SessionTokenResponse {
   expiresAt: number;
   /** Unix seconds: past this the wallet must sign again. */
   sessionEndsAt: number;
+  /** A guest session (POST /api/auth/guest): a throwaway address, practice battles only. Absent on older APIs. */
+  guest?: boolean;
 }
 
 export interface AuthParamsResponse {
@@ -622,6 +624,8 @@ const auth = {
   session: (headers: AuthHeaders) => post<SessionTokenResponse>('/api/auth/session', undefined, headers),
   /** Renew a token with the token itself — never touches the wallet. */
   refresh: (token: string) => post<SessionTokenResponse>('/api/auth/session/refresh', undefined, { Authorization: `Bearer ${token}` }),
+  /** A guest session for the Dojo: no wallet, a throwaway address, practice battles only — every wallet route refuses it. */
+  guest: () => post<SessionTokenResponse>('/api/auth/guest'),
 };
 
 const combat = {
