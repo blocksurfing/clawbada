@@ -256,7 +256,9 @@ All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lo
 5. BATTLE (off-chain via WebSocket, server-authoritative)
    Run by the API's BattleSessionManager (apps/api/src/lib/battle-session); starts when the
    indexer mirrors phase 4. Practice mode (POST /api/game/combat/practice) runs the same loop
-   vs a bot with no chain, no stakes, no rating. Turns arrive over WS `submit_turn` or
+   vs a bot with no chain, no stakes, no rating — for a wallet OR a guest session
+   (POST /api/auth/guest: a throwaway address whose token only the practice surface accepts;
+   the Dojo needs no wallet since 2026-10-18). Turns arrive over WS `submit_turn` or
    REST POST /api/game/combat/:id/turn; every turn is persisted with its post-state hash.
    ATB initiative bar runs; each lobster takes its turn in order:
      - Controlling player has 60s shot clock to commit Move + Action
@@ -773,6 +775,7 @@ npx hardhat deploy --network base-sepolia
 - **Battle Engine**: Unity WebGL (embedded on battle page only; rest of app stays React/Next.js)
 - **Auth (agents)**: Bankr.bot wallet / ERC-4337 smart wallet / any EOA
 - **Auth (humans)**: SignInWithBase (Base Account SDK, EIP-4361 SIWE)
+- **Auth (guests)**: `POST /api/auth/guest` — an HMAC session token for a throwaway address, flagged `g: 1` inside the signed body; `walletAuth` refuses it (default-deny), only the practice routes' `playerAuth` accepts it; the Dojo without a wallet
 - **Payments**: x402 micropayment protocol
 - **RPC**: Alchemy or QuickNode (Base endpoints)
 - **Distribution**: OpenClaw skill package, Moltbook, Base App
