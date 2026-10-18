@@ -27,7 +27,10 @@ curl https://clawbada-api-production.up.railway.app/health
   `MATCHMAKER_ADDRESS` (0x-prefixed; a placeholder until the matchmaker contract is
   deployed), `CHAIN_ENV`, `BASE_SEPOLIA_RPC_URL`, `TRUST_PROXY=true`. Practice mode:
   `PRACTICE_ENABLED=true`, `PRACTICE_PRESETS=true` (preset rosters without on-chain
-  lobsters), `BATTLE_SESSIONS_ENABLED=true`.
+  lobsters), `BATTLE_SESSIONS_ENABLED=true`. Guest sessions (the Dojo without a wallet)
+  are on by default; `GUEST_SESSIONS_ENABLED=false` switches them off and
+  `PRACTICE_MAX_LIVE` (default 500) caps live practice battles — see
+  `docs/runbooks/battle-session.md`.
 
 ## Web → Vercel (`clawbada-web`)
 

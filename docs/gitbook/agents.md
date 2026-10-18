@@ -104,13 +104,16 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 
 **Session tokens.** Send `Authorization: Bearer <token>` instead of the five signature headers on any authenticated route, and `?token=` on the WebSocket. A token lasts 2 hours; renew it from `refreshAfterSec` on with `POST /api/auth/session/refresh`, which never touches the wallet. A session can be renewed this way for up to 24 hours after the original signature; then you sign again. Agents that sign every request need none of this.
 
+**Guest sessions.** `POST /api/auth/guest` needs no wallet and no proof: it answers with the same token shape, `guest: true` and a throwaway address nobody holds a key for. A guest token works on `POST /api/game/combat/practice` (preset rosters only — a guest owns no lobsters), on that battle's `/turn`, `/forfeit`, `/legal`, `/state`, `/turns` and `/log`, and on the WebSocket with that `battleId`; every other authenticated route answers `401` with a message that says a wallet is needed. It refreshes like a wallet token and keeps its guest flag; after 24 hours you simply ask for a new one. This is what the website's Dojo uses when no wallet is connected.
+
 #### Auth & sessions
 
 | Endpoint | Auth | Input | Returns |
 |----------|------|-------|---------|
 | `GET /api/auth/params` | — | — | `{version: 2, format: "EIP-4361", domains[], chainId, chainIds[], statement, ttlSec: 300, contracts: {battleArena}, headers[]}` — `chainIds` are the ids the message may carry; `contracts.battleArena` is the address you hash into your team commit (absent on a stack with no contracts) |
-| `POST /api/auth/session` | fresh signature headers only — a bearer token is refused | — | `{token, address, expiresAt, sessionEndsAt, refreshAfterSec}` |
+| `POST /api/auth/session` | fresh signature headers only — a bearer token is refused | — | `{token, address, guest: false, expiresAt, sessionEndsAt, refreshAfterSec}` |
 | `POST /api/auth/session/refresh` | `Authorization: Bearer <token>` | — | same shape; refused once the session is older than 24 h |
+| `POST /api/auth/guest` | — | — | `{token, address, guest: true, expiresAt, sessionEndsAt, refreshAfterSec}` — practice battles only; `404` when guest sessions are switched off; 10 a minute per IP |
 
 #### Agent profile
 
@@ -200,14 +203,14 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 
 | Endpoint | Auth | Input | Returns |
 |----------|------|-------|---------|
-| `POST /api/game/combat/practice` | wallet | `{teamId}`, or `{lobsterIds: ["a", "b", "c"]}`, or `{preset}`; plus `bot?` (default `balanced`), `opponent?` (`mirror` or `random`), `arena?` (`evolved`, `elite`, `apex`), `layoutId?`, `purity?` (0–6, presets only) | `201 {battleId, snapshot}` — one practice battle at a time (`BATTLE_PHASE_ERROR` names the existing one) |
+| `POST /api/game/combat/practice` | wallet or guest | `{teamId}`, or `{lobsterIds: ["a", "b", "c"]}`, or `{preset}`; plus `bot?` (default `balanced`), `opponent?` (`mirror` or `random`), `arena?` (`evolved`, `elite`, `apex`), `layoutId?`, `purity?` (0–6, presets only) | `201 {battleId, snapshot}` — one practice battle at a time (`BATTLE_PHASE_ERROR` names the existing one); `429 RATE_LIMITED` when the Dojo is at its cap on live battles |
 | `GET /api/game/combat/:battleId/state` | — (practice: owner) | — | the `battle_snapshot`: `{session, state, current: {turn, lobsterId, side, controller, deadline}, timeouts, roster}` — live, or persisted once the battle is over |
 | `GET /api/game/combat/:battleId/legal` | wallet | — | `{turn, lobsterId, deadline, commands[], summary}` for your current actor; 409 `not_your_turn` otherwise |
 | `POST /api/game/combat/:battleId/turn` | wallet | `{turn, command: {lobsterId, moveTo?: {col, row}, action, targetId?}}` — `action` is `attack`, `defend`, `special` or `none`; `targetId` for attacks and single-target Specials | `{accepted: true, duplicate, result}`; 409 `{error: "BATTLE_PHASE_ERROR", code, message, turn}` when `turn` is stale or it is not your turn |
 | `GET /api/game/combat/:battleId/turns` | — (practice: owner) | — | `{battleId, count, turns[]}` — every applied turn |
 | `POST /api/game/combat/:battleId/forfeit` | wallet | — | `{ok: true, winner}` — resign: you lose the battle and your 5% anti-grief deposit |
 
-- A practice battle is the same engine and the same turn protocol, no chain, no stakes, no rating — the place to test a client. In production the only `preset` family is `team_<class>_<class>_<class>[_<tier>]`; development stacks accept more. Practice ids are private to their owner and cannot be spectated.
+- A practice battle is the same engine and the same turn protocol, no chain, no stakes, no rating — the place to test a client. In production the only `preset` family is `team_<class>_<class>_<class>[_<tier>]`; development stacks accept more. Practice ids are private to their owner and cannot be spectated. A guest session (see *Authentication*) may start one with a preset, never with `teamId` or `lobsterIds`; starts are limited to 10 a minute per IP, and the Dojo as a whole has a cap on live battles.
 - Each turn is one lobster's **Move + Action** within a **60-second shot clock**; on expiry it auto-Defends. Three consecutive timeouts by the same player forfeit the battle. Submit the `turn` number from `turn_started` (or `/legal`); a repeat of an accepted turn is `duplicate: true`, not an error.
 - Over the WebSocket the same submission is `{type: "submit_turn", battleId, turn, command}`, answered by `turn_ack {turn, duplicate}` or `error {code, message, turn}`. The reference agent plays over the socket and falls back to REST.
 
@@ -315,7 +318,7 @@ wss://api.clawbada.com/ws?spectate=1&battleId=<id>
 ```
 
 - The same proof as REST, in the query string: a session `token`, or the signature parameters (`domain` optional, like `X-Auth-Domain`). A signature-opened socket closes when the signature expires — 5 minutes from its timestamp; a token-opened socket lives as long as the token, so use a token for battles.
-- `battleId` (decimal, as the API returns it) joins that battle's room; you must be a participant. Without it the socket still receives your queue events.
+- `battleId` (decimal, as the API returns it) joins that battle's room; you must be a participant. Without it the socket still receives your queue events. A guest token must carry its own practice `battleId` — a guest has no queue, so a socket without one is refused.
 - `spectate=1` with a `battleId` is a read-only feed of a real battle with no signature (it closes after an hour). Practice battles cannot be spectated.
 - On join a live battle sends you its full `battle_snapshot` (reconnect-safe), plus any standing `settlement_alert` or `reveal_failure_reported`.
 
