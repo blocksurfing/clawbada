@@ -114,6 +114,7 @@ describe('practice', () => {
     expect(events.some((e) => e.event === 'turn_started')).toBe(true);
     await expect(mgr.startPractice({ owner: ALICE, lobsters: practiceLobsters, bot: 'greedy', opponent: 'mirror' })).rejects.toBeInstanceOf(PracticeConflictError);
     expect(mgr.liveCount()).toBe(1);
+    expect(mgr.livePracticeCount()).toBe(1);   // the Dojo's cap counts practice sessions only
   });
 
   test('startPractice with an arena puts the team on that board; the lobsters keep their own tier', async () => {

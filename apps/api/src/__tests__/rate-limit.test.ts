@@ -49,6 +49,20 @@ describe('rateLimit middleware', () => {
     expect(codes).toEqual([200, 200, 200, 200, 200, 429]);
   });
 
+  test('two limiters with the same numbers keep separate counters when scoped (guest mint vs practice start, both 10/min)', async () => {
+    const app = new Hono();
+    app.onError((err, c) => (err instanceof ApiError ? c.json({ error: err.code }, err.status as any) : c.json({ error: 'INTERNAL_ERROR' }, 500)));
+    app.use('/guest', rateLimit(3, 60_000, 'guest'));
+    app.use('/practice', rateLimit(3, 60_000, 'practice'));
+    app.post('/guest', (c) => c.text('ok'));
+    app.post('/practice', (c) => c.text('ok'));
+    const ip = uniqueIp();
+    const hit = async (p: string) => (await app.request(p, { method: 'POST', headers: { 'x-forwarded-for': ip } })).status;
+    expect([await hit('/guest'), await hit('/guest'), await hit('/guest'), await hit('/guest')]).toEqual([200, 200, 200, 429]);
+    // The practice bucket is untouched by the three guest mints.
+    expect([await hit('/practice'), await hit('/practice'), await hit('/practice'), await hit('/practice')]).toEqual([200, 200, 200, 429]);
+  });
+
   test('first request passes with 200', async () => {
     const app = createApp(5, 60_000);
     const ip = uniqueIp();

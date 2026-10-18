@@ -45,6 +45,7 @@ mock.module('../../lib/chain', () => ({
 
 // ── Import AFTER mocking ──
 import { teamRoutes } from '../../routes/game/teams';
+import { mintSessionToken, resetSessionSecret } from '../../lib/session-token';
 import {
   TEST_ADDRESS,
   OTHER_ADDRESS,
@@ -63,6 +64,27 @@ describe('team routes', () => {
     mockReadLobster.mockReset();
     mockVerifyMessage.mockImplementation(() => Promise.resolve(true));
     mockGetAddress.mockImplementation((addr: string) => addr);
+  });
+
+  // ──────────── Guest sessions never reach a wallet route ────────────
+  // Representative of every `walletAuth` route: a guest token (POST /api/auth/guest, the Dojo without a
+  // wallet) is refused by the middleware itself, before any calldata is built or any chain is read.
+  describe('guest sessions', () => {
+    test('a guest bearer is 401 on a wallet route, and the handler never runs', async () => {
+      process.env.AUTH_SESSION_SECRET = 'test-secret-at-least-32-characters-long!!';
+      resetSessionSecret();
+      const { token } = mintSessionToken('0x00000000000000000000000000000000000000a1', undefined, { guest: true });
+      mockEncodeFunctionData.mockClear();
+      const res = await app.request('/teams/create', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ lobsterIds: ['1', '2', '3'] }),
+      });
+      expect(res.status).toBe(401);
+      expect((await res.json()).message).toMatch(/needs a wallet/);
+      expect(mockEncodeFunctionData).not.toHaveBeenCalled();
+      expect(mockReadLobster).not.toHaveBeenCalled();
+    });
   });
 
   // ──────────── GET /teams ────────────

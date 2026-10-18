@@ -10,7 +10,7 @@ mock.module('@clawbada/chain', () => ({
 }));
 
 import { Hono } from 'hono';
-import { walletAuth } from '../middleware/auth';
+import { walletAuth, playerAuth, assertGuestScope } from '../middleware/auth';
 import { ApiError } from '../lib/errors';
 
 const VALID_ADDRESS = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
@@ -234,6 +234,29 @@ describe('walletAuth middleware', () => {
       const res = await createApp().request('/test', { headers: validHeaders({ 'X-Nonce': nonce }) });
       expect(res.status).toBe(401);
     }
+  });
+
+  // ── Guest sessions (the Dojo without a wallet) ──
+  test('playerAuth: the signature path is a wallet, so guest is false; no proof is still 401', async () => {
+    mockGetAddress.mockImplementation(() => VALID_ADDRESS);
+    const app = new Hono<{ Variables: { address: string; guest: boolean } }>();
+    app.onError((err, c) => (err instanceof ApiError ? c.json({ error: err.code, message: err.message }, err.status as any) : c.json({ error: 'INTERNAL_ERROR' }, 500)));
+    app.use('*', playerAuth);
+    app.get('/test', (c) => c.json({ address: c.get('address'), guest: c.get('guest') }));
+    const res = await app.request('/test', { headers: validHeaders() });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ address: VALID_ADDRESS, guest: false });
+    expect((await app.request('/test')).status).toBe(401);
+  });
+
+  test('assertGuestScope: wallets go anywhere; a guest only to a practice battle id', () => {
+    const P = 'p_123e4567-e89b-12d3-a456-426614174000';
+    expect(() => assertGuestScope(false, '42')).not.toThrow();
+    expect(() => assertGuestScope(false, null)).not.toThrow();
+    expect(() => assertGuestScope(true, P)).not.toThrow();
+    expect(() => assertGuestScope(true, '42')).toThrow(ApiError);
+    expect(() => assertGuestScope(true, null)).toThrow(/practice battle/);
+    expect(() => assertGuestScope(true, undefined)).toThrow(ApiError);
   });
 
   test('C-01: the legacy bare-string message is refused unless the rollout switch is on', async () => {
