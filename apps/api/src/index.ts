@@ -29,7 +29,7 @@ import { agentRoutes } from './routes/agent';
 import { faucetRoutes } from './routes/faucet';
 import { leaderboardRoutes } from './routes/leaderboard';
 import { activityRoutes } from './routes/activity';
-import { walletAuth, verifyWalletSignature, WS_AUTH_LIFETIME_SEC } from './middleware/auth';
+import { walletAuth, verifyWalletSignature, assertGuestScope, WS_AUTH_LIFETIME_SEC } from './middleware/auth';
 import { authRoutes } from './routes/auth';
 import { verifySessionToken } from './lib/session-token';
 import { rateLimit } from './middleware/rate-limit';
@@ -67,6 +67,11 @@ app.use('/api/faucet/*', (c, next) => (c.req.method === 'GET' ? faucetReads(c, n
 app.use('/api/game/combat/queue', rateLimit(30));
 app.use('/api/game/combat/queue/*', rateLimit(30));
 app.use('/api/game/combat/pool-depth', rateLimit(30));
+// Guest sessions (the Dojo without a wallet) make a practice battle free to start: the token is an HMAC,
+// the battle behind it is a bot and a Postgres row. Ten a minute per IP on the mint and on the start, on
+// top of the practice route's own cap on live battles (PRACTICE_MAX_LIVE).
+app.use('/api/auth/guest', rateLimit(10, 60_000, 'guest'));
+app.use('/api/game/combat/practice', rateLimit(10, 60_000, 'practice'));
 
 app.get('/health', (c) =>
   c.json({ status: 'ok', timestamp: Date.now(), version: '0.0.1' }),
@@ -162,6 +167,8 @@ interface WsData {
   authExpiresAt: number;
   /** V3: spectators join real battles read-only with no signature. */
   role: 'player' | 'spectator';
+  /** A guest session (POST /api/auth/guest): one practice battle, no address room. */
+  guest: boolean;
 }
 
 /** Spectator sockets carry no signature; cap their lifetime anyway. */
@@ -200,6 +207,7 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
       battleId: battleIdBig.toString(),
       authExpiresAt: Math.floor(Date.now() / 1000) + SPECTATOR_LIFETIME_SEC,
       role: 'spectator',
+      guest: false,
     };
   }
 
@@ -209,8 +217,9 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
   const tokenParam = url.searchParams.get('token');
   let checksumAddress: string;
   let expiresAt: number;
+  let guest = false;
   if (tokenParam) {
-    ({ checksumAddress, expiresAt } = verifySessionToken(tokenParam));
+    ({ checksumAddress, expiresAt, guest } = verifySessionToken(tokenParam));
   } else {
     if (!address || !signature || !timestampStr) {
       throw new ApiError(
@@ -227,6 +236,8 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
     }));
   }
   const lowerAddr = checksumAddress.toLowerCase();
+  // A guest socket exists for one practice battle: no address-room-only sockets, no chain battle ids.
+  assertGuestScope(guest, battleIdParam);
 
   // F-06: battle-room subscriptions must come from a battle participant.
   // Without this, any caller with a valid signature could subscribe to any
@@ -272,7 +283,7 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
     battleId = battleIdBig.toString();
   }
 
-  return { address: lowerAddr, battleId, authExpiresAt: expiresAt, role: 'player' };
+  return { address: lowerAddr, battleId, authExpiresAt: expiresAt, role: 'player', guest };
 }
 
 export default {
@@ -341,7 +352,7 @@ export default {
     ) {
       const data = ws.data;
       if (!data) return;
-      const { battleId, address, authExpiresAt, role } = data;
+      const { battleId, address, authExpiresAt, role, guest } = data;
 
       // F-Y2: per-address concurrent socket cap. Moved post-upgrade so we
       // can signal exhaustion via close code 1013 ("Try Again Later",
@@ -384,8 +395,8 @@ export default {
       // Address-room subscription (queue lifecycle): always join if we have
       // an authenticated address. Cheap to maintain alongside the battle room
       // and lets queue events route correctly even if the client connects
-      // pre-match.
-      if (address) {
+      // pre-match. Guests never queue, so address rooms stay wallet-only.
+      if (address && !guest) {
         battleWS.joinAddressRoom(address, ws);
       }
 
@@ -398,7 +409,7 @@ export default {
         ws.__authTimer = setTimeout(() => {
           // Mid-battle this is a dropped press for the player (the client queues it and
           // reconnects with a fresh token); worth a line so the timing can be correlated.
-          log.info({ battleId, address, remainingMs }, 'ws_closed_auth_expired');
+          log.info({ battleId, address, guest, remainingMs }, 'ws_closed_auth_expired');
           try {
             ws.close(1008, 'Signature expired');
           } catch {
@@ -424,12 +435,12 @@ export default {
     ) {
       const data = ws.data;
       if (!data) return;
-      const { battleId, address } = data;
+      const { battleId, address, guest } = data;
       if (battleId) {
         battleWS.leave(battleId, ws);
       }
       if (address) {
-        battleWS.leaveAddressRoom(address, ws);
+        if (!guest) battleWS.leaveAddressRoom(address, ws);   // guests never joined one (open)
         // F-Y2: only release if open() actually reserved. A capacity-rejected
         // socket calls close() too but never reserved, so unconditional
         // release would underflow the per-address counter.

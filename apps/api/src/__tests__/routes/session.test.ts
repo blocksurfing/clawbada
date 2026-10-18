@@ -36,6 +36,7 @@ const mockSnapshotFor = mock<any>();
 const mockIsParticipant = mock<any>();
 const mockStoreGet = mock<any>();
 const mockListTurns = mock<any>();
+const mockLivePracticeCount = mock<any>();
 mock.module('../../lib/battle-session', () => ({
   isPracticeId,
   CHAIN_ID_RE,
@@ -47,15 +48,20 @@ mock.module('../../lib/battle-session', () => ({
     get: mockGet,
     snapshotFor: mockSnapshotFor,
     isParticipant: mockIsParticipant,
+    livePracticeCount: mockLivePracticeCount,
     deps: { store: { get: mockStoreGet, listTurns: mockListTurns } },
   },
 }));
 
 import { sessionRoutes } from '../../routes/game/combat/session';
 import { createTestApp, authHeaders, TEST_ADDRESS, OTHER_ADDRESS } from '../helpers/route-test-utils';
+import { mintSessionToken, resetSessionSecret } from '../../lib/session-token';
 
 const app = createTestApp(sessionRoutes, '/api/game/combat');
 const P_ID = 'p_123e4567-e89b-12d3-a456-426614174000';
+/** A guest session: a throwaway address with a `g: 1` token (POST /api/auth/guest). getAddress is identity here. */
+const GUEST_ADDRESS = '0x00000000000000000000000000000000000000a1';
+const guestHeaders = (address = GUEST_ADDRESS) => ({ Authorization: `Bearer ${mintSessionToken(address, undefined, { guest: true }).token}` });
 
 function fakeSession(id: string, side: 'A' | 'B' | null = 'A') {
   return {
@@ -68,8 +74,11 @@ function fakeSession(id: string, side: 'A' | 'B' | null = 'A') {
 }
 
 beforeEach(() => {
-  for (const m of [mockStartPractice, mockSubmit, mockForfeit, mockGet, mockSnapshotFor, mockIsParticipant, mockStoreGet, mockListTurns, mockReadTeam, mockReadLobster]) m.mockReset();
+  for (const m of [mockStartPractice, mockSubmit, mockForfeit, mockGet, mockSnapshotFor, mockIsParticipant, mockStoreGet, mockListTurns, mockLivePracticeCount, mockReadTeam, mockReadLobster]) m.mockReset();
+  mockLivePracticeCount.mockImplementation(() => 0);
   process.env.PRACTICE_PRESETS = 'true';
+  process.env.AUTH_SESSION_SECRET = 'test-secret-at-least-32-characters-long!!';
+  resetSessionSecret();
 });
 
 describe('POST /practice', () => {
@@ -238,6 +247,89 @@ describe('POST /practice', () => {
     expect(empty.status).toBe(400);
     const anon = await app.request('/api/game/combat/practice', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
     expect(anon.status).toBe(401);
+  });
+
+  // ── Guest sessions (the Dojo without a wallet) ──
+  test('a guest starts a practice battle with a team_* preset, owned by its throwaway address', async () => {
+    mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+    const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...guestHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_abyss_apex', purity: 6, bot: 'charger' }) });
+    expect(res.status).toBe(201);
+    expect(mockStartPractice.mock.calls[0][0]).toMatchObject({ owner: GUEST_ADDRESS.toLowerCase(), bot: 'charger', opponent: 'mirror', purity: 6 });
+  });
+
+  test('a guest cannot bring on-chain lobsters: teamId / lobsterIds are refused before the chain is read', async () => {
+    for (const body of [{ teamId: '9' }, { lobsterIds: ['1', '2', '3'] }]) {
+      const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...guestHeaders(), 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      expect(res.status).toBe(400);
+      expect((await res.json()).message).toMatch(/connect a wallet/i);
+    }
+    expect(mockReadTeam).not.toHaveBeenCalled();
+    expect(mockReadLobster).not.toHaveBeenCalled();
+    expect(mockStartPractice).not.toHaveBeenCalled();
+  });
+
+  test('the dev-preset switch applies to guests like everyone else: team_* stays open, the rest close', async () => {
+    process.env.PRACTICE_PRESETS = 'false';
+    try {
+      mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+      expect((await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...guestHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_abyss' }) })).status).toBe(201);
+      expect((await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...guestHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'trio_kraken' }) })).status).toBe(400);
+    } finally {
+      process.env.PRACTICE_PRESETS = 'true';
+    }
+  });
+
+  test('the Dojo has a ceiling on live practice battles: at the cap everyone gets 429 until battles end', async () => {
+    mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+    mockLivePracticeCount.mockImplementation(() => 500);
+    for (const headers of [guestHeaders(), authHeaders()]) {
+      const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_abyss' }) });
+      expect(res.status).toBe(429);
+      expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
+    }
+    expect(mockStartPractice).not.toHaveBeenCalled();
+    // The cap is an env knob; one below it the door is open again.
+    process.env.PRACTICE_MAX_LIVE = '2';
+    try {
+      mockLivePracticeCount.mockImplementation(() => 2);
+      expect((await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_abyss' }) })).status).toBe(429);
+      mockLivePracticeCount.mockImplementation(() => 1);
+      expect((await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'team_kraken_ember_abyss' }) })).status).toBe(201);
+    } finally {
+      delete process.env.PRACTICE_MAX_LIVE;
+    }
+  });
+});
+
+describe('guest sessions on a battle', () => {
+  test('turn and forfeit go through for the guest\'s own practice battle, under the guest address', async () => {
+    mockSubmit.mockImplementation(() => ({ ok: true, duplicate: false, result: { turn: 1 } }));
+    const turn = await app.request(`/api/game/combat/${P_ID}/turn`, { method: 'POST', headers: { ...guestHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ turn: 1, command: { lobsterId: 'L0', action: 'defend' } }) });
+    expect(turn.status).toBe(200);
+    expect(mockSubmit.mock.calls[0]).toEqual([P_ID, GUEST_ADDRESS.toLowerCase(), 1, { lobsterId: 'L0', action: 'defend' }]);
+    mockForfeit.mockImplementation(() => ({ ok: true, winner: 'B' }));
+    const ff = await app.request(`/api/game/combat/${P_ID}/forfeit`, { method: 'POST', headers: guestHeaders() });
+    expect(ff.status).toBe(200);
+    expect(mockForfeit.mock.calls[0]).toEqual([P_ID, GUEST_ADDRESS.toLowerCase()]);
+  });
+
+  test('a guest naming a chain battle id is refused before the manager is consulted (turn, forfeit, legal)', async () => {
+    expect((await app.request('/api/game/combat/42/turn', { method: 'POST', headers: { ...guestHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ turn: 1, command: {} }) })).status).toBe(401);
+    expect((await app.request('/api/game/combat/42/forfeit', { method: 'POST', headers: guestHeaders() })).status).toBe(401);
+    expect((await app.request('/api/game/combat/42/legal', { headers: guestHeaders() })).status).toBe(401);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    expect(mockForfeit).not.toHaveBeenCalled();
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  test('state and turns need the guest to be the participant', async () => {
+    const guestLower = GUEST_ADDRESS.toLowerCase();
+    mockSnapshotFor.mockImplementation(() => ({ session: { id: P_ID } }));
+    mockIsParticipant.mockImplementation(async (_id: string, a: string) => a === guestLower);
+    expect((await app.request(`/api/game/combat/${P_ID}/state`, { headers: guestHeaders() })).status).toBe(200);
+    expect((await app.request(`/api/game/combat/${P_ID}/state`, { headers: guestHeaders('0x00000000000000000000000000000000000000b2') })).status).toBe(401);
+    mockListTurns.mockImplementation(async () => []);
+    expect((await app.request(`/api/game/combat/${P_ID}/turns`, { headers: guestHeaders() })).status).toBe(200);
   });
 });
 
@@ -416,5 +508,20 @@ describe('GET /:battleId/legal', () => {
     expect((await app.request('/api/game/combat/42/legal', { headers: authHeaders('0x9999999999999999999999999999999999999999') })).status).toBe(401);
     mockGet.mockImplementation(() => undefined);
     expect((await app.request('/api/game/combat/42/legal', { headers: authHeaders() })).status).toBe(404);
+  });
+
+  test('a guest session is a participant like any other: legal on its own practice battle, strangers 401', async () => {
+    const { state, actor } = await handState();
+    const guestLower = GUEST_ADDRESS.toLowerCase();
+    mockGet.mockImplementation(() => ({
+      record: { id: P_ID, kind: 'practice', playerA: guestLower, playerB: 'bot:balanced' },
+      state,
+      sideOf: (a: string) => (a === guestLower ? 'A' : null),
+      current: () => ({ turn: 1, lobsterId: actor.id, side: actor.team, controller: guestLower, deadline: 5 }),
+    }));
+    const ok = await app.request(`/api/game/combat/${P_ID}/legal`, { headers: guestHeaders() });
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).lobsterId).toBe('A0');
+    expect((await app.request(`/api/game/combat/${P_ID}/legal`, { headers: authHeaders(OTHER_ADDRESS) })).status).toBe(401);
   });
 });

@@ -1,7 +1,8 @@
+import { randomBytes } from 'node:crypto';
 import { Hono } from 'hono';
 import { walletAuth, acceptedAuthChainIds, allowedAuthDomains, authChainId } from '../middleware/auth';
 import { AUTH_STATEMENT, AUTH_TTL_SEC } from '@clawbada/chain/src/auth-message';
-import { addresses } from '@clawbada/chain';
+import { addresses, getAddress } from '@clawbada/chain';
 import { catchErrors } from '../lib/errors';
 import { ApiError } from '../lib/errors';
 import {
@@ -77,6 +78,7 @@ authRoutes.post(
     return c.json({
       token: minted.token,
       address,
+      guest: false,
       expiresAt: minted.expiresAt,
       sessionEndsAt: minted.sessionEndsAt,
       refreshAfterSec: TOKEN_TTL_SEC - TOKEN_REFRESH_AFTER_SEC,
@@ -86,17 +88,47 @@ authRoutes.post(
 
 // ──────────── POST /api/auth/session/refresh ────────────
 // Auth: the current token only — never prompts the wallet. Refuses once the session is older
-// than SESSION_MAX_AGE_SEC, at which point the client signs again.
+// than SESSION_MAX_AGE_SEC, at which point the client signs again. A guest token renews as a guest.
 authRoutes.post(
   '/session/refresh',
   catchErrors(async (c) => {
     const bearer = bearerFrom(c.req.header('Authorization'));
     if (!bearer) throw new ApiError('UNAUTHORIZED', 'Send the current token as Authorization: Bearer <token>');
-    const { checksumAddress, sessionStart } = verifySessionToken(bearer);
-    const minted = mintSessionToken(checksumAddress, sessionStart);
+    const { checksumAddress, sessionStart, guest } = verifySessionToken(bearer);
+    const minted = mintSessionToken(checksumAddress, sessionStart, { guest });
     return c.json({
       token: minted.token,
       address: checksumAddress,
+      guest,
+      expiresAt: minted.expiresAt,
+      sessionEndsAt: minted.sessionEndsAt,
+      refreshAfterSec: TOKEN_TTL_SEC - TOKEN_REFRESH_AFTER_SEC,
+    });
+  }),
+);
+
+/** Guest sessions (the Dojo without a wallet) are on unless switched off — and pointless without practice mode. */
+export function guestSessionsEnabled(): boolean {
+  return process.env.GUEST_SESSIONS_ENABLED !== 'false' && process.env.PRACTICE_ENABLED !== 'false';
+}
+
+// ──────────── POST /api/auth/guest ────────────
+// No auth: a session for someone with no wallet, so a visitor can play a practice battle in the Dojo
+// without installing or signing anything. The address is twenty random bytes nobody holds a key for;
+// the token carries `g: 1` inside its signed body, so `walletAuth` refuses it everywhere and only the
+// practice surface (`playerAuth`) lets it in — preset rosters, no lobsters, no stakes, no rating.
+// Minting costs an HMAC; what costs something is the practice battle it starts, which is why index.ts
+// rate-limits this route and POST /practice per IP and the practice route caps live battles.
+authRoutes.post(
+  '/guest',
+  catchErrors(async (c) => {
+    if (!guestSessionsEnabled()) throw new ApiError('NOT_FOUND', 'Guest sessions are disabled');
+    const address = getAddress(`0x${randomBytes(20).toString('hex')}`);
+    const minted = mintSessionToken(address, undefined, { guest: true });
+    return c.json({
+      token: minted.token,
+      address,
+      guest: true,
       expiresAt: minted.expiresAt,
       sessionEndsAt: minted.sessionEndsAt,
       refreshAfterSec: TOKEN_TTL_SEC - TOKEN_REFRESH_AFTER_SEC,
