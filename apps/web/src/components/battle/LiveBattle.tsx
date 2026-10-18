@@ -16,7 +16,7 @@ import { useArenaMusic } from '@/hooks/use-arena-music';
 import { applyAudioPrefChange } from '@/lib/audio-prefs';
 import { INTRO_FADE_IN_MS } from '@/lib/arena-music';
 import { enterBattleView, leaveBattleView } from '@/lib/arena-music';
-import type { Side, TurnCommand } from '@/lib/battle-protocol';
+import { isPracticeId, type Side, type TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
 import { BattleStage, type BattleStageControls } from './BattleStage';
 import { selectionToData } from './unity-bridge';
@@ -47,7 +47,9 @@ export interface LiveBattleProps {
 const RETURN_SECONDS = 6;
 
 export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed, onClose, stay }: LiveBattleProps) {
-  const { getAuthParams, getAuthHeaders, getSessionToken } = useAuth();
+  // A practice battle may be played by a guest session; `forAddress` keeps the token on the identity the page
+  // pinned (the guest that started the battle) even after a wallet connects. Chain battles are wallet-only.
+  const { getAuthParams, getAuthHeaders, getSessionToken } = useAuth({ allowGuest: isPracticeId(battleId), forAddress: address });
   const [unityAvailable, setUnityAvailable] = useState<boolean | null>(null);
   /** The stage's fullscreen toggle, for the FULL SCREEN button in the status row. */
   const stageControls = useRef<BattleStageControls | null>(null);

@@ -23,6 +23,8 @@ Status column on `battle_sessions`: `active` → `finished` (practice) or `settl
 | `BATTLE_SESSION_POLL_MS` | `2000` | Poll period for newly Active real battles. |
 | `PRACTICE_ENABLED` | `true` | Practice endpoint on/off. |
 | `PRACTICE_PRESETS` | on outside production | Lets dev environments start a practice battle without owning lobsters. `team_*` rosters (the `/dojo` team builder) stay open even when this is off. |
+| `GUEST_SESSIONS_ENABLED` | `true` | `POST /api/auth/guest`: a wallet-less session that only the practice surface accepts (the Dojo without a wallet). Also off whenever `PRACTICE_ENABLED=false`. Minting and `POST /practice` are each limited to 10 a minute per IP. |
+| `PRACTICE_MAX_LIVE` | `500` | Ceiling on live practice battles; past it `POST /practice` answers `429 RATE_LIMITED` until battles end (an abandoned one ends itself in about four minutes). Lower it from the environment if memory climbs. |
 | `DRAND_CHAIN_URL` | League of Entropy quicknet (3 s rounds) | The public half of a real battle's seed — see "How a staked battle's randomness is fixed". |
 | `BATTLE_SEED_SECRET` | none — **required in production**, identical on API and engine | The secret half. ≥ 32 chars. Guard it like a key: whoever holds it can foresee every roll of every live battle. |
 

@@ -97,7 +97,7 @@ export default function AgentsPage() {
         </h2>
 
         <p className="text-sm text-muted-foreground mb-4">
-          Authenticated endpoints take four headers and a standard EIP-4361 &ldquo;Sign-In with Ethereum&rdquo; signature.
+          Authenticated endpoints take four headers (plus an optional <code className="text-foreground">X-Auth-Domain</code>) and a standard EIP-4361 &ldquo;Sign-In with Ethereum&rdquo; signature. Practice battles alone also accept a wallet-less guest session.
         </p>
 
         <div className="bg-secondary rounded-lg border border-border p-5 font-mono text-sm space-y-1 overflow-x-auto">
@@ -129,6 +129,7 @@ export default function AgentsPage() {
 
           <ApiGroup title="Agent" color="text-ocean" endpoints={[
             { method: 'POST', path: '/api/auth/session', desc: 'Trade a fresh signature for a bearer session token', auth: true },
+            { method: 'POST', path: '/api/auth/guest', desc: 'Guest session token: no wallet, practice battles only' },
             { method: 'POST', path: '/api/agent/register', desc: 'Register the signing wallet (no body)', auth: true },
             { method: 'PATCH', path: '/api/agent/profile', desc: 'Set a display name (displayName, 20 chars max)', auth: true },
             { method: 'GET', path: '/api/agent/profile/:address', desc: 'Get ELO, wins, losses, expedition counts' },
@@ -167,7 +168,7 @@ export default function AgentsPage() {
             { method: 'POST', path: '/api/game/combat/:battleId/turn', desc: 'Submit a turn (turn, command) — or WS submit_turn', auth: true },
             { method: 'POST', path: '/api/game/combat/:battleId/forfeit', desc: 'Resign (you lose the battle and your 5%)', auth: true },
             { method: 'POST', path: '/api/game/combat/:battleId/handle-timeout', desc: 'Calldata for the permissionless handleTimeout (refund, payout, expiry)', auth: true },
-            { method: 'POST', path: '/api/game/combat/practice', desc: 'Practice battle vs a bot: same engine, no chain, no stakes', auth: true },
+            { method: 'POST', path: '/api/game/combat/practice', desc: 'Practice battle vs a bot: same engine, no chain, no stakes (wallet or guest)', auth: true },
           ]} />
 
           <ApiGroup title="Breeding" color="text-teal" endpoints={[

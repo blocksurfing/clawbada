@@ -17,6 +17,11 @@ import { ApiError } from './errors';
  *
  * `sid` anchors the original signature, so refreshing cannot roll a session forward for ever:
  * past MAX_AGE_SEC from the first signature the wallet has to sign again.
+ *
+ * Guest tokens (the Dojo without a wallet): the same token, minted by POST /api/auth/guest for a
+ * throwaway address nobody holds a key for, with the claim `g: 1` INSIDE the signed body so it cannot
+ * be stripped. `walletAuth` refuses them outright; only the practice surface (`playerAuth`) lets them
+ * in, and a refresh carries the flag over, so a guest never turns into a wallet session.
  */
 
 /** How long one token is good for. Long enough to cover a battle plus matchmaking. */
@@ -37,6 +42,8 @@ interface Claims {
   exp: number;
   /** Session start: when the wallet actually signed. Refreshes inherit it. */
   sid: number;
+  /** Guest session — no wallet behind the address; practice battles only. Absent for wallet tokens. */
+  g?: 1;
 }
 
 let secret: Buffer | null = null;
@@ -75,15 +82,21 @@ export interface MintedToken {
   sessionEndsAt: number;
 }
 
+export interface MintOptions {
+  /** A guest session: no wallet signed for this address, and `walletAuth` refuses the token. */
+  guest?: boolean;
+}
+
 /**
- * Mint a token for an address already proven by a wallet signature.
+ * Mint a token for an address already proven by a wallet signature — or, with `guest`, for a
+ * throwaway address that POST /api/auth/guest just made up.
  * `sessionStart` carries over on refresh; omit it when a fresh signature was just verified.
  */
-export function mintSessionToken(address: string, sessionStart?: number): MintedToken {
+export function mintSessionToken(address: string, sessionStart?: number, opts: MintOptions = {}): MintedToken {
   const checksumAddress = getAddress(address);
   const now = Math.floor(Date.now() / 1000);
   const sid = sessionStart ?? now;
-  const claims: Claims = { a: checksumAddress, iat: now, exp: now + TOKEN_TTL_SEC, sid };
+  const claims: Claims = { a: checksumAddress, iat: now, exp: now + TOKEN_TTL_SEC, sid, ...(opts.guest ? { g: 1 as const } : {}) };
   const body = `${PREFIX}.${b64(Buffer.from(JSON.stringify(claims), 'utf8'))}`;
   return {
     token: `${body}.${b64(sign(body))}`,
@@ -96,6 +109,8 @@ export interface VerifiedToken {
   checksumAddress: string;
   expiresAt: number;
   sessionStart: number;
+  /** True for a guest session (POST /api/auth/guest): the practice surface only. */
+  guest: boolean;
 }
 
 /** Verify a bearer token. Throws ApiError(UNAUTHORIZED) on anything suspect. */
@@ -123,6 +138,7 @@ export function verifySessionToken(token: string): VerifiedToken {
   if (typeof claims.a !== 'string' || typeof claims.exp !== 'number' || typeof claims.sid !== 'number') {
     throw bad('Malformed session token');
   }
+  if (claims.g !== undefined && claims.g !== 1) throw bad('Malformed session token');
 
   const now = Math.floor(Date.now() / 1000);
   if (now >= claims.exp) throw bad('Session expired — sign in again');
@@ -134,7 +150,7 @@ export function verifySessionToken(token: string): VerifiedToken {
   } catch {
     throw bad('Invalid session token address');
   }
-  return { checksumAddress, expiresAt: claims.exp, sessionStart: claims.sid };
+  return { checksumAddress, expiresAt: claims.exp, sessionStart: claims.sid, guest: claims.g === 1 };
 }
 
 /** Pull a bearer token out of an Authorization header, or null when it isn't one. */

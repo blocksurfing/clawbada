@@ -101,8 +101,12 @@ getBackend();
  * Rate limiting middleware with Redis or in-memory sliding window.
  * Uses Redis when REDIS_URL is set, in-memory Map otherwise.
  * Keys by authenticated wallet address or IP fallback.
+ *
+ * `scope` names the bucket: two limiters with the SAME max and window would otherwise share one
+ * counter per caller (the key is built from those two numbers), so the guest mint and the practice
+ * start — both 10/min — would spend each other's budget. Limiters with different numbers never collide.
  */
-export const rateLimit = (maxRequests = 100, windowMs = 60_000): MiddlewareHandler => {
+export const rateLimit = (maxRequests = 100, windowMs = 60_000, scope = ''): MiddlewareHandler => {
   return async (c, next) => {
     const address = c.get('address') as string | undefined;
     // F-2O: use the same trust policy as the WS upgrade. The Bun server is
@@ -113,7 +117,7 @@ export const rateLimit = (maxRequests = 100, windowMs = 60_000): MiddlewareHandl
     // Scope the counter to this limiter: stacked limiters (`/api/*` at 100 and
     // `/api/faucet/*` at 5) used to share one bucket per caller, so every faucet
     // request counted twice and the faucet allowed 2 calls a minute, not 5.
-    const key = `${maxRequests}/${windowMs}:${address ?? ip}`;
+    const key = `${scope ? `${scope}:` : ''}${maxRequests}/${windowMs}:${address ?? ip}`;
 
     const b = await getBackend();
     const count = await b.hit(key, windowMs);
