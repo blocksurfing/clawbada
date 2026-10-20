@@ -63,6 +63,11 @@ classes at a time) land faster than one giant drop.
 | Animation clips + controllers | `Assets/Prefabs/VFX/Clips/` (`FX_<Class>_<Special>.anim`, `AC_FX_<Class>_<Special>.controller`) |
 | Effect prefabs | `Assets/Prefabs/VFX/FX_<Class>_<Special>.prefab` |
 | **The binding** | `Assets/Prefabs/VFX/BattleVfxLibrary.asset` — drag each prefab into its slot |
+| Fonts | `Assets/Fonts/<Face>.ttf` **with its licence file beside it** (`Assets/Fonts/README.md`). Never under `Assets/Resources/`: everything in a `Resources/` folder is packed into every WebGL build whether anything uses it or not. The HUD's Silkscreen is the one exception, loaded by name |
+| A scene meant for the game (a loading screen, a menu) | `Assets/Scenes/` is fine, but tell us **when** it should show — the player today goes straight from the download bar into `BattleScene`, so a new scene needs wiring on our side before anyone sees it |
+
+**Edits under `Art/Characters/Shared/` reach every battle** (the shadow, for one), so say so
+in the commit message when you change one — we ship them, but we want to know it was meant.
 
 **Website and marketing art does not go here.** Logo, socials, hero and section art,
 mockups: the `design/website/` folder on the `design/website` branch — see
