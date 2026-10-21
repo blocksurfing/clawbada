@@ -26,7 +26,8 @@ export interface ArenaLayout {
   blockedHexes: HexPosition[];
   teamASpawns: HexPosition[];
   teamBSpawns: HexPosition[];
-  tier: 'evolved' | 'elite' | 'apex';
+  /** Picks the arena prefab, grid placement and obstacle set in Unity (BattleManager.SwapArenaArt). */
+  tier: 'evolved' | 'elite' | 'apex' | 'dojo';
 }
 
 /** Atomic highlight state. Precedence in Unity: origin > enemy > ally > range. */

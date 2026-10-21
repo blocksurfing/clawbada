@@ -64,6 +64,7 @@ classes at a time) land faster than one giant drop.
 | Effect prefabs | `Assets/Prefabs/VFX/FX_<Class>_<Special>.prefab` |
 | **The binding** | `Assets/Prefabs/VFX/BattleVfxLibrary.asset` — drag each prefab into its slot |
 | Fonts | `Assets/Fonts/<Face>.ttf` **with its licence file beside it** (`Assets/Fonts/README.md`). Never under `Assets/Resources/`: everything in a `Resources/` folder is packed into every WebGL build whether anything uses it or not. The HUD's Silkscreen is the one exception, loaded by name |
+| Arena prefabs | `Assets/Art/Arenas/<Arena>/ArenaArt_<Arena>.prefab`, full-frame 640 × 360 layers. **Sorting layers matter**: sky, ground, walls and anything the lobsters stand in front of go on the **Background** layer (orders 0, 1, 2 …); props that must draw in front of the lobsters (`FG_*`, a front pole, a railing) go on the **Foreground** layer (orders 0–3). The engine centres the board on the Background layers and applies the §3c rules to the Foreground ones; a layer left on Default draws behind the lobsters and is never framed. The Dojo (your 2026-10-21 drop) arrived all on Default and we moved its eight layers — BG_* + Plants, Spears, Pole_Back to Background, Pole_Front + FG_WoodenDummy to Foreground |
 | A scene meant for the game (a loading screen, a menu) | `Assets/Scenes/` is fine, but tell us **when** it should show — the player today goes straight from the download bar into `BattleScene`, so a new scene needs wiring on our side before anyone sees it |
 
 **Edits under `Art/Characters/Shared/` reach every battle** (the shadow, for one), so say so
@@ -226,6 +227,8 @@ wrong for anything tall.
 
 Backdrop and ground (Background / Default sorting layers) are never scaled or re-sorted —
 the hex board is aligned to them.
+
+**The Dojo (practice ground, since 2026-10-21).** `ArenaArt_Dojo.prefab` is the board every practice battle on the website opens on (the tier arenas stay selectable on the Dojo page for review). It follows the same rules; what it is still missing from you: its **own obstacle set** (today the blocked hexes borrow the Evolved crate, rocks and statue — crates, barrels, training dummies or straw targets would suit the courtyard; sprites go in `Assets/Art/Obstacles/Dojo/` and we bind them in `ObstacleLibrary.asset`) and a **`BGM_Arena_Dojo.wav` music bed** (the Evolved track stands in). The hex board sits on the courtyard floor at the beach placement for now; say so if the floor line should move.
 
 **Seagulls (Evolved).** Your Bird prefab is driven by the engine's `BirdFlock` component on the
 `Birds` child of `ArenaArt_Evolved.prefab`: flocks of three fly in from off-screen (sides

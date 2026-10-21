@@ -215,8 +215,13 @@ describe('POST /practice', () => {
     const onApex = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', arena: 'apex' }) });
     expect(onApex.status).toBe(201);
     expect(mockStartPractice.mock.calls[0][0]).toMatchObject({ arena: 'apex' });
+    // The Dojo is a board of its own — the website's practice default (2026-10-21).
+    const onDojo = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', arena: 'dojo' }) });
+    expect(onDojo.status).toBe(201);
+    expect(mockStartPractice.mock.calls[1][0]).toMatchObject({ arena: 'dojo' });
     const badArena = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', arena: 'base' }) });
     expect(badArena.status).toBe(400);
+    expect((await badArena.json()).message).toContain("'dojo'");
     const badOpp = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', opponent: 'clone' }) });
     expect(badOpp.status).toBe(400);
   });

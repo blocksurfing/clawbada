@@ -49,6 +49,30 @@ MonoBehaviour:
     content: {x: 0.01875, y: 0.03125, z: 0.98125, w: 0.96875}
   - sprite: Clouds/Static_Clouds
     content: {x: 0.0015625, y: 0.075, z: 1, w: 0.9375}
+  - sprite: Dojo/BG-Ground
+    content: {x: 0, y: 0, z: 1, w: 0.8666667}
+  - sprite: Dojo/BG-Sky
+    content: {x: 0, y: 0, z: 1, w: 1}
+  - sprite: Dojo/BG-Woodentile
+    content: {x: 0, y: 0, z: 1, w: 0.8111111}
+  - sprite: Dojo/BG_Dojo
+    content: {x: 0, y: 0, z: 1, w: 1}
+  - sprite: Dojo/BG_Ground
+    content: {x: 0, y: 0, z: 1, w: 0.9166667}
+  - sprite: Dojo/BG_Sky
+    content: {x: 0, y: 0, z: 1, w: 1}
+  - sprite: Dojo/FG_WoodenDummy
+    content: {x: 0, y: 0, z: 1, w: 0.30555555}
+  - sprite: Dojo/Plants
+    content: {x: 0.278125, y: 0.7027778, z: 0.721875, w: 0.85833335}
+  - sprite: Dojo/Pole
+    content: {x: 0.0953125, y: 0.65833336, z: 0.9046875, w: 1}
+  - sprite: Dojo/Pole_Back
+    content: {x: 0.0734375, y: 0.5555556, z: 0.9265625, w: 1}
+  - sprite: Dojo/Pole_Front
+    content: {x: 0, y: 0.05277778, z: 1, w: 1}
+  - sprite: Dojo/Spears
+    content: {x: 0.14375, y: 0.7777778, z: 0.85625, w: 0.9166667}
   - sprite: Elite/BG - 2
     content: {x: 0, y: 0.6666667, z: 1, w: 0.99444443}
   - sprite: Elite/BG - 2.1
