@@ -113,6 +113,8 @@ public class BattleManager : MonoBehaviour
     public GameObject arenaArtEvolved;
     public GameObject arenaArtElite;
     public GameObject arenaArtApex;
+    [Tooltip("The Dojo — Nzib's training ground; the practice board (never a staked battle).")]
+    public GameObject arenaArtDojo;
     [Tooltip("The arena art instance already placed in the scene (edit-mode preview). Replaced at battle init by the tier's prefab.")]
     public GameObject initialArenaArt;
 
@@ -196,7 +198,7 @@ public class BattleManager : MonoBehaviour
     }
 
     /// <summary>Replace the arena backdrop with the tier's designer prefab
-    /// (Evolved: beach, Elite: deep-sea, Apex: volcanic). Unknown/missing tier art
+    /// (Evolved: beach, Elite: deep-sea, Apex: volcanic, Dojo: the practice ground). Unknown/missing tier art
     /// keeps whatever is currently showing.</summary>
     private void SwapArenaArt(string tier)
     {
@@ -205,6 +207,7 @@ public class BattleManager : MonoBehaviour
             "evolved" => arenaArtEvolved,
             "elite" => arenaArtElite,
             "apex" => arenaArtApex,
+            "dojo" => arenaArtDojo,
             _ => null,
         };
         if (prefab == null)

@@ -2107,6 +2107,22 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1403225366481220931, guid: 557cdfaebd2bdb44dba2bffc5645185d, type: 3}
+      propertyPath: m_SortingLayerID
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1403225366481220931, guid: 557cdfaebd2bdb44dba2bffc5645185d, type: 3}
+      propertyPath: m_SortingLayer
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5194215479301819292, guid: 557cdfaebd2bdb44dba2bffc5645185d, type: 3}
+      propertyPath: m_SortingLayerID
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5194215479301819292, guid: 557cdfaebd2bdb44dba2bffc5645185d, type: 3}
+      propertyPath: m_SortingLayer
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 582785452417855807, guid: 557cdfaebd2bdb44dba2bffc5645185d, type: 3}
       propertyPath: m_SortingOrder
       value: -100

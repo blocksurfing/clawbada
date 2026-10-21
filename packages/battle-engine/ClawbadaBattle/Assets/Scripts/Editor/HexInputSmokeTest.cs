@@ -23,7 +23,8 @@ public static class HexInputSmokeTest
         if (hexGrid == null) throw new System.Exception("[HexInputSmokeTest] no HexGrid in the scene");
         int bad = 0, total = 0;
         var report = new List<string>();
-        foreach (var tier in new[] { "evolved", "elite", "apex" })
+        var tiers = new[] { "evolved", "elite", "apex", "dojo" };
+        foreach (var tier in tiers)
         {
             var layout = new ArenaLayout
             {
@@ -50,7 +51,7 @@ public static class HexInputSmokeTest
                 }
             }
         }
-        string msg = $"[HexInputSmokeTest] {(bad == 0 ? "OK" : "FAILED")} — {total} cells x3 probes over 3 tiers, {bad} mismatches";
+        string msg = $"[HexInputSmokeTest] {(bad == 0 ? "OK" : "FAILED")} — {total} cells x3 probes over {tiers.Length} boards, {bad} mismatches";
         if (bad > 0) msg += "\n  " + string.Join("\n  ", report.GetRange(0, Mathf.Min(report.Count, 20)));
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
