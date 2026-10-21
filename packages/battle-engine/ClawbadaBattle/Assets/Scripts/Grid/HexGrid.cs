@@ -77,6 +77,7 @@ public class HexGrid : MonoBehaviour
         new TierPlacement { tier = "evolved", offset = new Vector2(0f, -0.6f) }, // beach: board sat on the shoreline at 0
         new TierPlacement { tier = "elite" },
         new TierPlacement { tier = "apex" },
+        new TierPlacement { tier = "dojo", offset = new Vector2(0f, -0.6f) }, // courtyard: the beach placement to start
     };
 
     [System.Serializable]
