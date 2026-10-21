@@ -51,7 +51,7 @@ describe('hex board (odd-r, pointy-top)', () => {
 
 describe('layout generator', () => {
   test('deterministic, interior-only, spawn-safe, connected, 5–6 blocked', () => {
-    const tiers: v3.ArenaLayout['tier'][] = ['evolved', 'elite', 'apex'];
+    const tiers: v3.ArenaLayout['tier'][] = ['evolved', 'elite', 'apex', 'dojo'];
     const seen = new Set<string>();
     for (let i = 0; i < 300; i++) {
       for (const tier of tiers) {

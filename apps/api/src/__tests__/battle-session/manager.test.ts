@@ -127,6 +127,17 @@ describe('practice', () => {
     expect(store.rows.get(s.record.id)).toMatchObject({ tier: 'apex' });
   });
 
+  test('startPractice on the Dojo: a board of its own, the lobsters keep their tier, the layout is a real board', async () => {
+    const store = new FakeStore();
+    const { mgr } = make(store);
+    const s = await mgr.startPractice({ owner: ALICE, lobsters: practiceLobsters, bot: 'balanced', opponent: 'mirror', arena: 'dojo' });
+    expect(s.record.tier).toBe('dojo');
+    expect(s.state.layout.tier).toBe('dojo');
+    expect(s.state.layout.blockedHexes.length).toBeGreaterThanOrEqual(5);
+    expect(s.state.lobsters.every((l) => l.tier === EvolutionTier.Elite)).toBe(true);
+    expect(store.rows.get(s.record.id)).toMatchObject({ tier: 'dojo' });
+  });
+
   test("'random' opponents are seeded from the practice seed", async () => {
     const store = new FakeStore();
     const { mgr } = make(store);
