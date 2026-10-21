@@ -568,8 +568,8 @@ export interface CreatePracticeBody {
   opponent?: 'mirror' | 'random';
   layoutId?: string;
   preset?: string;
-  /** Board to fight on; omitted = the team's own tier. */
-  arena?: 'evolved' | 'elite' | 'apex';
+  /** Board to fight on; omitted = the team's own tier. The Dojo page sends 'dojo' (the practice ground). */
+  arena?: 'evolved' | 'elite' | 'apex' | 'dojo';
   /** 0-6, preset rosters only (a real lobster's purity is in its DNA). Omitted = 3. */
   purity?: number;
 }

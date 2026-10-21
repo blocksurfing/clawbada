@@ -18,7 +18,8 @@ export interface ArenaLayout {
   blockedHexes: HexPos[];
   teamASpawns: HexPos[];
   teamBSpawns: HexPos[];
-  tier: 'evolved' | 'elite' | 'apex';
+  /** The board's theme: the three tier arenas, or the Dojo — the practice ground (never a staked battle). */
+  tier: 'evolved' | 'elite' | 'apex' | 'dojo';
 }
 
 export function hexKey(p: HexPos): string {

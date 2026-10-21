@@ -26,7 +26,7 @@ export interface RosterEntry {
 export interface SessionInfo {
   id: string;
   kind: SessionKind;
-  tier: 'evolved' | 'elite' | 'apex';
+  tier: 'evolved' | 'elite' | 'apex' | 'dojo';
   playerA: string;
   playerB: string;
   bot: string | null;

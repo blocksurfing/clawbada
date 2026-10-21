@@ -113,9 +113,10 @@ sessionRoutes.post(
     // A random roster defaults to a random opponent too (a mirror of a random team is less interesting).
     const opponent = body.opponent ?? (randomPreset ? 'random' : 'mirror');
     if (opponent !== 'mirror' && opponent !== 'random') throw new ApiError('INVALID_INPUT', "opponent must be 'mirror' or 'random'");
-    // The board is a free choice for practice: the tier only sets the layout, art and music.
+    // The board is a free choice for practice: the tier only sets the layout, art and music. The Dojo (the
+    // website's default since 2026-10-21) exists only here — a staked battle's board always follows its lobsters.
     const arena = body.arena === undefined ? undefined : body.arena;
-    if (arena !== undefined && arena !== 'evolved' && arena !== 'elite' && arena !== 'apex') throw new ApiError('INVALID_INPUT', "arena must be 'evolved', 'elite' or 'apex'");
+    if (arena !== undefined && arena !== 'evolved' && arena !== 'elite' && arena !== 'apex' && arena !== 'dojo') throw new ApiError('INVALID_INPUT', "arena must be 'evolved', 'elite', 'apex' or 'dojo'");
 
     // Purity only shapes preset rosters: a real lobster's purity is in its on-chain DNA.
     const purity = body.purity;

@@ -275,7 +275,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
           <Badge className={`border-0 text-[10px] ${connection === 'open' ? 'bg-teal/15 text-teal' : 'bg-destructive/15 text-destructive'}`}>
             <Radio className="size-3 mr-1" /> {connection === 'open' ? 'Live' : connection}
           </Badge>
-          <span>{snapshot.session.kind === 'practice' ? `Practice vs ${snapshot.session.bot} bot` : `Battle #${snapshot.session.id}`} · {snapshot.session.tier} arena</span>
+          <span>{snapshot.session.kind === 'practice' ? `Practice vs ${snapshot.session.bot} bot` : `Battle #${snapshot.session.id}`} · {snapshot.session.tier === 'dojo' ? 'Dojo' : `${snapshot.session.tier} arena`}</span>
           {isSpectator && <Badge className="bg-ocean-surface/60 text-text-secondary border-0 text-[10px]">spectating</Badge>}
         </div>
         {unityAvailable === false && <span className="text-[10px] text-text-secondary">Unity build not deployed — showing the plain board</span>}
