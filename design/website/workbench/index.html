@@ -4,9 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clawbada · Design workbench</title>
+<style>#web-loading{position:fixed;inset:0;z-index:2147483000;background:#aecdc6}body.web-is-loading{margin:0;overflow:hidden}</style>
 </head>
-<body class="sidebar-compact">
-<div id="app"></div>
-<script type="module" src="./main.js"></script>
+<body class="sidebar-compact web-is-loading">
+<div id="web-loading" role="status" aria-label="Loading Clawbada">
+<canvas width="320" height="180" aria-hidden="true"></canvas>
+<p class="web-loading-label">LOADING</p>
+</div>
+<div id="app" inert></div>
+<script type="module" src="./bootstrap.js"></script>
 </body>
 </html>
