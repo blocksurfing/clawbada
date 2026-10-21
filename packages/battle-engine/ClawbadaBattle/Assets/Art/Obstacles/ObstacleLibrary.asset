@@ -30,3 +30,9 @@ MonoBehaviour:
     - {fileID: 21300000, guid: 589521139fcc4d5429ab801893b48380, type: 3}
     - {fileID: 21300000, guid: 5b77102e2578459468913f72b433f9cd, type: 3}
     - {fileID: 21300000, guid: 9b4571f21a646e64486baa4415c2ad22, type: 3}
+  - tier: dojo
+    sprites:
+    - {fileID: 21300000, guid: 79361f734fcb3ab42ade103ecb3cb62f, type: 3}
+    - {fileID: 21300000, guid: 2fe67a8dbb6ae79439029f210234f915, type: 3}
+    - {fileID: 21300000, guid: d44e3772ee1cb424c9408c8d1a9e5f3f, type: 3}
+    - {fileID: 21300000, guid: 1cd108f2157ef584da185d64eaf81c9a, type: 3}

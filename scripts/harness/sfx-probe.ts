@@ -33,7 +33,7 @@ export default async function (b: Browser) {
   const dump = `out/sfx-probe-${process.env.PRESET ?? 'trio_' + CLASS.toLowerCase()}.log`;
   writeFileSync(dump, b.logs.join('\n'));
   console.log('console dump:', dump, `(${b.logs.length} lines)`);
-  // Board the battle was set up on (ARENA=<tier> puts any team on that board; default = the team's tier).
+  // Board the battle was set up on (ARENA=<board> — dojo, evolved, elite or apex — puts any team on that board; default = the team's tier).
   const init = b.logs.find((l) => /\[BattleManager\] Initialized battle/.test(l)) ?? '';
   console.log('arena:', (init.match(/tier: (\w+)/) || [])[1] ?? '?', process.env.ARENA ? `(asked for ${process.env.ARENA})` : '(team tier)');
   console.log('--- over the whole run ---');

@@ -60,7 +60,10 @@ const presetsAllowed = process.env.NEXT_PUBLIC_PRACTICE_PRESETS === 'true' || pr
 const CLASSES = CLASS_NAMES_LIST.map((n) => n.toLowerCase());
 const TIERS = ['evolved', 'elite', 'apex'] as const;
 type Tier = (typeof TIERS)[number];
-type Arena = 'match' | Tier;
+/** Boards: the Dojo (Nzib's training ground — the practice default since 2026-10-21), the three tier arenas for art
+ *  review, or 'match' = the team's own tier. */
+const ARENAS = ['dojo', ...TIERS] as const;
+type Arena = 'match' | (typeof ARENAS)[number];
 
 // Showcase by default (user decision 2026-09-21): Apex rigs are the best-looking assets and
 // purity 6 fires the enhanced Special about one cast in three (5% + 5% × purity = 35%).
@@ -83,7 +86,7 @@ export default function DojoPage() {
   const [purity, setPurity] = useState(DEFAULT_PURITY);
   const [bot, setBot] = useState<BotName>(DEFAULT_BOT);
   const [opponent, setOpponent] = useState<'mirror' | 'random'>('mirror');
-  const [arena, setArena] = useState<Arena>('match');
+  const [arena, setArena] = useState<Arena>('dojo');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // Review presets (dev review stack + the browser harness): /dojo?preset=trio_tempest_evolved&auto=1.
@@ -102,7 +105,7 @@ export default function DojoPage() {
     const b = q.get('bot');
     if (b && botInfo(b)) setBot(b as BotName);
     const a = q.get('arena');
-    if (a && (TIERS as readonly string[]).includes(a)) setArena(a as Tier);
+    if (a && (a === 'match' || (ARENAS as readonly string[]).includes(a))) setArena(a as Arena);
     const o = q.get('opponent');
     if (o === 'mirror' || o === 'random') setOpponent(o);
     const pr = q.get('preset');
@@ -264,7 +267,7 @@ export default function DojoPage() {
             <div className="space-y-2">
               <label className="text-sm text-text-secondary">Arena</label>
               <div className="flex flex-wrap gap-2">
-                {([['match', 'Match team'], ['evolved', 'Evolved'], ['elite', 'Elite'], ['apex', 'Apex']] as const).map(([a, text]) => (
+                {([['dojo', 'Dojo'], ['evolved', 'Evolved'], ['elite', 'Elite'], ['apex', 'Apex'], ['match', 'Team tier']] as const).map(([a, text]) => (
                   <button key={a} onClick={() => setArena(a)} className={chip(arena === a)}>{text}</button>
                 ))}
               </div>
