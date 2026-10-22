@@ -1,0 +1,3 @@
+# Upload filter for `gcloud builds submit` (scripts/deploy-api.sh --remote). Without this file gcloud silently
+# derives one from .gitignore, which is not the Docker context. One source of truth: the Docker ignore file.
+#!include:.dockerignore

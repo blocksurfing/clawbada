@@ -38,6 +38,7 @@ import { battleWS } from './lib/ws';
 import { startMatchmakerTicker } from './lib/matchmaker/tick';
 import { battleSessions, parseClientMessage, isPracticeId, CHAIN_ID_RE } from './lib/battle-session';
 import { getClientIp } from './lib/client-ip';
+import { installShutdownHandlers, rememberServer } from './lib/shutdown';
 
 const app = new Hono();
 
@@ -84,7 +85,8 @@ app.route('/api/faucet', faucetRoutes);
 app.route('/api/leaderboard', leaderboardRoutes);
 app.route('/api/activity', activityRoutes);
 
-const port = Number(process.env.API_PORT ?? 3001);
+// Cloud Run injects PORT (the value of its `--port`); API_PORT stays the local/compose override and wins when both are set.
+const port = Number(process.env.API_PORT ?? process.env.PORT ?? 3001);
 
 log.info({ port }, 'Clawbada API starting');
 
@@ -98,6 +100,9 @@ startMatchmakerTicker();
 if (process.env.BATTLE_SESSIONS_ENABLED !== 'false') {
   void battleSessions.start();
 }
+
+// SIGTERM (a Cloud Run rollout, `docker stop`) and SIGINT (ctrl-C): drain instead of dying mid-turn — lib/shutdown.ts.
+installShutdownHandlers();
 
 // F-2B: WS-specific rate limiting. The Hono `rateLimit('/api/*')` middleware
 // doesn't cover `/ws` (handled in this top-level fetch before delegating).
@@ -289,6 +294,7 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
 export default {
   port,
   async fetch(req: Request, server: any) {
+    rememberServer(server);   // the only place Bun's auto-serve hands us the Server (no-op after the first call)
     const url = new URL(req.url);
 
     if (url.pathname === '/ws') {
