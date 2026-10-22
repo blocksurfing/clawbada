@@ -139,6 +139,8 @@ export class BattleSessionManager {
   private readonly clock: ShotClock;
   private timer: ReturnType<typeof setInterval> | null = null;
   private inFlight = false;
+  /** Set by stop(): no poll timer is re-armed, resume() stops launching, launch() refuses. */
+  private stopped = false;
   private readonly shotClockMs: number;
   private readonly botThinkMs: number;
   private readonly firstTurnGraceMs: number;
@@ -170,18 +172,26 @@ export class BattleSessionManager {
     } catch (err) {
       this.deps.log.error({ err }, 'battle_sessions_resume_failed');
     }
-    if (this.timer !== null) return;
+    // stop() may have run while resume() was awaiting (a SIGTERM during boot): never re-arm after it.
+    if (this.stopped || this.timer !== null) return;
     this.timer = setInterval(() => void this.pollOnce(), this.pollMs);
     this.deps.log.info({ pollMs: this.pollMs, shotClockMs: this.shotClockMs, botThinkMs: this.botThinkMs, firstTurnGraceMs: this.firstTurnGraceMs, startWaitMs: this.startWaitMs }, 'battle_session_manager_started');
   }
 
   stop(): void {
+    this.stopped = true;
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;
     }
     for (const s of this.sessions.values()) s.stop();
     this.clock.clearAll();
+  }
+
+  /** Shutdown: await every live session's persist queue — its queued writeTurns() transactions and, for a
+   *  battle that finished in the last instant, its markFinished / finishAndEnqueueSettle write. */
+  async flushed(): Promise<void> {
+    await Promise.all([...this.sessions.values()].map((s) => s.flushed()));
   }
 
   get(id: string): BattleSession | undefined {
@@ -491,6 +501,7 @@ export class BattleSessionManager {
     const rows = await this.deps.store.loadActive();
     let n = 0;
     for (const row of rows) {
+      if (this.stopped) break;   // shutting down mid-boot: leave the rest for the next instance
       try {
         if (!row.stateJson) {
           // A claim whose chain load never completed: let the poller retry it.
@@ -541,6 +552,8 @@ export class BattleSessionManager {
   }
 
   private launch(record: SessionRecord, state: v3.AtbBattleState, bot: { botSide: Side | null; botPolicy: v3.Policy | null }, resume?: { timeouts: Record<Side, number>; firstTurnClockMs?: number }): BattleSession {
+    // startReal catches this, releases its claim row, and the next instance picks the battle up.
+    if (this.stopped) throw new Error('battle session manager is stopped');
     const session = new BattleSession(
       record,
       state,

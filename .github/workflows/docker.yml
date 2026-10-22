@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       # One image failing must not cancel the others: each image is deployed on its own
-      # (api → Railway), so a web build break should not hide the state of the api image.
+      # (api → Cloud Run via scripts/deploy-api.sh), so a web build break should not hide the state of the api image.
       fail-fast: false
       matrix:
         app: [api, engine, indexer, web]
