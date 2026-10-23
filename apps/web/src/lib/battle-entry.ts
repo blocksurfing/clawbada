@@ -2,17 +2,17 @@
  * The battle entry sequence — what happens between pressing Train (or approving a match) and the arena intro.
  *
  * Owner spec (2026-10-21, "Battle Entry Sequence" doc): the Dojo page fades into Nzib's Shifu-under-the-tree
- * loading loop that says LOADING for at least 6 s, then into the Unity training scene (its own 9 s hold, with a
+ * loading loop that says LOADING for at least 12 s, then into the Unity training scene (its own 15 s hold, with a
  * gameplay tip), which fades into the arena intro. This module is the state behind the web half: a module-level
  * store (same pattern as the guest session in use-auth.ts) so the overlay, mounted at the app root, survives the
  * client-side navigation from /dojo to /battle/<id> without a remount or a provider.
  *
  * The way in is two fades (owner 2026-10-23, "slow down the fade to the first loading screen"): the page fades out
  * to the theme's dark navy over ENTRY_CURTAIN_MS, then the Shifu loop fades in from that navy over ENTRY_REVEAL_MS —
- * so the loop is on its way in ENTRY_CURTAIN_MS after the press, and the 6 s hold is counted from THEN, not from
+ * so the loop is on its way in ENTRY_CURTAIN_MS after the press, and the 12 s hold is counted from THEN, not from
  * the press. A gentle breeze (lib/entry-ambience.ts) fades in with the loop and out at the handover to Unity.
  *
- * Release — when the overlay may fade out — is `max(the 6 s hold, a signal)`:
+ * Release — when the overlay may fade out — is `max(the 12 s hold, a signal)`:
  *   - `markUnityLoadingShown()`: the Unity training scene is on screen (a player build that reports it) → now;
  *   - `markArenaReady()`: InitBattle was sent to a build that never reports the training scene (an older player)
  *     → after a 1.5 s grace, because a new build sends InitBattle a few frames BEFORE the training scene appears
@@ -36,8 +36,8 @@ export interface BattleEntryState {
   unityShown: boolean;
 }
 
-/** The Shifu screen's minimum time on screen, counted from the loop (owner 2026-10-23: "a good 6 seconds"; was 4.5 s). */
-export const ENTRY_HOLD_MS = 6_000;
+/** The Shifu screen's minimum time on screen, counted from the loop (owner 2026-10-23: 12 s; was 4.5 s, then 6 s). */
+export const ENTRY_HOLD_MS = 12_000;
 /** The page → navy curtain (the way in, first stage). */
 export const ENTRY_CURTAIN_MS = 700;
 /** Navy → the Shifu loop (the way in, second stage; starts when the curtain is down). */

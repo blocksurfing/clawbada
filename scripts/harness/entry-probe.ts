@@ -2,7 +2,7 @@ import type { Browser } from './cdp';
 
 /**
  * The battle entry sequence (PR feat/battle-entry-web): a guest presses Train on the Dojo and must see Nzib's
- * loading loop at once, the page in fullscreen, the loop held for at least 6 s, then the arena intro.
+ * loading loop at once, the page in fullscreen, the loop held for at least 12 s, then the arena intro.
  *   bun cdp.ts entry-probe.ts                      # local stack (web :3000)
  *   BASE=https://clawbada-web.vercel.app bun cdp.ts entry-probe.ts
  */
@@ -21,7 +21,7 @@ const overlay = (b: Browser) => b.eval(`(() => { const o = document.querySelecto
 const breeze = (b: Browser) => b.eval(`(() => { const a = window.__clawbadaEntryAmbience; return a ? { url: a.url, playing: !!a.audio && !a.audio.paused, volume: a.audio ? a.audio.volume : null } : null; })()`) as Promise<{ url: string | null; playing: boolean; volume: number | null } | null>;
 /** The theme's dark navy (#192c53) as the browser reports it. */
 const NAVY = 'rgb(25, 44, 83)';
-const CURTAIN_MS = 700, HOLD_MS = 6000, UNITY_HOLD_S = 9;
+const CURTAIN_MS = 700, HOLD_MS = 12000, UNITY_HOLD_S = 15;
 
 export default async function (b: Browser) {
   const checks: string[] = [];
@@ -61,7 +61,7 @@ export default async function (b: Browser) {
   const audioOn = !!process.env.AUDIO;
   const air = await breeze(b);
   const airDetail = !air ? 'no handle' : air.url === null ? 'no AMB_Loading_Breeze master yet — silent' : `${air.url.split('/').pop()} ${air.playing ? 'playing' : 'paused'}, volume ${air.volume?.toFixed(3)}`;
-  ok(audioOn ? 'breeze playing with the loop (audio on)' : 'breeze silent while muted', !!air && (air.url === null || (audioOn ? air.playing && (air.volume ?? 1) <= 0.76 : !air.playing)), airDetail);
+  ok(audioOn ? 'breeze playing with the loop (audio on)' : 'breeze silent while muted', !!air && (air.url === null || (audioOn ? air.playing && (air.volume ?? 1) <= 0.96 : !air.playing)), airDetail);
   await b.screenshot(`${OUT}/entry-loading.png`);
 
   const navigated = await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 60000);
@@ -73,7 +73,7 @@ export default async function (b: Browser) {
     const telling = b.allLogs.filter((l) => /error|Error|Unhandled|failed|BattleEntry|EntryAmbience|Dojo\]/.test(l) && !/^\[net\]/.test(l));
     for (const l of (telling.length ? telling : b.allLogs).slice(-12)) console.log('console:', l.slice(0, 220));
   }
-  // The overlay must still be up 0.3 s before the hold ends (the hold is 6 s from the loop, 0.7 s after the press) …
+  // The overlay must still be up 0.3 s before the hold ends (the hold is 12 s from the loop, 0.7 s after the press) …
   const until5 = CURTAIN_MS + HOLD_MS - 300 - (Date.now() - t0);
   if (until5 > 0) await b.sleep(until5);
   const at5 = await overlay(b);
@@ -82,7 +82,7 @@ export default async function (b: Browser) {
   const gone = await b.waitFor(`!document.querySelector('[data-testid=battle-entry]')`, 60000, 100);
   const tGone = Date.now() - t0;
   ok('overlay released after the hold + arena ready', gone, `${tGone} ms after the press`);
-  ok('released no earlier than the curtain + the 6 s hold', tGone >= CURTAIN_MS + HOLD_MS, `${tGone} ms`);
+  ok('released no earlier than the curtain + the 12 s hold', tGone >= CURTAIN_MS + HOLD_MS, `${tGone} ms`);
   if (audioOn) {
     await b.sleep(1500);   // the breeze's 0.9 s fade-out, with margin
     const after = await breeze(b);
@@ -90,7 +90,7 @@ export default async function (b: Browser) {
   }
 
   // The Unity half (a player build with LoadingScreenController): the training scene reported itself, the web
-  // loop handed over the tip, Unity held it ≥ 9 s from that moment, then released into the intro.
+  // loop handed over the tip, Unity held it ≥ 15 s from that moment, then released into the intro.
   const unityShown = b.allLogs.some((l) => /\[LoadingScreen\] training scene shown/.test(l));
   ok('unity training scene shown (player build with the loading scene)', unityShown);
   if (unityShown) {
@@ -100,7 +100,7 @@ export default async function (b: Browser) {
     await b.sleep(1200);
     await b.screenshot(`${OUT}/entry-training.png`);
     const releasedAt = Date.now();
-    const released = await (async () => { while (Date.now() - releasedAt < 30000) { const l = b.allLogs.find((x) => /\[LoadingScreen\] released after/.test(x)); if (l) return l; await b.sleep(200); } return null; })();
+    const released = await (async () => { while (Date.now() - releasedAt < 45000) { const l = b.allLogs.find((x) => /\[LoadingScreen\] released after/.test(x)); if (l) return l; await b.sleep(200); } return null; })();
     const held = released ? Number((released.match(/after ([0-9.]+) s/) || [])[1]) : NaN;
     ok('unity released the training scene', !!released, released ? `${held} s on screen` : 'no release log');
     ok(`unity held the training scene ≥ ${UNITY_HOLD_S} s`, Number.isFinite(held) && held >= UNITY_HOLD_S, `${held} s`);

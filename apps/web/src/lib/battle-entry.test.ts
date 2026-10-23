@@ -40,8 +40,8 @@ describe('battle entry store', () => {
     expect(getEntryState().unityShown).toBe(true);
   });
 
-  test('constants: the Shifu hold is 6 s; the way in is slower than the way out', () => {
-    expect(ENTRY_HOLD_MS).toBe(6000);
+  test('constants: the Shifu hold is 12 s; the way in is slower than the way out', () => {
+    expect(ENTRY_HOLD_MS).toBe(12000);
     expect(ENTRY_CURTAIN_MS + ENTRY_REVEAL_MS).toBeGreaterThan(ENTRY_FADE_MS);
   });
 
