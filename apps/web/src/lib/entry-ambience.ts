@@ -13,12 +13,12 @@
 import { ENTRY_AMBIENCE } from './arena-music.generated';
 import { BATTLE_MUSIC_EVENT, DEFAULT_BATTLE_MUSIC_VOL, VOLUME_EVENT, getBattleMusicPref, getBattleMusicVolume } from './audio-prefs';
 
-/** The breeze's level at the DEFAULT battle volume (owner 2026-10-23: "raise the wind volume up to 75%"); the volume row
- *  still scales it (0.75 × volume / 50), capped at full. */
-const DEFAULT_GAIN = 0.75;
-/** Fade in with the loop, fade out at the hand-over (owner 2026-10-23: 1.5 s each). */
-export const BREEZE_FADE_IN_MS = 1500;
-export const BREEZE_FADE_OUT_MS = 1500;
+/** The breeze's level at the DEFAULT battle volume (owner 2026-10-23: wind volume 95%); the volume row
+ *  still scales it (0.95 × volume / 50), capped at full. */
+const DEFAULT_GAIN = 0.95;
+/** Fade in with the loop, fade out at the hand-over (owner 2026-10-23: 1 s each). */
+export const BREEZE_FADE_IN_MS = 1000;
+export const BREEZE_FADE_OUT_MS = 1000;
 const CANCEL_FADE_MS = 300;
 
 const gain = () => Math.min(1, DEFAULT_GAIN * getBattleMusicVolume() / DEFAULT_BATTLE_MUSIC_VOL);
