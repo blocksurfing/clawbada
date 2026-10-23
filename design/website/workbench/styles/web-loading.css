@@ -1,0 +1,10 @@
+@import './typography-tokens.css';
+body.web-is-loading { margin:0; overflow:hidden; }
+#web-loading { position:fixed; inset:0; z-index:2147483000; overflow:hidden; background:#aecdc6; opacity:1; transition:opacity 220ms ease-out; }
+#web-loading canvas { position:absolute; left:50%; top:50%; width:max(100vw,177.777778vh); height:max(100vh,56.25vw); transform:translate(-50%,-50%); image-rendering:pixelated; }
+#web-loading .web-loading-label { position:absolute; right:max(5vw,env(safe-area-inset-right)); bottom:max(7vh,env(safe-area-inset-bottom)); margin:0; color:#000; font-family:var(--type-display); font-size:clamp(28px,4vw,64px); font-weight:400; line-height:1.2; letter-spacing:normal; }
+#web-loading.web-loading--leaving { opacity:0; pointer-events:none; }
+.loading-preview-controls { position:absolute; top:16px; left:16px; }
+.loading-preview-controls button,.loading-retry { font:16px var(--type-body); background:#0e0e0e; color:white; border:1px solid #fff; padding:8px 16px; cursor:pointer; }
+.loading-retry { position:absolute; right:5vw; bottom:2vh; }
+@media (prefers-reduced-motion:reduce) { #web-loading { transition:none; } }
