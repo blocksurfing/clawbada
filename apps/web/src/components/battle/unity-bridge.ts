@@ -156,7 +156,11 @@ export const UNITY_METHODS = {
   SET_SPEED: 'SetSpeed',
   /** Site-wide music/SFX preferences ({music, sfx}); Unity applies SFX and refreshes its options menu. */
   SET_AUDIO_PREFS: 'SetAudioPrefs',
+  /** The loading screen's gameplay tip ({tip}); Unity puts it on the training scene and restarts its hold. */
+  SHOW_LOADING: 'ShowLoading',
 } as const;
+
+export interface LoadingData { tip: string }
 
 export const JS_CALLBACKS = {
   ON_UNITY_READY: 'onUnityReady',
@@ -170,6 +174,8 @@ export const JS_CALLBACKS = {
   /** The battle-start intro finished (or was skipped): React starts the music and tells the server it is ready. */
   ON_INTRO_COMPLETE: 'onIntroComplete',
   ON_INTRO_MUSIC: 'onIntroMusic',
+  /** The Unity training scene (loading screen) is on screen: React lifts its web loading loop and sends ShowLoading. */
+  ON_LOADING_SHOWN: 'onLoadingShown',
 } as const;
 
 export interface UnityCallbackHandler {
@@ -187,6 +193,8 @@ export interface UnityCallbackHandler {
   onIntroComplete?: () => void;
   /** The intro reached its music beat (the teams are on the board): fade the arena bed in. */
   onIntroMusic?: () => void;
+  /** The training scene is visible (an older player build never sends it). */
+  onLoadingShown?: () => void;
 }
 
 /** Register the callbacks Unity's jslib calls. Returns a cleanup. */
@@ -204,6 +212,7 @@ export function registerUnityCallbacks(handlers: UnityCallbackHandler): () => vo
     [JS_CALLBACKS.ON_FORFEIT]: () => handlers.onForfeit?.(),
     [JS_CALLBACKS.ON_INTRO_COMPLETE]: () => handlers.onIntroComplete?.(),
     [JS_CALLBACKS.ON_INTRO_MUSIC]: () => handlers.onIntroMusic?.(),
+    [JS_CALLBACKS.ON_LOADING_SHOWN]: () => handlers.onLoadingShown?.(),
     [JS_CALLBACKS.ON_AUDIO_PREF]: (json) => {
       const p = JSON.parse(json ?? '{}');
       if (p.kind === 'music' || p.kind === 'sfx') handlers.onAudioPref?.({ kind: p.kind, on: !!p.on });

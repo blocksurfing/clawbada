@@ -55,9 +55,23 @@ public class BattleManager : MonoBehaviour
         return true;
     }
 
-    private System.Collections.IEnumerator IntroRoutine()
+    private System.Collections.IEnumerator IntroRoutine(bool playIntro)
     {
         IntroPlaying = true;
+        // The loading screen (LoadingScreenController) holds the training scene over the arena until its hold is
+        // over. Wait BEFORE BattleIntro.Play: Play's first segment creates an opaque black overlay that would cover
+        // the training scene. Turn traffic from React queues meanwhile (DeferDuringIntro) and replays in order.
+        while (LoadingScreenController.Holding != null) yield return null;
+        if (!playIntro)
+        {
+            // No intro (a reconnect mid-battle): just lift the hold — the HUD was hidden for the loading screen.
+            IntroPlaying = false;
+            var held = new List<System.Action>(introQueue);
+            introQueue.Clear();
+            foreach (var call in held) call();
+            hud?.EndIntro();
+            yield break;
+        }
         string first = PlayerSide == "B" ? "B" : "A";   // spectators: side A first
         IntroDust.LandingPrefab = vfxLibrary != null ? vfxLibrary.introLanding : null;
         yield return BattleIntro.Play(this, hud, lobsters.Values, hexGrid != null ? hexGrid.Obstacles : null, first,
@@ -162,6 +176,13 @@ public class BattleManager : MonoBehaviour
         // In-canvas HUD, same runtime-attach pattern (no scene wiring to lose).
         if (hud == null) hud = GetComponent<BattleHud>();
         if (hud == null) hud = BattleHud.Attach(this);
+        // The loading screen: the training scene over the arena while React builds the battle (same pattern; it
+        // loads LoadingScreen.unity additively and removes itself when done). Play mode only — the editor smoke
+        // tests drive BattleManager in edit mode, where there is nothing to hold.
+        if (Application.isPlaying && GetComponent<LoadingScreenController>() == null)
+        {
+            gameObject.AddComponent<LoadingScreenController>();
+        }
     }
 
     /// <summary>Initialize battle with full data from React.</summary>
@@ -193,8 +214,17 @@ public class BattleManager : MonoBehaviour
         IntroPlaying = false;
         introQueue.Clear();
         Initialized?.Invoke(data);
+        // The loading screen is up: the HUD canvas is Screen Space Overlay and would draw over the training scene,
+        // so hide it until the intro (which shows it again), and tell the loading screen the arena exists.
+        var loading = LoadingScreenController.Holding;
+        if (loading != null)
+        {
+            hud?.HideForIntro();
+            loading.ArenaBuilt();
+        }
         // Fighting-game start (user 2026-09-28): empty arena → READY / FIGHT → lobsters drop in → HUD slides in.
-        if (data.intro && Application.isPlaying) StartCoroutine(IntroRoutine());
+        // With a loading screen up the routine runs even without an intro, to lift the hold and the HUD when it ends.
+        if (Application.isPlaying && (data.intro || loading != null)) StartCoroutine(IntroRoutine(data.intro));
     }
 
     /// <summary>Replace the arena backdrop with the tier's designer prefab
