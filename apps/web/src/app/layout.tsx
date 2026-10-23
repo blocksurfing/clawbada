@@ -4,6 +4,7 @@ import localFont from 'next/font/local';
 import { Web3Provider } from '@/providers/web3-provider';
 import { MusicToggle } from '@/components/music-toggle';
 import { CursorPressTracker } from '@/components/cursor-press-tracker';
+import { BattleEntryOverlay } from '@/components/battle/battle-entry-overlay';
 import './globals.css';
 
 const blackHanSans = Black_Han_Sans({
@@ -50,6 +51,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CursorPressTracker />
           {children}
           <MusicToggle />
+          {/* The battle entry loading screen: at the root so it survives the /dojo → /battle navigation. */}
+          <BattleEntryOverlay />
         </Web3Provider>
       </body>
     </html>
