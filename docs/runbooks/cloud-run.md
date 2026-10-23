@@ -29,6 +29,7 @@ file) or `--update-secrets NAME=secret:version`; the `--set-*` forms replace the
 
 ```
 PROJECT=clawbada-prod REGION=us-east4
+# zsh: write ${VAR}:x with braces — a bare $VAR:c is parsed as a modifier and eats characters (seen 2026-10-22).
 gcloud services enable run.googleapis.com sqladmin.googleapis.com artifactregistry.googleapis.com \
   secretmanager.googleapis.com compute.googleapis.com monitoring.googleapis.com cloudbuild.googleapis.com
 gcloud artifacts repositories create clawbada --repository-format docker --location $REGION
@@ -43,7 +44,7 @@ gcloud sql databases create clawbada --instance clawbada-pg
 gcloud sql users create clawbada_api --instance clawbada-pg --password "$(openssl rand -base64 30)"
 
 # Secrets (printf: no trailing newline)
-printf '%s' 'postgresql://clawbada_api:PASS@localhost/clawbada?host=/cloudsql/'$PROJECT':'$REGION':clawbada-pg' \
+printf '%s' "postgresql://clawbada_api:PASS@localhost/clawbada?host=/cloudsql/${PROJECT}:${REGION}:clawbada-pg" \
   | gcloud secrets create clawbada-api-database-url --data-file=-
 openssl rand -hex 32 | tr -d '\n' | gcloud secrets create clawbada-auth-session-secret --data-file=-
 openssl rand -hex 32 | tr -d '\n' | gcloud secrets create clawbada-battle-seed-secret --data-file=-
@@ -52,8 +53,8 @@ openssl rand -hex 32 | tr -d '\n' | gcloud secrets create clawbada-battle-seed-s
 gcloud run deploy clawbada-api --project $PROJECT --region $REGION \
   --image $REGION-docker.pkg.dev/$PROJECT/clawbada/clawbada-api:TAG \
   --platform managed --execution-environment gen2 \
-  --service-account clawbada-api@$PROJECT.iam.gserviceaccount.com \
-  --add-cloudsql-instances $PROJECT:$REGION:clawbada-pg \
+  --service-account "clawbada-api@${PROJECT}.iam.gserviceaccount.com" \
+  --add-cloudsql-instances "${PROJECT}:${REGION}:clawbada-pg" \
   --port 3001 --cpu 1 --memory 1Gi --no-cpu-throttling \
   --min-instances 1 --max-instances 1 --concurrency 1000 --timeout 3600 --session-affinity \
   --allow-unauthenticated \
