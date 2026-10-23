@@ -83,7 +83,7 @@ cloud). Once the certificate is active, the service's ingress is restricted to t
 
 `TRUST_PROXY_HOPS`: Google's front ends append the connecting IP to `X-Forwarded-For`; the API reads the entry
 that many places from the right. Read a live request's header in the logs after the first deploy and set the
-value (1 = Cloud Run alone; 2 behind the load balancer).
+value: measured 2 behind the load balancer (the API sees `<client>, <lb ip>`; Cloud Run appends nothing more).
 
 ## Rotating a secret
 
