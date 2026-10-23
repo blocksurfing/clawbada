@@ -1,3 +1,10 @@
-# Upload filter for `gcloud builds submit` (scripts/deploy-api.sh --remote). Without this file gcloud silently
-# derives one from .gitignore, which is not the Docker context. One source of truth: the Docker ignore file.
+# Upload filter for `gcloud builds submit` (scripts/deploy-api.sh). Without this file gcloud silently derives
+# one from .gitignore, which is not the Docker context. Base = the Docker ignore file, plus what the API image
+# never needs but the web image does (Cloud Build here builds the API only; the web app deploys via Vercel):
+# the first upload carried 48 MiB of web art and timed out on the way to the bucket.
 #!include:.dockerignore
+apps/web/public/
+apps/web/src/
+apps/web/*.css
+packages/asset-gen/tools/
+packages/asset-gen/src/templates/
