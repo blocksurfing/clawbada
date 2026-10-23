@@ -8,6 +8,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/BattleScene.unity
     guid: abb8cc0f2a15b48549a05669f3fa1bcd
+  - enabled: 1
+    path: Assets/Scenes/LoadingScreen.unity
+    guid: ad42e32071fa6e9478f1f8cf211f3c16
   m_configObjects:
     com.unity.adaptivePerformance.basic.provider_settings: {fileID: 11400000, guid: 47847bffee25c6241b0da6e874998a0f, type: 2}
     com.unity.adaptiveperformance.loader_settings: {fileID: 11400000, guid: 3a0af42eb545ee6478366666fa8c10ae, type: 2}
