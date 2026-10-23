@@ -15,6 +15,7 @@ import { getArenaBackground } from '@/lib/assets';
 import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { Swords, Loader2, Dumbbell } from 'lucide-react';
 import { exitBattleFullscreen, requestBattleFullscreen } from '@/lib/battle-fullscreen';
+import { cancelBattleEntry, startBattleEntry } from '@/lib/battle-entry';
 
 /** Dev review rosters (moved here from the old /game/battle Practice tab when Battle became a modal on the Shell,
  *  2026-10-11): every Special whose VFX is finished, random/fixed trios per tier, and the storm-review trio. The
@@ -79,8 +80,12 @@ const chip = (on: boolean) =>
 
 export default function DojoPage() {
   const router = useRouter();
-  const { getAuthHeaders, address: identity, kind, resolving, walletStatus } = useAuth({ allowGuest: true });
+  const { getAuthHeaders, getSessionToken, hasLiveSession, address: identity, kind, resolving, walletStatus } = useAuth({ allowGuest: true });
   const { setOpen: openWalletPicker } = useModal();
+  /** The signature gate (owner spec 2026-10-21): a wallet whose session has expired must sign BEFORE anything goes
+   *  fullscreen or fades — 'expired' shows the prompt, 'signing' is the wallet popup, 'ready' offers Enter Training. */
+  const [gate, setGate] = useState<'none' | 'expired' | 'signing' | 'ready'>('none');
+  const [gateErr, setGateErr] = useState<string | null>(null);
   const [team, setTeam] = useState<string[]>(DEFAULT_TEAM);
   const [tier, setTier] = useState<Tier>(DEFAULT_TIER);
   const [purity, setPurity] = useState(DEFAULT_PURITY);
@@ -112,46 +117,55 @@ export default function DojoPage() {
     if (presetsAllowed && pr && REVIEW_PRESETS.some((x) => x.id === pr)) { setPreset(pr); if (pr.startsWith('random_')) setOpponent('random'); }
   }, []);
 
-  const startPreset = useCallback(async () => {
-    if (!preset) return;
+  /**
+   * The entry sequence, shared by Train and the dev presets. Inside the click, in this order:
+   *   1. a wallet whose session needs a signature is stopped HERE — the gate panel asks it to sign first, so no
+   *      wallet prompt ever lands inside a fullscreen fade (the owner's complaint of 2026-10-21);
+   *   2. fullscreen (browsers grant it only inside the gesture) and the loading screen (lib/battle-entry.ts),
+   *      which the battle page keeps up until the arena is built;
+   *   3. the practice start, then the navigation. A failure drops both.
+   */
+  const launch = useCallback(async (body: Parameters<typeof api.combat.createPractice>[0], failMessage: string) => {
+    if (kind === 'wallet' && !hasLiveSession()) { setGate('expired'); setGateErr(null); return; }
     requestBattleFullscreen();
+    startBattleEntry({ kind: 'practice' });
     setBusy(true);
     setErr(null);
     try {
       const auth = await getAuthHeaders();
-      const base = { preset, bot, opponent };
-      const res = await api.combat.createPractice(arena === 'match' ? base : { ...base, arena }, auth);
+      const res = await api.combat.createPractice(arena === 'match' ? body : { ...body, arena }, auth);
       rememberPracticeOwner(res.battleId, res.snapshot?.session?.playerA);
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
       for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
       router.push(`/battle/${res.battleId}${carry.size ? `?${carry}` : ''}`);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not start the practice battle');
+      setErr(e instanceof Error ? e.message : failMessage);
       setBusy(false);
+      cancelBattleEntry();
       exitBattleFullscreen();
     }
-  }, [preset, bot, opponent, arena, getAuthHeaders, router]);
+  }, [kind, hasLiveSession, arena, getAuthHeaders, router]);
 
-  const start = useCallback(async () => {
-    requestBattleFullscreen();   // must run inside the click; the battle view fills it as it loads
-    setBusy(true);
-    setErr(null);
+  const startPreset = useCallback(() => {
+    if (!preset) return;
+    return launch({ preset, bot, opponent }, 'Could not start the practice battle');
+  }, [preset, bot, opponent, launch]);
+
+  const start = useCallback(() => launch({ preset: `team_${team.join('_')}_${tier}`, purity, bot, opponent }, 'Could not start the dojo battle'), [team, tier, purity, bot, opponent, launch]);
+
+  /** The gate's Sign in: the wallet prompt, with nothing else moving. Success turns the button into Enter Training. */
+  const signIn = useCallback(async () => {
+    setGate('signing');
+    setGateErr(null);
     try {
-      const auth = await getAuthHeaders();
-      const base = { preset: `team_${team.join('_')}_${tier}`, purity, bot, opponent };
-      const res = await api.combat.createPractice(arena === 'match' ? base : { ...base, arena }, auth);
-      rememberPracticeOwner(res.battleId, res.snapshot?.session?.playerA);
-      const q = new URLSearchParams(window.location.search);
-      const carry = new URLSearchParams();
-      for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
-      router.push(`/battle/${res.battleId}${carry.size ? `?${carry}` : ''}`);
+      await getSessionToken();
+      setGate('ready');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not start the dojo battle');
-      setBusy(false);
-      exitBattleFullscreen();
+      setGate('expired');
+      setGateErr(e instanceof Error ? e.message : 'The wallet did not sign');
     }
-  }, [team, tier, purity, bot, opponent, arena, getAuthHeaders, router]);
+  }, [getSessionToken]);
 
   return (
     <PageBackground variant="deep" scene={arenaScene} sceneDark>
@@ -278,13 +292,30 @@ export default function DojoPage() {
             <span className="text-xs text-text-secondary">{err ?? `${team.map(label).join(' · ')}, ${label(tier)}, purity ${purity} vs ${botInfo(bot)?.label ?? bot}`}</span>
             <button
               onClick={start}
-              disabled={busy}
+              disabled={busy || gate !== 'none'}
               className="frosted-panel-highlight px-4 py-2 text-xs font-pixel text-claw-gold hover:border-[rgba(255,210,128,0.3)] transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
               {busy && <Loader2 className="size-3 animate-spin" />}
               {busy ? 'Starting…' : 'Train'}
             </button>
           </div>
+          {gate !== 'none' && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-claw-gold/30 bg-claw-gold/5 px-4 py-3" data-testid="dojo-gate" data-gate={gate}>
+              <span className="text-xs text-foreground">
+                {gate === 'ready' ? 'Signed in.' : gateErr ?? 'Your wallet session has expired. Sign in again to enter Training.'}
+              </span>
+              {gate === 'ready' ? (
+                <button onClick={() => { setGate('none'); void start(); }} className="frosted-panel-highlight px-4 py-2 text-xs font-pixel text-claw-gold hover:border-[rgba(255,210,128,0.3)] transition-colors">
+                  Enter Training
+                </button>
+              ) : (
+                <button onClick={signIn} disabled={gate === 'signing'} className="frosted-panel-highlight px-4 py-2 text-xs font-pixel text-claw-gold hover:border-[rgba(255,210,128,0.3)] transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                  {gate === 'signing' && <Loader2 className="size-3 animate-spin" />}
+                  {gate === 'signing' ? 'Waiting for the wallet…' : 'Sign in'}
+                </button>
+              )}
+            </div>
+          )}
         </FrostedPanel>
       </div>
     </PageBackground>

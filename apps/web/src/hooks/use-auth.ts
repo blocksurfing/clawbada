@@ -471,10 +471,28 @@ export function useAuth(opts: UseAuthOptions = {}) {
     return { Authorization: `Bearer ${await getSessionToken()}` };
   }, [getSessionToken]);
 
+  /**
+   * Would `getSessionToken()` complete WITHOUT a wallet prompt right now? Synchronous, for the moment of a click:
+   * the battle entry sequence (Train) asks before it goes fullscreen and fades to the loading screen, because a
+   * signature request landing inside a fullscreen fade is exactly the glitch the owner described (2026-10-21).
+   * Guests always: minting or refreshing a guest token never touches a wallet. A wallet: a stored token that is
+   * still valid (a silent refresh covers the margin) and a session that has not aged out.
+   */
+  const hasLiveSession = useCallback((): boolean => {
+    if (asGuest || (allowGuest && !opts.forAddress && !address)) return true;
+    if (!address) return false;
+    const lowerAddr = address.toLowerCase();
+    const s = sessions.get(lowerAddr) ?? loadStoredSession(lowerAddr);
+    if (!s || s.address.toLowerCase() !== lowerAddr) return false;
+    const now = Date.now();
+    return now < s.expiresAtMs && now < s.sessionEndsAtMs;
+  }, [address, asGuest, allowGuest, opts.forAddress]);
+
   return {
     getAuthHeaders,
     getAuthParams,
     getSessionToken,
+    hasLiveSession,
     invalidateAuthCache,
     /** A wallet is connected. Unchanged by guests: transaction buttons and the queue key off this. */
     isConnected: !!address,

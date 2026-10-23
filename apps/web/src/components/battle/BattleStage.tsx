@@ -23,6 +23,7 @@ import {
   type SelectionData,
 } from './unity-bridge';
 import type { BattleEndedPayload, BattleSnapshot, CurrentTurn, Side, TurnResolvedPayload, WireBarEntry } from '@/lib/battle-protocol';
+import { cancelBattleEntry, markArenaReady } from '@/lib/battle-entry';
 
 const BUILD_BASE = '/unity-build/Build/unity-build';
 
@@ -87,7 +88,7 @@ export function BattleStage(props: BattleStageProps) {
   }, []);
 
   useEffect(() => {
-    if (available === false) props.onUnavailable();
+    if (available === false) { cancelBattleEntry(); props.onUnavailable(); }   // plain board: nothing to hold the loading screen for
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [available]);
   // Nothing to tear down without a Unity stage (build missing, or the HEAD check still pending).
@@ -283,6 +284,7 @@ function UnityStage(props: BattleStageProps) {
   useEffect(() => {
     if (initialisationError) {
       console.error('[BattleStage] Unity failed to initialise — falling back to the plain board', initialisationError);
+      cancelBattleEntry();
       props.onUnavailable();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -310,6 +312,8 @@ function UnityStage(props: BattleStageProps) {
     send(UNITY_METHODS.SYNC_UNITS, unitsToSync(props.snapshot));
     if (props.speed && props.speed !== 1) send(UNITY_METHODS.SET_SPEED, { speed: props.speed });
     pushAudioPrefs();
+    // The arena is being built: the web loading screen may hand over (after its hold; lib/battle-entry.ts).
+    markArenaReady();
     props.onReady();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, props.snapshot?.session.id, props.snapshotSeq, props.nextToAnimate]);

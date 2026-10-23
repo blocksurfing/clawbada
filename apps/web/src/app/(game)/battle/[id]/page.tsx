@@ -20,6 +20,7 @@ import { PageBackground } from '@/components/ui/page-background';
 import { formatAddress, formatGold } from '@/lib/format';
 import { BattleMoves } from '@/components/game/battle-moves';
 import { LiveBattle } from '@/components/battle/LiveBattle';
+import { cancelBattleEntry, getEntryState, startBattleEntry } from '@/lib/battle-entry';
 import { Swords, Loader2, ExternalLink } from 'lucide-react';
 
 const PHASE_LABEL: Record<number, string> = { 0: 'Not created', 1: 'Deposits', 2: 'Team commit', 3: 'Team reveal', 4: 'Live', 5: 'Result under review', 6: 'Settled', 7: 'Cancelled', 8: 'Frozen for review' };
@@ -88,6 +89,18 @@ export default function BattlePage() {
       return phase === 6 || phase === 7 ? false : phase === 8 ? 60_000 : 5_000;
     },
   });
+
+  // The entry loading screen (lib/battle-entry.ts). The Train click started it before navigating here; a page
+  // opened directly (a reload, a shared link) starts it itself, so every visit gets the same sequence (owner
+  // decision). It covers the page only while the live view is about to mount — never a "belongs to another
+  // session" notice or the on-chain prep steps — and leaving the page drops it.
+  const liveNow = practice ? !!address : (battleData?.chain?.phase ?? 0) >= 4;
+  const identityUndecided = practice && !address && identityPending;
+  useEffect(() => {
+    if (liveNow) { if (getEntryState().phase === 'idle') startBattleEntry({ kind: practice ? 'practice' : 'battle' }); }
+    else if (!identityUndecided && !isLoading) cancelBattleEntry();
+  }, [liveNow, identityUndecided, isLoading, practice]);
+  useEffect(() => () => cancelBattleEntry(), []);
 
   if (practice) {
     return (
