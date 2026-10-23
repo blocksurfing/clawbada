@@ -35,6 +35,8 @@ gcloud services enable run.googleapis.com sqladmin.googleapis.com artifactregist
 gcloud artifacts repositories create clawbada --repository-format docker --location $REGION
 gcloud iam service-accounts create clawbada-api
 # roles: cloudsql.client, secretmanager.secretAccessor (per secret), logging.logWriter, monitoring.metricWriter
+# Cloud Build runs as the Compute default SA, which has NO roles in a new project (it could not read its own
+# uploaded source): grant it roles/cloudbuild.builds.builder + roles/artifactregistry.writer + roles/storage.objectViewer.
 
 # Cloud SQL — smallest zonal instance, no public address reachable from the internet (no authorized networks)
 gcloud sql instances create clawbada-pg --database-version POSTGRES_17 --tier db-f1-micro --region $REGION \
@@ -73,8 +75,8 @@ placeholder `localhost` and `?host=/cloudsql/…`; `packages/db/src/connection.t
 
 ## Hostname: `api.clawbada.com` through the global external Application Load Balancer
 
-Static IP → serverless NEG (the Cloud Run service) → backend service (timeout 3600 s = the WebSocket
-lifetime, logging on) → URL map → Google-managed certificate for `api.clawbada.com` → HTTPS proxy →
+Static IP → serverless NEG (the Cloud Run service) → backend service (logging on; a serverless NEG backend
+accepts neither `--timeout` nor a port name, so the WebSocket ceiling is Cloud Run's own 3600 s) → URL map → Google-managed certificate for `api.clawbada.com` → HTTPS proxy →
 forwarding rule :443 (+ an :80 → HTTPS redirect). DNS at Cloudflare: `A api → <static IP>`, DNS-only (grey
 cloud). Once the certificate is active, the service's ingress is restricted to the load balancer
 (`--ingress internal-and-cloud-load-balancing`), so the `*.run.app` URL stops answering the public.
@@ -100,6 +102,13 @@ add a new version of `clawbada-api-database-url`, then the same `--update-secret
 gcloud run revisions list --service clawbada-api --region us-east4
 gcloud run services update-traffic clawbada-api --region us-east4 --to-revisions clawbada-api-00012-abc=100
 ```
+
+## Logs
+
+The request log (`@clawbada/logger` hono middleware) records method, path and an allow-list of headers
+(`user-agent`, `content-type`, `origin`, `x-forwarded-for`, …) — never `authorization` or the query string,
+which carry tokens. Before 2026-10-22 every header was logged, bearer tokens included.
+`gcloud run services logs read clawbada-api --region us-east4 --limit 200`.
 
 ## Monitoring
 
