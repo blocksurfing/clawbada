@@ -30,7 +30,7 @@ Generate keys with `cast wallet new`. Fund: the deployer with ~0.2 ETH (13 contr
 - A clean checkout of `main` with `forge build` green and `bun install` done.
 - `.env` at the repo root with: `DEPLOYER_PRIVATE_KEY`, `DEV_WALLET`, `GUARDIAN_ADDRESS`, `BOOST_ADMIN_ADDRESS` (or unset → deployer), `BASE_SEPOLIA_RPC_URL` (Alchemy/QuickNode; the public RPC rate-limits `--verify`), `BASESCAN_API_KEY`, `ELIGIBILITY_OPERATOR`.
 - `foundry.toml` has the `base_sepolia` RPC alias (note the underscore; the deployment JSON and `sync-deploy` use `base-sepolia` with a hyphen).
-- Railway: the API service exists (`deploy.md`); the engine and indexer services do NOT yet — step 7 creates them.
+- Cloud Run: the API service exists (`cloud-run.md`); the engine and indexer services do NOT yet — step 7 creates them.
 
 ## 2. Dry run the scripts against Anvil
 
@@ -67,13 +67,13 @@ Configure grants every role (contract roles, the hot roles to their `*_ADDRESS`,
 
 Commit nothing with addresses to a public branch before launch, but record: the deployment JSON, the Basescan links, the block number, the key→role table above with the actual addresses. `VerifyDeployment` needs only public addresses, so anyone can re-run it later.
 
-## 6. The API on Railway
+## 6. The API on Cloud Run
 
-Set the service variables (`deploy.md` lists the existing ones) and add the 13 `*_ADDRESS` values, `MATCHMAKER_ADDRESS` (the real one now, not the placeholder), `BASE_SEPOLIA_RPC_URL`, `BATTLE_SEED_SECRET` (shared with the engine — generate once: `openssl rand -hex 32`), `AUTH_DOMAINS`. Redeploy (`npx @railway/cli up -d -s clawbada-api`). `GET /api/auth/params` must now return the arena address under `contracts.battleArena`.
+Add the 13 `*_ADDRESS` values and the real `MATCHMAKER_ADDRESS` (not the placeholder) to `docker/cloud-run.api.env.yaml`, apply it (`gcloud run services update clawbada-api --region us-east4 --env-vars-file docker/cloud-run.api.env.yaml`; `BATTLE_SEED_SECRET` already exists in Secret Manager and is shared with the engine), then `scripts/deploy-api.sh`. `GET /api/auth/params` must now return the arena address under `contracts.battleArena`.
 
-## 7. The engine and the indexer on Railway (new services)
+## 7. The engine and the indexer on Cloud Run (new services)
 
-Both run from the same repo with `docker/engine.Dockerfile` / `docker/indexer.Dockerfile` (same shape as the API's; `.railwayignore` applies). Variables:
+Both run from the same repo with `docker/engine.Dockerfile` / `docker/indexer.Dockerfile` (same shape as the API's; the same `.dockerignore` applies), each as its own always-on Cloud Run service (min = max = 1, CPU always allocated, the same Cloud SQL binding and service-account pattern as `cloud-run.md`; no port is served, so use a Cloud Run *worker pool* or a service with a trivial health listener). Variables:
 
 | Service | Variables |
 |---|---|
@@ -130,11 +130,11 @@ forge script contracts/script/VerifyDeployment.s.sol --rpc-url base_sepolia --si
 From a machine with two funded, allowlisted wallets:
 
 ```
-API_URL=https://clawbada-api-production.up.railway.app bun run scripts/e2e/... (the kit's Sepolia mode — see scripts/e2e/README.md once it lands)
+API_URL=https://api.clawbada.com bun run scripts/e2e/... (the kit's Sepolia mode — see scripts/e2e/README.md once it lands)
 ```
 
 Until the kit has a Sepolia mode, the manual version: claim through `POST /api/faucet/claim-lobsters` + `claim-gold`, evolve three lobsters, create a team, `POST /api/game/combat/queue` from both wallets, deposit with `teamId + salt`, and watch the engine's reveal watcher land `revealTeams` inside the 60 s window on a real chain — that is the A14 check. Then play the battle over WebSocket and confirm `finalizeBattle` after the Low bracket's 5-minute review.
 
 ## Rollback
 
-There is none and none is needed on the testnet: a bad deployment is abandoned and redeployed from step 3 (new addresses, new JSON, `sync-deploy` again, Railway variables again). Keep the old JSON for the record.
+There is none and none is needed on the testnet: a bad deployment is abandoned and redeployed from step 3 (new addresses, new JSON, `sync-deploy` again, the Cloud Run env file again). Keep the old JSON for the record.

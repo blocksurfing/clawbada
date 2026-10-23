@@ -1,36 +1,28 @@
-# Deploying the API (Railway) and the web app (Vercel)
+# Deploying the API (Cloud Run) and the web app (Vercel)
 
 > Contracts, engine and indexer on Base Sepolia: `testnet-deploy.md` (the ordered runbook, not yet executed).
 
-Verified 2026-09-05. Both deploys run from a checkout on `main` (the engine worktree
-`Clawbada-engine` was used; any clean checkout works).
+Both deploys run from a checkout on `main` (the engine worktree `Clawbada-engine` is used; any clean
+checkout works). The API moved from Railway to Google Cloud Run on 2026-10-22 (the Railway breach).
 
-## API → Railway (`clawbada-api`)
+## API → Cloud Run (`clawbada-api`, `us-east4`)
 
 ```
-npx @railway/cli login                          # browser OAuth, once per machine
-npx @railway/cli link -p 29948263-a214-46bf-8e51-80e2e4d544e6 -e production -s clawbada-api
-npx @railway/cli up -d -s clawbada-api          # detached; Dockerfile = docker/api.Dockerfile
-npx @railway/cli deployment list                # BUILDING → DEPLOYING → SUCCESS
-npx @railway/cli logs -d -s clawbada-api        # runtime logs
-curl https://clawbada-api-production.up.railway.app/health
+scripts/deploy-api.sh            # builds linux/amd64 on Cloud Build, pushes to Artifact Registry, rolls the service, checks /health
+curl https://api.clawbada.com/health
 ```
 
-- `.railwayignore` (tracked, root) filters the upload: the 2.5 GB Unity project,
-  the gitignored WebGL artifact and local-only dirs stay home. Root-only entries
-  are anchored with `/` — an unanchored `lib` would also drop `apps/api/src/lib`.
-- The container runs `bun run --filter @clawbada/db migrate` before starting the
-  API (see the Dockerfile `CMD`). The Railway Postgres has no public TCP proxy, so
-  this is the only place migrations can run. drizzle records applied migrations,
-  so redeploys are no-ops until a new `packages/db/drizzle/*.sql` lands.
-- Required service variables: `DATABASE_URL=${{Postgres.DATABASE_URL}}`,
-  `MATCHMAKER_ADDRESS` (0x-prefixed; a placeholder until the matchmaker contract is
-  deployed), `CHAIN_ENV`, `BASE_SEPOLIA_RPC_URL`, `TRUST_PROXY=true`. Practice mode:
-  `PRACTICE_ENABLED=true`, `PRACTICE_PRESETS=true` (preset rosters without on-chain
-  lobsters), `BATTLE_SESSIONS_ENABLED=true`. Guest sessions (the Dojo without a wallet)
-  are on by default; `GUEST_SESSIONS_ENABLED=false` switches them off and
-  `PRACTICE_MAX_LIVE` (default 500) caps live practice battles — see
-  `docs/runbooks/battle-session.md`.
+- Everything about the service — the one-time setup, where configuration and secrets live, the load
+  balancer behind `api.clawbada.com`, secret rotation, rollback, monitoring, the shutdown contract — is in
+  **`docs/runbooks/cloud-run.md`**. A deploy only swaps the image; it never touches configuration.
+- The container runs `packages/db/src/migrate.ts` before starting the API (the Dockerfile `CMD`). The
+  Cloud SQL instance has no public address, so this is the only place migrations run in production.
+  drizzle records applied migrations, so redeploys are no-ops until a new `packages/db/drizzle/*.sql` lands.
+- Non-secret runtime variables are the committed `docker/cloud-run.api.env.yaml` (`CHAIN_ENV`,
+  `BASE_SEPOLIA_RPC_URL`, `MATCHMAKER_ADDRESS` — a placeholder until the matchmaker contract is deployed —,
+  `AUTH_DOMAINS`, `TRUST_PROXY` + `TRUST_PROXY_HOPS`, the practice flags, `DB_POOL_MAX`). Guest sessions (the
+  Dojo without a wallet) are on by default; `GUEST_SESSIONS_ENABLED=false` switches them off and
+  `PRACTICE_MAX_LIVE` (default 500) caps live practice battles — see `docs/runbooks/battle-session.md`.
 
 ## Web → Vercel (`clawbada-web`)
 

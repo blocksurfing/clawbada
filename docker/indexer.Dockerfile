@@ -17,6 +17,7 @@ COPY packages/chain/package.json packages/chain/
 COPY packages/db/package.json packages/db/
 COPY packages/game-logic/package.json packages/game-logic/
 COPY packages/logger/package.json packages/logger/
+COPY scripts/e2e/package.json scripts/e2e/
 
 RUN bun install --frozen-lockfile
 
