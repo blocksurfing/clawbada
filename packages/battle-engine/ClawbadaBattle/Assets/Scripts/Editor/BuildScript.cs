@@ -21,7 +21,9 @@ public static class BuildScript
 {
     // Relative to the project folder (ClawbadaBattle) → battle-engine → packages → repo root.
     private const string DefaultBuildPath = "../../../apps/web/public/unity-build";
-    private const string Scene = "Assets/Scenes/BattleScene.unity";
+    // BattleScene is scene 0 (what boots); LoadingScreen is loaded ADDITIVELY over it by LoadingScreenController
+    // while React builds the battle, so it must be in the build. Dojo.unity (Nzib's preview) is deliberately not.
+    private static readonly string[] Scenes = { "Assets/Scenes/BattleScene.unity", "Assets/Scenes/LoadingScreen.unity" };
     private const string PlaceholderMarker = "PLACEHOLDER_AUDIO.txt";
 
     [MenuItem("Clawbada/Build WebGL (web app)")]
@@ -51,7 +53,7 @@ public static class BuildScript
 
         var options = new BuildPlayerOptions
         {
-            scenes = new[] { Scene },
+            scenes = Scenes,
             locationPathName = fullPath,
             target = BuildTarget.WebGL,
             options = BuildOptions.None,

@@ -11,10 +11,12 @@ using System.Runtime.InteropServices;
 ///   UpdateBar(BarData)  SetClock(ClockData)  BattleEnd(BattleEndData)
 ///   SyncUnits(UnitsSyncData)  ShowSelection(HexListData)  ClearHighlights()
 ///   SetSelection(SelectionData)  PreviewMove(PreviewMoveData)
+///   ShowLoading({tip}) — the loading screen's tip; restarts its hold (LoadingScreenController)
 ///   PlayRound(RoundResult) is kept for the editor demo loop only.
 /// Unity → React: Unity calls JS functions via DllImport (JSBridge.jslib) → window.__clawbada.*
-///   onUnityReady  onLobsterSelected {lobsterId}  onHexClicked {col,row}
+///   onUnityReady  onLoadingShown  onLobsterSelected {lobsterId}  onHexClicked {col,row}
 ///   onTurnAnimationComplete {turn}  onActionSelected {action}  onUndoMove
+///   onIntroMusic  onIntroComplete  onForfeit  onAudioPref {kind,on,value}
 ///   (onAnimationComplete {round} — demo loop only)
 ///
 /// Unity renders; it never decides. Every number here was resolved by the server.
@@ -33,6 +35,7 @@ public class BattleBridge : MonoBehaviour
     [DllImport("__Internal")] private static extern void SendAudioPref(string json);
     [DllImport("__Internal")] private static extern void SendIntroComplete();
     [DllImport("__Internal")] private static extern void SendIntroMusic();
+    [DllImport("__Internal")] private static extern void SendLoadingShown();
 
     private BattleManager battleManager;
     private HexGrid hexGrid;
@@ -102,6 +105,15 @@ public class BattleBridge : MonoBehaviour
         float speed = data != null && data.speed > 0f ? Mathf.Clamp(data.speed, 0.25f, 4f) : 1f;
         Time.timeScale = speed;
         Debug.Log($"[BattleBridge] SetSpeed {speed:F2}x");
+    }
+
+    /// <summary>The loading screen's gameplay tip ({tip}). React sends it once its own loading loop has lifted — any
+    /// time before the training scene is released; later calls are ignored (LoadingScreenController).</summary>
+    public void ShowLoading(string json)
+    {
+        var ctl = LoadingScreenController.Holding;
+        if (ctl != null) ctl.ShowLoading(json);
+        else Debug.Log("[BattleBridge] ShowLoading: no loading screen up");
     }
 
     // Volumes are 0–100; -1 = not sent (an older page), leave as is.
@@ -269,6 +281,16 @@ public class BattleBridge : MonoBehaviour
         SendIntroMusic();
         #else
         Debug.Log("[BattleBridge] intro music cue");
+        #endif
+    }
+
+    /// <summary>The training scene (loading screen) is on screen: React lifts its web loading loop and sends ShowLoading.</summary>
+    public void NotifyLoadingShown()
+    {
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendLoadingShown();
+        #else
+        Debug.Log("[BattleBridge] loading shown");
         #endif
     }
 

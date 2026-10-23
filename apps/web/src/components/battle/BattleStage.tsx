@@ -23,7 +23,8 @@ import {
   type SelectionData,
 } from './unity-bridge';
 import type { BattleEndedPayload, BattleSnapshot, CurrentTurn, Side, TurnResolvedPayload, WireBarEntry } from '@/lib/battle-protocol';
-import { cancelBattleEntry, markArenaReady } from '@/lib/battle-entry';
+import { cancelBattleEntry, markArenaReady, markUnityLoadingShown, useBattleEntry } from '@/lib/battle-entry';
+import { pickLoadingTip } from '@/lib/loading-tips';
 
 const BUILD_BASE = '/unity-build/Build/unity-build';
 
@@ -230,10 +231,25 @@ function UnityStage(props: BattleStageProps) {
     else sendMessage(UNITY_GAME_OBJECT, method, JSON.stringify(data));
   }, [sendMessage]);
 
+  // The entry sequence's Unity half (lib/battle-entry.ts, LoadingScreenController.cs). Unity reports its training
+  // scene on screen; the web loading loop lifts (after its own hold) and, the moment it starts to leave, hands Unity
+  // the tip with ShowLoading — Unity's own 4.5 s hold runs from that message, so the player gets the full hold from
+  // the moment they can actually see the scene. No web overlay up (a page opened some other way) → send at once.
+  const entry = useBattleEntry();
+  const [loadingShown, setLoadingShown] = useState(false);
+  const tipSent = useRef(false);
+  useEffect(() => {
+    if (!loadingShown || tipSent.current || entry.phase === 'web') return;
+    tipSent.current = true;
+    send(UNITY_METHODS.SHOW_LOADING, { tip: entry.tip ?? pickLoadingTip() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingShown, entry.phase]);
+
   // Unity → React callbacks.
   useEffect(() => {
     return registerUnityCallbacks({
       onUnityReady: () => setUnityReady(true),
+      onLoadingShown: () => { setLoadingShown(true); markUnityLoadingShown(); },
       onLobsterSelected: props.onLobsterClick,
       onHexClicked: props.onHexClick,
       onActionSelected: props.onActionSelected,

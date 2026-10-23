@@ -55,6 +55,23 @@ export default async function (b: Browser) {
   ok('overlay released after the hold + arena ready', gone, `${tGone} ms after the press`);
   ok('released no earlier than the 4.5 s hold', tGone >= 4500, `${tGone} ms`);
 
+  // The Unity half (a player build with LoadingScreenController): the training scene reported itself, the web
+  // loop handed over the tip, Unity held it ≥ 4.5 s from that moment, then released into the intro.
+  const unityShown = b.allLogs.some((l) => /\[LoadingScreen\] training scene shown/.test(l));
+  ok('unity training scene shown (player build with the loading scene)', unityShown);
+  if (unityShown) {
+    const tipAt = Date.now();
+    const tipSet = await (async () => { while (Date.now() - tipAt < 15000) { if (b.allLogs.some((l) => /\[LoadingScreen\] tip set/.test(l))) return true; await b.sleep(200); } return false; })();
+    ok('tip handed to Unity after the web loop lifted', tipSet);
+    await b.sleep(1200);
+    await b.screenshot(`${OUT}/entry-training.png`);
+    const releasedAt = Date.now();
+    const released = await (async () => { while (Date.now() - releasedAt < 30000) { const l = b.allLogs.find((x) => /\[LoadingScreen\] released after/.test(x)); if (l) return l; await b.sleep(200); } return null; })();
+    const held = released ? Number((released.match(/after ([0-9.]+) s/) || [])[1]) : NaN;
+    ok('unity released the training scene', !!released, released ? `${held} s on screen` : 'no release log');
+    ok('unity held the training scene ≥ 4.5 s', Number.isFinite(held) && held >= 4.5, `${held} s`);
+  }
+
   const live = await b.waitFor(`(() => { const s = document.querySelector('[data-testid=battle-status-line]'); return !!s && /Your turn|Bot thinking|Opponent/.test(s.textContent || ''); })()`, 180000, 500);
   ok('unity status line live', live);
   const t1 = Date.now();

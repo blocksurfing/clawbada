@@ -51,6 +51,8 @@ packages/UserSettings/
 
 # Unity Performance Testing package scratch, written on every build
 packages/battle-engine/ClawbadaBattle/Assets/Resources/PerformanceTestRun*
+# Mono crash dumps a batch-mode editor leaves in the project folder when an -executeMethod throws on exit
+packages/battle-engine/ClawbadaBattle/mono_crash*
 
 # local e2e run artifacts
 scripts/e2e/.runs/
