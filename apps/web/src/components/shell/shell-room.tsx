@@ -15,6 +15,8 @@ import { formatGoldWei } from '@/lib/format';
 import { mountShellArt, type ShellArt } from './shell-art';
 import { mountShellTabs, type ShellTabs } from './shell-tabs';
 import { BattleModal, type BattleEligibility } from './battle-modal';
+import { requestBattleFullscreen } from '@/lib/battle-fullscreen';
+import { startBattleEntry } from '@/lib/battle-entry';
 
 /**
  * The Shell — Nzib's basecamp (design/website/workbench/pages/dashboard.html, baseline 3295433): the fullscreen
@@ -285,7 +287,13 @@ export function ShellRoom() {
             <MatchFoundHud
               autoSkipMs={AUTO_SKIP_MS_BY_BRACKET[queueState.bracket] ?? AUTO_SKIP_MS_BY_BRACKET[0]}
               match={queueState}
-              onApprove={() => router.push(`/battle/${queueState.battleId}`)}
+              onApprove={() => {
+                // Same entry as the Dojo's Train: fullscreen inside the gesture (the auto-skip has none — the browser
+                // then just refuses it) and the loading screen, which the battle page keeps up until the arena is built.
+                requestBattleFullscreen();
+                startBattleEntry({ kind: 'battle' });
+                router.push(`/battle/${queueState.battleId}`);
+              }}
               onWalkAway={reset}
             />
           ) : queueState.kind === 'cancelling' ? (
