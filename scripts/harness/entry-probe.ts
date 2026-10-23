@@ -14,7 +14,14 @@ async function rectClick(b: Browser, selector: string, text: string) {
   if (!r) throw new Error(`no ${selector} ${text}`);
   await b.clickAt(r.x, r.y);
 }
-const overlay = (b: Browser) => b.eval(`(() => { const o = document.querySelector('[data-testid=battle-entry]'); return o ? { phase: o.dataset.phase, kind: o.dataset.kind, frame: o.querySelector('canvas')?.dataset.frame ?? null, opacity: getComputedStyle(o).opacity } : null; })()`) as Promise<{ phase: string; kind: string; frame: string | null; opacity: string } | null>;
+/** The overlay as the browser sees it; `age` = ms since its fades began (the overlay stamps data-shown-at), so a
+ *  late sample (a stalled dev server) is told apart from a wrong fade. */
+const overlay = (b: Browser) => b.eval(`(() => { const o = document.querySelector('[data-testid=battle-entry]'); if (!o) return null; const l = o.querySelector('[data-testid=battle-entry-loop]'); const cs = getComputedStyle(o), ls = l ? getComputedStyle(l) : null; return { phase: o.dataset.phase, kind: o.dataset.kind, frame: o.querySelector('canvas')?.dataset.frame ?? null, opacity: cs.opacity, bg: cs.backgroundColor, curtainMs: cs.transitionDuration, loopOpacity: ls ? ls.opacity : null, revealMs: ls ? ls.transitionDuration : null, revealDelay: ls ? ls.transitionDelay : null, age: o.dataset.shownAt ? Math.round(performance.now() - Number(o.dataset.shownAt)) : null }; })()`) as Promise<{ phase: string; kind: string; frame: string | null; opacity: string; bg: string; curtainMs: string; loopOpacity: string | null; revealMs: string | null; revealDelay: string | null; age: number | null } | null>;
+/** The breeze's debug handle (lib/entry-ambience.ts): the placeholder url (null until the master exists) and whether it plays. */
+const breeze = (b: Browser) => b.eval(`(() => { const a = window.__clawbadaEntryAmbience; return a ? { url: a.url, playing: !!a.audio && !a.audio.paused, volume: a.audio ? a.audio.volume : null } : null; })()`) as Promise<{ url: string | null; playing: boolean; volume: number | null } | null>;
+/** The theme's dark navy (#192c53) as the browser reports it. */
+const NAVY = 'rgb(25, 44, 83)';
+const CURTAIN_MS = 700, HOLD_MS = 4500;
 
 export default async function (b: Browser) {
   const checks: string[] = [];
@@ -32,28 +39,45 @@ export default async function (b: Browser) {
   const tAppear = Date.now() - t0;
   ok('overlay appears on the press', appeared, `${tAppear} ms`);
   ok('page is fullscreen', await b.eval(`document.fullscreenElement === document.documentElement`) as boolean);
-  await b.sleep(1200);
+  // The way in: the navy curtain first (the loop layer still transparent), then the loop fades in from it.
+  await b.sleep(Math.max(0, 250 - (Date.now() - t0 - tAppear)));
+  const early = await overlay(b);
+  ok('curtain is the theme navy', !!early && early.bg === NAVY, `${early?.bg}`);
+  ok('fade timings in the CSS: 0.7 s curtain, then 0.9 s reveal', !!early && early.curtainMs === '0.7s' && early.revealMs === '0.9s' && early.revealDelay === '0.7s', `curtain ${early?.curtainMs}, reveal ${early?.revealMs} after ${early?.revealDelay}`);
+  // The sample is meant for ~0.25 s into the fades; a dev server that stalls the page can make it late, and then it
+  // proves nothing about the curtain — the CSS check above still does.
+  const earlyAge = early?.age ?? null;
+  const sampledInTime = earlyAge !== null && earlyAge < 600;
+  ok('loop still hidden behind the curtain early on', !!early && (!sampledInTime || (early.loopOpacity !== null && Number(early.loopOpacity) < 0.5)), sampledInTime ? `loop opacity ${early?.loopOpacity} at ${earlyAge} ms into the fades` : `sampled ${earlyAge} ms into the fades — too late to tell, CSS checked instead`);
+  await b.screenshot(`${OUT}/entry-curtain.png`);
+  const until2 = 2000 - (Date.now() - t0);
+  if (until2 > 0) await b.sleep(until2);
   const mid = await overlay(b);
+  ok('loop fully in after the curtain + reveal (~1.6 s)', !!mid && mid.loopOpacity === '1', `loop opacity ${mid?.loopOpacity} at ${Date.now() - t0} ms`);
   ok('loop is animating (frame advances)', !!mid && mid.frame !== null && mid.frame !== '0', `frame ${mid?.frame}`);
+  const air = await breeze(b);
+  ok('breeze: placeholder silent, or playing with the loop', !!air && (air.url === null || air.playing), air ? (air.url === null ? 'no AMB_Loading_Breeze master yet — silent' : `${air.url.split('/').pop()} playing, volume ${air.volume}`) : 'no handle');
   await b.screenshot(`${OUT}/entry-loading.png`);
 
-  const navigated = await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 30000);
+  const navigated = await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 60000);
   ok('navigated to the battle page under the overlay', navigated);
   if (!navigated) {
     // The start failed: the Dojo shows the error in its summary line and the sequence drops the overlay.
     console.log('dojo says:', await b.eval(`document.querySelector('[data-testid=dojo-gate]')?.textContent ?? Array.from(document.querySelectorAll('span')).map(s => s.textContent).find(t => /Could not|expired|failed|error/i.test(t || '')) ?? '(no error text)'`));
-    for (const l of b.allLogs.slice(-8)) console.log('console:', l.slice(0, 200));
+    console.log('next dev issues:', await b.eval(`(document.querySelector('nextjs-portal')?.shadowRoot?.textContent ?? '(none)').slice(0, 300)`));
+    const telling = b.allLogs.filter((l) => /error|Error|Unhandled|failed|BattleEntry|EntryAmbience|Dojo\]/.test(l) && !/^\[net\]/.test(l));
+    for (const l of (telling.length ? telling : b.allLogs).slice(-12)) console.log('console:', l.slice(0, 220));
   }
-  // The overlay must still be up at 4.0 s after the press (the hold is 4.5 s) …
-  const until4 = 4000 - (Date.now() - t0);
-  if (until4 > 0) await b.sleep(until4);
-  const at4 = await overlay(b);
-  ok('still covering at 4.0 s', !!at4 && at4.phase === 'web', `phase ${at4?.phase}`);
+  // The overlay must still be up at 4.9 s after the press (the hold is 4.5 s from the loop, 0.7 s after the press) …
+  const until5 = CURTAIN_MS + HOLD_MS - 300 - (Date.now() - t0);
+  if (until5 > 0) await b.sleep(until5);
+  const at5 = await overlay(b);
+  ok('still covering at 4.9 s', !!at5 && at5.phase === 'web', `phase ${at5?.phase}`);
   // … and gone once the hold has passed AND the arena was built (InitBattle), 400 ms fade included.
   const gone = await b.waitFor(`!document.querySelector('[data-testid=battle-entry]')`, 60000, 100);
   const tGone = Date.now() - t0;
   ok('overlay released after the hold + arena ready', gone, `${tGone} ms after the press`);
-  ok('released no earlier than the 4.5 s hold', tGone >= 4500, `${tGone} ms`);
+  ok('released no earlier than the curtain + the 4.5 s hold', tGone >= CURTAIN_MS + HOLD_MS, `${tGone} ms`);
 
   // The Unity half (a player build with LoadingScreenController): the training scene reported itself, the web
   // loop handed over the tip, Unity held it ≥ 4.5 s from that moment, then released into the intro.

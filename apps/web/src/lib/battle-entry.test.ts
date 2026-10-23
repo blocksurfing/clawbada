@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { ENTRY_HOLD_MS, _resetBattleEntryForTests, cancelBattleEntry, getEntryState, markArenaReady, markUnityLoadingShown, startBattleEntry } from './battle-entry';
+import { ENTRY_CURTAIN_MS, ENTRY_FADE_MS, ENTRY_HOLD_MS, ENTRY_REVEAL_MS, _resetBattleEntryForTests, cancelBattleEntry, getEntryState, loopShownAt, markArenaReady, markUnityLoadingShown, startBattleEntry } from './battle-entry';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -40,7 +40,14 @@ describe('battle entry store', () => {
     expect(getEntryState().unityShown).toBe(true);
   });
 
-  test('constants: the hold is the spec\'s 4.5 s', () => {
+  test('constants: the hold is the spec\'s 4.5 s; the way in is slower than the way out', () => {
     expect(ENTRY_HOLD_MS).toBe(4500);
+    expect(ENTRY_CURTAIN_MS + ENTRY_REVEAL_MS).toBeGreaterThan(ENTRY_FADE_MS);
+  });
+
+  test('the hold counts from the loop (after the curtain), not from the press', () => {
+    startBattleEntry({ kind: 'practice' });
+    const { startedAt } = getEntryState();
+    expect(loopShownAt()).toBe(startedAt + ENTRY_CURTAIN_MS);   // no window here → no reduced-motion shortcut
   });
 });

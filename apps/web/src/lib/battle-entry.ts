@@ -7,6 +7,11 @@
  * store (same pattern as the guest session in use-auth.ts) so the overlay, mounted at the app root, survives the
  * client-side navigation from /dojo to /battle/<id> without a remount or a provider.
  *
+ * The way in is two fades (owner 2026-10-23, "slow down the fade to the first loading screen"): the page fades out
+ * to the theme's dark navy over ENTRY_CURTAIN_MS, then the Shifu loop fades in from that navy over ENTRY_REVEAL_MS —
+ * so the loop is on its way in ENTRY_CURTAIN_MS after the press, and the 4.5 s hold is counted from THEN, not from
+ * the press. A gentle breeze (lib/entry-ambience.ts) fades in with the loop and out at the handover to Unity.
+ *
  * Release — when the overlay may fade out — is `max(the 4.5 s hold, a signal)`:
  *   - `markUnityLoadingShown()`: the Unity training scene is on screen (a player build that reports it) → now;
  *   - `markArenaReady()`: InitBattle was sent to a build that never reports the training scene (an older player)
@@ -32,6 +37,11 @@ export interface BattleEntryState {
 }
 
 export const ENTRY_HOLD_MS = 4_500;
+/** The page → navy curtain (the way in, first stage). */
+export const ENTRY_CURTAIN_MS = 700;
+/** Navy → the Shifu loop (the way in, second stage; starts when the curtain is down). */
+export const ENTRY_REVEAL_MS = 900;
+/** The way out: the loop over the Unity training scene (unchanged). */
 export const ENTRY_FADE_MS = 400;
 const ARENA_GRACE_MS = 1_500;
 const SAFETY_MS = 45_000;
@@ -57,6 +67,11 @@ function clearTimers(): void {
 
 export function reducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** When the Shifu loop starts to show: the press plus the curtain (at once under reduced motion). */
+export function loopShownAt(): number {
+  return state.startedAt + (reducedMotion() ? 0 : ENTRY_CURTAIN_MS);
 }
 
 /** Begin the sequence (inside the Train click, or on a battle page that opened without one). No-op while one is active. */
@@ -98,7 +113,7 @@ export function getEntryTip(): string | null {
 
 function scheduleRelease(): void {
   if (holdTimer !== null) return;
-  const wait = Math.max(0, state.startedAt + ENTRY_HOLD_MS - Date.now());
+  const wait = Math.max(0, loopShownAt() + ENTRY_HOLD_MS - Date.now());   // the hold counts from the loop, not the press
   holdTimer = setTimeout(() => { holdTimer = null; release(); }, wait);
 }
 

@@ -6,11 +6,17 @@
  * A straight port of his workbench renderer (design/website/workbench/components/web-loading.js + web-loading.css,
  * 57ed790): a 320×180 canvas scaled to cover the viewport with pixel snapping, nine layers in his order where the
  * hill is a ten-frame image sequence and the leaves and Shifu are 3200×180 ten-frame sheets, 100 ms a frame
- * (lib/loading-timeline.ts), "LOADING" bottom-right in Upheaval with dots cycling every 400 ms. Reduced motion
- * freezes frame 0 and the dots and drops the fades. Mounted once in the root layout; lib/battle-entry.ts says when.
+ * (lib/loading-timeline.ts), "LOADING" bottom-right in Upheaval with dots cycling every 400 ms.
+ *
+ * The way in is two fades (owner 2026-10-23): this element's own background — the theme's dark navy — fades in over
+ * the page (ENTRY_CURTAIN_MS), then the loop layer fades in from that navy (ENTRY_REVEAL_MS, delayed by the
+ * curtain). The way out is one fade of the whole thing over the Unity training scene (ENTRY_FADE_MS). The breeze
+ * (lib/entry-ambience.ts) starts with the reveal and fades out with the way out. Reduced motion freezes frame 0 and
+ * the dots and drops every fade. Mounted once in the root layout; lib/battle-entry.ts says when.
  */
 import { useEffect, useRef, useState } from 'react';
-import { ENTRY_FADE_MS, reducedMotion, useBattleEntry } from '@/lib/battle-entry';
+import { ENTRY_CURTAIN_MS, ENTRY_FADE_MS, ENTRY_REVEAL_MS, reducedMotion, useBattleEntry } from '@/lib/battle-entry';
+import { cancelEntryAmbience, preloadEntryAmbience, startEntryAmbience, stopEntryAmbience } from '@/lib/entry-ambience';
 import { loadingFrame } from '@/lib/loading-timeline';
 
 const ART_BASE = '/loading';
@@ -19,7 +25,10 @@ const ORDER = ['BG', 'Clouds', 'Hill', 'Rock', 'Tree', 'Back_Leaves', 'Tree_Leav
 const SHEETS = new Set(['Back_Leaves', 'Shifu', 'Front_Leaves']);
 const FILES = ['BG', 'Clouds', 'Rock', 'Tree', 'Back_Leaves', 'Tree_Leaves', 'Shifu', 'Front_Leaves', ...Array.from({ length: 10 }, (_, i) => `Hill${i + 1}`)];
 const DOTS = ['...', '..', '.', '..'];
+/** The loop's own bed, behind the art. */
 const BED = '#aecdc6';
+/** The theme's dark navy — Nzib's page colour (market.css `.market-page`, the tab icon's tile). */
+export const NAVY = '#192c53';
 
 let imagesPromise: Promise<Record<string, HTMLImageElement>> | null = null;
 /** Decode the 18 layers once per tab (a few KB each). Called on first mount so the first press paints at once. */
@@ -40,18 +49,33 @@ function loadImages(): Promise<Record<string, HTMLImageElement>> {
 export function BattleEntryOverlay() {
   const entry = useBattleEntry();
   const visible = entry.phase !== 'idle';
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dotsRef = useRef<HTMLSpanElement | null>(null);
-  // Fade in on the frame after mount (the Dojo page's own fade-out IS this overlay fading in over it).
+  // Fades start on the frame after mount: the curtain over the page, then the loop over the curtain.
   const [shown, setShown] = useState(false);
 
-  useEffect(() => { void loadImages().catch((err) => console.warn('[BattleEntry] loading art failed', err)); }, []);
+  useEffect(() => {
+    void loadImages().catch((err) => console.warn('[BattleEntry] loading art failed', err));
+    preloadEntryAmbience();
+  }, []);
 
   useEffect(() => {
     if (!visible) { setShown(false); return; }
-    const raf = requestAnimationFrame(() => setShown(true));
+    const raf = requestAnimationFrame(() => {
+      setShown(true);
+      // When the fades began, for the harness (performance.now() ms; React leaves this attribute alone).
+      if (rootRef.current) rootRef.current.dataset.shownAt = String(performance.now());
+    });
     return () => cancelAnimationFrame(raf);
   }, [visible]);
+
+  // The breeze: in with the loop's reveal (after the curtain), out with the handover, quick out on a cancel.
+  useEffect(() => {
+    if (entry.phase === 'web') startEntryAmbience(reducedMotion() ? 0 : ENTRY_CURTAIN_MS);
+    else if (entry.phase === 'leaving') stopEntryAmbience();
+    else cancelEntryAmbience();
+  }, [entry.phase]);
 
   useEffect(() => {
     if (!visible) return;
@@ -83,31 +107,45 @@ export function BattleEntryOverlay() {
   }, [visible]);
 
   if (!visible) return null;
-  const fade = reducedMotion() ? 0 : ENTRY_FADE_MS;
+  const reduced = reducedMotion();
+  const leaving = entry.phase === 'leaving';
+  // The root IS the navy curtain: in over the page (curtain), out over the training scene (fade).
+  const rootFade = reduced ? 0 : leaving ? ENTRY_FADE_MS : ENTRY_CURTAIN_MS;
+  const rootEase = leaving ? 'ease-out' : 'ease-in-out';
+  // The loop fades in from the navy once the curtain is down; it leaves with the root.
+  const loopFade = reduced ? 0 : ENTRY_REVEAL_MS;
+  const loopDelay = reduced ? 0 : ENTRY_CURTAIN_MS;
   return (
     <div
+      ref={rootRef}
       role="status"
       aria-label="Loading"
       data-testid="battle-entry"
       data-phase={entry.phase}
       data-kind={entry.kind ?? ''}
       className="fixed inset-0 z-[200] overflow-hidden"
-      style={{ background: BED, opacity: shown && entry.phase === 'web' ? 1 : 0, transition: `opacity ${fade}ms ease-out`, pointerEvents: entry.phase === 'leaving' ? 'none' : 'auto' }}
+      style={{ background: NAVY, opacity: shown && !leaving ? 1 : 0, transition: `opacity ${rootFade}ms ${rootEase}`, pointerEvents: leaving ? 'none' : 'auto' }}
     >
-      <canvas
-        ref={canvasRef}
-        width={320}
-        height={180}
-        aria-hidden="true"
-        className="absolute left-1/2 top-1/2"
-        style={{ width: 'max(100vw, 177.777778vh)', height: 'max(100vh, 56.25vw)', transform: 'translate(-50%, -50%)', imageRendering: 'pixelated' }}
-      />
-      <p
-        className="absolute m-0 text-black"
-        style={{ right: 'max(5vw, env(safe-area-inset-right))', bottom: 'max(7vh, env(safe-area-inset-bottom))', fontFamily: 'var(--font-upheaval), sans-serif', fontSize: 'clamp(28px, 4vw, 64px)', lineHeight: 1.2 }}
+      <div
+        data-testid="battle-entry-loop"
+        className="absolute inset-0"
+        style={{ background: BED, opacity: shown ? 1 : 0, transition: `opacity ${loopFade}ms ease-in-out ${loopDelay}ms` }}
       >
-        LOADING<span ref={dotsRef} aria-hidden="true" style={{ display: 'inline-block', width: '1.5em', textAlign: 'left' }}>...</span>
-      </p>
+        <canvas
+          ref={canvasRef}
+          width={320}
+          height={180}
+          aria-hidden="true"
+          className="absolute left-1/2 top-1/2"
+          style={{ width: 'max(100vw, 177.777778vh)', height: 'max(100vh, 56.25vw)', transform: 'translate(-50%, -50%)', imageRendering: 'pixelated' }}
+        />
+        <p
+          className="absolute m-0 text-black"
+          style={{ right: 'max(5vw, env(safe-area-inset-right))', bottom: 'max(7vh, env(safe-area-inset-bottom))', fontFamily: 'var(--font-upheaval), sans-serif', fontSize: 'clamp(28px, 4vw, 64px)', lineHeight: 1.2 }}
+        >
+          LOADING<span ref={dotsRef} aria-hidden="true" style={{ display: 'inline-block', width: '1.5em', textAlign: 'left' }}>...</span>
+        </p>
+      </div>
     </div>
   );
 }
