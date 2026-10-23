@@ -32,7 +32,7 @@ public class LoadingScreenController : MonoBehaviour
 {
     public const string SceneName = "LoadingScreen";
     public const string LayerName = "Loading";
-    public const float MinHoldSeconds = 4.5f;
+    public const float MinHoldSeconds = 9f;   // owner 2026-10-23: "about 9 seconds" (was 4.5)
     public const float FadeSeconds = 0.4f;
     private const float RevealDelaySeconds = 0.25f;
     private const int FadeCanvasOrder = 500;   // above BattleIntro's IntroCanvas (400) and the HUD (100)
