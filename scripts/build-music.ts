@@ -31,15 +31,22 @@ const TIERS = ['evolved', 'elite', 'apex', 'dojo'] as const;
 /** Boards without a master of their own borrow another board's track until one arrives (the Dojo, the practice
  *  ground, plays the Evolved bed for now). A `BGM_Arena_Dojo.wav` master wins over the alias the moment it exists. */
 const FALLBACK: Partial<Record<(typeof TIERS)[number], (typeof TIERS)[number]>> = { dojo: 'evolved' };
+/** The breeze under the web loading loop (apps/web/src/lib/entry-ambience.ts). A PLACEHOLDER name until the master
+ *  exists: drop `AMB_Loading_Breeze.wav` in the masters folder and re-run; until then ENTRY_AMBIENCE is null (silent). */
+const AMBIENCE = 'AMB_Loading_Breeze';
+const MASTER = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)|AMB_Loading_Breeze)\.wav$/i;
+const BUILT = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)|AMB_Loading_Breeze)\.[0-9a-f]{8}\.m4a$/;
 
 mkdirSync(outDir, { recursive: true });
-const masters = existsSync(inDir) ? readdirSync(inDir).filter((f) => /^BGM_Arena_(Evolved|Elite|Apex|Dojo)\.wav$/i.test(f)) : [];
+const masters = existsSync(inDir) ? readdirSync(inDir).filter((f) => MASTER.test(f)) : [];
 if (masters.length === 0) { console.error(`no BGM_Arena_<Tier>.wav masters in ${inDir}`); process.exit(1); }
 
 const urls: Record<string, string | null> = { evolved: null, elite: null, apex: null, dojo: null };
+let ambience: string | null = null;
 const keep = new Set<string>();
 for (const file of masters) {
-  const tier = basename(file, '.wav').split('_')[2].toLowerCase();
+  const stem = basename(file, '.wav');
+  const tier = stem.toLowerCase() === AMBIENCE.toLowerCase() ? null : stem.split('_')[2].toLowerCase();
   const tmp = join(outDir, `.${basename(file, '.wav')}.tmp.m4a`);
   const enc = (codec: string) => Bun.spawnSync(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', join(inDir, file),
     '-vn', '-c:a', codec, '-b:a', bitrate, '-movflags', '+faststart', tmp]);
@@ -52,11 +59,13 @@ for (const file of masters) {
   rmSync(join(outDir, name), { force: true });
   Bun.spawnSync(['mv', tmp, join(outDir, name)]);
   keep.add(name);
-  urls[tier] = `/audio/music/${name}`;
+  if (tier) urls[tier] = `/audio/music/${name}`;
+  else ambience = `/audio/music/${name}`;
   console.log(`${file} → ${name}  ${(bytes.length / 1048576).toFixed(2)} MB @ ${bitrate}`);
 }
+if (!ambience) console.log(`no ${AMBIENCE}.wav master yet — ENTRY_AMBIENCE stays null (the battle entry is silent)`);
 // Drop stale hashed variants of the same tracks so the folder only holds what the app references.
-for (const f of readdirSync(outDir)) if (/^BGM_Arena_(Evolved|Elite|Apex|Dojo)\.[0-9a-f]{8}\.m4a$/.test(f) && !keep.has(f)) { rmSync(join(outDir, f)); console.log(`removed stale ${f}`); }
+for (const f of readdirSync(outDir)) if (BUILT.test(f) && !keep.has(f)) { rmSync(join(outDir, f)); console.log(`removed stale ${f}`); }
 
 const body = TIERS.map((t) => {
   const alias = !urls[t] && FALLBACK[t];
@@ -69,5 +78,7 @@ export type ArenaTier = ${TIERS.map((t) => `'${t}'`).join(' | ')};
 export const ARENA_MUSIC: Record<ArenaTier, string | null> = {
 ${body}
 };
+/** The breeze under the web loading loop (lib/entry-ambience.ts). null = no ${AMBIENCE}.wav master yet: the entry is silent. */
+export const ENTRY_AMBIENCE: string | null = ${ambience ? JSON.stringify(ambience) : 'null'};
 `);
 console.log(`wrote ${genPath.replace(root + '/', '')}`);
