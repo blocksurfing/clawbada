@@ -50,13 +50,18 @@ export default async function (b: Browser) {
   const sampledInTime = earlyAge !== null && earlyAge < 600;
   ok('loop still hidden behind the curtain early on', !!early && (!sampledInTime || (early.loopOpacity !== null && Number(early.loopOpacity) < 0.5)), sampledInTime ? `loop opacity ${early?.loopOpacity} at ${earlyAge} ms into the fades` : `sampled ${earlyAge} ms into the fades — too late to tell, CSS checked instead`);
   await b.screenshot(`${OUT}/entry-curtain.png`);
-  const until2 = 2000 - (Date.now() - t0);
-  if (until2 > 0) await b.sleep(until2);
+  // Sample 1.8 s into the overlay's own fades (curtain 0.7 + reveal 0.9 = 1.6 s), not the press: the overlay can appear late.
+  const age0 = (await overlay(b))?.age ?? 0;
+  if (1800 - age0 > 0) await b.sleep(1800 - age0);
   const mid = await overlay(b);
-  ok('loop fully in after the curtain + reveal (~1.6 s)', !!mid && mid.loopOpacity === '1', `loop opacity ${mid?.loopOpacity} at ${Date.now() - t0} ms`);
+  ok('loop fully in after the curtain + reveal (1.6 s)', !!mid && mid.loopOpacity === '1', `loop opacity ${mid?.loopOpacity} at ${mid?.age} ms into the fades`);
   ok('loop is animating (frame advances)', !!mid && mid.frame !== null && mid.frame !== '0', `frame ${mid?.frame}`);
+  // Probes run muted (cdp.ts writes the music prefs off) unless AUDIO=1: muted → the breeze must stay silent;
+  // with audio → playing and fading in towards its gain (0.25 × the battle volume, 50% by default).
+  const audioOn = !!process.env.AUDIO;
   const air = await breeze(b);
-  ok('breeze: placeholder silent, or playing with the loop', !!air && (air.url === null || air.playing), air ? (air.url === null ? 'no AMB_Loading_Breeze master yet — silent' : `${air.url.split('/').pop()} playing, volume ${air.volume}`) : 'no handle');
+  const airDetail = !air ? 'no handle' : air.url === null ? 'no AMB_Loading_Breeze master yet — silent' : `${air.url.split('/').pop()} ${air.playing ? 'playing' : 'paused'}, volume ${air.volume?.toFixed(3)}`;
+  ok(audioOn ? 'breeze playing with the loop (audio on)' : 'breeze silent while muted', !!air && (air.url === null || (audioOn ? air.playing && (air.volume ?? 1) <= 0.26 : !air.playing)), airDetail);
   await b.screenshot(`${OUT}/entry-loading.png`);
 
   const navigated = await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 60000);
@@ -78,6 +83,11 @@ export default async function (b: Browser) {
   const tGone = Date.now() - t0;
   ok('overlay released after the hold + arena ready', gone, `${tGone} ms after the press`);
   ok('released no earlier than the curtain + the 4.5 s hold', tGone >= CURTAIN_MS + HOLD_MS, `${tGone} ms`);
+  if (audioOn) {
+    await b.sleep(1500);   // the breeze's 0.9 s fade-out, with margin
+    const after = await breeze(b);
+    ok('breeze faded out at the hand-over to Unity', !!after && (after.url === null || !after.playing), after ? `${after.playing ? 'playing' : 'paused'}, volume ${after.volume?.toFixed(3)}` : 'no handle');
+  }
 
   // The Unity half (a player build with LoadingScreenController): the training scene reported itself, the web
   // loop handed over the tip, Unity held it ≥ 4.5 s from that moment, then released into the intro.
