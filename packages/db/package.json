@@ -8,6 +8,8 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
+    "migrate:run": "bun run src/migrate.ts",
+    "test": "bun test src",
     "typecheck": "tsc --noEmit",
     "verify:boost": "bun run scripts/verify-boost-db.ts"
   },

@@ -1,7 +1,9 @@
+# Docker build context filter (root; patterns are root-anchored unless they start with **/, so `lib/`
+# only matches the top-level Foundry lib, never apps/api/src/lib). Also the Cloud Build upload filter
+# through .gcloudignore.
 node_modules
 **/node_modules
 .git
-.next
 .env
 .env.*
 lib/
@@ -9,6 +11,35 @@ contracts/
 docs/
 *.md
 .claude/
+.github/
 
 # Unity project (2,300+ art/prefab files) — never part of an app image
 packages/battle-engine/
+
+# Local build / dev caches. The old root-anchored `.next` never matched apps/web/.next (1.2 GB).
+**/.next/
+apps/web/out/
+apps/web/public/unity-build/
+**/dist/
+**/*.tsbuildinfo
+**/coverage/
+
+# Foundry outputs and local deployment records (the API takes contract addresses from env)
+out/
+cache/
+broadcast/
+deployments/
+
+# Audio masters and the browser playtest harness (Chrome profile + run output)
+audio-masters/
+scripts/harness/out/
+scripts/harness/chrome-profile/
+scripts/harness/chrome.log
+scripts/harness/*.out
+scripts/e2e/.runs/
+
+# Editor / tooling
+.vercel/
+.vscode/
+.idea/
+**/.DS_Store

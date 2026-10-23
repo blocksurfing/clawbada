@@ -1,0 +1,45 @@
+# Upload filter for `gcloud builds submit` (scripts/deploy-api.sh). Without this file gcloud silently derives
+# one from .gitignore, which is not the Docker context.
+#
+# gitignore SYNTAX, not Docker's: a pattern without a leading slash matches at ANY depth, so `lib/` would also
+# drop apps/api/src/lib (it did, 2026-10-22 — the API image could not find ./lib/session-token). Root-only
+# entries are therefore anchored with a leading slash. Do not `#!include:.dockerignore` — Docker's root-anchored
+# patterns mean something else here.
+#
+# Cloud Build in this repo builds the API image only (the web app deploys via Vercel), so the web app's art
+# and sources stay home too: the first upload carried 48 MiB of them and timed out.
+node_modules/
+.git/
+.env
+.env.*
+/lib/
+/contracts/
+/docs/
+/test/
+*.md
+.claude/
+.github/
+/design/
+/packages/battle-engine/
+.next/
+/apps/web/out/
+/apps/web/public/
+/apps/web/src/
+/apps/web/*.css
+dist/
+*.tsbuildinfo
+coverage/
+/out/
+/cache/
+/broadcast/
+/deployments/
+/audio-masters/
+/scripts/harness/out/
+/scripts/harness/chrome-profile/
+/scripts/harness/chrome.log
+/scripts/harness/*.out
+/scripts/e2e/.runs/
+.vercel/
+.vscode/
+.idea/
+.DS_Store

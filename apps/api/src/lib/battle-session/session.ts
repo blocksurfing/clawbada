@@ -229,6 +229,9 @@ export class BattleSession {
 
   /** Player submission. Validates before touching anything; a rejected command changes nothing. */
   submit(side: Side, turn: number, cmd: v3.TurnCommand): SubmitResult {
+    // A turn accepted after stop() would be mutated, acked and never persisted (shutdown drains the queue
+    // as it stands). Mirrors resign(); the client reconnects to the new instance and resubmits.
+    if (this.stopped) return { ok: false, code: 'session_stopped', message: 'Battle session is restarting; reconnect' };
     if (this.status !== 'active' || this.state.finished) return { ok: false, code: 'finished', message: 'Battle is over' };
     const cur = this.state.turn + 1;
     if (turn < cur) {

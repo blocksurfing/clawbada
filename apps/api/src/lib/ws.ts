@@ -163,6 +163,38 @@ class BattleWSManager {
     return this.addressRooms.get(address.toLowerCase())?.length ?? 0;
   }
 
+  // ──────────── Shutdown (lib/shutdown.ts) ────────────
+
+  /** Every subscribed socket, each once (a player sits in a battle room AND its address room). Every socket
+   *  that passed the upgrade is in at least one room, so this is a complete enumeration. */
+  private allSockets(): Set<WebSocket> {
+    const all = new Set<WebSocket>();
+    for (const room of this.rooms.values()) for (const c of room) all.add(c.ws);
+    for (const room of this.addressRooms.values()) for (const c of room) all.add(c.ws);
+    return all;
+  }
+
+  socketCount(): number {
+    return this.allSockets().size;
+  }
+
+  /** Close every subscribed socket with one code/reason and empty the rooms. Returns how many were told.
+   *  The later close() callbacks call leave()/leaveAddressRoom() on the emptied maps — harmless no-ops. */
+  closeAll(code = 1001, reason = 'Server restarting'): number {
+    let n = 0;
+    for (const ws of this.allSockets()) {
+      try {
+        ws.close(code, reason);
+        n++;
+      } catch {
+        // already closed
+      }
+    }
+    this.rooms.clear();
+    this.addressRooms.clear();
+    return n;
+  }
+
   // ──────────── Internal ────────────
 
   /** Common send-and-prune used by both broadcast paths. */
