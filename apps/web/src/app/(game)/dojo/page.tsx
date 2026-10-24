@@ -36,7 +36,10 @@ const REVIEW_PRESETS = [
   // Three Tempests on the Evolved arena: a Maelstrom every few turns under the gulls — the storm reaction review.
   { id: 'trio_tempest_evolved', label: 'Trio · Tempest (Evolved) · storm review' },
 ] as const;
-const presetsAllowed = process.env.NEXT_PUBLIC_PRACTICE_PRESETS === 'true' || process.env.NODE_ENV !== 'production';
+/** The "Review presets (dev)" block and its ?preset= deep link: local dev only (`next dev`, where the browser harness
+ *  runs). Hidden from every deployed build for now (owner 2026-10-24), whatever NEXT_PUBLIC_PRACTICE_PRESETS says —
+ *  to bring it back on a deployed review stack, restore `process.env.NEXT_PUBLIC_PRACTICE_PRESETS === 'true' ||`. */
+const presetsAllowed = process.env.NODE_ENV !== 'production';
 
 /**
  * The dojo: build any three-class team at any tier and purity and fight a bot with it.
