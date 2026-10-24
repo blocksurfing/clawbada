@@ -34,6 +34,13 @@ const FALLBACK: Partial<Record<(typeof TIERS)[number], (typeof TIERS)[number]>> 
 /** The breeze under the web loading loop (apps/web/src/lib/entry-ambience.ts). A PLACEHOLDER name until the master
  *  exists: drop `AMB_Loading_Breeze.wav` in the masters folder and re-run; until then ENTRY_AMBIENCE is null (silent). */
 const AMBIENCE = 'AMB_Loading_Breeze';
+/** Make-up gain (dB) applied while encoding, for masters delivered far quieter than the rest of the site. The breeze
+ *  master measures −52 dB mean / −35.5 dB peak against the theme's −15 / 0 — playing at gain 0.95 it was inaudible
+ *  (owner 2026-10-24: "the wind audio does not play at all"). +24 dB puts it at ~−28 dB mean, under the theme as an
+ *  ambience bed, peak ~−11.5 dB (no clipping). The master itself is left untouched. */
+const GAIN_DB: Record<string, number> = { [AMBIENCE]: 24 };
+/** A built track averaging below this is treated as a mastering mistake: the build stops instead of shipping silence. */
+const MIN_MEAN_DB = -40;
 const MASTER = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)|AMB_Loading_Breeze)\.wav$/i;
 const BUILT = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)|AMB_Loading_Breeze)\.[0-9a-f]{8}\.m4a$/;
 
@@ -48,11 +55,15 @@ for (const file of masters) {
   const stem = basename(file, '.wav');
   const tier = stem.toLowerCase() === AMBIENCE.toLowerCase() ? null : stem.split('_')[2].toLowerCase();
   const tmp = join(outDir, `.${basename(file, '.wav')}.tmp.m4a`);
+  const gain = GAIN_DB[stem] ?? 0;
   const enc = (codec: string) => Bun.spawnSync(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', join(inDir, file),
-    '-vn', '-c:a', codec, '-b:a', bitrate, '-movflags', '+faststart', tmp]);
+    '-vn', ...(gain ? ['-af', `volume=${gain}dB`] : []), '-c:a', codec, '-b:a', bitrate, '-movflags', '+faststart', tmp]);
   let r = enc('aac_at');
   if (r.exitCode !== 0) r = enc('aac');
   if (r.exitCode !== 0) { console.error(`ffmpeg failed for ${file}:\n${new TextDecoder().decode(r.stderr)}`); process.exit(1); }
+  const level = new TextDecoder().decode(Bun.spawnSync(['ffmpeg', '-hide_banner', '-nostats', '-i', tmp, '-af', 'volumedetect', '-f', 'null', '-']).stderr);
+  const mean = Number(/mean_volume: (-?[\d.]+) dB/.exec(level)?.[1] ?? NaN), peak = Number(/max_volume: (-?[\d.]+) dB/.exec(level)?.[1] ?? NaN);
+  if (!(mean >= MIN_MEAN_DB)) { console.error(`${file}: built track averages ${mean} dB (peak ${peak} dB) — below ${MIN_MEAN_DB} dB, it would be inaudible. Fix the master or add make-up gain in GAIN_DB.`); process.exit(1); }
   const bytes = readFileSync(tmp);
   const hash = createHash('sha256').update(bytes).digest('hex').slice(0, 8);
   const name = `${basename(file, '.wav')}.${hash}.m4a`;
@@ -61,7 +72,7 @@ for (const file of masters) {
   keep.add(name);
   if (tier) urls[tier] = `/audio/music/${name}`;
   else ambience = `/audio/music/${name}`;
-  console.log(`${file} → ${name}  ${(bytes.length / 1048576).toFixed(2)} MB @ ${bitrate}`);
+  console.log(`${file} → ${name}  ${(bytes.length / 1048576).toFixed(2)} MB @ ${bitrate}, mean ${mean} dB / peak ${peak} dB${gain ? ` (+${gain} dB make-up)` : ''}`);
 }
 if (!ambience) console.log(`no ${AMBIENCE}.wav master yet — ENTRY_AMBIENCE stays null (the battle entry is silent)`);
 // Drop stale hashed variants of the same tracks so the folder only holds what the app references.

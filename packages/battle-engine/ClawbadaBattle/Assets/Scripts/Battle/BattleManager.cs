@@ -507,7 +507,7 @@ public class BattleManager : MonoBehaviour
             if (toOrigin) previewActorId = null;
             return;
         }
-        if (previewRoutine != null) StopCoroutine(previewRoutine);
+        StopRoutine(ref previewRoutine);
         Debug.Log($"[BattleManager] PreviewMove {data.lobsterId} → ({data.col},{data.row}){(toOrigin ? " (origin)" : "")}");
         previewRoutine = StartCoroutine(PreviewRoutine(lob, data.col, data.row, toOrigin));
     }
@@ -520,18 +520,29 @@ public class BattleManager : MonoBehaviour
         PreviewMoved?.Invoke(lob, col, row);
     }
 
+    /// <summary>Stop a turn or preview routine AND finish any walk it was in the middle of. StopCoroutine alone skips the end
+    /// of LobsterController.MoveTo (Unity runs no finally on a stopped coroutine), leaving the rig looping its Move state
+    /// and the movement sound looping (owner 2026-10-24). Every stop of these routines goes through here.</summary>
+    private void StopRoutine(ref Coroutine routine)
+    {
+        if (routine == null) return;
+        StopCoroutine(routine);
+        routine = null;
+        foreach (var lob in lobsters.Values) if (lob != null) lob.AbortMove();
+    }
+
     /// <summary>Snap a previewed lobster back to where the server thinks it stands.</summary>
     private void UndoPreview()
     {
         if (previewActorId == null) return;
-        if (previewRoutine != null) { StopCoroutine(previewRoutine); previewRoutine = null; }
+        StopRoutine(ref previewRoutine);
         if (lobsters.TryGetValue(previewActorId, out var lob) && lob.alive) lob.SnapTo(previewOriginCol, previewOriginRow);
         previewActorId = null;
     }
 
     private void ClearPreview()
     {
-        if (previewRoutine != null) { StopCoroutine(previewRoutine); previewRoutine = null; }
+        StopRoutine(ref previewRoutine);
         previewActorId = null;
     }
 
@@ -543,8 +554,8 @@ public class BattleManager : MonoBehaviour
         if (data == null) return;
         if (currentPhase == BattlePhase.AnimatingTurn && turnRoutine != null)
         {
-            StopCoroutine(turnRoutine);
-            turnRoutine = null;
+            Debug.LogWarning($"[BattleManager] SyncUnits while turn {currentTurn} is still animating — cut short");
+            StopRoutine(ref turnRoutine);
             currentPhase = BattlePhase.Idle;
         }
         if (data.units != null)
@@ -568,7 +579,7 @@ public class BattleManager : MonoBehaviour
         if (turnRoutine != null && currentPhase == BattlePhase.AnimatingTurn)
         {
             Debug.LogWarning($"[BattleManager] turn {currentTurn} routine still running when turn {data.turn} arrived — cut short");
-            StopCoroutine(turnRoutine);
+            StopRoutine(ref turnRoutine);
         }
         currentPhase = BattlePhase.AnimatingTurn;
         currentTurn = data.turn;
@@ -616,7 +627,7 @@ public class BattleManager : MonoBehaviour
         {
             bool endsHere = data.path != null && data.path.Length > 0
                 && data.path[data.path.Length - 1].col == actor.col && data.path[data.path.Length - 1].row == actor.row;
-            if (endsHere) { if (previewRoutine != null) { StopCoroutine(previewRoutine); previewRoutine = null; } previewActorId = null; skipMove = true; }
+            if (endsHere) { StopRoutine(ref previewRoutine); previewActorId = null; skipMove = true; }
             else UndoPreview();
         }
         else if (previewActorId != null)

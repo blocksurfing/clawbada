@@ -256,6 +256,7 @@ public class LobsterController : MonoBehaviour
     /// when it already ended at the destination), so they must not be silent.</summary>
     public IEnumerator MoveTo(int toCol, int toRow, float secondsPerHex)
     {
+        AbortMove();   // a walk still flagged here was cut off without its ending: tidy it before starting over
         var path = grid.FindPath(col, row, toCol, toRow);
         if (path.Count == 0 && (col != toCol || row != toRow))
         {
@@ -266,6 +267,7 @@ public class LobsterController : MonoBehaviour
         PlayState("Move");
         Debug.Log($"[LobsterController] move {className} {path.Count} hex @ {secondsPerHex:F2}s each");
         if (path.Count > 0) BattleSfx.StartMove();
+        Moving = true;
 
         foreach (var step in path)
         {
@@ -288,6 +290,7 @@ public class LobsterController : MonoBehaviour
             UpdateSortingOrder();
         }
 
+        Moving = false;
         BattleSfx.StopMove();
         // Where the walk ends (user 2026-09-30): Nzib's shockwave, small and faint — it marks the move landing (with
         // touch-move, the moment it became final) without the stomp a full ring on every hop would read as.
@@ -526,6 +529,26 @@ public class LobsterController : MonoBehaviour
             // reconnect, skipped tick): play the death now instead of just tinting it.
             StartCoroutine(PlayDeath(0.9f));
         }
+    }
+
+    /// <summary>True from the moment MoveTo starts the Move state and the movement loop until its walk ends.</summary>
+    public bool Moving { get; private set; }
+
+    /// <summary>A walk cut off mid-way — its coroutine stopped by a turn that arrived early, a SyncUnits after React's watchdog
+    /// released the HUD, a preview undo — never reaches the end of MoveTo, and Unity runs no finally on StopCoroutine. Left
+    /// alone, the rig loops its Move state on the spot and the shared movement sound loops until someone else walks (owner
+    /// 2026-10-24: an enemy stuck walking in place on the first turn, its footsteps only stopping when the player moved).
+    /// This is that missing ending: the loop stops, the rig lands on the last hex it reached and goes back to Idle.</summary>
+    public void AbortMove()
+    {
+        if (!Moving) return;
+        Moving = false;
+        BattleSfx.StopMove();
+        if (grid != null) { transform.position = grid.GetWorldPosition(col, row); UpdateSortingOrder(); }
+        Debug.Log($"[LobsterController] move {className} cut short at ({col},{row}) — loop stopped, back to Idle");
+        if (!alive || frozen) return;
+        FaceEnemySide();
+        PlayState("Idle");
     }
 
     /// <summary>Instant reposition (preview undo, server snap) with no walk animation.</summary>

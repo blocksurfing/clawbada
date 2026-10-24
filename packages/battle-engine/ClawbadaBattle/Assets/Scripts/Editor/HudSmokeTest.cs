@@ -96,7 +96,7 @@ public static class HudSmokeTest
             Check(mpFill != null && Mathf.Approximately(mpFill.fillAmount, 1f), "charge bar full at 3 charge");
             Check(hud.Panel.transform.Find("AvatarUI/ClassBackground/Portrait") != null, "portrait sits inside the class background's window");
             Check(hud.Clock.Running && hud.Clock.RemainingSeconds > 8f, "clock running from 15 s");
-            Check(hud.Banner.Visible, "banner visible");
+            Check(hud.ResultShown && hud.Result != null && hud.Result.Won, "player A won → Nzib's Victory screen up");
             var a1 = manager.GetLobster("A1");
             Check(a1.currentHp == 300 && a1.charge == 3 && a1.statuses.Count == 1 && a1.statuses[0].type == "bleed", "SyncUnits applied hp/charge/statuses");
             Check(manager.GetLobster("B1").alive == false, "SyncUnits marks B1 dead");
@@ -177,7 +177,8 @@ public static class HudSmokeTest
 
     private static BattleLobsterData Find(string id) => sample.Find(l => l.id == id);
 
-    private static BattleInitData SampleInit()
+    /// <summary>The 3v3 sample (player side A: Bulwark, Mantis, Sentinel; ResultScreenSmokeTest uses it too).</summary>
+    internal static BattleInitData SampleInit()
     {
         sample.Clear();
         int[] classes = { 0, 1, 5, 0, 1, 5 };

@@ -5,6 +5,7 @@ import type { Browser } from './cdp';
  * loading loop at once, the page in fullscreen, the loop held for at least 12 s, then the arena intro.
  *   bun cdp.ts entry-probe.ts                      # local stack (web :3000)
  *   BASE=https://clawbada-web.vercel.app bun cdp.ts entry-probe.ts
+ *   AUTO=1 bun cdp.ts entry-probe.ts                # autoplay the opening turns too: no walk cut off, no watchdog release
  */
 const OUT = process.env.OUT ?? `${import.meta.dir}/out`;
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3000';
@@ -28,7 +29,8 @@ export default async function (b: Browser) {
   const ok = (name: string, pass: boolean, detail = '') => { checks.push(`${pass ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`); };
 
   // A non-default team, so the summary line proves the page hydrated before the click.
-  await b.goto(`${BASE}/dojo?team=bulwark,leviathan,sentinel&tier=evolved&purity=2&bot=charger`);
+  const autoplay = !!process.env.AUTO;
+  await b.goto(`${BASE}/dojo?team=bulwark,leviathan,sentinel&tier=evolved&purity=2&bot=charger${autoplay ? '&auto=1' : ''}`);
   await b.waitFor(`document.body.innerText.includes('Bulwark · Leviathan · Sentinel, Evolved, purity 2')`, 60000, 250);
   await b.sleep(1500);
   ok('no overlay before the press', (await overlay(b)) === null);
@@ -112,8 +114,23 @@ export default async function (b: Browser) {
   let introDone = false;
   while (Date.now() - t1 < 60000) { if (b.allLogs.some((l) => /intro\w* ?(complete|done|finished)|IntroComplete/i.test(l))) { introDone = true; break; } await b.sleep(500); }
   ok('intro completed', introDone);
+  // Owner 2026-10-24: with the longer entry the 25 s intro watchdog fired before the intro ended, the bot's first turn landed
+  // mid-intro and its walk could be cut off (rig stuck walking in place, footsteps looping). Unity must report the end itself.
+  const introBy = b.allLogs.find((l) => /\[BattleStage\] intro complete \(/.test(l));
+  ok('intro end reported by Unity, not the safety watchdog', !!introBy && /\(unity\)/.test(introBy), introBy ?? 'no report');
   await b.sleep(introDone ? 2000 : 0);
   await b.screenshot(`${OUT}/entry-arena.png`);
+  if (autoplay) {
+    // A few opening turns, both sides walking: none may be released by the watchdog or cut off mid-walk.
+    const tTurns = Date.now();
+    const played = () => b.allLogs.filter((l) => /\[BattleBridge\] PlayTurn|\[BattleManager\] PlayTurn/.test(l)).length;
+    while (Date.now() - tTurns < 60000 && played() < 4) await b.sleep(500);
+    await b.sleep(4000);   // let the last of them finish
+    const walks = b.allLogs.filter((l) => /\[LobsterController\] move \w+ [1-9]/.test(l)).length;
+    const cut = b.allLogs.filter((l) => /cut short|releasing the HUD/.test(l));
+    ok('opening turns played after the intro', played() >= 4, `${played()} turns, ${walks} walks`);
+    ok('no walk cut off, no turn released by the watchdog', cut.length === 0, cut.slice(0, 2).join(' | '));
+  }
 
   for (const c of checks) console.log(c);
   const fails = checks.filter((c) => c.startsWith('FAIL')).length;

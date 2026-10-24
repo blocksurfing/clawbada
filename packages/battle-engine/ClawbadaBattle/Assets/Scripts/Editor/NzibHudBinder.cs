@@ -105,6 +105,7 @@ public static class NzibHudBinder
                      $" | order badges {nOrder}/6, class badges {nClass}/10, timer card {(skin.timerCardPrefab != null ? "✓" : "—")} states {nTimer}/4, settings {(skin.settingsNormal != null && skin.settingsPressed != null ? "✓" : "—")}, status badges {nStatus}/5";
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
+        ResultScreenBinder.Bind();
     }
 
     /// <summary>Read a slice's pixels straight from the PNG (the sheet is not import-readable).</summary>
