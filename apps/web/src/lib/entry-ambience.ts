@@ -7,21 +7,21 @@
  *   audio-masters/music/AMB_Loading_Breeze.wav  →  bun scripts/build-music.ts  →  /audio/music/AMB_Loading_Breeze.<hash>.m4a
  *   → ENTRY_AMBIENCE in arena-music.generated.ts (null today, so the entry is silent and says so in the console).
  *
- * It belongs to the battle, so it follows the BATTLE music preference and volume (the in-battle options menu's
- * Music row), exactly like the arena bed — not the site theme's toggle (user 2026-09-28: separate controls).
+ * It is AMBIENCE, so it follows the in-battle SFX switch and SFX volume (owner 2026-10-24) — not the Music row: with
+ * battle music off (the owner's own setting, 'off' / vol 30) the wind never started and "doesn't play at all".
  */
 import { ENTRY_AMBIENCE } from './arena-music.generated';
-import { BATTLE_MUSIC_EVENT, DEFAULT_BATTLE_MUSIC_VOL, VOLUME_EVENT, getBattleMusicPref, getBattleMusicVolume } from './audio-prefs';
+import { DEFAULT_SFX_VOL, SFX_EVENT, VOLUME_EVENT, getSfxPref, getSfxVolume } from './audio-prefs';
 
-/** The breeze's level at the DEFAULT battle volume (owner 2026-10-23: wind volume 95%); the volume row
- *  still scales it (0.95 × volume / 50), capped at full. */
+/** The breeze's level at the DEFAULT SFX volume (owner 2026-10-23: wind volume 95%); the SFX volume row
+ *  still scales it (0.95 × volume / 100). */
 const DEFAULT_GAIN = 0.95;
 /** Fade in with the loop, fade out at the hand-over (owner 2026-10-23: 1 s each). */
 export const BREEZE_FADE_IN_MS = 1000;
 export const BREEZE_FADE_OUT_MS = 1000;
 const CANCEL_FADE_MS = 300;
 
-const gain = () => Math.min(1, DEFAULT_GAIN * getBattleMusicVolume() / DEFAULT_BATTLE_MUSIC_VOL);
+const gain = () => Math.min(1, DEFAULT_GAIN * getSfxVolume() / DEFAULT_SFX_VOL);
 const log = (...a: unknown[]) => console.log('[EntryAmbience]', ...a);
 
 let audio: HTMLAudioElement | null = null;
@@ -76,7 +76,7 @@ export function startEntryAmbience(delayMs = 0) {
   active = true;
   (window as unknown as { __clawbadaEntryAmbience?: unknown }).__clawbadaEntryAmbience = { url: ENTRY_AMBIENCE, get audio() { return audio; } };
   if (!ENTRY_AMBIENCE) { log('no breeze track yet (AMB_Loading_Breeze) — the entry is silent'); return; }
-  if (!getBattleMusicPref()) { log('battle music is off — breeze not started'); return; }
+  if (!getSfxPref()) { log('sound effects are off — breeze not started'); return; }
   if (startTimer !== null) window.clearTimeout(startTimer);
   startTimer = window.setTimeout(play, delayMs);
 }
@@ -94,9 +94,9 @@ export function cancelEntryAmbience() {
   stopEntryAmbience(CANCEL_FADE_MS);
 }
 
-// Live reaction to the battle-music toggle and the volume row while the loop is up (the arena bed does the same).
+// Live reaction to the SFX toggle and the volume rows while the loop is up.
 if (typeof window !== 'undefined') {
-  window.addEventListener(BATTLE_MUSIC_EVENT, (e) => {
+  window.addEventListener(SFX_EVENT, (e) => {
     const on = (e as CustomEvent<'on' | 'off'>).detail === 'on';
     if (!active || !ENTRY_AMBIENCE) return;
     if (!on && audio && !audio.paused) { log('toggled off — fading out'); fadeTo(0, 600, () => audio?.pause()); }
