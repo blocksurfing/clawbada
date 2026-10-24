@@ -32,6 +32,9 @@ export default async function (b: Browser) {
   const autoplay = !!process.env.AUTO;
   await b.goto(`${BASE}/dojo?team=bulwark,leviathan,sentinel&tier=evolved&purity=2&bot=charger${autoplay ? '&auto=1' : ''}`);
   await b.waitFor(`document.body.innerText.includes('Bulwark · Leviathan · Sentinel, Evolved, purity 2')`, 60000, 250);
+  // With audio on, use the owner's own settings (2026-10-24: battle music OFF, its volume 30, SFX on): the wind is
+  // ambience and follows the SFX switch, so it must play anyway — it never started while it followed the Music row.
+  if (process.env.AUDIO) await b.eval(`(() => { localStorage.setItem('clawbada_battle_music', 'off'); localStorage.setItem('clawbada_battle_music_vol', '30'); localStorage.setItem('clawbada_sfx', 'on'); localStorage.removeItem('clawbada_sfx_vol'); })()`);
   await b.sleep(1500);
   ok('no overlay before the press', (await overlay(b)) === null);
 
@@ -64,7 +67,7 @@ export default async function (b: Browser) {
   const audioOn = !!process.env.AUDIO;
   const air = await breeze(b);
   const airDetail = !air ? 'no handle' : air.url === null ? 'no AMB_Loading_Breeze master yet — silent' : `${air.url.split('/').pop()} ${air.playing ? 'playing' : 'paused'}, volume ${air.volume?.toFixed(3)}`;
-  ok(audioOn ? 'breeze playing with the loop (audio on)' : 'breeze silent while muted', !!air && (air.url === null || (audioOn ? air.playing && (air.volume ?? 1) <= 0.96 : !air.playing)), airDetail);
+  ok(audioOn ? 'breeze playing with the loop (audio on, battle music off — it follows SFX)' : 'breeze silent while muted', !!air && (air.url === null || (audioOn ? air.playing && (air.volume ?? 1) <= 0.96 : !air.playing)), airDetail);
   await b.screenshot(`${OUT}/entry-loading.png`);
 
   const navigated = await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 60000);
