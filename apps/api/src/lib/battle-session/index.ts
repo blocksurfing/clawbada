@@ -10,9 +10,12 @@ import { readBattle, readLobster, readTeam } from '../chain';
 import { battleWS } from '../ws';
 import { getLayoutById } from '../../data/arenas';
 import { BattleSessionManager, DEFAULT_BOT_THINK_MS, DEFAULT_FIRST_TURN_GRACE_MS, DEFAULT_POLL_MS, DEFAULT_SHOT_CLOCK_MS } from './manager';
-/** Production wait for the players' `ready` (battle-start intro); the manager's own default is 0 (tests). The intro
- *  runs ~13 s on top of Unity's load (user 2026-09-29), so the cap leaves room for both. */
-const START_WAIT_MS = 30_000;
+/** Production wait for the players' `ready` (battle-start intro); the manager's own default is 0 (tests). Counted from
+ *  the session's creation (the Train press), it must cover the whole entry: the web loading loop (12 s), Unity's load and
+ *  training-scene hold (15 s, PR #225) and the intro (~13 s) — ~40 s or more. At 30 s the battle started before the intro
+ *  ended (production 2026-10-24: Unity got turn > 0 at InitBattle and skipped the intro; turns raced the loading scene).
+ *  Matches the web's INTRO_WATCHDOG_MS (BattleStage.tsx). */
+const START_WAIT_MS = 60_000;
 import { SessionStore } from './store';
 
 export * from './protocol';
