@@ -37,7 +37,8 @@ vercel deploy --prod --yes     # production → https://clawbada-web.vercel.app
   (gitignored) and ships because `.vercelignore` (tracked, root) replaces `.gitignore`
   for CLI uploads. Same anchoring rule as above.
 - Production env: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL` (`wss://…/ws`),
-  `NEXT_PUBLIC_PRACTICE_PRESETS=true`. `NEXT_PUBLIC_*` values are baked in at build
+  `NEXT_PUBLIC_PRACTICE_PRESETS=true` (Shell sample lobsters; the Dojo's review presets are dev-only since
+  2026-10-24 regardless). `NEXT_PUBLIC_*` values are baked in at build
   time — change them, then redeploy.
 - Pushes to `main` do NOT deploy production (Ignored Build Step); the CLI deploy is
   the production path.
