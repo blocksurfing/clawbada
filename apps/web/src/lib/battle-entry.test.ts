@@ -27,7 +27,7 @@ describe('battle entry store', () => {
     markUnityLoadingShown();
     expect(getEntryState().phase).toBe('web');
     expect(getEntryState().unityShown).toBe(true);
-    // Still held well before 4.5 s.
+    // Still held well before the hold ends.
     await sleep(50);
     expect(getEntryState().phase).toBe('web');
   });
@@ -40,8 +40,8 @@ describe('battle entry store', () => {
     expect(getEntryState().unityShown).toBe(true);
   });
 
-  test('constants: the hold is the spec\'s 4.5 s; the way in is slower than the way out', () => {
-    expect(ENTRY_HOLD_MS).toBe(4500);
+  test('constants: the Shifu hold is 12 s; the way in is slower than the way out', () => {
+    expect(ENTRY_HOLD_MS).toBe(12000);
     expect(ENTRY_CURTAIN_MS + ENTRY_REVEAL_MS).toBeGreaterThan(ENTRY_FADE_MS);
   });
 
