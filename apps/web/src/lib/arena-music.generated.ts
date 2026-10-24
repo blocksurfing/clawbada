@@ -8,4 +8,4 @@ export const ARENA_MUSIC: Record<ArenaTier, string | null> = {
   dojo: "/audio/music/BGM_Arena_Evolved.88373004.m4a",   // no dojo master yet: the evolved track stands in
 };
 /** The breeze under the web loading loop (lib/entry-ambience.ts). null = no AMB_Loading_Breeze.wav master yet: the entry is silent. */
-export const ENTRY_AMBIENCE: string | null = "/audio/music/AMB_Loading_Breeze.6fbe76af.m4a";
+export const ENTRY_AMBIENCE: string | null = "/audio/music/AMB_Loading_Breeze.8d60b59d.m4a";
