@@ -91,8 +91,11 @@ describe() { gcloud run services describe "$SERVICE" --project "$GCP_PROJECT" --
 URL="$(describe status.url)"
 REVISION="$(describe status.latestReadyRevisionName)"
 SERVING_IMAGE="$(gcloud run revisions describe "$REVISION" --project "$GCP_PROJECT" --region "$GCP_REGION" --format 'value(spec.containers[0].image)')"
-if [ "$SERVING_IMAGE" != "$IMAGE" ]; then
-  echo "deploy-api: latest ready revision ${REVISION} runs ${SERVING_IMAGE}, not ${IMAGE}" >&2
+# Cloud Run may report the image by digest (repo@sha256:…) rather than by the tag we deployed (seen 2026-10-24 on
+# revision clawbada-api-00006-pph): resolve the tag's digest and accept either spelling.
+IMAGE_DIGEST="$(gcloud artifacts docker images describe "$IMAGE" --format 'value(image_summary.digest)' 2>/dev/null)"
+if [ "$SERVING_IMAGE" != "$IMAGE" ] && { [ -z "$IMAGE_DIGEST" ] || [ "$SERVING_IMAGE" != "${IMAGE%:*}@${IMAGE_DIGEST}" ]; }; then
+  echo "deploy-api: latest ready revision ${REVISION} runs ${SERVING_IMAGE}, not ${IMAGE}${IMAGE_DIGEST:+ (${IMAGE_DIGEST})}" >&2
   exit 1
 fi
 deadline=$(( $(date +%s) + HEALTH_TIMEOUT_SEC ))
