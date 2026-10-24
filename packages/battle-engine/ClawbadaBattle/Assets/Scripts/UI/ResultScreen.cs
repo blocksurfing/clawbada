@@ -34,7 +34,7 @@ public class ResultScreen : MonoBehaviour
     /// <summary>The result takes centre stage (owner 2026-10-24): Nzib's DimOverlay (black at 35 %) is deepened to this, so the
     /// frozen board behind — and the other side's lobsters on it — recede. Faded in over <see cref="DimFadeSeconds"/>.</summary>
     public const float DimAlpha = 0.8f;
-    public const float DimFadeSeconds = 0.25f;
+    public const float DimFadeSeconds = 1f;   // owner 2026-10-24: a quarter second was jarring
     /// <summary>A defeated body: greyed but readable over the dim (the battle's CorpseTint is nearly invisible here).</summary>
     private static readonly Color BodyTint = new Color(0.58f, 0.58f, 0.66f, 1f);
 
