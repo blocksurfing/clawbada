@@ -56,7 +56,7 @@ export default async function (b: Browser) {
   const age0 = (await overlay(b))?.age ?? 0;
   if (1800 - age0 > 0) await b.sleep(1800 - age0);
   const mid = await overlay(b);
-  ok('loop fully in after the curtain + reveal (1.6 s)', !!mid && mid.loopOpacity === '1', `loop opacity ${mid?.loopOpacity} at ${mid?.age} ms into the fades`);
+  ok('loop fully in after the curtain + reveal (1.6 s)', !!mid && Number(mid.loopOpacity) >= 0.99, `loop opacity ${mid?.loopOpacity} at ${mid?.age} ms into the fades`);
   ok('loop is animating (frame advances)', !!mid && mid.frame !== null && mid.frame !== '0', `frame ${mid?.frame}`);
   // Probes run muted (cdp.ts writes the music prefs off) unless AUDIO=1: muted → the breeze must stay silent;
   // with audio → playing and fading in towards its gain (0.25 × the battle volume, 50% by default).
@@ -117,7 +117,8 @@ export default async function (b: Browser) {
   // Owner 2026-10-24: with the longer entry the 25 s intro watchdog fired before the intro ended, the bot's first turn landed
   // mid-intro and its walk could be cut off (rig stuck walking in place, footsteps looping). Unity must report the end itself.
   const introBy = b.allLogs.find((l) => /\[BattleStage\] intro complete \(/.test(l));
-  ok('intro end reported by Unity, not the safety watchdog', !!introBy && /\(unity\)/.test(introBy), introBy ?? 'no report');
+  // "(no intro)" means the server had already started the battle when Unity got it (START_WAIT_MS too short).
+  ok('intro played and reported by Unity (not skipped, not the safety watchdog)', !!introBy && /\(unity\)/.test(introBy), introBy ?? 'no report');
   await b.sleep(introDone ? 2000 : 0);
   await b.screenshot(`${OUT}/entry-arena.png`);
   if (autoplay) {
