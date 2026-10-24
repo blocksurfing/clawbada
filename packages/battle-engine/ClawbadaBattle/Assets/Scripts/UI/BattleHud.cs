@@ -40,6 +40,13 @@ public class BattleHud : MonoBehaviour
         else Clock.StopClock();
     }
     public ResultBanner Banner { get; private set; }
+    /// <summary>Nzib's Victory / Defeat screen with the player's team, while it is up (null otherwise).</summary>
+    public ResultScreen Result { get; private set; }
+    /// <summary>Any end-of-battle read is on screen: the result screen, or the plain banner (draw, spectator, no prefab).</summary>
+    public bool ResultShown => Result != null || (Banner != null && Banner.Visible);
+    /// <summary>The result screen waits this long after the battle ends, so the board's last death reads first.</summary>
+    public const float ResultDelay = 0.6f;
+    private Coroutine pendingResult;
     public ActiveMarker Marker { get; private set; }
     public ActionBar Bar { get; private set; }
     /// <summary>Every lobster's avatar portrait, taken once when the battle binds.</summary>
@@ -133,7 +140,7 @@ public class BattleHud : MonoBehaviour
         Skin = skin;
         cam = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
         ppc = cam != null ? cam.GetComponent("PixelPerfectCamera") as Behaviour : null;
-        if (cam != null) cam.cullingMask &= ~(1 << PortraitSnapshot.Layer);   // avatar portraits render on their own
+        if (cam != null) cam.cullingMask &= ~(1 << PortraitSnapshot.Layer | 1 << ResultScreen.StageLayer);   // portraits and the result team render on their own
         ApplyCameraMode();
 
         HudFactory.EnsureEventSystem();
@@ -289,6 +296,7 @@ public class BattleHud : MonoBehaviour
 
     void OnDestroy()
     {
+        if (Result != null) Result.Dismiss();   // its own root object: it would outlive the HUD
         if (manager == null) return;
         manager.Initialized -= Bind;
         manager.TurnStarted -= OnTurnStarted;
@@ -337,6 +345,7 @@ public class BattleHud : MonoBehaviour
         TargetMarker?.Hide();
         SetClock(0);
         Banner.Hide();
+        DismissResult();
         Marker.Hide();
         Bar.Apply(null);
         Debug.Log($"[BattleHud] bind n={bound} ids={ids}");
@@ -453,7 +462,7 @@ public class BattleHud : MonoBehaviour
         SetClock(0);
         Marker.Hide();
         Bar.Apply(null);
-        ShowBanner(data.winner, data.playerWon, data.reason, manager.PlayerSide);
+        ShowBanner(data.winner, data.playerWon, data.reason, manager.PlayerSide, ResultDelay);
     }
 
     // ─── Battle-start intro (BattleIntro) ───
@@ -517,12 +526,65 @@ public class BattleHud : MonoBehaviour
         Teams.Refresh();
     }
 
-    public void ShowBanner(string winner, bool playerWon, string reason, string playerSide)
+    /// <summary>The end-of-battle read. A participant's win or loss raises Nzib's Victory / Defeat screen with their team
+    /// (after <paramref name="delay"/> seconds); a draw, a spectator, or a skin without the prefabs gets the plain banner.</summary>
+    public void ShowBanner(string winner, bool playerWon, string reason, string playerSide, float delay = 0f)
     {
         // The banner means the battle is decided, whoever raised it (live end, demo loop, test):
         // there is nothing left to forfeit.
         Options.SetAvailable(false);
-        Banner.Show(winner, playerWon, reason, playerSide);
+        bool participant = playerSide == "A" || playerSide == "B";
+        var prefab = playerWon ? Skin.victoryScreenPrefab : Skin.defeatScreenPrefab;
+        if (winner == "draw" || !participant || prefab == null)
+        {
+            Banner.Show(winner, playerWon, reason, playerSide);
+            return;
+        }
+        DismissResult();
+        // Same line ResultBanner logs: the harness probes read it as "the battle is over".
+        Debug.Log($"[BattleHud] banner {(playerWon ? "VICTORY" : "DEFEAT")} {reason}");
+        pendingResult = StartCoroutine(RaiseResult(winner, playerWon, reason, playerSide, delay));
+    }
+
+    private System.Collections.IEnumerator RaiseResult(string winner, bool playerWon, string reason, string playerSide, float delay)
+    {
+        if (delay > 0f) yield return new WaitForSeconds(delay);
+        pendingResult = null;
+        Result = ResultScreen.Show(playerWon, PlayerTeam(playerSide), Skin, manager != null ? manager.vfxLibrary : null);
+        if (Result == null) { Banner.Show(winner, playerWon, reason, playerSide); yield break; }
+        Banner.Hide();
+        Canvas.enabled = false;   // the screen's dim, banner and team only; the web's return row stays over the canvas
+        Debug.Log($"[BattleHud] result screen {(playerWon ? "VICTORY" : "DEFEAT")} {reason}");
+    }
+
+    /// <summary>The player's lobsters in slot order (the init payload's team order), whatever state they ended in.</summary>
+    private List<LobsterController> PlayerTeam(string playerSide)
+    {
+        var team = new List<LobsterController>();
+        if (manager == null) return team;
+        var init = manager.InitData;
+        var data = init == null ? null : playerSide == "B" ? init.teamB : init.teamA;
+        if (data != null)
+        {
+            foreach (var d in data)
+            {
+                var lob = d != null ? manager.GetLobster(d.id) : null;
+                if (lob != null) team.Add(lob);
+            }
+        }
+        if (team.Count == 0)   // demo loop / tests without an init payload: by side
+            foreach (var lob in manager.Lobsters) if (lob != null && lob.side == playerSide) team.Add(lob);
+        return team;
+    }
+
+    /// <summary>Take the result screen down (a new battle binding, a re-init) and bring the HUD back.</summary>
+    public void DismissResult()
+    {
+        if (pendingResult != null) { StopCoroutine(pendingResult); pendingResult = null; }
+        if (Result == null) return;
+        Result.Dismiss();
+        Result = null;
+        if (Canvas != null) Canvas.enabled = true;
     }
 
     public void SpawnFloatFor(LobsterController lob, string text, Color color, int fontSize)

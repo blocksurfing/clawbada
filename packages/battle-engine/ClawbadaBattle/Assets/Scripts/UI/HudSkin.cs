@@ -101,6 +101,14 @@ public class HudSkin : ScriptableObject
     [Tooltip("Status badges (Avatar/StatusBadge.png, drop 36c7068): Defense, ArmorBuff, Bleeding, Debuff, BlockedTurn.")]
     public Sprite statusDefense, statusArmorBuff, statusBleeding, statusDebuff, statusBlockedTurn;
 
+    [Header("Nzib's result screens — drop 93e213e (2026-10-24; Clawbada/HUD/Bind Result Screens)")]
+    [Tooltip("Assets/Prefabs/UI/VictoryScreen/VictoryScreen.prefab: overlay canvas, banner, trumpets, stars, PopIn.")]
+    public GameObject victoryScreenPrefab;
+    [Tooltip("Assets/Prefabs/UI/DefeatScreen/DefeatScreen.prefab: overlay canvas, banner, flags, skull, PopIn.")]
+    public GameObject defeatScreenPrefab;
+    [Tooltip("Assets/Art/UI/DefeatScreen/FloatingSkull.png: the small skull that drifts up from the defeated team. Empty until drawn.")]
+    public Sprite floatingSkull;
+
     /// <summary>Nzib's badge for a game status (user-approved mapping, 2026-09-30), or null when it has none.
     /// Fortify / shield / reflect are all "armor buff"; haunt and slow are "debuff"; stun is "blocked turn".</summary>
     public Sprite StatusBadge(string status)

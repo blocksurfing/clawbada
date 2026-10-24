@@ -132,6 +132,9 @@ MonoBehaviour:
   statusBleeding: {fileID: 142138782375212939, guid: aa5787cac36b6fb41a37d6d497a4a724, type: 3}
   statusDebuff: {fileID: -4856763431754460118, guid: aa5787cac36b6fb41a37d6d497a4a724, type: 3}
   statusBlockedTurn: {fileID: 2331562523815786112, guid: aa5787cac36b6fb41a37d6d497a4a724, type: 3}
+  victoryScreenPrefab: {fileID: 6039023449308025807, guid: 79afb2934b8f10f4da77045baf58676b, type: 3}
+  defeatScreenPrefab: {fileID: 7583874211102567366, guid: 50e36b3695295d343ac3fcf0a7b337ae, type: 3}
+  floatingSkull: {fileID: 0}
   cardFrame: {fileID: 21300000, guid: 22a19b238309e443eb0e5294fe0ebfcb, type: 3}
   cardHeader: {fileID: 21300000, guid: 9e9164114ed374d988f13e03c4c4a70a, type: 3}
   pennant: {fileID: 21300000, guid: 9d8c0ae792c9649fead6141e3708912b, type: 3}
