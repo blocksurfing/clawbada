@@ -69,9 +69,11 @@ export interface BattleStageProps {
   onIntroMusic?: () => void;
 }
 
-/** If Unity never reports the intro's end (an old build, an error), carry on after this long. The intro itself runs
- *  ~13 s (user 2026-09-29), so this must sit well above that. */
-const INTRO_WATCHDOG_MS = 25_000;
+/** If Unity never reports the intro's end (an old build, an error), carry on after this long. Counted from InitBattle,
+ *  which now comes BEFORE Unity's training-scene hold (LoadingScreenController.MinHoldSeconds = 15 s, PR #225) and the
+ *  intro itself (~13 s, user 2026-09-29): ~28–30 s on a good day. At 25 s it fired before the intro ended, so the bot's
+ *  first turn arrived mid-intro and its walk could be cut off (owner 2026-10-24). Must sit well above the whole thing. */
+const INTRO_WATCHDOG_MS = 60_000;
 
 export interface BattleStageControls {
   toggleFullscreen: () => void;
@@ -215,11 +217,16 @@ function UnityStage(props: BattleStageProps) {
 
   const introReported = useRef(false);
   const introWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** A turn sent while the intro still plays: Unity holds it until the intro ends, so its animation watchdog starts then. */
+  const heldTurnWatchdog = useRef<(() => void) | null>(null);
   const reportIntro = useCallback((why: string) => {
     if (introWatchdog.current) { clearTimeout(introWatchdog.current); introWatchdog.current = null; }
     if (introReported.current) return;
     introReported.current = true;
     console.log(`[BattleStage] intro complete (${why})`);
+    const held = heldTurnWatchdog.current;
+    heldTurnWatchdog.current = null;
+    held?.();
     props.onIntroComplete?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.onIntroComplete]);
@@ -363,12 +370,19 @@ function UnityStage(props: BattleStageProps) {
     // releasing the HUD mid-hold so the next turn's routine ran on top of the previous one —
     // three Fortify domes on screen at once. Stretch it for speeds below 1; never shorten it.
     const watchdogMs = Math.round(ANIMATION_WATCHDOG_MS / Math.min(1, props.speed && props.speed > 0 ? props.speed : 1));
-    watchdog.current = setTimeout(() => {
-      if (animating.current !== turn) return;
-      console.warn(`[BattleStage] Unity did not report turn ${turn} animation complete within ${watchdogMs}ms — releasing the HUD`);
-      animating.current = null;
-      props.onTurnAnimationComplete(turn);
-    }, watchdogMs);
+    const arm = () => {
+      if (watchdog.current) clearTimeout(watchdog.current);
+      watchdog.current = setTimeout(() => {
+        if (animating.current !== turn) return;
+        console.warn(`[BattleStage] Unity did not report turn ${turn} animation complete within ${watchdogMs}ms — releasing the HUD`);
+        animating.current = null;
+        props.onTurnAnimationComplete(turn);
+      }, watchdogMs);
+    };
+    // Unity holds a turn that lands during the intro (BattleManager.DeferDuringIntro) and plays it when the intro ends.
+    // Timing it from now released the HUD mid-walk and the SyncUnits that followed cut the walk off (owner 2026-10-24).
+    if (introReported.current) arm();
+    else { heldTurnWatchdog.current = arm; console.log(`[BattleStage] turn ${turn} sent during the intro — its watchdog starts when the intro ends`); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, props.nextToAnimate, send]);
 
