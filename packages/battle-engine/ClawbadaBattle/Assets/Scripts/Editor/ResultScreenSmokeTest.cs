@@ -81,6 +81,7 @@ public static class ResultScreenSmokeTest
         var canvas = screen.GetComponent<Canvas>();
         Check(canvas != null && canvas.renderMode == RenderMode.ScreenSpaceOverlay && canvas.sortingOrder > hud.Canvas.sortingOrder, "its canvas draws over the HUD's");
         Check(!hud.Canvas.enabled, "HUD canvas hidden while the result is up");
+        Check(screen.Dim != null && Mathf.Approximately(screen.Dim.color.a, ResultScreen.DimAlpha), $"the board behind is dimmed to {ResultScreen.DimAlpha:P0} (got {(screen.Dim != null ? screen.Dim.color.a : -1f):F2})");
         Check(screen.GetComponent<Animator>() != null && screen.GetComponent<Animator>().runtimeAnimatorController != null, "Nzib's PopIn animator kept");
         Check(screen.Rigs.Count == 3 && screen.Rigs.All(a => a != null && a.enabled), $"three live rigs on the stage (got {screen.Rigs.Count})");
         string got = string.Join(",", screen.Rigs.Select(a => ClassOf(a.gameObject.name, want)));

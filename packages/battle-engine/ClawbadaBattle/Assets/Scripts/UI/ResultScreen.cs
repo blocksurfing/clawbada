@@ -31,6 +31,10 @@ public class ResultScreen : MonoBehaviour
     /// <summary>Feet line, in pixels up from the strip's bottom edge (room for the shadow and the landing squash).</summary>
     private const float FeetPx = 18f;
     private const float SpacingPx = 80f;
+    /// <summary>The result takes centre stage (owner 2026-10-24): Nzib's DimOverlay (black at 35 %) is deepened to this, so the
+    /// frozen board behind — and the other side's lobsters on it — recede. Faded in over <see cref="DimFadeSeconds"/>.</summary>
+    public const float DimAlpha = 0.8f;
+    public const float DimFadeSeconds = 0.25f;
     /// <summary>A defeated body: greyed but readable over the dim (the battle's CorpseTint is nearly invisible here).</summary>
     private static readonly Color BodyTint = new Color(0.58f, 0.58f, 0.66f, 1f);
 
@@ -76,6 +80,7 @@ public class ResultScreen : MonoBehaviour
         var screen = go.AddComponent<ResultScreen>();
         screen.Won = won;
         screen.skull = skin.floatingSkull;
+        screen.DeepenDim();
         screen.BuildStage(team, vfx != null ? vfx.characterShadow : null);
         Debug.Log($"[ResultScreen] {go.name} with {screen.rigs.Count} lobster(s){(won ? "" : screen.skull != null ? ", skulls on" : ", no floating-skull sprite yet")}");
         return screen;
@@ -155,6 +160,29 @@ public class ResultScreen : MonoBehaviour
             if (Won) StartCoroutine(VictoryLoop(i, i * 0.25f));
             else StartCoroutine(Defeat(i, x, i * 0.15f));
         }
+    }
+
+    /// <summary>The dim layer Nzib authored (null if the prefab lost it).</summary>
+    public Image Dim { get; private set; }
+
+    private void DeepenDim()
+    {
+        Dim = transform.Find("DimOverlay")?.GetComponent<Image>();
+        if (Dim == null) { Debug.LogWarning("[ResultScreen] no DimOverlay in the prefab — board not dimmed"); return; }
+        var c = Dim.color;
+        Dim.color = new Color(c.r, c.g, c.b, Application.isPlaying ? c.a : DimAlpha);
+        if (Application.isPlaying) StartCoroutine(FadeDim(c.a));
+    }
+
+    private IEnumerator FadeDim(float from)
+    {
+        var c = Dim.color;
+        for (float t = 0f; t < DimFadeSeconds; t += Time.deltaTime)
+        {
+            Dim.color = new Color(c.r, c.g, c.b, Mathf.Lerp(from, DimAlpha, t / DimFadeSeconds));
+            yield return null;
+        }
+        Dim.color = new Color(c.r, c.g, c.b, DimAlpha);
     }
 
     /// <summary>The battle rig, cloned and stripped to its body parts in their own colours, standing on
