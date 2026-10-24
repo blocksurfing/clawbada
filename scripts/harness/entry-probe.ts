@@ -54,7 +54,8 @@ export default async function (b: Browser) {
   await b.screenshot(`${OUT}/entry-curtain.png`);
   // Sample 1.8 s into the overlay's own fades (curtain 0.7 + reveal 0.9 = 1.6 s), not the press: the overlay can appear late.
   const age0 = (await overlay(b))?.age ?? 0;
-  if (1800 - age0 > 0) await b.sleep(1800 - age0);
+  // 2.0 s, not 1.8: headless Chrome starts the transitions a little late (it read 0.989 / 0.997 at ~1.8 s on production).
+  if (2000 - age0 > 0) await b.sleep(2000 - age0);
   const mid = await overlay(b);
   ok('loop fully in after the curtain + reveal (1.6 s)', !!mid && Number(mid.loopOpacity) >= 0.99, `loop opacity ${mid?.loopOpacity} at ${mid?.age} ms into the fades`);
   ok('loop is animating (frame advances)', !!mid && mid.frame !== null && mid.frame !== '0', `frame ${mid?.frame}`);
