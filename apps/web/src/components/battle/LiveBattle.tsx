@@ -74,7 +74,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   // The intro's music beat (the teams just landed) starts it with a slow creep-in; intro complete / a skip covers an
   // older Unity build that never sends the beat.
   useArenaMusic(snapshot?.session.tier, (gate && (introMusic || introDone)) || unityAvailable === false, !!ended,
-    introMusic ? INTRO_FADE_IN_MS : undefined);
+    introMusic ? INTRO_FADE_IN_MS : undefined, snapshot?.session.id);
   // Tell the server this player is watching: a fresh battle's first turn waits for it (user 2026-09-28).
   const readySent = useRef(false);
   useEffect(() => {
