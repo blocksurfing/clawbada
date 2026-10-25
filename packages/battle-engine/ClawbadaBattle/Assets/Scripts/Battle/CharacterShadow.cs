@@ -21,7 +21,7 @@ public class CharacterShadow : MonoBehaviour
     private LobsterController target;
     private SpriteRenderer sr;
     private float alpha = 1f, baseAlpha = 1f;
-    /// <summary>A dead lobster's shadow fades out (Nzib 2026-09-30: it stayed on the board after the body went).</summary>
+    /// <summary>A shadow fades out once its body is gone (Nzib 2026-09-30: it stayed on the board after the body went).</summary>
     public const float DeathFadeSeconds = 0.5f;
 
     public static CharacterShadow Attach(LobsterController lobster, GameObject prefab)
@@ -51,7 +51,9 @@ public class CharacterShadow : MonoBehaviour
         Vector3 ground = target.ShadowGround ?? root.position;
         transform.position = new Vector3(ground.x, ground.y + Offset.y * Mathf.Abs(s.y), 0f);
         transform.localScale = new Vector3(Mathf.Abs(s.x) * k, Mathf.Abs(s.y) * k, 1f);
-        alpha = Mathf.MoveTowards(alpha, target.alive ? 1f : 0f, Time.deltaTime / DeathFadeSeconds);
+        // The shadow goes with the body: a corpse that stays on the board (owner 2026-10-25, with Nzib's ghost) keeps it;
+        // it fades only once the body itself is gone (Nzib 2026-09-30: it stayed on the board after the body went).
+        alpha = Mathf.MoveTowards(alpha, target.alive || !target.CorpseGone ? 1f : 0f, Time.deltaTime / DeathFadeSeconds);
         if (sr != null)
         {
             sr.enabled = target.gameObject.activeInHierarchy && s.x != 0f && k > 0f && alpha > 0f;
