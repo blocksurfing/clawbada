@@ -108,6 +108,8 @@ public class HudSkin : ScriptableObject
     public GameObject defeatScreenPrefab;
     [Tooltip("Assets/Art/UI/DefeatScreen/FloatingSkull.png: the small skull that drifts up from the defeated team. Empty until drawn.")]
     public Sprite floatingSkull;
+    [Tooltip("Assets/Prefabs/VFX/Death/Ghost/GhostDeath.prefab (Nzib, drop e79e946): the ghost that comes out of each defeated lobster on the Defeat screen.")]
+    public GameObject resultGhostPrefab;
 
     /// <summary>Nzib's badge for a game status (user-approved mapping, 2026-09-30), or null when it has none.
     /// Fortify / shield / reflect are all "armor buff"; haunt and slow are "debuff"; stun is "blocked turn".</summary>

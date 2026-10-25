@@ -957,10 +957,7 @@ public class BattleManager : MonoBehaviour
         Debug.Log($"[BattleManager] heal events ×{data.heals.Length} → restored {restored} HP" + (restored > 0 ? "" : " (silent)"));
     }
 
-    /// <summary>Fade corpses off the board `corpseTurns` after death. OFF since Nzib's death ghost (owner 2026-10-25): the
-    /// darkened body stays for the battle with its ghost hovering over it. Was on (user 2026-09-27: keep the field clean).</summary>
-    public bool fadeCorpses = false;
-    /// <summary>Turns a corpse stays on the board after the turn it died on, before fading away (when fadeCorpses is on).</summary>
+    /// <summary>Turns a corpse stays on the board after the turn it died on, before fading away.</summary>
     public int corpseTurns = 2;
     public float corpseFadeSeconds = 0.6f;
 
@@ -972,7 +969,7 @@ public class BattleManager : MonoBehaviour
         {
             if (lob == null || lob.alive || lob.CorpseGone) continue;
             if (lob.diedOnTurn < 0) { lob.diedOnTurn = turn - 1; continue; }   // died on the turn just played (or already dead on reconnect)
-            if (fadeCorpses && turn > lob.diedOnTurn + corpseTurns) StartCoroutine(lob.FadeAwayCorpse(corpseFadeSeconds));
+            if (turn > lob.diedOnTurn + corpseTurns) StartCoroutine(lob.FadeAwayCorpse(corpseFadeSeconds));
         }
     }
 

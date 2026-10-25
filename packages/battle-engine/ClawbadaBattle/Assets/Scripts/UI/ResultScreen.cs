@@ -8,8 +8,10 @@ using UnityEngine.UI;
 /// from the battle standing under the banner (user 2026-10-24):
 ///   Victory — each lobster plays Attack then Jump, looping until the page leaves. Only the Mantis rigs have a Jump state; the
 ///             others hop in code (anticipation squash, arc with stretch, landing squash). A Jump clip added later is used as is.
-///   Defeat  — each lobster plays Die once and stays down; small skulls drift up from the bodies on a slow loop ("z z Z"),
-///             drawn from HudSkin.floatingSkull — empty until Nzib draws it, so the bodies lie still until then.
+///   Defeat  — each lobster plays Die once and stays down, darkened but solid, and then Nzib's ghost (drop e79e946,
+///             HudSkin.resultGhostPrefab) comes out of the body and hovers over it (Nzib / owner 2026-10-25: "don't make the
+///             character transparent, just make it darker, and then the ghost comes out" — on this screen, not the board).
+///             Small skulls can also drift up ("z z Z") from HudSkin.floatingSkull, empty unless Nzib draws one.
 /// The prefab is a Screen Space Overlay canvas and world sprites cannot draw over one, so the team stands on a stage of its
 /// own off the board (layer <see cref="StageLayer"/>, which the main camera never draws) and a private camera renders it, at
 /// the board's 64 px per unit and point-filtered, into a texture shown under the banner. The copies are the battle rigs
@@ -36,7 +38,9 @@ public class ResultScreen : MonoBehaviour
     public const float DimAlpha = 0.8f;
     public const float DimFadeSeconds = 1f;   // owner 2026-10-24: a quarter second was jarring
     /// <summary>A defeated body: greyed but readable over the dim (lighter than the battle's CorpseTint, which would sink into the 80 % dim).</summary>
-    private static readonly Color BodyTint = new Color(0.58f, 0.58f, 0.66f, 1f);
+    private static readonly Color BodyTint = new Color(0.42f, 0.42f, 0.5f, 1f);   // Nzib 2026-10-25: darker, never transparent
+    /// <summary>Pause between the body settling and its ghost coming out.</summary>
+    public const float GhostDelay = 0.25f;
 
     /// <summary>The team's feet line in canvas units (the strip's top is transparent headroom for the hop).</summary>
     public static float FeetY => StripPos.y - StripH * 0.5f + FeetPx;
@@ -47,6 +51,8 @@ public class ResultScreen : MonoBehaviour
     public IReadOnlyList<Animator> Rigs => rigs;
     /// <summary>Copies currently mid code-hop (tests).</summary>
     public int Hopping { get; private set; }
+    /// <summary>Ghosts risen so far, left to right (tests).</summary>
+    public IReadOnlyList<GameObject> Ghosts => ghosts;
     /// <summary>Skulls drifting right now (tests).</summary>
     public int SkullsInFlight { get; private set; }
     public RenderTexture Texture => texture;
@@ -61,6 +67,10 @@ public class ResultScreen : MonoBehaviour
     private RawImage strip;
     private RectTransform skullLayer;
     private Sprite skull;
+    private GameObject ghostPrefab;
+    private readonly List<GameObject> ghosts = new();
+    /// <summary>Each rig's body centre above its feet (LobsterController.BodyCenter), where its ghost comes out.</summary>
+    private readonly List<float> bodyHeights = new();
 
     private static readonly int IdleHash = Animator.StringToHash("Idle");
     private static readonly int AttackHash = Animator.StringToHash("Attack");
@@ -80,9 +90,10 @@ public class ResultScreen : MonoBehaviour
         var screen = go.AddComponent<ResultScreen>();
         screen.Won = won;
         screen.skull = skin.floatingSkull;
+        screen.ghostPrefab = skin.resultGhostPrefab;
         screen.DeepenDim();
         screen.BuildStage(team, vfx != null ? vfx.characterShadow : null);
-        Debug.Log($"[ResultScreen] {go.name} with {screen.rigs.Count} lobster(s){(won ? "" : screen.skull != null ? ", skulls on" : ", no floating-skull sprite yet")}");
+        Debug.Log($"[ResultScreen] {go.name} with {screen.rigs.Count} lobster(s){(won ? "" : screen.ghostPrefab != null ? ", ghosts on" : ", no ghost prefab bound")}");
         return screen;
     }
 
@@ -113,6 +124,7 @@ public class ResultScreen : MonoBehaviour
             if (shadowPrefab != null) AddShadow(shadowPrefab, feet, root.lossyScale);
             roots.Add(pivot);
             rigs.Add(root.GetComponentInChildren<Animator>());
+            bodyHeights.Add(lob.BodyCenter.y - lob.transform.position.y);
         }
         holder.SetActive(true);
 
@@ -332,6 +344,8 @@ public class ResultScreen : MonoBehaviour
         }
         if (root != null)
             foreach (var sr in root.GetComponentsInChildren<SpriteRenderer>()) if (sr.enabled) sr.color = BodyTint;
+        yield return new WaitForSeconds(GhostDelay);
+        RaiseGhost(i);
         if (skull == null) yield break;
         yield return new WaitForSeconds(0.4f + 0.35f * i);
         int n = 0;
@@ -340,6 +354,25 @@ public class ResultScreen : MonoBehaviour
             StartCoroutine(Skull(xPx, n++));
             yield return new WaitForSeconds(1.2f);
         }
+    }
+
+    /// <summary>Nzib's ghost comes out of body <paramref name="i"/>: its own Animator plays spawn then the idle loop. It joins
+    /// the stage (layer, drawn over the bodies) and goes when the screen does.</summary>
+    public GameObject RaiseGhost(int i)
+    {
+        if (ghostPrefab == null || i < 0 || i >= roots.Count || roots[i] == null) return null;
+        var g = Instantiate(ghostPrefab, holder.transform, false);
+        g.name = $"Ghost_{i}";
+        g.transform.position = roots[i].position + new Vector3(0f, bodyHeights[i], 0f);
+        foreach (var mb in g.GetComponentsInChildren<PersistentDeathGhost>(true)) DestroyImmediate(mb);   // the stage owns it, not the board
+        foreach (var tr in g.GetComponentsInChildren<Transform>(true)) tr.gameObject.layer = StageLayer;
+        var group = g.GetComponent<UnityEngine.Rendering.SortingGroup>();
+        if (group == null) group = g.AddComponent<UnityEngine.Rendering.SortingGroup>();
+        group.sortingLayerName = "Foreground";
+        group.sortingOrder = 1000;   // over every body on the strip
+        ghosts.Add(g);
+        Debug.Log($"[ResultScreen] ghost comes out of {rigs[i]?.gameObject.name}");
+        return g;
     }
 
     /// <summary>One skull: appears just above the body, drifts up ~40 px with a gentle sway, grows a little, fades out.

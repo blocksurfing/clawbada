@@ -24,6 +24,7 @@ public static class ResultScreenSmokeTest
         var skin = AssetDatabase.LoadAssetAtPath<HudSkin>("Assets/Resources/UI/HudSkin.asset");
         Check(skin != null, "HudSkin present");
         Check(skin.victoryScreenPrefab != null && skin.defeatScreenPrefab != null, "victory + defeat prefabs bound on the skin (ResultScreenBinder)");
+        bool skinHasGhost = skin.resultGhostPrefab != null;
 
         EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         var manager = Object.FindFirstObjectByType<BattleManager>();
@@ -56,7 +57,21 @@ public static class ResultScreenSmokeTest
             var loss = hud.Result;
             Check(loss != null && !loss.Won && loss.name == "DefeatScreen", "a loss raises the Defeat screen");
             CheckScreen(loss, hud, want);
+            // Nzib's ghost comes out of each defeated body (the Defeat routine calls RaiseGhost after Die; edit mode stops at
+            // the routine's first yield, so the test raises them).
+            Check(skinHasGhost, "the defeat ghost prefab is bound (ResultScreenBinder)");
+            for (int i = 0; i < loss.Rigs.Count; i++) loss.RaiseGhost(i);
+            Check(loss.Ghosts.Count == 3, $"a ghost over each of the 3 bodies (got {loss.Ghosts.Count})");
+            for (int i = 0; i < loss.Ghosts.Count; i++)
+            {
+                var g = loss.Ghosts[i];
+                Check(g.GetComponentsInChildren<Transform>(true).All(t => t.gameObject.layer == ResultScreen.StageLayer), $"{g.name} on the stage layer");
+                Check(g.GetComponentInChildren<PersistentDeathGhost>(true) == null, $"{g.name} belongs to the screen, not the board");
+                Check(Mathf.Abs(g.transform.position.x - loss.Rigs[i].transform.position.x) < 0.01f && g.transform.position.y > loss.Rigs[i].transform.position.y, $"{g.name} rises from its body");
+            }
+            Check(Object.FindObjectsByType<PersistentDeathGhost>(FindObjectsSortMode.None).Length == 0, "no ghost on the battle board (it lives on the Defeat screen only)");
             hud.DismissResult();
+            Check(GameObject.Find("Ghost_0") == null, "the ghosts go with the screen");
 
             // Draw and spectator: the plain banner.
             hud.ShowBanner("draw", false, "turn_cap", "A");

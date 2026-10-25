@@ -135,6 +135,7 @@ MonoBehaviour:
   victoryScreenPrefab: {fileID: 6039023449308025807, guid: 79afb2934b8f10f4da77045baf58676b, type: 3}
   defeatScreenPrefab: {fileID: 7583874211102567366, guid: 50e36b3695295d343ac3fcf0a7b337ae, type: 3}
   floatingSkull: {fileID: 0}
+  resultGhostPrefab: {fileID: 4736745792657940256, guid: 39270b853312726489d6c513acbd6ddf, type: 3}
   cardFrame: {fileID: 21300000, guid: 22a19b238309e443eb0e5294fe0ebfcb, type: 3}
   cardHeader: {fileID: 21300000, guid: 9e9164114ed374d988f13e03c4c4a70a, type: 3}
   pennant: {fileID: 21300000, guid: 9d8c0ae792c9649fead6141e3708912b, type: 3}
