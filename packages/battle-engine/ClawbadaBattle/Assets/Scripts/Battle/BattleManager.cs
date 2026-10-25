@@ -1238,8 +1238,15 @@ public class BattleManager : MonoBehaviour
         return null;
     }
 
+    private void OnDestroy()
+    {
+        PersistentDeathGhost.ClearForScene(gameObject.scene);
+    }
+
     private void ClearLobsters()
     {
+        // World-space ghosts outlive corpses, but never the battle/reset.
+        PersistentDeathGhost.ClearForScene(gameObject.scene);
         foreach (var lob in lobsters.Values)
         {
             if (lob != null) SafeDestroy(lob.gameObject);

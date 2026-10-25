@@ -410,6 +410,13 @@ public class BattleVfxLibrary : ScriptableObject
         group.sortingOrder = slot.onTop ? DepthSort.ScreenFxTopOrder : IsGroundMark(slot.prefab) ? DepthSort.GroundOrder : FrontOrder(slot, owner);
         Debug.Log($"[BattleVfxLibrary] {slot.prefab.name} order {group.sortingOrder} ({(slot.onTop ? "on top of the board" : $"row of {owner.className} at {owner.SortingOrder}")})");
 
+        // Ghosts are battle/scene owned, not timed one-shots. Keep their world-space
+        // object in the owner's scene so additive scene teardown also cleans it up.
+        if (fx.GetComponent<PersistentDeathGhost>() != null)
+        {
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(fx, owner.gameObject.scene);
+            return;
+        }
         var oneShot = fx.GetComponent<OneShotVfx>();
         if (oneShot == null) oneShot = fx.AddComponent<OneShotVfx>();
         if (slot.lingerSeconds > 0f)
