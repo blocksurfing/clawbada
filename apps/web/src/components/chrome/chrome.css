@@ -70,13 +70,16 @@ body {
   --type-body: var(--font-bigshot), 'Big Shot', sans-serif;
 }
 
-/* BASE — scoped: no global button hover paint; component styles own all states. */
-.pixel-chrome button {
+/* BASE — scoped: no global button hover paint; component styles own all states. Zero specificity (:where), so each
+   component's own font wins: as `.pixel-chrome button` (0,1,1) it beat single-class rules like `.connect-wallet` and
+   `.profile-action` (0,1,0), and the wallet address + profile buttons rendered in Titillium, not Upheaval (owner
+   2026-10-25: "this font should be changed to our new pixel font"). */
+:where(.pixel-chrome) button {
   font: inherit;
   cursor: pointer;
   color: #f3eedc;
 }
-.pixel-chrome button:disabled {
+:where(.pixel-chrome) button:disabled {
   opacity: .5;
   cursor: default;
 }
