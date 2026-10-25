@@ -35,7 +35,7 @@ public class ResultScreen : MonoBehaviour
     /// frozen board behind — and the other side's lobsters on it — recede. Faded in over <see cref="DimFadeSeconds"/>.</summary>
     public const float DimAlpha = 0.8f;
     public const float DimFadeSeconds = 1f;   // owner 2026-10-24: a quarter second was jarring
-    /// <summary>A defeated body: greyed but readable over the dim (the battle's CorpseTint is nearly invisible here).</summary>
+    /// <summary>A defeated body: greyed but readable over the dim (lighter than the battle's CorpseTint, which would sink into the 80 % dim).</summary>
     private static readonly Color BodyTint = new Color(0.58f, 0.58f, 0.66f, 1f);
 
     /// <summary>The team's feet line in canvas units (the strip's top is transparent headroom for the hop).</summary>
