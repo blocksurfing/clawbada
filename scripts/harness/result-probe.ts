@@ -46,8 +46,11 @@ export default async function (b: Browser) {
   // Autoplay to the end.
   let raised: string | undefined;
   const t0 = Date.now();
+  let deathShot = false;
   while (Date.now() - t0 < 480000 && !raised) {
     raised = grab(b, /\[ResultScreen\] (Victory|Defeat)Screen/)[0];
+    // The first death on the board: the darkened body with Nzib's ghost risen over it (spawn ~0.5 s, then idle).
+    if (!deathShot && grab(b, /\[LobsterController\] death /).length > 0) { deathShot = true; await b.sleep(2000); await b.screenshot(`${OUT}/result-first-death.png`); }
     if (!raised) await b.sleep(250);
   }
   ok('result screen raised', !!raised, raised ?? 'none within 8 min');

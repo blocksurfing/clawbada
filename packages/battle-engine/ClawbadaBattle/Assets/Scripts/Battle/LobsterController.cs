@@ -706,8 +706,10 @@ public class LobsterController : MonoBehaviour
         foreach (var st in statuses) ShowStatusVfx(st.type, animateIn: false);
     }
 
-    /// <summary>Corpse look: near-black and almost transparent — a faint crumpled pile.</summary>
-    public static readonly Color CorpseTint = new Color(0.16f, 0.16f, 0.2f, 0.26f);
+    /// <summary>Corpse look: darkened but SOLID (Nzib 2026-10-25: "if we want to add the ghost after a character dies, then we
+    /// shouldn't make the character transparent, just make it darker, and then the ghost comes out"). Was near-black at
+    /// 26 % alpha, a faint pile — the ghost (BattleVfxLibrary.death → GhostDeath) now rises from a body that stays.</summary>
+    public static readonly Color CorpseTint = new Color(0.30f, 0.30f, 0.38f, 1f);
 
     private void Dim()
     {
