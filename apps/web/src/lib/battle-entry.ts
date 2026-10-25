@@ -22,6 +22,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { pickLoadingTip } from './loading-tips';
+import type { ArenaTier } from './arena-music.generated';
 
 export type EntryKind = 'practice' | 'battle';
 export type EntryPhase = 'idle' | 'web' | 'leaving';
@@ -34,6 +35,9 @@ export interface BattleEntryState {
   startedAt: number;
   /** The Unity training scene reported itself on screen during this entry. */
   unityShown: boolean;
+  /** The arena the battle is on, when known at the press (the Dojo): its music starts with the breeze and carries
+   *  straight into the battle (owner 2026-10-25). Null = the bed waits for the battle's intro as before. */
+  arena: ArenaTier | null;
 }
 
 /** The Shifu screen's minimum time on screen, counted from the loop (owner 2026-10-23: 12 s; was 4.5 s, then 6 s). */
@@ -47,7 +51,7 @@ export const ENTRY_FADE_MS = 400;
 const ARENA_GRACE_MS = 1_500;
 const SAFETY_MS = 45_000;
 
-const IDLE: BattleEntryState = { phase: 'idle', kind: null, tip: null, startedAt: 0, unityShown: false };
+const IDLE: BattleEntryState = { phase: 'idle', kind: null, tip: null, startedAt: 0, unityShown: false, arena: null };
 
 let state: BattleEntryState = IDLE;
 const listeners = new Set<() => void>();
@@ -76,10 +80,10 @@ export function loopShownAt(): number {
 }
 
 /** Begin the sequence (inside the Train click, or on a battle page that opened without one). No-op while one is active. */
-export function startBattleEntry(opts: { kind: EntryKind }): void {
+export function startBattleEntry(opts: { kind: EntryKind; arena?: ArenaTier }): void {
   if (state.phase !== 'idle') return;
   clearTimers();
-  emit({ phase: 'web', kind: opts.kind, tip: pickLoadingTip(), startedAt: Date.now(), unityShown: false });
+  emit({ phase: 'web', kind: opts.kind, tip: pickLoadingTip(), startedAt: Date.now(), unityShown: false, arena: opts.arena ?? null });
   safetyTimer = setTimeout(() => { console.warn('[BattleEntry] safety release after 45 s'); release(); }, SAFETY_MS);
 }
 
