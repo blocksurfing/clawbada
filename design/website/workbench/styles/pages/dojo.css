@@ -1,1 +1,396 @@
-/* Dojo styles only. Scope selectors with [data-page="dojo"]. */
+/* Dojo only. Original woodenPanel nine-slice artwork at the shared 3× scale. */
+/* Friend controls share the existing fixed card, without moving its art/anchors. */
+#page-content[data-page="dojo"] #dojo-friend { display:grid; gap:3px; }
+#page-content[data-page="dojo"] .dojo-room-controls { display:grid; gap:3px; }
+#page-content[data-page="dojo"] .dojo-room-options > summary { display:none; cursor:pointer; font-size:12px; line-height:1.3; }
+
+@media(max-width:699px) {
+ #page-content[data-page="dojo"] .dojo[data-room-joined="true"] .dojo-room-options > summary { display:list-item; padding:3px 0; }
+ #page-content[data-page="dojo"] .dojo[data-opponent-view="friend"]:is([data-room-joined="false"],:has(.dojo-room-options[open])) .dojo-footer { display:none; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-guide { margin-top:0; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-guide > summary { padding:0; line-height:1; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-options { margin-top:0; }
+}
+
+#page-content[data-page="dojo"] #dojo-friend p { margin:0; font-size:12px; line-height:1.3; }
+#page-content[data-page="dojo"] #dojo-friend p:empty { display:none; }
+#page-content[data-page="dojo"] #dojo-friend .dojo-field { display:block; font-size:12px; }
+#page-content[data-page="dojo"] .dojo-friend-row { display:flex; gap:6px; min-width:0; }
+#page-content[data-page="dojo"] .dojo-room-heading { align-items:center; flex-wrap:wrap; font-size:12px; line-height:1.3; }
+#page-content[data-page="dojo"] .dojo-friend-row > input { flex:1; }
+#page-content[data-page="dojo"] #dojo-friend input { width:100%; min-width:0; height:27px; border:3px solid #392624; border-radius:0; padding:3px 6px; background:#fff0cd; color:#302129; font:12px/1.2 var(--type-body); }
+#page-content[data-page="dojo"] #dojo-friend input:focus-visible { outline:3px solid #fff4d6; outline-offset:2px; }
+#page-content[data-page="dojo"] #dojo-friend [data-create-room] { justify-self:start; }
+#page-content[data-page="dojo"] #dojo-friend [data-room-details] { display:grid; gap:3px; }
+#page-content[data-page="dojo"] #dojo-friend [data-join-error] { color:#ffe4a0; }
+#page-content[data-page="dojo"] #dojo-friend [data-room-status] { color:#ffe4a0; }
+#page-content[data-page="dojo"] .dojo-card .dojo-opponent-tabs { margin-bottom:6px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-opponent-tabs button { font-size:14px; min-height:30px; padding:3px; }
+
+@media (max-height: 700px) {
+  /* Keep the explanation accessible via fieldset description and hover title. */
+  #page-content[data-page="dojo"] [data-purity-description] { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); }
+}
+/* Source 80×64: light label y22..45, opaque art ends at y52.
+   Canvas keeps all source pixels; layout excludes only its transparent bottom. */
+#page-content[data-page="dojo"] .page-header { margin-left: 0; }
+[data-page="dojo"] .dojo-sign { margin-inline: auto; position: relative; height: calc(52 * var(--pixel)); max-width: 100%; }
+[data-page="dojo"] .dojo-sign canvas { position: absolute; inset: 0 auto auto 0; image-rendering: pixelated; pointer-events: none; }
+#page-content[data-page="dojo"] .dojo-sign .page-title { position: absolute; top: calc(22 * var(--pixel)); left: calc(24 * var(--pixel)); right: calc(24 * var(--pixel)); height: calc(22 * var(--pixel)); display: flex; align-items: center; justify-content: center; white-space: nowrap; color: #0e0e0e; text-shadow: none; font-size: min(var(--type-page-title, 60px), 54px); line-height: 1; }
+#page-content[data-page="dojo"] .dojo-sign .page-title { gap: calc(4 * var(--pixel)); }
+[data-page="dojo"] .dojo-sign .dojo-sign-ink { position: static; width: calc(16 * var(--pixel)); height: calc(16 * var(--pixel)); flex: 0 0 auto; }
+/* Every 640×360 layer shares the same centered cover projection. */
+.dojo-arena { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.dojo-arena img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; image-rendering: pixelated; pointer-events: none; }
+#page-content[data-page="dojo"] { z-index: 1; }
+/* Local crisp contrast on light sky/walls, without dimming the artwork. */
+[data-page="dojo"] :is(.page-title, .dojo-intro) { text-shadow: -2px -2px #302129, 0 -2px #302129, 2px -2px #302129, -2px 0 #302129, 2px 0 #302129, -2px 2px #302129, 0 2px #302129, 2px 2px #302129; }
+[data-page="dojo"] .dojo { display: grid; grid-template-columns: minmax(0,1fr); min-width: 0; gap: calc(8 * var(--pixel)); padding-bottom: 24px; }
+[data-page="dojo"] .dojo-cards { min-width: 0; }
+[data-page="dojo"] [data-owned-slot] { font-size: var(--type-caption); padding-right: 12px; }
+[data-page="dojo"] .dojo-intro { margin: -12px 0 0; max-width: 900px; font-size: var(--type-body-lg); }
+[data-page="dojo"] .dojo-card { align-self: stretch; padding: 0; }
+[data-page="dojo"] .dojo-card h2 { margin: 0 0 24px; }
+[data-page="dojo"] .dojo-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 24px; border-bottom: var(--pixel) solid #50322a; padding-bottom: 12px; }
+[data-page="dojo"] :is(.dojo-tabs button,.dojo-choice) { border: var(--pixel) solid #392624; border-radius: 0; color: #fff4d6; background: #50352b; min-height: 42px; padding: 6px 12px; cursor: pointer; }
+[data-page="dojo"] :is(.dojo-tabs [aria-selected="true"],.dojo-choice[aria-pressed="true"]) { color: #302129; background: #ffe4a0; border-color: #ffe4a0; box-shadow: 0 3px #392624; }
+[data-page="dojo"] :is(button,select):focus-visible { outline: var(--pixel) solid #fff4d6; outline-offset: 3px; }
+[data-page="dojo"] .dojo-field { display: grid; gap: 6px; min-width: 0; }
+[data-page="dojo"] select { width: 100%; min-width: 0; max-width: 100%; min-height: 48px; padding: 9px 24px 9px 9px; border: var(--pixel) solid #392624; border-radius: 0; background: #fff0cd; color: #302129; text-overflow: ellipsis; }
+[data-page="dojo"] .dojo-slots { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+[data-page="dojo"] .dojo-options { margin: 18px 0 0; padding: 0; border: 0; min-width: 0; }
+[data-page="dojo"] .dojo-options legend { padding: 0 0 6px; font-size: var(--type-label); }
+[data-page="dojo"] .dojo-options > div { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-page="dojo"] .dojo-choice { font-size: var(--type-body-lg); }
+[data-page="dojo"] .dojo-help { font-size: var(--type-caption); margin: 12px 0; }
+[data-page="dojo"] .dojo-bot-notes { margin: 24px 0; }
+[data-page="dojo"] .dojo-bot-notes p { margin: 0 0 12px; }
+[data-page="dojo"] .dojo-bot-notes strong { display: block; color: #ffe4a0; font-weight: 400; }
+[data-page="dojo"] .dojo-footer { display: flex; align-items: center; justify-content: flex-end; gap: 24px; padding: 0; }
+[data-page="dojo"] .dojo-footer p { margin: 0; }
+[data-page="dojo"] .dojo-footer .dojo-help { margin-top: 6px; }
+[data-page="dojo"] .dojo-footer .pixel-button { flex-shrink: 0; min-width: 132px; }
+[data-page="dojo"] .dojo-footer .pixel-button:disabled { opacity: .5; }
+[data-page="dojo"] .dojo-status { margin: 0; }
+[data-page="dojo"] .dojo-status:empty { display: none; }
+[data-page="dojo"] .dojo-running { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-top: var(--pixel) solid currentColor; padding-top: 18px; }
+[data-page="dojo"] [hidden] { display: none !important; }
+[data-page="dojo"] .dojo-dialog { max-width: min(660px,calc(100vw - 36px)); padding: 30px; border: var(--pixel) solid #392624; border-radius: 0; color: #302129; background: #f1d5a1; }
+[data-page="dojo"] .dojo-dialog::backdrop { background: #17111cbb; }
+[data-page="dojo"] .dojo-dialog h2 { margin: 0; }
+[data-page="dojo"] .dojo-dialog-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+/* Selected lineups are siblings ABOVE the wooden selection panels. */
+#page-content[data-page="dojo"] { --dojo-selected-pixel:4px; --dojo-lineup-height:clamp(156px,round(down,calc(100dvh - 720px),var(--pixel)),192px); --dojo-card-gap:clamp(0px,round(down,calc(100dvh - 864px),var(--pixel)),24px); display:flex; flex-direction:column; padding-top:168px; padding-bottom:12px; overflow:visible; }
+#page-content[data-page="dojo"] .page-header { flex:0 0 156px; margin-bottom:6px; }
+#page-content[data-page="dojo"] .dojo-team-headings { position:absolute; top:78px; left:50%; transform:translateX(-50%); width:min(900px,calc(100% - 48px)); display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:528px; pointer-events:none; }
+#page-content[data-page="dojo"] .dojo-team-headings h2 { margin:0; text-align:center; white-space:nowrap; font-family:var(--type-display); font-size:40px; line-height:1.2; font-style:italic; font-synthesis:style; color:#fff; text-shadow:none; -webkit-text-stroke:8px #000; paint-order:stroke fill; }
+#page-content[data-page="dojo"] .dojo-team-headings #dojo-opponent-title { font-style:normal; font-synthesis:none; transform:skewX(12deg); }
+@media(max-width:699px) {
+ #page-content[data-page="dojo"] .dojo-team-headings { top:174px; width:calc(100% - 36px); column-gap:24px; }
+ #page-content[data-page="dojo"] .dojo-team-headings h2 { font-size:24px; }
+ #page-content[data-page="dojo"] .page-header { flex-basis:186px; }
+}
+#page-content[data-page="dojo"] .dojo { flex:1; min-height:0; position:relative; grid-template-rows:minmax(0,1fr); gap:0; padding:0; }
+#page-content[data-page="dojo"] :is(.dojo-intro,.dojo-status) { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); }
+#page-content[data-page="dojo"] .dojo-cards { gap:252px; grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+#page-content[data-page="dojo"] .dojo-side { display:grid; grid-template-rows:var(--dojo-lineup-height) minmax(0,1fr); row-gap:var(--dojo-card-gap); min-width:0; min-height:0; }
+#page-content[data-page="dojo"] .dojo-lineup { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:stretch; }
+#page-content[data-page="dojo"] .dojo-fighter { pointer-events:none; position:relative; min-width:0; margin:0; display:flex; align-items:center; justify-content:flex-end; flex-direction:column; padding-bottom:20px; }
+#page-content[data-page="dojo"] .dojo-fighter canvas { position:absolute; z-index:1; image-rendering:pixelated; flex:none; }
+/* Only Your Team participates in pointer dragging; art never steals slot hits. */
+[data-drag-follower] { position:fixed; z-index:10000; pointer-events:none; image-rendering:pixelated; transform:translate(-50%,-50%) scaleX(-1); opacity:.85; }
+#page-content[data-page="dojo"] [data-fighter="team"] { pointer-events:auto; touch-action:none; user-select:none; }
+#page-content[data-page="dojo"] [data-fighter="team"] > :is(canvas,img) { pointer-events:none; }
+#page-content[data-page="dojo"] [data-drop-remove] { outline:3px dashed #ffe4a0; outline-offset:6px; }
+#page-content[data-page="dojo"] [data-owned-id] { touch-action:none; user-select:none; }
+#page-content[data-page="dojo"] .dojo-panel-switch { position:relative; z-index:4; }
+#page-content[data-page="dojo"] [data-drag-preview] { position:absolute; inset:0; opacity:.45; pointer-events:none; z-index:2; }
+#page-content[data-page="dojo"] [data-fighter="team"]:has([data-drag-preview]) > :is(canvas,img) { visibility:hidden; }
+/* Mirrored diagonal formations, including each fighter's shadow. */
+#page-content[data-page="dojo"] [data-fighter="team"][data-slot="2"],
+#page-content[data-page="dojo"] [data-fighter="opponent"][data-slot="0"] { translate:0 -48px; }
+#page-content[data-page="dojo"] .dojo-fighter[data-slot="1"] { translate:0 -24px; }
+/* Your Team draws leftmost in front; Opponent draws rightmost in front. */
+#page-content[data-page="dojo"] :is([data-fighter="team"][data-slot="0"],[data-fighter="opponent"][data-slot="2"]) { z-index:3; }
+#page-content[data-page="dojo"] .dojo-fighter[data-slot="1"] { z-index:2; }
+#page-content[data-page="dojo"] :is([data-fighter="team"][data-slot="2"],[data-fighter="opponent"][data-slot="0"]) { z-index:1; }
+#page-content[data-page="dojo"] [data-fighter="team"] canvas { transform:scaleX(-1); }
+#page-content[data-page="dojo"] .dojo-shadow { position:absolute; width:calc(64 * var(--dojo-selected-pixel)); height:calc(32 * var(--dojo-selected-pixel)); bottom:0; left:50%; transform:translateX(-50%); image-rendering:pixelated; }
+#page-content[data-page="dojo"] .dojo-fighter figcaption { position:absolute; bottom:3px; font:14px/1 var(--type-display); white-space:nowrap; color:#fff4d6; text-shadow:1px 1px #302129,-1px -1px #302129; }
+#page-content[data-page="dojo"] .dojo-card { padding:12px 18px; min-height:0; border:0; line-height:1.2; }
+/* Keep desktop panels content-sized and lineups toward the arena center. */
+@media (min-width:700px) {
+ #page-content[data-page="dojo"] { transform:translateX(-24px); }
+ #page-content[data-page="dojo"] .dojo-cards { --dojo-lower-offset:clamp(0px,round(down,calc(100dvh - 780px),var(--pixel)),96px); margin-top:var(--dojo-lower-offset); height:calc(100% - var(--dojo-lower-offset)); }
+ #page-content[data-page="dojo"] .dojo-card { align-self:start; height:100%; max-height:408px; }
+ #page-content[data-page="dojo"] .dojo-lineup { width:min(100%,624px); }
+ #page-content[data-page="dojo"] [data-lineup="team"] { justify-self:center; transform:none; }
+ #page-content[data-page="dojo"] [data-lineup="opponent"] { justify-self:center; transform:none; }
+}
+/* The wide arena has room to clear both pillars without shrinking the lineup. */
+@media (min-width:1600px) {
+ body:not(.sidebar-compact) #page-content[data-page="dojo"] { transform:translateX(-84px); }
+}
+#page-content[data-page="dojo"] .dojo-card > .pixel-panel-art { top:0; left:0; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-card > .pixel-panel-art { transform:scaleX(-1); }
+#page-content[data-page="dojo"] .dojo-card h2 { font-size:27px; margin:0 0 6px; }
+#page-content[data-page="dojo"] .dojo-tabs { flex-wrap:nowrap; gap:3px; margin-bottom:6px; padding-bottom:6px; }
+#page-content[data-page="dojo"] .dojo-tabs button { flex:1; min-width:0; white-space:nowrap; }
+#page-content[data-page="dojo"] :is(.dojo-tabs button,.dojo-choice,.dojo-panel-switch button,.dojo-slot-targets button) { font:16px/1.1 var(--type-display); min-height:30px; padding:3px 6px; }
+#page-content[data-page="dojo"] .dojo-field { font-size:14px; gap:3px; }
+#page-content[data-page="dojo"] select { min-height:30px; padding:3px 15px 3px 6px; font-size:14px; }
+#page-content[data-page="dojo"] .dojo-slots { gap:6px; }
+#page-content[data-page="dojo"] .dojo-options { margin-top:6px; }
+#page-content[data-page="dojo"] .dojo-options legend { padding-bottom:3px; font-size:16px; }
+#page-content[data-page="dojo"] .dojo-help { font-size:12px; margin:3px 0; }
+#page-content[data-page="dojo"] .dojo-slot-targets { display:flex; gap:6px; margin:6px 0 3px; }
+#page-content[data-page="dojo"] .dojo-slot-targets button { flex:1; min-height:24px; border:2px solid #392624; background:#50352b; color:#fff4d6; }
+#page-content[data-page="dojo"] .dojo-slot-targets [aria-pressed="true"] { background:#ffe4a0; color:#302129; }
+#page-content[data-page="dojo"] .dojo-inventory { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:3px; }
+#page-content[data-page="dojo"] .dojo-inventory-tile { position:relative; min-width:0; height:57px; padding:0; border:2px solid #392624; background:#50352b; color:#fff4d6; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; cursor:pointer; }
+
+#page-content[data-page="dojo"] .dojo-inventory-tile span { position:relative; font:12px/1 var(--type-display); white-space:nowrap; }
+#page-content[data-page="dojo"] .dojo-inventory-tile small { position:relative; font:11px/1.2 var(--type-display); }
+#page-content[data-page="dojo"] .dojo-inventory-tile[aria-pressed="true"] { border-color:#ffe4a0; background:#705138; }
+#page-content[data-page="dojo"] .dojo-inventory-tile [data-slot-badge] { position:absolute; z-index:2; top:6px; left:50%; right:auto; transform:translateX(-50%); width:24px; height:24px; display:grid; place-items:center; color:#302129; background:#fff; font:18px/1 var(--type-display); }
+#page-content[data-page="dojo"] .dojo-selection-feedback { min-height:30px; margin:0; display:flex; align-items:center; color:#ffe4a0; font-size:12px; line-height:1.2; }
+#page-content[data-page="dojo"] .dojo-guide { position:relative; margin-top:6px; }
+#page-content[data-page="dojo"] .dojo-guide > summary { cursor:pointer; font-size:14px; padding:3px 0; }
+#page-content[data-page="dojo"] .dojo-bot-notes { position:absolute; z-index:5; top:100%; left:0; right:0; padding:12px; margin:0; border:3px solid #392624; background:#50352b; font-size:14px; }
+#page-content[data-page="dojo"] .dojo-bot-notes p { margin-bottom:6px; }
+#page-content[data-page="dojo"] .dojo-footer { position:absolute; right:-33px; bottom:0; width:240px; height:168px; z-index:3; justify-content:center; align-items:flex-start; pointer-events:none; }
+#page-content[data-page="dojo"] .dojo-battle { margin:-36px 0; }
+#page-content[data-page="dojo"] .dojo-panel-switch { display:none; }
+#page-content[data-page="dojo"] .dojo-vs { display:none; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:calc(96 * var(--pixel)); height:calc(64 * var(--pixel)); image-rendering:pixelated; pointer-events:none; z-index:2; }
+body:has(#page-content[data-page="dojo"]) .sidebar-shell,
+body:has(#page-content[data-page="dojo"]) .sidebar-preview { pointer-events:none; }
+body:has(#page-content[data-page="dojo"]) .sidebar-shell :is(button,a) { pointer-events:auto; }
+@media(min-width:700px) {
+ #page-content[data-page="dojo"] .page-header { position:absolute; top:0; left:50%; width:480px; transform:translateX(-50%); }
+ #page-content[data-page="dojo"] [data-purity-description] { position:absolute; width:1px; height:1px; margin:0; overflow:hidden; clip-path:inset(50%); }
+}
+@media(min-width:700px) and (min-height:800px) {
+ #page-content[data-page="dojo"] .dojo-side { grid-template-rows:var(--dojo-lineup-height) minmax(0,1fr); }
+ #page-content[data-page="dojo"] .dojo-inventory-tile { height:64px; }
+
+ #page-content[data-page="dojo"] .dojo-card { padding:18px 24px; }
+}
+@media(max-width:699px) {
+ #page-content[data-page="dojo"] { --dojo-lineup-height:192px; padding:6px 18px 12px; }
+ #page-content[data-page="dojo"] .dojo { grid-template-rows:36px minmax(0,1fr); }
+ #page-content[data-page="dojo"] .dojo-panel-switch { display:flex; gap:6px; }
+ #page-content[data-page="dojo"] .dojo-panel-switch button { flex:1; border:3px solid #392624; background:#50352b; color:#fff4d6; }
+ #page-content[data-page="dojo"] .dojo-panel-switch [aria-pressed="true"] { background:#ffe4a0; color:#302129; }
+ #page-content[data-page="dojo"] .dojo-cards { grid-template-columns:1fr !important; }
+ #page-content[data-page="dojo"] .dojo-cards[data-active-panel="team"] [data-side="opponent"],
+ #page-content[data-page="dojo"] .dojo-cards[data-active-panel="opponent"] [data-side="team"] { display:none; }
+ #page-content[data-page="dojo"] .dojo-card { padding:12px 15px; }
+ #page-content[data-page="dojo"] .dojo-vs { display:none; }
+ #page-content[data-page="dojo"] .dojo-slots select { font-size:12px; }
+}
+
+/* One shared horizontal grid for headings, fighters and cards. */
+@media(min-width:700px) {
+ #page-content[data-page="dojo"] { --dojo-layout-width:min(1104px,100%); --dojo-column-gap:252px; }
+ #page-content[data-page="dojo"] .dojo { width:var(--dojo-layout-width); align-self:center; }
+ #page-content[data-page="dojo"] .dojo-cards { gap:var(--dojo-column-gap); }
+ #page-content[data-page="dojo"] .dojo-team-headings { width:var(--dojo-layout-width); column-gap:var(--dojo-column-gap); top:78px; }
+ #page-content[data-page="dojo"] .dojo-footer { left:50%; right:auto; bottom:auto; transform:translate(-50%,-50%); translate:0 24px; top:calc(clamp(0px,round(down,calc(100dvh - 780px),var(--pixel)),96px) + var(--dojo-lineup-height) + var(--dojo-card-gap) + 24px + min(408px,calc(100% - clamp(0px,round(down,calc(100dvh - 780px),var(--pixel)),96px) - var(--dojo-lineup-height) - var(--dojo-card-gap) - 48px)) / 2); }
+ #page-content[data-page="dojo"] .dojo-vs { top:calc(clamp(0px,round(down,calc(100dvh - 780px),var(--pixel)),96px) + var(--dojo-lineup-height) + var(--dojo-card-gap)); }
+}
+@media(min-width:700px) and (max-height:799px) {
+ #page-content[data-page="dojo"] .dojo-team-headings { top:78px; }
+}
+
+/* Lower setup as one group; the sign and Battle stay anchored. */
+#page-content[data-page="dojo"] :is(.dojo-cards,.dojo-vs) { translate:0 24px; }
+
+#page-content[data-page="dojo"] .dojo-cards { margin-bottom:24px; }
+@media(min-width:700px) {
+ #page-content[data-page="dojo"] .dojo-cards { height:calc(100% - var(--dojo-lower-offset) - 24px); }
+}
+@media(max-height:799px), (max-width:699px) {
+ #page-content[data-page="dojo"] .dojo-selection-feedback:empty { min-height:6px; }
+}
+/* Card-only adjustment: preserve the headings and fighter anchors. */
+@media(min-width:700px) {
+ #page-content[data-page="dojo"] { container-type:inline-size; }
+ #page-content[data-page="dojo"] .dojo-card { position:relative; top:24px; width:max(100%,calc((100cqw - 252px) / 2)); margin-left:0; height:calc(100% - 24px); }
+ #page-content[data-page="dojo"] [data-side="team"] .dojo-card { margin-left:calc(100% - max(100%,calc((100cqw - 252px) / 2))); }
+}
+@media(min-width:700px) and (max-height:699px) {
+ #page-content[data-page="dojo"] .dojo-card { top:0; height:100%; }
+}
+/* Interior spacing for the revised framed Dark_Panel art. */
+#page-content[data-page="dojo"] .dojo-card[data-pixel-panel="dojoDarkPanel"] { padding:24px 24px 18px; }
+#page-content[data-page="dojo"] .dojo-tabs { gap:9px; margin-bottom:12px; padding-bottom:0; }
+#page-content[data-page="dojo"] .dojo-inventory { gap:9px; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-card .dojo-field { grid-template-columns:108px minmax(0,1fr); gap:9px; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-card .dojo-options { margin-top:12px; gap:12px; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-card .dojo-options > div { gap:6px; }
+#page-content[data-page="dojo"] .dojo-guide { margin-top:12px; }
+#page-content[data-page="dojo"] .dojo-selection-feedback:empty { min-height:12px; }
+@media(max-height:699px), (max-width:699px) {
+ #page-content[data-page="dojo"] .dojo-card[data-pixel-panel="dojoDarkPanel"] { padding:18px 18px 12px; }
+ #page-content[data-page="dojo"] .dojo-tabs { margin-bottom:6px; }
+ #page-content[data-page="dojo"] [data-side="opponent"] .dojo-card .dojo-options { margin-top:6px; gap:6px; }
+ #page-content[data-page="dojo"] [data-side="opponent"] .dojo-card .dojo-options > div { gap:3px; }
+ #page-content[data-page="dojo"] .dojo-guide { margin-top:6px; }
+ #page-content[data-page="dojo"] .dojo-selection-feedback:empty { min-height:6px; }
+}
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager { height:30px; margin:6px 0 0; gap:12px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager button { width:30px; height:30px; border:2px solid #392624; color:#fff4d6; font-size:21px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager button:disabled { opacity:.35; cursor:default; }
+/* Extra inner gutter for card contents; tabs and panel artwork stay put. */
+#page-content[data-page="dojo"] .dojo-card > :is([role="tabpanel"],.dojo-field,.dojo-guide,.dojo-options,.dojo-help) { margin-left:12px; margin-right:12px; }
+@media(max-width:1600px) {
+ #page-content[data-page="dojo"] .dojo-card .dojo-options .dojo-choice { padding-left:3px; padding-right:3px; font-size:12px; }
+}
+/* Card-only control hierarchy; no changes to exterior geometry. */
+#page-content[data-page="dojo"] .dojo-card .dojo-tabs { gap:9px; margin-bottom:15px; padding-bottom:0; }
+#page-content[data-page="dojo"] .dojo-card .dojo-tabs button { font:18px/1.1 var(--type-display); min-height:39px; padding:6px 9px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-field { font-size:14px; line-height:1.4; gap:6px; }
+#page-content[data-page="dojo"] .dojo-card select { min-height:36px; font-size:16px; line-height:1.2; padding:6px 24px 6px 9px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-choice { min-height:36px; font:16px/1.2 var(--type-display); padding:6px 9px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-options { margin-top:15px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-options legend { font-size:14px; line-height:1.4; }
+#page-content[data-page="dojo"] .dojo-card .dojo-guide > summary { font-size:14px; line-height:1.4; padding:6px 0; }
+#page-content[data-page="dojo"] .dojo-card .dojo-help { font-size:12px; line-height:1.5; margin-top:9px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-tile span:not([data-slot-badge]) { font-size:14px; line-height:1.2; padding-bottom:6px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager { margin-top:6px; }
+@media(max-width:1350px), (max-height:799px) {
+ #page-content[data-page="dojo"] .dojo-card .dojo-tabs { gap:6px; margin-bottom:6px; }
+ #page-content[data-page="dojo"] .dojo-card .dojo-tabs button { font-size:14px; min-height:30px; padding:3px; }
+ #page-content[data-page="dojo"] .dojo-card select { min-height:30px; font-size:14px; padding:3px 18px 3px 6px; }
+ #page-content[data-page="dojo"] .dojo-card .dojo-choice { min-height:27px; font-size:12px; padding:3px 6px; }
+ #page-content[data-page="dojo"] .dojo-card .dojo-field { gap:3px; }
+ #page-content[data-page="dojo"] .dojo-card .dojo-options { margin-top:6px; }
+ #page-content[data-page="dojo"] .dojo-card .dojo-guide > summary { padding:3px 0; }
+ #page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager { margin-top:0; }
+}
+/* Full Battle opaque extent (source x11..67/y12..68), transparent gutters excluded. */
+#page-content[data-page="dojo"] .dojo-footer { width:168px; }
+@media(max-width:699px) { #page-content[data-page="dojo"] .dojo-footer { right:0; } }
+#page-content[data-page="dojo"] .dojo-battle { width:168px; height:168px; margin:0; background-position:-33px -36px; background-size:240px 240px; clip-path:none; }
+#page-content[data-page="dojo"] .dojo-inventory-tile canvas { position:absolute; width:64px; height:64px; top:-16px; image-rendering:pixelated; pointer-events:none; }
+#page-content[data-page="dojo"] .dojo-inventory-tile span { font-size:11px; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-card h2 { margin-bottom:3px; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-field { grid-template-columns:90px minmax(0,1fr); align-items:center; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-options { display:flex; align-items:center; gap:6px; margin-top:3px; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-options legend { float:left; width:48px; flex-shrink:0; padding:0; font-size:14px; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-options > div { gap:3px; }
+#page-content[data-page="dojo"] [data-side="opponent"] .dojo-choice { font-size:14px; padding:3px; min-height:27px; }
+
+#page-content[data-page="dojo"] .dojo-card [data-owned-controls] > .dojo-field { grid-template-columns:90px minmax(0,1fr); align-items:center; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory { grid-template-rows:repeat(2,var(--portrait-size,96px)); justify-content:start; }
+@media(min-width:700px) and (min-height:950px) {
+ #page-content[data-page="dojo"] .dojo-card { max-height:calc(100dvh - 554px); height:calc(100% + 18px); }
+}
+#page-content[data-page="dojo"] .dojo-portrait-clip { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+/* Keep the widest animated pose inside the box: 4 source pixels of transparent gutter, no extra inset. */
+/* Friend room hierarchy: readable controls, scoped to the panel interior. */
+#page-content[data-page="dojo"] #dojo-friend { gap:10px; }
+#page-content[data-page="dojo"] .dojo-room-controls { gap:12px; }
+#page-content[data-page="dojo"] #dojo-friend p { font-size:14px; line-height:1.35; }
+#page-content[data-page="dojo"] #dojo-friend .dojo-demo-note { font-size:12px; opacity:.7; }
+#page-content[data-page="dojo"] #dojo-friend .dojo-field { font-size:14px; margin-bottom:4px; }
+#page-content[data-page="dojo"] #dojo-friend .dojo-choice { min-height:36px; font:16px/1.2 var(--type-display); padding:6px 12px; white-space:nowrap; }
+#page-content[data-page="dojo"] #dojo-friend [data-create-room] { background:#fff; color:#302129; border-color:#fff; }
+#page-content[data-page="dojo"] #dojo-friend [data-room-code] { font:18px/1.2 var(--type-display); letter-spacing:1px; color:#fff; }
+#page-content[data-page="dojo"] .dojo-room-heading { justify-content:space-between; gap:8px; }
+#page-content[data-page="dojo"] #dojo-friend input { height:36px; padding:6px 9px; font-size:14px; }
+#page-content[data-page="dojo"] #dojo-friend [data-room-details] { display:flex; gap:8px; align-items:center; }
+#page-content[data-page="dojo"] #dojo-friend [data-room-link] { flex:1; width:0; }
+#page-content[data-page="dojo"] #dojo-friend [data-room-status] { padding-top:6px; border-top:1px solid #ffffff26; }
+#page-content[data-page="dojo"] .dojo-room-options > summary { font-size:14px; }
+@media(max-width:699px), (max-height:799px) {
+ #page-content[data-page="dojo"] #dojo-friend { gap:3px; }
+ #page-content[data-page="dojo"] .dojo-room-controls { gap:3px; }
+ #page-content[data-page="dojo"] #dojo-friend .dojo-choice { min-height:33px; padding:5px 9px; font-size:15px; }
+ #page-content[data-page="dojo"] #dojo-friend input { height:33px; }
+ #page-content[data-page="dojo"] #dojo-friend [data-room-code] { font-size:16px; }
+}
+/* Shared setup hierarchy. Interior only: preserve card/lineup/art geometry. */
+#page-content[data-page="dojo"] .dojo-card .dojo-tabs button { font-size:18px; min-height:39px; padding:6px; }
+#page-content[data-page="dojo"] .dojo-card :is(.dojo-field,.dojo-options legend) { font-size:14px; line-height:1.3; }
+#page-content[data-page="dojo"] .dojo-card select { font:16px/1.3 var(--type-body); min-height:36px; padding:6px 21px 6px 9px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-options .dojo-choice { font:16px/1.2 var(--type-display); min-height:36px; padding:6px; }
+#page-content[data-page="dojo"] .dojo-card .dojo-options > div { gap:6px; }
+#page-content[data-page="dojo"] #dojo-bot .dojo-options { display:grid; grid-template-columns:60px minmax(0,1fr); align-items:center; gap:6px; margin-top:12px; }
+#page-content[data-page="dojo"] #dojo-bot .dojo-options legend { position:static; float:left; width:60px; height:auto; overflow:visible; clip-path:none; }
+#page-content[data-page="dojo"] #dojo-bot .dojo-options > div { flex-wrap:wrap; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager span { font-size:14px; }
+#page-content[data-page="dojo"] .dojo-selection-feedback { font-size:14px; }
+#page-content[data-page="dojo"] #dojo-builder .dojo-options > div { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
+#page-content[data-page="dojo"] #dojo-builder .dojo-options:has([data-choices="purity"]) > div { grid-template-columns:repeat(7,minmax(0,1fr)); }
+@media(max-width:1350px), (max-height:799px) {
+ #page-content[data-page="dojo"] .dojo-card .dojo-tabs button { font-size:16px; min-height:33px; padding:3px; }
+ #page-content[data-page="dojo"] .dojo-card select { font-size:14px; min-height:33px; padding:3px 18px 3px 6px; }
+ #page-content[data-page="dojo"] .dojo-card .dojo-options .dojo-choice { font-size:15px; min-height:33px; padding:3px; }
+ #page-content[data-page="dojo"] #dojo-builder .dojo-slots { grid-template-columns:1fr; gap:6px; }
+ #page-content[data-page="dojo"] #dojo-builder .dojo-field { grid-template-columns:60px minmax(0,1fr); align-items:center; }
+ #page-content[data-page="dojo"] #dojo-builder .dojo-options { display:flex; align-items:center; gap:6px; margin-top:9px; }
+ #page-content[data-page="dojo"] #dojo-builder .dojo-options legend { float:left; width:54px; padding:0; }
+ #page-content[data-page="dojo"] #dojo-builder .dojo-options > div { flex:1; gap:3px; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-options { margin-top:6px; }
+}
+@media(max-width:699px) {
+ #page-content[data-page="dojo"] #dojo-bot { display:flex; flex-direction:column; gap:3px; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-field { grid-template-columns:108px minmax(0,1fr); }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-options { display:flex; gap:3px; margin-top:0; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-options legend { width:51px; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-options > div { gap:3px; flex-wrap:nowrap; flex:1; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-options .dojo-choice { flex:1; min-width:0; font-size:14px; line-height:1; padding:0 2px; white-space:normal; }
+ #page-content[data-page="dojo"] .dojo-card .dojo-tabs button { font-size:15px; }
+ #page-content[data-page="dojo"] .dojo-card:has(#dojo-bot:not([hidden])) .dojo-tabs { margin-bottom:0; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-options [data-choice="arena"] { font:14px/13px var(--type-body); }
+ #page-content[data-page="dojo"] #dojo-bot [data-choice="arena"][data-value="Evolved"] { flex:1.5; }
+ #page-content[data-page="dojo"] #dojo-bot [data-choice="arena"][data-value="Apex"] { flex:.8; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-options legend { width:42px; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-options:has([data-choices="opponent"]) legend { width:51px; flex-shrink:0; }
+ #page-content[data-page="dojo"] #dojo-bot [data-choice="arena"]:first-child { flex:1.4; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-guide { order:1; width:132px; margin-top:3px; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-guide > summary { font-size:14px; line-height:1.4; padding:3px 0; }
+ #page-content[data-page="dojo"] #dojo-bot .dojo-bot-notes { width:282px; top:auto; bottom:100%; }
+}
+/* Animated 16px corner tiles: four 32px poses, no repeated edges. */
+#page-content[data-page="dojo"] .dojo-selected-corners { --pixel:2px; display:none; position:absolute; inset:calc(-4 * var(--pixel)); pointer-events:none; z-index:3; }
+#page-content[data-page="dojo"] [aria-pressed="true"] > .dojo-selected-corners { display:block; }
+#page-content[data-page="dojo"] .dojo-selected-corners > i { position:absolute; width:calc(16 * var(--pixel)); height:calc(16 * var(--pixel)); background-image:url('../../../site/The Dojo/Selected_Frame.png'); background-size:calc(128 * var(--pixel)) calc(32 * var(--pixel)); image-rendering:pixelated; --corner-x:0px; background-position:var(--corner-x) 0; animation:dojo-corner-pulse 720ms steps(4,end) infinite; }
+#page-content[data-page="dojo"] .dojo-selected-corners > i:nth-child(1) { top:0; left:0; }
+#page-content[data-page="dojo"] .dojo-selected-corners > i:nth-child(2) { top:0; right:0; --corner-x:calc(-16 * var(--pixel)); }
+#page-content[data-page="dojo"] .dojo-selected-corners > i:nth-child(3) { bottom:0; left:0; background-position-y:calc(-16 * var(--pixel)); }
+#page-content[data-page="dojo"] .dojo-selected-corners > i:nth-child(4) { bottom:0; right:0; --corner-x:calc(-16 * var(--pixel)); background-position-y:calc(-16 * var(--pixel)); }
+@keyframes dojo-corner-pulse { from { background-position-x:var(--corner-x); } to { background-position-x:calc(var(--corner-x) - 128 * var(--pixel)); } }
+@media(prefers-reduced-motion:reduce) { #page-content[data-page="dojo"] .dojo-selected-corners > i { animation:none; } }
+/* Square portrait choices: crop art, never shrink its source-pixel scale. */
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-tile { width:var(--portrait-size,96px); height:var(--portrait-size,96px); border-color:transparent; overflow:visible; justify-self:center; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-tile canvas { position:absolute; top:0; left:calc(50% - 18px); transform:translateX(-50%) scaleX(-1); }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-tile span:not([data-slot-badge]) { z-index:1; align-self:stretch; background:#302129e6; padding:6px 2px; font:14px/1.2 var(--type-body); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Paginate the original visual inventory rather than miniaturizing the art. */
+#page-content[data-page="dojo"] .dojo-inventory-tile { height:159px; justify-content:flex-end; }
+#page-content[data-page="dojo"] .dojo-inventory-tile canvas { position:relative; top:auto; flex:none; }
+#page-content[data-page="dojo"] .dojo-inventory-tile span { font-size:12px; }
+#page-content[data-page="dojo"] .dojo-inventory-pager { display:flex; align-items:center; justify-content:center; gap:12px; height:24px; }
+#page-content[data-page="dojo"] .dojo-inventory-pager button { background:#50352b; border:0; min-width:30px; height:24px; padding:0; line-height:1; }
+#page-content[data-page="dojo"] .dojo-inventory-pager span { font-size:12px; }
+@media(min-width:700px) and (max-height:799px) {
+ #page-content[data-page="dojo"] { padding-top:144px; }
+ #page-content[data-page="dojo"] [data-side="team"] .dojo-card h2 { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+ #page-content[data-page="dojo"] .dojo-tabs { padding-bottom:3px; margin-bottom:3px; }
+ #page-content[data-page="dojo"] [data-owned-details] { display:none; }
+}
+
+@media (min-width:700px) and (max-width:1350px) {
+ body:not(.sidebar-compact) #page-content[data-page="dojo"] [data-side="opponent"] .dojo-choice { font-size:15px; min-height:33px; }
+ body:not(.sidebar-compact) #page-content[data-page="dojo"] .dojo-lineup { padding-inline:30px; }
+}
+@media (max-width:699px) {
+ #page-content[data-page="dojo"] .dojo-lineup { padding-inline:42px; }
+ #page-content[data-page="dojo"] .dojo:has(.dojo-cards[data-active-panel="team"]) .dojo-footer { display:none; }
+}
+
+@media (min-width:700px) and (max-width:1350px) {
+ body:not(.sidebar-compact) #page-content[data-page="dojo"] [data-side="opponent"] .dojo-options legend { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+ body:not(.sidebar-compact) #page-content[data-page="dojo"] [data-side="opponent"] .dojo-options { display:block; }
+}

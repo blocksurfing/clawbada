@@ -94,7 +94,7 @@ function layoutPixels() {
 }
 // 3. MENU / RIBBON / SEPARATOR
 // Menu order also indexes the 12 source tiles in Icons.png. Keep them in sync.
-const menuItems = ['Shell', 'Mining', 'Battle', 'Dojo', 'Breeding', 'Evolve', 'Repair', 'Teams', 'Market', 'Activity', 'Ranks', 'Docs'];
+const menuItems = ['The Shell', 'Mining', 'Battle', 'The Dojo', 'Breeding', 'Evolve', 'Repair', 'Teams', 'Market', 'Activity', 'Ranks', 'Docs'];
 let selectedMenu = initialLabel;
 const ribbonImage = new Image();
 let ribbonReady = false,
