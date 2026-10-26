@@ -37,12 +37,14 @@ export function DojoSign({ title }: { title: string }) {
     const render = () => {
       frame = 0;
       if (disposed || !image) return;
-      const scale = pixelScale();
+      const scale = pixelScale(header);
+      // On-screen measurements are in window px; the stage scales the whole composition.
+      const stage = parseFloat(getComputedStyle(header).getPropertyValue('--dojo-stage-scale')) || 1;
       heading.style.fontSize = '';
       const naturalSize = parseFloat(getComputedStyle(heading).fontSize);
       const range = document.createRange();
       range.selectNodeContents(label);
-      const naturalWidth = range.getBoundingClientRect().width;
+      const naturalWidth = range.getBoundingClientRect().width / stage;
       const available = Math.floor(header.clientWidth / scale);
       if (available < 80 || !naturalWidth) return;
       const width = Math.min(available, Math.ceil(naturalWidth / scale) + 96);
@@ -60,7 +62,7 @@ export function DojoSign({ title }: { title: string }) {
         ctx.drawImage(image!, 80, i === 0 ? 32 : 16, 16, 16, 0, 0, 16, 16);
       });
       // Repeat the original 3-row chain cycle upward, keeping its phase.
-      const rows = Math.max(0, Math.ceil(sign.getBoundingClientRect().top / scale));
+      const rows = Math.max(0, Math.ceil(sign.getBoundingClientRect().top / (scale * stage)));
       chains.width = width; chains.height = Math.max(1, rows);
       chains.style.width = `${width * scale}px`; chains.style.height = `${rows * scale}px`;
       chains.style.top = `${-rows * scale}px`;
@@ -81,11 +83,12 @@ export function DojoSign({ title }: { title: string }) {
     void document.fonts.ready.then(schedule);
     window.addEventListener('resize', schedule);
     window.addEventListener(PIXEL_SCALE_EVENT, schedule);
+    window.addEventListener('clawbada:dojo-stage', schedule);
     const scroller = header.closest('.dojo-page');
     scroller?.addEventListener('scroll', schedule);
     return () => {
       disposed = true; cancelAnimationFrame(frame); observer.disconnect();
-      window.removeEventListener('resize', schedule); window.removeEventListener(PIXEL_SCALE_EVENT, schedule);
+      window.removeEventListener('resize', schedule); window.removeEventListener(PIXEL_SCALE_EVENT, schedule); window.removeEventListener('clawbada:dojo-stage', schedule);
       scroller?.removeEventListener('scroll', schedule);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
