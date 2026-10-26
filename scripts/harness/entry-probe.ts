@@ -20,7 +20,8 @@ async function rectClick(b: Browser, selector: string, text: string) {
  *  late sample (a stalled dev server) is told apart from a wrong fade. */
 const overlay = (b: Browser) => b.eval(`(() => { const o = document.querySelector('[data-testid=battle-entry]'); if (!o) return null; const l = o.querySelector('[data-testid=battle-entry-loop]'); const cs = getComputedStyle(o), ls = l ? getComputedStyle(l) : null; return { phase: o.dataset.phase, kind: o.dataset.kind, frame: o.querySelector('canvas')?.dataset.frame ?? null, opacity: cs.opacity, bg: cs.backgroundColor, curtainMs: cs.transitionDuration, loopOpacity: ls ? ls.opacity : null, revealMs: ls ? ls.transitionDuration : null, revealDelay: ls ? ls.transitionDelay : null, age: o.dataset.shownAt ? Math.round(performance.now() - Number(o.dataset.shownAt)) : null }; })()`) as Promise<{ phase: string; kind: string; frame: string | null; opacity: string; bg: string; curtainMs: string; loopOpacity: string | null; revealMs: string | null; revealDelay: string | null; age: number | null } | null>;
 /** The breeze's debug handle (lib/entry-ambience.ts): the placeholder url (null until the master exists) and whether it plays. */
-const breeze = (b: Browser) => b.eval(`(() => { const a = window.__clawbadaEntryAmbience; return a ? { url: a.url, playing: !!a.audio && !a.audio.paused, volume: a.audio ? a.audio.volume : null } : null; })()`) as Promise<{ url: string | null; playing: boolean; volume: number | null } | null>;
+/** volume = the audible level (the audio-graph gain once routed through the shared context, else el.volume). */
+const breeze = (b: Browser) => b.eval(`(() => { const a = window.__clawbadaEntryAmbience; return a ? { url: a.url, playing: !!a.audio && !a.audio.paused, volume: a.audio ? (a.level ?? a.audio.volume) : null, smooth: !!a.smooth } : null; })()`) as Promise<{ url: string | null; playing: boolean; volume: number | null; smooth: boolean } | null>;
 /** The theme's dark navy (#192c53) as the browser reports it. */
 const NAVY = 'rgb(25, 44, 83)';
 const CURTAIN_MS = 700, HOLD_MS = 12000, UNITY_HOLD_S = 15;
@@ -31,6 +32,9 @@ export default async function (b: Browser) {
 
   // A non-default team, so the summary line proves the page hydrated before the click.
   const autoplay = !!process.env.AUTO;
+  // MUTE_OUT=1: every media element is muted at the source — the levels, fades and routing still run, nothing reaches
+  // the speakers (2026-10-26: a sound-on probe left playing on the owner's machine).
+  if (process.env.MUTE_OUT) await b.send('Page.addScriptToEvaluateOnNewDocument', { source: `{ const p = HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play = function () { this.muted = true; return p.call(this); }; }` });
   await b.goto(`${BASE}/dojo?team=bulwark,leviathan,sentinel&tier=evolved&purity=2&bot=charger${autoplay ? '&auto=1' : ''}`);
   await b.waitFor(`document.body.innerText.includes('Bulwark · Leviathan · Sentinel, Evolved, purity 2')`, 60000, 250);
   // With audio on, use the owner's own settings (2026-10-24: battle music OFF, its volume 30, SFX on): the wind is
@@ -68,14 +72,16 @@ export default async function (b: Browser) {
   // with audio → playing and fading in towards its gain (0.25 × the battle volume, 50% by default).
   const audioOn = !!process.env.AUDIO;
   const air = await breeze(b);
+  if (audioOn) ok('breeze fades on the audio thread (routed through the shared context)', !!air && air.smooth, air ? `smooth ${air.smooth}` : 'no handle');
   const airDetail = !air ? 'no handle' : air.url === null ? 'no AMB_Loading_Breeze master yet — silent' : `${air.url.split('/').pop()} ${air.playing ? 'playing' : 'paused'}, volume ${air.volume?.toFixed(3)}`;
   ok(audioOn ? 'breeze playing with the loop at its fixed 35 % (audio on, battle music off — it follows the SFX switch)' : 'breeze silent while muted', !!air && (air.url === null || (audioOn ? air.playing && (air.volume ?? 1) <= 0.36 : !air.playing)), airDetail);
   await b.screenshot(`${OUT}/entry-loading.png`);
   // The arena's bed (owner 2026-10-25): with battle music on it starts with the breeze on the loading screen.
-  const bed = () => b.eval(`(() => { const m = window.__clawbadaArenaMusic; return m && m.audio ? { src: m.audio.src.split('/').pop(), playing: !m.audio.paused, volume: m.audio.volume } : null; })()`) as Promise<{ src: string; playing: boolean; volume: number } | null>;
+  const bed = () => b.eval(`(() => { const m = window.__clawbadaArenaMusic; return m && m.audio ? { src: m.audio.src.split('/').pop(), playing: !m.audio.paused, volume: m.level ?? m.audio.volume, smooth: !!m.smooth } : null; })()`) as Promise<{ src: string; playing: boolean; volume: number; smooth: boolean } | null>;
   let bedAtEntry: { src: string; playing: boolean; volume: number } | null = null;
   if (musicOn) {
     bedAtEntry = await bed();
+    ok('Dojo track fades on the audio thread', !!bedAtEntry && bedAtEntry.smooth, `smooth ${bedAtEntry?.smooth}`);
     ok('Dojo track playing with the breeze on the loading screen', !!bedAtEntry && bedAtEntry.playing && /BGM_Arena_Dojo/.test(bedAtEntry.src), bedAtEntry ? `${bedAtEntry.src} ${bedAtEntry.playing ? 'playing' : 'paused'}, volume ${bedAtEntry.volume.toFixed(3)}` : 'no arena audio');
   }
 
@@ -152,6 +158,7 @@ export default async function (b: Browser) {
     ok('no walk cut off, no turn released by the watchdog', cut.length === 0, cut.slice(0, 2).join(' | '));
   }
 
+  if (process.env.AUDIO) for (const l of b.allLogs.filter((x) => /\[AudioGraph\]|\[EntryAmbience\]/.test(x)).slice(0, 20)) console.log('  audio:', l.slice(0, 170));
   for (const c of checks) console.log(c);
   const fails = checks.filter((c) => c.startsWith('FAIL')).length;
   console.log(fails === 0 ? '[entry] all ok' : `[entry] ${fails} FAIL`);

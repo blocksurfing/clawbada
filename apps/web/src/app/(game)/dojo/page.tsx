@@ -15,6 +15,7 @@ import { getArenaBackground } from '@/lib/assets';
 import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { Swords, Loader2, Dumbbell } from 'lucide-react';
 import { exitBattleFullscreen, requestBattleFullscreen } from '@/lib/battle-fullscreen';
+import { primeAudio } from '@/lib/audio-graph';
 import { cancelBattleEntry, startBattleEntry } from '@/lib/battle-entry';
 
 /** Dev review rosters (moved here from the old /game/battle Practice tab when Battle became a modal on the Shell,
@@ -131,6 +132,7 @@ export default function DojoPage() {
   const launch = useCallback(async (body: Parameters<typeof api.combat.createPractice>[0], failMessage: string) => {
     if (kind === 'wallet' && !hasLiveSession()) { setGate('expired'); setGateErr(null); return; }
     requestBattleFullscreen();
+    primeAudio();   // start the shared audio engine inside the click: the entry's fades then run on the audio thread
     // The arena's music starts with the loading screen's breeze and plays on into the battle (owner 2026-10-25).
     startBattleEntry({ kind: 'practice', arena: arena === 'match' ? tier : arena });
     setBusy(true);

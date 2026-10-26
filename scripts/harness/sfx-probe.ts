@@ -59,7 +59,7 @@ export default async function (b: Browser) {
   const longest = 3 * 0.7 / speed + 0.3;   // a 3-hex walk plus the fade, in wall time
   console.log(`move: walks=${walks} starts=${moveStarts} stops=${stopAfter.length} longest=${Math.max(0, ...stopAfter).toFixed(2)}s (≤ ${longest.toFixed(2)}s?) clips=${JSON.stringify(Object.fromEntries(moveClips))} → one per walk: ${walks === moveStarts && moveStarts === stopAfter.length} no spill: ${stopAfter.every((s) => s <= longest)} both heard: ${moveClips.length >= 2}`);
   for (const l of b.logs.filter((x) => /\[ArenaMusic\]/.test(x)).slice(0, 8)) console.log('  music:', l.replace(/^\[log\] /, '').slice(0, 170));
-  const el = await b.eval(`(() => { const m = window.__clawbadaArenaMusic; if (!m) return null; const a = m.audio; return { tier: m.tier, src: a.src.split('/').pop(), paused: a.paused, currentTime: +a.currentTime.toFixed(1), volume: +a.volume.toFixed(2), duration: +a.duration.toFixed(1), loop: a.loop, readyState: a.readyState }; })()`);
+  const el = await b.eval(`(() => { const m = window.__clawbadaArenaMusic; if (!m) return null; const a = m.audio; return { tier: m.tier, src: a.src.split('/').pop(), paused: a.paused, currentTime: +a.currentTime.toFixed(1), volume: +(m.level ?? a.volume).toFixed(2), duration: +a.duration.toFixed(1), loop: a.loop, readyState: a.readyState }; })()`);
   console.log('  <audio>:', JSON.stringify(el));
   console.log('placeholder warnings:', b.logs.filter((x) => /PLACEHOLDER track/.test(x)).length);
   const iSnap = b.logs.findIndex((x) => /\[BattleBridge\] Initialized battle|\[BattleManager\] Initialized battle/.test(x));
