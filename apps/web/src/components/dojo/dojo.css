@@ -9,7 +9,7 @@
 /* ── workbench base for this page (placeholders.css, page-colors.css, typography roles, wooden-panel.css) ──
    :where() keeps these at element specificity, as his base rules sat under every page rule. */
 :where(#page-content[data-page="dojo"]) {
-  position: fixed; inset: 0 0 0 var(--sidebar-width); max-width: none; margin: 0; padding: 48px; overflow: auto;
+  position: absolute; inset: 0; max-width: none; margin: 0; padding: 48px; overflow: auto;
   box-sizing: border-box; color: #ffffff;
   font: 400 var(--type-body-md)/var(--type-body-leading) var(--type-body); letter-spacing: var(--type-body-tracking); font-synthesis: none;
 }
@@ -31,9 +31,27 @@
 :where(#page-content[data-page="dojo"]) .pixel-panel-art { position: absolute; top: calc(-1 * var(--panel-tile, 16) * var(--pixel)); left: calc(-1 * var(--panel-tile, 16) * var(--pixel)); z-index: -1; pointer-events: none; image-rendering: pixelated; }
 :where(#page-content[data-page="dojo"]) .pixel-grid { display: grid; gap: calc(8 * var(--pixel)); justify-content: start; }
 /* His placeholders.css: the page follows the pole's own frame progress — 48 art px further left while compact. */
-@media (min-width: 1024px) { :where(#page-content[data-page="dojo"]) { left: calc(var(--sidebar-width) - 48 * var(--pixel) * (1 - var(--sidebar-expand-progress, 1))); } }
+/* Clear of the real sidebar, whatever the chrome scale: its width (and his compact-pole offset) in stage px. */
+@media (min-width: 1024px) { :where(#page-content[data-page="dojo"]) { left: max(0px, calc((var(--sidebar-width) - 48px * var(--pixel-n, 3) * (1 - var(--sidebar-expand-progress, 1)) - var(--dojo-stage-tx, 0px)) / var(--dojo-stage-scale, 1))); } }
 /* Below lg the pixel sidebar is gone and the mobile bottom nav takes the foot of the window. */
-@media (max-width: 1023px) { :where(#page-content[data-page="dojo"]) { left: 0; bottom: 64px; } }
+
+/* ── the stage (owner 2026-10-26: "how Nzib intended it to look on any screen size") ──
+   His composition is laid out once at its design size, 1920×955 at the 3 px pixel, and scaled uniformly to fit
+   the window (dojo-room.tsx sets --dojo-stage-scale / -tx / -ty), so every window shows the same proportions instead
+   of reflowing. Phones (< 700 px) keep his own small-screen layout, unscaled. */
+.dojo-stage { position: fixed; inset: 0; z-index: 1; --dojo-vh: var(--dojo-vh); }
+@media (max-width: 1023px) { .dojo-stage { bottom: 64px; } }
+@media (min-width: 700px) {
+  .dojo-stage {
+    inset: auto; left: 0; top: 0; width: 1920px; height: 955px; --dojo-vh: 955px; --pixel: 3px;
+    transform-origin: 0 0; transform: translate(var(--dojo-stage-tx, 0px), var(--dojo-stage-ty, 0px)) scale(var(--dojo-stage-scale, 1));
+  }
+}
+/* The wallet chip (pinned at 3× on every other page) scales with the room on the Dojo, anchored to its corner, so it
+   sits beside "Opponent" as in his composition (owner 2026-10-26: "Shrink on the Dojo only"). */
+@media (min-width: 700px) {
+  html[data-dojo-stage] .user-section { transform: scale(var(--dojo-stage-scale, 1)); transform-origin: top right; }
+}
 
 /* ── his styles/pages/dojo.css ── */
 /* Dojo only. Original woodenPanel nine-slice artwork at the shared 3× scale. */
@@ -43,7 +61,7 @@
  #page-content[data-page="dojo"] #dojo-bot .dojo-options { margin-top:0; }
 }
 
-@media (max-height: 700px) {
+@media (max-width: 699px) and (max-height: 700px) {
   /* Keep the explanation accessible via fieldset description and hover title. */
   #page-content[data-page="dojo"] [data-purity-description] { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); }
 }
@@ -92,7 +110,7 @@
 [data-page="dojo"] .dojo-running { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-top: var(--pixel) solid currentColor; padding-top: 18px; }
 [data-page="dojo"] [hidden] { display: none !important; }
 /* Selected lineups are siblings ABOVE the wooden selection panels. */
-#page-content[data-page="dojo"] { --dojo-selected-pixel:4px; --dojo-lineup-height:clamp(156px,round(down,calc(100dvh - 720px),var(--pixel)),192px); --dojo-card-gap:clamp(0px,round(down,calc(100dvh - 864px),var(--pixel)),24px); display:flex; flex-direction:column; padding-top:168px; padding-bottom:12px; overflow:visible; }
+#page-content[data-page="dojo"] { --dojo-selected-pixel:4px; --dojo-lineup-height:clamp(156px,round(down,calc(var(--dojo-vh) - 720px),var(--pixel)),192px); --dojo-card-gap:clamp(0px,round(down,calc(var(--dojo-vh) - 864px),var(--pixel)),24px); display:flex; flex-direction:column; padding-top:168px; padding-bottom:12px; overflow:visible; }
 #page-content[data-page="dojo"] .page-header { flex:0 0 156px; margin-bottom:6px; }
 #page-content[data-page="dojo"] .dojo-team-headings { position:absolute; top:78px; left:50%; transform:translateX(-50%); width:min(900px,calc(100% - 48px)); display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:528px; pointer-events:none; }
 #page-content[data-page="dojo"] .dojo-team-headings h2 { margin:0; text-align:center; white-space:nowrap; font-family:var(--type-display); font-size:40px; line-height:1.2; font-style:italic; font-synthesis:style; color:#fff; text-shadow:none; -webkit-text-stroke:8px #000; paint-order:stroke fill; }
@@ -133,14 +151,14 @@
 /* Keep desktop panels content-sized and lineups toward the arena center. */
 @media (min-width:700px) {
  #page-content[data-page="dojo"] { transform:translateX(-24px); }
- #page-content[data-page="dojo"] .dojo-cards { --dojo-lower-offset:clamp(0px,round(down,calc(100dvh - 780px),var(--pixel)),96px); margin-top:var(--dojo-lower-offset); height:calc(100% - var(--dojo-lower-offset)); }
+ #page-content[data-page="dojo"] .dojo-cards { --dojo-lower-offset:clamp(0px,round(down,calc(var(--dojo-vh) - 780px),var(--pixel)),96px); margin-top:var(--dojo-lower-offset); height:calc(100% - var(--dojo-lower-offset)); }
  #page-content[data-page="dojo"] .dojo-card { align-self:start; height:100%; max-height:408px; }
  #page-content[data-page="dojo"] .dojo-lineup { width:min(100%,624px); }
  #page-content[data-page="dojo"] [data-lineup="team"] { justify-self:center; transform:none; }
  #page-content[data-page="dojo"] [data-lineup="opponent"] { justify-self:center; transform:none; }
 }
 /* The wide arena has room to clear both pillars without shrinking the lineup. */
-@media (min-width:1600px) {
+@media (min-width:700px) {
  body:not(.sidebar-compact) #page-content[data-page="dojo"] { transform:translateX(-84px); }
 }
 #page-content[data-page="dojo"] .dojo-card > .pixel-panel-art { top:0; left:0; }
@@ -178,7 +196,7 @@
  #page-content[data-page="dojo"] .page-header { position:absolute; top:0; left:50%; width:480px; transform:translateX(-50%); }
  #page-content[data-page="dojo"] [data-purity-description] { position:absolute; width:1px; height:1px; margin:0; overflow:hidden; clip-path:inset(50%); }
 }
-@media(min-width:700px) and (min-height:800px) {
+@media(min-width:700px) {
  #page-content[data-page="dojo"] .dojo-side { grid-template-rows:var(--dojo-lineup-height) minmax(0,1fr); }
  #page-content[data-page="dojo"] .dojo-inventory-tile { height:64px; }
 
@@ -204,10 +222,10 @@
  #page-content[data-page="dojo"] .dojo { width:var(--dojo-layout-width); align-self:center; }
  #page-content[data-page="dojo"] .dojo-cards { gap:var(--dojo-column-gap); }
  #page-content[data-page="dojo"] .dojo-team-headings { width:var(--dojo-layout-width); column-gap:var(--dojo-column-gap); top:78px; }
- #page-content[data-page="dojo"] .dojo-footer { left:50%; right:auto; bottom:auto; transform:translate(-50%,-50%); translate:0 24px; top:calc(clamp(0px,round(down,calc(100dvh - 780px),var(--pixel)),96px) + var(--dojo-lineup-height) + var(--dojo-card-gap) + 24px + min(408px,calc(100% - clamp(0px,round(down,calc(100dvh - 780px),var(--pixel)),96px) - var(--dojo-lineup-height) - var(--dojo-card-gap) - 48px)) / 2); }
- #page-content[data-page="dojo"] .dojo-vs { top:calc(clamp(0px,round(down,calc(100dvh - 780px),var(--pixel)),96px) + var(--dojo-lineup-height) + var(--dojo-card-gap)); }
+ #page-content[data-page="dojo"] .dojo-footer { left:50%; right:auto; bottom:auto; transform:translate(-50%,-50%); translate:0 24px; top:calc(clamp(0px,round(down,calc(var(--dojo-vh) - 780px),var(--pixel)),96px) + var(--dojo-lineup-height) + var(--dojo-card-gap) + 24px + min(408px,calc(100% - clamp(0px,round(down,calc(var(--dojo-vh) - 780px),var(--pixel)),96px) - var(--dojo-lineup-height) - var(--dojo-card-gap) - 48px)) / 2); }
+ #page-content[data-page="dojo"] .dojo-vs { top:calc(clamp(0px,round(down,calc(var(--dojo-vh) - 780px),var(--pixel)),96px) + var(--dojo-lineup-height) + var(--dojo-card-gap)); }
 }
-@media(min-width:700px) and (max-height:799px) {
+@media not all {
  #page-content[data-page="dojo"] .dojo-team-headings { top:78px; }
 }
 
@@ -218,7 +236,7 @@
 @media(min-width:700px) {
  #page-content[data-page="dojo"] .dojo-cards { height:calc(100% - var(--dojo-lower-offset) - 24px); }
 }
-@media(max-height:799px), (max-width:699px) {
+@media(max-width:699px) {
  #page-content[data-page="dojo"] .dojo-selection-feedback:empty { min-height:6px; }
 }
 /* Card-only adjustment: preserve the headings and fighter anchors. */
@@ -227,7 +245,7 @@
  #page-content[data-page="dojo"] .dojo-card { position:relative; top:24px; width:max(100%,calc((100cqw - 252px) / 2)); margin-left:0; height:calc(100% - 24px); }
  #page-content[data-page="dojo"] [data-side="team"] .dojo-card { margin-left:calc(100% - max(100%,calc((100cqw - 252px) / 2))); }
 }
-@media(min-width:700px) and (max-height:699px) {
+@media not all {
  #page-content[data-page="dojo"] .dojo-card { top:0; height:100%; }
 }
 /* Interior spacing for the revised framed Dark_Panel art. */
@@ -239,7 +257,7 @@
 #page-content[data-page="dojo"] [data-side="opponent"] .dojo-card .dojo-options > div { gap:6px; }
 #page-content[data-page="dojo"] .dojo-guide { margin-top:12px; }
 #page-content[data-page="dojo"] .dojo-selection-feedback:empty { min-height:12px; }
-@media(max-height:699px), (max-width:699px) {
+@media(max-width:699px) {
  #page-content[data-page="dojo"] .dojo-card[data-pixel-panel="dojoDarkPanel"] { padding:18px 18px 12px; }
  #page-content[data-page="dojo"] .dojo-tabs { margin-bottom:6px; }
  #page-content[data-page="dojo"] [data-side="opponent"] .dojo-card .dojo-options { margin-top:6px; gap:6px; }
@@ -252,7 +270,7 @@
 #page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager button:disabled { opacity:.35; cursor:default; }
 /* Extra inner gutter for card contents; tabs and panel artwork stay put. */
 #page-content[data-page="dojo"] .dojo-card > :is([role="tabpanel"],.dojo-field,.dojo-guide,.dojo-options,.dojo-help) { margin-left:12px; margin-right:12px; }
-@media(max-width:1600px) {
+@media(max-width:699px) {
  #page-content[data-page="dojo"] .dojo-card .dojo-options .dojo-choice { padding-left:3px; padding-right:3px; font-size:12px; }
 }
 /* Card-only control hierarchy; no changes to exterior geometry. */
@@ -267,7 +285,7 @@
 #page-content[data-page="dojo"] .dojo-card .dojo-help { font-size:12px; line-height:1.5; margin-top:9px; }
 #page-content[data-page="dojo"] .dojo-card .dojo-inventory-tile span:not([data-slot-badge]) { font-size:14px; line-height:1.2; padding-bottom:6px; }
 #page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager { margin-top:6px; }
-@media(max-width:1350px), (max-height:799px) {
+@media(max-width:699px) {
  #page-content[data-page="dojo"] .dojo-card .dojo-tabs { gap:6px; margin-bottom:6px; }
  #page-content[data-page="dojo"] .dojo-card .dojo-tabs button { font-size:14px; min-height:30px; padding:3px; }
  #page-content[data-page="dojo"] .dojo-card select { min-height:30px; font-size:14px; padding:3px 18px 3px 6px; }
@@ -292,8 +310,8 @@
 
 #page-content[data-page="dojo"] .dojo-card [data-owned-controls] > .dojo-field { grid-template-columns:90px minmax(0,1fr); align-items:center; }
 #page-content[data-page="dojo"] .dojo-card .dojo-inventory { grid-template-rows:repeat(2,var(--portrait-size,96px)); justify-content:start; }
-@media(min-width:700px) and (min-height:950px) {
- #page-content[data-page="dojo"] .dojo-card { max-height:calc(100dvh - 554px); height:calc(100% + 18px); }
+@media(min-width:700px) {
+ #page-content[data-page="dojo"] .dojo-card { max-height:calc(var(--dojo-vh) - 554px); height:calc(100% + 18px); }
 }
 #page-content[data-page="dojo"] .dojo-portrait-clip { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
 /* Keep the widest animated pose inside the box: 4 source pixels of transparent gutter, no extra inset. */
@@ -310,7 +328,7 @@
 #page-content[data-page="dojo"] .dojo-selection-feedback { font-size:14px; }
 #page-content[data-page="dojo"] #dojo-builder .dojo-options > div { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
 #page-content[data-page="dojo"] #dojo-builder .dojo-options:has([data-choices="purity"]) > div { grid-template-columns:repeat(7,minmax(0,1fr)); }
-@media(max-width:1350px), (max-height:799px) {
+@media(max-width:699px) {
  #page-content[data-page="dojo"] .dojo-card .dojo-tabs button { font-size:16px; min-height:33px; padding:3px; }
  #page-content[data-page="dojo"] .dojo-card select { font-size:14px; min-height:33px; padding:3px 18px 3px 6px; }
  #page-content[data-page="dojo"] .dojo-card .dojo-options .dojo-choice { font-size:15px; min-height:33px; padding:3px; }
@@ -361,14 +379,14 @@
 #page-content[data-page="dojo"] .dojo-inventory-pager { display:flex; align-items:center; justify-content:center; gap:12px; height:24px; }
 #page-content[data-page="dojo"] .dojo-inventory-pager button { background:#50352b; border:0; min-width:30px; height:24px; padding:0; line-height:1; }
 #page-content[data-page="dojo"] .dojo-inventory-pager span { font-size:12px; }
-@media(min-width:700px) and (max-height:799px) {
+@media not all {
  #page-content[data-page="dojo"] { padding-top:144px; }
  #page-content[data-page="dojo"] [data-side="team"] .dojo-card h2 { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
  #page-content[data-page="dojo"] .dojo-tabs { padding-bottom:3px; margin-bottom:3px; }
  #page-content[data-page="dojo"] [data-owned-details] { display:none; }
 }
 
-@media (min-width:700px) and (max-width:1350px) {
+@media not all {
  body:not(.sidebar-compact) #page-content[data-page="dojo"] [data-side="opponent"] .dojo-choice { font-size:15px; min-height:33px; }
  body:not(.sidebar-compact) #page-content[data-page="dojo"] .dojo-lineup { padding-inline:30px; }
 }
@@ -376,7 +394,7 @@
  #page-content[data-page="dojo"] .dojo-lineup { padding-inline:42px; }
 }
 
-@media (min-width:700px) and (max-width:1350px) {
+@media not all {
  body:not(.sidebar-compact) #page-content[data-page="dojo"] [data-side="opponent"] .dojo-options legend { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
  body:not(.sidebar-compact) #page-content[data-page="dojo"] [data-side="opponent"] .dojo-options { display:block; }
 }
@@ -420,7 +438,6 @@
 #page-content[data-page="dojo"] .dojo-presets summary { cursor:pointer; font:400 12px/1.4 var(--type-display); }
 #page-content[data-page="dojo"] .dojo-presets select { width:100%; margin:6px 0; min-height:30px; font-size:12px; }
 #page-content[data-page="dojo"] .dojo-presets button { font:400 14px/1.2 var(--type-display); color:#302129; background:#ffe4a0; border:3px solid #392624; padding:3px 9px; }
-/* Short windows: the Battle button sits low, so who you train as stays for screen readers only. */
-@media (max-height: 699px) {
-  #page-content[data-page="dojo"] .dojo-status .dojo-identity { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
-}
+/* His look has no text under Battle: the summary and who you train as are for screen readers; an error or the
+   sign-in gate still shows. */
+#page-content[data-page="dojo"] .dojo-status :is([data-testid="dojo-summary"], .dojo-identity) { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
