@@ -24,7 +24,7 @@ export default async function (b: Browser) {
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () { this.muted = true; if (/theme/.test(this.src)) window.__theme = this; return play.call(this); };
   ` });
-  await b.goto(`${BASE}/dojo`);
+  await b.goto(`${BASE}/dojo?team=kraken,ember,abyss`);   // the Dojo opens with nobody picked
   await b.waitFor(`!!document.querySelector('[data-testid=dojo-battle]:not(:disabled)')`, 90000, 250);
   await b.sleep(2500);
   // Browsers only autoplay after a user gesture: click the page, then start the theme as a visitor's click would.

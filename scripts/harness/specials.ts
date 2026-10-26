@@ -51,7 +51,7 @@ export default async function (b: Browser) {
     if (await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner ✓'))`, 8000, 250)) break;
   }
   // Preset comes from the URL (?preset=...); confirm the picker shows it before starting.
-  const shown = await b.waitFor(`!!Array.from(document.querySelectorAll('button[role=combobox]')).find(x => x.textContent.includes(${JSON.stringify(PRESET_LABEL)}))`, 20000, 250);
+  const shown = await b.waitFor(`(document.querySelector('select[aria-label="Review preset"]')?.selectedOptions?.[0]?.textContent || '').includes(${JSON.stringify(PRESET_LABEL)})`, 20000, 250);
   expect(!!shown, `preset picker shows '${PRESET_LABEL}' from the URL`);
   await b.sleep(300);
   await rectClick(b, 'button', 'Start practice');

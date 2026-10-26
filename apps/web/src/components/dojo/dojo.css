@@ -31,8 +31,8 @@
 :where(#page-content[data-page="dojo"]) .pixel-panel-art { position: absolute; top: calc(-1 * var(--panel-tile, 16) * var(--pixel)); left: calc(-1 * var(--panel-tile, 16) * var(--pixel)); z-index: -1; pointer-events: none; image-rendering: pixelated; }
 :where(#page-content[data-page="dojo"]) .pixel-grid { display: grid; gap: calc(8 * var(--pixel)); justify-content: start; }
 /* His placeholders.css: the page follows the pole's own frame progress — 48 art px further left while compact. */
-/* Clear of the real sidebar, whatever the chrome scale: its width (and his compact-pole offset) in stage px. */
-@media (min-width: 1024px) { :where(#page-content[data-page="dojo"]) { left: max(0px, calc((var(--sidebar-width) - 48px * var(--pixel-n, 3) * (1 - var(--sidebar-expand-progress, 1)) - var(--dojo-stage-tx, 0px)) / var(--dojo-stage-scale, 1))); } }
+/* Clear of the real sidebar at any chrome scale: dojo-room.tsx works out the offset in stage px. */
+@media (min-width: 1024px) { :where(#page-content[data-page="dojo"]) { left: var(--dojo-content-left, 0px); } }
 /* Below lg the pixel sidebar is gone and the mobile bottom nav takes the foot of the window. */
 
 /* ── the stage (owner 2026-10-26: "how Nzib intended it to look on any screen size") ──
@@ -159,7 +159,7 @@
 }
 /* The wide arena has room to clear both pillars without shrinking the lineup. */
 @media (min-width:700px) {
- body:not(.sidebar-compact) #page-content[data-page="dojo"] { transform:translateX(-84px); }
+ /* (his wide-window shift for an open sidebar is replaced by the stage moving as one piece) */
 }
 #page-content[data-page="dojo"] .dojo-card > .pixel-panel-art { top:0; left:0; }
 #page-content[data-page="dojo"] [data-side="opponent"] .dojo-card > .pixel-panel-art { transform:scaleX(-1); }
@@ -433,11 +433,18 @@
 #page-content[data-page="dojo"] .dojo-fighter[data-unknown="true"] canvas { filter:brightness(0) opacity(.55); }
 #page-content[data-page="dojo"] .dojo-empty { margin:6px 12px; font-size:14px; line-height:1.4; }
 #page-content[data-page="dojo"] .dojo-empty .dojo-link { color:#ffe4a0; background:none; border:0; padding:0; font:inherit; text-decoration:underline; cursor:pointer; }
-/* Dev-only review presets (never in a deployed build): a corner drawer, out of the composition. */
-#page-content[data-page="dojo"] .dojo-presets { position:fixed; left:12px; bottom:12px; z-index:6; max-width:360px; padding:6px 9px; background:#302129e6; border:3px solid #392624; font-size:12px; }
-#page-content[data-page="dojo"] .dojo-presets summary { cursor:pointer; font:400 12px/1.4 var(--type-display); }
-#page-content[data-page="dojo"] .dojo-presets select { width:100%; margin:6px 0; min-height:30px; font-size:12px; }
-#page-content[data-page="dojo"] .dojo-presets button { font:400 14px/1.2 var(--type-display); color:#302129; background:#ffe4a0; border:3px solid #392624; padding:3px 9px; }
+/* Dev-only review presets (never in a deployed build): a corner drawer outside the stage, in window px. */
+.dojo-presets { position:fixed; right:12px; bottom:12px; z-index:40; max-width:360px; padding:6px 9px; background:#302129e6; border:3px solid #392624; color:#fff4d6; font:400 12px/1.4 var(--type-body); }
+.dojo-presets summary { cursor:pointer; font:400 12px/1.4 var(--type-display); }
+.dojo-presets select { display:block; width:100%; margin:6px 0; min-height:30px; font-size:12px; color:#302129; background:#fff0cd; border:3px solid #392624; }
+.dojo-presets button { font:400 14px/1.2 var(--type-display); color:#302129; background:#ffe4a0; border:3px solid #392624; padding:3px 9px; }
 /* His look has no text under Battle: the summary and who you train as are for screen readers; an error or the
    sign-in gate still shows. */
 #page-content[data-page="dojo"] .dojo-status :is([data-testid="dojo-summary"], .dojo-identity) { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+/* Build a team (Nzib 2026-10-26: "like My Lobsters"): Tier and Purity share one compact row above the class tiles,
+   in the place of My lobsters' saved-team select. */
+#page-content[data-page="dojo"] #dojo-builder .dojo-compact { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:39px; }
+#page-content[data-page="dojo"] #dojo-builder .dojo-compact-group { display:flex; align-items:center; gap:9px; margin:0; padding:0; border:0; min-width:0; }
+#page-content[data-page="dojo"] #dojo-builder .dojo-compact-group legend { float:left; padding:0; font-size:14px; line-height:1.3; }
+#page-content[data-page="dojo"] #dojo-builder .dojo-compact-group > div { display:flex; gap:3px; }
+#page-content[data-page="dojo"] #dojo-builder .dojo-compact .dojo-choice { min-height:33px; padding:3px 8px; font:14px/1.2 var(--type-display); }
