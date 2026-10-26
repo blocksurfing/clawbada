@@ -49,6 +49,7 @@ export const PIXEL_ASSETS = {
   dojoDarkPanel: { kind: 'panel', src: '/ui/dojo/Dark_Panel.png', width: 48, height: 48, region: [0, 0, 48, 48], tile: 16 },
   dojoSign: { kind: 'sprite', src: '/ui/dojo/Wooden_Sign.png', width: 96, height: 64, frame: [96, 64] },
   dojoSelectedFrame: { kind: 'sprite', src: '/ui/dojo/Selected_Frame.png', width: 128, height: 32, frame: [32, 32] },
+  cursor: { kind: 'sprite', src: '/ui/cursor/cursor.png', width: 160, height: 32, frame: [32, 32] },
   apexClassSheet: { kind: 'sprite', src: '/ui/shell/apex-class-sheet.png', width: 640, height: 64, frame: [64, 64] },
 } as const satisfies Record<string, SpriteAsset | PanelAsset>;
 
