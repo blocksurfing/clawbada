@@ -117,7 +117,20 @@ export function mountShellArt(room: HTMLElement, onStageUnit?: (stageUnit: numbe
       if (!stage || !light) return;
       const r = stage.getBoundingClientRect();
       light.style.left = `${r.left - roomRect.left + 14 * stageUnit}px`;
-      light.style.top = `${r.bottom - roomRect.top - 278 * stageUnit}px`;
+      const top = r.bottom - roomRect.top - 278 * stageUnit;
+      if (top > 0) {
+        // The beam would start inside the room — its top edge showed as a hard line once the stages shrank to fit
+        // the band (owner 2026-10-26: "our rays of light are cut short"). Stretch it up to the top of the room; its
+        // width stays the stage's, so the light still lands where it did.
+        const height = top + 256 * stageUnit;
+        light.style.top = '0px';
+        light.style.height = `${height}px`;
+        light.style.backgroundSize = `${1536 * stageUnit}px ${height}px`;
+      } else {
+        light.style.top = `${top}px`;
+        light.style.height = '';
+        light.style.backgroundSize = '';
+      }
     });
     onStageUnit?.(stageUnit, unit);
   };
