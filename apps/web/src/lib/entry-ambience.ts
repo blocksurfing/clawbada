@@ -16,8 +16,8 @@ import { SFX_EVENT, getSfxPref } from './audio-prefs';
 
 /** The breeze's level: a fixed 50 % (owner 2026-10-25; was 95 % × the SFX volume). */
 const BREEZE_GAIN = 0.5;
-/** Fade in with the loop, fade out at the hand-over (owner 2026-10-23: 1 s each). */
-export const BREEZE_FADE_IN_MS = 1000;
+/** Ease in over 2 s (owner 2026-10-25: 1 s was jarring), fade out at the hand-over over 1 s (owner 2026-10-23). */
+export const BREEZE_FADE_IN_MS = 2000;
 export const BREEZE_FADE_OUT_MS = 1000;
 const CANCEL_FADE_MS = 300;
 

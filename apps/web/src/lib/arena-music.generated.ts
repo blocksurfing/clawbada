@@ -6,7 +6,7 @@ export const ARENA_MUSIC: Record<ArenaTier, readonly string[]> = {
   evolved: ["/audio/music/BGM_Arena_Evolved.88373004.m4a"],
   elite: ["/audio/music/BGM_Arena_Elite.a5ec31e8.m4a"],
   apex: ["/audio/music/BGM_Arena_Apex.89e37876.m4a"],
-  dojo: ["/audio/music/BGM_Arena_Dojo_01.e5cb047f.m4a","/audio/music/BGM_Arena_Dojo_02.6906e14d.m4a"],
+  dojo: ["/audio/music/BGM_Arena_Dojo_01.e58f0196.m4a","/audio/music/BGM_Arena_Dojo_02.6906e14d.m4a"],
 };
 /** The breeze under the web loading loop (lib/entry-ambience.ts). null = no AMB_Loading_Breeze.wav master yet: the entry is silent. */
-export const ENTRY_AMBIENCE: string | null = "/audio/music/AMB_Loading_Breeze.0b4351c9.m4a";
+export const ENTRY_AMBIENCE: string | null = "/audio/music/AMB_Loading_Breeze.1549bb09.m4a";
