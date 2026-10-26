@@ -13,6 +13,7 @@
  */
 import { ENTRY_AMBIENCE } from './arena-music.generated';
 import { SFX_EVENT, getSfxPref } from './audio-prefs';
+import { fadeLevel, isSmooth, levelOf, setLevel } from './audio-graph';
 
 /** The breeze's level: a fixed 35 % (owner 2026-10-26; 50 % on 10-25; was 95 % × the SFX volume). */
 const BREEZE_GAIN = 0.35;
@@ -25,7 +26,6 @@ const gain = () => BREEZE_GAIN;
 const log = (...a: unknown[]) => console.log('[EntryAmbience]', ...a);
 
 let audio: HTMLAudioElement | null = null;
-let fadeTimer: number | null = null;
 let startTimer: number | null = null;
 let active = false;                      // between startEntryAmbience and stopEntryAmbience
 
@@ -39,24 +39,17 @@ function element(): HTMLAudioElement | null {
   return audio;
 }
 
+/** Fades run on the audio thread (lib/audio-graph.ts), so the page switching to the battle can't stall them. */
 function fadeTo(target: number, ms: number, then?: () => void) {
   if (!audio) return;
-  if (fadeTimer !== null) window.clearInterval(fadeTimer);
-  const from = audio.volume, start = performance.now();
-  fadeTimer = window.setInterval(() => {
-    if (!audio) return;
-    const t = ms <= 0 ? 1 : Math.min(1, (performance.now() - start) / ms);
-    audio.volume = from + (target - from) * t;
-    if (t >= 1) { window.clearInterval(fadeTimer!); fadeTimer = null; then?.(); }
-  }, 50);
+  fadeLevel(audio, target, ms, then);
 }
 
 function play() {
   startTimer = null;
   const el = element();
   if (!active || !el) return;
-  if (fadeTimer !== null) { window.clearInterval(fadeTimer); fadeTimer = null; }
-  el.volume = 0;
+  setLevel(el, 0);
   try { el.currentTime = 0; } catch { /* not loaded yet: it starts from 0 anyway */ }
   const t0 = performance.now();
   el.play().then(() => {
@@ -74,7 +67,7 @@ export function preloadEntryAmbience() {
 export function startEntryAmbience(delayMs = 0) {
   if (active) return;
   active = true;
-  (window as unknown as { __clawbadaEntryAmbience?: unknown }).__clawbadaEntryAmbience = { url: ENTRY_AMBIENCE, get audio() { return audio; } };
+  (window as unknown as { __clawbadaEntryAmbience?: unknown }).__clawbadaEntryAmbience = { url: ENTRY_AMBIENCE, get audio() { return audio; }, get level() { return audio ? levelOf(audio) : null; }, get smooth() { return audio ? isSmooth(audio) : false; } };
   if (!ENTRY_AMBIENCE) { log('no breeze track yet (AMB_Loading_Breeze) — the entry is silent'); return; }
   if (!getSfxPref()) { log('sound effects are off — breeze not started'); return; }
   if (startTimer !== null) window.clearTimeout(startTimer);

@@ -18,6 +18,7 @@
  */
 import { ARENA_MUSIC, type ArenaTier } from './arena-music.generated';
 import { getThemeAudio } from '@/components/music-toggle';
+import { fadeLevel, isSmooth, levelOf, setLevel } from './audio-graph';
 import { BATTLE_MUSIC_EVENT, VOLUME_EVENT, getBattleMusicPref, getBattleMusicVolume, getMusicPref } from './audio-prefs';
 export { BATTLE_MUSIC_EVENT };
 
@@ -30,7 +31,6 @@ export const INTRO_FADE_IN_MS = 3000;
 const FADE_OUT_MS = 2000;
 
 let audio: HTMLAudioElement | null = null;
-let fadeTimer: number | null = null;
 let activeTier: ArenaTier | null = null;   // non-null while a battle is in progress
 let activeUrl: string | null = null;       // the track picked for this battle (kept if music is toggled off and on)
 /** A bed started by the battle entry and not yet adopted by its battle (between the Train press and the intro). */
@@ -114,16 +114,11 @@ function resumeThemeIfWanted() {
   themeWasPlaying = false;
 }
 
+/** Fades run on the audio thread (lib/audio-graph.ts): page work — the Dojo → battle switch, Unity starting — can't
+ *  stall a ramp and make it jump (the owner's stutter as the music's fade-in ended, 2026-10-26). */
 function fadeTo(target: number, ms: number, then?: () => void) {
   if (!audio) return;
-  if (fadeTimer !== null) window.clearInterval(fadeTimer);
-  const from = audio.volume, start = performance.now();
-  fadeTimer = window.setInterval(() => {
-    if (!audio) return;
-    const t = Math.min(1, (performance.now() - start) / ms);
-    audio.volume = from + (target - from) * t;
-    if (t >= 1) { window.clearInterval(fadeTimer!); fadeTimer = null; then?.(); }
-  }, 50);
+  fadeLevel(audio, target, ms, then);
 }
 
 /** One of the tier's tracks for this battle (owner 2026-10-25: the Dojo has two, one per battle at random). Picked from
@@ -149,13 +144,13 @@ function play(tier: ArenaTier, fadeMs = FADE_IN_MS) {
     audio.loop = true;
     audio.preload = 'auto';
   }
-  audio.volume = 0;
+  setLevel(audio, 0);
   const t0 = performance.now();
   audio.play().then(() => {
     log(`${url.split('/').pop()} (${tier}) playing after ${Math.round(performance.now() - t0)} ms → fade to ${gain().toFixed(3)} over ${fadeMs} ms`);
     fadeTo(gain(), fadeMs);
   }).catch((e) => log('play blocked:', e?.name ?? e));
-  (window as unknown as { __clawbadaArenaMusic?: unknown }).__clawbadaArenaMusic = { audio, tier };
+  (window as unknown as { __clawbadaArenaMusic?: unknown }).__clawbadaArenaMusic = { audio, tier, get level() { return audio ? levelOf(audio) : null; }, get smooth() { return audio ? isSmooth(audio) : false; } };
 }
 
 /** Call when the battle is known: starts the bed for that arena (unless music is off). */
