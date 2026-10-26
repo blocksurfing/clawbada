@@ -69,7 +69,7 @@ export default async function (b: Browser) {
   const audioOn = !!process.env.AUDIO;
   const air = await breeze(b);
   const airDetail = !air ? 'no handle' : air.url === null ? 'no AMB_Loading_Breeze master yet — silent' : `${air.url.split('/').pop()} ${air.playing ? 'playing' : 'paused'}, volume ${air.volume?.toFixed(3)}`;
-  ok(audioOn ? 'breeze playing with the loop at its fixed 50 % (audio on, battle music off — it follows the SFX switch)' : 'breeze silent while muted', !!air && (air.url === null || (audioOn ? air.playing && (air.volume ?? 1) <= 0.51 : !air.playing)), airDetail);
+  ok(audioOn ? 'breeze playing with the loop at its fixed 35 % (audio on, battle music off — it follows the SFX switch)' : 'breeze silent while muted', !!air && (air.url === null || (audioOn ? air.playing && (air.volume ?? 1) <= 0.36 : !air.playing)), airDetail);
   await b.screenshot(`${OUT}/entry-loading.png`);
   // The arena's bed (owner 2026-10-25): with battle music on it starts with the breeze on the loading screen.
   const bed = () => b.eval(`(() => { const m = window.__clawbadaArenaMusic; return m && m.audio ? { src: m.audio.src.split('/').pop(), playing: !m.audio.paused, volume: m.audio.volume } : null; })()`) as Promise<{ src: string; playing: boolean; volume: number } | null>;

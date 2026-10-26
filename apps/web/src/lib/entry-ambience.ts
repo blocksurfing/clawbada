@@ -9,15 +9,15 @@
  *
  * It is AMBIENCE, so the in-battle SFX switch mutes it (owner 2026-10-24) — not the Music row: with battle music off
  * (the owner's own setting, 'off' / vol 30) the wind never started and "doesn't play at all". Its level is FIXED at
- * 50 % (owner 2026-10-25: "keep it at 50 % so it's very subtle"), whatever the SFX volume slider says.
+ * 35 % (owner 2026-10-26: down another 15 % from 50 %, "very subtle"), whatever the SFX volume slider says.
  */
 import { ENTRY_AMBIENCE } from './arena-music.generated';
 import { SFX_EVENT, getSfxPref } from './audio-prefs';
 
-/** The breeze's level: a fixed 50 % (owner 2026-10-25; was 95 % × the SFX volume). */
-const BREEZE_GAIN = 0.5;
-/** Ease in over 2 s (owner 2026-10-25: 1 s was jarring), fade out at the hand-over over 1 s (owner 2026-10-23). */
-export const BREEZE_FADE_IN_MS = 2000;
+/** The breeze's level: a fixed 35 % (owner 2026-10-26; 50 % on 10-25; was 95 % × the SFX volume). */
+const BREEZE_GAIN = 0.35;
+/** A slow 3 s ease in (owner 2026-10-26; 2 s on 10-25, 1 s before), fade out at the hand-over over 1 s (10-23). */
+export const BREEZE_FADE_IN_MS = 3000;
 export const BREEZE_FADE_OUT_MS = 1000;
 const CANCEL_FADE_MS = 300;
 

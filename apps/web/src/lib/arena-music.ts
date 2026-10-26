@@ -44,6 +44,23 @@ const log = (...a: unknown[]) => console.log('[ArenaMusic]', ...a);
 const prefOff = () => !getBattleMusicPref();
 const THEME_GAIN = 0.4;
 const THEME_FADE_MS = 800;
+/** Coming out of a battle the theme waits, then eases back in (owner 2026-10-26: dropping straight into it was
+ *  jarring). A battle view that opens during the wait cancels it; the theme still returns after that battle. */
+export const THEME_RETURN_DELAY_MS = 3000;
+export const THEME_RETURN_FADE_MS = 3000;
+let themeReturn: { wait: number | null; fade: number | null } = { wait: null, fade: null };
+
+/** Stop a pending or in-progress theme return (a battle view opened); the theme counts as "was playing" again. */
+function cancelThemeReturn() {
+  if (themeReturn.wait === null && themeReturn.fade === null) return;
+  if (themeReturn.wait !== null) window.clearTimeout(themeReturn.wait);
+  if (themeReturn.fade !== null) window.clearInterval(themeReturn.fade);
+  themeReturn = { wait: null, fade: null };
+  themeWasPlaying = true;
+  const theme = getThemeAudio();
+  if (!theme.paused) { theme.pause(); theme.volume = THEME_GAIN; }
+  log('theme return cancelled — a battle view opened');
+}
 let inBattleView = false;
 
 /** True while a battle view is open (the theme stays off, whatever its toggle says). */
@@ -52,6 +69,7 @@ export function isArenaMusicActive(): boolean { return activeTier !== null || in
 /** A battle view opened: fade the site theme out now — before Unity loads — and remember to bring it back. */
 export function enterBattleView() {
   inBattleView = true;
+  cancelThemeReturn();
   const theme = getThemeAudio();
   if (theme.paused) return;
   themeWasPlaying = true;
@@ -77,11 +95,21 @@ export function leaveBattleView() {
 }
 
 function resumeThemeIfWanted() {
-  if (themeWasPlaying && getMusicPref() && !inBattleView) {
-    const theme = getThemeAudio();
-    theme.volume = THEME_GAIN;
-    theme.play().catch(() => {});
-    log('theme resumed');
+  if (themeWasPlaying && getMusicPref() && !inBattleView && themeReturn.wait === null && themeReturn.fade === null) {
+    log(`theme returns in ${THEME_RETURN_DELAY_MS} ms, easing in over ${THEME_RETURN_FADE_MS} ms`);
+    themeReturn.wait = window.setTimeout(() => {
+      themeReturn.wait = null;
+      if (inBattleView || activeTier !== null || entry || !getMusicPref()) return;
+      const theme = getThemeAudio();
+      theme.volume = 0;
+      theme.play().catch(() => {});
+      const start = performance.now();
+      themeReturn.fade = window.setInterval(() => {
+        const t = Math.min(1, (performance.now() - start) / THEME_RETURN_FADE_MS);
+        theme.volume = THEME_GAIN * t;
+        if (t >= 1) { window.clearInterval(themeReturn.fade!); themeReturn.fade = null; log('theme back'); }
+      }, 50);
+    }, THEME_RETURN_DELAY_MS);
   }
   themeWasPlaying = false;
 }
@@ -132,6 +160,7 @@ function play(tier: ArenaTier, fadeMs = FADE_IN_MS) {
 
 /** Call when the battle is known: starts the bed for that arena (unless music is off). */
 export function startArenaMusic(tier: ArenaTier, fadeMs = FADE_IN_MS, battleId?: string) {
+  cancelThemeReturn();
   if (entry && entry.tier === tier) {
     // The entry already has this arena's bed going: adopt it — the same track carries on, no restart, no second fade.
     activeTier = tier;
@@ -157,6 +186,7 @@ export function startArenaMusic(tier: ArenaTier, fadeMs = FADE_IN_MS, battleId?:
  *  in with the breeze after `delayMs` (the navy curtain). The battle adopts it (startArenaMusic). */
 export function startEntryArenaMusic(tier: ArenaTier, delayMs = 0) {
   if (activeTier !== null || entry) return;
+  cancelThemeReturn();
   const url = pickArenaTrack(tier);
   if (!url) { log(`no track for ${tier} — the entry stays quiet`); return; }
   entry = { tier, url };
