@@ -18,8 +18,9 @@ export function usePixelPanel(ref: RefObject<HTMLElement | null>, canvasRef: Ref
     const update = () => {
       scheduled = 0;
       if (disposed || !image) return;
-      const unit = pixelScale();
-      const rect = element.getBoundingClientRect();
+      // The pixel in effect here, and the layout size (not the on-screen one: the Dojo's stage is scaled by a transform).
+      const unit = pixelScale(element);
+      const rect = { width: element.offsetWidth, height: element.offsetHeight };
       // Hidden panels have zero bounds; a responsive layout can briefly sit below the fixed corners.
       // Keep the last paint until the observer supplies usable bounds.
       if (!rect.width || !rect.height) return;

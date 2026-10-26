@@ -1,7 +1,7 @@
 'use client';
 
 import './dojo.css';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { PixelPanel } from '@/components/shell/pixel-panel';
 import { PIXEL_SCALE_EVENT, pixelScale } from '@/components/pixel/pixel-assets';
 import { BOT_CATALOG, botInfo, type BotName } from '@/lib/bot-catalog';
@@ -67,16 +67,48 @@ interface DojoRoomProps {
   devTools?: ReactNode;
 }
 
-/** The global `--pixel`, kept current across the 3 / 2.5 / 2 chrome scales. */
-function usePixel() {
+/** His design window: the composition is laid out at this size (at the 3 px pixel) and scaled to fit. */
+export const DOJO_DESIGN = { width: 1920, height: 955 } as const;
+/** The mobile bottom nav below lg (game-shell.tsx). */
+const MOBILE_NAV = 64;
+
+/** Fit the stage: one uniform scale for the whole composition, centred in the window. Phones keep the unscaled
+ *  small-screen layout. Returns the stage's `--pixel` (3 on the stage, the chrome's on a phone). */
+function useStage(stageRef: RefObject<HTMLDivElement | null>) {
   const [unit, setUnit] = useState(3);
   useEffect(() => {
-    const read = () => setUnit(pixelScale());
-    read();
-    window.addEventListener(PIXEL_SCALE_EVENT, read);
-    return () => window.removeEventListener(PIXEL_SCALE_EVENT, read);
-  }, []);
+    const stage = stageRef.current;
+    if (!stage) return;
+    const fit = () => {
+      const vw = window.innerWidth, vh = window.innerHeight - (vw < 1024 ? MOBILE_NAV : 0);
+      const scale = vw < 700 ? 1 : Math.min(vw / DOJO_DESIGN.width, vh / DOJO_DESIGN.height);
+      const tx = vw < 700 ? 0 : (vw - DOJO_DESIGN.width * scale) / 2;
+      const ty = vw < 700 ? 0 : Math.max(0, (vh - DOJO_DESIGN.height * scale) / 2);
+      stage.style.setProperty('--dojo-stage-scale', String(scale));
+      // The wallet chip belongs to his composition too (owner 2026-10-26): on the Dojo it scales with the room.
+      document.documentElement.style.setProperty('--dojo-stage-scale', String(scale));
+      document.documentElement.setAttribute('data-dojo-stage', '');
+      stage.style.setProperty('--dojo-stage-tx', `${tx}px`);
+      stage.style.setProperty('--dojo-stage-ty', `${ty}px`);
+      setUnit(pixelScale(stage));
+      window.dispatchEvent(new CustomEvent(DOJO_STAGE_EVENT, { detail: scale }));
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    window.addEventListener(PIXEL_SCALE_EVENT, fit);
+    return () => {
+      window.removeEventListener('resize', fit); window.removeEventListener(PIXEL_SCALE_EVENT, fit);
+      document.documentElement.style.removeProperty('--dojo-stage-scale');
+      document.documentElement.removeAttribute('data-dojo-stage');
+    };
+  }, [stageRef]);
   return unit;
+}
+export const DOJO_STAGE_EVENT = 'clawbada:dojo-stage';
+/** The stage's current scale (1 when unscaled). */
+export function stageScale(el: Element): number {
+  const v = parseFloat(getComputedStyle(el).getPropertyValue('--dojo-stage-scale'));
+  return Number.isFinite(v) && v > 0 ? v : 1;
 }
 
 function useClassSheet() {
@@ -144,7 +176,8 @@ function InventoryTile({ lobster, slot, sheet, unit, hidden, onClick }: {
 
 export function DojoRoom(props: DojoRoomProps) {
   const { lobsters, teams, initialMode, isWallet, team, tier, purity, bot, opponent, arena, busy, blocked, error } = props;
-  const unit = usePixel();
+  const stageRef = useRef<HTMLDivElement>(null);
+  const unit = useStage(stageRef);
   const sheet = useClassSheet();
   const rootRef = useRef<HTMLDivElement>(null);
   const inventoryRef = useRef<HTMLDivElement>(null);
@@ -241,7 +274,7 @@ export function DojoRoom(props: DojoRoomProps) {
         const follower = document.createElement('canvas');
         follower.dataset.dragFollower = '';
         follower.setAttribute('aria-hidden', 'true');
-        drawClass(follower, img, ids.get(d.id)?.classIndex ?? 0, d.fromLineup ? cssPx(root, '--dojo-selected-pixel', 4) : u);
+        drawClass(follower, img, ids.get(d.id)?.classIndex ?? 0, (d.fromLineup ? cssPx(root, '--dojo-selected-pixel', 4) : u) * stageScale(root));
         // On body: the page is transformed, which would capture a fixed child.
         document.body.append(follower);
         d.follower = follower;
@@ -325,6 +358,7 @@ export function DojoRoom(props: DojoRoomProps) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/ui/dojo/Dojo_Dark.png" alt="" width={640} height={360} draggable={false} />
       </div>
+      <div className="dojo-stage" ref={stageRef}>
       <div id="page-content" data-page="dojo" ref={rootRef}>
         <div className="dojo-team-headings"><h2 id="dojo-team-title">Your Team</h2><h2 id="dojo-opponent-title">Opponent</h2></div>
         <DojoSign title="The Dojo" />
@@ -474,6 +508,7 @@ export function DojoRoom(props: DojoRoomProps) {
           </div>
           {props.devTools}
         </section>
+      </div>
       </div>
     </>
   );

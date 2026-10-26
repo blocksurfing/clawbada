@@ -76,10 +76,31 @@ export default async function (b: Browser) {
     }
     await b.eval(`document.querySelector('[data-team-mode=builder]').click()`);
     ok(`${tag}: Fight with friend is disabled, "Coming soon"`, await b.eval(`(() => { const t = document.querySelector('[data-testid=dojo-friend-tab]'); return !!t && t.getAttribute('aria-disabled') === 'true' && t.textContent.includes('Coming soon'); })()`));
+    // His composition at one uniform scale (owner 2026-10-26), with the wallet chip scaled along on this page.
+    const stage = await b.eval(`parseFloat(getComputedStyle(document.querySelector('.dojo-stage')).getPropertyValue('--dojo-stage-scale'))`) as number;
+    const wantStage = Math.min(w / 1920, (h - (w < 1024 ? 64 : 0)) / 955);
+    ok(`${tag}: one uniform scale for the whole composition`, Math.abs(stage - wantStage) < 0.001, `${stage.toFixed(4)} (want ${wantStage.toFixed(4)})`);
+    const chip = await rect('.connect-wallet');
+    for (const id of ['dojo-team-title', 'dojo-opponent-title']) {
+      // The letters, not the heading's grid column (which is wider than the word, in his design too).
+      const hr = await b.eval(`(() => { const e = document.getElementById('${id}'); if (!e) return null; const r = document.createRange(); r.selectNodeContents(e); const q = r.getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom }; })()`) as R | null;
+      ok(`${tag}: ${id === 'dojo-team-title' ? 'Your Team' : 'Opponent'} heading clear of the wallet chip`, !!hr && (!chip || !hit(hr, chip)), JSON.stringify({ heading: hr, chip }));
+    }
     const scroll = await b.eval(`(() => { const p = document.querySelector('#page-content'); return { page: document.scrollingElement.scrollHeight - innerHeight, inner: p.scrollHeight - p.clientHeight }; })()`) as { page: number; inner: number };
     ok(`${tag}: the window doesn't scroll`, scroll.page <= 0, JSON.stringify(scroll));
     await b.screenshot(`${OUT}/dojo-layout-${w}x${h}.png`);
   }
+
+  // Leaving the Dojo (client-side, via the sidebar) puts the wallet chip back to its own size.
+  await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 755, deviceScaleFactor: 2, mobile: false });
+  await b.goto(`${BASE}/dojo`);
+  await b.waitFor(`document.documentElement.hasAttribute('data-dojo-stage')`, 60000, 250);
+  ok('on the Dojo the wallet chip scales with the room', await b.eval(`getComputedStyle(document.querySelector('.user-section')).transform !== 'none'`));
+  const shellLink = await b.eval(`(() => { const a = document.querySelector('a[data-menu="dashboard"]') || document.querySelector('a[href="/game"]'); if (!a) return null; const q = a.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number } | null;
+  if (shellLink) await b.clickAt(shellLink.x, shellLink.y);
+  await b.waitFor(`location.pathname === '/game'`, 120000, 250);
+  await b.sleep(800);
+  ok('leaving the Dojo restores the full-size wallet chip', !!shellLink && (await b.eval(`!document.documentElement.hasAttribute('data-dojo-stage') && getComputedStyle(document.querySelector('.user-section')).transform === 'none'`)));
 
   // ── My lobsters: a burner wallet with stubbed lobsters ──
   await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 755, deviceScaleFactor: 2, mobile: false });

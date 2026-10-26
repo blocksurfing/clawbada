@@ -130,8 +130,9 @@ export function applyChromePixelScale(): number {
   return next;
 }
 
-export const pixelScale = () => {
+/** The `--pixel` in effect at `element` (the page's chrome scale by default; the Dojo's stage pins its own 3 px). */
+export const pixelScale = (element?: Element | null) => {
   if (typeof document === 'undefined') return 3;
-  const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pixel'));
+  const value = parseFloat(getComputedStyle(element ?? document.documentElement).getPropertyValue('--pixel'));
   return value >= 1 && Number.isInteger(value * 2) ? value : 3;   // whole or half pixels (2.5× on retina)
 };
