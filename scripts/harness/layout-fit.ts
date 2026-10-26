@@ -11,7 +11,7 @@ import type { Browser } from './cdp';
  */
 const OUT = process.env.OUT ?? `${import.meta.dir}/out`;
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3000';
-const SIZES: [string, number, number][] = [
+const SIZES: [string, number, number][] = (process.env.ONLY ? [['only', ...process.env.ONLY.split('x').map(Number)] as [string, number, number]] : null) ?? [
   ['13" MacBook (1440×900)', 1440, 755],
   ['13" MacBook, more space', 1680, 900],
   ['14" MacBook Pro', 1512, 830],
@@ -20,6 +20,8 @@ const SIZES: [string, number, number][] = [
   ['1440p monitor', 2560, 1300],
   ['small laptop', 1280, 680],
 ];
+/** Below this window height even 2× leaves the expanded sidebar a few rows too tall; it scrolls (Docs stays reachable). */
+const SIDEBAR_SCROLLS_BELOW = 700;
 
 type R = { l: number; t: number; r: number; b: number };
 const hit = (a: R, b: R) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
@@ -37,8 +39,17 @@ export default async function (b: Browser) {
         const t = await b.eval(`(() => { const e = document.querySelector('#toggle'); if (!e || e.disabled) return null; const q = e.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number } | null;
         if (!t) { ok(`${label} ${w}×${h}: sidebar can expand`, false, 'toggle missing or disabled'); continue; }
         await b.clickAt(t.x, t.y);
-        await b.sleep(2500);
+        await b.sleep(1500);
       }
+      // Measure only once the sidebar has stopped rolling (its cloth keeps the same width for half a second).
+      let last = -1;
+      for (let i = 0; i < 40; i++) {
+        const wNow = await b.eval(`Math.round(document.querySelector('.pixel-chrome #panel')?.getBoundingClientRect().width ?? 0)`) as number;
+        if (wNow === last) break;
+        last = wNow;
+        await b.sleep(500);
+      }
+      await b.sleep(300);
       const m = await b.eval(`(() => {
         const r = (e) => { if (!e) return null; const q = e.getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom }; };
         const sh = document.querySelector('.sidebar-shell');
@@ -51,11 +62,13 @@ export default async function (b: Browser) {
           stages: [...document.querySelectorAll('.lobby-slot .character-stage')].map(r),
           labels: [...document.querySelectorAll('.lobby-slot .slot-name, .lobby-slot .slot-hint, .lobby-slot .slot-art')].map(r).filter((x) => x && x.r > x.l),
           sidebarOverflow: sh ? sh.scrollHeight - sh.clientHeight : 0,
+          wallet: (() => { const e = document.querySelector('.connect-wallet'); return e ? { text: e.textContent, over: e.scrollWidth - e.clientWidth, font: getComputedStyle(e).fontFamily.split(',')[0] + ' ' + getComputedStyle(e).fontSize } : null; })(),
         };
-      })()`) as { pixel: number; compact: boolean; panel: R | null; battle: R | null; tabs: R | null; stages: R[]; labels: R[]; sidebarOverflow: number };
+      })()`) as { pixel: number; compact: boolean; panel: R | null; battle: R | null; tabs: R | null; stages: R[]; labels: R[]; sidebarOverflow: number; wallet: { text: string; over: number; font: string } | null };
       const tag = `${label} ${w}×${h} ${state}`;
       const want = w >= 1600 && h >= 996 ? 3 : 2;
       if (state === 'compact') ok(`${label} ${w}×${h}: chrome at ${want}×`, m.pixel === want, `--pixel ${m.pixel}px`);
+      if (state === 'compact') ok(`${label} ${w}×${h}: wallet label not cut off`, !!m.wallet && m.wallet.over <= 0, m.wallet ? `"${m.wallet.text}" in ${m.wallet.font}, ${m.wallet.over}px over` : 'no wallet label'); 
       const blockers = [['sidebar', m.panel], ['Battle', m.battle], ['tabs', m.tabs]] as const;
       const clashes: string[] = [];
       m.stages.forEach((s, i) => blockers.forEach(([n, r]) => { if (r && hit(s, r)) clashes.push(`stage ${i + 1} × ${n}`); }));
@@ -63,7 +76,10 @@ export default async function (b: Browser) {
       ok(`${tag}: stages and labels clear of the sidebar, Battle and tabs`, m.stages.length === 3 && clashes.length === 0, clashes.join(', ') || `3 stages, ${m.labels.length} labels`);
       const offscreen = m.stages.filter((s) => s.l < 0 || s.r > w).length;
       ok(`${tag}: stages on screen`, offscreen === 0, offscreen ? `${offscreen} off screen` : '');
-      if (state === 'expanded') ok(`${tag}: the whole sidebar fits`, m.sidebarOverflow <= 2, `${m.sidebarOverflow}px scrolled out of reach`);
+      if (state === 'expanded') {
+        if (h < SIDEBAR_SCROLLS_BELOW) ok(`${tag}: the sidebar scrolls to its last item (window under ${SIDEBAR_SCROLLS_BELOW} px tall)`, m.sidebarOverflow < 120, `${m.sidebarOverflow}px below the fold`);
+        else ok(`${tag}: the whole sidebar fits`, m.sidebarOverflow <= 2, `${m.sidebarOverflow}px scrolled out of reach`);
+      }
       await b.screenshot(`${OUT}/fit-${w}x${h}-${state}.png`);
     }
   }

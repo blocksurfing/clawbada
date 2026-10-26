@@ -10,6 +10,7 @@
  */
 :root {
   --pixel: 3px;
+  --pixel-n: 3;   /* the same scale without a unit, for type that must grow and shrink with the pixel art */
   /* Nzib's shared typography (design/website ee1219f, styles/typography-tokens.css): Upheaval display,
      Big Shot body. Every pixel surface (chrome, Shell, Battle modal, Market) reads these; change the tokens,
      never add local font overrides. The two family tokens live on `body` below: next/font sets
@@ -61,7 +62,7 @@
 /* Laptop-sized windows draw the pixel chrome at 2× (owner 2026-10-25). Mirrors chromePixelScale() in pixel-assets.ts,
    which sets the same value inline once the sidebar mounts; this only makes the first paint agree. */
 @media (max-width: 1599px), (max-height: 995px) {
-  :root { --pixel: 2px; }
+  :root { --pixel: 2px; --pixel-n: 2; }
 }
 
 /* The font families resolve here, where next/font puts the `--font-*` variables. */
@@ -363,7 +364,8 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
   background: transparent;
   color: #fff4d6;
   font-family: var(--font-upheaval), 'Upheaval', sans-serif;
-  font-size: var(--type-button);
+  /* Sized with the plank it sits on: 24 px at 3×, 16 px at 2× (a fixed 24 px overflowed the 2× plank). */
+  font-size: calc(var(--type-button) * var(--pixel-n) / 3);
   letter-spacing: var(--type-action-tracking);
   font-weight: 400;
   font-synthesis: none;

@@ -107,6 +107,7 @@ export function applyChromePixelScale(): number {
   const next = chromePixelScale(window.innerWidth, window.innerHeight);
   const before = pixelScale();
   document.documentElement.style.setProperty('--pixel', `${next}px`);
+  document.documentElement.style.setProperty('--pixel-n', String(next));
   if (next !== before) window.dispatchEvent(new CustomEvent(PIXEL_SCALE_EVENT, { detail: next }));
   return next;
 }
