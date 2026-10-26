@@ -15,8 +15,9 @@
  * the dots and drops every fade. Mounted once in the root layout; lib/battle-entry.ts says when.
  */
 import { useEffect, useRef, useState } from 'react';
-import { ENTRY_CURTAIN_MS, ENTRY_FADE_MS, ENTRY_REVEAL_MS, reducedMotion, useBattleEntry } from '@/lib/battle-entry';
+import { ENTRY_CURTAIN_MS, ENTRY_FADE_MS, ENTRY_REVEAL_MS, getEntryState, reducedMotion, useBattleEntry } from '@/lib/battle-entry';
 import { cancelEntryAmbience, preloadEntryAmbience, startEntryAmbience, stopEntryAmbience } from '@/lib/entry-ambience';
+import { cancelEntryArenaMusic, startEntryArenaMusic } from '@/lib/arena-music';
 import { loadingFrame } from '@/lib/loading-timeline';
 
 const ART_BASE = '/loading';
@@ -70,11 +71,25 @@ export function BattleEntryOverlay() {
     return () => cancelAnimationFrame(raf);
   }, [visible]);
 
-  // The breeze: in with the loop's reveal (after the curtain), out with the handover, quick out on a cancel.
+  // The breeze: in with the loop's reveal (after the curtain), out with the handover, quick out on a cancel. The arena's
+  // music (when the press knew the arena — the Dojo) fades in with it and does NOT stop at the handover: it plays on
+  // through the Unity training scene into the battle, which adopts it (lib/arena-music.ts). Only a cancel stops it.
+  const prevPhase = useRef(entry.phase);
   useEffect(() => {
-    if (entry.phase === 'web') startEntryAmbience(reducedMotion() ? 0 : ENTRY_CURTAIN_MS);
-    else if (entry.phase === 'leaving') stopEntryAmbience();
-    else cancelEntryAmbience();
+    const from = prevPhase.current;
+    prevPhase.current = entry.phase;
+    if (entry.phase === 'web') {
+      startEntryAmbience(reducedMotion() ? 0 : ENTRY_CURTAIN_MS);
+      if (entry.arena) startEntryArenaMusic(entry.arena, reducedMotion() ? 0 : ENTRY_CURTAIN_MS);
+    } else if (entry.phase === 'leaving') stopEntryAmbience();
+    else {
+      cancelEntryAmbience();
+      // web → idle without a handover = the start failed or was abandoned — unless an entry starts straight back up
+      // (the battle page cancels on unmount and restarts on mount; React's dev mode does both at once): stop the bed
+      // only if the entry is still down half a second later.
+      if (from === 'web') window.setTimeout(() => { if (getEntryState().phase === 'idle') cancelEntryArenaMusic(); }, 500);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.phase]);
 
   useEffect(() => {

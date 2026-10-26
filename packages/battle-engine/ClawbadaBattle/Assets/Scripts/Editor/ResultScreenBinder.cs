@@ -6,6 +6,7 @@ using UnityEngine;
 /// Binds Nzib's result screens into Resources/UI/HudSkin.asset (drop 93e213e, 2026-10-24):
 ///   Prefabs/UI/VictoryScreen/VictoryScreen.prefab → victoryScreenPrefab;
 ///   Prefabs/UI/DefeatScreen/DefeatScreen.prefab   → defeatScreenPrefab   (referenced from the skin, so they ship in the build);
+///   Prefabs/VFX/Death/Ghost/GhostDeath.prefab     → resultGhostPrefab (Nzib's ghost, drop e79e946);
 ///   Art/UI/DefeatScreen/FloatingSkull.png         → floatingSkull, IF it exists — the small skull that drifts up from the
 ///                                                   defeated team. Not drawn yet: drop the PNG there and re-run this.
 /// Kept apart from NzibHudBinder so binding these never regenerates the HUD's generated PNGs. NzibHudBinder calls it too.
@@ -16,6 +17,7 @@ public static class ResultScreenBinder
     public const string VictoryPrefabPath = "Assets/Prefabs/UI/VictoryScreen/VictoryScreen.prefab";
     public const string DefeatPrefabPath = "Assets/Prefabs/UI/DefeatScreen/DefeatScreen.prefab";
     public const string FloatingSkullPath = "Assets/Art/UI/DefeatScreen/FloatingSkull.png";
+    public const string GhostPrefabPath = "Assets/Prefabs/VFX/Death/Ghost/GhostDeath.prefab";
 
     [MenuItem("Clawbada/HUD/Bind Result Screens")]
     public static void Bind()
@@ -27,9 +29,11 @@ public static class ResultScreenBinder
         if (skin.victoryScreenPrefab == null || skin.defeatScreenPrefab == null)
             throw new System.Exception($"[ResultScreenBinder] missing {VictoryPrefabPath} or {DefeatPrefabPath}");
         skin.floatingSkull = AssetDatabase.LoadAllAssetsAtPath(FloatingSkullPath).OfType<Sprite>().FirstOrDefault();
+        skin.resultGhostPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(GhostPrefabPath);
+        if (skin.resultGhostPrefab == null) throw new System.Exception($"[ResultScreenBinder] missing {GhostPrefabPath}");
         EditorUtility.SetDirty(skin);
         AssetDatabase.SaveAssets();
-        string msg = $"[ResultScreenBinder] OK — victory + defeat prefabs, floating skull {(skin.floatingSkull != null ? "✓" : "— (not drawn yet)")}";
+        string msg = $"[ResultScreenBinder] OK — victory + defeat prefabs, defeat ghost ✓, floating skull {(skin.floatingSkull != null ? "✓" : "— (not drawn yet)")}";
         Debug.Log(msg);
         if (Application.isBatchMode) System.Console.WriteLine(msg);
     }

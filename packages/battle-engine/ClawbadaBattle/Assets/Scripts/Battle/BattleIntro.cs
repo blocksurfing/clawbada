@@ -145,10 +145,10 @@ public static class BattleIntro
         CueMusic();
         yield return Wait(TeamsHold);
 
-        // 5. CLAWS UP!, then BATTLE!
+        // 5. CLAWS UP!, then BATTLE! — titles only: the voice clips are pulled (owner 2026-10-25). The clips and their
+        // BattleSfxLibrary slots stay; to bring them back, call BattleSfx.PlayIntroReady() here and PlayIntroFight() below.
         if (!skip)
         {
-            BattleSfx.PlayIntroReady();
             ready.gameObject.SetActive(true);
         }
         yield return Tween(ReadyIn, k => { SetAlpha(ready, k); ready.transform.localScale = Vector3.one * Mathf.Lerp(0.7f, 1f, EaseOut(k)); });
@@ -159,8 +159,6 @@ public static class BattleIntro
         if (!skip)
         {
             fight.gameObject.SetActive(true);
-            // The voice peaks 0.15 s in and the slam takes 0.14 s: start it WITH the slam so the word hits on impact.
-            BattleSfx.PlayIntroFight();
         }
         yield return Tween(FightSlam, k => { SetAlpha(fight, k); fight.transform.localScale = Vector3.one * Mathf.Lerp(2.4f, 1f, k * k); });
         if (!skip)
