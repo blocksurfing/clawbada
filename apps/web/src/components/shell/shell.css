@@ -277,10 +277,13 @@
   top:calc(100% + 12px);
   left:0;
   width:100%;
-  font:400 clamp(20px, 2.4vw, 36px)/1.15 var(--font-upheaval), 'Upheaval',sans-serif;
+  /* Sized from the lineup (a size container), not the window: the stages share the band between the sidebar and the
+     Battle column, and a window-based size wrapped "CHOOSE LOBSTER" onto two lines once the sidebar grew (2026-10-25). */
+  font:400 clamp(16px, 3.4cqi, 36px)/1.15 var(--font-upheaval), 'Upheaval',sans-serif;
   font-synthesis:none;
   text-align:center;
   overflow-wrap:normal;
+  white-space:nowrap;
 }
 [data-page="dashboard"] .class-icon {
   display:inline-block;

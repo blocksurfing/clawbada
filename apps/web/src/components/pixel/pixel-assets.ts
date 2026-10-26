@@ -1,7 +1,7 @@
 /**
  * Nzib's pixel asset registry (`design/website/workbench/pixel-assets.js`, drop ee1219f) with the sheets served
- * from `/ui`. Scale comes exclusively from the global `--pixel`; never add a per-asset scale. `--pixel` is 3 px on
- * roomy windows and 2 px on laptop-sized ones (chromePixelScale below), always a whole number so the art stays crisp.
+ * from `/ui`. Scale comes exclusively from the global `--pixel`; never add a per-asset scale. `--pixel` is 3, 2.5 or 2
+ * px by window (chromePixelScale below), and only ever a value that lands on whole DEVICE pixels, so the art stays crisp.
  *
  * - `sprite`: one frame of a sheet (`frame` = [w, h]; frames are counted row-major across the sheet).
  * - `panel`: a nine-slice region drawn from the original sheet in 16 px chunks. `sliceSpan` groups several
@@ -91,20 +91,33 @@ export function loadPixelImage(src: string) {
   return p;
 }
 
-/** Window → pixel scale for the whole pixel chrome (owner 2026-10-25: a 13" MacBook at 100 % had the sidebar over the
- *  Shell's first stage and cut off at the bottom; 80 % zoom was the workaround). 3× only when the window is wide
- *  (≥ 1600 px) and tall enough for the expanded sidebar (its panel bottom is 332 source px: 996 px at 3×); else 2×.
- *  chrome.css mirrors this as a media query so the first paint matches before any script runs. */
-export const SIDEBAR_SOURCE_HEIGHT = 332;
+/** Window → pixel scale for the whole pixel chrome. The largest of 3 / 2.5 / 2 at which the expanded sidebar's MENU
+ *  (down to Docs: 276 source px from the top of the window — 827 px at 3×) fits the window height and the window is
+ *  wide enough for the Shell; the banner's decorative point below Docs may run past the bottom edge (the sidebar
+ *  scrolls). A scale is only used where it lands on whole device pixels: 2.5× on retina (2.5 × 2 = 5 device px per art
+ *  pixel), never on a 1× monitor — the art stays crisp.
+ *  History (owner 2026-10-25): a fixed 3× put the sidebar over the Shell's first stage and cut off its menu on a 13"
+ *  MacBook at 100 %; the 3×/2× fix made the 2× sidebar too small to read there. That MacBook now gets 2.5×.
+ *  chrome.css mirrors this as media queries so the first paint matches before any script runs. */
+export const SIDEBAR_MENU_SOURCE_HEIGHT = 276;
 export const PIXEL_SCALE_EVENT = 'clawbada:pixel-scale';
-export function chromePixelScale(width: number, height: number): 2 | 3 {
-  return width >= 1600 && height >= SIDEBAR_SOURCE_HEIGHT * 3 ? 3 : 2;
+const SCALES = [
+  { scale: 3, minWidth: 1600 },
+  { scale: 2.5, minWidth: 1366 },
+] as const;
+export function chromePixelScale(width: number, height: number, devicePixelRatio = 1): number {
+  for (const { scale, minWidth } of SCALES) {
+    const device = scale * devicePixelRatio;
+    if (Math.abs(device - Math.round(device)) > 0.01) continue;   // would smear art pixels across device pixels
+    if (width >= minWidth && height >= SIDEBAR_MENU_SOURCE_HEIGHT * scale) return scale;
+  }
+  return 2;
 }
 
 /** Choose the scale for the current window and set `--pixel`; announces PIXEL_SCALE_EVENT when it changes. */
 export function applyChromePixelScale(): number {
   if (typeof window === 'undefined') return 3;
-  const next = chromePixelScale(window.innerWidth, window.innerHeight);
+  const next = chromePixelScale(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
   const before = pixelScale();
   document.documentElement.style.setProperty('--pixel', `${next}px`);
   document.documentElement.style.setProperty('--pixel-n', String(next));
@@ -115,5 +128,5 @@ export function applyChromePixelScale(): number {
 export const pixelScale = () => {
   if (typeof document === 'undefined') return 3;
   const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pixel'));
-  return Number.isInteger(value) && value >= 1 ? value : 3;
+  return value >= 1 && Number.isInteger(value * 2) ? value : 3;   // whole or half pixels (2.5× on retina)
 };
