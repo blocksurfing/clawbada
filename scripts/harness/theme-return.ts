@@ -9,9 +9,9 @@ import type { Browser } from './cdp';
 export const keepAudio = true;   // the prefs are set below; the elements themselves are muted
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3000';
 
-async function rectClick(b: Browser, selector: string, text: string) {
-  const r = await b.eval(`(() => { const el = Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(e => (e.textContent || '').trim().toLowerCase().includes(${JSON.stringify(text.toLowerCase())})); if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`);
-  if (!r) throw new Error(`no ${selector} ${text}`);
+async function rectClick(b: Browser, selector: string, text?: string) {
+  const r = await b.eval(`(() => { const el = Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(e => ${text === undefined ? 'true' : `(e.textContent || '').trim().toLowerCase().includes(${JSON.stringify(text.toLowerCase())})`}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`);
+  if (!r) throw new Error(`no ${selector} ${text ?? ''}`);
   await b.clickAt(r.x, r.y);
 }
 
@@ -25,7 +25,7 @@ export default async function (b: Browser) {
     HTMLMediaElement.prototype.play = function () { this.muted = true; if (/theme/.test(this.src)) window.__theme = this; return play.call(this); };
   ` });
   await b.goto(`${BASE}/dojo`);
-  await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(e => (e.textContent || '').trim() === 'Train')`, 90000, 250);
+  await b.waitFor(`!!document.querySelector('[data-testid=dojo-battle]:not(:disabled)')`, 90000, 250);
   await b.sleep(2500);
   // Browsers only autoplay after a user gesture: click the page, then start the theme as a visitor's click would.
   const quiet = await b.eval(`(() => { const h = document.querySelector('h1, h2'); const q = h.getBoundingClientRect(); return { x: q.left + 4, y: q.top + q.height / 2 }; })()`) as { x: number; y: number };
@@ -34,7 +34,7 @@ export default async function (b: Browser) {
   await b.sleep(800);
   const before = await b.eval(`window.__theme ? !window.__theme.paused : null`);
   ok('theme playing on the Dojo before the battle (site music on)', before === true, `theme ${before === null ? 'missing' : before ? 'playing' : 'paused'}`);
-  await rectClick(b, 'button', 'Train');
+  await rectClick(b, '[data-testid=dojo-battle]');
   const inBattle = await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 90000);
   ok('entered the battle', inBattle);
   if (!inBattle) { for (const c of checks) console.log(c); return; }
