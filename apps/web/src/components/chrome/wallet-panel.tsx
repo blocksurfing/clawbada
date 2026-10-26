@@ -46,7 +46,8 @@ export const DISPLAY_NAME_MAX = 20;
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const pixelScale = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pixel')) || 3;
+/** The wallet's own scale: `.user-section` pins it at 3× whatever the rest of the chrome uses (chrome.css). */
+const pixelScale = () => parseFloat(getComputedStyle(document.querySelector('.user-section') ?? document.documentElement).getPropertyValue('--pixel')) || 3;
 const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 export function WalletPanel() {
