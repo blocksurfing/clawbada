@@ -7,21 +7,21 @@
  *   audio-masters/music/AMB_Loading_Breeze.wav  →  bun scripts/build-music.ts  →  /audio/music/AMB_Loading_Breeze.<hash>.m4a
  *   → ENTRY_AMBIENCE in arena-music.generated.ts (null today, so the entry is silent and says so in the console).
  *
- * It is AMBIENCE, so it follows the in-battle SFX switch and SFX volume (owner 2026-10-24) — not the Music row: with
- * battle music off (the owner's own setting, 'off' / vol 30) the wind never started and "doesn't play at all".
+ * It is AMBIENCE, so the in-battle SFX switch mutes it (owner 2026-10-24) — not the Music row: with battle music off
+ * (the owner's own setting, 'off' / vol 30) the wind never started and "doesn't play at all". Its level is FIXED at
+ * 50 % (owner 2026-10-25: "keep it at 50 % so it's very subtle"), whatever the SFX volume slider says.
  */
 import { ENTRY_AMBIENCE } from './arena-music.generated';
-import { DEFAULT_SFX_VOL, SFX_EVENT, VOLUME_EVENT, getSfxPref, getSfxVolume } from './audio-prefs';
+import { SFX_EVENT, getSfxPref } from './audio-prefs';
 
-/** The breeze's level at the DEFAULT SFX volume (owner 2026-10-23: wind volume 95%); the SFX volume row
- *  still scales it (0.95 × volume / 100). */
-const DEFAULT_GAIN = 0.95;
+/** The breeze's level: a fixed 50 % (owner 2026-10-25; was 95 % × the SFX volume). */
+const BREEZE_GAIN = 0.5;
 /** Fade in with the loop, fade out at the hand-over (owner 2026-10-23: 1 s each). */
 export const BREEZE_FADE_IN_MS = 1000;
 export const BREEZE_FADE_OUT_MS = 1000;
 const CANCEL_FADE_MS = 300;
 
-const gain = () => Math.min(1, DEFAULT_GAIN * getSfxVolume() / DEFAULT_SFX_VOL);
+const gain = () => BREEZE_GAIN;
 const log = (...a: unknown[]) => console.log('[EntryAmbience]', ...a);
 
 let audio: HTMLAudioElement | null = null;
@@ -94,16 +94,12 @@ export function cancelEntryAmbience() {
   stopEntryAmbience(CANCEL_FADE_MS);
 }
 
-// Live reaction to the SFX toggle and the volume rows while the loop is up.
+// Live reaction to the SFX toggle while the loop is up (the level is fixed, so the volume rows don't move it).
 if (typeof window !== 'undefined') {
   window.addEventListener(SFX_EVENT, (e) => {
     const on = (e as CustomEvent<'on' | 'off'>).detail === 'on';
     if (!active || !ENTRY_AMBIENCE) return;
     if (!on && audio && !audio.paused) { log('toggled off — fading out'); fadeTo(0, 600, () => audio?.pause()); }
     if (on && (!audio || audio.paused) && startTimer === null) play();
-  });
-  window.addEventListener(VOLUME_EVENT, () => {
-    if (!active || !audio || audio.paused) return;
-    fadeTo(gain(), 200);
   });
 }
