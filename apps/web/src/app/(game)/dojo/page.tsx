@@ -1,22 +1,19 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useModal } from 'connectkit';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { api } from '@/lib/api';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FrostedPanel } from '@/components/ui/frosted-panel';
-import { PageBackground } from '@/components/ui/page-background';
 import { useAuth } from '@/hooks/use-auth';
 import { formatAddress } from '@/lib/format';
 import { rememberPracticeOwner } from '@/lib/practice-owner';
-import { getArenaBackground } from '@/lib/assets';
-import { BOT_CATALOG, DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
-import { Swords, Loader2, Dumbbell } from 'lucide-react';
+import { DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { exitBattleFullscreen, requestBattleFullscreen } from '@/lib/battle-fullscreen';
 import { primeAudio } from '@/lib/audio-graph';
 import { cancelBattleEntry, startBattleEntry } from '@/lib/battle-entry';
+import { DojoRoom, type DojoChoice, type DojoLobster, type DojoTeam } from '@/components/dojo/dojo-room';
 
 /** Dev review rosters (moved here from the old /game/battle Practice tab when Battle became a modal on the Shell,
  *  2026-10-11): every Special whose VFX is finished, random/fixed trios per tier, and the storm-review trio. The
@@ -43,7 +40,8 @@ const REVIEW_PRESETS = [
 const presetsAllowed = process.env.NODE_ENV !== 'production';
 
 /**
- * The dojo: build any three-class team at any tier and purity and fight a bot with it.
+ * The dojo: fight a bot with your own lobsters or with any three-class team at any tier and purity. The view is
+ * Nzib's Dojo (components/dojo/dojo-room.tsx, design/website 5cb6655); everything about starting a battle is here.
  *
  * Off-chain like every practice battle — no stakes, no rating, no repair. It speaks the API's
  * `team_<a>_<b>_<c>_<tier>` preset plus `purity`, which the API keeps open even when the dev
@@ -51,9 +49,9 @@ const presetsAllowed = process.env.NODE_ENV !== 'production';
  * designer's `?preset=` deep links use since practice moved here from the old /game/battle page.
  *
  * No wallet needed (owner decision 2026-10-18, the community's "come try it" hook): without one, the
- * first Train mints a guest session (POST /api/auth/guest) that the API accepts for practice battles
- * only. A connected wallet always wins; it also has nothing more to offer here, since the builder
- * only ever sends preset rosters.
+ * first Battle press mints a guest session (POST /api/auth/guest) that the API accepts for practice battles
+ * only. A connected wallet always wins, and adds My lobsters: its own lobsters (teamId / lobsterIds), which
+ * fight with the tier and purity in their DNA.
  *
  * Bots come from lib/bot-catalog.ts: easiest first, each with how it plays and what it teaches.
  *
@@ -75,12 +73,6 @@ type Arena = 'match' | (typeof ARENAS)[number];
 const DEFAULT_TEAM = ['kraken', 'ember', 'abyss'];
 const DEFAULT_TIER: Tier = 'apex';
 const DEFAULT_PURITY = 6;
-
-const arenaScene = getArenaBackground(3);
-
-const label = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
-const chip = (on: boolean) =>
-  `px-3 py-1.5 rounded text-xs font-pixel border ${on ? 'border-claw-gold text-claw-gold bg-claw-gold/10' : 'border-border text-text-secondary hover:text-foreground'}`;
 
 export default function DojoPage() {
   const router = useRouter();
@@ -121,20 +113,37 @@ export default function DojoPage() {
     if (presetsAllowed && pr && REVIEW_PRESETS.some((x) => x.id === pr)) { setPreset(pr); if (pr.startsWith('random_')) setOpponent('random'); }
   }, []);
 
+  // The wallet's own lobsters and saved teams for My lobsters (none for a guest).
+  const wallet = kind === 'wallet' ? identity : null;
+  const { data: lobstersData, isFetched: lobstersFetched } = useQuery({ queryKey: ['lobsters', wallet], queryFn: () => api.agent.lobsters(wallet!), enabled: !!wallet });
+  const { data: teamsData } = useQuery({ queryKey: ['teams', wallet], queryFn: () => api.teams.list(wallet!), enabled: !!wallet });
+  const lobsters: DojoLobster[] = useMemo(() => (lobstersData?.lobsters ?? []).map((l) => ({ id: l.tokenId, classIndex: l.class, className: l.className, tierName: l.tierName, tier: l.evolutionTier })), [lobstersData]);
+  const teams: DojoTeam[] = useMemo(() => (teamsData?.teams ?? []).map((t) => ({ id: t.teamId, lobsterIds: t.lobsterIds })), [teamsData]);
+  /** Wallets with three or more lobsters open on My lobsters, everyone else on Build a team (owner 2026-10-26); a deep
+   *  link to a built team (?team ?class ?tier ?purity) always opens the builder. Null until the answer is known. */
+  const [deepLinked, setDeepLinked] = useState(false);
+  const initialMode = deepLinked || (resolving === false && kind !== 'wallet') ? 'builder'
+    : kind === 'wallet' && lobstersFetched ? (lobsters.length >= 3 ? 'owned' : 'builder') : null;
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (['team', 'class', 'tier', 'purity'].some((k) => q.has(k))) setDeepLinked(true);
+  }, []);
+
   /**
-   * The entry sequence, shared by Train and the dev presets. Inside the click, in this order:
+   * The entry sequence, shared by the Battle button and the dev presets. Inside the click, in this order:
    *   1. a wallet whose session needs a signature is stopped HERE — the gate panel asks it to sign first, so no
    *      wallet prompt ever lands inside a fullscreen fade (the owner's complaint of 2026-10-21);
    *   2. fullscreen (browsers grant it only inside the gesture) and the loading screen (lib/battle-entry.ts),
    *      which the battle page keeps up until the arena is built;
    *   3. the practice start, then the navigation. A failure drops both.
+   * `teamTier` is the board 'match' resolves to (the music starts before the API answers).
    */
-  const launch = useCallback(async (body: Parameters<typeof api.combat.createPractice>[0], failMessage: string) => {
+  const launch = useCallback(async (body: Parameters<typeof api.combat.createPractice>[0], failMessage: string, teamTier: Tier) => {
     if (kind === 'wallet' && !hasLiveSession()) { setGate('expired'); setGateErr(null); return; }
     requestBattleFullscreen();
     primeAudio();   // start the shared audio engine inside the click: the entry's fades then run on the audio thread
     // The arena's music starts with the loading screen's breeze and plays on into the battle (owner 2026-10-25).
-    startBattleEntry({ kind: 'practice', arena: arena === 'match' ? tier : arena });
+    startBattleEntry({ kind: 'practice', arena: arena === 'match' ? teamTier : arena });
     setBusy(true);
     setErr(null);
     try {
@@ -155,10 +164,20 @@ export default function DojoPage() {
 
   const startPreset = useCallback(() => {
     if (!preset) return;
-    return launch({ preset, bot, opponent }, 'Could not start the practice battle');
-  }, [preset, bot, opponent, launch]);
+    return launch({ preset, bot, opponent }, 'Could not start the practice battle', tier);
+  }, [preset, bot, opponent, tier, launch]);
 
-  const start = useCallback(() => launch({ preset: `team_${team.join('_')}_${tier}`, purity, bot, opponent }, 'Could not start the dojo battle'), [team, tier, purity, bot, opponent, launch]);
+  /** The Battle press. Own lobsters fight with the tier and purity in their DNA; a saved team goes by its id. */
+  const [lastChoice, setLastChoice] = useState<DojoChoice | null>(null);
+  const start = useCallback((choice: DojoChoice) => {
+    setLastChoice(choice);
+    if (choice.mode === 'builder') return launch({ preset: `team_${team.join('_')}_${tier}`, purity, bot, opponent }, 'Could not start the dojo battle', tier);
+    const picked = choice.lobsterIds.map((id) => lobsters.find((l) => l.id === id));
+    const lowest = Math.min(...picked.map((l) => l?.tier ?? 1));
+    const teamTier: Tier = lowest >= 3 ? 'apex' : lowest === 2 ? 'elite' : 'evolved';
+    const roster = choice.teamId ? { teamId: choice.teamId } : { lobsterIds: choice.lobsterIds };
+    return launch({ ...roster, bot, opponent }, 'Could not start the dojo battle', teamTier);
+  }, [team, tier, purity, bot, opponent, lobsters, launch]);
 
   /** The gate's Sign in: the wallet prompt, with nothing else moving. Success turns the button into Enter Training. */
   const signIn = useCallback(async () => {
@@ -174,156 +193,52 @@ export default function DojoPage() {
   }, [getSessionToken]);
 
   return (
-    <PageBackground variant="deep" scene={arenaScene} sceneDark>
-      <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto">
-        <div>
-          <div className="flex items-center gap-2">
-            <Dumbbell className="size-6 text-teal" />
-            <h1 className="font-pixel text-xl text-foreground">Dojo</h1>
-          </div>
-          <p className="text-sm text-text-secondary mt-1">
-            Build any team and train against a bot. Off-chain: no stakes, no rating, no repair.
-          </p>
-          {/* The data attributes are for probes; wagmi's status differs between the server render and the client, hence the suppression. */}
-          <p className="text-xs text-text-secondary mt-2" data-testid="dojo-identity" data-kind={kind ?? 'none'} data-resolving={resolving ? '1' : '0'} data-wallet-status={walletStatus} suppressHydrationWarning>
-            {kind === 'wallet' && identity ? (
-              <>Training as {formatAddress(identity)}.</>
-            ) : (
-              <>
-                Training as a guest — nothing to install, nothing to sign.{' '}
-                <button type="button" onClick={() => openWalletPicker(true)} className="underline underline-offset-2 hover:text-foreground">
-                  Connect a wallet
-                </button>{' '}
-                when you want to mine, breed and battle for stakes.
-              </>
-            )}
-          </p>
-        </div>
-
-        {presetsAllowed && (
-          <FrostedPanel className="space-y-3" data-testid="dojo-presets">
-            <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Review presets (dev)</h2>
-            <p className="text-xs text-text-secondary">Fixed rosters for VFX review and the browser harness — the bot, opponent roster and arena below apply. Deep link: <code>?preset=…&amp;auto=1</code>.</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="min-w-[280px] flex-1">
-                <Select value={preset} onValueChange={(v) => { setPreset(v); if (v.startsWith('random_')) setOpponent('random'); }}>
-                  <SelectTrigger className="bg-ocean-mid/50 border-border" aria-label="Review preset"><SelectValue placeholder="Preset (dev only)" /></SelectTrigger>
-                  <SelectContent>
-                    {REVIEW_PRESETS.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <button
-                onClick={startPreset}
-                disabled={busy || !preset}
-                className="frosted-panel-highlight px-4 py-2 text-xs font-pixel text-claw-gold hover:border-[rgba(255,210,128,0.3)] transition-colors disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {busy && <Loader2 className="size-3 animate-spin" />}
-                {busy ? 'Starting…' : 'Start practice'}
-              </button>
-            </div>
-          </FrostedPanel>
-        )}
-
-        <FrostedPanel className="space-y-5">
-          <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Your team</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="dojo-classes">
-            {team.map((cls, i) => (
-              <Select key={i} value={cls} onValueChange={(v) => setTeam((t) => t.map((c, j) => (j === i ? v : c)))}>
-                <SelectTrigger className="bg-ocean-mid/50 border-border" aria-label={`Lobster ${i + 1} class`}><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CLASSES.map((c) => <SelectItem key={c} value={c}>{label(c)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            ))}
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm text-text-secondary block">Tier</label>
-            <div className="flex flex-wrap gap-2" data-testid="dojo-tier">
-              {TIERS.map((t) => <button key={t} onClick={() => setTier(t)} className={chip(tier === t)}>{label(t)}</button>)}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm text-text-secondary block">Purity: {purity}/6</label>
-            <div className="flex flex-wrap gap-2" data-testid="dojo-purity">
-              {[0, 1, 2, 3, 4, 5, 6].map((p) => <button key={p} onClick={() => setPurity(p)} className={chip(purity === p)}>{p}</button>)}
-            </div>
-            <p className="text-xs text-text-secondary">
-              Specials hit {100 + 10 * purity}% as hard and fire their enhanced version {5 + 5 * purity}% of the time.
-              Real lobsters are mostly Base or Evolved at purity 0–1, so the default Apex/Pure team is a showcase, not what a real match looks like.
-            </p>
-          </div>
-        </FrostedPanel>
-
-        <FrostedPanel className="space-y-5">
-          <h2 className="font-pixel text-xs text-text-accent uppercase tracking-wider">Opponent</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm text-text-secondary">Bot</label>
-              <Select value={bot} onValueChange={(v) => setBot(v as BotName)}>
-                <SelectTrigger className="bg-ocean-mid/50 border-border" data-testid="dojo-bot"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {BOT_CATALOG.map((b) => <SelectItem key={b.name} value={b.name}>{b.label} · {b.difficulty}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {botInfo(bot) && (
-                <div className="text-xs space-y-1" data-testid="dojo-bot-info">
-                  <p className="text-foreground">{botInfo(bot)!.plays}</p>
-                  <p className="text-text-secondary">Lesson: {botInfo(bot)!.teaches}</p>
-                </div>
-              )}
-              <label className="text-sm text-text-secondary block pt-1">Opponent roster</label>
-              <div className="flex gap-2">
-                {(['mirror', 'random'] as const).map((o) => (
-                  <button key={o} onClick={() => setOpponent(o)} className={chip(opponent === o)}>
-                    {o === 'mirror' ? 'Mirror mine' : 'Random classes'}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-text-secondary">Either way the bot fights at your tier and purity.</p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-text-secondary">Arena</label>
-              <div className="flex flex-wrap gap-2">
-                {([['dojo', 'Dojo'], ['evolved', 'Evolved'], ['elite', 'Elite'], ['apex', 'Apex'], ['match', 'Team tier']] as const).map(([a, text]) => (
-                  <button key={a} onClick={() => setArena(a)} className={chip(arena === a)}>{text}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-3 border-t border-[rgba(255,210,128,0.1)]">
-            <span className="text-xs text-text-secondary">{err ?? `${team.map(label).join(' · ')}, ${label(tier)}, purity ${purity} vs ${botInfo(bot)?.label ?? bot}`}</span>
-            <button
-              onClick={start}
-              disabled={busy || gate !== 'none'}
-              className="frosted-panel-highlight px-4 py-2 text-xs font-pixel text-claw-gold hover:border-[rgba(255,210,128,0.3)] transition-colors disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {busy && <Loader2 className="size-3 animate-spin" />}
-              {busy ? 'Starting…' : 'Train'}
-            </button>
-          </div>
-          {gate !== 'none' && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-claw-gold/30 bg-claw-gold/5 px-4 py-3" data-testid="dojo-gate" data-gate={gate}>
-              <span className="text-xs text-foreground">
-                {gate === 'ready' ? 'Signed in.' : gateErr ?? 'Your wallet session has expired. Sign in again to enter Training.'}
-              </span>
-              {gate === 'ready' ? (
-                <button onClick={() => { setGate('none'); void start(); }} className="frosted-panel-highlight px-4 py-2 text-xs font-pixel text-claw-gold hover:border-[rgba(255,210,128,0.3)] transition-colors">
-                  Enter Training
-                </button>
-              ) : (
-                <button onClick={signIn} disabled={gate === 'signing'} className="frosted-panel-highlight px-4 py-2 text-xs font-pixel text-claw-gold hover:border-[rgba(255,210,128,0.3)] transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                  {gate === 'signing' && <Loader2 className="size-3 animate-spin" />}
-                  {gate === 'signing' ? 'Waiting for the wallet…' : 'Sign in'}
-                </button>
-              )}
-            </div>
+    <DojoRoom
+      lobsters={lobsters}
+      teams={teams}
+      initialMode={initialMode}
+      isWallet={kind === 'wallet'}
+      onConnectWallet={() => openWalletPicker(true)}
+      team={team} onTeam={setTeam}
+      tier={tier} onTier={setTier}
+      purity={purity} onPurity={setPurity}
+      bot={bot} onBot={setBot}
+      opponent={opponent} onOpponent={setOpponent}
+      arena={arena} onArena={setArena}
+      busy={busy}
+      blocked={gate !== 'none'}
+      error={err}
+      onBattle={(choice) => { void start(choice); }}
+      identity={
+        /* The data attributes are for probes; wagmi's status differs between the server render and the client, hence the suppression. */
+        <p className="dojo-identity" data-testid="dojo-identity" data-kind={kind ?? 'none'} data-resolving={resolving ? '1' : '0'} data-wallet-status={walletStatus} suppressHydrationWarning>
+          {kind === 'wallet' && identity ? (
+            <>Training as {formatAddress(identity)}</>
+          ) : (
+            <>Training as a guest · <button type="button" className="dojo-link" onClick={() => openWalletPicker(true)}>Connect a wallet</button></>
           )}
-        </FrostedPanel>
-      </div>
-    </PageBackground>
+        </p>
+      }
+      gate={gate !== 'none' && (
+        <div className="dojo-gate" data-testid="dojo-gate" data-gate={gate}>
+          <p>{gate === 'ready' ? 'Signed in.' : gateErr ?? 'Session expired. Sign in to train.'}</p>
+          {gate === 'ready' ? (
+            <button type="button" onClick={() => { setGate('none'); if (lastChoice) void start(lastChoice); }}>Enter Training</button>
+          ) : (
+            <button type="button" onClick={signIn} disabled={gate === 'signing'}>{gate === 'signing' ? 'Waiting for the wallet…' : 'Sign in'}</button>
+          )}
+        </div>
+      )}
+      devTools={presetsAllowed && (
+        <details className="dojo-presets" data-testid="dojo-presets">
+          <summary>Review presets (dev)</summary>
+          <select aria-label="Review preset" value={preset} onChange={(e) => { setPreset(e.target.value); if (e.target.value.startsWith('random_')) setOpponent('random'); }}>
+            <option value="">Preset (dev only)</option>
+            {REVIEW_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+          <button type="button" onClick={startPreset} disabled={busy || !preset}>{busy ? 'Starting…' : 'Start practice'}</button>
+        </details>
+      )}
+    />
   );
 }
