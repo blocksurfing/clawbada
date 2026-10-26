@@ -1,8 +1,8 @@
 export const routes = Object.freeze({
-  "dashboard": "Shell",
+  "dashboard": "The Shell",
   "mining": "Mining",
   "battle": "Battle",
-  "dojo": "Dojo",
+  "dojo": "The Dojo",
   "breeding": "Breeding",
   "evolve": "Evolve",
   "repair": "Repair",

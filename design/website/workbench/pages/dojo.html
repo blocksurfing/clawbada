@@ -1,1 +1,76 @@
-<!-- Dojo: empty design canvas. -->
+<section class="dojo" aria-label="Practice setup">
+  <div class="dojo-team-headings"><h2 id="dojo-team-title">Your Team</h2><h2 id="dojo-opponent-title">Opponent</h2></div>
+  <p class="dojo-intro">Build any team and train against a bot. No stakes, no rating, no repair.</p>
+  <nav class="dojo-panel-switch" aria-label="Setup panel"><button type="button" data-dojo-panel="team" aria-pressed="true">Your team</button><button type="button" data-dojo-panel="opponent" aria-pressed="false">Opponent</button></nav>
+  <div class="dojo-cards pixel-grid" data-pixel-grid data-columns="2" data-min-width="300" data-active-panel="team">
+    <div class="dojo-side" data-side="team"><div class="dojo-lineup" data-lineup="team" aria-label="Your selected three lobsters"></div>
+    <section class="pixel-panel dojo-card" data-pixel-panel="dojoDarkPanel" aria-labelledby="dojo-team-title">
+      <div class="dojo-tabs" role="tablist" aria-label="Team source">
+        <button id="dojo-owned-tab" type="button" role="tab" aria-selected="true" aria-controls="dojo-owned" data-team-mode="owned">My lobsters</button>
+        <button id="dojo-builder-tab" type="button" role="tab" aria-selected="false" aria-controls="dojo-builder" tabindex="-1" data-team-mode="builder">Build a team</button>
+      </div>
+      <div id="dojo-owned" role="tabpanel" aria-labelledby="dojo-owned-tab">
+        <div data-owned-controls>
+          <label class="dojo-field">Saved team<select data-saved-team aria-label="Saved team"></select></label>
+          <p class="dojo-selection-feedback" data-selection-feedback role="status" aria-live="polite"></p>
+          <div class="dojo-inventory" data-owned-inventory aria-label="Local sample lobster inventory"></div>
+        </div>
+        <p data-empty-message hidden>No lobsters yet. Build a team to try any composition.</p>
+      </div>
+      <div id="dojo-builder" role="tabpanel" aria-labelledby="dojo-builder-tab" hidden>
+        <div class="dojo-slots" data-builder-slots></div>
+        <fieldset class="dojo-options"><legend>Tier</legend><div data-choices="tier"></div></fieldset>
+        <fieldset class="dojo-options" aria-describedby="dojo-purity-help"><legend>Purity</legend><div data-choices="purity"></div></fieldset>
+        <p id="dojo-purity-help" class="dojo-help" data-purity-description></p>
+      </div>
+    </section>
+    </div>
+    <div class="dojo-side" data-side="opponent"><div class="dojo-lineup" data-lineup="opponent" aria-label="Opponent selected three lobsters"></div>
+    <section class="pixel-panel dojo-card" data-pixel-panel="dojoDarkPanel" aria-labelledby="dojo-opponent-title">
+      <div class="dojo-tabs dojo-opponent-tabs" role="tablist" aria-label="Opponent type">
+        <button id="dojo-bot-tab" type="button" role="tab" aria-selected="true" aria-controls="dojo-bot" data-opponent-mode="bot">Bot</button>
+        <button id="dojo-friend-tab" type="button" role="tab" aria-selected="false" aria-controls="dojo-friend" tabindex="-1" data-opponent-mode="friend">Fight with friend</button>
+      </div>
+      <div id="dojo-bot" role="tabpanel" aria-labelledby="dojo-bot-tab">
+      <label class="dojo-field">Training bot<select data-bot aria-label="Training bot"></select></label>
+      <details class="dojo-guide" open><summary>Bot guide</summary><div class="dojo-bot-notes"><p><strong>Plays</strong><span data-bot-behavior></span></p><p><strong>Lesson</strong><span data-bot-lesson></span></p></div></details>
+      <fieldset class="dojo-options"><legend>Roster</legend><div data-choices="opponent"></div></fieldset>
+      <fieldset class="dojo-options"><legend>Arena</legend><div data-choices="arena"></div></fieldset>
+      </div>
+      <div id="dojo-friend" role="tabpanel" aria-labelledby="dojo-friend-tab" hidden>
+        <p class="dojo-demo-note">Local demo — not real multiplayer. Links only open this preview.</p>
+        <details class="dojo-room-options" data-room-options open>
+        <summary>Room options</summary>
+        <div class="dojo-room-controls">
+        <div class="dojo-friend-row dojo-room-heading"><button type="button" class="dojo-choice" data-create-room>Create room</button><strong data-room-code aria-label="Demo room code"></strong></div>
+        <form class="dojo-join" data-join-form>
+          <label class="dojo-field" for="dojo-join-input">Room code or demo link</label>
+          <div class="dojo-friend-row"><input id="dojo-join-input" data-join-input placeholder="DEMO-ABC123" maxlength="2048" autocomplete="off" spellcheck="false" aria-describedby="dojo-join-error"><button type="submit" class="dojo-choice" data-join-room>Join</button></div>
+          <p id="dojo-join-error" data-join-error role="alert"></p>
+        </form>
+        <div data-room-details hidden>
+
+          <input data-room-link readonly aria-label="Local demo room link">
+          <div class="dojo-friend-row"><button type="button" class="dojo-choice" data-copy-room>Copy link</button><button type="button" class="dojo-choice" data-share-room>Share</button></div>
+        </div>
+        <p data-share-status role="status"></p>
+        </div>
+        </details>
+        <p data-room-status role="status">Create or join a local demo room.</p>
+      </div>
+    </section>
+    </div>
+  </div>
+  <img class="dojo-vs" alt="VS" width="192" height="128" draggable="false">
+  <div class="dojo-footer">
+    <button class="dojo-battle" type="button" data-train aria-label="Battle" aria-haspopup="dialog"></button>
+  </div>
+  <p class="dojo-status" data-dojo-status role="status"></p>
+
+  <dialog class="dojo-dialog" aria-labelledby="dojo-preview-title">
+    <h2 id="dojo-preview-title">Practice preview</h2>
+    <p data-preview-summary></p>
+    <p>This is a local setup preview, not a live battle. Your practice setup is saved in this tab so you can resume it.</p>
+    <div class="dojo-dialog-actions"><button class="pixel-button" type="button" data-close-preview>Back to Dojo</button><button class="pixel-button" type="button" data-end-preview>End practice</button></div>
+  </dialog>
+</section>
