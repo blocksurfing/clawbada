@@ -39,7 +39,9 @@ const AMBIENCE = 'AMB_Loading_Breeze';
  *  master measures −52 dB mean / −35.5 dB peak against the theme's −15 / 0 — playing at gain 0.95 it was inaudible
  *  (owner 2026-10-24: "the wind audio does not play at all"). +24 dB puts it at ~−28 dB mean, under the theme as an
  *  ambience bed, peak ~−11.5 dB (no clipping). The master itself is left untouched. */
-const GAIN_DB: Record<string, number> = { [AMBIENCE]: 24 };
+const GAIN_DB: Record<string, number> = { [AMBIENCE]: 17 };
+// 2026-10-25: the owner's new breeze master is 7 dB hotter (-44.9 dB mean / -29.2 peak), so its make-up drops from
+// +24 to +17 dB — the built file stays at the level approved at 50 % gain (~-28 dB mean).
 /** A built track averaging below this is treated as a mastering mistake: the build stops instead of shipping silence. */
 const MIN_MEAN_DB = -40;
 /**
