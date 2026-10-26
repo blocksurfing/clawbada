@@ -43,6 +43,8 @@ export interface SidebarRollOptions {
   initialSelection: string | null;
 }
 
+import { applyChromePixelScale } from '@/components/pixel/pixel-assets';
+
 const TILE = 16;
 const BANNER_SHEET = { width: 304, height: 96 };
 const POLE_SHEET = { width: 256, height: 16 };
@@ -94,7 +96,7 @@ export class SidebarRoll {
     const tokens = getComputedStyle(document.documentElement);
     const num = (name: string) => parseFloat(tokens.getPropertyValue(name));
     this.cfg = {
-      pixelScale: num('--pixel'),
+      pixelScale: applyChromePixelScale(),   // 3× or 2× by window size (pixel-assets.ts), re-chosen on every resize
       panelSourceWidth: num('--panel-source-width'),
       menuLeft: num('--menu-left-units'),
       menuRight: num('--menu-right-units'),
@@ -559,7 +561,10 @@ export class SidebarRoll {
   toggle() { void this.run(() => Promise.all([this.animatePole(), this.changeWidth()]).then(() => undefined)); }
 
   private readonly onToggleClick = () => this.toggle();
-  private readonly onResize = () => { if (!this.busy && this.ready) this.layoutPixels(); };
+  private readonly onResize = () => {
+    this.cfg.pixelScale = applyChromePixelScale();
+    if (!this.busy && this.ready) this.layoutPixels();
+  };
 
   private async loadSidebar() {
     const load = (img: HTMLImageElement, src: string, width: number, height: number, name: string) => new Promise<void>((resolve, reject) => {
