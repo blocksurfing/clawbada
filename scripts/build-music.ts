@@ -42,6 +42,24 @@ const AMBIENCE = 'AMB_Loading_Breeze';
 const GAIN_DB: Record<string, number> = { [AMBIENCE]: 24 };
 /** A built track averaging below this is treated as a mastering mistake: the build stops instead of shipping silence. */
 const MIN_MEAN_DB = -40;
+/**
+ * The ambience loops (entry-ambience.ts, `loop = true`), so its file must end exactly where it begins:
+ *   · the last LOOP_XFADE_S of the master cross-fades (equal power) into its first LOOP_XFADE_S — no seam;
+ *   · the result is cut to a whole number of 1024-sample AAC frames, so the encoder adds no padding at the end;
+ *   · two 80 Hz high-passes (24 dB/octave) take out the mic-buffeting puffs (9.8–13.1 s of the breeze master) that
+ *     the make-up gain had made audible as a low rumble. The wind's body (120 Hz–2 kHz) is untouched.
+ */
+const LOOP_XFADE_S = 1;
+function seamlessLoopFilter(path: string, gainDb: number): string {
+  const probe = new TextDecoder().decode(Bun.spawnSync(['ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries',
+    'stream=sample_rate,duration_ts', '-of', 'default=nw=1', path]).stdout);
+  const rate = Number(/sample_rate=(\d+)/.exec(probe)?.[1]), samples = Number(/duration_ts=(\d+)/.exec(probe)?.[1]);
+  if (!rate || !samples) { console.error(`ffprobe could not read ${path}`); process.exit(1); }
+  const frames = Math.floor((samples - LOOP_XFADE_S * rate) / 1024) * 1024;
+  return `[0:a]highpass=f=80,highpass=f=80${gainDb ? `,volume=${gainDb}dB` : ''},asplit[a][b];`
+    + `[a]atrim=start=${LOOP_XFADE_S},asetpts=PTS-STARTPTS[body];[b]atrim=end=${LOOP_XFADE_S},asetpts=PTS-STARTPTS[head];`
+    + `[body][head]acrossfade=d=${LOOP_XFADE_S}:c1=qsin:c2=qsin,atrim=end_sample=${frames}`;
+}
 const MASTER = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)(_\d{2})?|AMB_Loading_Breeze)\.wav$/i;
 const BUILT = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)(_\d{2})?|AMB_Loading_Breeze)\.[0-9a-f]{8}\.m4a$/;
 
@@ -57,10 +75,14 @@ for (const file of masters) {
   const tier = stem.toLowerCase() === AMBIENCE.toLowerCase() ? null : stem.split('_')[2].toLowerCase();
   const tmp = join(outDir, `.${basename(file, '.wav')}.tmp.m4a`);
   const gain = GAIN_DB[stem] ?? 0;
+  const loop = tier === null ? seamlessLoopFilter(join(inDir, file), gain) : null;
+  const filter = loop ? ['-filter_complex', loop] : gain ? ['-af', `volume=${gain}dB`] : [];
   const enc = (codec: string) => Bun.spawnSync(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', join(inDir, file),
-    '-vn', ...(gain ? ['-af', `volume=${gain}dB`] : []), '-c:a', codec, '-b:a', bitrate, '-movflags', '+faststart', tmp]);
-  let r = enc('aac_at');
-  if (r.exitCode !== 0) r = enc('aac');
+    '-vn', ...filter, '-c:a', codec, '-b:a', bitrate, '-movflags', '+faststart', tmp]);
+  // The looping ambience uses ffmpeg's own AAC: Apple's (aac_at) pads ~22 ms of silence onto the end, which a looping
+  // <audio> plays as a dropout every pass (owner 2026-10-25: "some little mechanical sound at times").
+  let r = enc(loop ? 'aac' : 'aac_at');
+  if (r.exitCode !== 0 && !loop) r = enc('aac');
   if (r.exitCode !== 0) { console.error(`ffmpeg failed for ${file}:\n${new TextDecoder().decode(r.stderr)}`); process.exit(1); }
   const level = new TextDecoder().decode(Bun.spawnSync(['ffmpeg', '-hide_banner', '-nostats', '-i', tmp, '-af', 'volumedetect', '-f', 'null', '-']).stderr);
   const mean = Number(/mean_volume: (-?[\d.]+) dB/.exec(level)?.[1] ?? NaN), peak = Number(/max_volume: (-?[\d.]+) dB/.exec(level)?.[1] ?? NaN);
