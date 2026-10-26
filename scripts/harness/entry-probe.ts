@@ -6,6 +6,7 @@ import type { Browser } from './cdp';
  *   bun cdp.ts entry-probe.ts                      # local stack (web :3000)
  *   BASE=https://clawbada-web.vercel.app bun cdp.ts entry-probe.ts
  *   AUTO=1 bun cdp.ts entry-probe.ts                # autoplay the opening turns too: no walk cut off, no watchdog release
+ *   AUDIO=1 MUSIC=1 bun cdp.ts entry-probe.ts       # battle music ON: the Dojo track starts with the breeze, carries into the battle
  */
 const OUT = process.env.OUT ?? `${import.meta.dir}/out`;
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3000';
@@ -34,7 +35,8 @@ export default async function (b: Browser) {
   await b.waitFor(`document.body.innerText.includes('Bulwark · Leviathan · Sentinel, Evolved, purity 2')`, 60000, 250);
   // With audio on, use the owner's own settings (2026-10-24: battle music OFF, its volume 30, SFX on): the wind is
   // ambience and follows the SFX switch, so it must play anyway — it never started while it followed the Music row.
-  if (process.env.AUDIO) await b.eval(`(() => { localStorage.setItem('clawbada_battle_music', 'off'); localStorage.setItem('clawbada_battle_music_vol', '30'); localStorage.setItem('clawbada_sfx', 'on'); localStorage.removeItem('clawbada_sfx_vol'); })()`);
+  const musicOn = !!process.env.AUDIO && !!process.env.MUSIC;
+  if (process.env.AUDIO) await b.eval(`(() => { localStorage.setItem('clawbada_battle_music', '${musicOn ? 'on' : 'off'}'); localStorage.setItem('clawbada_battle_music_vol', '30'); localStorage.setItem('clawbada_sfx', 'on'); localStorage.removeItem('clawbada_sfx_vol'); })()`);
   await b.sleep(1500);
   ok('no overlay before the press', (await overlay(b)) === null);
 
@@ -69,6 +71,13 @@ export default async function (b: Browser) {
   const airDetail = !air ? 'no handle' : air.url === null ? 'no AMB_Loading_Breeze master yet — silent' : `${air.url.split('/').pop()} ${air.playing ? 'playing' : 'paused'}, volume ${air.volume?.toFixed(3)}`;
   ok(audioOn ? 'breeze playing with the loop (audio on, battle music off — it follows SFX)' : 'breeze silent while muted', !!air && (air.url === null || (audioOn ? air.playing && (air.volume ?? 1) <= 0.96 : !air.playing)), airDetail);
   await b.screenshot(`${OUT}/entry-loading.png`);
+  // The arena's bed (owner 2026-10-25): with battle music on it starts with the breeze on the loading screen.
+  const bed = () => b.eval(`(() => { const m = window.__clawbadaArenaMusic; return m && m.audio ? { src: m.audio.src.split('/').pop(), playing: !m.audio.paused, volume: m.audio.volume } : null; })()`) as Promise<{ src: string; playing: boolean; volume: number } | null>;
+  let bedAtEntry: { src: string; playing: boolean; volume: number } | null = null;
+  if (musicOn) {
+    bedAtEntry = await bed();
+    ok('Dojo track playing with the breeze on the loading screen', !!bedAtEntry && bedAtEntry.playing && /BGM_Arena_Dojo/.test(bedAtEntry.src), bedAtEntry ? `${bedAtEntry.src} ${bedAtEntry.playing ? 'playing' : 'paused'}, volume ${bedAtEntry.volume.toFixed(3)}` : 'no arena audio');
+  }
 
   const navigated = await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 60000);
   ok('navigated to the battle page under the overlay', navigated);
@@ -122,6 +131,12 @@ export default async function (b: Browser) {
   // mid-intro and its walk could be cut off (rig stuck walking in place, footsteps looping). Unity must report the end itself.
   const introBy = b.allLogs.find((l) => /\[BattleStage\] intro complete \(/.test(l));
   // "(no intro)" means the server had already started the battle when Unity got it (START_WAIT_MS too short).
+  if (musicOn) {
+    const after = await bed();
+    const carried = b.allLogs.some((l) => /carried on from the loading screen/.test(l));
+    for (const l of b.allLogs.filter((x) => /\[ArenaMusic\]|\[BattleEntry\]|EntryAmbience\] (fade|playing)/.test(x))) console.log('  music:', l.slice(0, 200));
+    ok('the same Dojo track carried on into the battle (no restart)', carried && !!after && after.playing && after.src === bedAtEntry?.src, `${after?.src ?? 'none'} ${after?.playing ? 'playing' : 'paused'}; ${carried ? 'adopted' : 'NOT adopted'}`);
+  }
   ok('intro played and reported by Unity (not skipped, not the safety watchdog)', !!introBy && /\(unity\)/.test(introBy), introBy ?? 'no report');
   await b.sleep(introDone ? 2000 : 0);
   await b.screenshot(`${OUT}/entry-arena.png`);

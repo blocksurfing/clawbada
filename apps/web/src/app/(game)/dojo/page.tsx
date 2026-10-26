@@ -131,7 +131,8 @@ export default function DojoPage() {
   const launch = useCallback(async (body: Parameters<typeof api.combat.createPractice>[0], failMessage: string) => {
     if (kind === 'wallet' && !hasLiveSession()) { setGate('expired'); setGateErr(null); return; }
     requestBattleFullscreen();
-    startBattleEntry({ kind: 'practice' });
+    // The arena's music starts with the loading screen's breeze and plays on into the battle (owner 2026-10-25).
+    startBattleEntry({ kind: 'practice', arena: arena === 'match' ? tier : arena });
     setBusy(true);
     setErr(null);
     try {

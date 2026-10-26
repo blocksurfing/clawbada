@@ -88,10 +88,10 @@ MonoBehaviour:
     yOffset: 0
     swingOnImpact: 0
   death:
-    prefab: {fileID: 4736745792657940256, guid: 39270b853312726489d6c513acbd6ddf, type: 3}
-    anchor: 4
+    prefab: {fileID: 0}
+    anchor: 2
     delay: 0
-    mirrorWithFacing: 0
+    mirrorWithFacing: 1
     impactAt: 0
     frontChildPrefix: 
     hideChildrenPrefix: 
