@@ -7,13 +7,17 @@ import { PIXEL_ASSETS, loadPixelImage } from '@/components/pixel/pixel-assets';
  * frame too — per-lobster art templates don't exist yet.
  */
 export const CLASS_SHEET = PIXEL_ASSETS.apexClassSheet.src;
-export const loadClassSheet = () => loadPixelImage(CLASS_SHEET);
+/** One sheet per evolution tier (0 Base … 3 Apex), all in class order with the same 64 px frames — the Market's
+ *  tier sheets; the Apex one is the Shell's class sheet. Switching tier in the Dojo shows that tier's art. */
+export const TIER_SHEETS = [PIXEL_ASSETS.marketBase.src, PIXEL_ASSETS.marketEvolved.src, PIXEL_ASSETS.marketElite.src, PIXEL_ASSETS.marketApex.src] as const;
+export const loadTierSheets = () => Promise.all(TIER_SHEETS.map((src) => loadPixelImage(src)));
 
 export interface Crop { left: number; right: number; bottom: number; scale: number }
 
-const crops = new Map<number, { left: number; top: number; right: number; bottom: number }>();
+const crops = new Map<string, { left: number; top: number; right: number; bottom: number }>();
 function cropOf(sheet: HTMLImageElement, classIndex: number) {
-  const known = crops.get(classIndex);
+  const key = `${sheet.src}#${classIndex}`;
+  const known = crops.get(key);
   if (known) return known;
   const frame = document.createElement('canvas');
   frame.width = frame.height = 64;
@@ -27,7 +31,7 @@ function cropOf(sheet: HTMLImageElement, classIndex: number) {
     right = Math.max(right, x + 1); bottom = Math.max(bottom, y + 1);
   }
   const crop = right > left ? { left, top, right, bottom } : { left: 0, top: 0, right: 64, bottom: 64 };
-  crops.set(classIndex, crop);
+  crops.set(key, crop);
   return crop;
 }
 

@@ -50,7 +50,8 @@ export default async function (b: Browser) {
   for (const [label, w, h, dpr] of SIZES) {
     const tag = `${label} ${w}×${h}`;
     await b.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: dpr, mobile: false });
-    await b.goto(`${BASE}/dojo`);
+    // A full team by link (the Dojo itself opens with nobody picked — checked below).
+    await b.goto(`${BASE}/dojo?team=kraken,ember,abyss`);
     await b.waitFor(`!!document.querySelector('[data-testid=dojo-battle]') && !!document.querySelector('.dojo-sign[data-ready=true]')`, 60000, 250);
     await b.sleep(1500);
     const want = chromePixelScale(w, h, dpr);
@@ -78,7 +79,7 @@ export default async function (b: Browser) {
     ok(`${tag}: Fight with friend is disabled, "Coming soon"`, await b.eval(`(() => { const t = document.querySelector('[data-testid=dojo-friend-tab]'); return !!t && t.getAttribute('aria-disabled') === 'true' && t.textContent.includes('Coming soon'); })()`));
     // His composition at one uniform scale (owner 2026-10-26), with the wallet chip scaled along on this page.
     const stage = await b.eval(`parseFloat(getComputedStyle(document.querySelector('.dojo-stage')).getPropertyValue('--dojo-stage-scale'))`) as number;
-    const wantStage = Math.min(w / 1920, (h - (w < 1024 ? 64 : 0)) / 955);
+    const wantStage = Math.min(w / 1920, (h - (w < 1024 ? 64 : 0)) / 955);   // compact sidebar
     ok(`${tag}: one uniform scale for the whole composition`, Math.abs(stage - wantStage) < 0.001, `${stage.toFixed(4)} (want ${wantStage.toFixed(4)})`);
     const chip = await rect('.connect-wallet');
     for (const id of ['dojo-team-title', 'dojo-opponent-title']) {
@@ -91,6 +92,48 @@ export default async function (b: Browser) {
     await b.screenshot(`${OUT}/dojo-layout-${w}x${h}.png`);
   }
 
+  // ── Build a team (Nzib 2026-10-26): empty start, class tiles, compact tier/purity, the tier's own art ──
+  await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 755, deviceScaleFactor: 2, mobile: false });
+  await b.goto(`${BASE}/dojo`);
+  await b.waitFor(`document.querySelectorAll('#dojo-builder [data-owned-id]').length === 10 && !!document.querySelector('.dojo-sign[data-ready=true]')`, 60000, 250);
+  await b.sleep(800);
+  const teamCount = () => b.eval(`Array.from(document.querySelectorAll('[data-fighter="team"] > canvas')).filter(c => !c.hidden).length`) as Promise<number>;
+  const built = () => b.eval(`Array.from(document.querySelectorAll('#dojo-builder [data-owned-id]')).filter(t => t.getAttribute('aria-pressed') === 'true').map(t => [t.dataset.ownedId, t.querySelector('[data-slot-badge]').textContent]).sort((a, c) => a[1] - c[1]).map(x => x[0]).join(',')`) as Promise<string>;
+  ok('build: the Dojo opens with nobody picked', (await teamCount()) === 0 && (await built()) === '');
+  ok('build: Battle is off until three are picked', await b.eval(`document.querySelector('[data-testid=dojo-battle]').disabled`));
+  ok('build: no slot dropdowns; tier and purity share one row', await b.eval(`!document.querySelector('#dojo-builder select') && (() => { const t = document.querySelector('[data-testid=dojo-tier]').getBoundingClientRect(), p = document.querySelector('[data-testid=dojo-purity]').getBoundingClientRect(); return Math.abs(t.top - p.top) < 4; })()`));
+  for (const c of ['kraken', 'ember', 'abyss']) { await b.eval(`document.querySelector('#dojo-builder [data-owned-id="${c}"]').click()`); await b.sleep(120); }
+  ok('build: tiles fill the lineup in order', (await built()) === 'kraken,ember,abyss' && (await teamCount()) === 3, await built());
+  ok('build: the summary names the team', String(await b.eval(`document.querySelector('[data-testid=dojo-summary]').textContent`)).startsWith('Kraken · Ember · Abyss, Apex, purity 6'));
+  await b.eval(`document.querySelector('#dojo-builder [data-owned-id="mantis"]').click()`); await b.sleep(120);
+  ok('build: a full team says so', String(await b.eval(`document.querySelector('#dojo-builder .dojo-selection-feedback').textContent`)).includes('Team full'));
+  const art = () => b.eval(`[document.querySelector('[data-fighter="team"][data-slot="0"] > canvas').toDataURL(), document.querySelector('#dojo-builder [data-owned-id="bulwark"] canvas').toDataURL()]`) as Promise<[string, string]>;
+  const apexArt = await art();
+  await b.eval(`Array.from(document.querySelectorAll('[data-testid=dojo-tier] button')).find(x => x.textContent === 'Evolved').click()`); await b.sleep(400);
+  const evolvedArt = await art();
+  ok('build: switching tier shows that tier\'s art (lineup and tiles)', apexArt[0] !== evolvedArt[0] && apexArt[1] !== evolvedArt[1]);
+  {
+    const center = (sel: string) => b.eval(`(() => { const q = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as Promise<{ x: number; y: number }>;
+    const a = await center('#dojo-builder [data-owned-id="mantis"]'), z = await center('[data-fighter="team"][data-slot="1"]');
+    await b.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', buttons: 1, clickCount: 1 });
+    for (let i = 1; i <= 8; i++) { await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x + ((z.x - a.x) * i) / 8, y: a.y + ((z.y - a.y) * i) / 8, button: 'left', buttons: 1 }); await b.sleep(30); }
+    await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: z.x, y: z.y, button: 'left', buttons: 0, clickCount: 1 });
+    await b.sleep(300);
+    ok('build: dragging a class onto a slot replaces it', (await built()) === 'kraken,mantis,abyss', await built());
+  }
+  // The open sidebar: the composition shrinks and moves right as one piece, clear of the sidebar.
+  const toggle = await b.eval(`(() => { const e = document.querySelector('#toggle'); if (!e || e.disabled) return null; const q = e.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number } | null;
+  if (toggle) {
+    await b.clickAt(toggle.x, toggle.y);
+    await b.waitFor(`parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-expand-progress')) >= 1`, 10000, 100);
+    await b.sleep(400);
+    const open = await b.eval(`(() => { const n = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pixel-n')) || 3; const s = parseFloat(getComputedStyle(document.querySelector('.dojo-stage')).getPropertyValue('--dojo-stage-scale')); const panel = document.querySelector('.pixel-chrome #panel') || document.querySelector('#panel'); const card = document.querySelector('[data-side=team] .dojo-card').getBoundingClientRect(); return { n, s, want: Math.min((innerWidth - 80 * n) / 1920, innerHeight / 955), cardLeft: card.left, panelRight: panel ? panel.getBoundingClientRect().right : null }; })()`) as { n: number; s: number; want: number; cardLeft: number; panelRight: number | null };
+    ok('open sidebar: the whole composition shrinks as one piece', Math.abs(open.s - open.want) < 0.002, JSON.stringify(open));
+    ok('open sidebar: the cards stay clear of the sidebar', open.panelRight === null || open.cardLeft >= open.panelRight, JSON.stringify(open));
+    await b.screenshot(`${OUT}/dojo-layout-sidebar-open.png`);
+    await b.clickAt(toggle.x, toggle.y); await b.sleep(1500);
+  } else ok('open sidebar: toggle available', false);
+
   // Leaving the Dojo (client-side, via the sidebar) puts the wallet chip back to its own size.
   await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 755, deviceScaleFactor: 2, mobile: false });
   await b.goto(`${BASE}/dojo`);
@@ -100,7 +143,8 @@ export default async function (b: Browser) {
   if (shellLink) await b.clickAt(shellLink.x, shellLink.y);
   await b.waitFor(`location.pathname === '/game'`, 120000, 250);
   await b.sleep(800);
-  ok('leaving the Dojo restores the full-size wallet chip', !!shellLink && (await b.eval(`!document.documentElement.hasAttribute('data-dojo-stage') && getComputedStyle(document.querySelector('.user-section')).transform === 'none'`)));
+  const left = await b.eval(`({ path: location.pathname, attr: document.documentElement.hasAttribute('data-dojo-stage'), transform: getComputedStyle(document.querySelector('.user-section')).transform })`) as { path: string; attr: boolean; transform: string };
+  ok('leaving the Dojo restores the full-size wallet chip', !!shellLink && left.path === '/game' && !left.attr && left.transform === 'none', JSON.stringify({ link: shellLink, ...left }));
 
   // ── My lobsters: a burner wallet with stubbed lobsters ──
   await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 755, deviceScaleFactor: 2, mobile: false });
@@ -120,9 +164,13 @@ export default async function (b: Browser) {
     if (await b.waitFor(`document.querySelector('[data-testid=dojo-identity]')?.getAttribute('data-kind') === 'wallet'`, 8000, 250)) break;
   }
   ok('wallet: opens on My lobsters', !!(await b.waitFor(`document.querySelector('[data-team-mode=owned]')?.getAttribute('aria-selected') === 'true'`, 20000, 250)));
-  const slots = () => b.eval(`(() => Array.from(document.querySelectorAll('[data-owned-id]')).filter(t => t.getAttribute('aria-pressed') === 'true').map(t => [t.dataset.ownedId, t.querySelector('[data-slot-badge]').textContent]).sort((a, c) => a[1] - c[1]).map(x => x[0]).join(','))()`) as Promise<string>;
-  ok('wallet: the saved team fills the lineup', (await b.waitFor(`document.querySelector('[data-saved-team]')?.value === '7'`, 10000, 250)) && (await slots()) === '101,102,103', await slots());
-  ok('wallet: twelve lobsters on two pages', await b.eval(`document.querySelectorAll('[data-owned-id]').length === 12 && document.querySelector('.dojo-inventory-pager span').textContent.trim() === '1 / 2'`));
+  const slots = () => b.eval(`(() => Array.from(document.querySelectorAll('#dojo-owned [data-owned-id]')).filter(t => t.getAttribute('aria-pressed') === 'true').map(t => [t.dataset.ownedId, t.querySelector('[data-slot-badge]').textContent]).sort((a, c) => a[1] - c[1]).map(x => x[0]).join(','))()`) as Promise<string>;
+  ok('wallet: opens with nobody picked', (await slots()) === '');
+  await b.waitFor(`!!document.querySelector('[data-saved-team] option[value="7"]')`, 10000, 250);
+  await b.eval(`(() => { const sel = document.querySelector('[data-saved-team]'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(sel, '7'); sel.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await b.sleep(300);
+  ok('wallet: choosing a saved team fills the lineup', (await slots()) === '101,102,103', await slots());
+  ok('wallet: twelve lobsters on two pages', await b.eval(`document.querySelectorAll('#dojo-owned [data-owned-id]').length === 12 && document.querySelector('.dojo-inventory-pager span').textContent.trim() === '1 / 2'`));
   const center = (sel: string) => b.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); const q = e.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as Promise<{ x: number; y: number }>;
   const mouse = (type: string, p: { x: number; y: number }) => b.send('Input.dispatchMouseEvent', { type, x: p.x, y: p.y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
   const drag = async (from: string, to: string, opts: { escape?: boolean } = {}) => {
@@ -151,7 +199,7 @@ export default async function (b: Browser) {
   ok('drag: lineup to lineup swaps, no duplicate', (await slots()) === '105,104,102', await slots());
   await drag('[data-owned-id="107"]', '[data-fighter="team"][data-slot="0"]', { escape: true });
   ok('drag: Escape cancels', (await slots()) === '105,104,102' && !(await b.eval(`!!document.querySelector('[data-drag-follower], [data-drag-preview]')`)), await slots());
-  await drag('[data-fighter="team"][data-slot="1"]', '[data-owned-inventory]');
+  await drag('[data-fighter="team"][data-slot="1"]', '#dojo-owned [data-owned-inventory]');
   ok('drag: lineup onto the tiles removes', (await slots()) === '105,102', await slots());
   ok('Battle is off with two lobsters', await b.eval(`document.querySelector('[data-testid=dojo-battle]').disabled`));
   await b.eval(`document.querySelector('[data-owned-id="108"]').click()`); await b.sleep(200);
