@@ -81,16 +81,7 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-body), 'Titillium Web', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    cursor: url('/assets/cursors/cursor-default.svg') 4 1, auto;
-  }
-  :active,
-  html.cursor-pressed,
-  html.cursor-pressed * {
-    cursor: url('/assets/cursors/cursor-pointer.svg') 4 1, auto;
-  }
-  :disabled,
-  [aria-disabled='true'] {
-    cursor: not-allowed;
+    /* The cursor is Nzib's pixel claw: components/pixel/pixel-cursor.ts (mounted by <PixelCursor /> in the root layout). */
   }
 }
 
