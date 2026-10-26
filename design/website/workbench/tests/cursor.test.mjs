@@ -7,9 +7,9 @@ import { pixelAssets } from '../pixel-assets.js';
 
 test('cursor frames follow the five artist cells and correct source hotspots', () => {
   assert.deepEqual(cursorFrames.map(f => f.x), [0,32,64,96,128]);
-  assert.deepEqual(cursorFrames.map(f => f.hotspot), [[11,7],[11,8],[16,16],[16,16],[16,16]]);
+  assert.deepEqual(cursorFrames.map(f => f.hotspot), [[11,7],[11,7],[16,16],[16,16],[16,16]]);
   assert.equal(cursorValue('data:test', cursorFrames[0], 3), 'url("data:test") 33 21, default');
-  assert.equal(cursorValue('data:test', cursorFrames[1], 3), 'url("data:test") 33 24, pointer');
+  assert.equal(cursorValue('data:test', cursorFrames[1], 3), 'url("data:test") 33 21, pointer');
 });
 test('registered cursor export dimensions and alpha tips match original PNG', () => {
   const png = PNG.sync.read(readFileSync(new URL(pixelAssets.cursor.src)));
@@ -23,7 +23,9 @@ test('registered cursor export dimensions and alpha tips match original PNG', ()
   assert.deepEqual(metadata.meta.frameTags.map(t => [t.name, t.from, t.to]), [
     ['Normal', 0, 0], ['Click', 1, 1], ['Loading', 2, 3], ['Not Allowed', 4, 4],
   ]);
-  for (const f of cursorFrames.slice(0,2)) {
+  // Pressed art moves around the same anchor; its hotspot may be transparent.
+  assert.deepEqual(cursorFrames[1].hotspot, cursorFrames[0].hotspot);
+  for (const f of cursorFrames.slice(0,1)) {
     const [x,y] = f.hotspot;
     assert.ok(png.data[((y * png.width) + f.x + x) * 4 + 3] > 0);
   }

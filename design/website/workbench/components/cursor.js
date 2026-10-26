@@ -3,7 +3,7 @@ import { pixelAssets } from '../pixel-assets.js';
 // Artist's five 32px cells. Hotspots are source pixels, before integer scaling.
 export const cursorFrames = Object.freeze([
   { name: 'normal', x: 0, hotspot: [11, 7], fallback: 'default' },
-  { name: 'pointer', x: 32, hotspot: [11, 8], fallback: 'pointer' },
+  { name: 'pointer', x: 32, hotspot: [11, 7], fallback: 'pointer' },
   { name: 'loading0', x: 64, hotspot: [16, 16], fallback: 'progress' },
   { name: 'loading1', x: 96, hotspot: [16, 16], fallback: 'progress' },
   { name: 'disabled', x: 128, hotspot: [16, 16], fallback: 'not-allowed' },
