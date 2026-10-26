@@ -46,6 +46,10 @@ export const PIXEL_ASSETS = {
   marketApex: { kind: 'sprite', src: '/ui/market/sheets/Apex.png', width: 640, height: 64, frame: [64, 64] },
   classBadges: { kind: 'sprite', src: '/ui/shell/class-badges.png', width: 160, height: 16, frame: [16, 16] },
   menuIcons: { kind: 'sprite', src: '/ui/sidebar/Icons.png', width: 192, height: 16, frame: [16, 16] },
+  dojoDarkPanel: { kind: 'panel', src: '/ui/dojo/Dark_Panel.png', width: 48, height: 48, region: [0, 0, 48, 48], tile: 16 },
+  dojoSign: { kind: 'sprite', src: '/ui/dojo/Wooden_Sign.png', width: 96, height: 64, frame: [96, 64] },
+  dojoSelectedFrame: { kind: 'sprite', src: '/ui/dojo/Selected_Frame.png', width: 128, height: 32, frame: [32, 32] },
+  apexClassSheet: { kind: 'sprite', src: '/ui/shell/apex-class-sheet.png', width: 640, height: 64, frame: [64, 64] },
 } as const satisfies Record<string, SpriteAsset | PanelAsset>;
 
 export type PixelAssetName = keyof typeof PIXEL_ASSETS;

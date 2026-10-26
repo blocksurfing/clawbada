@@ -1,7 +1,7 @@
 import type { Browser } from './cdp';
 
 /**
- * The battle entry sequence (PR feat/battle-entry-web): a guest presses Train on the Dojo and must see Nzib's
+ * The battle entry sequence (PR feat/battle-entry-web): a guest presses Battle on the Dojo and must see Nzib's
  * loading loop at once, the page in fullscreen, the loop held for at least 12 s, then the arena intro.
  *   bun cdp.ts entry-probe.ts                      # local stack (web :3000)
  *   BASE=https://clawbada-web.vercel.app bun cdp.ts entry-probe.ts
@@ -11,9 +11,9 @@ import type { Browser } from './cdp';
 const OUT = process.env.OUT ?? `${import.meta.dir}/out`;
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3000';
 
-async function rectClick(b: Browser, selector: string, text: string) {
-  const r = await b.eval(`(() => { const el = Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(e => (e.textContent || '').trim() === ${JSON.stringify(text)}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
-  if (!r) throw new Error(`no ${selector} ${text}`);
+async function rectClick(b: Browser, selector: string, text?: string) {
+  const r = await b.eval(`(() => { const el = Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(e => ${text === undefined ? 'true' : `(e.textContent || '').trim() === ${JSON.stringify(text)}`}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
+  if (!r) throw new Error(`no ${selector} ${text ?? ''}`);
   await b.clickAt(r.x, r.y);
 }
 /** The overlay as the browser sees it; `age` = ms since its fades began (the overlay stamps data-shown-at), so a
@@ -45,7 +45,7 @@ export default async function (b: Browser) {
   ok('no overlay before the press', (await overlay(b)) === null);
 
   const t0 = Date.now();
-  await rectClick(b, 'button', 'Train');
+  await rectClick(b, '[data-testid=dojo-battle]');
   const appeared = await b.waitFor(`!!document.querySelector('[data-testid=battle-entry][data-phase=web]')`, 3000, 50);
   const tAppear = Date.now() - t0;
   ok('overlay appears on the press', appeared, `${tAppear} ms`);
