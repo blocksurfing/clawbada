@@ -68,9 +68,10 @@ type Tier = (typeof TIERS)[number];
 const ARENAS = ['dojo', ...TIERS] as const;
 type Arena = 'match' | (typeof ARENAS)[number];
 
+/** Nobody picked until the player chooses (owner 2026-10-26); deep links (?team ?class) still pre-fill. */
+const DEFAULT_TEAM = ['', '', ''];
 // Showcase by default (user decision 2026-09-21): Apex rigs are the best-looking assets and
 // purity 6 fires the enhanced Special about one cast in three (5% + 5% × purity = 35%).
-const DEFAULT_TEAM = ['kraken', 'ember', 'abyss'];
 const DEFAULT_TIER: Tier = 'apex';
 const DEFAULT_PURITY = 6;
 
@@ -230,7 +231,7 @@ export default function DojoPage() {
         </div>
       )}
       devTools={presetsAllowed && (
-        <details className="dojo-presets" data-testid="dojo-presets">
+        <details className="dojo-presets" data-testid="dojo-presets" open={!!preset}>
           <summary>Review presets (dev)</summary>
           <select aria-label="Review preset" value={preset} onChange={(e) => { setPreset(e.target.value); if (e.target.value.startsWith('random_')) setOpponent('random'); }}>
             <option value="">Preset (dev only)</option>

@@ -6,7 +6,7 @@ import { PixelPanel } from '@/components/shell/pixel-panel';
 import { PIXEL_SCALE_EVENT, pixelScale } from '@/components/pixel/pixel-assets';
 import { BOT_CATALOG, botInfo, type BotName } from '@/lib/bot-catalog';
 import { DojoSign } from './dojo-sign';
-import { anchorFighter, cssPx, drawClass, loadClassSheet } from './dojo-sprites';
+import { anchorFighter, cssPx, drawClass, loadTierSheets } from './dojo-sprites';
 import {
   EMPTY_SLOTS, INVENTORY_PAGE_SIZE, builderSummary, dropOnSlot, ownedSummary, pageCount, purityDescription,
   removeFromSlots, slotsComplete, toggleSlot, type Slots,
@@ -79,11 +79,26 @@ function useStage(stageRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
+    let last = '';
     const fit = () => {
       const vw = window.innerWidth, vh = window.innerHeight - (vw < 1024 ? MOBILE_NAV : 0);
-      const scale = vw < 700 ? 1 : Math.min(vw / DOJO_DESIGN.width, vh / DOJO_DESIGN.height);
-      const tx = vw < 700 ? 0 : (vw - DOJO_DESIGN.width * scale) / 2;
+      // The real sidebar (lg+): his composition is drawn for the COMPACT pole. When the pole opens, the whole
+      // composition shrinks and moves right as one piece (owner 2026-10-26: the fighters looked oversized when the
+      // open sidebar squeezed only the cards), instead of reflowing.
+      const rootStyle = getComputedStyle(document.documentElement);
+      const n = parseFloat(rootStyle.getPropertyValue('--pixel-n')) || 3;
+      const progress = vw >= 1024 ? Math.min(1, Math.max(0, parseFloat(rootStyle.getPropertyValue('--sidebar-expand-progress')) || 0)) : 0;
+      const key = `${vw}x${vh}@${n}:${progress}`;
+      if (key === last) return;
+      last = key;
+      const extra = 80 * n * progress;   // the pole's growth from 96 to 128 art px, plus his 48 px compact offset
+      const avail = vw - extra;
+      const scale = vw < 700 ? 1 : Math.min(avail / DOJO_DESIGN.width, vh / DOJO_DESIGN.height);
+      const tx = vw < 700 ? 0 : extra + (avail - DOJO_DESIGN.width * scale) / 2;
       const ty = vw < 700 ? 0 : Math.max(0, (vh - DOJO_DESIGN.height * scale) / 2);
+      // The page clears the compact sidebar (his placeholders.css: 48 art px in from its 96), in stage px.
+      const contentLeft = vw >= 1024 ? Math.max(0, (48 * n + extra - tx) / scale) : 0;
+      stage.style.setProperty('--dojo-content-left', `${contentLeft}px`);
       stage.style.setProperty('--dojo-stage-scale', String(scale));
       // The wallet chip belongs to his composition too (owner 2026-10-26): on the Dojo it scales with the room.
       document.documentElement.style.setProperty('--dojo-stage-scale', String(scale));
@@ -96,7 +111,11 @@ function useStage(stageRef: RefObject<HTMLDivElement | null>) {
     fit();
     window.addEventListener('resize', fit);
     window.addEventListener(PIXEL_SCALE_EVENT, fit);
+    // The sidebar roll writes --sidebar-expand-progress on <html> every frame; follow it.
+    const roll = new MutationObserver(fit);
+    roll.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
     return () => {
+      roll.disconnect();
       window.removeEventListener('resize', fit); window.removeEventListener(PIXEL_SCALE_EVENT, fit);
       document.documentElement.style.removeProperty('--dojo-stage-scale');
       document.documentElement.removeAttribute('data-dojo-stage');
@@ -111,15 +130,18 @@ export function stageScale(el: Element): number {
   return Number.isFinite(v) && v > 0 ? v : 1;
 }
 
-function useClassSheet() {
-  const [sheet, setSheet] = useState<HTMLImageElement | null>(null);
-  useEffect(() => { let live = true; loadClassSheet().then((img) => { if (live) setSheet(img); }).catch(console.error); return () => { live = false; }; }, []);
-  return sheet;
+/** The four tier sheets (0 Base … 3 Apex), once loaded. */
+function useTierSheets() {
+  const [sheets, setSheets] = useState<HTMLImageElement[] | null>(null);
+  useEffect(() => { let live = true; loadTierSheets().then((imgs) => { if (live) setSheets(imgs); }).catch(console.error); return () => { live = false; }; }, []);
+  return sheets;
 }
+const TIER_INDEX: Record<DojoTier, number> = { evolved: 1, elite: 2, apex: 3 };
 
 /** One lineup fighter (a diagonal slot with its shadow). */
-function Fighter({ side, slot, classIndex, unknown, sheet, label, ghost }: {
+function Fighter({ side, slot, classIndex, unknown, sheet, label, ghost, ghostSheet }: {
   side: 'team' | 'opponent'; slot: number; classIndex: number | null; unknown?: boolean; sheet: HTMLImageElement | null; label: string;
+  ghostSheet?: HTMLImageElement | null;
   ghost?: number | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -132,9 +154,9 @@ function Fighter({ side, slot, classIndex, unknown, sheet, label, ghost }: {
   }, [sheet, classIndex, side]);
   useLayoutEffect(() => {
     const canvas = ghostRef.current, figure = figureRef.current;
-    if (!canvas || !figure || !sheet || ghost == null) return;
-    anchorFighter(canvas, drawClass(canvas, sheet, ghost, cssPx(figure, '--dojo-selected-pixel', 4)), 'team');
-  }, [sheet, ghost]);
+    if (!canvas || !figure || !ghostSheet || ghost == null) return;
+    anchorFighter(canvas, drawClass(canvas, ghostSheet, ghost, cssPx(figure, '--dojo-selected-pixel', 4)), 'team');
+  }, [ghostSheet, ghost]);
   const filled = classIndex !== null;
   return (
     <figure ref={figureRef} className="dojo-fighter" data-fighter={side} data-slot={slot} data-unknown={unknown ? 'true' : undefined}>
@@ -152,22 +174,22 @@ function Fighter({ side, slot, classIndex, unknown, sheet, label, ghost }: {
   );
 }
 
-/** A portrait tile in the owned inventory, drawn at the global pixel. */
-function InventoryTile({ lobster, slot, sheet, unit, hidden, onClick }: {
-  lobster: DojoLobster; slot: number; sheet: HTMLImageElement | null; unit: number; hidden: boolean; onClick: () => void;
+/** A portrait tile (an owned lobster, or a class in Build a team), drawn at the stage's pixel. */
+function InventoryTile({ id, classIndex, name, detail, slot, sheet, unit, hidden, onClick }: {
+  id: string; classIndex: number; name: string; detail: string; slot: number; sheet: HTMLImageElement | null; unit: number; hidden?: boolean; onClick: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
-    if (canvasRef.current && sheet) drawClass(canvasRef.current, sheet, lobster.classIndex, unit);
-  }, [sheet, lobster.classIndex, unit]);
+    if (canvasRef.current && sheet) drawClass(canvasRef.current, sheet, classIndex, unit);
+  }, [sheet, classIndex, unit]);
   const picked = slot >= 0;
   return (
     <button
-      type="button" className="dojo-inventory-tile" data-owned-id={lobster.id} aria-pressed={picked} hidden={hidden} onClick={onClick}
-      aria-label={`${lobsterName(lobster)}, ${lobster.tierName}${picked ? `, slot ${slot + 1}, click to remove` : ', click to add'}`}
+      type="button" className="dojo-inventory-tile" data-owned-id={id} aria-pressed={picked} hidden={hidden} onClick={onClick}
+      aria-label={`${detail}${picked ? `, slot ${slot + 1}, click to remove` : ', click to add'}`}
     >
       <i className="dojo-portrait-clip" aria-hidden="true"><canvas ref={canvasRef} width={64} height={64} /></i>
-      <span title={`${lobsterName(lobster)} · ${lobster.tierName}`}>{lobster.className}</span>
+      <span title={detail}>{name}</span>
       <span data-slot-badge="" hidden={!picked} aria-hidden="true">{picked ? slot + 1 : ''}</span>
       <i className="dojo-selected-corners" aria-hidden="true"><i /><i /><i /><i /></i>
     </button>
@@ -178,14 +200,15 @@ export function DojoRoom(props: DojoRoomProps) {
   const { lobsters, teams, initialMode, isWallet, team, tier, purity, bot, opponent, arena, busy, blocked, error } = props;
   const stageRef = useRef<HTMLDivElement>(null);
   const unit = useStage(stageRef);
-  const sheet = useClassSheet();
+  const sheets = useTierSheets();
   const rootRef = useRef<HTMLDivElement>(null);
   const inventoryRef = useRef<HTMLDivElement>(null);
+  const classGridRef = useRef<HTMLDivElement>(null);
 
   const [mode, setMode] = useState<'owned' | 'builder'>('builder');
   const [modeTouched, setModeTouched] = useState(false);
   useEffect(() => { if (initialMode && !modeTouched) setMode(initialMode); }, [initialMode, modeTouched]);
-  const pickMode = (m: 'owned' | 'builder') => { setMode(m); setModeTouched(true); };
+  const pickMode = (m: 'owned' | 'builder') => { setMode(m); setModeTouched(true); setFeedback(''); };
 
   const [panel, setPanel] = useState<'team' | 'opponent'>('team');
   const [slots, setSlots] = useState<Slots>(EMPTY_SLOTS);
@@ -197,51 +220,55 @@ export function DojoRoom(props: DojoRoomProps) {
   const byId = useMemo(() => new Map(lobsters.map((l) => [l.id, l])), [lobsters]);
   const usableTeams = useMemo(() => teams.filter((t) => t.lobsterIds.length === 3 && t.lobsterIds.every((id) => byId.has(id))), [teams, byId]);
 
-  // A wallet opens on its first saved team, else empty slots. Lobsters that leave the wallet leave the lineup.
-  const seeded = useRef(false);
+  // The Dojo opens with nobody picked (owner 2026-10-26); lobsters that leave the wallet leave the lineup.
   useEffect(() => {
-    if (!lobsters.length) return;
-    if (!seeded.current) {
-      seeded.current = true;
-      const first = usableTeams[0];
-      if (first) { setSavedTeam(first.id); setSlots([first.lobsterIds[0], first.lobsterIds[1], first.lobsterIds[2]]); }
-      return;
-    }
     setSlots((s) => { const next = s.map((id) => (byId.has(id) ? id : '')) as unknown as Slots; return next.some((id, i) => id !== s[i]) ? next : s; });
-  }, [lobsters, usableTeams, byId]);
+  }, [byId]);
 
   const pages = pageCount(lobsters.length);
   useEffect(() => { if (page > pages - 1) setPage(pages - 1); }, [page, pages]);
 
   // Portrait size: five per row across the inventory's width (gap 9 px × 4), as in the drop.
   useEffect(() => {
-    const el = inventoryRef.current;
-    if (!el) return;
-    const fit = () => { el.style.setProperty('--portrait-size', `${Math.max(0, (el.clientWidth - 36) / 5)}px`); el.style.gridTemplateColumns = 'repeat(5, var(--portrait-size))'; };
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(el);
+    const grids = [inventoryRef.current, classGridRef.current].filter((g): g is HTMLDivElement => !!g);
+    const fit = (el: HTMLDivElement) => { el.style.setProperty('--portrait-size', `${Math.max(0, (el.clientWidth - 36) / 5)}px`); el.style.gridTemplateColumns = 'repeat(5, var(--portrait-size))'; };
+    grids.forEach(fit);
+    const ro = new ResizeObserver(() => grids.forEach(fit));
+    grids.forEach((g) => ro.observe(g));
     return () => ro.disconnect();
   }, [mode, lobsters.length]);
 
   const ownedReady = mode === 'owned' && slotsComplete(slots);
-  const valid = mode === 'builder' ? team.length === 3 : ownedReady;
+  const builtSlots: Slots = [team[0] ?? '', team[1] ?? '', team[2] ?? ''];
+  const builderReady = builtSlots.every(Boolean);
+  const valid = mode === 'builder' ? builderReady : ownedReady;
+  const activeSlots = mode === 'owned' ? slots : builtSlots;
   const botLabel = botInfo(bot)?.label ?? bot;
   const summary = mode === 'builder'
-    ? builderSummary(team, tier, purity, botLabel)
+    ? builderReady ? builderSummary(team, tier, purity, botLabel) : 'Pick three classes for your team.'
     : ownedReady ? ownedSummary(slots.map((id) => lobsterName(byId.get(id)!)), savedTeam || null, botLabel)
       : isWallet ? 'Pick three lobsters for your team.' : 'Connect a wallet to train with your own lobsters, or build a team.';
 
-  const editSlots = (next: Slots) => { setSlots(next); setSavedTeam(''); setFeedback(''); };
+  /** One edit path for both tabs: owned picks are lobster ids, built picks are class names (the page's `team`). */
+  const editSlots = (next: Slots) => {
+    setFeedback('');
+    if (mode === 'builder') { props.onTeam([...next]); return; }
+    setSlots(next); setSavedTeam('');
+  };
   const clickTile = (id: string) => {
-    const r = toggleSlot(slots, id);
-    if (r.full) { setFeedback('Team full — remove a lobster first.'); return; }
+    const r = toggleSlot(activeSlots, id);
+    if (r.full) { setFeedback(`Team full — remove a ${mode === 'builder' ? 'class' : 'lobster'} first.`); return; }
     editSlots(r.slots);
   };
 
   // ── drag (pointer capture keeps mouse, pen and touch drags alive outside the source) ──
-  const live = useRef({ slots, mode, byId, unit, sheet });
-  live.current = { slots, mode, byId, unit, sheet };
+  const classOf = (name: string) => DOJO_CLASSES.indexOf(name as (typeof DOJO_CLASSES)[number]);
+  const classIndexOf = (id: string) => (mode === 'builder' ? classOf(id) : byId.get(id)?.classIndex ?? -1);
+  /** Built teams show the chosen tier's art; own lobsters show their own tier. */
+  const sheetFor = (id: string) => sheets?.[mode === 'builder' ? TIER_INDEX[tier] : Math.min(3, Math.max(0, byId.get(id)?.tier ?? 1))] ?? null;
+  const builderSheet = sheets?.[TIER_INDEX[tier]] ?? null;
+  const live = useRef({ slots: activeSlots, classIndexOf, sheetFor, unit });
+  live.current = { slots: activeSlots, classIndexOf, sheetFor, unit };
   const editRef = useRef(editSlots);
   editRef.current = editSlots;
   useEffect(() => {
@@ -254,10 +281,10 @@ export function DojoRoom(props: DojoRoomProps) {
     const inside = (el: Element | null, x: number, y: number) => { if (!el) return false; const b = el.getBoundingClientRect(); return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom; };
     // The diagonal slot boxes decide the target, never the overlapping transparent art.
     const targetSlot = (x: number, y: number) => teamFighters().findIndex((f) => inside(f, x, y));
-    const inventory = () => root.querySelector('[data-owned-inventory]');
+    const inventory = () => root.querySelector('[role="tabpanel"]:not([hidden]) [data-owned-inventory]');
     const down = (e: PointerEvent) => {
       suppressClick = false;
-      if (d || e.button !== 0 || !e.isPrimary || live.current.mode !== 'owned') return;
+      if (d || e.button !== 0 || !e.isPrimary) return;
       const source = (e.target as Element).closest<HTMLElement>('[data-owned-id], [data-fighter="team"]');
       if (!source) return;
       const fromLineup = source.matches('[data-fighter="team"]');
@@ -269,12 +296,13 @@ export function DojoRoom(props: DojoRoomProps) {
     const move = (e: PointerEvent) => {
       if (!d || e.pointerId !== d.pointerId) return;
       if (!d.active && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
-      const { byId: ids, sheet: img, unit: u } = live.current;
+      const { classIndexOf: indexOf, sheetFor: sheetOf, unit: u } = live.current;
+      const img = sheetOf(d.id);
       if (!d.active && img) {
         const follower = document.createElement('canvas');
         follower.dataset.dragFollower = '';
         follower.setAttribute('aria-hidden', 'true');
-        drawClass(follower, img, ids.get(d.id)?.classIndex ?? 0, (d.fromLineup ? cssPx(root, '--dojo-selected-pixel', 4) : u) * stageScale(root));
+        drawClass(follower, img, Math.max(0, indexOf(d.id)), (d.fromLineup ? cssPx(root, '--dojo-selected-pixel', 4) : u) * stageScale(root));
         // On body: the page is transformed, which would capture a fixed child.
         document.body.append(follower);
         d.follower = follower;
@@ -343,9 +371,9 @@ export function DojoRoom(props: DojoRoomProps) {
     rootRef.current?.querySelector<HTMLButtonElement>(`[data-team-mode="${next}"]`)?.focus();
   };
 
-  const classOf = (name: string) => DOJO_CLASSES.indexOf(name as (typeof DOJO_CLASSES)[number]);
-  const teamClasses: (number | null)[] = mode === 'builder' ? team.map(classOf) : slots.map((id) => (id ? byId.get(id)?.classIndex ?? null : null));
-  const teamLabels = mode === 'builder' ? team.map(title) : slots.map((id) => (id && byId.get(id) ? lobsterName(byId.get(id)!) : ''));
+  const teamClasses: (number | null)[] = mode === 'builder' ? builtSlots.map((c) => (c ? classOf(c) : null)) : slots.map((id) => (id ? byId.get(id)?.classIndex ?? null : null));
+  const teamSheets = activeSlots.map((id) => (id ? sheetFor(id) : null));
+  const teamLabels = mode === 'builder' ? builtSlots.map((c) => (c ? title(c) : '')) : slots.map((id) => (id && byId.get(id) ? lobsterName(byId.get(id)!) : ''));
 
   const battle = () => {
     if (!valid || busy || blocked) return;
@@ -373,8 +401,9 @@ export function DojoRoom(props: DojoRoomProps) {
             <div className="dojo-side" data-side="team">
               <div className="dojo-lineup" data-lineup="team" aria-label="Your selected three lobsters">
                 {[0, 1, 2].map((i) => (
-                  <Fighter key={i} side="team" slot={i} classIndex={teamClasses[i] ?? null} sheet={sheet} label={`${teamLabels[i]}, slot ${i + 1}`}
-                    ghost={drag && drag.slot === i ? byId.get(drag.id)?.classIndex ?? null : null} />
+                  <Fighter key={i} side="team" slot={i} classIndex={teamClasses[i] ?? null} sheet={teamSheets[i]} label={`${teamLabels[i]}, slot ${i + 1}`}
+                    ghostSheet={drag ? sheetFor(drag.id) : null}
+                    ghost={drag && drag.slot === i && classIndexOf(drag.id) >= 0 ? classIndexOf(drag.id) : null} />
                 ))}
               </div>
               <PixelPanel asset="dojoDarkPanel" className="dojo-card" aria-labelledby="dojo-team-title">
@@ -402,10 +431,11 @@ export function DojoRoom(props: DojoRoomProps) {
                           ))}
                         </select>
                       </label>
-                      <p className="dojo-selection-feedback" role="status" aria-live="polite">{feedback}</p>
+                      <p className="dojo-selection-feedback" role="status" aria-live="polite">{mode === 'owned' ? feedback : ''}</p>
                       <div className="dojo-inventory" data-owned-inventory="" ref={inventoryRef} aria-label="Your lobsters" data-testid="dojo-inventory">
                         {lobsters.map((l, i) => (
-                          <InventoryTile key={l.id} lobster={l} slot={slots.indexOf(l.id)} sheet={sheet} unit={unit}
+                          <InventoryTile key={l.id} id={l.id} classIndex={l.classIndex} name={l.className} detail={`${lobsterName(l)} · ${l.tierName}`}
+                            slot={slots.indexOf(l.id)} sheet={sheets?.[Math.min(3, Math.max(0, l.tier))] ?? null} unit={unit}
                             hidden={Math.floor(i / INVENTORY_PAGE_SIZE) !== page} onClick={() => clickTile(l.id)} />
                         ))}
                       </div>
@@ -423,33 +453,36 @@ export function DojoRoom(props: DojoRoomProps) {
                   )}
                 </div>
                 <div id="dojo-builder" role="tabpanel" aria-labelledby="dojo-builder-tab" hidden={mode !== 'builder'}>
-                  <div className="dojo-slots" data-testid="dojo-classes">
-                    {[0, 1, 2].map((i) => (
-                      <label key={i} className="dojo-field">Slot {i + 1}
-                        <select aria-label={`Lobster ${i + 1} class`} value={team[i]} onChange={(e) => props.onTeam(team.map((c, j) => (j === i ? e.target.value : c)))}>
-                          {DOJO_CLASSES.map((c) => <option key={c} value={c}>{title(c)}</option>)}
-                        </select>
-                      </label>
-                    ))}
+                  {/* Nzib 2026-10-26: Build a team works like My lobsters — the ten classes as tiles, Tier and Purity compact. */}
+                  <div data-owned-controls="">
+                    <div className="dojo-compact" title={purityDescription(purity)}>
+                      <fieldset className="dojo-compact-group"><legend>Tier</legend>
+                        <div data-choices="tier" data-testid="dojo-tier">
+                          {DOJO_TIERS.map((t) => <button key={t} type="button" className="dojo-choice" aria-pressed={tier === t} onClick={() => props.onTier(t)}>{title(t)}</button>)}
+                        </div>
+                      </fieldset>
+                      <fieldset className="dojo-compact-group" aria-describedby="dojo-purity-help"><legend>Purity</legend>
+                        <div data-choices="purity" data-testid="dojo-purity">
+                          {[0, 1, 2, 3, 4, 5, 6].map((p) => <button key={p} type="button" className="dojo-choice" aria-pressed={purity === p} onClick={() => props.onPurity(p)}>{p}</button>)}
+                        </div>
+                      </fieldset>
+                    </div>
+                    <p id="dojo-purity-help" className="dojo-help" data-purity-description="">{purityDescription(purity)}</p>
+                    <p className="dojo-selection-feedback" role="status" aria-live="polite">{mode === 'builder' ? feedback : ''}</p>
+                    <div className="dojo-inventory" data-owned-inventory="" ref={classGridRef} aria-label="Classes" data-testid="dojo-classes">
+                      {DOJO_CLASSES.map((c, i) => (
+                        <InventoryTile key={c} id={c} classIndex={i} name={title(c)} detail={`${title(c)}, ${title(tier)}, purity ${purity}`}
+                          slot={builtSlots.indexOf(c)} sheet={builderSheet} unit={unit} onClick={() => clickTile(c)} />
+                      ))}
+                    </div>
                   </div>
-                  <fieldset className="dojo-options"><legend>Tier</legend>
-                    <div data-choices="tier" data-testid="dojo-tier">
-                      {DOJO_TIERS.map((t) => <button key={t} type="button" className="dojo-choice" aria-pressed={tier === t} onClick={() => props.onTier(t)}>{title(t)}</button>)}
-                    </div>
-                  </fieldset>
-                  <fieldset className="dojo-options" aria-describedby="dojo-purity-help" title={purityDescription(purity)}><legend>Purity</legend>
-                    <div data-choices="purity" data-testid="dojo-purity">
-                      {[0, 1, 2, 3, 4, 5, 6].map((p) => <button key={p} type="button" className="dojo-choice" aria-pressed={purity === p} onClick={() => props.onPurity(p)}>{p}</button>)}
-                    </div>
-                  </fieldset>
-                  <p id="dojo-purity-help" className="dojo-help" data-purity-description="">{purityDescription(purity)}</p>
                 </div>
               </PixelPanel>
             </div>
             <div className="dojo-side" data-side="opponent">
               <div className="dojo-lineup" data-lineup="opponent" aria-label={opponent === 'random' ? 'Opponent: three random classes' : 'Opponent: a mirror of your team'}>
                 {[0, 1, 2].map((i) => (
-                  <Fighter key={i} side="opponent" slot={i} sheet={sheet} unknown={opponent === 'random'}
+                  <Fighter key={i} side="opponent" slot={i} sheet={teamSheets[i] ?? builderSheet} unknown={opponent === 'random'}
                     classIndex={opponent === 'random' ? [8, 0, 3][i] : teamClasses[i] ?? null}
                     label={opponent === 'random' ? `Random class, slot ${i + 1}` : `Mirror of ${teamLabels[i]}, slot ${i + 1}`} />
                 ))}
@@ -506,10 +539,11 @@ export function DojoRoom(props: DojoRoomProps) {
               {props.identity}
             </div>
           </div>
-          {props.devTools}
         </section>
       </div>
       </div>
+      {/* Dev-only, outside the scaled stage: a plain corner drawer in window px. */}
+      {props.devTools}
     </>
   );
 }
