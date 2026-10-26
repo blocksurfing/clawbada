@@ -24,3 +24,5 @@ node_modules
 /_hermes_backups
 /.hermes_backups
 /hermes_backups
+# Music masters (WAV, ~35–70 MB each; gitignored): only the encoded /apps/web/public/audio/music/*.m4a ship.
+/audio-masters
