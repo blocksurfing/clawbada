@@ -52,6 +52,12 @@
 @media (min-width: 700px) {
   html[data-dojo-stage] .user-section { transform: scale(var(--dojo-stage-scale, 1)); transform-origin: top right; }
 }
+/* His dojo.css (restored — dropped by mistake in #243): the sidebar's box is as wide as its whole column, wider than
+   the cloth, and his cards reach under that empty strip. On the Dojo the strip lets clicks through to the cards; the
+   cloth (it scrolls the menu), the links and the buttons stay live. Without it, Evolved and the first column of tiles
+   could not be clicked with the sidebar compact (owner 2026-10-26). */
+html[data-dojo-stage] :is(.sidebar-shell, .sidebar-preview) { pointer-events: none; }
+html[data-dojo-stage] .sidebar-shell :is(a, button, .sidebar-panel) { pointer-events: auto; }
 
 /* ── his styles/pages/dojo.css ── */
 /* Dojo only. Original woodenPanel nine-slice artwork at the shared 3× scale. */

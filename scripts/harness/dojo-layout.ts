@@ -42,6 +42,10 @@ const STUB = `
   };
 `;
 
+/** Controls in the cards (and the Battle button) whose centre or near edges another element would take the click
+ *  from — e.g. the sidebar's empty strip (owner 2026-10-26: Evolved and the first tile column didn't respond). */
+const BLOCKED = `(() => { const out = []; document.querySelectorAll('.dojo-card button, .dojo-card select, [data-testid=dojo-battle]').forEach(el => { if (el.closest('[hidden]') || el.disabled) return; const q = el.getBoundingClientRect(); if (!q.width || !q.height) return; for (const [fx, fy] of [[0.5, 0.5], [0.12, 0.5], [0.88, 0.5]]) { const u = document.elementFromPoint(q.left + q.width * fx, q.top + q.height * fy); if (!u || !(el === u || el.contains(u))) { out.push((el.dataset.ownedId || el.textContent.trim().slice(0, 16) || el.getAttribute('aria-label')) + ' → ' + (u ? (u.id || u.className || u.tagName) : 'nothing')); break; } } }); return out; })()`;
+
 export default async function (b: Browser) {
   const checks: string[] = [];
   const ok = (name: string, pass: boolean, detail = '') => checks.push(`${pass ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
@@ -74,6 +78,8 @@ export default async function (b: Browser) {
       await b.sleep(300);
       const spill = await b.eval(`(() => { const out = []; document.querySelectorAll('.dojo-card').forEach((card, i) => { const c = card.getBoundingClientRect(); card.querySelectorAll('button, select, label, legend, p, .dojo-inventory-pager').forEach(e => { if (e.closest('[hidden]') || e.closest('.dojo-bot-notes') || e.classList.contains('dojo-soon')) return; const q = e.getBoundingClientRect(); if (!q.width) return; if (q.left < c.left - 1 || q.right > c.right + 1 || q.top < c.top - 1 || q.bottom > c.bottom + 1) out.push(i + ':' + (e.textContent || e.tagName).trim().slice(0, 24)); }); }); return out; })()`) as string[];
       ok(`${tag}: nothing spills out of a card (${mode})`, spill.length === 0, spill.join(', '));
+      const blocked = await b.eval(BLOCKED) as string[];
+      ok(`${tag}: every control takes its own click (${mode})`, blocked.length === 0, blocked.join(' | '));
     }
     await b.eval(`document.querySelector('[data-team-mode=builder]').click()`);
     ok(`${tag}: Fight with friend is disabled, "Coming soon"`, await b.eval(`(() => { const t = document.querySelector('[data-testid=dojo-friend-tab]'); return !!t && t.getAttribute('aria-disabled') === 'true' && t.textContent.includes('Coming soon'); })()`));
@@ -130,6 +136,8 @@ export default async function (b: Browser) {
     const open = await b.eval(`(() => { const n = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pixel-n')) || 3; const s = parseFloat(getComputedStyle(document.querySelector('.dojo-stage')).getPropertyValue('--dojo-stage-scale')); const panel = document.querySelector('.pixel-chrome #panel') || document.querySelector('#panel'); const card = document.querySelector('[data-side=team] .dojo-card').getBoundingClientRect(); return { n, s, want: Math.min((innerWidth - 80 * n) / 1920, innerHeight / 955), cardLeft: card.left, panelRight: panel ? panel.getBoundingClientRect().right : null }; })()`) as { n: number; s: number; want: number; cardLeft: number; panelRight: number | null };
     ok('open sidebar: the whole composition shrinks as one piece', Math.abs(open.s - open.want) < 0.002, JSON.stringify(open));
     ok('open sidebar: the cards stay clear of the sidebar', open.panelRight === null || open.cardLeft >= open.panelRight, JSON.stringify(open));
+    const blockedOpen = await b.eval(BLOCKED) as string[];
+    ok('open sidebar: every control takes its own click', blockedOpen.length === 0, blockedOpen.join(' | '));
     await b.screenshot(`${OUT}/dojo-layout-sidebar-open.png`);
     await b.clickAt(toggle.x, toggle.y); await b.sleep(1500);
   } else ok('open sidebar: toggle available', false);
