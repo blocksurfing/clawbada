@@ -221,6 +221,11 @@ try {
   console.error(`[harness] probe threw: ${(e as Error)?.stack ?? String(e)}`);
   exitCode = 1;
 } finally {
-  if (!mod.keepBattle && !process.env.KEEP) await forfeitIfLive(browser);
+  if (!mod.keepBattle && !process.env.KEEP) {
+    await forfeitIfLive(browser);
+    // Leave the page: the headless Chrome outlives the run, and a battle page left open in it kept playing the arena
+    // music and SFX on the owner's speakers after an AUDIO=1 probe (2026-10-26).
+    await browser.goto('about:blank').catch(() => {});
+  }
   process.exit(exitCode);
 }
