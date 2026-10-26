@@ -61,10 +61,15 @@
   --user-section-right: 12px;
 }
 
-/* Laptop-sized windows draw the pixel chrome at 2× (owner 2026-10-25). Mirrors chromePixelScale() in pixel-assets.ts,
-   which sets the same value inline once the sidebar mounts; this only makes the first paint agree. */
-@media (max-width: 1599px), (max-height: 995px) {
+/* Smaller windows draw the pixel chrome at 2.5× (retina only) or 2× (owner 2026-10-25). Mirrors chromePixelScale() in
+   pixel-assets.ts, which sets the same value inline once the sidebar mounts; this only makes the first paint agree. */
+@media (max-width: 1599px), (max-height: 827px) {
   :root { --pixel: 2px; --pixel-n: 2; }
+}
+@media (min-resolution: 2dppx) and (min-width: 1366px) and (min-height: 690px) {
+  @media (max-width: 1599px), (max-height: 827px) {
+    :root { --pixel: 2.5px; --pixel-n: 2.5; }
+  }
 }
 
 /* The font families resolve here, where next/font puts the `--font-*` variables. */
