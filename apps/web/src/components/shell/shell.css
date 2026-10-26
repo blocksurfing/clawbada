@@ -334,10 +334,14 @@
   background-image:url('/ui/shell/Battle_Button_Click.png');
 }
 [data-page="dashboard"] :is(button,a):focus-visible { outline:3px solid #fff4d6; outline-offset:3px; }
-[data-page="dashboard"] .lobster-picker { width:570px; max-width:calc(100vw - 36px); max-height:calc(100dvh - 36px); padding:24px; border:3px solid #fff4d680; background:#1b1a25; color:#fff4d6; }
+/* margin:auto: Tailwind's reset zeroes every margin, dialogs included, which pinned the picker to the top-left
+   (owner 2026-10-25). The browser's own centring needs it back. */
+[data-page="dashboard"] .lobster-picker { margin:auto; width:570px; max-width:calc(100vw - 36px); max-height:calc(100dvh - 36px); padding:24px; border:3px solid #fff4d680; background:#1b1a25; color:#fff4d6; }
 [data-page="dashboard"] .lobster-picker::backdrop { background:#080911cc; }
 [data-page="dashboard"] .picker-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; }
-[data-page="dashboard"] .picker-heading h2 { margin:0; font-size:var(--type-heading-lg); min-width:0; }
+[data-page="dashboard"] .picker-heading h2 { margin:0; font-size:var(--type-heading-sm); min-width:0; }
+/* The heading used to squeeze the Close button until its label spilled out of the frame. */
+[data-page="dashboard"] .picker-close { flex-shrink:0; white-space:nowrap; }
 [data-page="dashboard"] .lobster-picker p { margin:12px 0; font-size:var(--type-body-sm); }
 [data-page="dashboard"] .picker-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:18px 0; }
 [data-page="dashboard"] :is(.picker-options button,.picker-close,.picker-clear) { min-width:0; padding:9px; border:3px solid #fff4d640; background:#2e222f; color:#fff4d6; font:400 var(--type-button)/var(--type-display-leading) var(--font-upheaval), 'Upheaval',sans-serif; font-synthesis:none; letter-spacing:var(--type-action-tracking); }
@@ -475,7 +479,7 @@ html[data-shell] .sidebar-shell :is(button, a) { pointer-events:auto; } /* ours:
 [data-page="battle"] .battle-help { font-size:var(--type-caption); }
 [data-page="battle"] .battle-start .pixel-button { color:#fff4d6; }
 [data-page="battle"] :is(button,select):focus-visible { outline:3px solid #fff4d6; outline-offset:3px; }
-[data-page="battle"] .lobster-picker { width:570px; max-width:calc(100vw - 36px); max-height:calc(100dvh - 48px); padding:24px; border:3px solid #fff4d680; background:#1b1a25; color:#fff4d6; }
+[data-page="battle"] .lobster-picker { margin:auto; width:570px; max-width:calc(100vw - 36px); max-height:calc(100dvh - 48px); padding:24px; border:3px solid #fff4d680; background:#1b1a25; color:#fff4d6; }
 [data-page="battle"] .lobster-picker::backdrop { background:#080911cc; }
 [data-page="battle"] .picker-heading { display:flex; justify-content:space-between; align-items:center; gap:18px; margin-bottom:12px; }
 [data-page="battle"] .picker-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:24px 0; }

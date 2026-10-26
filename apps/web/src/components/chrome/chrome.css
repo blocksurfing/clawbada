@@ -35,10 +35,12 @@
   /* The live value follows the pole (SidebarRoll): 96 source px compact after every load, 128 expanded. */
   --sidebar-width: calc(96 * var(--pixel));
   --sidebar-expand-progress: 0;
-  --sidebar-top: 84px;
+  /* Pixel multiples, so the logo, the pole end and the menu keep their 3× proportions at 2× (owner 2026-10-25: at
+     2× a fixed 192 px logo hid the pole's branch end and sat over the top of the menu). */
+  --sidebar-top: calc(28 * var(--pixel));
   --logo-top: 0px;
-  --logo-left: -24px;
-  --logo-size: 192px;
+  --logo-left: calc(-8 * var(--pixel));
+  --logo-size: calc(64 * var(--pixel));
   --compact-logo-left: 0px;
   --menu-left-units: 4;
   --menu-right-units: 24;
@@ -235,7 +237,7 @@ body.sidebar-compact .sidebar-shell {
   font-family: var(--font-upheaval), 'Upheaval', sans-serif;
   font-weight: 400;
   font-synthesis: none;
-  font-size: var(--type-button);
+  font-size: calc(var(--type-button) * var(--pixel-n) / 3);   /* with the rows: 24 px at 3×, 16 px at 2× */
   letter-spacing: var(--type-action-tracking);
   line-height: 1;
   text-transform: uppercase;
@@ -315,7 +317,7 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
 .music-toggle {
   position: absolute;
   left: calc(50% + var(--logo-size) / 2);
-  top: 36px;
+  top: calc(12 * var(--pixel));
   width: calc(16 * var(--pixel));
   height: calc(16 * var(--pixel));
   padding: 0;
@@ -335,6 +337,10 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
    Wheel: x48..111/y0..63. Lower sheet artwork remains unused in this state.
    Fixed desktop anchor; narrow-screen composition still needs a separate design pass (Nzib). */
 .user-section {
+  /* The wallet + wheel stay at 3× on every window (owner 2026-10-25: at 2× it was too small); it sits alone in the
+     top-right corner, so it never crowds the Shell. Everything inside reads these, wallet-panel.tsx included. */
+  --pixel: 3px;
+  --pixel-n: 3;
   position: fixed;
   top: var(--user-section-top);
   right: var(--user-section-right);
@@ -515,7 +521,7 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
 .profile-menu button:active { transform: translateY(3px); }
 .profile-menu button:focus-visible { outline: 2px dashed #ffe197; outline-offset: -8px; }
 
-.profile-editor { background: #38291f; color: #fff4d6; border: 3px solid #9c7855; padding: 24px; max-width: min(360px, 85vw); }
+.profile-editor { margin: auto; background: #38291f; color: #fff4d6; border: 3px solid #9c7855; padding: 24px; max-width: min(360px, 85vw); }
 .profile-editor::backdrop { background: #0009; }
 .profile-editor h2 { font: 400 var(--type-heading-lg)/var(--type-display-leading) var(--font-upheaval), 'Upheaval', sans-serif; letter-spacing: var(--type-display-tracking); margin: 0 0 8px; overflow-wrap: anywhere; }
 .profile-editor label { font: 400 var(--type-label)/var(--type-body-leading) var(--font-bigshot), 'Big Shot', sans-serif; letter-spacing: var(--type-body-tracking); }
@@ -531,6 +537,6 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
 .pixel-chrome-dev {
   position: fixed;
   top: calc(var(--user-section-top) + 48px);
-  right: calc(var(--user-section-right) + 160 * var(--pixel) + 12px);
+  right: calc(var(--user-section-right) + 160 * 3px + 12px);   /* the wallet is always 3× */
   z-index: 18;
 }
