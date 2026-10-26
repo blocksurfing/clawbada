@@ -2,13 +2,18 @@
  * The Shell room's art geometry and the stage lighting — Nzib's `components/shell-art.js` (baseline 3295433)
  * bound to the React-rendered room. The shared proportional cover scale preserves alignment across all seven
  * exports: `unit = max(width/640, height/360)`, centred horizontally, bottom-aligned so the Rock foreground stays
- * inside the viewport; NOT integer-cover zoom. The three stages share `--stage-unit = min(unit, (width−48)/456)`
- * so the lineup stays on screen when the scenery is cropped. Each stage has a beam (`.stage-lighting`, a child
+ * inside the viewport; NOT integer-cover zoom. The three stages sit in the FREE BAND between the sidebar's cloth
+ * and the right-hand column (Battle button, Queue/Active/History) — centred there, `--stage-unit = min(unit,
+ * band/456)` — so neither covers a stage at any window size (owner 2026-10-25: on a 13" MacBook at 100 % the
+ * sidebar hid the first stage and Battle the third label). The scenery itself stays full-bleed behind them. Each stage has a beam (`.stage-lighting`, a child
  * of the room, Overlay-blended) that plays its eight entrance frames once (350 ms, steps(7)) and keeps the full
  * beam; a replacement plays the exit in reverse first; clearing plays the exit and hides it.
  */
 import { mountShellShark } from './shell-shark';
 import { mountShellBubbles } from './shell-bubbles';
+
+/** Clear space between the lineup and the sidebar / right-hand column, px. */
+const BAND_GAP = 24;
 
 const SEAWEED = ['/ui/shell/seaweed-1.png', '/ui/shell/seaweed-2.png'];
 
@@ -71,6 +76,8 @@ export function mountShellArt(room: HTMLElement, onStageUnit?: (stageUnit: numbe
     if (await play(beam, '0px', 'calc(-1344 * var(--stage-unit))', 'in')) beam.light.dataset.phase = 'on';
   };
 
+  let observer: ResizeObserver | null = null;
+  let watchedPanel: Element | null = null;
   const update = () => {
     if (disposed) return;
     const { width, height } = room.getBoundingClientRect();
@@ -78,7 +85,18 @@ export function mountShellArt(room: HTMLElement, onStageUnit?: (stageUnit: numbe
     const unit = Math.max(width / 640, height / 360);
     const left = (width - 640 * unit) / 2;
     const top = height - 360 * unit;
-    const stageUnit = Math.min(unit, (width - 48) / 456);
+    // The free band: right of the sidebar's cloth (#panel — its pole and logo only reach the top of the room), left of
+    // the Battle button and the tabs. Hidden chrome (below the desktop breakpoint) frees the whole width.
+    const roomRect = room.getBoundingClientRect();
+    const visible = (el: Element | null) => !!el && (el as HTMLElement).offsetParent !== null ? el.getBoundingClientRect() : null;
+    const panelEl = document.querySelector('.pixel-chrome #panel');
+    if (panelEl && panelEl !== watchedPanel && observer) { observer.observe(panelEl); watchedPanel = panelEl; }   // the chrome may mount after the room
+    const cloth = visible(panelEl);
+    const bandLeft = (cloth ? Math.max(0, cloth.right - roomRect.left) : 0) + BAND_GAP;
+    const rightEdges = ['.shell-battle', '.shell-tabs'].map((s) => visible(room.querySelector(s))).filter((r): r is DOMRect => !!r).map((r) => r.left - roomRect.left);
+    const bandRight = Math.min(width, ...rightEdges) - BAND_GAP;
+    const band = Math.max(160, bandRight - bandLeft);
+    const stageUnit = Math.min(unit, band / 456);
     const values: Record<string, string> = {
       '--stage-unit': `${stageUnit}px`,
       '--shell-art-scale': String(unit),
@@ -90,10 +108,10 @@ export function mountShellArt(room: HTMLElement, onStageUnit?: (stageUnit: numbe
       '--shell-ground': `${top + 278 * unit}px`,
       // The slot controls must remain on-screen even when the scenery is cropped.
       '--shell-lineup-width': `${456 * stageUnit}px`,
+      '--shell-lineup-center': `${bandLeft + band / 2}px`,
       '--shell-lineup-height': `${Math.max(132, 110 * unit)}px`,
     };
     for (const [name, value] of Object.entries(values)) room.style.setProperty(name, value);
-    const roomRect = room.getBoundingClientRect();
     beams.forEach(({ slot, light }) => {
       const stage = slot.querySelector('.character-stage');
       if (!stage || !light) return;
@@ -106,8 +124,10 @@ export function mountShellArt(room: HTMLElement, onStageUnit?: (stageUnit: numbe
   update();
   const disposeShark = mountShellShark(room);
   const disposeBubbles = mountShellBubbles(room);
-  const observer = new ResizeObserver(update);
+  observer = new ResizeObserver(update);
   observer.observe(room);
+  // The band moves when the sidebar rolls open or closed (its #panel is watched from update()), or the chrome rescales.
+  room.querySelectorAll('.shell-battle, .shell-tabs').forEach((el) => observer.observe(el));
   return {
     select: (slot, hasPick, commit) => { void select(slot, hasPick, commit); },
     update,

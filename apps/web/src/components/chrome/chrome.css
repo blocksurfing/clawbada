@@ -58,6 +58,12 @@
   --user-section-right: 12px;
 }
 
+/* Laptop-sized windows draw the pixel chrome at 2× (owner 2026-10-25). Mirrors chromePixelScale() in pixel-assets.ts,
+   which sets the same value inline once the sidebar mounts; this only makes the first paint agree. */
+@media (max-width: 1599px), (max-height: 995px) {
+  :root { --pixel: 2px; }
+}
+
 /* The font families resolve here, where next/font puts the `--font-*` variables. */
 body {
   --type-display: var(--font-upheaval), 'Upheaval', sans-serif;

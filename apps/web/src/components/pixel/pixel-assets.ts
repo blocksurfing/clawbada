@@ -1,6 +1,7 @@
 /**
  * Nzib's pixel asset registry (`design/website/workbench/pixel-assets.js`, drop ee1219f) with the sheets served
- * from `/ui`. Scale comes exclusively from the global `--pixel` (3 px); never add a per-asset scale.
+ * from `/ui`. Scale comes exclusively from the global `--pixel`; never add a per-asset scale. `--pixel` is 3 px on
+ * roomy windows and 2 px on laptop-sized ones (chromePixelScale below), always a whole number so the art stays crisp.
  *
  * - `sprite`: one frame of a sheet (`frame` = [w, h]; frames are counted row-major across the sheet).
  * - `panel`: a nine-slice region drawn from the original sheet in 16 px chunks. `sliceSpan` groups several
@@ -88,6 +89,26 @@ export function loadPixelImage(src: string) {
     images.set(src, p);
   }
   return p;
+}
+
+/** Window → pixel scale for the whole pixel chrome (owner 2026-10-25: a 13" MacBook at 100 % had the sidebar over the
+ *  Shell's first stage and cut off at the bottom; 80 % zoom was the workaround). 3× only when the window is wide
+ *  (≥ 1600 px) and tall enough for the expanded sidebar (its panel bottom is 332 source px: 996 px at 3×); else 2×.
+ *  chrome.css mirrors this as a media query so the first paint matches before any script runs. */
+export const SIDEBAR_SOURCE_HEIGHT = 332;
+export const PIXEL_SCALE_EVENT = 'clawbada:pixel-scale';
+export function chromePixelScale(width: number, height: number): 2 | 3 {
+  return width >= 1600 && height >= SIDEBAR_SOURCE_HEIGHT * 3 ? 3 : 2;
+}
+
+/** Choose the scale for the current window and set `--pixel`; announces PIXEL_SCALE_EVENT when it changes. */
+export function applyChromePixelScale(): number {
+  if (typeof window === 'undefined') return 3;
+  const next = chromePixelScale(window.innerWidth, window.innerHeight);
+  const before = pixelScale();
+  document.documentElement.style.setProperty('--pixel', `${next}px`);
+  if (next !== before) window.dispatchEvent(new CustomEvent(PIXEL_SCALE_EVENT, { detail: next }));
+  return next;
 }
 
 export const pixelScale = () => {

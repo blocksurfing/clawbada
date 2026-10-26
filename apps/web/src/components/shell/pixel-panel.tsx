@@ -1,7 +1,7 @@
 'use client';
 
 import { createElement, useEffect, useRef, type HTMLAttributes, type RefObject } from 'react';
-import { PIXEL_ASSETS, loadPixelImage, pixelScale, tileAxis, type PanelAsset, type PanelAssetName } from '@/components/pixel/pixel-assets';
+import { PIXEL_ASSETS, PIXEL_SCALE_EVENT, loadPixelImage, pixelScale, tileAxis, type PanelAsset, type PanelAssetName } from '@/components/pixel/pixel-assets';
 
 /**
  * Nzib's nine-slice panels (`components/pixel/index.js` + `geometry.js`, drop ee1219f): the art is drawn from
@@ -56,7 +56,8 @@ export function usePixelPanel(ref: RefObject<HTMLElement | null>, canvasRef: Ref
     const observer = new ResizeObserver(schedule);
     observer.observe(element);
     void document.fonts.ready.then(schedule);
-    return () => { disposed = true; cancelAnimationFrame(scheduled); observer.disconnect(); };
+    window.addEventListener(PIXEL_SCALE_EVENT, schedule);   // 3× ↔ 2× (pixel-assets.ts chromePixelScale)
+    return () => { disposed = true; cancelAnimationFrame(scheduled); observer.disconnect(); window.removeEventListener(PIXEL_SCALE_EVENT, schedule); };
   }, [ref, canvasRef, asset]);
 }
 
