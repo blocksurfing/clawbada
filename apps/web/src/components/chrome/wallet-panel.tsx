@@ -6,6 +6,7 @@ import { useAccount, useDisconnect } from 'wagmi';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type AgentProfile } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
+import { PIXEL_SCALE_EVENT } from '@/components/pixel/pixel-assets';
 
 /**
  * Nzib's wallet / profile component (design/website/mockups/mockups.html, sections 7 + 9, 2026-10-08): the wooden
@@ -277,6 +278,9 @@ export function WalletPanel() {
     sizeProfileActions();
     void document.fonts.ready.then(sizeProfileActions);
     document.fonts.addEventListener('loadingdone', sizeProfileActions);
+    // The chrome's pixel scale changed (window resized across the 3×/2× line): repaint at the new grid.
+    const onScale = () => { paintUserPanel(amountRef.current); sizeProfileActions(); };
+    window.addEventListener(PIXEL_SCALE_EVENT, onScale);
     // Draw button art directly, repeating pixels instead of stretching during expansion.
     const btnImg = new Image();
     buttonImage.current = btnImg;
@@ -301,6 +305,7 @@ export function WalletPanel() {
     return () => {
       disposed = true;
       document.fonts.removeEventListener('loadingdone', sizeProfileActions);
+      window.removeEventListener(PIXEL_SCALE_EVENT, onScale);
       resize.disconnect();
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);

@@ -152,10 +152,11 @@
 @media(prefers-reduced-motion:reduce) {
   [data-page="dashboard"] .shell-seaweed { animation:none; }
 }
-/* Lineup follows Shell's floor rather than the viewport or sidebar width. */
+/* Lineup centres in the free band between the sidebar and the right-hand column (shell-art.ts sets
+   --shell-lineup-center; owner 2026-10-25), not on Shell's floor centre as in Nzib's original. */
 .shell-page .shell-lineup {
   position:absolute;
-  left:var(--shell-center);
+  left:var(--shell-lineup-center, var(--shell-center));
   right:auto;
   top:calc(var(--shell-ground) - var(--shell-lineup-height));
   bottom:auto;
