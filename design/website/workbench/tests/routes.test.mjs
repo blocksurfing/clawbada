@@ -12,7 +12,8 @@ test('every existing sidebar destination resolves to its own editable page; unkn
     assert.equal(resolveRoute('#/' + slug), slug);
     const html = readFileSync(new URL('../pages/' + slug + '.html', import.meta.url), 'utf8');
     if (slug === 'dashboard') {
-      assert.equal(routes.dashboard, 'Shell');
+      assert.equal(routes.dashboard, 'The Shell');
+      assert.equal(routes.dojo, 'The Dojo');
       assert.ok(html.includes('class="shell-room"'));
       assert.equal((html.match(/class="lobby-slot"/g) || []).length, 3);
       assert.match(html, /class="shell-battle"[^>]*disabled/);
@@ -44,6 +45,11 @@ test('every existing sidebar destination resolves to its own editable page; unkn
       assert.ok(!html.includes('List Lobster'));
       assert.equal((html.match(/data-pixel-sprite="classBadges"/g) || []).length, 10);
       assert.ok(!/<select[^>]*name="klass"/.test(html), 'class choices are directly visible');
+    } else if (slug === 'dojo') {
+      assert.equal((html.match(/data-pixel-panel="dojoDarkPanel"/g) || []).length, 2);
+      for (const control of ['data-owned-inventory', 'data-selection-feedback', 'data-builder-slots', 'data-train', 'data-dojo-panel']) assert.ok(html.includes(control));
+      assert.ok(!html.includes('data-owned-slots'), 'owned characters toggle directly without slot buttons');
+      assert.ok(!/POST \/api|class="spec"|Review presets/.test(html), 'source annotations are not UI');
     } else {
       assert.equal(html.replace(/<!--[\s\S]*?-->/g, '').trim(), '', 'other pages remain empty');
     }

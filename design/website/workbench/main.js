@@ -17,6 +17,12 @@ import { mountShellArt } from './components/shell-art.js';
 import { createBattleModal } from './components/battle-modal.js';
 import { mountShellTabs } from './components/shell-tabs.js';
 import { mountMarket } from './components/market.js';
+import { mountDojo } from './components/dojo.js';
+import { mountDojoSign } from './components/dojo-sign.js';
+import { mountDojoArt } from './components/dojo-art.js';
+import { mountCursor } from './components/cursor.js';
+const disposeCursor = mountCursor();
+if (import.meta.hot) import.meta.hot.dispose(disposeCursor);
 
 const pages = import.meta.glob('./pages/*.html', { query: '?raw', import: 'default', eager: true });
 import.meta.glob('./styles/pages/*.css', { eager: true });
@@ -41,11 +47,14 @@ function render(slug) {
   main.scrollTop = 0;
   syncHeaderScroll();
   const disposeMarket = mountMarket(main);
+  const disposeDojo = mountDojo(main);
+  const disposeDojoArt = mountDojoArt(main);
+  const disposeDojoSign = mountDojoSign(main);
   const disposePanels = mountPixelUI(main);
   const disposeLobby = mountBattleLobby(main);
   const disposeArt = mountShellArt(main);
   const disposeTabs = mountShellTabs(main);
-  disposePixelUI = () => { disposeMarket(); disposeTabs(); disposeLobby(); disposeArt(); disposePanels(); };
+  disposePixelUI = () => { disposeDojoSign(); disposeDojoArt(); disposeDojo(); disposeMarket(); disposeTabs(); disposeLobby(); disposeArt(); disposePanels(); };
   document.title = `Clawbada · ${routes[slug]} · Design workbench`;
 }
 const battleModal = createBattleModal();

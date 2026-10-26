@@ -1,7 +1,7 @@
 import type { Browser } from './cdp';
 
 /**
- * Nzib's Victory / Defeat screens (drop 93e213e) with the player's team under the banner. A guest presses Train on the
+ * Nzib's Victory / Defeat screens (drop 93e213e) with the player's team under the banner. A guest presses Battle on the
  * Dojo with autoplay on (?auto=1&speed=N), the battle plays itself out, and the probe photographs the result screen a
  * few times over ~4 s (Victory: Attack → Jump/hop looping; Defeat: Die held, skulls once Nzib's sprite is bound), then
  * checks the web's 6 s auto-return still brings the page back to the Dojo. The opponent mirrors the team, so the outcome is
@@ -15,9 +15,9 @@ const TEAM = process.env.TEAM ?? 'mantis,leviathan,sentinel';
 const TIER = process.env.TIER ?? 'elite';
 const SPEED = process.env.SPEED ?? '4';
 
-async function rectClick(b: Browser, selector: string, text: string) {
-  const r = await b.eval(`(() => { const el = Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(e => (e.textContent || '').trim() === ${JSON.stringify(text)}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
-  if (!r) throw new Error(`no ${selector} ${text}`);
+async function rectClick(b: Browser, selector: string, text?: string) {
+  const r = await b.eval(`(() => { const el = Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(e => ${text === undefined ? 'true' : `(e.textContent || '').trim() === ${JSON.stringify(text)}`}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
+  if (!r) throw new Error(`no ${selector} ${text ?? ''}`);
   await b.clickAt(r.x, r.y);
 }
 const grab = (b: Browser, re: RegExp) => b.allLogs.filter((l) => re.test(l)).map((l) => l.replace(/^\[log\] /, ''));
@@ -29,9 +29,9 @@ export default async function (b: Browser) {
 
   await b.send('Network.clearBrowserCache', {});
   await b.goto(`${BASE}/dojo?team=${TEAM}&tier=${TIER}&bot=charger&auto=1&speed=${SPEED}`);
-  await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(e => (e.textContent || '').trim() === 'Train')`, 90000, 250);
+  await b.waitFor(`!!document.querySelector('[data-testid=dojo-battle]:not(:disabled)')`, 90000, 250);
   await b.sleep(2500);
-  await rectClick(b, 'button', 'Train');
+  await rectClick(b, '[data-testid=dojo-battle]');
   const navigated = await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 90000);
   ok('battle page opened', navigated);
   if (!navigated) return done();
