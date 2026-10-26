@@ -165,9 +165,11 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
 
   // Auto-play (designer / harness review tool): once the previous turn has finished animating,
   // let the balanced bot policy choose this wallet's turn — the battle plays itself while the
-  // viewer watches the VFX. Same policy the server bot uses; falls back to Defend on any error.
+  // viewer watches the VFX. Same policy the server bot uses; falls back to Defend on any error. It waits for the intro
+  // like a player does: a move counts as `ready`, so autoplaying the first turn at once started the battle before Unity
+  // had it — the intro was skipped and the opening turns piled up behind it (production probe, 2026-10-26).
   useEffect(() => {
-    if (!autoPlay || !canAct || pendingAck || !snapshot || !current) return;
+    if (!autoPlay || !introDone || !canAct || pendingAck || !snapshot || !current) return;
     const turn = current.turn;
     const t = setTimeout(() => {
       let cmd: TurnCommand = { lobsterId: current.lobsterId, action: 'defend' } as TurnCommand;
@@ -186,7 +188,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
       onSubmit(cmd);
     }, 350);
     return () => clearTimeout(t);
-  }, [autoPlay, canAct, pendingAck, snapshot, current, onSubmit]);
+  }, [autoPlay, introDone, canAct, pendingAck, snapshot, current, onSubmit]);
 
   const handleUnavailable = useCallback(() => setUnityAvailable(false), []);
 
