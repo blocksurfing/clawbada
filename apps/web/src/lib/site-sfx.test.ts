@@ -5,8 +5,8 @@ import { SITE_SFX } from './site-sfx.generated';
 import { sfxKey } from '../../../../scripts/build-sfx';
 
 describe('site sfx', () => {
-  test('the sidebar has its open and close sounds', () => {
-    expect(Object.keys(SITE_SFX).sort()).toEqual(['sidebarClose', 'sidebarOpen']);
+  test('the sidebar and the wallet wheel have their open and close sounds', () => {
+    expect(Object.keys(SITE_SFX).sort()).toEqual(['sidebarClose', 'sidebarOpen', 'wheelClose', 'wheelOpen']);
   });
   test('every generated URL is a built, content-hashed file in public/', () => {
     for (const url of Object.values(SITE_SFX)) {
