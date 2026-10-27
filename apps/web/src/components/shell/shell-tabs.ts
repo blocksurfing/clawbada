@@ -8,6 +8,7 @@
  * React renders the buttons, the panels and their live content; this module owns `aria-expanded`, `hidden`,
  * `inert` and the motion.
  */
+import { playUiClick } from '@/lib/site-sfx';
 export interface ShellTabs {
   /** Open a panel from code (Find Match opens the queue). */
   open(view: string): void;
@@ -47,7 +48,8 @@ export function mountShellTabs(room: HTMLElement): ShellTabs {
     });
   }
   buttons.forEach((button, index) => {
-    button.addEventListener('click', () => show(active === button ? null : button), { signal: abort.signal });
+    // Each press opens, switches or closes an overlay: a selection tap (owner 2026-10-27).
+    button.addEventListener('click', () => { playUiClick(); show(active === button ? null : button); }, { signal: abort.signal });
     button.addEventListener('keydown', (event) => {
       let next: number | undefined;
       if (event.key === 'ArrowDown') next = (index + 1) % buttons.length;

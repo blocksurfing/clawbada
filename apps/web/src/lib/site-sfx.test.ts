@@ -2,11 +2,22 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { SITE_SFX } from './site-sfx.generated';
+import { UI_CLICKS, nextClick } from './site-sfx';
 import { sfxKey } from '../../../../scripts/build-sfx';
 
 describe('site sfx', () => {
-  test('the sidebar, the wallet wheel and the three Shell rocks have their sounds', () => {
-    expect(Object.keys(SITE_SFX).sort()).toEqual(['rock01', 'rock02', 'rock03', 'sidebarClose', 'sidebarOpen', 'wheelClose', 'wheelOpen']);
+  test('the sidebar, the wallet wheel, the three Shell rocks and the five taps have their sounds', () => {
+    expect(Object.keys(SITE_SFX).sort()).toEqual(['click01', 'click02', 'click03', 'click04', 'click05', 'rock01', 'rock02', 'rock03', 'sidebarClose', 'sidebarOpen', 'wheelClose', 'wheelOpen']);
+  });
+  test('taps come from all five, never the same one twice in a row', () => {
+    let seed = 7;
+    const random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const picks = Array.from({ length: 500 }, () => nextClick(random));
+    expect(new Set(picks).size).toBe(UI_CLICKS.length);
+    expect(picks.every((p, i) => i === 0 || p !== picks[i - 1])).toBe(true);
+    // The extremes of random() stay in range.
+    expect(UI_CLICKS).toContain(nextClick(() => 0));
+    expect(UI_CLICKS).toContain(nextClick(() => 0.9999999));
   });
   test('every generated URL is a built, content-hashed file in public/', () => {
     for (const url of Object.values(SITE_SFX)) {

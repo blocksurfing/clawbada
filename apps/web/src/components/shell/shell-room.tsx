@@ -17,7 +17,7 @@ import { mountShellTabs, type ShellTabs } from './shell-tabs';
 import { BattleModal, type BattleEligibility } from './battle-modal';
 import { requestBattleFullscreen } from '@/lib/battle-fullscreen';
 import { startBattleEntry } from '@/lib/battle-entry';
-import { playSiteSfx, preloadSiteSfx } from '@/lib/site-sfx';
+import { playSiteSfx, playUiClick, preloadSiteSfx } from '@/lib/site-sfx';
 
 /**
  * The Shell — Nzib's basecamp (design/website/workbench/pages/dashboard.html, baseline 3295433): the fullscreen
@@ -388,7 +388,7 @@ export function ShellRoom() {
               const current = picker !== null ? slots[picker] : null;
               const elsewhere = usedIds.has(opt.id) && current?.id !== opt.id;
               return (
-                <button key={opt.id} aria-pressed={current?.id === opt.id} data-class={opt.name} disabled={elsewhere} onClick={() => choose(opt)} type="button">
+                <button key={opt.id} aria-pressed={current?.id === opt.id} data-class={opt.name} disabled={elsewhere} onClick={() => { playUiClick(); choose(opt); }} type="button">
                   <span aria-hidden="true" className="class-icon" style={{ '--class-frame': opt.classIndex, backgroundImage: 'url("/ui/shell/class-badges.png")' } as CSSProperties} />
                   {opt.name}
                   {opt.lobster && <span className="picker-meta">{TIER_NAMES[opt.lobster.evolutionTier] ?? opt.lobster.tierName} · #{opt.lobster.tokenId}{elsewhere ? ' · on a stage' : ''}</span>}

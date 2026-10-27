@@ -2,7 +2,7 @@ import type { Browser } from './cdp';
 
 /**
  * The website's UI sounds (lib/site-sfx.ts, owner 2026-10-26): the sidebar's and the wallet wheel's open / close, and
- * the Shell's three rocks. Every media element is MUTED AT THE SOURCE
+ * the Shell's three rocks, and the UI selection taps (one of SFX_UI_Click_01–05 at random, never twice in a row). Every media element is MUTED AT THE SOURCE
  * (nothing reaches the speakers); each play() is recorded with its file and volume.
  *   · nothing plays on page load (the opening roll is not a press);
  *   · a press on the pole plays Open when expanding, Close when collapsing, at 0.5 × the SFX volume;
@@ -93,6 +93,41 @@ export default async function (b: Browser) {
   const rp = await rockPlays();
   ok('rocks: each rock plays its own sound, left to right, at 0.5 × SFX volume',
     rp.length === 3 && rp.every((p, i) => p.file.startsWith(`SFX_UI_Rock_0${i + 1}.`) && Math.abs(p.volume - 0.5) < 0.01), JSON.stringify(rp));
+
+  // ── UI selection taps: the Dojo tabs, sidebar page picks, the Shell overlay tabs and picker ──
+  await b.goto(`${BASE}/dojo`);
+  await b.waitFor(`document.querySelectorAll('#dojo-builder [data-owned-id]').length === 10 && !document.querySelector('#toggle')?.disabled`, 90000, 250);
+  await b.sleep(800);
+  const taps = () => b.eval(`window.__plays.filter(p => p.file.startsWith('SFX_UI_Click_'))`) as Promise<{ file: string; volume: number }[]>;
+  const tapCount = async () => (await taps()).length;
+  const at = (sel: string) => b.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null; const q = e.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as Promise<{ x: number; y: number } | null>;
+  const pressSel = async (sel: string) => { const p = await at(sel); if (p) await b.clickAt(p.x, p.y); await b.sleep(150); return !!p; };
+  ok('taps: none on page load', (await tapCount()) === 0);
+  await pressSel('[data-team-mode="builder"]');
+  ok('taps: pressing the Dojo tab you are on stays silent', (await tapCount()) === 0);
+  await pressSel('[data-team-mode="owned"]');
+  ok('taps: switching to My lobsters taps', (await tapCount()) === 1, JSON.stringify(await taps()));
+  await pressSel('[data-team-mode="builder"]');
+  ok('taps: back to Build a team taps', (await tapCount()) === 2);
+  await pressSel('a[data-menu="dojo"]');
+  ok('taps: picking the page you are on stays silent', (await tapCount()) === 2);
+  await pressSel('a[data-menu="shell"]');
+  await b.waitFor(`location.pathname === '/game'`, 120000, 250);
+  ok('taps: a sidebar page pick taps', (await tapCount()) === 3, JSON.stringify(await taps()));
+  await b.waitFor(`!!document.querySelector('[data-shell-tab="queue"]')`, 60000, 250); await b.sleep(800);
+  await pressSel('[data-shell-tab="queue"]');
+  await pressSel('[data-shell-tab="history"]');
+  await pressSel('[data-shell-tab="history"]');
+  ok('taps: the Shell overlay tabs tap on open, switch and close', (await tapCount()) === 6, JSON.stringify((await taps()).length));
+  await b.sleep(600);
+  const r = await b.eval(`(() => { const q = document.querySelector('.lobby-slot[data-slot="0"] .character-stage').getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height * 0.6 }; })()`) as { x: number; y: number };
+  await b.clickAt(r.x, r.y); await b.sleep(300);
+  if (await pressSel('.picker-options button:not(:disabled)')) ok('taps: choosing a lobster in the picker taps', (await tapCount()) === 7);
+  else checks.push('skip taps: the picker has no lobsters to choose here');
+  await b.eval(`document.querySelector('.lobster-picker')?.close()`);
+  const t = await taps();
+  ok('taps: all from the five, never the same twice in a row, at 0.5 × SFX volume',
+    t.every((p, i) => /^SFX_UI_Click_0[1-5]\./.test(p.file) && Math.abs(p.volume - 0.5) < 0.01 && (i === 0 || p.file !== t[i - 1].file)), t.map((p) => p.file.slice(13, 15)).join(','));
 
   await b.goto('about:blank');
   console.log(checks.join('\n'));

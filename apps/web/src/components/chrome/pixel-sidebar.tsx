@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Fragment, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { SidebarRoll } from './sidebar-roll';
 import { PixelMusicToggle } from './pixel-music-toggle';
+import { playUiClick, preloadUiClicks } from '@/lib/site-sfx';
 
 /**
  * Nzib's sidebar (design/website/workbench, baseline 3295433): the standalone wordmark with the music toggle
@@ -63,6 +64,9 @@ export function PixelSidebar() {
   const rollRef = useRef<SidebarRoll | null>(null);
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
+  /** A page pick taps (owner 2026-10-27) — not the page you are already on. */
+  const pickPage = (label: string) => { if (activeMenuLabel(pathnameRef.current) !== label) playUiClick(); };
+  useEffect(() => { preloadUiClicks(); }, []);
 
   // The engine measures the menu, so it only runs while the chrome is displayed (≥ lg); it is created before
   // the first paint so the compact start state never transitions from the open position.
@@ -121,9 +125,9 @@ export function PixelSidebar() {
                       )}
                       <li data-menu={key}>
                         {'external' in item ? (
-                          <a aria-label={item.label} className="menu-item" data-menu={key} href={item.href} rel="noopener noreferrer" target="_blank" title={item.label}>{content}</a>
+                          <a aria-label={item.label} className="menu-item" data-menu={key} href={item.href} onClick={() => pickPage(item.label)} rel="noopener noreferrer" target="_blank" title={item.label}>{content}</a>
                         ) : (
-                          <Link aria-label={item.label} className="menu-item" data-menu={key} href={item.href} title={item.label}>{content}</Link>
+                          <Link aria-label={item.label} className="menu-item" data-menu={key} href={item.href} onClick={() => pickPage(item.label)} title={item.label}>{content}</Link>
                         )}
                       </li>
                     </Fragment>
