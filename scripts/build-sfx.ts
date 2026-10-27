@@ -22,6 +22,9 @@ const outDir = join(root, 'apps/web/public/audio/sfx');
 const genPath = join(root, 'apps/web/src/lib/site-sfx.generated.ts');
 const MASTER = /^SFX_UI_[A-Za-z0-9]+(_[A-Za-z0-9]+)*\.wav$/;
 const BUILT = /^SFX_UI_[A-Za-z0-9_]+\.[0-9a-f]{8}\.m4a$/;
+/** Level trims (dB) applied while encoding, so every UI sound sits at one level whatever the master. The Shell's rock
+ *  presses arrive ~8–10 dB hotter (−13 dB mean) than the wheel (−21/−23) — trimmed to sit with it (owner 2026-10-26). */
+const GAIN_DB: Record<string, number> = { SFX_UI_Rock_01: -8, SFX_UI_Rock_02: -8, SFX_UI_Rock_03: -8 };
 /** A built sound averaging below this is a mastering mistake: stop instead of shipping silence. */
 const MIN_MEAN_DB = -45;
 
@@ -40,8 +43,9 @@ if (import.meta.main) {
   for (const file of masters) {
     const stem = basename(file, '.wav');
     const tmp = join(outDir, `.${stem}.tmp.m4a`);
+    const gain = GAIN_DB[stem] ?? 0;
     const enc = (codec: string) => Bun.spawnSync(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', join(inDir, file),
-      '-vn', '-c:a', codec, '-b:a', bitrate, '-movflags', '+faststart', tmp]);
+      '-vn', ...(gain ? ['-af', `volume=${gain}dB`] : []), '-c:a', codec, '-b:a', bitrate, '-movflags', '+faststart', tmp]);
     let r = enc('aac_at');
     if (r.exitCode !== 0) r = enc('aac');
     if (r.exitCode !== 0) { console.error(`ffmpeg failed for ${file}:\n${new TextDecoder().decode(r.stderr)}`); process.exit(1); }
@@ -54,7 +58,7 @@ if (import.meta.main) {
     Bun.spawnSync(['mv', tmp, join(outDir, name)]);
     keep.add(name);
     urls[sfxKey(stem)] = `/audio/sfx/${name}`;
-    console.log(`${file} → ${name}  ${(bytes.length / 1024).toFixed(0)} KB, mean ${mean} dB / peak ${peak} dB`);
+    console.log(`${file} → ${name}  ${(bytes.length / 1024).toFixed(0)} KB, mean ${mean} dB / peak ${peak} dB${gain ? ` (${gain} dB trim)` : ''}`);
   }
   for (const f of readdirSync(outDir)) if (BUILT.test(f) && !keep.has(f)) { rmSync(join(outDir, f)); console.log(`removed stale ${f}`); }
   const keys = Object.keys(urls).sort();
