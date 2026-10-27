@@ -18,13 +18,15 @@ async function rectClick(b: Browser, selector: string, text?: string) {
 }
 /** The overlay as the browser sees it; `age` = ms since its fades began (the overlay stamps data-shown-at), so a
  *  late sample (a stalled dev server) is told apart from a wrong fade. */
-const overlay = (b: Browser) => b.eval(`(() => { const o = document.querySelector('[data-testid=battle-entry]'); if (!o) return null; const l = o.querySelector('[data-testid=battle-entry-loop]'); const cs = getComputedStyle(o), ls = l ? getComputedStyle(l) : null; return { phase: o.dataset.phase, kind: o.dataset.kind, frame: o.querySelector('canvas')?.dataset.frame ?? null, opacity: cs.opacity, bg: cs.backgroundColor, curtainMs: cs.transitionDuration, loopOpacity: ls ? ls.opacity : null, revealMs: ls ? ls.transitionDuration : null, revealDelay: ls ? ls.transitionDelay : null, age: o.dataset.shownAt ? Math.round(performance.now() - Number(o.dataset.shownAt)) : null }; })()`) as Promise<{ phase: string; kind: string; frame: string | null; opacity: string; bg: string; curtainMs: string; loopOpacity: string | null; revealMs: string | null; revealDelay: string | null; age: number | null } | null>;
+const overlay = (b: Browser) => b.eval(`(() => { const o = document.querySelector('[data-testid=battle-entry]'); if (!o) return null; const l = o.querySelector('[data-testid=battle-entry-loop]'); const cs = getComputedStyle(o); return { phase: o.dataset.phase, kind: o.dataset.kind, frame: o.querySelector('canvas')?.dataset.frame ?? null, opacity: cs.opacity, bg: cs.backgroundColor, irisR: o.dataset.irisR ? Number(o.dataset.irisR) : null, irisX: Number(o.dataset.irisX), irisY: Number(o.dataset.irisY), loopR: l?.dataset.irisR ? Number(l.dataset.irisR) : null, loopVisible: l ? getComputedStyle(l).visibility === 'visible' : false, revealed: !!o.dataset.revealedAt, path: location.pathname, age: o.dataset.shownAt ? Math.round(performance.now() - Number(o.dataset.shownAt)) : null }; })()`) as Promise<{ phase: string; kind: string; frame: string | null; opacity: string; bg: string; irisR: number | null; irisX: number; irisY: number; loopR: number | null; loopVisible: boolean; revealed: boolean; path: string; age: number | null } | null>;
 /** The breeze's debug handle (lib/entry-ambience.ts): the placeholder url (null until the master exists) and whether it plays. */
 /** volume = the audible level (the audio-graph gain once routed through the shared context, else el.volume). */
 const breeze = (b: Browser) => b.eval(`(() => { const a = window.__clawbadaEntryAmbience; return a ? { url: a.url, playing: !!a.audio && !a.audio.paused, volume: a.audio ? (a.level ?? a.audio.volume) : null, smooth: !!a.smooth } : null; })()`) as Promise<{ url: string | null; playing: boolean; volume: number | null; smooth: boolean } | null>;
 /** The theme's dark navy (#192c53) as the browser reports it. */
 const NAVY = 'rgb(25, 44, 83)';
-const CURTAIN_MS = 700, HOLD_MS = 12000, UNITY_HOLD_S = 15;
+/** The iris (lib/battle-entry.ts, owner 2026-10-27): close 1.4 s + navy beat 0.25 s, then open 0.9 s. */
+const IRIS_CLOSE_MS = 1400, NAVY_BEAT_MS = 250, IRIS_OPEN_MS = 900;
+const CURTAIN_MS = IRIS_CLOSE_MS + NAVY_BEAT_MS, HOLD_MS = 12000, UNITY_HOLD_S = 15;
 
 export default async function (b: Browser) {
   const checks: string[] = [];
@@ -44,30 +46,41 @@ export default async function (b: Browser) {
   await b.sleep(1500);
   ok('no overlay before the press', (await overlay(b)) === null);
 
+  const button = await b.eval(`(() => { const q = document.querySelector('[data-testid=dojo-battle]').getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number };
+  const stageBefore = await b.eval(`getComputedStyle(document.querySelector('.dojo-stage')).getPropertyValue('--dojo-stage-scale')`);
   const t0 = Date.now();
   await rectClick(b, '[data-testid=dojo-battle]');
   const appeared = await b.waitFor(`!!document.querySelector('[data-testid=battle-entry][data-phase=web]')`, 3000, 50);
   const tAppear = Date.now() - t0;
   ok('overlay appears on the press', appeared, `${tAppear} ms`);
   ok('page is fullscreen', await b.eval(`document.fullscreenElement === document.documentElement`) as boolean);
-  // The way in: the navy curtain first (the loop layer still transparent), then the loop fades in from it.
-  await b.sleep(Math.max(0, 250 - (Date.now() - t0 - tAppear)));
-  const early = await overlay(b);
-  ok('curtain is the theme navy', !!early && early.bg === NAVY, `${early?.bg}`);
-  ok('fade timings in the CSS: 0.7 s curtain, then 0.9 s reveal', !!early && early.curtainMs === '0.7s' && early.revealMs === '0.9s' && early.revealDelay === '0.7s', `curtain ${early?.curtainMs}, reveal ${early?.revealMs} after ${early?.revealDelay}`);
-  // The sample is meant for ~0.25 s into the fades; a dev server that stalls the page can make it late, and then it
-  // proves nothing about the curtain — the CSS check above still does.
-  const earlyAge = early?.age ?? null;
-  const sampledInTime = earlyAge !== null && earlyAge < 600;
-  ok('loop still hidden behind the curtain early on', !!early && (!sampledInTime || (early.loopOpacity !== null && Number(early.loopOpacity) < 0.5)), sampledInTime ? `loop opacity ${early?.loopOpacity} at ${earlyAge} ms into the fades` : `sampled ${earlyAge} ms into the fades — too late to tell, CSS checked instead`);
-  await b.screenshot(`${OUT}/entry-curtain.png`);
-  // Sample 1.8 s into the overlay's own fades (curtain 0.7 + reveal 0.9 = 1.6 s), not the press: the overlay can appear late.
-  const age0 = (await overlay(b))?.age ?? 0;
-  // 2.0 s, not 1.8: headless Chrome starts the transitions a little late (it read 0.989 / 0.997 at ~1.8 s on production).
-  if (2000 - age0 > 0) await b.sleep(2000 - age0);
-  const mid = await overlay(b);
-  ok('loop fully in after the curtain + reveal (1.6 s)', !!mid && Number(mid.loopOpacity) >= 0.99, `loop opacity ${mid?.loopOpacity} at ${mid?.age} ms into the fades`);
+  // The way in: a navy iris closes on the Battle button while the Dojo eases back, a beat of navy, then the Shifu loop
+  // opens from a growing circle in the middle (owner 2026-10-27). Sampled against the overlay's own clock.
+  const waitAge = async (ms: number) => { const age = (await overlay(b))?.age ?? 0; if (ms - age > 0) await b.sleep(ms - age); return overlay(b); };
+  const closing = await waitAge(500);
+  await b.screenshot(`${OUT}/entry-iris-closing.png`);
+  const closing2 = await waitAge(1000);
+  ok('the iris closes on the pressed Battle button', !!closing && Math.abs(closing.irisX - button.x) <= 2 && Math.abs(closing.irisY - button.y) <= 2, closing ? `iris at ${closing.irisX},${closing.irisY}; button ${Math.round(button.x)},${Math.round(button.y)}` : 'no overlay');
+  ok('the hole shrinks as it closes', !!closing && !!closing2 && closing.irisR !== null && closing2.irisR !== null && closing2.irisR < closing.irisR && closing.irisR > 0, `${closing?.irisR} px at ${closing?.age} ms → ${closing2?.irisR} px at ${closing2?.age} ms`);
+  const sceneStill = await b.eval(`(() => { const st = document.querySelector('.dojo-stage'); return st ? getComputedStyle(st).getPropertyValue('--dojo-stage-scale') : null; })()`);
+  ok('the Dojo scene holds still under the iris (no re-fit on the fullscreen resize)', sceneStill === null || sceneStill === stageBefore, `${stageBefore} → ${sceneStill}`);
+  ok('the Dojo eases back under the iris', await b.eval(`(() => { const p = document.querySelector('#page-content[data-page="dojo"]'); return !p || parseFloat(getComputedStyle(p).scale) < 1; })()`) as boolean);
+  const beat = await waitAge(IRIS_CLOSE_MS + NAVY_BEAT_MS / 2);
+  await b.screenshot(`${OUT}/entry-iris-navy.png`);
+  const opening = await waitAge(IRIS_CLOSE_MS + NAVY_BEAT_MS + IRIS_OPEN_MS / 2);
+  await b.screenshot(`${OUT}/entry-iris-opening.png`);
+  ok('Shifu opens from a circle in the middle', !!opening && opening.loopVisible && (opening.loopR ?? 0) > 0 && !opening.revealed, opening ? `circle ${opening.loopR} px at ${opening.age} ms` : 'no overlay');
+  ok('the battle page waits until Shifu is fully open', !!opening && opening.path === '/dojo', opening ? `path ${opening.path} at ${opening.age} ms` : '');
+  const mid = await waitAge(IRIS_CLOSE_MS + NAVY_BEAT_MS + IRIS_OPEN_MS + 400);
+  ok('Shifu fully open ≈ 2.55 s after the press', !!mid && mid.revealed && mid.loopVisible, mid ? `revealed ${mid.revealed} at ${mid.age} ms` : 'no overlay');
+  // The beat is short (0.25 s): measured from the overlay's own marks, not a lucky sample.
+  const marks = await b.eval(`(() => { const o = document.querySelector('[data-testid=battle-entry]'); return o ? { closed: Number(o.dataset.closedAt), opened: Number(o.dataset.openedAt) } : null; })()`) as { closed: number; opened: number } | null;
+  const gap = marks && marks.closed && marks.opened ? Math.round(marks.opened - marks.closed) : null;
+  ok('a beat of navy between the iris shutting and Shifu opening', !!beat && beat.bg === NAVY && gap !== null && gap >= NAVY_BEAT_MS - 60, `${gap} ms of navy (${NAVY_BEAT_MS} ms planned), ${beat?.bg}`);
+  const maxGap = await b.eval(`Number(document.querySelector('[data-testid=battle-entry]')?.dataset.maxFrameGap ?? NaN)`) as number;
+  checks.push(`info longest frame while the iris moved: ${maxGap} ms (headless SwiftShader; a real GPU is smoother)`);
   ok('loop is animating (frame advances)', !!mid && mid.frame !== null && mid.frame !== '0', `frame ${mid?.frame}`);
+  await b.screenshot(`${OUT}/entry-curtain.png`);
   // Probes run muted (cdp.ts writes the music prefs off) unless AUDIO=1: muted → the breeze must stay silent;
   // with audio → playing and fading in towards its gain (0.25 × the battle volume, 50% by default).
   const audioOn = !!process.env.AUDIO;
@@ -85,6 +98,11 @@ export default async function (b: Browser) {
     ok('Dojo track playing with the breeze on the loading screen', !!bedAtEntry && bedAtEntry.playing && /BGM_Arena_Dojo/.test(bedAtEntry.src), bedAtEntry ? `${bedAtEntry.src} ${bedAtEntry.playing ? 'playing' : 'paused'}, volume ${bedAtEntry.volume.toFixed(3)}` : 'no arena audio');
   }
 
+  if (audioOn) {
+    // Owner 2026-10-27: the wind and the Dojo music start at the press and rise together over 3 s.
+    const ramps = b.allLogs.filter((l) => /\[AudioGraph\] \S+ ramp 0\.000 → [\d.]+ over 3000 ms/.test(l));
+    ok('wind and music both fade in over 3 s', ramps.some((r) => /AMB_Loading_Breeze/.test(r)) && (!musicOn || ramps.some((r) => /BGM_Arena_Dojo/.test(r))), ramps.map((r) => r.replace(/.*\[AudioGraph\] /, '')).join(' | ') || 'no 3 s ramps logged');
+  }
   const navigated = await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 60000);
   ok('navigated to the battle page under the overlay', navigated);
   if (!navigated) {

@@ -16,7 +16,7 @@ import { mountShellArt, type ShellArt } from './shell-art';
 import { mountShellTabs, type ShellTabs } from './shell-tabs';
 import { BattleModal, type BattleEligibility } from './battle-modal';
 import { requestBattleFullscreen } from '@/lib/battle-fullscreen';
-import { startBattleEntry } from '@/lib/battle-entry';
+import { entryRevealed, originOf, startBattleEntry } from '@/lib/battle-entry';
 import { playSiteSfx, playUiClick, preloadSiteSfx } from '@/lib/site-sfx';
 
 /**
@@ -298,8 +298,11 @@ export function ShellRoom() {
                 // Same entry as the Dojo's Train: fullscreen inside the gesture (the auto-skip has none — the browser
                 // then just refuses it) and the loading screen, which the battle page keeps up until the arena is built.
                 requestBattleFullscreen();
-                startBattleEntry({ kind: 'battle' });
-                router.push(`/battle/${queueState.battleId}`);
+                const battleId = queueState.battleId;
+                // The iris closes on the button that was pressed (it keeps the focus).
+                startBattleEntry({ kind: 'battle', origin: originOf(document.activeElement) });
+                // Navigate once the loading loop is fully open: the page switch never lands mid-iris.
+                void entryRevealed().then(() => router.push(`/battle/${battleId}`));
               }}
               onWalkAway={reset}
             />

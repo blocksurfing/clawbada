@@ -35,7 +35,7 @@ let activeTier: ArenaTier | null = null;   // non-null while a battle is in prog
 let activeUrl: string | null = null;       // the track picked for this battle (kept if music is toggled off and on)
 /** A bed started by the battle entry and not yet adopted by its battle (between the Train press and the intro). */
 let entry: { tier: ArenaTier; url: string } | null = null;
-const ENTRY_FADE_IN_MS = 1000;   // with the breeze (entry-ambience BREEZE_FADE_IN_MS)
+const ENTRY_FADE_IN_MS = 3000;   // = the breeze's (entry-ambience BREEZE_FADE_IN_MS): both start at the press and rise together (owner 2026-10-27; was 1 s)
 const remembered = (battleId: string) => { try { return sessionStorage.getItem(`clawbada_arena_track:${battleId}`); } catch { return null; } };
 const remember = (battleId: string, url: string) => { try { sessionStorage.setItem(`clawbada_arena_track:${battleId}`, url); } catch { /* private mode */ } };
 let themeWasPlaying = false;
