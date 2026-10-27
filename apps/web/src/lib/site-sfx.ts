@@ -1,6 +1,6 @@
 /**
  * The website's own UI sounds (outside the Unity battle): the sidebar pole and the wallet wheel opening and closing,
- * and the Shell's three rocks (owner 2026-10-26).
+ * the Shell's three rocks, and the UI selection taps (owner 2026-10-26/27).
  * Files come from scripts/build-sfx.ts (audio-masters/sfx/SFX_UI_*.wav → content-hashed m4a, site-sfx.generated.ts).
  *
  * They obey the same SFX switch and volume as the battle sounds (audio-prefs.ts), at the level Unity mixes its own SFX
@@ -46,3 +46,20 @@ export function playSiteSfx(name: SiteSfx, opts: { cut?: SiteSfx[] } = {}): void
   el.currentTime = 0;
   void el.play().catch(() => { /* autoplay refused outside a gesture: stay silent */ });
 }
+
+/** The UI selection taps (owner 2026-10-27): one of five, picked at random, never the same twice in a row — sidebar
+ *  pages, the Shell's Queue / Active / History tabs and lobster picker, the Dojo's tabs. */
+export const UI_CLICKS = ['click01', 'click02', 'click03', 'click04', 'click05'] as const satisfies readonly SiteSfx[];
+let lastClick = -1;
+/** The next tap from the pool (exported for the tests; `random` is injectable). */
+export function nextClick(random: () => number = Math.random): (typeof UI_CLICKS)[number] {
+  let i = Math.floor(random() * (lastClick < 0 ? UI_CLICKS.length : UI_CLICKS.length - 1));
+  if (lastClick >= 0 && i >= lastClick) i++;
+  lastClick = i;
+  return UI_CLICKS[i];
+}
+/** Play a selection tap (call it from the click that changes something). */
+export function playUiClick(): void {
+  playSiteSfx(nextClick(), { cut: [...UI_CLICKS] });
+}
+export const preloadUiClicks = () => preloadSiteSfx(...UI_CLICKS);
