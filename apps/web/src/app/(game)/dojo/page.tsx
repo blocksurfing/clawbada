@@ -12,7 +12,7 @@ import { rememberPracticeOwner } from '@/lib/practice-owner';
 import { DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { exitBattleFullscreen, requestBattleFullscreen } from '@/lib/battle-fullscreen';
 import { primeAudio } from '@/lib/audio-graph';
-import { cancelBattleEntry, startBattleEntry } from '@/lib/battle-entry';
+import { cancelBattleEntry, entryRevealed, originOf, startBattleEntry } from '@/lib/battle-entry';
 import { DojoRoom, type DojoChoice, type DojoLobster, type DojoTeam } from '@/components/dojo/dojo-room';
 
 /** Dev review rosters (moved here from the old /game/battle Practice tab when Battle became a modal on the Shell,
@@ -144,7 +144,8 @@ export default function DojoPage() {
     requestBattleFullscreen();
     primeAudio();   // start the shared audio engine inside the click: the entry's fades then run on the audio thread
     // The arena's music starts with the loading screen's breeze and plays on into the battle (owner 2026-10-25).
-    startBattleEntry({ kind: 'practice', arena: arena === 'match' ? teamTier : arena });
+    // The iris closes on the Battle button (owner 2026-10-27).
+    startBattleEntry({ kind: 'practice', arena: arena === 'match' ? teamTier : arena, origin: originOf(document.querySelector('[data-testid=dojo-battle]')) });
     setBusy(true);
     setErr(null);
     try {
@@ -154,6 +155,8 @@ export default function DojoPage() {
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
       for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
+      // Navigate once the loading loop is fully open, so the page switch (a main-thread freeze) never lands mid-iris.
+      await entryRevealed();
       router.push(`/battle/${res.battleId}${carry.size ? `?${carry}` : ''}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : failMessage);
