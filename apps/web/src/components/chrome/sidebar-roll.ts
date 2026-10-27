@@ -44,6 +44,7 @@ export interface SidebarRollOptions {
 }
 
 import { applyChromePixelScale } from '@/components/pixel/pixel-assets';
+import { playSiteSfx, preloadSiteSfx } from '@/lib/site-sfx';
 
 const TILE = 16;
 const BANNER_SHEET = { width: 304, height: 96 };
@@ -122,6 +123,7 @@ export class SidebarRoll {
     this.applyCurrent(opts.initialSelection);
 
     els.toggle.addEventListener('click', this.onToggleClick);
+    preloadSiteSfx('sidebarOpen', 'sidebarClose');
     window.addEventListener('resize', this.onResize);
     this.resizeObserver = new ResizeObserver(() => this.refreshRibbons());
     this.resizeObserver.observe(els.menuList);
@@ -560,7 +562,13 @@ export class SidebarRoll {
   /** The pole: compact ↔ expanded. */
   toggle() { void this.run(() => Promise.all([this.animatePole(), this.changeWidth()]).then(() => undefined)); }
 
-  private readonly onToggleClick = () => this.toggle();
+  /** The pole press. The open / close sound (owner 2026-10-26) plays only when the press is taken — a press while the
+   *  banner is still rolling is ignored, so sounds never stack. */
+  private readonly onToggleClick = () => {
+    if (this.busy || !this.ready || this.destroyed) return;
+    playSiteSfx(this.compact ? 'sidebarOpen' : 'sidebarClose', { cut: ['sidebarOpen', 'sidebarClose'] });
+    this.toggle();
+  };
   private readonly onResize = () => {
     this.cfg.pixelScale = applyChromePixelScale();
     if (!this.busy && this.ready) this.layoutPixels();
