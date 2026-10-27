@@ -15,6 +15,8 @@ const nextConfig: NextConfig = {
       // Arena music is content-hashed by scripts/build-music.ts (BGM_Arena_<Tier>.<sha8>.m4a), so it can be
       // cached for a year and still invalidate the moment a track changes — independent of Unity rebuilds.
       { source: '/audio/music/:file*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
+      // The site's UI sounds, content-hashed the same way by scripts/build-sfx.ts (SFX_UI_<Name>.<sha8>.m4a).
+      { source: '/audio/sfx/:file*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
       // The book (public/book, written by scripts/build-gitbook.sh): a new build must show within minutes.
       { source: '/book/:file*', headers: [{ key: 'Cache-Control', value: 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400' }] },
     ];
