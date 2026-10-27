@@ -7,10 +7,11 @@
  * store (same pattern as the guest session in use-auth.ts) so the overlay, mounted at the app root, survives the
  * client-side navigation from /dojo to /battle/<id> without a remount or a provider.
  *
- * The way in is two fades (owner 2026-10-23, "slow down the fade to the first loading screen"): the page fades out
- * to the theme's dark navy over ENTRY_CURTAIN_MS, then the Shifu loop fades in from that navy over ENTRY_REVEAL_MS —
- * so the loop is on its way in ENTRY_CURTAIN_MS after the press, and the 12 s hold is counted from THEN, not from
- * the press. A gentle breeze (lib/entry-ambience.ts) fades in with the loop and out at the handover to Unity.
+ * The way in is a Looney Tunes iris (owner 2026-10-27; was two plain fades): a navy circle closes on the button that
+ * was pressed while the page eases back (ENTRY_IRIS_CLOSE_MS), a beat of navy (ENTRY_NAVY_BEAT_MS), then the Shifu loop
+ * opens from a growing circle in the middle (ENTRY_IRIS_OPEN_MS) — 2.55 s from the press to Shifu fully on screen. The
+ * 12 s hold counts from the moment the loop starts to open, not from the press. The breeze (lib/entry-ambience.ts) and,
+ * on the Dojo, the arena music start at the press and fade in over 3 s together; the breeze leaves at the Unity handover.
  *
  * Release — when the overlay may fade out — is `max(the 12 s hold, a signal)`:
  *   - `markUnityLoadingShown()`: the Unity training scene is on screen (a player build that reports it) → now;
@@ -38,20 +39,27 @@ export interface BattleEntryState {
   /** The arena the battle is on, when known at the press (the Dojo): its music starts with the breeze and carries
    *  straight into the battle (owner 2026-10-25). Null = the bed waits for the battle's intro as before. */
   arena: ArenaTier | null;
+  /** Where the iris closes: the pressed button's centre in window px. Null = the window's centre. */
+  origin: { x: number; y: number } | null;
 }
 
 /** The Shifu screen's minimum time on screen, counted from the loop (owner 2026-10-23: 12 s; was 4.5 s, then 6 s). */
 export const ENTRY_HOLD_MS = 12_000;
-/** The page → navy curtain (the way in, first stage). */
-export const ENTRY_CURTAIN_MS = 700;
-/** Navy → the Shifu loop (the way in, second stage; starts when the curtain is down). */
-export const ENTRY_REVEAL_MS = 900;
+/** The way in (owner 2026-10-27: "about 2.5 s"): the iris closes on the pressed button … */
+export const ENTRY_IRIS_CLOSE_MS = 1400;
+/** … a beat of navy … */
+export const ENTRY_NAVY_BEAT_MS = 250;
+/** … and the Shifu loop opens from a growing circle. */
+export const ENTRY_IRIS_OPEN_MS = 900;
+/** Press → Shifu fully on screen. Navigation to the battle page waits for this (entryRevealed), so its main-thread
+ *  work never lands while the circle is moving. */
+export const ENTRY_REVEALED_MS = ENTRY_IRIS_CLOSE_MS + ENTRY_NAVY_BEAT_MS + ENTRY_IRIS_OPEN_MS;
 /** The way out: the loop over the Unity training scene (unchanged). */
 export const ENTRY_FADE_MS = 400;
 const ARENA_GRACE_MS = 1_500;
 const SAFETY_MS = 45_000;
 
-const IDLE: BattleEntryState = { phase: 'idle', kind: null, tip: null, startedAt: 0, unityShown: false, arena: null };
+const IDLE: BattleEntryState = { phase: 'idle', kind: null, tip: null, startedAt: 0, unityShown: false, arena: null, origin: null };
 
 let state: BattleEntryState = IDLE;
 const listeners = new Set<() => void>();
@@ -74,16 +82,30 @@ export function reducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-/** When the Shifu loop starts to show: the press plus the curtain (at once under reduced motion). */
+/** When the Shifu loop starts to open: the press plus the closing iris and the navy beat (at once under reduced motion). */
 export function loopShownAt(): number {
-  return state.startedAt + (reducedMotion() ? 0 : ENTRY_CURTAIN_MS);
+  return state.startedAt + (reducedMotion() ? 0 : ENTRY_IRIS_CLOSE_MS + ENTRY_NAVY_BEAT_MS);
+}
+
+/** The centre of an element (the button that was pressed) in window px: where the iris closes. */
+export function originOf(el: Element | null | undefined): { x: number; y: number } | undefined {
+  if (!el) return undefined;
+  const r = el.getBoundingClientRect();
+  return r.width && r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : undefined;
+}
+
+/** Resolves once the Shifu loop is fully open (now, if it already is or no entry is running). */
+export function entryRevealed(): Promise<void> {
+  if (state.phase === 'idle') return Promise.resolve();
+  const wait = state.startedAt + (reducedMotion() ? 0 : ENTRY_REVEALED_MS) - Date.now();
+  return wait > 0 ? new Promise((resolve) => setTimeout(resolve, wait)) : Promise.resolve();
 }
 
 /** Begin the sequence (inside the Train click, or on a battle page that opened without one). No-op while one is active. */
-export function startBattleEntry(opts: { kind: EntryKind; arena?: ArenaTier }): void {
+export function startBattleEntry(opts: { kind: EntryKind; arena?: ArenaTier; origin?: { x: number; y: number } }): void {
   if (state.phase !== 'idle') return;
   clearTimers();
-  emit({ phase: 'web', kind: opts.kind, tip: pickLoadingTip(), startedAt: Date.now(), unityShown: false, arena: opts.arena ?? null });
+  emit({ phase: 'web', kind: opts.kind, tip: pickLoadingTip(), startedAt: Date.now(), unityShown: false, arena: opts.arena ?? null, origin: opts.origin ?? null });
   safetyTimer = setTimeout(() => { console.warn('[BattleEntry] safety release after 45 s'); release(); }, SAFETY_MS);
 }
 

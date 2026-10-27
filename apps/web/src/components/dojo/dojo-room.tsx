@@ -6,6 +6,9 @@ import { PixelPanel } from '@/components/shell/pixel-panel';
 import { PIXEL_SCALE_EVENT, pixelScale } from '@/components/pixel/pixel-assets';
 import { BOT_CATALOG, botInfo, type BotName } from '@/lib/bot-catalog';
 import { playUiClick } from '@/lib/site-sfx';
+import { ENTRY_IRIS_CLOSE_MS, getEntryState, reducedMotion, useBattleEntry } from '@/lib/battle-entry';
+/** How far the scene eases back while the iris closes (owner 2026-10-27: "a looney tunes style zoom out"). */
+const ENTRY_ZOOM = 0.92;
 import { DojoSign } from './dojo-sign';
 import { anchorFighter, cssPx, drawClass, loadTierSheets } from './dojo-sprites';
 import {
@@ -91,6 +94,9 @@ function useStage(stageRef: RefObject<HTMLDivElement | null>) {
       const progress = vw >= 1024 ? Math.min(1, Math.max(0, parseFloat(rootStyle.getPropertyValue('--sidebar-expand-progress')) || 0)) : 0;
       const key = `${vw}x${vh}@${n}:${progress}`;
       if (key === last) return;
+      // During a battle entry the scene holds still: the fullscreen request resizes the window under the closing iris,
+      // and a re-fit there was a visible jump (owner 2026-10-27). It re-fits when the entry ends or is cancelled.
+      if (last && getEntryState().phase !== 'idle') return;
       last = key;
       const extra = 80 * n * progress;   // the pole's growth from 96 to 128 art px, plus his 48 px compact offset
       const avail = vw - extra;
@@ -200,7 +206,30 @@ function InventoryTile({ id, classIndex, name, detail, slot, sheet, unit, hidden
 export function DojoRoom(props: DojoRoomProps) {
   const { lobsters, teams, initialMode, isWallet, team, tier, purity, bot, opponent, arena, busy, blocked, error } = props;
   const stageRef = useRef<HTMLDivElement>(null);
+  const arenaRef = useRef<HTMLDivElement>(null);
   const unit = useStage(stageRef);
+  const entry = useBattleEntry();
+  // The iris (owner 2026-10-27): while it closes on the Battle button, the scene eases back to 92 % around that button.
+  useEffect(() => {
+    const page = rootRef.current, backdrop = arenaRef.current;
+    if (!page || !backdrop) return;
+    if (entry.phase === 'web' && entry.origin && !reducedMotion()) {
+      const s = stageScale(page), box = page.getBoundingClientRect();
+      page.style.transformOrigin = `${(entry.origin.x - box.left) / s}px ${(entry.origin.y - box.top) / s}px`;
+      backdrop.style.transformOrigin = `${entry.origin.x}px ${entry.origin.y}px`;
+      const raf = requestAnimationFrame(() => {
+        for (const el of [page, backdrop]) {
+          el.style.transition = `scale ${ENTRY_IRIS_CLOSE_MS}ms cubic-bezier(0.55, 0, 1, 0.45)`;
+          el.style.scale = String(ENTRY_ZOOM);
+        }
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+    if (entry.phase === 'idle') {
+      for (const el of [page, backdrop]) { el.style.transition = ''; el.style.scale = ''; el.style.transformOrigin = ''; }
+      window.dispatchEvent(new Event('resize'));   // re-fit to whatever the window is now
+    }
+  }, [entry.phase, entry.origin]);
   const sheets = useTierSheets();
   const rootRef = useRef<HTMLDivElement>(null);
   const inventoryRef = useRef<HTMLDivElement>(null);
@@ -384,7 +413,7 @@ export function DojoRoom(props: DojoRoomProps) {
 
   return (
     <>
-      <div className="dojo-arena" aria-hidden="true">
+      <div className="dojo-arena" aria-hidden="true" ref={arenaRef}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/ui/dojo/Dojo_Dark.png" alt="" width={640} height={360} draggable={false} />
       </div>
