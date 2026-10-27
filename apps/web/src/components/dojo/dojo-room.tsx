@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { PixelPanel } from '@/components/shell/pixel-panel';
 import { PIXEL_SCALE_EVENT, pixelScale } from '@/components/pixel/pixel-assets';
 import { BOT_CATALOG, botInfo, type BotName } from '@/lib/bot-catalog';
+import { playUiClick } from '@/lib/site-sfx';
 import { DojoSign } from './dojo-sign';
 import { anchorFighter, cssPx, drawClass, loadTierSheets } from './dojo-sprites';
 import {
@@ -208,7 +209,8 @@ export function DojoRoom(props: DojoRoomProps) {
   const [mode, setMode] = useState<'owned' | 'builder'>('builder');
   const [modeTouched, setModeTouched] = useState(false);
   useEffect(() => { if (initialMode && !modeTouched) setMode(initialMode); }, [initialMode, modeTouched]);
-  const pickMode = (m: 'owned' | 'builder') => { setMode(m); setModeTouched(true); setFeedback(''); };
+  /** A tab change taps (owner 2026-10-27); pressing the tab you are on changes nothing and stays silent. */
+  const pickMode = (m: 'owned' | 'builder') => { if (m !== mode) playUiClick(); setMode(m); setModeTouched(true); setFeedback(''); };
 
   const [panel, setPanel] = useState<'team' | 'opponent'>('team');
   const [slots, setSlots] = useState<Slots>(EMPTY_SLOTS);
