@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type AgentProfile } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { PIXEL_SCALE_EVENT } from '@/components/pixel/pixel-assets';
+import { playSiteSfx, preloadSiteSfx } from '@/lib/site-sfx';
 
 /**
  * Nzib's wallet / profile component (design/website/mockups/mockups.html, sections 7 + 9, 2026-10-08): the wooden
@@ -196,6 +197,15 @@ export function WalletPanel() {
     if (restoreAvatarFocus) avatar.focus({ preventScroll: true });
   }, [closeProfileMenu, paintUserPanel]);
 
+  /** The wheel press. Its open / close sound (owner 2026-10-26) plays only when the press is taken — never for the
+   *  opening slide on page load, and not for a press while the plank is still moving (no stacking). */
+  const pressWheel = useCallback(() => {
+    if (busyRef.current || !readyRef.current) return;
+    playSiteSfx(openRef.current ? 'wheelClose' : 'wheelOpen', { cut: ['wheelOpen', 'wheelClose'] });
+    void toggleUserPanel();
+  }, [toggleUserPanel]);
+  useEffect(() => { preloadSiteSfx('wheelOpen', 'wheelClose'); }, []);
+
   // ── 9. PROFILE ACTIONS: content-sized expansion and pixel-repeated button art ──
   const sizeProfileActions = useCallback(() => {
     const menu = menuRef.current;
@@ -381,7 +391,7 @@ export function WalletPanel() {
       {/* Avatar artwork will occupy the wheel centre; keep the source frame visible. */}
       <div className="user-avatar-press">
         <canvas ref={wheelRef} aria-hidden="true" className="user-avatar-frame" height={64} id="user-avatar-frame" width={64} />
-        <button ref={avatarRef} aria-controls="user-section-art" aria-expanded="true" aria-label="Collapse wallet panel" className="user-avatar-slot" onClick={() => void toggleUserPanel()} type="button" />
+        <button ref={avatarRef} aria-controls="user-section-art" aria-expanded="true" aria-label="Collapse wallet panel" className="user-avatar-slot" onClick={pressWheel} type="button" />
       </div>
       <div ref={menuRef} aria-label="Profile actions" className="profile-menu" hidden id="profile-menu">
         <button aria-label="Profile" data-profile-action="edit" onClick={onEdit} type="button">

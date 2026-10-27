@@ -1,7 +1,7 @@
 import type { Browser } from './cdp';
 
 /**
- * The sidebar's open / close sounds (lib/site-sfx.ts, owner 2026-10-26). Every media element is MUTED AT THE SOURCE
+ * The sidebar's and the wallet wheel's open / close sounds (lib/site-sfx.ts, owner 2026-10-26). Every media element is MUTED AT THE SOURCE
  * (nothing reaches the speakers); each play() is recorded with its file and volume.
  *   · nothing plays on page load (the opening roll is not a press);
  *   · a press on the pole plays Open when expanding, Close when collapsing, at 0.5 × the SFX volume;
@@ -56,7 +56,30 @@ export default async function (b: Browser) {
   await b.eval(`localStorage.removeItem('clawbada_sfx_vol')`);
 
   const headers = await b.eval(`Promise.all(Array.from(new Set(window.__plays.map(p => p.file))).filter(f => f.startsWith('SFX_UI_')).map(f => fetch('/audio/sfx/' + f).then(r => ({ f, status: r.status, cache: r.headers.get('cache-control'), type: r.headers.get('content-type') }))))`) as { f: string; status: number; cache: string | null; type: string | null }[];
-  ok('the files are served, cached as immutable', headers.length === 2 && headers.every((h) => h.status === 200 && (h.cache ?? '').includes('immutable')), JSON.stringify(headers));
+  ok('the sidebar files are served, cached as immutable', headers.length === 2 && headers.every((h) => h.status === 200 && (h.cache ?? '').includes('immutable')), JSON.stringify(headers));
+
+  // ── the wallet wheel (top right): it slides open by itself on load — silently — then each press closes / opens ──
+  await b.goto(`${BASE}/game`);
+  await b.waitFor(`document.querySelector('.user-avatar-slot')?.getAttribute('aria-expanded') === 'true' && !document.querySelector('.user-avatar-slot').disabled`, 90000, 250);
+  await b.sleep(800);
+  const wheelPlays = () => b.eval(`window.__plays.filter(p => p.file.startsWith('SFX_UI_Wheel'))`) as Promise<{ file: string; volume: number }[]>;
+  ok('wheel: no sound for the opening slide on load', (await wheelPlays()).length === 0, JSON.stringify(await wheelPlays()));
+  const wheel = await b.eval(`(() => { const q = document.querySelector('.user-avatar-slot').getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number };
+  const wheelIdle = () => b.waitFor(`!document.querySelector('.user-avatar-slot').disabled`, 10000, 50);
+  await b.clickAt(wheel.x, wheel.y); await b.sleep(80);
+  await b.clickAt(wheel.x, wheel.y); await b.sleep(80);   // mid-slide: ignored
+  let wp = await wheelPlays();
+  ok('wheel: a press closes the plank with the close sound; a press mid-slide plays nothing', wp.length === 1 && wp[0].file.startsWith('SFX_UI_Wheel_Close.') && Math.abs(wp[0].volume - 0.5) < 0.01, JSON.stringify(wp));
+  await wheelIdle(); await b.sleep(200);
+  await b.clickAt(wheel.x, wheel.y); await b.sleep(80);
+  wp = await wheelPlays();
+  ok('wheel: the next press opens it with the open sound', wp.length === 2 && wp[1].file.startsWith('SFX_UI_Wheel_Open.'), JSON.stringify(wp));
+  await wheelIdle(); await b.sleep(200);
+  await b.eval(`localStorage.setItem('clawbada_sfx', 'off')`);
+  await b.clickAt(wheel.x, wheel.y); await b.sleep(80);
+  ok('wheel: the SFX switch off silences it', (await wheelPlays()).length === 2, JSON.stringify(await wheelPlays()));
+  await wheelIdle();
+  await b.eval(`localStorage.setItem('clawbada_sfx', 'on')`);
 
   await b.goto('about:blank');
   console.log(checks.join('\n'));
