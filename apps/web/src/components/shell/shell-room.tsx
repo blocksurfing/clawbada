@@ -17,6 +17,7 @@ import { mountShellTabs, type ShellTabs } from './shell-tabs';
 import { BattleModal, type BattleEligibility } from './battle-modal';
 import { requestBattleFullscreen } from '@/lib/battle-fullscreen';
 import { startBattleEntry } from '@/lib/battle-entry';
+import { playSiteSfx, preloadSiteSfx } from '@/lib/site-sfx';
 
 /**
  * The Shell — Nzib's basecamp (design/website/workbench/pages/dashboard.html, baseline 3295433): the fullscreen
@@ -109,10 +110,16 @@ export function ShellRoom() {
     try { localStorage.setItem(lineupKey(address), JSON.stringify(ids)); } catch { /* private mode */ }
   }, [address, slots]);
 
+  useEffect(() => { preloadSiteSfx('rock01', 'rock02', 'rock03'); }, []);
+
   // A match found while the overlay is closed brings it up.
   useEffect(() => { if (queueState.kind === 'matched') tabsRef.current?.open('queue'); }, [queueState.kind]);
 
+  /** Each rock has its own press sound, left to right (owner 2026-10-26: SFX_UI_Rock_01–03). */
+  const ROCK_SFX = ['rock01', 'rock02', 'rock03'] as const;
   const openPicker = (slot: number) => {
+    const sound = ROCK_SFX[slot];
+    if (sound) playSiteSfx(sound, { cut: [...ROCK_SFX] });
     setPicker(slot);
     const dialog = pickerRef.current;
     if (dialog && !dialog.open) dialog.showModal();

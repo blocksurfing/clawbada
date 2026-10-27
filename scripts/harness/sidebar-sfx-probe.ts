@@ -1,7 +1,8 @@
 import type { Browser } from './cdp';
 
 /**
- * The sidebar's and the wallet wheel's open / close sounds (lib/site-sfx.ts, owner 2026-10-26). Every media element is MUTED AT THE SOURCE
+ * The website's UI sounds (lib/site-sfx.ts, owner 2026-10-26): the sidebar's and the wallet wheel's open / close, and
+ * the Shell's three rocks. Every media element is MUTED AT THE SOURCE
  * (nothing reaches the speakers); each play() is recorded with its file and volume.
  *   · nothing plays on page load (the opening roll is not a press);
  *   · a press on the pole plays Open when expanding, Close when collapsing, at 0.5 × the SFX volume;
@@ -80,6 +81,18 @@ export default async function (b: Browser) {
   ok('wheel: the SFX switch off silences it', (await wheelPlays()).length === 2, JSON.stringify(await wheelPlays()));
   await wheelIdle();
   await b.eval(`localStorage.setItem('clawbada_sfx', 'on')`);
+
+  // ── the Shell's three rocks: each press plays that rock's own sound (the picker opens; close it between presses) ──
+  const rockPlays = () => b.eval(`window.__plays.filter(p => p.file.startsWith('SFX_UI_Rock'))`) as Promise<{ file: string; volume: number }[]>;
+  ok('rocks: no rock sound on load', (await rockPlays()).length === 0);
+  for (let i = 0; i < 3; i++) {
+    const r = await b.eval(`(() => { const q = document.querySelector('.lobby-slot[data-slot="${i}"] .character-stage').getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height * 0.6 }; })()`) as { x: number; y: number };
+    await b.clickAt(r.x, r.y); await b.sleep(150);
+    await b.eval(`document.querySelector('.lobster-picker')?.close()`); await b.sleep(150);
+  }
+  const rp = await rockPlays();
+  ok('rocks: each rock plays its own sound, left to right, at 0.5 × SFX volume',
+    rp.length === 3 && rp.every((p, i) => p.file.startsWith(`SFX_UI_Rock_0${i + 1}.`) && Math.abs(p.volume - 0.5) < 0.01), JSON.stringify(rp));
 
   await b.goto('about:blank');
   console.log(checks.join('\n'));

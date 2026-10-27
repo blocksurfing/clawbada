@@ -1,6 +1,6 @@
 /**
- * The website's own UI sounds (outside the Unity battle): the sidebar pole and the wallet wheel opening and closing
- * (owner 2026-10-26).
+ * The website's own UI sounds (outside the Unity battle): the sidebar pole and the wallet wheel opening and closing,
+ * and the Shell's three rocks (owner 2026-10-26).
  * Files come from scripts/build-sfx.ts (audio-masters/sfx/SFX_UI_*.wav → content-hashed m4a, site-sfx.generated.ts).
  *
  * They obey the same SFX switch and volume as the battle sounds (audio-prefs.ts), at the level Unity mixes its own SFX
