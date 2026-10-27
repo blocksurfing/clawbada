@@ -107,6 +107,11 @@ export default async function (b: Browser) {
   const built = () => b.eval(`Array.from(document.querySelectorAll('#dojo-builder [data-owned-id]')).filter(t => t.getAttribute('aria-pressed') === 'true').map(t => [t.dataset.ownedId, t.querySelector('[data-slot-badge]').textContent]).sort((a, c) => a[1] - c[1]).map(x => x[0]).join(',')`) as Promise<string>;
   ok('build: the Dojo opens with nobody picked', (await teamCount()) === 0 && (await built()) === '');
   ok('build: Battle is off until three are picked', await b.eval(`document.querySelector('[data-testid=dojo-battle]').disabled`));
+  {
+    const g = await b.eval(`(() => { const card = document.querySelector('[data-side=team] .dojo-card').getBoundingClientRect(), tabs = document.querySelector('[data-side=team] .dojo-tabs').getBoundingClientRect(); const bottom = Math.max(...Array.from(document.querySelectorAll('#dojo-builder [data-owned-id]')).map(t => t.getBoundingClientRect().bottom)); return { top: tabs.top - card.top, bottom: card.bottom - bottom }; })()`) as { top: number; bottom: number };
+    // Tiles are square and sized by the card's width, so the bottom gap can only grow on narrower cards.
+    ok('build: the bottom tile row clears the frame at least as far as the tabs sit from the top', g.bottom >= g.top - 1.5, JSON.stringify(g));
+  }
   ok('build: no slot dropdowns; tier and purity share one row', await b.eval(`!document.querySelector('#dojo-builder select') && (() => { const t = document.querySelector('[data-testid=dojo-tier]').getBoundingClientRect(), p = document.querySelector('[data-testid=dojo-purity]').getBoundingClientRect(); return Math.abs(t.top - p.top) < 4; })()`));
   for (const c of ['kraken', 'ember', 'abyss']) { await b.eval(`document.querySelector('#dojo-builder [data-owned-id="${c}"]').click()`); await b.sleep(120); }
   ok('build: tiles fill the lineup in order', (await built()) === 'kraken,ember,abyss' && (await teamCount()) === 3, await built());
