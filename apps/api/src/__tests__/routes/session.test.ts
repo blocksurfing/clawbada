@@ -26,7 +26,7 @@ mock.module('../../lib/chain', () => ({
 }));
 
 // ── Mock the session manager singleton (real protocol/manager helpers stay real) ──
-import { isPracticeId, CHAIN_ID_RE } from '../../lib/battle-session/protocol';
+import { isPracticeId, isOffChainId, CHAIN_ID_RE } from '../../lib/battle-session/protocol';
 import { PracticeConflictError } from '../../lib/battle-session/manager';
 const mockStartPractice = mock<any>();
 const mockSubmit = mock<any>();
@@ -39,6 +39,7 @@ const mockListTurns = mock<any>();
 const mockLivePracticeCount = mock<any>();
 mock.module('../../lib/battle-session', () => ({
   isPracticeId,
+  isOffChainId,
   CHAIN_ID_RE,
   PracticeConflictError,
   battleSessions: {

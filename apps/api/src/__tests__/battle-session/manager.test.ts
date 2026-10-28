@@ -58,8 +58,8 @@ class FakeStore {
   async loadActive(): Promise<SessionRow[]> { return [...this.rows.values()].filter((r) => r.status === 'active'); }
   async get(id: string): Promise<SessionRow | null> { return this.rows.get(id) ?? null; }
   async listTurns(): Promise<never[]> { return []; }
-  async activePracticeFor(owner: string): Promise<SessionRow | null> {
-    return [...this.rows.values()].find((r) => r.kind === 'practice' && r.playerA === owner && r.status === 'active') ?? null;
+  async activeOffChainFor(address: string): Promise<SessionRow | null> {
+    return [...this.rows.values()].find((r) => (r.kind === 'practice' || r.kind === 'friend') && (r.playerA === address || r.playerB === address) && r.status === 'active') ?? null;
   }
   async pendingRealBattles(): Promise<PendingRealBattle[]> { return this.pending.filter((p) => !this.rows.has(p.battleId.toString())); }
   /** D-14: battles the (fake) indexer shows in TeamReveal. */
@@ -596,5 +596,92 @@ describe('reveal_failure_reported (D-14)', () => {
     const { mgr, events } = make(store);
     await mgr.pollOnce();
     expect(reports(events)).toHaveLength(0);
+  });
+});
+
+describe('friend battles (owner 2026-10-28: two humans by invite, just for fun)', () => {
+  const hostTeam = practiceLobsters;
+  const guestTeam = [LobsterClass.Kraken, LobsterClass.Ember, LobsterClass.Abyss].map((c, i) => ({ input: { id: `G${i}`, class: c, tier: EvolutionTier.Apex, purity: 4, legend: false } }));
+
+  test('startFriend: kind friend, f_ id, host on A and guest on B with their own teams, no bot, unique lobster ids', async () => {
+    const store = new FakeStore();
+    const { mgr } = make(store);
+    const s = await mgr.startFriend({ host: ALICE, guest: BOB, hostTeam, guestTeam, arena: 'dojo' });
+    expect(s.record.id).toMatch(/^f_[0-9a-f-]{36}$/);
+    expect(s.record.kind).toBe('friend');
+    expect(s.record.bot).toBeNull();
+    expect(store.rows.get(s.record.id)).toMatchObject({ kind: 'friend', playerA: ALICE, playerB: BOB, bot: null, status: 'active', tier: 'dojo' });
+    expect(s.record.roster.filter((r) => r.side === 'A').map((r) => r.owner)).toEqual([ALICE, ALICE, ALICE]);
+    expect(s.record.roster.filter((r) => r.side === 'B').map((r) => r.classId)).toEqual([LobsterClass.Kraken, LobsterClass.Ember, LobsterClass.Abyss]);
+    expect(new Set(s.record.roster.map((r) => r.id)).size).toBe(6);
+    expect(s.sideOf(ALICE)).toBe('A');
+    expect(s.sideOf(BOB)).toBe('B');
+    expect(mgr.livePracticeCount()).toBe(1);   // friend battles count against the free-battle cap
+  });
+
+  test('the battle waits for BOTH players to be ready', async () => {
+    const store = new FakeStore();
+    const { mgr, events } = make(store, { startWaitMs: 60_000 });
+    const s = await mgr.startFriend({ host: ALICE, guest: BOB, hostTeam, guestTeam });
+    expect(mgr.ready(s.record.id, ALICE)).toMatchObject({ ok: true, started: false });
+    expect(events.some((e) => e.event === 'battle_started')).toBe(false);
+    expect(mgr.ready(s.record.id, BOB)).toMatchObject({ ok: true, started: true });
+    expect(events.some((e) => e.event === 'battle_started')).toBe(true);
+  });
+
+  test('one off-chain battle at a time per player, on either seat', async () => {
+    const store = new FakeStore();
+    const { mgr } = make(store);
+    await mgr.startPractice({ owner: BOB, lobsters: practiceLobsters, bot: 'balanced', opponent: 'mirror' });
+    await expect(mgr.startFriend({ host: ALICE, guest: BOB, hostTeam, guestTeam })).rejects.toBeInstanceOf(PracticeConflictError);
+    const store2 = new FakeStore();
+    const { mgr: mgr2 } = make(store2);
+    await mgr2.startFriend({ host: ALICE, guest: BOB, hostTeam, guestTeam });
+    // The guest (side B) is busy too: they can't start a practice battle meanwhile.
+    await expect(mgr2.startPractice({ owner: BOB, lobsters: practiceLobsters, bot: 'balanced', opponent: 'mirror' })).rejects.toBeInstanceOf(PracticeConflictError);
+  });
+
+  test('a player cannot fight themselves', async () => {
+    const { mgr } = make(new FakeStore());
+    await expect(mgr.startFriend({ host: ALICE, guest: ALICE, hostTeam, guestTeam })).rejects.toThrow();
+  });
+
+  test('a finished friend battle is marked finished and never queues settlement (no stake, no rating)', async () => {
+    const store = new FakeStore();
+    const { mgr, events } = make(store);
+    const s = await mgr.startFriend({ host: ALICE, guest: BOB, hostTeam, guestTeam });
+    expect(mgr.forfeit(s.record.id, BOB)).toMatchObject({ ok: true, winner: 'A' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(store.rows.get(s.record.id)!.status).toBe('finished');
+    expect(store.jobs.length).toBe(0);
+    expect(events.find((e) => e.event === 'battle_ended')?.data).toMatchObject({ winner: 'A', settle: 'n/a' });
+  });
+
+  test('both players get the shot clock (no bot side) and turns route by seat', async () => {
+    const store = new FakeStore();
+    const { mgr } = make(store);
+    const s = await mgr.startFriend({ host: ALICE, guest: BOB, hostTeam, guestTeam });
+    const cur = s.current();
+    expect(cur.controller).not.toBe('bot');
+    expect(cur.deadline).not.toBeNull();
+    const wrong = cur.side === 'A' ? BOB : ALICE;
+    const actor = s.state.lobsters.find((l) => l.id === cur.lobsterId)!;
+    expect(mgr.submit(s.record.id, wrong, cur.turn, v3.BOTS.balanced(s.state, actor))).toMatchObject({ ok: false, code: 'not_your_turn' });
+    const right = cur.side === 'A' ? ALICE : BOB;
+    expect(mgr.submit(s.record.id, right, cur.turn, v3.BOTS.balanced(s.state, actor)).ok).toBe(true);
+  });
+
+  test('resume brings a friend battle back with two human seats', async () => {
+    const store = new FakeStore();
+    const { mgr } = make(store);
+    const s = await mgr.startFriend({ host: ALICE, guest: BOB, hostTeam, guestTeam });
+    const id = s.record.id;
+    const { mgr: fresh } = make(store);
+    // Simulate a restart: a new manager over the same rows.
+    mgr.stop?.();
+    expect(await fresh.resume()).toBeGreaterThanOrEqual(1);
+    const back = fresh.get(id)!;
+    expect(back.record.kind).toBe('friend');
+    expect(back.current().controller).not.toBe('bot');
   });
 });

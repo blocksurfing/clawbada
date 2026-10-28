@@ -10,6 +10,8 @@ import { sql } from 'drizzle-orm';
  *                          and ends by enqueueing a `settle_battle` operator job.
  *   - `kind = 'practice'` → id is `p_<uuid>`; off-chain only, one human vs a bot,
  *                          never touches battles / ratings / participation.
+ *   - `kind = 'friend'`   → id is `f_<uuid>`; off-chain, two humans by invite (friend_rooms),
+ *                          just for fun: no stake, no rating, no ladder or mining-boost credit.
  *
  * `state_json` is the full `v3.serializeState` snapshot after the latest turn so a
  * restarted API resumes every active battle exactly where it stopped (the engine's
@@ -56,7 +58,8 @@ export const battleSessions = pgTable(
   (t) => ({
     statusIdx: index('battle_sessions_status_idx').on(t.status),
     ownerIdx: index('battle_sessions_kind_player_a_idx').on(t.kind, t.playerA),
-    kindCk: check('battle_sessions_kind_ck', sql`${t.kind} IN ('real', 'practice')`),
+    kindCk: check('battle_sessions_kind_ck', sql`${t.kind} IN ('real', 'practice', 'friend')`),
+    playerBIdx: index('battle_sessions_kind_player_b_idx').on(t.kind, t.playerB),
     statusCk: check('battle_sessions_status_ck', sql`${t.status} IN ('active', 'finished', 'settling', 'settled', 'abandoned')`),
   }),
 );

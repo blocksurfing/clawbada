@@ -36,7 +36,7 @@ import { rateLimit } from './middleware/rate-limit';
 import { ApiError } from './lib/errors';
 import { battleWS } from './lib/ws';
 import { startMatchmakerTicker } from './lib/matchmaker/tick';
-import { battleSessions, parseClientMessage, isPracticeId, CHAIN_ID_RE } from './lib/battle-session';
+import { battleSessions, parseClientMessage, isOffChainId, CHAIN_ID_RE } from './lib/battle-session';
 import { getClientIp } from './lib/client-ip';
 import { installShutdownHandlers, rememberServer } from './lib/shutdown';
 
@@ -73,6 +73,9 @@ app.use('/api/game/combat/pool-depth', rateLimit(30));
 // top of the practice route's own cap on live battles (PRACTICE_MAX_LIVE).
 app.use('/api/auth/guest', rateLimit(10, 60_000, 'guest'));
 app.use('/api/game/combat/practice', rateLimit(10, 60_000, 'practice'));
+// Battle Friends: creating invites is the spammable step; the lobby polls GET /rooms/:id every couple of seconds.
+app.use('/api/game/friend/rooms', rateLimit(10, 60_000, 'friend-create'));
+app.use('/api/game/friend/rooms/*', rateLimit(90, 60_000, 'friend'));
 
 app.get('/health', (c) =>
   c.json({ status: 'ok', timestamp: Date.now(), version: '0.0.1' }),
@@ -248,8 +251,8 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
   // Without this, any caller with a valid signature could subscribe to any
   // battleId and receive its events (round_result, battle_settled, etc.).
   let battleId: string | undefined;
-  if (battleIdParam && isPracticeId(battleIdParam)) {
-    // V3 practice battle: owner-only.
+  if (battleIdParam && isOffChainId(battleIdParam)) {
+    // V3 practice or friend battle: its players only.
     if (!(await battleSessions.isParticipant(battleIdParam, lowerAddr))) {
       throw new ApiError('UNAUTHORIZED', 'Not a participant in this battle');
     }

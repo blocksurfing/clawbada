@@ -11,7 +11,8 @@
 import { v3 } from '@clawbada/game-logic';
 
 export type Side = 'A' | 'B';
-export type SessionKind = 'real' | 'practice';
+/** real = staked, on-chain; practice = a human vs a bot; friend = two humans by invite, off-chain, just for fun. */
+export type SessionKind = 'real' | 'practice' | 'friend';
 export type SubmittedBy = 'player' | 'bot' | 'timeout' | 'stun' | 'forfeit';
 export type EndReason = 'wipeout' | 'turn_cap' | 'forfeit';
 
@@ -220,6 +221,17 @@ export const CHAIN_ID_RE = /^[1-9]\d{0,18}$/;
 
 export function isPracticeId(id: string): boolean {
   return PRACTICE_ID_RE.test(id);
+}
+
+/** Friend battles (owner 2026-10-28): two humans by invite, off-chain, no stake, no rating. */
+export const FRIEND_ID_RE = /^f_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export function isFriendId(id: string): boolean {
+  return FRIEND_ID_RE.test(id);
+}
+
+/** An off-chain battle — practice or friend: private to its players, guests allowed, never staked or rated. */
+export function isOffChainId(id: string): boolean {
+  return PRACTICE_ID_RE.test(id) || FRIEND_ID_RE.test(id);
 }
 
 /** D-06: pushed to both players when the chain holds a settlement for a battle that is still

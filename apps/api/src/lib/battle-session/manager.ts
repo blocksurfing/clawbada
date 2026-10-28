@@ -9,6 +9,8 @@
  *     a player's `forfeit()` resignation — it enqueues `settle_battle` for the
  *     engine's operator worker.
  *   - practice battles: created on demand by the API route; off-chain only.
+ *   - friend battles: two humans by invite (lib/friend-rooms), off-chain, just for fun — no bot, no stake, no
+ *     rating; they finish like practice (markFinished), never through settlement.
  *   - resume(): on boot, every 'active' row is deserialized and its clock re-armed.
  *
  * Follows the boost service template: setInterval + inFlight guard + try/catch
@@ -78,6 +80,15 @@ export interface PracticeLobster {
   input: v3.LobsterInput;
   tokenId?: string;
   partClassIds?: number[];
+}
+
+export interface StartFriendOptions {
+  host: string;
+  guest: string;
+  hostTeam: PracticeLobster[];
+  guestTeam: PracticeLobster[];
+  /** Board; defaults to the lower team tier. */
+  arena?: v3.ArenaLayout['tier'];
 }
 
 export interface StartPracticeOptions {
@@ -202,10 +213,10 @@ export class BattleSessionManager {
     return this.sessions.size;
   }
 
-  /** Live PRACTICE sessions only — the Dojo's cap (POST /practice) must not count staked battles. */
+  /** Live OFF-CHAIN sessions (practice + friend) — the cap on free battles (PRACTICE_MAX_LIVE) must not count staked ones. */
   livePracticeCount(): number {
     let n = 0;
-    for (const s of this.sessions.values()) if (s.record.kind === 'practice') n++;
+    for (const s of this.sessions.values()) if (s.record.kind === 'practice' || s.record.kind === 'friend') n++;
     return n;
   }
 
@@ -258,7 +269,7 @@ export class BattleSessionManager {
   async startPractice(opts: StartPracticeOptions): Promise<BattleSession> {
     const owner = opts.owner.toLowerCase();
     if (opts.lobsters.length !== 3) throw new Error('practice needs exactly 3 lobsters');
-    const existing = await this.deps.store.activePracticeFor(owner);
+    const existing = await this.deps.store.activeOffChainFor(owner);
     if (existing) throw new PracticeConflictError(existing.id);
 
     const id = `p_${randomUUID()}`;
@@ -295,6 +306,40 @@ export class BattleSessionManager {
     });
     if (!inserted) throw new Error('practice id collision');
     return this.launch(record, state, { botSide: 'B', botPolicy: v3.botPolicy(opts.bot) });
+  }
+
+  // ── friend battles ──
+
+  /**
+   * Two humans by invite (owner 2026-10-28). Host = side A, guest = side B, each with the team they built; no bot, so
+   * both get the shot clock and the battle waits for BOTH players' `ready` (startWaitMs). Off-chain and unrated.
+   */
+  async startFriend(opts: StartFriendOptions): Promise<BattleSession> {
+    const host = opts.host.toLowerCase(), guest = opts.guest.toLowerCase();
+    if (host === guest) throw new Error('a friend battle needs two different players');
+    if (opts.hostTeam.length !== 3 || opts.guestTeam.length !== 3) throw new Error('a friend battle needs three lobsters a side');
+    for (const who of [host, guest]) {
+      const existing = await this.deps.store.activeOffChainFor(who);
+      if (existing) throw new PracticeConflictError(existing.id);
+    }
+    const id = `f_${randomUUID()}`;
+    const vrfSeed = (this.deps.randomSeed ?? randomSeed)();
+    // Lobster ids must be unique across both sides.
+    const teamA = opts.hostTeam.map((l, i) => ({ ...l.input, id: `a-${i}` }));
+    const teamB = opts.guestTeam.map((l, i) => ({ ...l.input, id: `b-${i}` }));
+    const tier = opts.arena ?? arenaTierFor([...teamA, ...teamB]);
+    const state = v3.createBattle({ battleId: id, vrfSeed, tier, teamA, teamB });
+    const side = (team: PracticeLobster[], ids: v3.LobsterInput[], s: Side, owner: string): RosterEntry[] =>
+      team.map((l, i) => ({ id: ids[i].id, side: s, slot: i, classId: l.input.class, tier: l.input.tier, purity: l.input.purity, legend: false, owner, ...(l.partClassIds ? { partClassIds: l.partClassIds } : {}) }));
+    const roster: RosterEntry[] = [...side(opts.hostTeam, teamA, 'A', host), ...side(opts.guestTeam, teamB, 'B', guest)];
+    const record: SessionRecord = { id, kind: 'friend', tier, playerA: host, playerB: guest, bot: null, vrfRound: null, roster, createdAt: new Date() };
+    const inserted = await this.deps.store.insertSession({
+      id, kind: 'friend', playerA: host, playerB: guest, bot: null, tier, vrfRound: null, roster,
+      stateJson: v3.serializeState(state), turn: 0, deadline: null, timeouts: { A: 0, B: 0 }, status: 'active',
+      rulesVersion: state.rulesVersion,
+    });
+    if (!inserted) throw new Error('friend battle id collision');
+    return this.launch(record, state, { botSide: null, botPolicy: null });
   }
 
   // ── real battles ──
@@ -616,7 +661,7 @@ export class BattleSessionManager {
 
 export class PracticeConflictError extends Error {
   constructor(public readonly existingId: string) {
-    super(`an active practice battle already exists: ${existingId}`);
+    super(`an active off-chain battle already exists: ${existingId}`);
     this.name = 'PracticeConflictError';
   }
 }

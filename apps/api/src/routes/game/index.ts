@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { miningRoutes } from './mining';
 import { combatRoutes } from './combat';
+import { friendRoutes } from './friend';
 import { breedingRoutes } from './breeding';
 import { teamRoutes } from './teams';
 import { marketRoutes } from './market';
@@ -13,6 +14,7 @@ export const gameRoutes = new Hono();
 
 gameRoutes.route('/mining', miningRoutes);
 gameRoutes.route('/combat', combatRoutes);
+gameRoutes.route('/friend', friendRoutes);
 gameRoutes.route('/breeding', breedingRoutes);
 gameRoutes.route('/teams', teamRoutes);
 gameRoutes.route('/market', marketRoutes);

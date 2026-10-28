@@ -3,7 +3,7 @@
  * `battle_turns`, `battles`, `operator_jobs`). Injected into the manager so tests
  * can replace it wholesale.
  */
-import { and, asc, eq, gte, inArray, sql, notExists } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, or, sql, notExists } from 'drizzle-orm';
 import { db, battleSessions, battleTurns, battles, operatorJobs, type Database } from '@clawbada/db';
 import type { PersistedTurn, SnapshotWrite } from './session';
 import type { RosterEntry, SessionKind, Side } from './protocol';
@@ -137,11 +137,17 @@ export class SessionStore {
     return this.dbx.select().from(battleTurns).where(eq(battleTurns.sessionId, id)).orderBy(asc(battleTurns.turn));
   }
 
-  async activePracticeFor(owner: string): Promise<SessionRow | null> {
+  /** The player's live off-chain battle (practice or friend), on either seat — one at a time per player. */
+  async activeOffChainFor(address: string): Promise<SessionRow | null> {
+    const a = address.toLowerCase();
     const rows = await this.dbx
       .select()
       .from(battleSessions)
-      .where(and(eq(battleSessions.kind, 'practice'), eq(battleSessions.playerA, owner.toLowerCase()), eq(battleSessions.status, 'active')))
+      .where(and(
+        inArray(battleSessions.kind, ['practice', 'friend']),
+        eq(battleSessions.status, 'active'),
+        or(eq(battleSessions.playerA, a), eq(battleSessions.playerB, a)),
+      ))
       .limit(1);
     return rows[0] ?? null;
   }
