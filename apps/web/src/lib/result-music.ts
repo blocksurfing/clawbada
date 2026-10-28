@@ -2,8 +2,9 @@
  * The Victory / Defeat stingers under Unity's result screen (owner 2026-10-28). Same HTML5 <audio> pattern as the
  * arena bed and the breeze: content-hashed files from scripts/build-music.ts, never in the Unity bundle.
  *
- *   audio-masters/music/BGM_Result_Victory.wav, BGM_Result_Defeat.wav  →  bun scripts/build-music.ts
- *   → RESULT_MUSIC in arena-music.generated.ts (null until a master exists: that result is silent and says so).
+ *   audio-masters/music/BGM_Result_Victory[_NN].wav, BGM_Result_Defeat[_NN].wav  →  bun scripts/build-music.ts
+ *   → RESULT_MUSIC in arena-music.generated.ts. A result with several masters plays one at random (owner 2026-10-28:
+ *   two Victory tracks); an empty list = no master yet, that result is silent and says so.
  *
  * They follow the SFX switch and the SFX volume (owner 2026-10-28), not the Music row — the owner plays with battle
  * music off. Played once (no loop); the page leaves 8 s after the result appears (LiveBattle RETURN_SECONDS) and
@@ -28,15 +29,15 @@ let playing: ResultKind | null = null;
 
 /** Create both elements' first fetch early (the battle page mounts long before the result), so it starts on cue. */
 export function preloadResultMusic() {
-  for (const url of Object.values(RESULT_MUSIC)) {
-    if (!url) continue;
+  for (const url of Object.values(RESULT_MUSIC).flat()) {
     const el = new Audio(url);
     el.preload = 'auto';
   }
 }
 
 export function playResultMusic(kind: ResultKind) {
-  const url = RESULT_MUSIC[kind];
+  const list = RESULT_MUSIC[kind];
+  const url = list.length ? list[Math.floor(Math.random() * list.length)] : null;
   (window as unknown as { __clawbadaResultMusic?: unknown }).__clawbadaResultMusic = { kind, url, get audio() { return audio; }, get level() { return audio ? levelOf(audio) : null; }, get smooth() { return audio ? isSmooth(audio) : false; } };
   if (!url) { log(`no ${kind} track yet (BGM_Result_${kind === 'victory' ? 'Victory' : 'Defeat'}) — silent`); return; }
   if (!getSfxPref()) { log(`sound effects are off — ${kind} not played`); return; }

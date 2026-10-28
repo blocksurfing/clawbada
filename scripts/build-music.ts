@@ -63,10 +63,11 @@ function seamlessLoopFilter(path: string, gainDb: number): string {
     + `[body][head]acrossfade=d=${LOOP_XFADE_S}:c1=qsin:c2=qsin,atrim=end_sample=${frames}`;
 }
 /** The Victory / Defeat stingers under Unity's result screen (lib/result-music.ts; owner 2026-10-28). They follow the
- *  SFX setting, play once, and the page leaves 8 s after the result appears. */
+ *  SFX setting, play once, and the page leaves 8 s after the result appears. Like the arena beds, a result may have
+ *  several numbered masters (`BGM_Result_Victory_01.wav`, `_02` …): each result plays one of them at random. */
 const RESULTS = ['victory', 'defeat'] as const;
-const MASTER = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)(_\d{2})?|BGM_Result_(Victory|Defeat)|AMB_Loading_Breeze)\.wav$/i;
-const BUILT = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)(_\d{2})?|BGM_Result_(Victory|Defeat)|AMB_Loading_Breeze)\.[0-9a-f]{8}\.m4a$/;
+const MASTER = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)(_\d{2})?|BGM_Result_(Victory|Defeat)(_\d{2})?|AMB_Loading_Breeze)\.wav$/i;
+const BUILT = /^(BGM_Arena_(Evolved|Elite|Apex|Dojo)(_\d{2})?|BGM_Result_(Victory|Defeat)(_\d{2})?|AMB_Loading_Breeze)\.[0-9a-f]{8}\.m4a$/;
 
 mkdirSync(outDir, { recursive: true });
 const masters = existsSync(inDir) ? readdirSync(inDir).filter((f) => MASTER.test(f)).sort() : [];
@@ -74,7 +75,7 @@ if (masters.length === 0) { console.error(`no BGM_Arena_<Tier>.wav masters in ${
 
 const urls: Record<string, string[]> = { evolved: [], elite: [], apex: [], dojo: [] };
 let ambience: string | null = null;
-const results: Partial<Record<(typeof RESULTS)[number], string>> = {};
+const results: Record<(typeof RESULTS)[number], string[]> = { victory: [], defeat: [] };
 const keep = new Set<string>();
 for (const file of masters) {
   const stem = basename(file, '.wav');
@@ -101,11 +102,11 @@ for (const file of masters) {
   Bun.spawnSync(['mv', tmp, join(outDir, name)]);
   keep.add(name);
   if (tier) urls[tier].push(`/audio/music/${name}`);
-  else if (result) results[result] = `/audio/music/${name}`;
+  else if (result) results[result].push(`/audio/music/${name}`);
   else ambience = `/audio/music/${name}`;
   console.log(`${file} → ${name}  ${(bytes.length / 1048576).toFixed(2)} MB @ ${bitrate}, mean ${mean} dB / peak ${peak} dB${gain ? ` (+${gain} dB make-up)` : ''}`);
 }
-for (const r of RESULTS) if (!results[r]) console.log(`no BGM_Result_${r[0].toUpperCase()}${r.slice(1)}.wav master yet — RESULT_MUSIC.${r} stays null (that result is silent)`);
+for (const r of RESULTS) if (results[r].length === 0) console.log(`no BGM_Result_${r[0].toUpperCase()}${r.slice(1)}.wav master yet — RESULT_MUSIC.${r} stays empty (that result is silent)`);
 if (!ambience) console.log(`no ${AMBIENCE}.wav master yet — ENTRY_AMBIENCE stays null (the battle entry is silent)`);
 // Drop stale hashed variants of the same tracks so the folder only holds what the app references.
 for (const f of readdirSync(outDir)) if (BUILT.test(f) && !keep.has(f)) { rmSync(join(outDir, f)); console.log(`removed stale ${f}`); }
@@ -124,9 +125,10 @@ ${body}
 };
 /** The breeze under the web loading loop (lib/entry-ambience.ts). null = no ${AMBIENCE}.wav master yet: the entry is silent. */
 export const ENTRY_AMBIENCE: string | null = ${ambience ? JSON.stringify(ambience) : 'null'};
-/** The Victory / Defeat stingers (lib/result-music.ts). null = no BGM_Result_<Name>.wav master yet: that result is silent. */
-export const RESULT_MUSIC: Record<'victory' | 'defeat', string | null> = {
-${RESULTS.map((r) => `  ${r}: ${results[r] ? JSON.stringify(results[r]) : 'null'},`).join('\n')}
+/** The Victory / Defeat stingers (lib/result-music.ts): each result plays one of its list at random. Empty = no
+ *  BGM_Result_<Name>.wav master yet: that result is silent. */
+export const RESULT_MUSIC: Record<'victory' | 'defeat', readonly string[]> = {
+${RESULTS.map((r) => `  ${r}: ${JSON.stringify(results[r])},`).join('\n')}
 };
 `);
 console.log(`wrote ${genPath.replace(root + '/', '')}`);
