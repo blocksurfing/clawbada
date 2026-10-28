@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Hono } from 'hono';
-import { walletAuth, acceptedAuthChainIds, allowedAuthDomains, authChainId } from '../middleware/auth';
+import { walletAuth, playerAuth, assertGuestScope, acceptedAuthChainIds, allowedAuthDomains, authChainId } from '../middleware/auth';
+import { wsTickets } from '../lib/ws-ticket';
 import { AUTH_STATEMENT, AUTH_TTL_SEC } from '@clawbada/chain/src/auth-message';
 import { addresses, getAddress } from '@clawbada/chain';
 import { catchErrors } from '../lib/errors';
@@ -133,5 +134,42 @@ authRoutes.post(
       sessionEndsAt: minted.sessionEndsAt,
       refreshAfterSec: TOKEN_TTL_SEC - TOKEN_REFRESH_AFTER_SEC,
     });
+  }),
+);
+
+// ──────────── POST /api/auth/ws-ticket ────────────
+// Auth: a session token (wallet or guest) or a fresh signature, in headers. Returns a 30-second, single-use
+// ticket for ONE WebSocket upgrade — `/ws?ticket=<ticket>&battleId=<id>` — so the token never rides in a URL
+// (lib/ws-ticket.ts). Body: `{ battleId?: string }`; the ticket opens that battle only (omit it for a
+// queue-events socket). Participation is checked at the upgrade, as before; a guest is held to its own
+// off-chain battles here already.
+authRoutes.post(
+  '/ws-ticket',
+  playerAuth,
+  catchErrors(async (c) => {
+    let body: unknown = {};
+    try {
+      const text = await c.req.text();
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      throw new ApiError('INVALID_INPUT', 'Body must be JSON: { "battleId"?: string }');
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError('INVALID_INPUT', 'Body must be a JSON object');
+    const extra = Object.keys(body).filter((k) => k !== 'battleId');
+    if (extra.length) throw new ApiError('INVALID_INPUT', `Unknown field: ${extra[0]}`);
+    const raw = (body as { battleId?: unknown }).battleId;
+    if (raw !== undefined && (typeof raw !== 'string' || raw.length === 0 || raw.length > 64)) {
+      throw new ApiError('INVALID_INPUT', 'battleId must be a non-empty string');
+    }
+    const battleId = (raw as string | undefined) ?? null;
+    const guest = c.get('guest') as boolean;
+    assertGuestScope(guest, battleId);
+    const { ticket, expiresInMs } = wsTickets.issue({
+      checksumAddress: c.get('address') as string,
+      guest,
+      authExpiresAt: c.get('authExpiresAt') as number,
+      battleId,
+    });
+    return c.json({ ticket, battleId, expiresInMs });
   }),
 );

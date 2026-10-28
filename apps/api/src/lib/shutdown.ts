@@ -9,7 +9,8 @@
  *   2. tell every WebSocket to go away (1001) BEFORE the sessions stop, so no turn can be accepted that
  *      would never be persisted (BattleSession.submit refuses after stop() as a second line);
  *   3. stop every session's clocks, then await each session's persist queue — the per-turn writeTurns()
- *      transactions and, for a battle that finished in the last instant, its finish / settle write;
+ *      transactions and, for a battle that finished in the last instant, its finish / settle write — and only then
+ *      release this instance's battle leases, so the new instance adopts each battle from its final state;
  *   4. drain the DB pool, give the close frames a moment to flush, exit 0.
  * A hard-exit timer (8 s < Cloud Run's 10 s) guarantees the process never outlives the grace period; a
  * second signal is logged and ignored. The clients reconnect to the new revision on their own
@@ -70,8 +71,14 @@ export async function shutdown(signal: string): Promise<void> {
     const closed = battleWS.closeAll(1001, 'Server restarting');
     battleSessions.stop();
     await battleSessions.flushed();
+    let released = 0;
+    try {
+      released = await battleSessions.releaseLeases();
+    } catch (err) {
+      log.warn({ err }, 'shutdown_lease_release_failed');   // the leases run out on their own (LEASE_TTL_SEC)
+    }
     await closeDb(2);
-    log.info({ closed, elapsedMs: Date.now() - t0 }, 'shutdown_drained');
+    log.info({ closed, released, elapsedMs: Date.now() - t0 }, 'shutdown_drained');
   } catch (err) {
     log.error({ err, elapsedMs: Date.now() - t0 }, 'shutdown_failed');
   }

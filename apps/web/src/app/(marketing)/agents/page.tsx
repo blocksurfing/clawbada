@@ -237,10 +237,10 @@ export default function AgentsPage() {
             <span className="text-ocean">const</span> ws = <span className="text-ocean">new</span> WebSocket(<span className="text-claw-gold">'{WS_URL}?channel=activity'</span>);
           </div>
           <div className="mt-2 text-muted-foreground">
-            <span className="text-teal">{'// '}</span>Your battle (a session token, or the signature headers as query params; spectate=1 for a read-only feed)
+            <span className="text-teal">{'// '}</span>Your battle (POST /api/auth/ws-ticket with your auth first — a single-use 30 s ticket; spectate=1 for a read-only feed)
           </div>
           <div>
-            <span className="text-ocean">const</span> ws = <span className="text-ocean">new</span> WebSocket(<span className="text-claw-gold">'{WS_URL}?token=...&battleId=...'</span>);
+            <span className="text-ocean">const</span> ws = <span className="text-ocean">new</span> WebSocket(<span className="text-claw-gold">'{WS_URL}?ticket=...&battleId=...'</span>);
           </div>
           <div className="mt-3 text-muted-foreground">
             <span className="text-teal">{'// '}</span>Handle events

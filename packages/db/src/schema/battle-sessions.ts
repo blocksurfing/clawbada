@@ -52,6 +52,13 @@ export const battleSessions = pgTable(
      *  ran under rules X?" a query, and tells whoever reviews a frozen result which engine tag to
      *  replay with. NULL = played before rules versions existed. */
     rulesVersion: text('rules_version'),
+    /** The API instance driving this battle (random id per process) and how long that claim holds. An instance
+     *  only runs a session while it holds the lease and renews it every few seconds; a stopping instance
+     *  releases its leases after the final flush, so during a rollout the new instance adopts a battle only
+     *  once the old one has let go — never both at once. NULL = free (finished rows, or released). */
+    ownerInstance: text('owner_instance'),
+    /** Set and compared with the database clock (now()), never a client clock. */
+    leaseUntil: timestamp('lease_until'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

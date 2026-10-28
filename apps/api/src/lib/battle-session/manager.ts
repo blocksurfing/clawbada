@@ -11,7 +11,10 @@
  *   - practice battles: created on demand by the API route; off-chain only.
  *   - friend battles: two humans by invite (lib/friend-rooms), off-chain, just for fun — no bot, no stake, no
  *     rating; they finish like practice (markFinished), never through settlement.
- *   - resume(): on boot, every 'active' row is deserialized and its clock re-armed.
+ *   - resume(): on boot and on every poll, each 'active' row no instance holds is leased, deserialized and its
+ *     clock re-armed. Leases (battle_sessions.owner_instance / lease_until) keep a rollout's two overlapping
+ *     instances from both driving a battle: the old one releases after its final flush, the new one adopts then;
+ *     a live session's lease is renewed every LEASE_RENEW_MS, and a session whose lease was taken is stopped here.
  *
  * Follows the boost service template: setInterval + inFlight guard + try/catch
  * that never throws out of a tick; every external dependency is injected.
@@ -111,6 +114,8 @@ export const DEFAULT_BOT_THINK_MS = 800;
 export const DEFAULT_POLL_MS = 2_000;
 /** A resumed human turn always gets at least this long, even if its deadline had passed. */
 export const RESUME_MIN_CLOCK_MS = 5_000;
+/** How often live sessions' leases are renewed (the lease itself holds LEASE_TTL_SEC = 20 s). */
+export const LEASE_RENEW_MS = 5_000;
 /** Extra time on each side's first human turn of a fresh battle — covers the browser loading the arena. */
 export const DEFAULT_FIRST_TURN_GRACE_MS = 15_000;
 /** Cap on the wait for `ready` (battle-start intro, ~4 s after the arena loads). 0 = no wait. */
@@ -149,6 +154,9 @@ export class BattleSessionManager {
   private readonly sessions = new Map<string, BattleSession>();
   private readonly clock: ShotClock;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private leaseTimer: ReturnType<typeof setInterval> | null = null;
+  /** resume() is entered from boot and from every poll; never twice at once. */
+  private resuming = false;
   private inFlight = false;
   /** Set by stop(): no poll timer is re-armed, resume() stops launching, launch() refuses. */
   private stopped = false;
@@ -186,6 +194,7 @@ export class BattleSessionManager {
     // stop() may have run while resume() was awaiting (a SIGTERM during boot): never re-arm after it.
     if (this.stopped || this.timer !== null) return;
     this.timer = setInterval(() => void this.pollOnce(), this.pollMs);
+    this.leaseTimer = setInterval(() => void this.renewLeases(), LEASE_RENEW_MS);
     this.deps.log.info({ pollMs: this.pollMs, shotClockMs: this.shotClockMs, botThinkMs: this.botThinkMs, firstTurnGraceMs: this.firstTurnGraceMs, startWaitMs: this.startWaitMs }, 'battle_session_manager_started');
   }
 
@@ -195,6 +204,10 @@ export class BattleSessionManager {
       clearInterval(this.timer);
       this.timer = null;
     }
+    if (this.leaseTimer !== null) {
+      clearInterval(this.leaseTimer);
+      this.leaseTimer = null;
+    }
     for (const s of this.sessions.values()) s.stop();
     this.clock.clearAll();
   }
@@ -203,6 +216,33 @@ export class BattleSessionManager {
    *  battle that finished in the last instant, its markFinished / finishAndEnqueueSettle write. */
   async flushed(): Promise<void> {
     await Promise.all([...this.sessions.values()].map((s) => s.flushed()));
+  }
+
+  /** Shutdown, after flushed(): free every lease this instance holds so the next instance adopts at once. */
+  async releaseLeases(): Promise<number> {
+    return this.deps.store.releaseLeases();
+  }
+
+  /** Keep this instance's claim on its live sessions. One it no longer holds (taken over after a stall, a DB
+   *  partition…) is stopped here without a word to the room: the instance that holds it now drives it. */
+  async renewLeases(): Promise<void> {
+    const ids = [...this.sessions.keys()];
+    if (ids.length === 0 || this.stopped) return;
+    let kept: Set<string>;
+    try {
+      kept = new Set(await this.deps.store.renewLeases(ids));
+    } catch (err) {
+      this.deps.log.error({ err, live: ids.length }, 'battle_session_lease_renew_failed');
+      return;   // a DB blip is not a lost lease: keep playing, retry at the next tick
+    }
+    for (const id of ids) {
+      if (kept.has(id)) continue;
+      const s = this.sessions.get(id);
+      if (!s || s.state.finished) continue;   // finishing right now: its own write wins
+      s.stop();
+      this.sessions.delete(id);
+      this.deps.log.warn({ sessionId: id }, 'battle_session_lease_lost');
+    }
   }
 
   get(id: string): BattleSession | undefined {
@@ -357,6 +397,7 @@ export class BattleSessionManager {
           this.deps.log.error({ err, battleId: row.battleId.toString() }, 'battle_session_start_failed');
         }
       }
+      await this.resume();   // adopt battles a stopped or dead instance let go of
       await this.watchForRogueProposals();
       await this.watchForRevealFailures();
     } catch (err) {
@@ -543,11 +584,25 @@ export class BattleSessionManager {
 
   /** Rebuild every 'active' row after a restart. */
   async resume(): Promise<number> {
-    const rows = await this.deps.store.loadActive();
+    if (this.resuming) return 0;
+    this.resuming = true;
+    try {
+      return await this.resumeClaimable();
+    } finally {
+      this.resuming = false;
+    }
+  }
+
+  private async resumeClaimable(): Promise<number> {
+    const free = await this.deps.store.claimableActive();
     let n = 0;
-    for (const row of rows) {
+    for (const candidate of free) {
       if (this.stopped) break;   // shutting down mid-boot: leave the rest for the next instance
+      if (this.sessions.has(candidate.id)) continue;
       try {
+        // The lease, then the row as it stands now: an instance that let go a moment ago flushed its last turns first.
+        const row = await this.deps.store.claimLease(candidate.id);
+        if (!row) continue;   // another instance got there first
         if (!row.stateJson) {
           // A claim whose chain load never completed: let the poller retry it.
           await this.deps.store.deleteSession(row.id);
@@ -571,10 +626,12 @@ export class BattleSessionManager {
         // timeout must not be the outage's. A deadline still ahead keeps its remaining time,
         // floored at RESUME_MIN_CLOCK_MS.
         const firstTurnClockMs = remaining === null ? undefined : remaining <= 0 ? this.shotClockMs : Math.max(remaining, RESUME_MIN_CLOCK_MS);
-        this.launch(record, state, bot, { timeouts, firstTurnClockMs });
+        const session = this.launch(record, state, bot, { timeouts, firstTurnClockMs });
+        // Clients that reconnected here while the old instance still held the battle got no snapshot on join: send it now.
+        this.deps.emit(record.id, 'battle_snapshot', session.snapshot());
         n++;
       } catch (err) {
-        this.deps.log.error({ err, sessionId: row.id }, 'battle_session_resume_failed');
+        this.deps.log.error({ err, sessionId: candidate.id }, 'battle_session_resume_failed');
       }
     }
     return n;
