@@ -70,9 +70,9 @@ export default async function (b: Browser) {
   const routed = await b.waitFor(`location.pathname === '/game/mining'`, 120000, 100);
   if (!routed) fail('clicking Mining did not navigate to /game/mining');
   // Retract (250 ms) then extend (250 ms), on rAF — a page still hydrating in dev can stretch that, so wait for it.
-  await b.waitFor(`${ribbonPainted('Mining')} === true && ${ribbonPainted('Shell')} === false`, 4000, 100);
+  await b.waitFor(`${ribbonPainted('Mining')} === true && ${ribbonPainted('The Shell')} === false`, 4000, 100);
   const miningRibbon = await b.eval(ribbonPainted('Mining'));
-  const shellRibbon = await b.eval(ribbonPainted('Shell'));
+  const shellRibbon = await b.eval(ribbonPainted('The Shell'));
   const cur2 = await b.eval(`document.querySelector('.menu-item[aria-current="page"]')?.dataset.menu`);
   if (miningRibbon !== true) fail(`Mining ribbon not painted after navigation (${miningRibbon})`);
   if (shellRibbon !== false) fail(`Shell ribbon still painted after navigation (${shellRibbon})`);
