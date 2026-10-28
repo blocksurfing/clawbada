@@ -6,7 +6,6 @@
  * spectators (read-only).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { api } from '@/lib/api';
@@ -16,6 +15,7 @@ import { useArenaMusic } from '@/hooks/use-arena-music';
 import { applyAudioPrefChange } from '@/lib/audio-prefs';
 import { INTRO_FADE_IN_MS } from '@/lib/arena-music';
 import { enterBattleView, leaveBattleView } from '@/lib/arena-music';
+import { playResultMusic, preloadResultMusic, stopResultMusic } from '@/lib/result-music';
 import { isPracticeId, type Side, type TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
 import { BattleStage, type BattleStageControls } from './BattleStage';
@@ -25,7 +25,7 @@ import { Hud } from './Hud';
 import { ActionPanel } from './ActionPanel';
 import { DamageLog } from './DamageLog';
 import { useTurnSelection, type ActionChoice } from './use-turn-selection';
-import { Loader2, Radio, Trophy } from 'lucide-react';
+import { Loader2, Trophy } from 'lucide-react';
 
 export interface LiveBattleProps {
   battleId: string;
@@ -43,8 +43,9 @@ export interface LiveBattleProps {
   stay?: boolean;
 }
 
-/** Seconds the result stays on screen before the view returns to the arena page. Wall clock — ?speed does not touch it. */
-const RETURN_SECONDS = 6;
+/** Seconds the result stays on screen before the view returns to the arena page (owner 2026-10-28: 8 s, was 6). Wall
+ *  clock — ?speed does not touch it. */
+const RETURN_SECONDS = 8;
 
 export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed, onClose, stay }: LiveBattleProps) {
   // A practice battle may be played by a guest session; `forAddress` keeps the token on the identity the page
@@ -232,6 +233,16 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   useEffect(() => {
     if (closing) console.log(`[LiveBattle] closing the battle view${unityAvailable === false ? ' (plain board)' : ''}`);
   }, [closing, unityAvailable]);
+  // The Victory / Defeat stinger (lib/result-music.ts): with the result, for the two players only (not a draw, not a
+  // spectator). It follows the SFX switch; leaving the result fades it out.
+  useEffect(() => { preloadResultMusic(); }, []);
+  useEffect(() => {
+    if (!resultShown || !ended || !mySide || ended.winner === 'draw') return;
+    playResultMusic(ended.winner === mySide ? 'victory' : 'defeat');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultShown]);
+  useEffect(() => { if (closing) stopResultMusic(); }, [closing]);
+  useEffect(() => () => stopResultMusic(), []);
   // Without a Unity stage there is nothing to tear down; with one, BattleStage reports back.
   useEffect(() => {
     if (closing && unityAvailable === false) onClose?.();
@@ -271,25 +282,23 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   const boardLobsters = snapshot.state.lobsters;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs text-text-secondary">
-          <Badge className={`border-0 text-[10px] ${connection === 'open' ? 'bg-teal/15 text-teal' : 'bg-destructive/15 text-destructive'}`}>
-            <Radio className="size-3 mr-1" /> {connection === 'open' ? 'Live' : connection}
-          </Badge>
-          <span>{snapshot.session.kind === 'practice' ? `Practice vs ${snapshot.session.bot} bot` : `Battle #${snapshot.session.id}`} · {snapshot.session.tier === 'dojo' ? 'Dojo' : `${snapshot.session.tier} arena`}</span>
-          {isSpectator && <Badge className="bg-ocean-surface/60 text-text-secondary border-0 text-[10px]">spectating</Badge>}
-        </div>
-        {unityAvailable === false && <span className="text-[10px] text-text-secondary">Unity build not deployed — showing the plain board</span>}
+    <div className="battle-live space-y-4">
+      {/* Out of fullscreen the page is the arena and nothing else (owner 2026-10-28): no title, no status text — the
+          sidebar says where you are. The one control is the way back into fullscreen, under the wallet wheel. */}
+      <div className="battle-windowed-bar" data-testid="battle-windowed-bar">
+        {isSpectator && <span className="battle-windowed-tag">Spectating</span>}
+        {connection !== 'open' && <span className="battle-windowed-tag" data-testid="battle-connection">{connection === 'connecting' ? 'Reconnecting…' : 'Connection lost'}</span>}
+        {unityAvailable === false && <span className="battle-windowed-tag">Unity build not deployed — showing the plain board</span>}
         {unityAvailable === true && (
           <button
             type="button"
             onClick={() => stageControls.current?.toggleFullscreen()}
             aria-label="Full screen"
             title="Full screen (Esc to leave)"
-            className="rounded-md border border-white/20 bg-ocean-surface/60 px-3 py-1.5 font-pixel text-xs text-text-primary hover:bg-ocean-surface hover:border-white/40"
+            className="battle-fullscreen-btn"
+            data-testid="battle-fullscreen"
           >
-            ⛶ FULL SCREEN
+            Full screen
           </button>
         )}
       </div>
@@ -364,7 +373,8 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
           HUD is the fallback when the WebGL build is missing or not yet ready. */}
       {!gate && <Hud snapshot={snapshot} current={current} bar={bar} timeouts={timeouts} mySide={mySide} animating={animating} />}
       {gate && (
-        <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary px-1" data-testid="battle-status-line">
+        // Unity's HUD says all of this in the arena; the line stays for screen readers and the harness, not the eye.
+        <div className="sr-only" data-testid="battle-status-line">
           <span className="font-pixel text-[10px] text-text-accent">Turn {current?.turn ?? snapshot.state.turn}</span>
           {ended ? (
             <span>Battle over</span>
@@ -399,7 +409,8 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
         <FrostedPanel className="p-3 text-xs text-text-secondary">Your turn — waiting for the previous turn's animation to finish…</FrostedPanel>
       )}
 
-      {ended && (
+      {/* Unity shows its own Victory / Defeat screen; this panel is the plain board's result. */}
+      {ended && !gate && (
         <FrostedPanel variant="highlight" className="text-center py-6">
           <Trophy className="size-8 mx-auto mb-2 text-claw-gold" />
           <p className="font-pixel text-lg text-foreground">
@@ -414,7 +425,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
         </FrostedPanel>
       )}
 
-      <DamageLog snapshot={snapshot} log={log} />
+      {!gate && <DamageLog snapshot={snapshot} log={log} />}
     </div>
   );
 }

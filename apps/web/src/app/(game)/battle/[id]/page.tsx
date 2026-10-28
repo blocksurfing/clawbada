@@ -19,6 +19,7 @@ import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
 import { formatAddress, formatGold } from '@/lib/format';
 import { BattleMoves } from '@/components/game/battle-moves';
+import { BattleBackdrop } from '@/components/battle/battle-backdrop';
 import { LiveBattle } from '@/components/battle/LiveBattle';
 import { cancelBattleEntry, getEntryState, startBattleEntry } from '@/lib/battle-entry';
 import { Swords, Loader2, ExternalLink } from 'lucide-react';
@@ -104,9 +105,7 @@ export default function BattlePage() {
 
   if (practice) {
     return (
-      <PageBackground variant="deep">
-        <div className="p-4 md:p-8 space-y-4 max-w-6xl mx-auto">
-          <Header title="Practice battle" subtitle="Off-chain — no stakes, no rating. Beat the bot." />
+      <BattleBackdrop kind="dojo">
           {address ? (
             <LiveBattle battleId={battleId} address={address} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} onClose={leave} />
           ) : identityPending ? (
@@ -119,8 +118,7 @@ export default function BattlePage() {
               <Link href="/dojo" className="underline underline-offset-2 hover:text-foreground">Start a new one from the Dojo.</Link>
             </FrostedPanel>
           )}
-        </div>
-      </PageBackground>
+      </BattleBackdrop>
     );
   }
 
@@ -154,6 +152,19 @@ export default function BattlePage() {
   const settled = phase === 6 || phase === 7;
   const winner = chain && chain.winner !== '0x0000000000000000000000000000000000000000' ? chain.winner : null;
 
+  // In play (and through the result): the arena alone on a faded Shell, like a practice battle on the Dojo.
+  if (live) {
+    return (
+      <BattleBackdrop kind="shell">
+        <LiveBattle battleId={battleId} address={address} spectate={!participant} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} onClose={leave} />
+        {/* Result in review (5) or frozen for review (8): say so — players have nothing to do */}
+        {chain && (phase === 5 || phase === 8) && participant && address && (
+          <div className="mt-4 max-w-6xl mx-auto"><BattleMoves battleId={battleId} address={address} battleData={battleData} /></div>
+        )}
+      </BattleBackdrop>
+    );
+  }
+
   return (
     <PageBackground variant="deep">
       <div className="p-4 md:p-8 space-y-4 max-w-6xl mx-auto">
@@ -183,13 +194,6 @@ export default function BattlePage() {
           </FrostedPanel>
         )}
 
-        {/* Result in review (5) or frozen for review (8): say so — players have nothing to do */}
-        {chain && (phase === 5 || phase === 8) && participant && address && (
-          <BattleMoves battleId={battleId} address={address} battleData={battleData} />
-        )}
-
-        {/* Live session (participants act, everyone else spectates) */}
-        {live && <LiveBattle battleId={battleId} address={address} spectate={!participant} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} onClose={leave} />}
 
         {db?.battleId && (
           <p className="text-center text-xs text-text-secondary pt-4">

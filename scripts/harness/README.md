@@ -58,6 +58,7 @@ failure shows up, check that column for the turn first.
 | `snap-probe.ts` | pixel-perfect: canvas css/backing size, Unity camera mode, ortho, px/unit (2026-09-16: its picker step stopped reaching the battle page — fs-probe covers the snap check meanwhile) | `DPR` `W` `H` |
 | `fs-probe.ts` | fullscreen enter → exit: the stage returns to the column size (a stale fullscreen canvas is the "third of the arena" report) | `DPR` `VW` `VH` |
 | `autoplay.ts` | `?auto=1&speed=N` review tools advance the battle with no clicks | `TRIO` `SPEED` |
+| `battle-windowed.ts` | the battle page out of fullscreen: faded Dojo, no header text, Dojo highlighted, Full screen clear of the wallet wheel, arena fits; the result holds 8 s then returns to the Dojo; with `RESULT_AUDIO=on|off` the Victory/Defeat track follows SFX (owner's settings, muted at source) | `VW` `VH` `DPR` `RESULT_AUDIO` `API` |
 | `fish-probe.ts` | Elite angler fish (`AnglerSchool`): seed line, first crossing, lane/side/turn rules, frame bursts | `PRESET` `BASE` `FRAMES` `GAP_MS` |
 | `bird-probe.ts` | Evolved gulls (`BirdFlock`): flock arrives, lands on the rocks, leaves one by one; rule checks + frames | `PRESET` `BASE` |
 | `cloud-probe.ts` | Evolved drift clouds (`CloudDrift`, 2026-10-07): seed line, 2–3 clouds in view at once, variants/lanes/speed rules, frames 4 s apart so the drift shows → `out/cloud-<tag>-sky-N.png` | `PRESET` `BASE` `FRAMES` `GAP_MS` |

@@ -50,7 +50,8 @@ export function mountShellShark(room: HTMLElement): () => void {
       { transform: `translateX(${start + (end - start) * 0.08}px)`, opacity: 1, offset: 0.08 },
       { transform: `translateX(${start + (end - start) * 0.90}px)`, opacity: 1, offset: 0.90 },
       { transform: `translateX(${end}px)`, opacity: 0, offset: 1 },
-    ], { duration: random(24000, 36000), easing: 'linear', fill: 'forwards' });
+    // 30 % faster than Nzib's 24–36 s pass (owner 2026-10-28): the same path in 18.5–27.7 s.
+    ], { duration: random(18500, 27700), easing: 'linear', fill: 'forwards' });
     swim.finished.then(() => {
       if (disposed) return;
       shark.hidden = true;

@@ -279,9 +279,8 @@ export class SidebarRoll {
   }
 
   private applyCurrent(label: string | null) {
-    const key = label?.toLowerCase();
     for (const item of this.els.menuList.querySelectorAll<HTMLElement>('.menu-item')) {
-      if (key && item.dataset.menu === key) item.setAttribute('aria-current', 'page');
+      if (label && item.dataset.label === label) item.setAttribute('aria-current', 'page');
       else item.removeAttribute('aria-current');
     }
   }

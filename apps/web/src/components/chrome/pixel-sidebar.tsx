@@ -15,7 +15,8 @@ import { playUiClick, preloadUiClicks } from '@/lib/site-sfx';
  * transition (so back/forward animate too). The motion lives in `SidebarRoll`.
  */
 const MENU = [
-  { label: 'Shell', href: '/game', icon: 0 },
+  // "The Shell" (owner 2026-10-28); `key` keeps the stable data-menu hook ("shell") the harness and CSS use.
+  { label: 'The Shell', key: 'shell', href: '/game', icon: 0 },
   { label: 'Mining', href: '/game/mining', icon: 1 },
   { label: 'Dojo', href: '/dojo', icon: 3 },
   { label: 'Breeding', href: '/game/breeding', icon: 4 },
@@ -41,9 +42,11 @@ const ASSETS = {
   separator: '/ui/sidebar/Separator.png',
 };
 
-/** Same rule as the game shell's `isActive`: Dashboard is exact, everything else is a prefix. */
+/** Same rule as the game shell's `isActive`: Dashboard is exact, everything else is a prefix. A battle belongs to the
+ *  page it was started from (owner 2026-10-28): practice battles (`/battle/p_…`) to the Dojo, the rest to The Shell. */
 export function activeMenuLabel(pathname: string | null): string | null {
   if (!pathname) return null;
+  if (pathname.startsWith('/battle/')) return pathname.startsWith('/battle/p_') ? 'Dojo' : 'The Shell';
   for (const item of MENU) {
     if ('external' in item) continue;
     if (item.href === '/game' ? pathname === '/game' : pathname.startsWith(item.href)) return item.label;
@@ -108,7 +111,7 @@ export function PixelSidebar() {
             <nav aria-label="Clawbada navigation">
               <ul ref={listRef} className="menu-list" id="menu-list">
                 {MENU.map((item) => {
-                  const key = item.label.toLowerCase();
+                  const key = 'key' in item ? item.key : item.label.toLowerCase();
                   const content = (
                     <>
                       <canvas aria-hidden="true" className="active-ribbon" data-ribbon={item.label} height={16} width={48} />
@@ -125,9 +128,9 @@ export function PixelSidebar() {
                       )}
                       <li data-menu={key}>
                         {'external' in item ? (
-                          <a aria-label={item.label} className="menu-item" data-menu={key} href={item.href} onClick={() => pickPage(item.label)} rel="noopener noreferrer" target="_blank" title={item.label}>{content}</a>
+                          <a aria-label={item.label} className="menu-item" data-label={item.label} data-menu={key} href={item.href} onClick={() => pickPage(item.label)} rel="noopener noreferrer" target="_blank" title={item.label}>{content}</a>
                         ) : (
-                          <Link aria-label={item.label} className="menu-item" data-menu={key} href={item.href} onClick={() => pickPage(item.label)} title={item.label}>{content}</Link>
+                          <Link aria-label={item.label} className="menu-item" data-label={item.label} data-menu={key} href={item.href} onClick={() => pickPage(item.label)} title={item.label}>{content}</Link>
                         )}
                       </li>
                     </Fragment>
