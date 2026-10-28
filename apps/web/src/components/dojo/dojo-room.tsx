@@ -10,6 +10,7 @@ import { ENTRY_IRIS_CLOSE_MS, getEntryState, reducedMotion, useBattleEntry } fro
 /** How far the scene eases back while the iris closes (owner 2026-10-27: "a looney tunes style zoom out"). */
 const ENTRY_ZOOM = 0.92;
 import { DojoSign } from './dojo-sign';
+import { DojoSmoke } from './dojo-smoke';
 import { anchorFighter, cssPx, drawClass, loadTierSheets } from './dojo-sprites';
 import {
   EMPTY_SLOTS, INVENTORY_PAGE_SIZE, builderSummary, dropOnSlot, ownedSummary, pageCount, purityDescription,
@@ -563,7 +564,9 @@ export function DojoRoom(props: DojoRoomProps) {
           </div>
           <div className="dojo-footer">
             <button className="dojo-battle" type="button" aria-label={busy ? 'Starting…' : 'Battle'} title={busy ? 'Starting…' : 'Battle'} data-testid="dojo-battle"
+              data-launching={busy && !error ? 'true' : undefined}
               aria-busy={busy} disabled={busy || blocked || !valid} onClick={battle} />
+            {busy && !error && <DojoSmoke />}
             <div className="dojo-status" role="status" data-testid="dojo-status">
               {/* The sign-in gate takes the summary's place, so its button stays above the fold on short windows. */}
               {props.gate ? props.gate : error ? <p data-tone="error">{error}</p> : <p data-testid="dojo-summary">{busy ? 'Starting…' : summary}</p>}
