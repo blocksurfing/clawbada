@@ -626,7 +626,18 @@ const auth = {
   refresh: (token: string) => post<SessionTokenResponse>('/api/auth/session/refresh', undefined, { Authorization: `Bearer ${token}` }),
   /** A guest session for the Dojo: no wallet, a throwaway address, practice battles only — every wallet route refuses it. */
   guest: () => post<SessionTokenResponse>('/api/auth/guest'),
+  /** A single-use, 30-second ticket for ONE WebSocket upgrade (`/ws?ticket=…`), so the session token never rides in a URL. */
+  wsTicket: (token: string, battleId: string | null) =>
+    post<{ ticket: string; battleId: string | null; expiresInMs: number }>('/api/auth/ws-ticket', battleId ? { battleId } : {}, { Authorization: `Bearer ${token}` }),
 };
+
+/** The `/ws` URL for one connection attempt: fetch a fresh ticket each time (tickets are single-use). */
+export async function battleSocketUrl(wsBase: string, token: string, battleId: string | null): Promise<string> {
+  const { ticket } = await auth.wsTicket(token, battleId);
+  const params = new URLSearchParams({ ticket });
+  if (battleId) params.set('battleId', battleId);
+  return `${wsBase}?${params.toString()}`;
+}
 
 const combat = {
   /** D-E: queue by BRACKET (0 = Low, 1 = Mid, 2 = High); the amount is the chain's quote. */

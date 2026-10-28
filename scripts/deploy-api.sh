@@ -27,6 +27,9 @@ IMAGE_NAME="${IMAGE_NAME:-clawbada-api}"
 IMAGE_BASE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/${AR_REPO}/${IMAGE_NAME}"
 DOCKERFILE="docker/api.Dockerfile"
 HEALTH_TIMEOUT_SEC=90
+# Ingress is load-balancer-only, so the service's own run.app URL answers 404/403 to the outside: check health
+# through the public hostname (the new revision takes 100 % of traffic, so that is the revision we just rolled).
+PUBLIC_URL="${API_PUBLIC_URL:-https://api.clawbada.com}"
 
 # ── Flags ──
 REMOTE=1
@@ -88,7 +91,6 @@ gcloud run deploy "$SERVICE" \
 
 # ── Verify: the latest READY revision runs our image and answers /health ──
 describe() { gcloud run services describe "$SERVICE" --project "$GCP_PROJECT" --region "$GCP_REGION" --format "value($1)"; }
-URL="$(describe status.url)"
 REVISION="$(describe status.latestReadyRevisionName)"
 SERVING_IMAGE="$(gcloud run revisions describe "$REVISION" --project "$GCP_PROJECT" --region "$GCP_REGION" --format 'value(spec.containers[0].image)')"
 # Cloud Run may report the image by digest (repo@sha256:…) rather than by the tag we deployed (seen 2026-10-24 on
@@ -99,12 +101,12 @@ if [ "$SERVING_IMAGE" != "$IMAGE" ] && { [ -z "$IMAGE_DIGEST" ] || [ "$SERVING_I
   exit 1
 fi
 deadline=$(( $(date +%s) + HEALTH_TIMEOUT_SEC ))
-until body="$(curl -fsS --max-time 10 "${URL}/health" 2>/dev/null)" && grep -q '"status":"ok"' <<<"$body"; do
+until body="$(curl -fsS --max-time 10 "${PUBLIC_URL}/health" 2>/dev/null)" && grep -q '"status":"ok"' <<<"$body"; do
   if [ "$(date +%s)" -ge "$deadline" ]; then
-    echo "deploy-api: ${URL}/health did not answer status ok within ${HEALTH_TIMEOUT_SEC}s" >&2
+    echo "deploy-api: ${PUBLIC_URL}/health did not answer status ok within ${HEALTH_TIMEOUT_SEC}s" >&2
     exit 1
   fi
   sleep 3
 done
-echo "deploy-api: OK — ${REVISION} serving ${IMAGE} at ${URL}"
+echo "deploy-api: OK — ${REVISION} serving ${IMAGE} at ${PUBLIC_URL}"
 echo "  ${body}"

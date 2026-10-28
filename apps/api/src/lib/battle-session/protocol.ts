@@ -179,6 +179,8 @@ export type ClientMessage =
   /** The client finished its battle-start intro: a fresh battle begins once every human side is ready (or at the
    *  server's cap). Agents may send it at once — or just submit their first move, which counts as ready. */
   | { type: 'ready'; battleId: string }
+  /** Resign the battle (same as POST …/forfeit): your side loses, the other side wins. */
+  | { type: 'forfeit'; battleId: string }
   | { type: 'ping' };
 
 const MAX_MESSAGE_BYTES = 4096;
@@ -203,9 +205,9 @@ export function parseClientMessage(raw: string | Buffer | ArrayBuffer | Uint8Arr
   if (!obj || typeof obj !== 'object') return null;
   const o = obj as Record<string, unknown>;
   if (o.type === 'ping') return { type: 'ping' };
-  if (o.type === 'ready') {
+  if (o.type === 'ready' || o.type === 'forfeit') {
     if (typeof o.battleId !== 'string' || o.battleId.length === 0 || o.battleId.length > 64) return null;
-    return { type: 'ready', battleId: o.battleId };
+    return { type: o.type, battleId: o.battleId };
   }
   if (o.type === 'submit_turn') {
     if (typeof o.battleId !== 'string' || o.battleId.length === 0 || o.battleId.length > 64) return null;

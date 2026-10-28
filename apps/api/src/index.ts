@@ -39,6 +39,8 @@ import { startMatchmakerTicker } from './lib/matchmaker/tick';
 import { battleSessions, parseClientMessage, isOffChainId, CHAIN_ID_RE } from './lib/battle-session';
 import { getClientIp } from './lib/client-ip';
 import { installShutdownHandlers, rememberServer } from './lib/shutdown';
+import { wsTickets } from './lib/ws-ticket';
+import { allowedWsOrigins, wsOriginAllowed } from './lib/ws-origin';
 
 const app = new Hono();
 
@@ -76,6 +78,8 @@ app.use('/api/game/combat/practice', rateLimit(10, 60_000, 'practice'));
 // Battle Friends: creating invites is the spammable step; the lobby polls GET /rooms/:id every couple of seconds.
 app.use('/api/game/friend/rooms', rateLimit(10, 60_000, 'friend-create'));
 app.use('/api/game/friend/rooms/*', rateLimit(90, 60_000, 'friend'));
+// One ticket per socket (re)connect; reconnect storms are already bounded by the /ws attempt limit below.
+app.use('/api/auth/ws-ticket', rateLimit(60, 60_000, 'ws-ticket'));
 
 app.get('/health', (c) =>
   c.json({ status: 'ok', timestamp: Date.now(), version: '0.0.1' }),
@@ -117,6 +121,13 @@ const WS_PER_IP_MAX_PER_MIN = 30;
 const WS_PER_IP_WINDOW_MS = 60_000;
 const WS_PER_ADDRESS_MAX_CONCURRENT = 8;
 const wsAttemptsByIp = new Map<string, number[]>();
+/** Browser pages allowed to open sockets (lib/ws-origin.ts), resolved once at boot. */
+const WS_ORIGINS = allowedWsOrigins();
+/** Inbound frames per socket: a client sends a turn, a ready or a ping every few seconds at most. Past the soft cap
+ *  frames are refused with an error; past the hard cap the socket is closed (1008). */
+const WS_MSG_WINDOW_MS = 10_000;
+const WS_MSG_SOFT_MAX = 40;
+const WS_MSG_HARD_MAX = 120;
 const wsLiveByAddress = new Map<string, number>();
 
 // F-2I/F-2O: client-IP resolution moved to `./lib/client-ip` so the same
@@ -222,17 +233,24 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
   // A session token is the normal path for a player: the socket then lives as long as the token
   // instead of the 5-minute signature window, which is what used to drop the connection — and pop
   // a signing modal — in the middle of a battle. Agents can still pass a signature.
+  // The normal path since 2026-10-28: a single-use 30-second ticket from POST /api/auth/ws-ticket, so no
+  // long-lived token sits in a URL (lib/ws-ticket.ts). `?token=` still works for clients and agents built
+  // before it, and is logged so we know when it is safe to remove.
+  const ticketParam = url.searchParams.get('ticket');
   const tokenParam = url.searchParams.get('token');
   let checksumAddress: string;
   let expiresAt: number;
   let guest = false;
-  if (tokenParam) {
+  if (ticketParam) {
+    ({ checksumAddress, authExpiresAt: expiresAt, guest } = wsTickets.consume(ticketParam, battleIdParam));
+  } else if (tokenParam) {
     ({ checksumAddress, expiresAt, guest } = verifySessionToken(tokenParam));
+    log.info({ guest, battleId: battleIdParam }, 'ws_token_param_used');
   } else {
     if (!address || !signature || !timestampStr) {
       throw new ApiError(
         'UNAUTHORIZED',
-        'Missing auth params: token, or address + signature + timestamp',
+        'Missing auth params: ticket (POST /api/auth/ws-ticket), or address + signature + timestamp',
       );
     }
     ({ checksumAddress, expiresAt } = await verifyWalletSignature({
@@ -305,6 +323,15 @@ export default {
       // protects the verifier itself from abuse and bounds upgrade churn.
       // F-2I: IP source respects TRUST_PROXY env so XFF can't be spoofed
       // when the API is exposed directly.
+      // Cross-site WebSocket hijacking: a browser names the page that opened the socket and cannot lie about it.
+      const origin = req.headers.get('origin');
+      if (!wsOriginAllowed(origin, WS_ORIGINS)) {
+        log.warn({ origin }, 'ws_origin_refused');
+        return new Response(
+          JSON.stringify({ error: 'FORBIDDEN', message: 'Origin not allowed' }),
+          { status: 403, headers: { 'content-type': 'application/json' } },
+        );
+      }
       const ip = getClientIp(req, server);
       if (!checkAndIncrIpAttempts(ip)) {
         return new Response(
@@ -349,6 +376,16 @@ export default {
     return app.fetch(req, { server });
   },
   websocket: {
+    // Protocol frames are capped at 4 KB (protocol.ts parseClientMessage); Bun refuses anything larger before we see it.
+    maxPayloadLength: 4096,
+    // Compression costs CPU and memory per socket and has a history of decompression-bomb bugs; frames are small.
+    perMessageDeflate: false,
+    // Bun pings idle sockets; one that has not answered within a minute is dead (a closed laptop, a lost network).
+    idleTimeout: 60,
+    sendPings: true,
+    // A client that stops reading (a stalled tab) is closed instead of buffering the battle stream without bound.
+    backpressureLimit: 1024 * 1024,
+    closeOnBackpressureLimit: true,
     open(
       ws: WebSocket & {
         data?: WsData;
@@ -464,12 +501,25 @@ export default {
       }
     },
     message(
-      ws: WebSocket & { data?: WsData },
+      ws: WebSocket & { data?: WsData; __msgTimes?: number[] },
       message: string | Buffer,
     ) {
       // V3: players submit turns over the socket; everything else is server-push.
       const data = ws.data;
       if (!data) return;
+      const now = Date.now();
+      const times = (ws.__msgTimes ?? []).filter((t) => t > now - WS_MSG_WINDOW_MS);
+      times.push(now);
+      ws.__msgTimes = times;
+      if (times.length > WS_MSG_HARD_MAX) {
+        log.warn({ battleId: data.battleId, address: data.address, frames: times.length }, 'ws_flood_closed');
+        try { ws.close(1008, 'Too many messages'); } catch { /* already closed */ }
+        return;
+      }
+      if (times.length > WS_MSG_SOFT_MAX) {
+        battleWS.sendTo(ws, 'error', data.battleId ?? '', { code: 'rate_limited', message: 'Too many messages; slow down' });
+        return;
+      }
       const msg = parseClientMessage(message);
       if (!msg) {
         battleWS.sendTo(ws, 'error', data.battleId ?? '', { code: 'bad_message', message: 'Malformed message' });
@@ -485,6 +535,12 @@ export default {
       }
       if (data.battleId && data.battleId !== msg.battleId) {
         battleWS.sendTo(ws, 'error', msg.battleId, { code: 'wrong_battle', message: 'This socket is subscribed to a different battle' });
+        return;
+      }
+      if (msg.type === 'forfeit') {
+        // Resign. The battle_ended broadcast is the answer; only a refusal is sent back here.
+        const r = battleSessions.forfeit(msg.battleId, data.address);
+        if (!r.ok) battleWS.sendTo(ws, 'error', msg.battleId, { code: r.code, message: r.message });
         return;
       }
       if (msg.type === 'ready') {

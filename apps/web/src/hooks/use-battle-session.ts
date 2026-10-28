@@ -24,7 +24,7 @@ import type {
   WireBarEntry,
   WsEnvelope,
 } from '@/lib/battle-protocol';
-import { api } from '@/lib/api';
+import { api, battleSocketUrl } from '@/lib/api';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3001/ws';
 const LOG_KEEP = 80;
@@ -176,10 +176,16 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
         if (opts.spectate) url = `${WS_URL}?battleId=${encodeURIComponent(battleId)}&spectate=1`;
         else {
           const token = await opts.getSessionToken!();
-          url = `${WS_URL}?token=${encodeURIComponent(token)}&battleId=${encodeURIComponent(battleId)}`;
+          url = await battleSocketUrl(WS_URL, token, battleId);
         }
-      } catch {
+      } catch (err) {
         dispatch({ type: 'connection', value: 'error' });
+        if (closedByUs.current) return;
+        // The ticket request (or the token renewal) failed — usually a network blip or an API restart mid-battle:
+        // keep trying on the same backoff as a dropped socket instead of leaving the battle disconnected.
+        const delay = Math.min(10_000, 1_000 * 2 ** Math.min(attempt++, 3));
+        console.warn(`[BattleSession] could not get a socket ticket (${err instanceof Error ? err.message : 'error'}) — retrying in ${delay} ms`);
+        retryTimer = setTimeout(() => void connect(), delay);
         return;
       }
       if (closedByUs.current) return;

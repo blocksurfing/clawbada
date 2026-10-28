@@ -231,3 +231,15 @@ credit, no wallet needed on either side (guest sessions welcome). Lobby rules li
 - A finished friend battle is `markFinished` like practice — never a settle job. One live off-chain battle per
   player on **either** seat (`activeOffChainFor`); friend battles count against `PRACTICE_MAX_LIVE`.
 - Guests: `assertGuestScope` accepts practice **and** friend ids (`isOffChainId`), never chain ids.
+
+## WebSocket tickets, Origin and limits — 2026-10-28
+
+- Clients open `/ws?ticket=…&battleId=…`: `POST /api/auth/ws-ticket` (token or signature headers, body
+  `{battleId?}`) returns a 30 s single-use ticket bound to that battle (`lib/ws-ticket.ts`, in memory). `?token=`
+  still works and logs `ws_token_param_used` — remove it once that line stops appearing.
+- Browser upgrades must come from an allowed `Origin` (`lib/ws-origin.ts`; `WS_ALLOWED_ORIGINS` overrides the
+  defaults: AUTH_DOMAINS hosts, docs.clawbada.com, this project's Vercel previews). Refusals log `ws_origin_refused`.
+- Bun limits: 4 KB frames, no compression, 60 s idle timeout with pings, 1 MB backpressure then close. 40 frames per
+  10 s per socket (then `error rate_limited`), 120 closes it (1008, `ws_flood_closed`).
+- `{type:"forfeit", battleId}` over the socket resigns, like the REST route.
+- Leases: see docs/runbooks/cloud-run.md → Shutdown contract.

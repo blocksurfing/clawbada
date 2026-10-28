@@ -39,6 +39,7 @@ class FakeStore {
   pending: PendingRealBattle[] = [];
   async insertSession(row: NewSessionRow): Promise<boolean> {
     if (this.rows.has(row.id)) return false;
+    this.lease(row.id);
     this.rows.set(row.id, { ...row, winner: null, finalStateHash: null, turnLogHash: null, createdAt: new Date(), updatedAt: new Date() } as unknown as SessionRow);
     return true;
   }
@@ -56,6 +57,29 @@ class FakeStore {
   async proposedAmong(ids: string[]): Promise<string[]> { return ids.filter((id) => this.proposed.includes(id)); }
   async finishAndEnqueueSettle(id: string, patch: Partial<SessionRow>, payload: SettleJobPayload): Promise<void> { await this.markFinished(id, patch); await this.enqueueSettle(payload); }
   async loadActive(): Promise<SessionRow[]> { return [...this.rows.values()].filter((r) => r.status === 'active'); }
+  // Leases, as the real store keeps them (owner + expiry); `instanceId` is swapped to play a second instance.
+  instanceId = 'instance-1';
+  leases = new Map<string, { owner: string; until: number }>();
+  private leaseFree(id: string): boolean { const l = this.leases.get(id); return !l || l.until < Date.now(); }
+  private lease(id: string): void { this.leases.set(id, { owner: this.instanceId, until: Date.now() + 20_000 }); }
+  async claimableActive(): Promise<SessionRow[]> { return [...this.rows.values()].filter((r) => r.status === 'active' && this.leaseFree(r.id)); }
+  async claimLease(id: string): Promise<SessionRow | null> {
+    const r = this.rows.get(id);
+    if (!r || r.status !== 'active') return null;
+    if (!this.leaseFree(id) && this.leases.get(id)!.owner !== this.instanceId) return null;
+    this.lease(id);
+    return r;
+  }
+  async renewLeases(ids: string[]): Promise<string[]> {
+    const kept = ids.filter((id) => this.leases.get(id)?.owner === this.instanceId);
+    for (const id of kept) this.lease(id);
+    return kept;
+  }
+  async releaseLeases(): Promise<number> {
+    let n = 0;
+    for (const [id, l] of this.leases) if (l.owner === this.instanceId) { this.leases.delete(id); n++; }
+    return n;
+  }
   async get(id: string): Promise<SessionRow | null> { return this.rows.get(id) ?? null; }
   async listTurns(): Promise<never[]> { return []; }
   async activeOffChainFor(address: string): Promise<SessionRow | null> {
@@ -380,6 +404,7 @@ describe('real battles', () => {
     await store.insertSession({ ...base, id: '601', stateJson: v3.serializeState(seedState), deadline: new Date(Date.now() + 20_000) });
     await store.insertSession({ ...base, id: '602', stateJson: '', deadline: null }); // dangling claim
     await store.insertSession({ ...base, id: '603', stateJson: v3.serializeState(seedState), deadline: null });
+    store.leases.clear();   // rows left by a previous process that is gone
     const phases: Record<string, number> = { '601': 4, '603': 7 };
     const { mgr, events } = make(store, { chain: { ...chainWith({}, {}), readBattlePhase: async (id: bigint) => phases[id.toString()] } });
     const n = await mgr.resume();
@@ -407,6 +432,7 @@ describe('real battles', () => {
       const made = make(store);
       const { seedState, base } = seeded(id);
       await store.insertSession({ ...base, id, stateJson: v3.serializeState(seedState), deadline: new Date(made.fake.now() + offsetMs) });
+      store.leases.clear();
       expect(await made.mgr.resume()).toBe(1);
       const started = made.events.find((e) => e.id === id && e.event === 'turn_started')!;
       return { ...made, started };
@@ -679,9 +705,69 @@ describe('friend battles (owner 2026-10-28: two humans by invite, just for fun)'
     const { mgr: fresh } = make(store);
     // Simulate a restart: a new manager over the same rows.
     mgr.stop?.();
+    await mgr.releaseLeases();
     expect(await fresh.resume()).toBeGreaterThanOrEqual(1);
     const back = fresh.get(id)!;
     expect(back.record.kind).toBe('friend');
     expect(back.current().controller).not.toBe('bot');
+  });
+});
+
+// Rollouts overlap two instances for a few seconds: only the one holding a battle's lease may drive it.
+describe('battle leases', () => {
+  const guestTeam = [LobsterClass.Kraken, LobsterClass.Ember, LobsterClass.Abyss].map((c, i) => ({ input: { id: `G${i}`, class: c, tier: EvolutionTier.Apex, purity: 4, legend: false } }));
+  const start = (mgr: BattleSessionManager) => mgr.startFriend({ host: ALICE, guest: BOB, hostTeam: practiceLobsters, guestTeam });
+
+  test('a battle the old instance still holds is not adopted; after it releases, the next poll adopts it and pushes a snapshot', async () => {
+    const store = new FakeStore();
+    const { mgr: old } = make(store);
+    const id = (await start(old)).record.id;
+    store.instanceId = 'instance-2';
+    const { mgr: next, events } = make(store);
+    expect(await next.resume()).toBe(0);
+    expect(next.get(id)).toBeUndefined();
+    store.instanceId = 'instance-1';
+    old.stop();
+    expect(await old.releaseLeases()).toBe(1);
+    store.instanceId = 'instance-2';
+    expect(await next.resume()).toBe(1);
+    expect(next.get(id)).toBeDefined();
+    expect(events.some((e) => e.id === id && e.event === 'battle_snapshot')).toBe(true);
+    expect(store.leases.get(id)!.owner).toBe('instance-2');
+  });
+
+  test('a lease that ran out (instance killed without releasing) is adopted', async () => {
+    const store = new FakeStore();
+    const { mgr: dead } = make(store);
+    const id = (await start(dead)).record.id;
+    dead.stop();
+    store.leases.get(id)!.until = Date.now() - 1;
+    store.instanceId = 'instance-2';
+    const { mgr: next } = make(store);
+    expect(await next.resume()).toBe(1);
+    expect(next.get(id)).toBeDefined();
+  });
+
+  test('renewal keeps a held lease, and stops a session whose lease another instance took', async () => {
+    const store = new FakeStore();
+    const { mgr } = make(store);
+    const id = (await start(mgr)).record.id;
+    const before = store.leases.get(id)!.until;
+    await new Promise((r) => setTimeout(r, 5));
+    await mgr.renewLeases();
+    expect(store.leases.get(id)!.until).toBeGreaterThan(before);
+    expect(mgr.get(id)).toBeDefined();
+    store.leases.set(id, { owner: 'instance-2', until: Date.now() + 20_000 });
+    await mgr.renewLeases();
+    expect(mgr.get(id)).toBeUndefined();
+  });
+
+  test('a failed renewal (DB blip) keeps the session running', async () => {
+    const store = new FakeStore();
+    const { mgr } = make(store);
+    const id = (await start(mgr)).record.id;
+    store.renewLeases = async () => { throw new Error('connection reset'); };
+    await mgr.renewLeases();
+    expect(mgr.get(id)).toBeDefined();
   });
 });
