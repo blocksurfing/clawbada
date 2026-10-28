@@ -26,7 +26,9 @@ const breeze = (b: Browser) => b.eval(`(() => { const a = window.__clawbadaEntry
 const NAVY = 'rgb(25, 44, 83)';
 /** The iris (lib/battle-entry.ts, owner 2026-10-27): close 1.4 s + navy beat 0.25 s, then open 0.9 s. */
 const IRIS_CLOSE_MS = 1400, NAVY_BEAT_MS = 250, IRIS_OPEN_MS = 900;
-const CURTAIN_MS = IRIS_CLOSE_MS + NAVY_BEAT_MS, HOLD_MS = 12000, UNITY_HOLD_S = 15;
+/** The Battle button's wind-up before the iris (owner 2026-10-27). */
+const WINDUP_MS = 2000;
+const CURTAIN_MS = WINDUP_MS + IRIS_CLOSE_MS + NAVY_BEAT_MS, HOLD_MS = 12000, UNITY_HOLD_S = 15;
 
 export default async function (b: Browser) {
   const checks: string[] = [];
@@ -50,9 +52,14 @@ export default async function (b: Browser) {
   const stageBefore = await b.eval(`getComputedStyle(document.querySelector('.dojo-stage')).getPropertyValue('--dojo-stage-scale')`);
   const t0 = Date.now();
   await rectClick(b, '[data-testid=dojo-battle]');
-  const appeared = await b.waitFor(`!!document.querySelector('[data-testid=battle-entry][data-phase=web]')`, 3000, 50);
+  // First the wind-up: the button compresses and spins with smoke, the page stays put (no overlay, no fullscreen yet).
+  await b.sleep(600);
+  const wind = await b.eval(`(() => { const btn = document.querySelector('[data-testid=dojo-battle]'); return { launching: btn?.dataset.launching === 'true', transform: btn ? getComputedStyle(btn).transform : 'none', smoke: !!document.querySelector('[data-testid=dojo-smoke]'), overlay: !!document.querySelector('[data-testid=battle-entry]'), fullscreen: !!document.fullscreenElement }; })()`) as { launching: boolean; transform: string; smoke: boolean; overlay: boolean; fullscreen: boolean };
+  await b.screenshot(`${OUT}/entry-windup.png`);
+  ok('the Battle button winds up first (compress + spin, smoke), no overlay or fullscreen yet', wind.launching && wind.transform !== 'none' && wind.smoke && !wind.overlay && !wind.fullscreen, JSON.stringify(wind));
+  const appeared = await b.waitFor(`!!document.querySelector('[data-testid=battle-entry][data-phase=web]')`, 5000, 50);
   const tAppear = Date.now() - t0;
-  ok('overlay appears on the press', appeared, `${tAppear} ms`);
+  ok('the iris starts after the 2 s wind-up', appeared && tAppear >= WINDUP_MS - 100 && tAppear <= WINDUP_MS + 1200, `${tAppear} ms`);
   ok('page is fullscreen', await b.eval(`document.fullscreenElement === document.documentElement`) as boolean);
   // The way in: a navy iris closes on the Battle button while the Dojo eases back, a beat of navy, then the Shifu loop
   // opens from a growing circle in the middle (owner 2026-10-27). Sampled against the overlay's own clock.

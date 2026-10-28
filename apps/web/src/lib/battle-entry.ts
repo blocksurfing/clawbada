@@ -45,6 +45,15 @@ export interface BattleEntryState {
 
 /** The Shifu screen's minimum time on screen, counted from the loop (owner 2026-10-23: 12 s; was 4.5 s, then 6 s). */
 export const ENTRY_HOLD_MS = 12_000;
+/** Before any of it, the Battle button winds up on the Dojo — it compresses, spins 360° and puffs smoke — so the press
+ *  never cuts straight to fullscreen (owner 2026-10-27: "that instant reaction … way too jarring"). Fullscreen is asked
+ *  for when it ends: Chrome and Firefox honour a click for 5 s; Safari may refuse, and the battle then opens windowed. */
+export const ENTRY_WINDUP_MS = 2000;
+/** The wind-up's wait (none under reduced motion). */
+export function windup(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, reducedMotion() ? 0 : ENTRY_WINDUP_MS));
+}
+
 /** The way in (owner 2026-10-27: "about 2.5 s"): the iris closes on the pressed button … */
 export const ENTRY_IRIS_CLOSE_MS = 1400;
 /** … a beat of navy … */

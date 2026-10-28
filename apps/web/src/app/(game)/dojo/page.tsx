@@ -12,7 +12,7 @@ import { rememberPracticeOwner } from '@/lib/practice-owner';
 import { DEFAULT_BOT, botInfo, type BotName } from '@/lib/bot-catalog';
 import { exitBattleFullscreen, requestBattleFullscreen } from '@/lib/battle-fullscreen';
 import { primeAudio } from '@/lib/audio-graph';
-import { cancelBattleEntry, entryRevealed, originOf, startBattleEntry } from '@/lib/battle-entry';
+import { cancelBattleEntry, entryRevealed, originOf, startBattleEntry, windup } from '@/lib/battle-entry';
 import { DojoRoom, type DojoChoice, type DojoLobster, type DojoTeam } from '@/components/dojo/dojo-room';
 
 /** Dev review rosters (moved here from the old /game/battle Practice tab when Battle became a modal on the Shell,
@@ -131,26 +131,37 @@ export default function DojoPage() {
   }, []);
 
   /**
-   * The entry sequence, shared by the Battle button and the dev presets. Inside the click, in this order:
+   * The entry sequence, shared by the Battle button and the dev presets:
    *   1. a wallet whose session needs a signature is stopped HERE — the gate panel asks it to sign first, so no
    *      wallet prompt ever lands inside a fullscreen fade (the owner's complaint of 2026-10-21);
-   *   2. fullscreen (browsers grant it only inside the gesture) and the loading screen (lib/battle-entry.ts),
-   *      which the battle page keeps up until the arena is built;
-   *   3. the practice start, then the navigation. A failure drops both.
+   *   2. inside the click: the audio engine is primed and the practice start goes out;
+   *   3. the Battle button winds up for 2 s (owner 2026-10-27; dojo-room shows it while `busy`) — a start that fails
+   *      in that time shows its error and nothing else happens;
+   *   4. then fullscreen (still within the browser's few seconds after the click) and the iris into the loading
+   *      screen (lib/battle-entry.ts), which the battle page keeps up until the arena is built;
+   *   5. the navigation, once the loading loop is fully open. A failure drops it all.
    * `teamTier` is the board 'match' resolves to (the music starts before the API answers).
    */
   const launch = useCallback(async (body: Parameters<typeof api.combat.createPractice>[0], failMessage: string, teamTier: Tier) => {
     if (kind === 'wallet' && !hasLiveSession()) { setGate('expired'); setGateErr(null); return; }
-    requestBattleFullscreen();
     primeAudio();   // start the shared audio engine inside the click: the entry's fades then run on the audio thread
-    // The arena's music starts with the loading screen's breeze and plays on into the battle (owner 2026-10-25).
-    // The iris closes on the Battle button (owner 2026-10-27).
-    startBattleEntry({ kind: 'practice', arena: arena === 'match' ? teamTier : arena, origin: originOf(document.querySelector('[data-testid=dojo-battle]')) });
     setBusy(true);
     setErr(null);
-    try {
+    // The iris will close on the Battle button (owner 2026-10-27) — where it is now, before the scene moves.
+    const origin = originOf(document.querySelector('[data-testid=dojo-battle]'));
+    const start = (async () => {
       const auth = await getAuthHeaders();
-      const res = await api.combat.createPractice(arena === 'match' ? body : { ...body, arena }, auth);
+      return api.combat.createPractice(arena === 'match' ? body : { ...body, arena }, auth);
+    })();
+    let failed: unknown = null;
+    start.catch((e: unknown) => { failed = e; });
+    await windup();
+    if (failed) { setErr(failed instanceof Error ? failed.message : failMessage); setBusy(false); return; }
+    requestBattleFullscreen();
+    // The arena's music starts with the loading screen's breeze and plays on into the battle (owner 2026-10-25).
+    startBattleEntry({ kind: 'practice', arena: arena === 'match' ? teamTier : arena, origin });
+    try {
+      const res = await start;
       rememberPracticeOwner(res.battleId, res.snapshot?.session?.playerA);
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
