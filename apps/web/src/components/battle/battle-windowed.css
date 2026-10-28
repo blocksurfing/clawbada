@@ -1,0 +1,71 @@
+/* The battle page out of fullscreen (battle-backdrop.tsx, owner 2026-10-28). */
+.battle-windowed {
+  /* The wallet + wheel are fixed top-right at 3× (chrome.css .user-section: 160 × 64 source px). On desktop the
+     arena starts below them, so nothing ever sits under the wheel. */
+  --battle-band: calc(var(--user-section-top, 12px) + 64 * 3px + 8px);
+  position: relative;
+  min-height: 100dvh;
+}
+.battle-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center bottom;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+/* Faded: a navy wash over the scene keeps the arena the brightest thing on the page. */
+.battle-backdrop::after { content: ''; position: absolute; inset: 0; background: rgb(11 23 48 / var(--battle-wash, 0.55)); }
+.battle-backdrop[data-backdrop-art="dojo"] { background-color: #1b1420; background-image: url('/ui/dojo/Dojo_Dark.png'); --battle-wash: 0.62; }
+.battle-backdrop[data-backdrop-art="shell"] {
+  background-color: #2b8db9;
+  /* The Shell's scenery, front to back (shell.css layers: Rock over Sand over … Background_Rock_2). */
+  background-image: url('/ui/shell/Rock.png'), url('/ui/shell/Sand.png'), url('/ui/shell/Shell.png'), url('/ui/shell/Back_Sand.png'),
+    url('/ui/shell/Coral.png'), url('/ui/shell/Background_Rock.png'), url('/ui/shell/Background_Rock_2.png');
+  --battle-wash: 0.66;
+}
+.battle-windowed-content {
+  position: relative;
+  z-index: 1;
+  padding: 16px;
+}
+@media (min-width: 1024px) {
+  .battle-windowed-content { padding: var(--battle-band) 24px 24px; }
+  /* The arena keeps its 16:9 and fits the height left under the band, centred. */
+  .battle-windowed-content > .battle-live { width: min(100%, calc((100dvh - var(--battle-band) - 24px) * 16 / 9)); margin-inline: auto; }
+}
+
+/* The one control: back into fullscreen. On desktop it sits in the band, left of the wheel; below that it is a row. */
+.battle-windowed-bar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-height: 0; }
+.battle-windowed-tag {
+  font: 400 14px/1.1 var(--font-upheaval), 'Upheaval', sans-serif;
+  letter-spacing: var(--type-action-tracking, 0);
+  color: #fff4d6;
+  text-shadow: 0 2px 0 #1b1420;
+}
+.battle-fullscreen-btn {
+  border: 3px solid #392624;
+  border-radius: 0;
+  background: #50352b;
+  color: #fff4d6;
+  box-shadow: 0 3px #1b1420;
+  padding: 6px 14px;
+  min-height: 39px;
+  font: 400 18px/1.1 var(--font-upheaval), 'Upheaval', sans-serif;
+  letter-spacing: var(--type-action-tracking, 0);
+  cursor: pointer;
+}
+.battle-fullscreen-btn:hover { background: #ffe4a0; color: #302129; border-color: #ffe4a0; }
+.battle-fullscreen-btn:active { transform: translateY(2px); box-shadow: 0 1px #1b1420; }
+@media (min-width: 1024px) {
+  .battle-windowed .battle-windowed-bar {
+    position: fixed;
+    z-index: 18;
+    /* Beside the lower half of the wheel, just left of the wallet (the wallet is always 160 × 3 px wide). */
+    top: calc(var(--user-section-top, 12px) + 40 * 3px);   /* below the dev burner chip (chrome.css, top + 48 px) */
+    right: calc(var(--user-section-right, 12px) + 160 * 3px + 12px);
+    transform: translateY(-50%);
+  }
+}
