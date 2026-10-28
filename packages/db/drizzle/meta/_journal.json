@@ -99,6 +99,13 @@
       "when": 1791480724923,
       "tag": "0013_amusing_pyro",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793205904659,
+      "tag": "0014_friend_battles",
+      "breakpoints": true
     }
   ]
 }
