@@ -119,6 +119,11 @@ a second policy fires on container restarts. Cloud Run's metrics page shows memo
 
 Cloud Run sends SIGTERM and SIGKILLs 10 s later. `apps/api/src/lib/shutdown.ts` stops the matchmaker, closes
 every WebSocket with `1001 Server restarting`, stops the sessions, awaits their queued turn writes, drains the
-pool and exits — logs `shutdown_started` … `shutdown_drained`. Known gap: during a rollout the new instance
-resumes active battles a few seconds before the old one stops (same as on Railway); deploy when `liveCount` is 0
-or accept a possible double-act on an in-progress practice battle. The fix is a lease on `battle_sessions`.
+pool and exits — logs `shutdown_started` … `shutdown_drained` (with `released`, the battle leases handed on).
+
+Rollouts overlap two instances for a few seconds. Since 2026-10-28 every live battle carries a **lease**
+(`battle_sessions.owner_instance` / `lease_until`, 20 s, renewed every 5 s): the new instance adopts a battle only
+once the old one has released it after its final flush (or, after a hard kill, once the lease runs out), then
+pushes a fresh `battle_snapshot` to the room. So a battle is never driven by two instances; players see at most a
+few seconds' pause while their client reconnects. Logs: `battle_sessions_resumed`, `battle_session_lease_lost`
+(should never appear in a normal rollout), `battle_session_lease_renew_failed`.

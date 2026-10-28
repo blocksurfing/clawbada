@@ -3,7 +3,8 @@
  * `battle_turns`, `battles`, `operator_jobs`). Injected into the manager so tests
  * can replace it wholesale.
  */
-import { and, asc, eq, gte, inArray, or, sql, notExists } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { and, asc, eq, gte, inArray, isNull, lt, or, sql, notExists } from 'drizzle-orm';
 import { db, battleSessions, battleTurns, battles, operatorJobs, type Database } from '@clawbada/db';
 import type { PersistedTurn, SnapshotWrite } from './session';
 import type { RosterEntry, SessionKind, Side } from './protocol';
@@ -49,14 +50,25 @@ export interface PendingRealBattle {
   teamB: bigint;
 }
 
-export class SessionStore {
-  constructor(private readonly dbx: Database = db) {}
+/** How long an instance's claim on a live battle holds without renewal. The manager renews every
+ *  LEASE_RENEW_MS; a hard-killed instance's battles are adopted elsewhere once this runs out. */
+export const LEASE_TTL_SEC = 20;
+// Built per call: some route tests mock drizzle's `sql` without `raw`, and import this module.
+const leaseExpiry = () => sql.raw(`now() + interval '${LEASE_TTL_SEC} seconds'`);
 
-  /** Insert the row; false if the id already exists (claim lost / duplicate). */
+export class SessionStore {
+  /** This process's lease identity: the Cloud Run revision (for the logs) plus a random id per boot. */
+  readonly instanceId: string;
+
+  constructor(private readonly dbx: Database = db, instanceId?: string) {
+    this.instanceId = instanceId ?? `${process.env.K_REVISION ?? 'local'}:${randomUUID().slice(0, 8)}`;
+  }
+
+  /** Insert the row, leased to this instance; false if the id already exists (claim lost / duplicate). */
   async insertSession(row: NewSessionRow): Promise<boolean> {
     const inserted = await this.dbx
       .insert(battleSessions)
-      .values({ ...row, updatedAt: new Date() })
+      .values({ ...row, ownerInstance: this.instanceId, leaseUntil: leaseExpiry(), updatedAt: new Date() })
       .onConflictDoNothing()
       .returning({ id: battleSessions.id });
     return inserted.length > 0;
@@ -126,6 +138,51 @@ export class SessionStore {
 
   async loadActive(): Promise<SessionRow[]> {
     return this.dbx.select().from(battleSessions).where(eq(battleSessions.status, 'active'));
+  }
+
+  // ── leases: one instance drives a battle at a time (rollouts overlap two instances for a few seconds) ──
+
+  /** Active battles no instance holds: never leased, released by a stopping instance, or lease run out. */
+  async claimableActive(): Promise<SessionRow[]> {
+    return this.dbx
+      .select()
+      .from(battleSessions)
+      .where(and(eq(battleSessions.status, 'active'), this.leaseFree()));
+  }
+
+  /** Take the lease on one active battle; the fresh row (latest persisted state) if won, null if someone holds it. */
+  async claimLease(id: string): Promise<SessionRow | null> {
+    const rows = await this.dbx
+      .update(battleSessions)
+      .set({ ownerInstance: this.instanceId, leaseUntil: leaseExpiry() })
+      .where(and(eq(battleSessions.id, id), eq(battleSessions.status, 'active'), or(this.leaseFree(), eq(battleSessions.ownerInstance, this.instanceId))))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /** Extend this instance's leases on these battles; returns the ids still ours (a missing one was taken over). */
+  async renewLeases(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.dbx
+      .update(battleSessions)
+      .set({ leaseUntil: leaseExpiry() })
+      .where(and(inArray(battleSessions.id, ids), eq(battleSessions.ownerInstance, this.instanceId)))
+      .returning({ id: battleSessions.id });
+    return rows.map((r) => r.id);
+  }
+
+  /** Shutdown, after the final flush: hand every battle this instance holds to whoever boots next. */
+  async releaseLeases(): Promise<number> {
+    const rows = await this.dbx
+      .update(battleSessions)
+      .set({ ownerInstance: null, leaseUntil: null })
+      .where(eq(battleSessions.ownerInstance, this.instanceId))
+      .returning({ id: battleSessions.id });
+    return rows.length;
+  }
+
+  private leaseFree() {
+    return or(isNull(battleSessions.ownerInstance), isNull(battleSessions.leaseUntil), lt(battleSessions.leaseUntil, sql`now()`))!;
   }
 
   async get(id: string): Promise<SessionRow | null> {

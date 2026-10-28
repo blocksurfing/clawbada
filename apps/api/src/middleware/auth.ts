@@ -163,6 +163,8 @@ export interface Caller {
   checksumAddress: string;
   /** True for a token minted by POST /api/auth/guest: practice battles only, refused everywhere else. */
   guest: boolean;
+  /** Epoch seconds at which this proof (the session token, or the signature's replay window) runs out. */
+  expiresAt: number;
 }
 
 /** What a guest hears from every route that is not the Dojo. */
@@ -183,8 +185,8 @@ export const GUEST_REFUSED_MESSAGE =
 export async function resolveCaller(req: { header(name: string): string | undefined }): Promise<Caller> {
   const bearer = bearerFrom(req.header('Authorization'));
   if (bearer) {
-    const { checksumAddress, guest } = verifySessionToken(bearer);
-    return { checksumAddress, guest };
+    const { checksumAddress, guest, expiresAt } = verifySessionToken(bearer);
+    return { checksumAddress, guest, expiresAt };
   }
 
   const address = req.header('X-Wallet-Address');
@@ -196,14 +198,14 @@ export async function resolveCaller(req: { header(name: string): string | undefi
       'Missing auth: send Authorization: Bearer <session token>, or X-Wallet-Address, X-Signature, X-Timestamp and X-Nonce',
     );
   }
-  const { checksumAddress } = await verifyWalletSignature({
+  const { checksumAddress, expiresAt } = await verifyWalletSignature({
     address,
     signature,
     timestamp: Number(timestampStr),
     nonce: req.header('X-Nonce'),
     domain: req.header('X-Auth-Domain'),
   });
-  return { checksumAddress, guest: false };
+  return { checksumAddress, guest: false, expiresAt };
 }
 
 /**
@@ -230,6 +232,7 @@ export const playerAuth: MiddlewareHandler = async (c, next) => {
   const caller = await resolveCaller(c.req);
   c.set('address', caller.checksumAddress);
   c.set('guest', caller.guest);
+  c.set('authExpiresAt', caller.expiresAt);
   await next();
 };
 

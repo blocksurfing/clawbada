@@ -364,3 +364,47 @@ describe('GET /api/auth/params', () => {
     }
   });
 });
+
+describe('POST /api/auth/ws-ticket', () => {
+  async function app() {
+    const { authRoutes } = await import('../routes/auth');
+    const a = new Hono();
+    a.onError((err, c) =>
+      err instanceof ApiError
+        ? c.json({ error: err.code, message: err.message }, err.status as never)
+        : c.json({ error: 'INTERNAL_ERROR' }, 500));
+    a.route('/api/auth', authRoutes);
+    return a;
+  }
+  const post = async (token: string | null, body: unknown) =>
+    (await app()).request('/api/auth/ws-ticket', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(body),
+    });
+
+  test('trades a session token for a ticket bound to the battle, carrying the token\'s expiry', async () => {
+    const minted = mintSessionToken(ADDRESS);
+    const res = await post(minted.token, { battleId: '42' });
+    expect(res.status).toBe(200);
+    const j = await res.json() as { ticket: string; battleId: string; expiresInMs: number };
+    expect(j.battleId).toBe('42');
+    const { wsTickets } = await import('../lib/ws-ticket');
+    expect(wsTickets.consume(j.ticket, '42')).toEqual({ checksumAddress: ADDRESS, guest: false, authExpiresAt: minted.expiresAt, battleId: '42' });
+  });
+
+  test('a guest gets tickets for its off-chain battles only', async () => {
+    const guest = mintSessionToken(OTHER, undefined, { guest: true });
+    expect((await post(guest.token, { battleId: 'f_8a0e5c6b-1d2e-4f3a-9b8c-7d6e5f4a3b2c' })).status).toBe(200);
+    expect((await post(guest.token, { battleId: '42' })).status).toBe(401);
+    expect((await post(guest.token, {})).status).toBe(401);
+  });
+
+  test('needs auth, and a strict body', async () => {
+    expect((await post(null, { battleId: '42' })).status).toBe(401);
+    const t = mintSessionToken(ADDRESS).token;
+    expect((await post(t, { battleId: '42', role: 'admin' })).status).toBe(400);
+    expect((await post(t, { battleId: 7 })).status).toBe(400);
+    expect((await post(t, [])).status).toBe(400);
+  });
+});

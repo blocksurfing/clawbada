@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { useAuth } from './use-auth';
+import { battleSocketUrl } from '@/lib/api';
 import {
   WS_CLOSE_CAPACITY,
   WS_CLOSE_SIGNATURE_EXPIRED,
@@ -179,9 +180,29 @@ export function useBattleWs(battleId: string | null, address: string | undefined
 
       // A session token instead of a signature: the socket then lives as long as the token
       // rather than the five-minute signature window, so a battle is not interrupted to re-sign.
-      const params = new URLSearchParams({ token });
-      if (battleId) params.set('battleId', battleId);
-      const url = `${WS_URL}?${params.toString()}`;
+      // The token itself stays in a header: it is traded for a single-use ticket that goes in the URL.
+      let url: string;
+      try {
+        url = await battleSocketUrl(WS_URL, token, battleId ?? null);
+      } catch {
+        // The API is unreachable or refused the token: back off and retry like a socket that never opened
+        // (F-2N's cap applies, so a permanently refused token stops retrying).
+        if (cancelled) return;
+        dispatch({ type: 'closed' });
+        preOpenFailures += 1;
+        if (preOpenFailures >= MAX_PRE_OPEN_FAILURES) {
+          terminal = true;
+          return;
+        }
+        const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_INITIAL_MS * Math.pow(2, reconnectAttempt));
+        reconnectAttempt += 1;
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          void connect();
+        }, delay);
+        return;
+      }
+      if (cancelled) return;
 
       const ws = new WebSocket(url);
       wsRef.current = ws;

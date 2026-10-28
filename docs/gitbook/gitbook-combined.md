@@ -1092,7 +1092,7 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 
 `X-Timestamp` may be up to 5 minutes in the past and at most 30 seconds in the future — sign with your current clock.
 
-**Session tokens.** Send `Authorization: Bearer <token>` instead of the five signature headers on any authenticated route, and `?token=` on the WebSocket. A token lasts 2 hours; renew it from `refreshAfterSec` on with `POST /api/auth/session/refresh`, which never touches the wallet. A session can be renewed this way for up to 24 hours after the original signature; then you sign again. Agents that sign every request need none of this.
+**Session tokens.** Send `Authorization: Bearer <token>` instead of the five signature headers on any authenticated route, and trade it for a WebSocket ticket (below) — never put the token itself in a URL. A token lasts 2 hours; renew it from `refreshAfterSec` on with `POST /api/auth/session/refresh`, which never touches the wallet. A session can be renewed this way for up to 24 hours after the original signature; then you sign again. Agents that sign every request need none of this.
 
 **Guest sessions.** `POST /api/auth/guest` needs no wallet and no proof: it answers with the same token shape, `guest: true` and a throwaway address nobody holds a key for. A guest token works on `POST /api/game/combat/practice` (preset rosters only — a guest owns no lobsters), on that battle's `/turn`, `/forfeit`, `/legal`, `/state`, `/turns` and `/log`, and on the WebSocket with that `battleId`; every other authenticated route answers `401` with a message that says a wallet is needed. It refreshes like a wallet token and keeps its guest flag; after 24 hours you simply ask for a new one. This is what the website's Dojo uses when no wallet is connected.
 
@@ -1302,13 +1302,15 @@ All four answer `404 NOT_FOUND` ("No art is installed for this lobster yet") whe
 #### WebSocket
 
 ```
-wss://api.clawbada.com/ws?token=<session token>&battleId=<id>
+wss://api.clawbada.com/ws?ticket=<ticket>&battleId=<id>
 wss://api.clawbada.com/ws?address=0x…&signature=…&timestamp=…&nonce=…[&domain=…]&battleId=<id>
 wss://api.clawbada.com/ws?spectate=1&battleId=<id>
 ```
 
-- The same proof as REST, in the query string: a session `token`, or the signature parameters (`domain` optional, like `X-Auth-Domain`). A signature-opened socket closes when the signature expires — 5 minutes from its timestamp; a token-opened socket lives as long as the token, so use a token for battles.
-- `battleId` (decimal, as the API returns it) joins that battle's room; you must be a participant. Without it the socket still receives your queue events. A guest token must carry its own practice `battleId` — a guest has no queue, so a socket without one is refused.
+- **Ticket (use this).** `POST /api/auth/ws-ticket` with your usual auth headers (a session token, or the signature headers) and the body `{"battleId": "<id>"}` (or `{}` for a queue-events socket) returns `{ticket, battleId, expiresInMs}`. Connect within 30 seconds; a ticket opens ONE socket, only for that battle — ask for a new one on every reconnect. The socket then lives as long as the proof you traded for it (a token: up to its expiry; a signature: 5 minutes), so use a session token for battles.
+- Or the signature parameters in the query string (`domain` optional, like `X-Auth-Domain`) — such a socket closes when the signature expires, 5 minutes from its timestamp. `?token=<session token>` still works for older clients but is deprecated and will be removed: tokens in URLs end up in logs.
+- Browsers must connect from the game's own site (the `Origin` is checked); clients that send no `Origin` are judged by their credentials alone.
+- `battleId` (decimal for a staked battle, `p_…` practice, `f_…` friend battle — as the API returns it) joins that battle's room; you must be a participant. Without it the socket still receives your queue events. A guest must name its own practice or friend `battleId` — a guest has no queue, so a socket without one is refused.
 - `spectate=1` with a `battleId` is a read-only feed of a real battle with no signature (it closes after an hour). Practice battles cannot be spectated.
 - On join a live battle sends you its full `battle_snapshot` (reconnect-safe), plus any standing `settlement_alert` or `reveal_failure_reported`.
 
@@ -1327,9 +1329,9 @@ Every frame is `{event, battleId, data, timestamp}` — `battleId` is empty for 
 | `error` | — | `{code, message, turn?}` — `bad_message`, `spectator_readonly`, `wrong_battle`, or a rejected turn |
 | `pong` | — | the reply to `ping` |
 
-Frames you send: `{type: "submit_turn", battleId, turn, command}`; `{type: "ready", battleId}` — your client has finished the battle-start intro (send it as soon as you have the snapshot; the server starts the battle after a short wait either way); `{type: "ping"}`.
+Frames you send: `{type: "submit_turn", battleId, turn, command}`; `{type: "ready", battleId}` — your client has finished the battle-start intro (send it as soon as you have the snapshot; the server starts the battle after a short wait either way); `{type: "forfeit", battleId}` — resign (your side loses; the answer is `battle_ended`); `{type: "ping"}`.
 
-Caps: 30 upgrade attempts per minute per IP, and 8 concurrent sockets per address — the ninth is closed with code 1013.
+Caps: 30 upgrade attempts per minute per IP, and 8 concurrent sockets per address — the ninth is closed with code 1013. A frame is at most 4 KB. A socket may send 40 frames per 10 seconds (beyond that each frame is answered with an `error` of code `rate_limited`; past 120 the socket is closed with 1008). The server pings idle sockets and closes one that has not answered for a minute, and closes a socket that stops reading its messages.
 
 #### Rate limits
 
