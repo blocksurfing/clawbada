@@ -214,3 +214,20 @@ the Unity stage.
 ## In-canvas input (2026-09-06)
 
 With the Unity HUD up, React sends `SetSelection` (armed action, legality, hint) and `PreviewMove` (tentative cell) and receives `onActionSelected` / `onUndoMove` plus the existing hex/lobster clicks. `use-turn-selection` runs in `autoSubmit` mode: a legal target tap, Defend or Wait submits immediately; Special arms (or submits at once when targetless). The React panel and SVG board render only when the WebGL build is unavailable.
+
+## Friend battles (`kind = 'friend'`, ids `f_<uuid>`) — 2026-10-28
+
+Battle Friends: two humans by invite, **just for fun** — off-chain, no stake, no rating, no ladder or mining-boost
+credit, no wallet needed on either side (guest sessions welcome). Lobby rules live in `apps/api/src/lib/friend-rooms/`
+(table `friend_rooms`, migration `0014_friend_battles`); routes in `apps/api/src/routes/game/friend.ts`
+(`/api/game/friend/rooms…`, `playerAuth`).
+
+- Host opens a room → `{ roomId, secret, invite: "<roomId>.<secret>" }`. The secret (128 bits) is shown once; only
+  its SHA-256 is stored. The web puts the invite in the URL **fragment** so it never reaches logs or a Referer.
+- First player to present the secret takes the guest seat (atomic, single use). Wrong / used / expired links all
+  answer the same 404. Opening a new room cancels the host's older unstarted rooms.
+- Open invite 15 min; a seated lobby 10 min. Both pick a team (hidden from each other — the view only says
+  "lockedIn"), both ready → `battleSessions.startFriend` (host = A, guest = B, no bot, waits for both `ready`).
+- A finished friend battle is `markFinished` like practice — never a settle job. One live off-chain battle per
+  player on **either** seat (`activeOffChainFor`); friend battles count against `PRACTICE_MAX_LIVE`.
+- Guests: `assertGuestScope` accepts practice **and** friend ids (`isOffChainId`), never chain ids.

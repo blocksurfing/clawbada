@@ -249,13 +249,15 @@ describe('walletAuth middleware', () => {
     expect((await app.request('/test')).status).toBe(401);
   });
 
-  test('assertGuestScope: wallets go anywhere; a guest only to a practice battle id', () => {
+  test('assertGuestScope: wallets go anywhere; a guest only to an off-chain (practice or friend) battle id', () => {
     const P = 'p_123e4567-e89b-12d3-a456-426614174000';
+    const F = 'f_123e4567-e89b-12d3-a456-426614174000';
     expect(() => assertGuestScope(false, '42')).not.toThrow();
     expect(() => assertGuestScope(false, null)).not.toThrow();
     expect(() => assertGuestScope(true, P)).not.toThrow();
+    expect(() => assertGuestScope(true, F)).not.toThrow();
     expect(() => assertGuestScope(true, '42')).toThrow(ApiError);
-    expect(() => assertGuestScope(true, null)).toThrow(/practice battle/);
+    expect(() => assertGuestScope(true, null)).toThrow(/practice or friend battle/);
     expect(() => assertGuestScope(true, undefined)).toThrow(ApiError);
   });
 

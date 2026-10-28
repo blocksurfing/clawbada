@@ -21,7 +21,7 @@ import { evidenceBundle } from '../../../lib/battle-session/evidence';
 import { readLobster, readTeam, serializeBigInts } from '../../../lib/chain';
 import {
   battleSessions,
-  isPracticeId,
+  isOffChainId,
   CHAIN_ID_RE,
   PracticeConflictError,
   type BattleSnapshot,
@@ -54,12 +54,13 @@ function practiceMaxLive(): number {
 }
 
 function assertBattleId(id: string): void {
-  if (!isPracticeId(id) && !CHAIN_ID_RE.test(id)) throw new ApiError('INVALID_INPUT', 'Invalid battleId');
+  if (!isOffChainId(id) && !CHAIN_ID_RE.test(id)) throw new ApiError('INVALID_INPUT', 'Invalid battleId');
 }
 
-/** Practice battles are owner-only: require headers and a participant match. A guest is a fine owner here. */
+/** Off-chain battles (practice, friend) are private to their players: require headers and a participant match.
+ *  A guest is a fine player here. */
 async function requireParticipantIfPractice(c: { req: { header(name: string): string | undefined } }, battleId: string): Promise<string | null> {
-  if (!isPracticeId(battleId)) return null;
+  if (!isOffChainId(battleId)) return null;
   // Either proof is fine here (session token or signature) — resolveCaller throws if neither holds.
   const lower = (await resolveCaller(c.req)).checksumAddress.toLowerCase();
   if (!(await battleSessions.isParticipant(battleId, lower))) throw new ApiError('UNAUTHORIZED', 'Not a participant in this battle');
@@ -74,7 +75,7 @@ async function persistedSnapshot(battleId: string): Promise<BattleSnapshot | nul
   return {
     session: {
       id: row.id,
-      kind: row.kind as 'real' | 'practice',
+      kind: row.kind as 'real' | 'practice' | 'friend',
       tier: row.tier as v3.ArenaLayout['tier'],
       playerA: row.playerA,
       playerB: row.playerB,
