@@ -7,7 +7,7 @@ import { ApiError } from '../lib/errors';
 import { bearerFrom, verifySessionToken } from '../lib/session-token';
 // Deep import on purpose: the battle-session index constructs the DB-backed manager, and a dozen tests load
 // this middleware with nothing but @clawbada/chain mocked. The protocol module is pure.
-import { isPracticeId } from '../lib/battle-session/protocol';
+import { isOffChainId } from '../lib/battle-session/protocol';
 
 /** Maximum allowable backdating of the timestamp (signed message in the past). */
 export const AUTH_PAST_WINDOW_SEC = 5 * 60;
@@ -234,14 +234,14 @@ export const playerAuth: MiddlewareHandler = async (c, next) => {
 };
 
 /**
- * A guest may act on its own practice battle and nothing else. Belt and braces on top of the
+ * A guest may act on its own practice or friend battle and nothing else (both are off-chain and unstaked). Belt and braces on top of the
  * participant checks (a guest address can never be a party to a real battle): the battle routes and
  * the WebSocket upgrade call this before they look anything up, so a guest token naming a chain
  * battle id — or no battle at all — is refused without touching the database.
  */
 export function assertGuestScope(guest: boolean, battleId: string | null | undefined): void {
   if (!guest) return;
-  if (!battleId || !isPracticeId(battleId)) {
-    throw new ApiError('UNAUTHORIZED', 'A guest session can only join its own practice battle');
+  if (!battleId || !isOffChainId(battleId)) {
+    throw new ApiError('UNAUTHORIZED', 'A guest session can only join its own practice or friend battle');
   }
 }
