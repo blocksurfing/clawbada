@@ -27,10 +27,10 @@ export interface Browser {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-async function pickTarget(): Promise<string> {
+async function pickTarget(host = HOST): Promise<string> {
   for (let i = 0; i < 40; i++) {
     try {
-      const list = (await (await fetch(`http://${HOST}/json/list`)).json()) as Array<{
+      const list = (await (await fetch(`http://${host}/json/list`)).json()) as Array<{
         type: string; url: string; webSocketDebuggerUrl?: string;
       }>;
       const page = list.find((t) => t.type === 'page' && !!t.webSocketDebuggerUrl);
@@ -40,11 +40,11 @@ async function pickTarget(): Promise<string> {
     }
     await sleep(500);
   }
-  throw new Error(`no debuggable page on ${HOST} — run chrome-restart.sh first`);
+  throw new Error(`no debuggable page on ${host} — run chrome-restart.sh first`);
 }
 
-async function connect(): Promise<Browser> {
-  const ws = new WebSocket(await pickTarget());
+async function connect(host = HOST): Promise<Browser> {
+  const ws = new WebSocket(await pickTarget(host));
   const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   const logs: string[] = [];
   /** Everything a probe drained, for the runner's after-probe steps (forfeit needs the gear rect). */
@@ -216,7 +216,9 @@ async function forfeitIfLive(b: Browser) {
 // output), so a probe that died halfway looked like a pass without a verdict line.
 let exitCode = 0;
 try {
-  await run(browser);
+  // A second argument for probes that need another, independent browser (friend-battle.ts: two players): a CDP host
+  // such as 127.0.0.1:9223 that the probe started itself. House rules are the probe's to apply there.
+  await run(browser, { connect: (host: string) => connect(host) });
 } catch (e) {
   console.error(`[harness] probe threw: ${(e as Error)?.stack ?? String(e)}`);
   exitCode = 1;

@@ -639,6 +639,34 @@ export async function battleSocketUrl(wsBase: string, token: string, battleId: s
   return `${wsBase}?${params.toString()}`;
 }
 
+// ── Battle Friends (friend rooms) ──
+
+export type FriendRoomStatus = 'open' | 'seated' | 'in_battle' | 'ended' | 'expired' | 'cancelled';
+export interface FriendTeamBody { classes: string[]; tier: 'evolved' | 'elite' | 'apex'; purity: number }
+/** The room as one of its two players sees it — the opponent's team is never in it, only whether it is locked in. */
+export interface FriendRoomView {
+  id: string;
+  status: FriendRoomStatus;
+  role: 'host' | 'guest';
+  arena: string;
+  expiresAt: string;
+  battleId: string | null;
+  you: { team: FriendTeamBody | null; ready: boolean };
+  opponent: { joined: boolean; address: string | null; lockedIn: boolean; ready: boolean };
+}
+export interface FriendRoomCreated { roomId: string; secret: string; expiresAt: string; invite: string }
+
+const friend = {
+  /** Open a room. The invite (`<roomId>.<secret>`) is shown once: the secret is only stored hashed. */
+  createRoom: (auth: AuthHeaders) => post<FriendRoomCreated>('/api/game/friend/rooms', {}, auth),
+  room: (roomId: string, auth: AuthHeaders) => get<FriendRoomView>(`/api/game/friend/rooms/${roomId}`, auth),
+  join: (roomId: string, secret: string, auth: AuthHeaders) => post<FriendRoomView>(`/api/game/friend/rooms/${roomId}/join`, { secret }, auth),
+  setTeam: (roomId: string, team: FriendTeamBody, auth: AuthHeaders) => post<FriendRoomView>(`/api/game/friend/rooms/${roomId}/team`, { team }, auth),
+  /** Lock in. When both players are ready the answer carries the battle id. */
+  ready: (roomId: string, auth: AuthHeaders) => post<FriendRoomView>(`/api/game/friend/rooms/${roomId}/ready`, undefined, auth),
+  cancel: (roomId: string, auth: AuthHeaders) => post<FriendRoomView>(`/api/game/friend/rooms/${roomId}/cancel`, undefined, auth),
+};
+
 const combat = {
   /** D-E: queue by BRACKET (0 = Low, 1 = Mid, 2 = High); the amount is the chain's quote. */
   joinQueue: (teamId: string, bracket: number, auth: AuthHeaders) =>
@@ -772,6 +800,7 @@ export const api = {
   market,
   auth,
   combat,
+  friend,
   leaderboard,
   activity,
 };

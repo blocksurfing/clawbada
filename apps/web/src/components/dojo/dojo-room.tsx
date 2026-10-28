@@ -25,7 +25,9 @@ import {
  * - Your Team › My lobsters: the wallet's own lobsters as portrait tiles (pages of ten), a saved-team select, click
  *   or drag into the lineup (drag replaces, swaps or — dropped back on the tiles — removes; Escape cancels).
  * - Your Team › Build a team: any three classes at any tier and purity (the API's `team_*` preset).
- * - Opponent › Bot: the bot and its guide, mirror or random roster, the board. Fight with friend: "Coming soon".
+ * - Opponent › Bot: the bot and its guide, mirror or random roster, the board.
+ * - Opponent › Fight with friend (Battle Friends, 2026-10-28): the invite lobby the page renders (`friendPanel`); the
+ *   friend's team stays hidden — their fighters are silhouettes until the battle — and teams are built ones only.
  *
  * Owner decisions 2026-10-26: wallets land on My lobsters (guests and wallets with fewer than three on Build a team);
  * friend play shown disabled; the drop's fake bits (650 ms "Starting…", preview dialog, Resume) are not ported — the
@@ -70,6 +72,15 @@ interface DojoRoomProps {
   gate: ReactNode;
   /** Dev-only presets drawer. */
   devTools?: ReactNode;
+  /** Who you fight: the bot, or a friend by invite link (the page owns the lobby). */
+  vs: 'bot' | 'friend';
+  onVs: (vs: 'bot' | 'friend') => void;
+  /** The Fight with friend panel: create / share the link, the lobby's status. */
+  friendPanel: ReactNode;
+  /** The friend, as far as you may know: joined, team locked in. Null = no friend yet. */
+  friendOpponent: { joined: boolean; lockedIn: boolean } | null;
+  /** In a lobby with your friend and not locked in yet: Battle locks your team in. */
+  friendCanBattle: boolean;
 }
 
 /** His design window: the composition is laid out at this size (at the 3 px pixel) and scaled to fit. */
@@ -270,13 +281,18 @@ export function DojoRoom(props: DojoRoomProps) {
     return () => ro.disconnect();
   }, [mode, lobsters.length]);
 
+  const vsFriend = props.vs === 'friend';
+  // A friend battle is a built team (classes, tier, purity): My lobsters waits for on-chain teams.
+  useEffect(() => { if (vsFriend && mode !== 'builder') setMode('builder'); }, [vsFriend, mode]);
   const ownedReady = mode === 'owned' && slotsComplete(slots);
   const builtSlots: Slots = [team[0] ?? '', team[1] ?? '', team[2] ?? ''];
   const builderReady = builtSlots.every(Boolean);
-  const valid = mode === 'builder' ? builderReady : ownedReady;
+  const valid = vsFriend ? builderReady && props.friendCanBattle : mode === 'builder' ? builderReady : ownedReady;
   const activeSlots = mode === 'owned' ? slots : builtSlots;
   const botLabel = botInfo(bot)?.label ?? bot;
-  const summary = mode === 'builder'
+  const summary = vsFriend
+    ? builderReady ? builderSummary(team, tier, purity, 'your friend') : 'Pick three classes for your team.'
+    : mode === 'builder'
     ? builderReady ? builderSummary(team, tier, purity, botLabel) : 'Pick three classes for your team.'
     : ownedReady ? ownedSummary(slots.map((id) => lobsterName(byId.get(id)!)), savedTeam || null, botLabel)
       : isWallet ? 'Pick three lobsters for your team.' : 'Connect a wallet to train with your own lobsters, or build a team.';
@@ -423,7 +439,7 @@ export function DojoRoom(props: DojoRoomProps) {
         <div className="dojo-team-headings"><h2 id="dojo-team-title">Your Team</h2><h2 id="dojo-opponent-title">Opponent</h2></div>
         <DojoSign title="The Dojo" />
         <section className="dojo" aria-label="Practice setup">
-          <p className="dojo-intro">Build any team and train against a bot. No stakes, no rating, no repair.</p>
+          <p className="dojo-intro">{vsFriend ? 'Build any team and battle a friend. No wallet, no stakes, no rating.' : 'Build any team and train against a bot. No stakes, no rating, no repair.'}</p>
           <nav className="dojo-panel-switch" aria-label="Setup panel">
             {(['team', 'opponent'] as const).map((p) => (
               <button key={p} type="button" data-dojo-panel={p} aria-pressed={panel === p} onClick={() => setPanel(p)}>{p === 'team' ? 'Your team' : 'Opponent'}</button>
@@ -442,7 +458,8 @@ export function DojoRoom(props: DojoRoomProps) {
                 <div className="dojo-tabs" role="tablist" aria-label="Team source">
                   {(['owned', 'builder'] as const).map((m) => (
                     <button key={m} id={`dojo-${m}-tab`} type="button" role="tab" aria-selected={mode === m} aria-controls={`dojo-${m}`} tabIndex={mode === m ? 0 : -1}
-                      data-team-mode={m} onClick={() => pickMode(m)} onKeyDown={tabKeys}>
+                      data-team-mode={m} aria-disabled={vsFriend && m === 'owned' ? true : undefined} title={vsFriend && m === 'owned' ? 'Friend battles use a built team' : undefined}
+                      onClick={() => { if (!(vsFriend && m === 'owned')) pickMode(m); }} onKeyDown={tabKeys}>
                       {m === 'owned' ? 'My lobsters' : 'Build a team'}
                     </button>
                   ))}
@@ -512,6 +529,17 @@ export function DojoRoom(props: DojoRoomProps) {
               </PixelPanel>
             </div>
             <div className="dojo-side" data-side="opponent">
+              {vsFriend ? (
+                /* The friend's team is secret until the battle: silhouettes once they have joined, nobody before. */
+                <div className="dojo-lineup" data-lineup="opponent" data-testid="dojo-friend-lineup"
+                  data-friend={props.friendOpponent?.lockedIn ? 'locked' : props.friendOpponent?.joined ? 'picking' : 'none'}
+                  aria-label={props.friendOpponent?.joined ? `Your friend's team: ${props.friendOpponent.lockedIn ? 'locked in' : 'still picking'}, hidden until the battle` : 'Waiting for your friend'}>
+                  {[0, 1, 2].map((i) => (
+                    <Fighter key={i} side="opponent" slot={i} sheet={builderSheet} unknown
+                      classIndex={props.friendOpponent?.joined ? [8, 0, 3][i] : null} label={`Your friend's fighter ${i + 1}, hidden`} />
+                  ))}
+                </div>
+              ) : (
               <div className="dojo-lineup" data-lineup="opponent" aria-label={opponent === 'random' ? 'Opponent: three random classes' : 'Opponent: a mirror of your team'}>
                 {[0, 1, 2].map((i) => (
                   <Fighter key={i} side="opponent" slot={i} sheet={teamSheets[i] ?? builderSheet} unknown={opponent === 'random'}
@@ -519,15 +547,21 @@ export function DojoRoom(props: DojoRoomProps) {
                     label={opponent === 'random' ? `Random class, slot ${i + 1}` : `Mirror of ${teamLabels[i]}, slot ${i + 1}`} />
                 ))}
               </div>
+              )}
               <PixelPanel asset="dojoDarkPanel" className="dojo-card" aria-labelledby="dojo-opponent-title">
                 <div className="dojo-tabs dojo-opponent-tabs" role="tablist" aria-label="Opponent type">
-                  <button id="dojo-bot-tab" type="button" role="tab" aria-selected="true" aria-controls="dojo-bot">Bot</button>
-                  <button id="dojo-friend-tab" type="button" role="tab" aria-selected="false" aria-disabled="true" tabIndex={-1} title="Fight with friend — coming soon"
-                    data-testid="dojo-friend-tab" onClick={(e) => e.preventDefault()}>
-                    Fight with friend<small className="dojo-soon">Coming soon</small>
-                  </button>
+                  {(['bot', 'friend'] as const).map((v) => (
+                    <button key={v} id={`dojo-${v}-tab`} type="button" role="tab" aria-selected={props.vs === v} aria-controls={`dojo-${v}`} tabIndex={props.vs === v ? 0 : -1}
+                      data-testid={`dojo-${v}-tab`} disabled={busy}
+                      onClick={() => { if (props.vs !== v) { playUiClick(); props.onVs(v); } }}>
+                      {v === 'bot' ? 'Bot' : 'Fight with friend'}
+                    </button>
+                  ))}
                 </div>
-                <div id="dojo-bot" role="tabpanel" aria-labelledby="dojo-bot-tab">
+                <div id="dojo-friend" role="tabpanel" aria-labelledby="dojo-friend-tab" hidden={!vsFriend} data-testid="dojo-friend">
+                  {props.friendPanel}
+                </div>
+                <div id="dojo-bot" role="tabpanel" aria-labelledby="dojo-bot-tab" hidden={vsFriend}>
                   <label className="dojo-field">Training bot
                     <select data-testid="dojo-bot" aria-label="Training bot" value={bot} onChange={(e) => props.onBot(e.target.value as BotName)}>
                       {BOT_CATALOG.map((b) => <option key={b.name} value={b.name}>{b.label} · {b.difficulty}</option>)}

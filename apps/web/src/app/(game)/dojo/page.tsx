@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useModal } from 'connectkit';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -14,6 +14,11 @@ import { exitBattleFullscreen, requestBattleFullscreen } from '@/lib/battle-full
 import { primeAudio } from '@/lib/audio-graph';
 import { cancelBattleEntry, entryRevealed, originOf, startBattleEntry, windup } from '@/lib/battle-entry';
 import { DojoRoom, type DojoChoice, type DojoLobster, type DojoTeam } from '@/components/dojo/dojo-room';
+import { FriendLobby } from '@/components/dojo/friend-lobby';
+import {
+  canNativeShare, copyText, forgetRoom, inviteUrl, isRoomId, isTerminal, saveRoom, savedInvite, savedRoomId, shareInvite, useFriendRoom,
+} from '@/lib/friend-room';
+import type { ArenaTier } from '@/lib/arena-music.generated';
 
 /** Dev review rosters (moved here from the old /game/battle Practice tab when Battle became a modal on the Shell,
  *  2026-10-11): every Special whose VFX is finished, random/fixed trios per tier, and the storm-review trio. The
@@ -55,6 +60,11 @@ const presetsAllowed = process.env.NODE_ENV !== 'production';
  *
  * Bots come from lib/bot-catalog.ts: easiest first, each with how it plays and what it teaches.
  *
+ * Fight with friend (Battle Friends, owner 2026-10-28): the opponent card's second tab. Create invite link → the link
+ * (lib/friend-room.ts) → the friend opens it, is joined as a guest on /battle-friends/join and lands HERE on the same
+ * tab (?room=r_…). Both build a team and press Battle; the second press starts the battle and both enter it. No
+ * wallet on either side — the guest session is minted by the first action, exactly like a bot battle.
+ *
  * Deep links: ?class=kraken (three of one class) or ?team=kraken,ember,abyss, plus
  * ?tier= ?purity= ?bot= ?arena= ?opponent=. Review params ?auto= ?speed= ?stay= are carried
  * through to the battle page.
@@ -94,6 +104,31 @@ export default function DojoPage() {
   // Review presets (dev review stack + the browser harness): /dojo?preset=trio_tempest_evolved&auto=1.
   const [preset, setPreset] = useState('');
 
+  // ── Fight with friend ──
+  const [vs, setVs] = useState<'bot' | 'friend'>('bot');
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [friendBusy, setFriendBusy] = useState(false);
+  const [friendErr, setFriendErr] = useState<string | null>(null);
+  const [friendNote, setFriendNote] = useState<string | null>(null);
+  const [shareLabel, setShareLabel] = useState<string | null>(null);
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => { setCanShare(canNativeShare()); }, []);
+  // The lobby never asks a wallet to sign: it polls only while the session needs no prompt (guests always).
+  const lobbyAuth = useCallback(async () => {
+    if (!hasLiveSession()) throw new Error('session expired');
+    return getAuthHeaders();
+  }, [hasLiveSession, getAuthHeaders]);
+  const { view: room, setView: setRoom, error: roomErr } = useFriendRoom(roomId, lobbyAuth);
+  /** The battle this page is already entering — the press that started it and the poll that sees it race. */
+  const entering = useRef<string | null>(null);
+  const closeRoom = useCallback((note: string | null) => {
+    forgetRoom(roomId);
+    setRoomId(null); setInviteLink(null); setShareLabel(null); setFriendNote(note);
+    const q = new URLSearchParams(window.location.search);
+    if (q.has('room')) { q.delete('room'); window.history.replaceState(null, '', `${window.location.pathname}${q.size ? `?${q}` : ''}`); }
+  }, [roomId]);
+
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const one = q.get('class');
@@ -110,6 +145,16 @@ export default function DojoPage() {
     if (a && (a === 'match' || (ARENAS as readonly string[]).includes(a))) setArena(a as Arena);
     const o = q.get('opponent');
     if (o === 'mirror' || o === 'random') setOpponent(o);
+    // A friend's lobby: ?room= (the join page sends the friend here), or the one this tab was in before a refresh.
+    const r = q.get('room');
+    const rid = isRoomId(r) ? r : savedRoomId();
+    if (rid) {
+      saveRoom(rid);
+      setRoomId(rid);
+      setVs('friend');
+      const inv = savedInvite(rid);
+      if (inv) setInviteLink(inviteUrl(inv));
+    } else if (q.get('vs') === 'friend') setVs('friend');
     const pr = q.get('preset');
     if (presetsAllowed && pr && REVIEW_PRESETS.some((x) => x.id === pr)) { setPreset(pr); if (pr.startsWith('random_')) setOpponent('random'); }
   }, []);
@@ -182,17 +227,115 @@ export default function DojoPage() {
     return launch({ preset, bot, opponent }, 'Could not start the practice battle', tier);
   }, [preset, bot, opponent, tier, launch]);
 
+  /**
+   * Into a friend battle: the same entry as a bot battle (iris, loading loop, then the battle page). `gesture` = we are
+   * inside the Battle press (the second player to press), so fullscreen can open; the first player arrives here from
+   * the lobby poll with no gesture — the entry plays in the window, and the battle page's Full screen button is there.
+   */
+  const enterFriendBattle = useCallback(async (battleId: string, gesture: boolean, origin?: { x: number; y: number }) => {
+    if (entering.current) return;
+    entering.current = battleId;
+    setBusy(true);
+    try {
+      if (gesture) requestBattleFullscreen();
+      startBattleEntry({ kind: 'practice', arena: (room?.arena ?? 'dojo') as ArenaTier, origin: origin ?? originOf(document.querySelector('[data-testid=dojo-battle]')) });
+      // The battle page plays as this identity (a guest stays the guest even if a wallet connects meanwhile).
+      rememberPracticeOwner(battleId, identity ?? undefined);
+      forgetRoom(roomId);
+      const q = new URLSearchParams(window.location.search);
+      const carry = new URLSearchParams();
+      for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
+      await entryRevealed();
+      router.push(`/battle/${battleId}${carry.size ? `?${carry}` : ''}`);
+    } catch (e) {
+      entering.current = null;
+      setErr(e instanceof Error ? e.message : 'Could not start the friend battle');
+      setBusy(false);
+      cancelBattleEntry();
+      exitBattleFullscreen();
+    }
+  }, [room?.arena, identity, roomId, router]);
+
+  /** The friend Battle press: lock the team in. The second press starts the battle (its answer carries the id). */
+  const launchFriend = useCallback(async () => {
+    if (!roomId) return;
+    if (kind === 'wallet' && !hasLiveSession()) { setGate('expired'); setGateErr(null); return; }
+    primeAudio();
+    setBusy(true);
+    setErr(null);
+    const origin = originOf(document.querySelector('[data-testid=dojo-battle]'));
+    const start = (async () => {
+      const auth = await getAuthHeaders();
+      await api.friend.setTeam(roomId, { classes: team, tier, purity }, auth);
+      return api.friend.ready(roomId, auth);
+    })();
+    let failed: unknown = null;
+    start.catch((e: unknown) => { failed = e; });
+    await windup();
+    if (failed) { setErr(failed instanceof Error ? failed.message : 'Could not lock your team in'); setBusy(false); return; }
+    const v = await start;
+    setRoom(v);
+    if (v.battleId) await enterFriendBattle(v.battleId, true, origin);
+    else setBusy(false);   // locked in; the lobby poll brings the battle when the friend presses
+  }, [roomId, kind, hasLiveSession, getAuthHeaders, team, tier, purity, setRoom, enterFriendBattle]);
+
+  // The lobby's news: the battle started (the friend pressed second), or the room closed.
+  useEffect(() => {
+    if (roomErr) { closeRoom('That lobby is closed. Make a new link to play again.'); return; }
+    if (!room) return;
+    if (room.status === 'in_battle' && room.battleId) { void enterFriendBattle(room.battleId, false); return; }
+    if (isTerminal(room.status) && !entering.current) {
+      closeRoom(room.status === 'expired' ? 'The invite expired. Make a new link to play.'
+        : room.status === 'cancelled' ? (room.opponent.joined ? 'The lobby was closed.' : null)
+          : null);
+    }
+  }, [room, roomErr, closeRoom, enterFriendBattle]);
+
+  const createLink = useCallback(async () => {
+    if (kind === 'wallet' && !hasLiveSession()) { setGate('expired'); setGateErr(null); return; }
+    setFriendBusy(true); setFriendErr(null); setFriendNote(null);
+    try {
+      const created = await api.friend.createRoom(await getAuthHeaders());
+      saveRoom(created.roomId, created.invite);
+      setInviteLink(inviteUrl(created.invite));
+      setRoomId(created.roomId);
+    } catch (e) {
+      setFriendErr(e instanceof Error ? e.message : 'Could not make a link');
+    } finally {
+      setFriendBusy(false);
+    }
+  }, [kind, hasLiveSession, getAuthHeaders]);
+
+  const leaveRoom = useCallback(async () => {
+    const id = roomId;
+    closeRoom(null);
+    if (!id) return;
+    try { await api.friend.cancel(id, await lobbyAuth()); } catch { /* already gone */ }
+  }, [roomId, closeRoom, lobbyAuth]);
+
+  const copyLink = useCallback(async () => {
+    if (!inviteLink) return;
+    setShareLabel((await copyText(inviteLink)) ? 'Link copied — send it to your friend. Waiting for them…' : 'Select the link and copy it.');
+  }, [inviteLink]);
+  const shareLink = useCallback(async () => {
+    if (!inviteLink) return;
+    const r = await shareInvite(inviteLink);
+    if (r === 'copied') setShareLabel('Link copied — send it to your friend. Waiting for them…');
+    else if (r === 'shared') setShareLabel('Link sent. Waiting for your friend…');
+  }, [inviteLink]);
+
   /** The Battle press. Own lobsters fight with the tier and purity in their DNA; a saved team goes by its id. */
   const [lastChoice, setLastChoice] = useState<DojoChoice | null>(null);
   const start = useCallback((choice: DojoChoice) => {
     setLastChoice(choice);
+    if (vs === 'friend') return launchFriend();
     if (choice.mode === 'builder') return launch({ preset: `team_${team.join('_')}_${tier}`, purity, bot, opponent }, 'Could not start the dojo battle', tier);
     const picked = choice.lobsterIds.map((id) => lobsters.find((l) => l.id === id));
     const lowest = Math.min(...picked.map((l) => l?.tier ?? 1));
     const teamTier: Tier = lowest >= 3 ? 'apex' : lowest === 2 ? 'elite' : 'evolved';
     const roster = choice.teamId ? { teamId: choice.teamId } : { lobsterIds: choice.lobsterIds };
     return launch({ ...roster, bot, opponent }, 'Could not start the dojo battle', teamTier);
-  }, [team, tier, purity, bot, opponent, lobsters, launch]);
+  }, [vs, launchFriend, team, tier, purity, bot, opponent, lobsters, launch]);
 
   /** The gate's Sign in: the wallet prompt, with nothing else moving. Success turns the button into Enter Training. */
   const signIn = useCallback(async () => {
@@ -224,6 +367,15 @@ export default function DojoPage() {
       blocked={gate !== 'none'}
       error={err}
       onBattle={(choice) => { void start(choice); }}
+      vs={vs}
+      onVs={(v) => { setVs(v); setErr(null); }}
+      friendOpponent={room && (room.status === 'seated' || room.status === 'in_battle') ? { joined: room.opponent.joined, lockedIn: room.opponent.lockedIn } : null}
+      friendCanBattle={!!room && room.status === 'seated' && room.opponent.joined && !room.you.ready}
+      friendPanel={
+        <FriendLobby roomId={roomId} view={room} inviteLink={inviteLink} busy={friendBusy} error={friendErr} note={friendNote}
+          shareLabel={shareLabel} canShare={canShare}
+          onCreate={() => { void createLink(); }} onCopy={() => { void copyLink(); }} onShare={() => { void shareLink(); }} onLeave={() => { void leaveRoom(); }} />
+      }
       identity={
         /* The data attributes are for probes; wagmi's status differs between the server render and the client, hence the suppression. */
         <p className="dojo-identity" data-testid="dojo-identity" data-kind={kind ?? 'none'} data-resolving={resolving ? '1' : '0'} data-wallet-status={walletStatus} suppressHydrationWarning>
