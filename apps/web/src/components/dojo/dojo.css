@@ -50,7 +50,8 @@
 /* The wallet chip (pinned at 3× on every other page) scales with the room on the Dojo, anchored to its corner, so it
    sits beside "Opponent" as in his composition (owner 2026-10-26: "Shrink on the Dojo only"). */
 @media (min-width: 700px) {
-  html[data-dojo-stage] .user-section { transform: scale(var(--dojo-stage-scale, 1)); transform-origin: top right; }
+  /* The Dojo is one composition drawn at 3 px and scaled as a whole: its wallet is part of it (owner 2026-10-26). */
+  html[data-dojo-stage] .user-section { --pixel: 3px; --pixel-n: 3; transform: scale(var(--dojo-stage-scale, 1)); transform-origin: top right; }
 }
 /* His dojo.css (restored — dropped by mistake in #243): the sidebar's box is as wide as its whole column, wider than
    the cloth, and his cards reach under that empty strip. On the Dojo the strip lets clicks through to the cards; the

@@ -1,8 +1,8 @@
 /* The battle page out of fullscreen (battle-backdrop.tsx, owner 2026-10-28). */
 .battle-windowed {
-  /* The wallet + wheel are fixed top-right at 3× (chrome.css .user-section: 160 × 64 source px). On desktop the
-     arena starts below them, so nothing ever sits under the wheel. */
-  --battle-band: calc(var(--user-section-top, 12px) + 64 * 3px + 8px);
+  /* The wallet + wheel are fixed top-right (chrome.css .user-section: 160 × 64 art px at the page's --pixel). On
+     desktop the arena starts below them, so nothing ever sits under the wheel. */
+  --battle-band: calc(var(--user-section-top, 12px) + 64 * var(--pixel, 3px) + 8px);
   position: relative;
   min-height: 100dvh;
 }
@@ -64,8 +64,8 @@
     position: fixed;
     z-index: 18;
     /* Beside the lower half of the wheel, just left of the wallet (the wallet is always 160 × 3 px wide). */
-    top: calc(var(--user-section-top, 12px) + 40 * 3px);   /* below the dev burner chip (chrome.css, top + 48 px) */
-    right: calc(var(--user-section-right, 12px) + 160 * 3px + 12px);
+    top: calc(var(--user-section-top, 12px) + 40 * var(--pixel, 3px));   /* below the dev burner chip (chrome.css, top + 48 px) */
+    right: calc(var(--user-section-right, 12px) + 160 * var(--pixel, 3px) + 12px);
     transform: translateY(-50%);
   }
 }
