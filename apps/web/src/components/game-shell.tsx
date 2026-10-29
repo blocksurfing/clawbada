@@ -50,7 +50,8 @@ const MORE_NAV = [
 
 function isActive(pathname: string, href: string) {
   // A battle belongs to where it started: practice → the Dojo, staked → home (The Shell).
-  if (pathname.startsWith('/battle/')) return href === (pathname.startsWith('/battle/p_') ? '/dojo' : '/game');
+  if (pathname.startsWith('/battle-friends')) return href === '/dojo';
+  if (pathname.startsWith('/battle/')) return href === (/^\/battle\/[pf]_/.test(pathname) ? '/dojo' : '/game');
   if (href === '/game') return pathname === '/game';
   return pathname.startsWith(href);
 }

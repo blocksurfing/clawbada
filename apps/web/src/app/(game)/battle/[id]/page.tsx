@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Live battle page — real (chain id) and practice (p_<uuid>) battles.
+ * Live battle page — real (chain id), practice (p_<uuid>) and friend (f_<uuid>) battles.
  *   - real, pre-Active: header + the on-chain prep flow (deposit / commit / reveal) for participants
  *   - real, Active+ or practice: the live V3 session (Unity stage or SVG board + HUD + actions)
  */
@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
-import { isPracticeId } from '@/lib/battle-protocol';
+import { isFriendId, isOffChainId } from '@/lib/battle-protocol';
 import { readPracticeOwner } from '@/lib/practice-owner';
 import { Badge } from '@/components/ui/badge';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
@@ -31,7 +31,9 @@ export default function BattlePage() {
   const router = useRouter();
   const battleId = params.id as string;
   const { address: walletAddress } = useAccount();
-  const practice = isPracticeId(battleId);
+  // Practice and friend battles: off-chain, guests welcome, back to the Dojo afterwards (`practice` below means both).
+  const practice = isOffChainId(battleId);
+  const friend = isFriendId(battleId);
   // A practice battle may belong to a guest session (the Dojo without a wallet). The Dojo records which
   // identity started each battle in this browser; the page acts as that one, so a guest's battle stays the
   // guest's even after a wallet connects, and a wallet's battle is never mistaken for the guest's. Without
@@ -110,11 +112,11 @@ export default function BattlePage() {
             <LiveBattle battleId={battleId} address={address} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} onClose={leave} />
           ) : identityPending ? (
             <FrostedPanel className="py-10 text-center text-sm text-text-secondary flex items-center justify-center gap-2">
-              <Loader2 className="size-4 animate-spin" /> Opening your practice battle…
+              <Loader2 className="size-4 animate-spin" /> {friend ? 'Opening your battle…' : 'Opening your practice battle…'}
             </FrostedPanel>
           ) : (
             <FrostedPanel className="py-10 text-center text-sm text-text-secondary">
-              This practice battle belongs to another session.{' '}
+              {friend ? 'This battle belongs to another session.' : 'This practice battle belongs to another session.'}{' '}
               <Link href="/dojo" className="underline underline-offset-2 hover:text-foreground">Start a new one from the Dojo.</Link>
             </FrostedPanel>
           )}

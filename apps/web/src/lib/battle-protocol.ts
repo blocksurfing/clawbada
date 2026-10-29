@@ -6,7 +6,7 @@
 import type { v3 } from '@clawbada/game-logic';
 
 export type Side = 'A' | 'B';
-export type SessionKind = 'real' | 'practice';
+export type SessionKind = 'real' | 'practice' | 'friend';
 export type SubmittedBy = 'player' | 'bot' | 'timeout' | 'stun' | 'forfeit';
 export type EndReason = 'wipeout' | 'turn_cap' | 'forfeit';
 
@@ -116,6 +116,11 @@ export interface WsEnvelope<T = unknown> {
 
 export const PRACTICE_ID_RE = /^p_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const isPracticeId = (id: string): boolean => PRACTICE_ID_RE.test(id);
+/** Friend battles (Battle Friends, 2026-10-28): two humans by invite link, off-chain, no stake, no rating. */
+export const FRIEND_ID_RE = /^f_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export const isFriendId = (id: string): boolean => FRIEND_ID_RE.test(id);
+/** Practice or friend: off-chain, guests welcome, the Dojo's battles. */
+export const isOffChainId = (id: string): boolean => isPracticeId(id) || isFriendId(id);
 
 /** D-06: pushed when a result for this battle lands on-chain while it is still being played
  *  on the game server - so it did not come from the game server. Informational: the game's
