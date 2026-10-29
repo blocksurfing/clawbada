@@ -183,3 +183,87 @@ describe('friend rooms', () => {
     expect((await svc.create(HOST, { arena: 'elite' })).roomId).toMatch(/^r_/);
   });
 });
+
+// Play again (2026-10-29): one tap after the battle, either player, sides swapped, both seated, no link.
+describe('friend rematch', () => {
+  async function finished() {
+    const s = await seated();
+    await s.svc.setTeam(s.room.roomId, HOST, TEAM);
+    await s.svc.setTeam(s.room.roomId, FRIEND, TEAM2);
+    await s.svc.ready(s.room.roomId, HOST);
+    const v = await s.svc.ready(s.room.roomId, FRIEND);
+    s.active.delete(v.battleId!);   // the battle is over
+    return s;
+  }
+  const code = async (p: Promise<unknown>) => { try { await p; return null; } catch (e) { return e instanceof FriendRoomError ? e.code : 'other'; } };
+
+  test('only after the battle: not while open, seated or in battle', async () => {
+    const s = await seated();
+    expect(await code(s.svc.rematch(s.room.roomId, HOST))).toBe('CONFLICT');
+    await s.svc.setTeam(s.room.roomId, HOST, TEAM);
+    await s.svc.setTeam(s.room.roomId, FRIEND, TEAM2);
+    await s.svc.ready(s.room.roomId, HOST);
+    await s.svc.ready(s.room.roomId, FRIEND);
+    expect(await code(s.svc.rematch(s.room.roomId, FRIEND))).toBe('CONFLICT');
+  });
+
+  test('the first ask opens one room: sides swapped, both seated, teams empty, same board, fresh lobby window', async () => {
+    const s = await finished();
+    const v = await s.svc.rematch(s.room.roomId, FRIEND);
+    expect(v.status).toBe('seated');
+    expect(v.role).toBe('host');                 // the old guest now hosts (side A changes hands)
+    expect(v.you.team).toBeNull();
+    expect(v.opponent).toMatchObject({ joined: true, lockedIn: false, ready: false });
+    expect(v.rematchOf).toBe(s.room.roomId);
+    const row = s.repo.rows.get(v.id)!;
+    expect(row).toMatchObject({ host: FRIEND, guest: HOST, arena: 'dojo', rematchBy: FRIEND });
+    expect(row.expiresAt.getTime() - 1_800_000_000_000).toBe(LOBBY_TTL_MS);
+  });
+
+  test('the other player sees the offer on the old room, and their ask (Accept) lands in the same room', async () => {
+    const s = await finished();
+    const offered = await s.svc.rematch(s.room.roomId, HOST);
+    const seen = await s.svc.view(s.room.roomId, FRIEND);
+    expect(seen.status).toBe('ended');
+    expect(seen.rematch).toEqual({ roomId: offered.id, offeredBy: 'opponent', status: 'seated' });
+    expect((await s.svc.view(s.room.roomId, HOST)).rematch?.offeredBy).toBe('you');
+    const accepted = await s.svc.rematch(s.room.roomId, FRIEND);
+    expect(accepted.id).toBe(offered.id);
+    expect(accepted.role).toBe('host');
+    expect([...s.repo.rows.values()].filter((r) => r.rematchOf === s.room.roomId)).toHaveLength(1);
+  });
+
+  test('both asking at once still makes one room', async () => {
+    const s = await finished();
+    const [a, b] = await Promise.all([s.svc.rematch(s.room.roomId, HOST), s.svc.rematch(s.room.roomId, FRIEND)]);
+    expect(a.id).toBe(b.id);
+  });
+
+  test('declined: "no thanks" cancels it, and asking again says so', async () => {
+    const s = await finished();
+    const offered = await s.svc.rematch(s.room.roomId, HOST);
+    await s.svc.cancel(offered.id, FRIEND);
+    expect((await s.svc.view(s.room.roomId, HOST)).rematch?.status).toBe('cancelled');
+    await expect(s.svc.rematch(s.room.roomId, HOST)).rejects.toThrow(/no thanks/);
+  });
+
+  test('a rematch plays like any lobby and can be followed by another', async () => {
+    const s = await finished();
+    const r1 = await s.svc.rematch(s.room.roomId, HOST);
+    await s.svc.setTeam(r1.id, HOST, TEAM);
+    await s.svc.setTeam(r1.id, FRIEND, TEAM2);
+    await s.svc.ready(r1.id, HOST);
+    const v = await s.svc.ready(r1.id, FRIEND);
+    expect(v.status).toBe('in_battle');
+    expect(s.started.at(-1)).toMatchObject({ host: FRIEND, guest: HOST });   // A is the old guest now
+    s.active.delete(v.battleId!);
+    const r2 = await s.svc.rematch(r1.id, HOST);
+    expect(r2.role).toBe('host');                                          // and back again
+    expect(s.repo.rows.get(r2.id)!.host).toBe(HOST);
+  });
+
+  test('strangers cannot ask', async () => {
+    const s = await finished();
+    expect(await code(s.svc.rematch(s.room.roomId, STRANGER))).toBe('NOT_FOUND');
+  });
+});

@@ -653,6 +653,10 @@ export interface FriendRoomView {
   battleId: string | null;
   you: { team: FriendTeamBody | null; ready: boolean };
   opponent: { joined: boolean; address: string | null; lockedIn: boolean; ready: boolean };
+  /** After the battle: a rematch either player asked for (a 'cancelled' one was turned down). */
+  rematch: { roomId: string; offeredBy: 'you' | 'opponent'; status: FriendRoomStatus } | null;
+  /** On a rematch room: the room it follows. */
+  rematchOf: string | null;
 }
 export interface FriendRoomCreated { roomId: string; secret: string; expiresAt: string; invite: string }
 
@@ -665,6 +669,9 @@ const friend = {
   /** Lock in. When both players are ready the answer carries the battle id. */
   ready: (roomId: string, auth: AuthHeaders) => post<FriendRoomView>(`/api/game/friend/rooms/${roomId}/ready`, undefined, auth),
   cancel: (roomId: string, auth: AuthHeaders) => post<FriendRoomView>(`/api/game/friend/rooms/${roomId}/cancel`, undefined, auth),
+  /** Play again with the same friend once the battle is over: the first ask opens the rematch room (sides swapped,
+   *  both seated); the other player's ask lands in the same room. Answers with the NEW room. */
+  rematch: (roomId: string, auth: AuthHeaders) => post<FriendRoomView>(`/api/game/friend/rooms/${roomId}/rematch`, undefined, auth),
 };
 
 const combat = {

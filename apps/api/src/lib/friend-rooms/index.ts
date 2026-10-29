@@ -1,5 +1,6 @@
 /** Battle Friends lobby: the rules (service.ts), storage (repo.ts), and the process-wide instance. */
 import { v3 } from '@clawbada/game-logic';
+import { log as baseLog } from '../../logger';
 import { battleSessions, type PracticeLobster } from '../battle-session';
 import { rollTeamRoster } from '../battle-session/random-roster';
 import { DbFriendRoomRepo } from './repo';
@@ -15,6 +16,7 @@ export function lobstersFor(team: FriendTeam): PracticeLobster[] {
 
 export const friendRooms = new FriendRoomService({
   repo: new DbFriendRoomRepo(),
+  log: baseLog.child({ module: 'friend-rooms' }),
   startBattle: async (room) => {
     const session = await battleSessions.startFriend({
       host: room.host,
@@ -26,7 +28,9 @@ export const friendRooms = new FriendRoomService({
     return session.record.id;
   },
   battleActive: async (battleId) => {
-    if (battleSessions.get(battleId)) return true;
+    // A battle that has just ended is still in memory for a moment (its result being written): it is over already.
+    const live = battleSessions.get(battleId);
+    if (live) return !live.state.finished;
     const row = await battleSessions['deps'].store.get(battleId);
     return !!row && row.status === 'active';
   },

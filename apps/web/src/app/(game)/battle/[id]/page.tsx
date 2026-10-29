@@ -14,6 +14,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { isFriendId, isOffChainId } from '@/lib/battle-protocol';
 import { readPracticeOwner } from '@/lib/practice-owner';
+import { roomOfBattle } from '@/lib/friend-room';
 import { Badge } from '@/components/ui/badge';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
@@ -77,11 +78,14 @@ export default function BattlePage() {
   // settlement page reachable: push.
   // Practice (the Dojo) is gone once it ends: replace, so Back never lands in it. A chain battle goes back to
   // the Shell, where its settlement stays reachable from History.
+  // A friend battle comes back to the Dojo's friend tab, which offers the rematch (owner 2026-10-29).
   const leave = useCallback(() => {
-    console.log(`[BattlePage] leaving ${battleId} → ${practice ? '/dojo' : '/game'}`);
-    if (practice) router.replace('/dojo');
-    else router.push('/game');
-  }, [practice, router, battleId]);
+    const room = friend ? roomOfBattle(battleId) : null;
+    const to = practice ? (friend ? (room ? `/dojo?after=${room}` : '/dojo?vs=friend') : '/dojo') : '/game';
+    console.log(`[BattlePage] leaving ${battleId} → ${to}`);
+    if (practice) router.replace(to);
+    else router.push(to);
+  }, [practice, friend, router, battleId]);
 
   const { data: battleData, isLoading, error } = useQuery({
     queryKey: ['battle', battleId],

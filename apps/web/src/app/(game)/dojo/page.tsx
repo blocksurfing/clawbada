@@ -16,7 +16,7 @@ import { cancelBattleEntry, entryRevealed, originOf, startBattleEntry, windup } 
 import { DojoRoom, type DojoChoice, type DojoLobster, type DojoTeam } from '@/components/dojo/dojo-room';
 import { FriendLobby } from '@/components/dojo/friend-lobby';
 import {
-  canNativeShare, copyText, forgetRoom, inviteUrl, isRoomId, isTerminal, saveRoom, savedInvite, savedRoomId, shareInvite, useFriendRoom,
+  canNativeShare, copyText, forgetRoom, inviteUrl, isRoomId, isTerminal, rememberBattleRoom, saveRoom, savedInvite, savedRoomId, shareInvite, useFriendRoom,
 } from '@/lib/friend-room';
 import type { ArenaTier } from '@/lib/arena-music.generated';
 
@@ -120,6 +120,9 @@ export default function DojoPage() {
     return getAuthHeaders();
   }, [hasLiveSession, getAuthHeaders]);
   const { view: room, setView: setRoom, error: roomErr } = useFriendRoom(roomId, lobbyAuth);
+  /** Just back from a friend battle (?after=<room>): the finished room, watched for a rematch (owner 2026-10-29). */
+  const [afterId, setAfterId] = useState<string | null>(null);
+  const { view: after } = useFriendRoom(roomId ? null : afterId, lobbyAuth, { untilRematch: true });
   /** The battle this page is already entering — the press that started it and the poll that sees it race. */
   const entering = useRef<string | null>(null);
   const closeRoom = useCallback((note: string | null) => {
@@ -145,6 +148,9 @@ export default function DojoPage() {
     if (a && (a === 'match' || (ARENAS as readonly string[]).includes(a))) setArena(a as Arena);
     const o = q.get('opponent');
     if (o === 'mirror' || o === 'random') setOpponent(o);
+    // Back from a friend battle: offer the rematch.
+    const af = q.get('after');
+    if (isRoomId(af)) { setAfterId(af); setVs('friend'); }
     // A friend's lobby: ?room= (the join page sends the friend here), or the one this tab was in before a refresh.
     const r = q.get('room');
     const rid = isRoomId(r) ? r : savedRoomId();
@@ -241,6 +247,7 @@ export default function DojoPage() {
       startBattleEntry({ kind: 'practice', arena: (room?.arena ?? 'dojo') as ArenaTier, origin: origin ?? originOf(document.querySelector('[data-testid=dojo-battle]')) });
       // The battle page plays as this identity (a guest stays the guest even if a wallet connects meanwhile).
       rememberPracticeOwner(battleId, identity ?? undefined);
+      if (roomId) rememberBattleRoom(battleId, roomId);   // the way back offers a rematch from this room
       forgetRoom(roomId);
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
@@ -291,9 +298,43 @@ export default function DojoPage() {
     }
   }, [room, roomErr, closeRoom, enterFriendBattle]);
 
+  /** One tap: ask for (or accept) the rematch. Both asks land in the same new room — sides swapped, both seated. */
+  const rematch = useCallback(async () => {
+    if (!afterId) return;
+    if (kind === 'wallet' && !hasLiveSession()) { setGate('expired'); setGateErr(null); return; }
+    setFriendBusy(true); setFriendErr(null); setFriendNote(null);
+    try {
+      const next = await api.friend.rematch(afterId, await getAuthHeaders());
+      saveRoom(next.id);
+      setAfterId(null);
+      setInviteLink(null);
+      setRoom(next);
+      setRoomId(next.id);
+      const q = new URLSearchParams(window.location.search);
+      q.delete('after'); q.set('room', next.id);
+      window.history.replaceState(null, '', `${window.location.pathname}?${q}`);
+    } catch (e) {
+      setFriendErr(e instanceof Error ? e.message : 'Could not start the rematch');
+    } finally {
+      setFriendBusy(false);
+    }
+  }, [afterId, kind, hasLiveSession, getAuthHeaders, setRoom]);
+
+  /** "No thanks" to the friend's rematch: close it, and offer a fresh link instead. */
+  const declineRematch = useCallback(async () => {
+    const offer = after?.rematch;
+    setAfterId(null);
+    setFriendNote(null);
+    const q = new URLSearchParams(window.location.search);
+    if (q.has('after')) { q.delete('after'); window.history.replaceState(null, '', `${window.location.pathname}${q.size ? `?${q}` : ''}`); }
+    if (!offer) return;
+    try { await api.friend.cancel(offer.roomId, await lobbyAuth()); } catch { /* already gone */ }
+  }, [after, lobbyAuth]);
+
   const createLink = useCallback(async () => {
     if (kind === 'wallet' && !hasLiveSession()) { setGate('expired'); setGateErr(null); return; }
     setFriendBusy(true); setFriendErr(null); setFriendNote(null);
+    setAfterId(null);
     try {
       const created = await api.friend.createRoom(await getAuthHeaders());
       saveRoom(created.roomId, created.invite);
@@ -372,7 +413,8 @@ export default function DojoPage() {
       friendOpponent={room && (room.status === 'seated' || room.status === 'in_battle') ? { joined: room.opponent.joined, lockedIn: room.opponent.lockedIn } : null}
       friendCanBattle={!!room && room.status === 'seated' && room.opponent.joined && !room.you.ready}
       friendPanel={
-        <FriendLobby roomId={roomId} view={room} inviteLink={inviteLink} busy={friendBusy} error={friendErr} note={friendNote}
+        <FriendLobby roomId={roomId} view={room} after={roomId ? null : after} inviteLink={inviteLink} busy={friendBusy} error={friendErr} note={friendNote}
+          onRematch={() => { void rematch(); }} onDeclineRematch={() => { void declineRematch(); }}
           shareLabel={shareLabel} canShare={canShare}
           onCreate={() => { void createLink(); }} onCopy={() => { void copyLink(); }} onShare={() => { void shareLink(); }} onLeave={() => { void leaveRoom(); }} />
       }

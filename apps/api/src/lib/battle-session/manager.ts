@@ -116,6 +116,10 @@ export const DEFAULT_POLL_MS = 2_000;
 export const RESUME_MIN_CLOCK_MS = 5_000;
 /** How often live sessions' leases are renewed (the lease itself holds LEASE_TTL_SEC = 20 s). */
 export const LEASE_RENEW_MS = 5_000;
+/** Long-poll (GET …/events): open waits per battle and in total. Past either cap a poll answers at once (busy). */
+export const MAX_WAITERS_PER_BATTLE = 16;
+export const MAX_WAITERS = 4_000;
+export type WaitResult = 'changed' | 'timeout' | 'gone' | 'busy';
 /** Extra time on each side's first human turn of a fresh battle — covers the browser loading the arena. */
 export const DEFAULT_FIRST_TURN_GRACE_MS = 15_000;
 /** Cap on the wait for `ready` (battle-start intro, ~4 s after the arena loads). 0 = no wait. */
@@ -173,6 +177,14 @@ export class BattleSessionManager {
   /** D-14: battleId -> the reveal-failure reports standing against its players (keyed by side)
    *  and when each was last pushed. Replayed to any client that joins the battle room. */
   private readonly revealAlerts = new Map<string, Map<Side, { payload: RevealFailurePayload; pushedAt: number }>>();
+  /** Long-poll waiters (GET …/events), woken by any event of their battle. */
+  private readonly waiters = new Map<string, Set<(r: WaitResult) => void>>();
+  private waiterCount = 0;
+  /** Every session event goes out to the sockets AND wakes that battle's long-polls. */
+  private readonly emit = (id: string, event: SessionEventName, data: unknown) => {
+    this.deps.emit(id, event, data);
+    this.wake(id, 'changed');
+  };
 
   constructor(private readonly deps: ManagerDeps) {
     this.clock = deps.clock ?? new ShotClock();
@@ -210,6 +222,7 @@ export class BattleSessionManager {
     }
     for (const s of this.sessions.values()) s.stop();
     this.clock.clearAll();
+    for (const id of [...this.waiters.keys()]) this.wake(id, 'gone');   // long-polls answer now; agents re-poll the new instance
   }
 
   /** Shutdown: await every live session's persist queue — its queued writeTurns() transactions and, for a
@@ -241,8 +254,44 @@ export class BattleSessionManager {
       if (!s || s.state.finished) continue;   // finishing right now: its own write wins
       s.stop();
       this.sessions.delete(id);
+      this.wake(id, 'gone');
       this.deps.log.warn({ sessionId: id }, 'battle_session_lease_lost');
     }
+  }
+
+  /**
+   * Long-poll for agents that don't hold a socket: resolves 'changed' at once if the battle has resolved a turn past
+   * `afterTurn` or is over, else on its next event (a turn, the start, the end), else 'timeout' after `ms`. 'gone' =
+   * not live on this instance (finished — read the stored result — or held elsewhere during a rollout).
+   */
+  waitForChange(id: string, afterTurn: number, ms: number): Promise<WaitResult> {
+    const s = this.sessions.get(id);
+    if (!s) return Promise.resolve('gone');
+    if (s.state.turn > afterTurn || s.state.finished) return Promise.resolve('changed');
+    const set = this.waiters.get(id) ?? new Set<(r: WaitResult) => void>();
+    if (set.size >= MAX_WAITERS_PER_BATTLE || this.waiterCount >= MAX_WAITERS) return Promise.resolve('busy');
+    this.waiters.set(id, set);
+    return new Promise<WaitResult>((resolve) => {
+      const done = (r: WaitResult) => {
+        clearTimeout(timer);
+        if (set.delete(done)) this.waiterCount--;
+        if (set.size === 0 && this.waiters.get(id) === set) this.waiters.delete(id);
+        resolve(r);
+      };
+      const timer = setTimeout(() => done('timeout'), ms);
+      set.add(done);
+      this.waiterCount++;
+    });
+  }
+
+  private wake(id: string, r: WaitResult) {
+    const set = this.waiters.get(id);
+    if (set) for (const done of [...set]) done(r);
+  }
+
+  /** Open long-polls (for tests and shutdown logs). */
+  waitingCount(): number {
+    return this.waiterCount;
   }
 
   get(id: string): BattleSession | undefined {
@@ -452,7 +501,7 @@ export class BattleSessionManager {
               'before the grace deadline, or you forfeit your 5% anti-grief deposit when the reveal window ends. If you still hold the salt, re-sending it to /reveal-team first is free.',
           };
           if (!last) this.deps.log.warn({ battleId: b.battleId, accused: payload.accused, side, graceDeadline: payload.graceDeadline }, 'reveal_failure_reported_pushed');
-          this.deps.emit(b.battleId, 'reveal_failure_reported', payload);
+          this.emit(b.battleId, 'reveal_failure_reported', payload);
           standing.set(side, { payload, pushedAt: now });
         }
         if (standing.size > 0) this.revealAlerts.set(b.battleId, standing);
@@ -512,7 +561,7 @@ export class BattleSessionManager {
             : 'A result for this battle was submitted on-chain while it is still being played. It did not come from this game server. ' +
               'The game\'s watchdog holds results it cannot reproduce for review before they can pay out. Nothing is needed from you.',
         };
-        this.deps.emit(id, 'settlement_alert', payload);
+        this.emit(id, 'settlement_alert', payload);
         this.alertedAt.set(id, now);
         this.standingAlert.set(id, payload);
       } catch (err) {
@@ -628,7 +677,7 @@ export class BattleSessionManager {
         const firstTurnClockMs = remaining === null ? undefined : remaining <= 0 ? this.shotClockMs : Math.max(remaining, RESUME_MIN_CLOCK_MS);
         const session = this.launch(record, state, bot, { timeouts, firstTurnClockMs });
         // Clients that reconnected here while the old instance still held the battle got no snapshot on join: send it now.
-        this.deps.emit(record.id, 'battle_snapshot', session.snapshot());
+        this.emit(record.id, 'battle_snapshot', session.snapshot());
         n++;
       } catch (err) {
         this.deps.log.error({ err, sessionId: candidate.id }, 'battle_session_resume_failed');
@@ -669,7 +718,7 @@ export class BattleSessionManager {
         firstTurnGraceMs: this.firstTurnGraceMs,
         startWaitMs: resume ? 0 : this.startWaitMs,
         hooks: {
-          emit: this.deps.emit,
+          emit: this.emit,
           persist: (s, turns, snap) => this.deps.store.writeTurns(s.record.id, turns, snap),
           onFinished: (s) => this.onFinished(s),
           onError: (err, ctx) => this.deps.log.error({ err, ...ctx }, 'battle_session_error'),
@@ -710,7 +759,7 @@ export class BattleSessionManager {
     } else {
       await this.deps.store.markFinished(record.id, { status: 'finished', winner, finalStateHash, turnLogHash, stateJson: v3.serializeState(state), turn: state.turn });
     }
-    this.deps.emit(record.id, 'battle_ended', { winner, reason, finalStateHash, turnLogHash, ...(damage ? { damage } : {}), settle: isReal ? 'queued' : 'n/a' });
+    this.emit(record.id, 'battle_ended', { winner, reason, finalStateHash, turnLogHash, ...(damage ? { damage } : {}), settle: isReal ? 'queued' : 'n/a' });
     this.deps.log.info({ sessionId: record.id, kind: record.kind, winner, reason, turns: state.turn }, 'battle_session_finished');
     this.sessions.delete(record.id);
   }
