@@ -58,14 +58,26 @@ export default async function (b: Browser) {
   const shownAt = await (async () => { const t0 = Date.now(); while (Date.now() - t0 < 30000) { if (b.allLogs.some((l) => /\[LiveBattle\] result shown/.test(l))) return Date.now(); await b.sleep(100); } return null; })();
   ok(!!shownAt, 'the result shows');
   let closingAt: number | null = null;
-  const backAt = await (async () => { const t0 = Date.now(); while (Date.now() - t0 < 30000) { if (!closingAt && b.allLogs.some((l) => /\[LiveBattle\] closing the battle view/.test(l))) closingAt = Date.now(); if (await b.eval(`location.pathname === '/dojo'`)) return Date.now(); await b.sleep(100); } return null; })();
+  // The exit iris (2026-10-29): when each phase was first seen, and where the page was when the circle shut.
+  const seen: Record<string, number> = {};
+  let pathWhenClosed = '';
+  const exitPhase = () => b.eval(`document.querySelector('[data-testid=battle-exit]')?.getAttribute('data-phase') ?? 'none'`) as Promise<string>;
+  const backAt = await (async () => { const t0 = Date.now(); while (Date.now() - t0 < 30000) { if (!closingAt && b.allLogs.some((l) => /\[LiveBattle\] closing the battle view/.test(l))) closingAt = Date.now(); const ph = await exitPhase(); if (ph !== 'none' && !seen[ph]) { seen[ph] = Date.now(); if (ph === 'closed') pathWhenClosed = await b.eval('location.pathname') as string; } if (await b.eval(`location.pathname === '/dojo'`)) return Date.now(); await b.sleep(50); } return null; })();
+  // … then the opening on the Dojo, until the overlay is gone.
+  const goneAt = await (async () => { const t0 = Date.now(); while (Date.now() - t0 < 15000) { const ph = await exitPhase(); if (ph !== 'none' && !seen[ph]) seen[ph] = Date.now(); if (ph === 'none' && seen.opening) return Date.now(); await b.sleep(50); } return null; })();
   const held = shownAt && backAt ? (backAt - shownAt) / 1000 : null;
   // The hold itself ends when the view starts closing; the navigation after it waits on the stage teardown (and, on a
   // cold dev server, a page compile) — logged separately so a slow server isn't read as a long hold.
   const closingLine = b.allLogs.find((l) => /\[LiveBattle\] closing the battle view/.test(l));
   console.log(`[windowed] closing logged: ${!!closingLine}; result → Dojo ${held?.toFixed(1)} s`);
+  const zoomStart = shownAt && seen.closing ? (seen.closing - shownAt) / 1000 : null;
+  ok(zoomStart !== null && zoomStart >= 7.8 && zoomStart <= 8.8, 'the zoom-out starts when the 8 s result hold ends', zoomStart !== null ? `${zoomStart.toFixed(1)} s after the result` : 'no exit iris seen');
+  const closeDur = seen.closing && seen.closed ? (seen.closed - seen.closing) / 1000 : null;
+  ok(closeDur !== null && closeDur >= 1.3 && closeDur <= 2.0, 'the circle closes over the result in ~1.5 s', closeDur !== null ? `${closeDur.toFixed(2)} s` : 'never closed');
+  ok(pathWhenClosed.startsWith('/battle/'), 'the battle page is still there while it closes (the switch happens under the navy)', pathWhenClosed || 'unknown');
+  ok(!!seen.opening && !!goneAt && !!backAt && seen.opening >= backAt, 'the Dojo opens from the middle afterwards', seen.opening && goneAt ? `opening ${((goneAt - seen.opening) / 1000).toFixed(2)} s` : 'no opening seen');
   const hold = shownAt && closingAt ? (closingAt - shownAt) / 1000 : null;
-  ok(hold !== null && hold >= 7.8 && hold <= 8.8, 'the result holds 8 s before the view closes', hold !== null ? `${hold.toFixed(1)} s` : 'never closed');
+  ok(hold !== null && hold >= 9.3 && hold <= 10.6, 'the result holds 8 s, then the 1.5 s zoom-out, before the view closes', hold !== null ? `${hold.toFixed(1)} s` : 'never closed');
   ok(held !== null, 'then it returns to the Dojo by itself', held !== null ? `${held.toFixed(1)} s after the result (teardown + page load included)` : 'never returned');
   const rm = b.allLogs.filter((l) => /\[ResultMusic\]/.test(l));
   console.log(`[windowed] result music: ${rm.map((l) => l.slice(0, 120)).join(' | ') || '(none logged)'}`);
