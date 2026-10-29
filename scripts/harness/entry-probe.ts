@@ -2,7 +2,7 @@ import type { Browser } from './cdp';
 
 /**
  * The battle entry sequence (PR feat/battle-entry-web): a guest presses Battle on the Dojo and must see Nzib's
- * loading loop at once, the page in fullscreen, the loop held for at least 12 s, then the arena intro.
+ * loading loop at once, the page in fullscreen, the loop held for at least 6 s, then the arena intro.
  *   bun cdp.ts entry-probe.ts                      # local stack (web :3000)
  *   BASE=https://clawbada-web.vercel.app bun cdp.ts entry-probe.ts
  *   AUTO=1 bun cdp.ts entry-probe.ts                # autoplay the opening turns too: no walk cut off, no watchdog release
@@ -28,7 +28,7 @@ const NAVY = 'rgb(25, 44, 83)';
 const IRIS_CLOSE_MS = 1400, NAVY_BEAT_MS = 250, IRIS_OPEN_MS = 900;
 /** The Battle button's wind-up before the iris (owner 2026-10-27). */
 const WINDUP_MS = 2000;
-const CURTAIN_MS = WINDUP_MS + IRIS_CLOSE_MS + NAVY_BEAT_MS, HOLD_MS = 12000, UNITY_HOLD_S = 15;
+const CURTAIN_MS = WINDUP_MS + IRIS_CLOSE_MS + NAVY_BEAT_MS, HOLD_MS = 6000, UNITY_HOLD_S = 8;   // owner 2026-10-29 (were 12 s and 15 s)
 
 export default async function (b: Browser) {
   const checks: string[] = [];
@@ -119,7 +119,7 @@ export default async function (b: Browser) {
     const telling = b.allLogs.filter((l) => /error|Error|Unhandled|failed|BattleEntry|EntryAmbience|Dojo\]/.test(l) && !/^\[net\]/.test(l));
     for (const l of (telling.length ? telling : b.allLogs).slice(-12)) console.log('console:', l.slice(0, 220));
   }
-  // The overlay must still be up 0.3 s before the hold ends (the hold is 12 s from the loop, 0.7 s after the press) …
+  // The overlay must still be up 0.3 s before the hold ends (the hold is 6 s from the loop, 0.7 s after the press) …
   const until5 = CURTAIN_MS + HOLD_MS - 300 - (Date.now() - t0);
   if (until5 > 0) await b.sleep(until5);
   const at5 = await overlay(b);
@@ -128,7 +128,7 @@ export default async function (b: Browser) {
   const gone = await b.waitFor(`!document.querySelector('[data-testid=battle-entry]')`, 60000, 100);
   const tGone = Date.now() - t0;
   ok('overlay released after the hold + arena ready', gone, `${tGone} ms after the press`);
-  ok('released no earlier than the curtain + the 12 s hold', tGone >= CURTAIN_MS + HOLD_MS, `${tGone} ms`);
+  ok(`released no earlier than the curtain + the ${HOLD_MS / 1000} s hold`, tGone >= CURTAIN_MS + HOLD_MS, `${tGone} ms`);
   if (audioOn) {
     await b.sleep(1500);   // the breeze's 0.9 s fade-out, with margin
     const after = await breeze(b);
@@ -136,7 +136,7 @@ export default async function (b: Browser) {
   }
 
   // The Unity half (a player build with LoadingScreenController): the training scene reported itself, the web
-  // loop handed over the tip, Unity held it ≥ 15 s from that moment, then released into the intro.
+  // loop handed over the tip, Unity held it ≥ UNITY_HOLD_S from that moment, then released into the intro.
   const unityShown = b.allLogs.some((l) => /\[LoadingScreen\] training scene shown/.test(l));
   ok('unity training scene shown (player build with the loading scene)', unityShown);
   if (unityShown) {

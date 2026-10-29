@@ -70,7 +70,7 @@ export interface BattleStageProps {
 }
 
 /** If Unity never reports the intro's end (an old build, an error), carry on after this long. Counted from InitBattle,
- *  which now comes BEFORE Unity's training-scene hold (LoadingScreenController.MinHoldSeconds = 15 s, PR #225) and the
+ *  which now comes BEFORE Unity's training-scene hold (LoadingScreenController.MinHoldSeconds = 8 s since 2026-10-29; 15 s in PR #225) and the
  *  intro itself (~13 s, user 2026-09-29): ~28–30 s on a good day. At 25 s it fired before the intro ended, so the bot's
  *  first turn arrived mid-intro and its walk could be cut off (owner 2026-10-24). Must sit well above the whole thing. */
 const INTRO_WATCHDOG_MS = 60_000;
