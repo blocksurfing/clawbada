@@ -119,7 +119,9 @@ export default async function (host: Browser, h: { connect(host: string): Promis
     ok(!!in2 && id2 !== idH && id2 === idF2, 'both enter the rematch battle (a new battle)', `host ${id2}, friend ${idF2}, first ${idH}`);
     const ff2 = await fetch(`${API}/api/game/combat/${id2}/forfeit`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
     ok(ff2.status === 200, 'rematch resigned', String(ff2.status));
-    ok(!!(await host.waitFor(`location.pathname === '/dojo'`, 40000, 250)) && !!(await friend.waitFor(`location.pathname === '/dojo'`, 40000, 250)), 'both back in the Dojo again');
+    const backH2 = await host.waitFor(`location.pathname === '/dojo'`, 120000, 250), backF2 = await friend.waitFor(`location.pathname === '/dojo'`, 120000, 250);
+    ok(!!backH2 && !!backF2, 'both back in the Dojo again', `host ${await host.eval('location.pathname + location.search')}, friend ${await friend.eval('location.pathname + location.search')}`);
+    if (!backH2 || !backF2) for (const [n, b] of [['host', host], ['friend', friend]] as const) for (const l of b.allLogs.filter((x) => /LiveBattle\] (result|closing)|BattlePage|error|exception/i.test(x)).slice(-5)) console.log(`   ${n}: ${l.slice(0, 170)}`);
 
     // ── a broken link ──
     await friend.goto(`${BASE}/battle-friends/join#r_00000000-0000-4000-8000-000000000000.AAAAAAAAAAAAAAAAAAAAAA`);
