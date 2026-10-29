@@ -12,6 +12,8 @@
  * Each agent sends its own X-Forwarded-For (run the API with TRUST_PROXY=true) so the per-IP limits apply per agent,
  * as for two agents on two machines. A 429 is answered the polite way: wait, then retry.
  */
+export {};   // a module: top-level await
+
 const API = process.env.API ?? 'http://127.0.0.1:3001';
 
 type Agent = { name: string; token: string; address: string; ip: string; turns: number; polls: number; throttled: number };
