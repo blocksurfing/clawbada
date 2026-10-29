@@ -57,7 +57,7 @@ export function usePixelPanel(ref: RefObject<HTMLElement | null>, canvasRef: Ref
     const observer = new ResizeObserver(schedule);
     observer.observe(element);
     void document.fonts.ready.then(schedule);
-    window.addEventListener(PIXEL_SCALE_EVENT, schedule);   // 3× ↔ 2× (pixel-assets.ts chromePixelScale)
+    window.addEventListener(PIXEL_SCALE_EVENT, schedule);   // the page pixel size changed (pixel-assets.ts chromePixelScale)
     return () => { disposed = true; cancelAnimationFrame(scheduled); observer.disconnect(); window.removeEventListener(PIXEL_SCALE_EVENT, schedule); };
   }, [ref, canvasRef, asset]);
 }

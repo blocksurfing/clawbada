@@ -96,27 +96,34 @@ export function loadPixelImage(src: string) {
   return p;
 }
 
-/** Window → pixel scale for the whole pixel chrome. The largest of 3 / 2.5 / 2 at which the expanded sidebar's MENU
- *  (down to Docs: 276 source px from the top of the window — 827 px at 3×) fits the window height and the window is
- *  wide enough for the Shell; the banner's decorative point below Docs may run past the bottom edge (the sidebar
- *  scrolls). A scale is only used where it lands on whole device pixels: 2.5× on retina (2.5 × 2 = 5 device px per art
- *  pixel), never on a 1× monitor — the art stays crisp.
- *  History (owner 2026-10-25): a fixed 3× put the sidebar over the Shell's first stage and cut off its menu on a 13"
- *  MacBook at 100 %; the 3×/2× fix made the 2× sidebar too small to read there. That MacBook now gets 2.5×.
- *  chrome.css mirrors this as media queries so the first paint matches before any script runs. */
+/**
+ * Window → THE pixel scale (CSS px per art pixel) shared by every piece of pixel art on the page — sidebar, wallet,
+ * Battle button, tabs, panels. Nzib's rule (2026-10-29): one source pixel is one N×N block everywhere ("a 16×16 tile
+ * turns into 48×48 at 3×"); change one component's pixel size and you change all of them.
+ *
+ * Chosen in DEVICE (screen) pixels, so the chrome keeps its proportions on every screen — a big monitor, a zoomed-out
+ * browser, Windows at 125 % — just as the cover-scaled scenery does:
+ *   deviceScale = floor(min(screen width / 533.3, screen height / 276))     (both in device px)
+ *     · 533.3 per step is the old rule "3× from 1600 px wide";
+ *     · 276 source px is the expanded sidebar's MENU, down to Docs — it must fit the window height;
+ *   at least round(2 × dpr) (the old 2× floor), and the CSS value is deviceScale / dpr: always a whole number of device
+ *   pixels per art pixel, so the art stays crisp.
+ * Examples: a 13" MacBook (1440×755 @2) 2.5; 1920×1080 @1 3; 2560×1300 @1 4; 1366×768 @1 2; Windows 125 %
+ * (1536×864) 2.4 = 3 device px (was a blurry 2.5); a browser zoomed to 50 % on a 2560 screen 8 = 4 device px (was 2 =
+ * 1 device px: Nzib's "ugly, the sidebar and battle button too small").
+ * History: a fixed 3× (to 2026-10-25) cut off the menu on a 13" MacBook; a 3 / 2.5 / 2 list (to 2026-10-29) never
+ * went above 3 CSS px, so large or zoomed-out windows shrank the chrome next to the scenery.
+ * chrome.css mirrors the common cases as media queries so the first paint is close before any script runs.
+ */
 export const SIDEBAR_MENU_SOURCE_HEIGHT = 276;
 export const PIXEL_SCALE_EVENT = 'clawbada:pixel-scale';
-const SCALES = [
-  { scale: 3, minWidth: 1600 },
-  { scale: 2.5, minWidth: 1366 },
-] as const;
+/** Device px of window width per step of scale: 1600 / 3. */
+const WIDTH_PER_STEP = 1600 / 3;
 export function chromePixelScale(width: number, height: number, devicePixelRatio = 1): number {
-  for (const { scale, minWidth } of SCALES) {
-    const device = scale * devicePixelRatio;
-    if (Math.abs(device - Math.round(device)) > 0.01) continue;   // would smear art pixels across device pixels
-    if (width >= minWidth && height >= SIDEBAR_MENU_SOURCE_HEIGHT * scale) return scale;
-  }
-  return 2;
+  const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
+  const fit = Math.floor(Math.min((width * dpr) / WIDTH_PER_STEP, (height * dpr) / SIDEBAR_MENU_SOURCE_HEIGHT) + 1e-9);
+  const device = Math.max(fit, Math.round(2 * dpr), 1);
+  return Math.round((device / dpr) * 1000) / 1000;
 }
 
 /** Choose the scale for the current window and set `--pixel`; announces PIXEL_SCALE_EVENT when it changes. */
@@ -134,5 +141,5 @@ export function applyChromePixelScale(): number {
 export const pixelScale = (element?: Element | null) => {
   if (typeof document === 'undefined') return 3;
   const value = parseFloat(getComputedStyle(element ?? document.documentElement).getPropertyValue('--pixel'));
-  return value >= 1 && Number.isInteger(value * 2) ? value : 3;   // whole or half pixels (2.5× on retina)
+  return value > 0 ? value : 3;   // any size: chromePixelScale keeps it on whole DEVICE pixels
 };

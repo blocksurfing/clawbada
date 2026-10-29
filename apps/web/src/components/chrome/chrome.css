@@ -71,6 +71,10 @@
     :root { --pixel: 2.5px; --pixel-n: 2.5; }
   }
 }
+/* Big 1× windows grow past 3× (2026-10-29, chromePixelScale: 533 px of width and 276 px of height per step). */
+@media (max-resolution: 1dppx) and (min-width: 2134px) and (min-height: 1104px) { :root { --pixel: 4px; --pixel-n: 4; } }
+@media (max-resolution: 1dppx) and (min-width: 2667px) and (min-height: 1380px) { :root { --pixel: 5px; --pixel-n: 5; } }
+@media (max-resolution: 1dppx) and (min-width: 3200px) and (min-height: 1656px) { :root { --pixel: 6px; --pixel-n: 6; } }
 
 /* The font families resolve here, where next/font puts the `--font-*` variables. */
 body {
@@ -342,10 +346,8 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
    Wheel: x48..111/y0..63. Lower sheet artwork remains unused in this state.
    Fixed desktop anchor; narrow-screen composition still needs a separate design pass (Nzib). */
 .user-section {
-  /* The wallet + wheel stay at 3× on every window (owner 2026-10-25: at 2× it was too small); it sits alone in the
-     top-right corner, so it never crowds the Shell. Everything inside reads these, wallet-panel.tsx included. */
-  --pixel: 3px;
-  --pixel-n: 3;
+  /* The wallet + wheel use the page's one pixel size like every other piece of pixel art (Nzib's rule; owner
+     2026-10-29 — it was pinned at 3× from 2026-10-25). wallet-panel.tsx reads --pixel from here. */
   position: fixed;
   top: var(--user-section-top);
   right: var(--user-section-right);
@@ -542,6 +544,6 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
 .pixel-chrome-dev {
   position: fixed;
   top: calc(var(--user-section-top) + 48px);
-  right: calc(var(--user-section-right) + 160 * 3px + 12px);   /* the wallet is always 3× */
+  right: calc(var(--user-section-right) + 160 * var(--pixel) + 12px);   /* just left of the wallet (160 art px wide) */
   z-index: 18;
 }

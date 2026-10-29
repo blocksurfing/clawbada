@@ -10,34 +10,36 @@
 /* ── pages/dashboard.css ── */
 /* Shell-local views retain the room and the lineup's art geometry. */
 [data-page="dashboard"] .shell-arena { display:contents; }
+/* Queue / Active / History: in art pixels like every other piece of chrome (Nzib's one-pixel-size rule, 2026-10-29) —
+   the same 210 / 24 / 108 / 21 px at 3× as before, under the wallet wheel (64 art px tall) at every size. */
 [data-page="dashboard"] .shell-tabs {
   position:absolute;
   z-index:9;
-  top:210px;
-  right:24px;
+  top:calc(var(--user-section-top, 12px) + 66 * var(--pixel));
+  right:calc(8 * var(--pixel));
   display:flex;
   flex-direction:column;
-  gap:6px;
-  width:108px;
+  gap:calc(2 * var(--pixel));
+  width:calc(36 * var(--pixel));
 }
 [data-page="dashboard"] .shell-tabs .pixel-button {
   width:100%;
-  min-height:42px;
-  padding:6px;
+  min-height:calc(14 * var(--pixel));
+  padding:calc(2 * var(--pixel));
   border-color:#fff4d680;
   color:#fff4d6;
   background:#183158;
-  font:400 21px/1.2 var(--font-upheaval), 'Upheaval',sans-serif;
+  font:400 calc(7 * var(--pixel))/1.2 var(--font-upheaval), 'Upheaval',sans-serif;
   font-synthesis:none;
 }
 [data-page="dashboard"] .shell-tabs [aria-expanded="true"] { background:#2e222f; border-color:#fff4d6; }
 [data-page="dashboard"] .shell-records {
   position:absolute;
   z-index:8;
-  top:210px;
+  top:calc(var(--user-section-top, 12px) + 66 * var(--pixel));
   left:calc(var(--sidebar-width) + 24px);
-  right:156px;
-  max-height:calc(100% - 234px);
+  right:calc(52 * var(--pixel));
+  max-height:calc(100% - var(--user-section-top, 12px) - 74 * var(--pixel));
   overflow:auto;
   padding:24px;
   border:3px solid #fff4d680;
@@ -57,7 +59,7 @@
   [data-page="dashboard"] .shell-records { top:192px; max-height:calc(100% - 204px); padding:12px; }
 }
 @media(min-width:700px) and (max-height:500px) {
-  .shell-page .shell-hud { right:156px; }
+  .shell-page .shell-hud { right:calc(52 * var(--pixel)); }
 }
 /* Shell IS the viewport. Room underneath; characters and HUD float above it. */
 .shell-page {
@@ -291,7 +293,7 @@
   width:100%;
   /* Sized from the lineup (a size container), not the window: the stages share the band between the sidebar and the
      Battle column, and a window-based size wrapped "CHOOSE LOBSTER" onto two lines once the sidebar grew (2026-10-25). */
-  font:400 clamp(16px, 3.4cqi, 36px)/1.15 var(--font-upheaval), 'Upheaval',sans-serif;
+  font:400 clamp(16px, 3.4cqi, calc(12 * var(--pixel)))/1.15 var(--font-upheaval), 'Upheaval',sans-serif;   /* at most 36 px at 3×, growing with the page's pixel size */
   font-synthesis:none;
   text-align:center;
   overflow-wrap:normal;
@@ -314,8 +316,8 @@
 [data-page="dashboard"] .shell-hud {
   position:absolute;
   left:calc(var(--sidebar-width) + 24px);
-  right:48px;
-  bottom:36px;
+  right:calc(16 * var(--pixel));
+  bottom:calc(12 * var(--pixel));
   display:flex;
   align-items:center;
   justify-content:space-between;

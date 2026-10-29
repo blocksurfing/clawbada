@@ -5,7 +5,8 @@ import { chromePixelScale } from '../../apps/web/src/components/pixel/pixel-asse
  * Laptop fit (owner 2026-10-25: a 13" MacBook at 100 % had the sidebar over the Shell's first stage, the Battle button
  * over the third label and the sidebar cut off at the bottom; 80 % zoom was the workaround). For each window size —
  * browser viewports of common laptops and desktops at 100 % zoom — and both sidebar states, on the Shell:
- *   · the chrome scale is the one pixel-assets.ts chromePixelScale picks for that window and screen (3 / 2.5 / 2);
+ *   · the chrome scale is the one pixel-assets.ts chromePixelScale picks for that window and screen, and the sidebar,
+ *     the wallet and the Battle button all draw at it (Nzib's one-pixel-size rule, 2026-10-29);
  *   · no stage or slot label overlaps the sidebar's cloth, the Battle button or the Queue/Active/History tabs;
  *   · the expanded sidebar's whole menu (down to Docs) is in the window; the banner's point below it may run past the edge.
  *   BASE=http://127.0.0.1:3010 bun cdp.ts layout-fit.ts
@@ -21,6 +22,10 @@ const SIZES: [string, number, number, number][] = (process.env.ONLY ? [['only', 
   ['1080p monitor', 1920, 955, 1],
   ['1440p monitor', 2560, 1300, 1],
   ['Windows laptop 1366×768', 1366, 650, 1],
+  // 2026-10-29: big and scaled screens get the same proportions (one pixel size, chosen in device pixels).
+  ['4K monitor', 3840, 2000, 1],
+  ['2560 screen, browser zoomed to 50 % (Nzib)', 5120, 2600, 0.5],
+  ['Windows laptop at 125 %', 1536, 760, 1.25],
 ];
 
 type R = { l: number; t: number; r: number; b: number };
@@ -58,6 +63,8 @@ export default async function (b: Browser) {
           compact: document.body.classList.contains('sidebar-compact'),
           panel: r(document.querySelector('.pixel-chrome #panel')),
           battle: r(document.querySelector('.shell-battle')),
+          walletPixel: (() => { const e = document.querySelector('.user-section'); return e ? parseFloat(getComputedStyle(e).getPropertyValue('--pixel')) : null; })(),
+          walletBox: r(document.querySelector('.user-section')),
           tabs: r(document.querySelector('.shell-tabs')),
           stages: [...document.querySelectorAll('.lobby-slot .character-stage')].map(r),
           labels: [...document.querySelectorAll('.lobby-slot .slot-name, .lobby-slot .slot-hint, .lobby-slot .slot-art')].map(r).filter((x) => x && x.r > x.l),
@@ -67,10 +74,15 @@ export default async function (b: Browser) {
           menuFont: (() => { const e = document.querySelector('.menu-item'); return e ? getComputedStyle(e).fontSize : null; })(),
           wallet: (() => { const e = document.querySelector('.connect-wallet'); return e ? { text: e.textContent, over: e.scrollWidth - e.clientWidth, font: getComputedStyle(e).fontFamily.split(',')[0] + ' ' + getComputedStyle(e).fontSize } : null; })(),
         };
-      })()`) as { pixel: number; compact: boolean; panel: R | null; battle: R | null; tabs: R | null; stages: R[]; labels: R[]; sidebarOverflow: number; docsBottom: number | null; wrapped: number; menuFont: string | null; wallet: { text: string; over: number; font: string } | null };
+      })()`) as { pixel: number; compact: boolean; panel: R | null; battle: R | null; tabs: R | null; stages: R[]; labels: R[]; sidebarOverflow: number; docsBottom: number | null; wrapped: number; menuFont: string | null; wallet: { text: string; over: number; font: string } | null; walletPixel: number | null; walletBox: R | null };
       const tag = `${label} ${w}×${h} ${state}`;
       const want = chromePixelScale(w, h, dpr);
       if (state === 'compact') ok(`${label} ${w}×${h} @${dpr}x: chrome at ${want}×`, m.pixel === want, `--pixel ${m.pixel}px, menu labels ${m.menuFont}`);
+      if (state === 'compact' && m.battle && m.walletBox) {
+        const bw = m.battle.r - m.battle.l, ww = m.walletBox.r - m.walletBox.l;
+        ok(`${label} ${w}×${h}: one pixel size — wallet and Battle button at ${want}×`, m.walletPixel === want && Math.abs(bw - 80 * want) < 1 && Math.abs(ww - 160 * want) < 1,
+          `wallet --pixel ${m.walletPixel}, Battle ${bw.toFixed(1)} px (want ${80 * want}), wallet ${ww.toFixed(1)} px (want ${160 * want})`);
+      }
       if (state === 'compact') ok(`${label} ${w}×${h}: wallet label not cut off`, !!m.wallet && m.wallet.over <= 0, m.wallet ? `"${m.wallet.text}" in ${m.wallet.font}, ${m.wallet.over}px over` : 'no wallet label'); 
       const blockers = [['sidebar', m.panel], ['Battle', m.battle], ['tabs', m.tabs]] as const;
       const clashes: string[] = [];
