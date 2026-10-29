@@ -95,8 +95,31 @@ export default async function (host: Browser, h: { connect(host: string): Promis
     ok(ff.status === 200, 'host resigns', String(ff.status));
     const backF = await friend.waitFor(`location.pathname === '/dojo'`, 40000, 250);
     const backH = await host.waitFor(`location.pathname === '/dojo'`, 40000, 250);
-    ok(!!backF && !!backH, 'both return to the Dojo after the result');
-    ok(!!(await host.waitFor(`document.querySelector('[data-testid=friend-lobby]')?.getAttribute('data-state') === 'none' || document.querySelector('[data-testid=dojo-bot-tab]')?.getAttribute('aria-selected') === 'true'`, 10000)), 'the host can start again (no stale lobby)');
+    ok(!!backF && !!backH, 'both return to the Dojo after the result', `friend ${await friend.eval('location.pathname + location.search')}, host ${await host.eval('location.pathname + location.search')}`);
+    if (!backF) for (const l of friend.allLogs.filter((x) => /LiveBattle|BattlePage|BattleStage\] (clos|result)/.test(x)).slice(-8)) console.log('   friend:', l.slice(0, 160));
+
+    // ── rematch (2026-10-29): one tap on one side, Accept on the other, sides swapped, a second battle ──
+    const lobby = (b: Browser) => b.eval(`(() => { const l = document.querySelector('[data-testid=friend-lobby]'); return l ? { state: l.getAttribute('data-state'), rematch: l.getAttribute('data-rematch'), role: l.getAttribute('data-role') } : null; })()`) as Promise<{ state: string; rematch: string | null; role: string | null } | null>;
+    ok(!!(await host.waitFor(`document.querySelector('[data-testid=friend-lobby]')?.getAttribute('data-state') === 'after'`, 15000)), 'host: back in the Dojo with "Good game!" and Rematch');
+    await click(host, '[data-testid=friend-rematch]');
+    ok(!!(await host.waitFor(`document.querySelector('[data-testid=friend-lobby]')?.getAttribute('data-state') === 'seated'`, 15000)), 'host: one tap → the rematch lobby');
+    ok(!!(await friend.waitFor(`document.querySelector('[data-testid=friend-lobby]')?.getAttribute('data-rematch') === 'offered'`, 20000)), 'friend: "Your friend wants a rematch!"', JSON.stringify(await lobby(friend)));
+    await click(friend, '[data-testid=friend-rematch]');
+    ok(!!(await friend.waitFor(`document.querySelector('[data-testid=friend-lobby]')?.getAttribute('data-state') === 'seated'`, 15000)), 'friend: Accept → the same lobby');
+    const roles = [(await lobby(host))?.role, (await lobby(friend))?.role];
+    ok(roles[0] === 'guest' && roles[1] === 'host', 'sides swapped (the friend hosts the rematch)', JSON.stringify(roles));
+    for (const c of ['kraken', 'ember', 'abyss']) await click(host, `#dojo-builder [data-owned-id="${c}"]`);
+    for (const c of ['bulwark', 'mantis', 'sentinel']) await click(friend, `#dojo-builder [data-owned-id="${c}"]`);
+    await click(friend, '[data-testid=dojo-battle]');
+    ok(!!(await friend.waitFor(`document.querySelector('[data-testid=friend-status]')?.getAttribute('data-you') === 'ready'`, 15000)), 'friend: locked in for the rematch');
+    await click(host, '[data-testid=dojo-battle]');
+    const in2 = await host.waitFor(`/^\\/battle\\/f_/.test(location.pathname)`, 60000, 250) && await friend.waitFor(`/^\\/battle\\/f_/.test(location.pathname)`, 60000, 250);
+    const id2 = await host.eval(`location.pathname.split('/').pop()`);
+    const idF2 = await friend.eval(`location.pathname.split('/').pop()`);
+    ok(!!in2 && id2 !== idH && id2 === idF2, 'both enter the rematch battle (a new battle)', `host ${id2}, friend ${idF2}, first ${idH}`);
+    const ff2 = await fetch(`${API}/api/game/combat/${id2}/forfeit`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    ok(ff2.status === 200, 'rematch resigned', String(ff2.status));
+    ok(!!(await host.waitFor(`location.pathname === '/dojo'`, 40000, 250)) && !!(await friend.waitFor(`location.pathname === '/dojo'`, 40000, 250)), 'both back in the Dojo again');
 
     // ── a broken link ──
     await friend.goto(`${BASE}/battle-friends/join#r_00000000-0000-4000-8000-000000000000.AAAAAAAAAAAAAAAAAAAAAA`);

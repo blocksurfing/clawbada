@@ -7,7 +7,7 @@
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
     "test": "bun run test:unit && bun run test:pure && bun run test:session && bun run test:real",
-    "test:unit": "bun test src/__tests__/*.test.ts src/__tests__/routes",
+    "test:unit": "bun test src/__tests__/*.test.ts src/__tests__/routes src/__tests__/friend",
     "test:session": "bun test src/__tests__/battle-session",
     "test:real": "bun test src/__tests__/real",
     "play-practice": "bun run scripts/play-practice.ts",

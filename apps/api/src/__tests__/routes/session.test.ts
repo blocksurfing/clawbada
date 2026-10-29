@@ -37,6 +37,7 @@ const mockIsParticipant = mock<any>();
 const mockStoreGet = mock<any>();
 const mockListTurns = mock<any>();
 const mockLivePracticeCount = mock<any>();
+const mockWaitForChange = mock(async (_id: string, _after: number, _ms: number) => 'changed' as string);
 mock.module('../../lib/battle-session', () => ({
   isPracticeId,
   isOffChainId,
@@ -50,6 +51,7 @@ mock.module('../../lib/battle-session', () => ({
     snapshotFor: mockSnapshotFor,
     isParticipant: mockIsParticipant,
     livePracticeCount: mockLivePracticeCount,
+    waitForChange: mockWaitForChange,
     deps: { store: { get: mockStoreGet, listTurns: mockListTurns } },
   },
 }));
@@ -430,6 +432,39 @@ describe('GET /:battleId/state and /turns', () => {
     const res = await app.request('/api/game/combat/42/turns');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ battleId: '42', count: 1, turns: [{ turn: 1, lobsterId: 'A0', submittedBy: 'player' }] });
+  });
+});
+
+describe('GET /:battleId/events (long-poll)', () => {
+  const live = (turn: number) => ({ session: { id: P_ID, status: 'active', winner: null }, state: { turn, finished: false } });
+  test('waits on the battle with `after` and a wait capped at 25 s, then answers with the snapshot', async () => {
+    mockIsParticipant.mockImplementation(async () => true);
+    mockSnapshotFor.mockImplementation(() => live(3));
+    mockWaitForChange.mockImplementation(async () => 'changed');
+    const res = await app.request(`/api/game/combat/${P_ID}/events?after=2&wait=99`, { headers: authHeaders() });
+    expect(res.status).toBe(200);
+    expect(mockWaitForChange.mock.calls.at(-1)).toEqual([P_ID, 2, 25_000]);
+    expect(await res.json()).toMatchObject({ changed: true, turn: 3, status: 'active', snapshot: { session: { id: P_ID } } });
+  });
+
+  test('off-chain battles: players only; a bad `after` is 400; busy asks to retry', async () => {
+    mockIsParticipant.mockImplementation(async () => false);
+    expect((await app.request(`/api/game/combat/${P_ID}/events?after=0`, { headers: authHeaders() })).status).toBe(401);
+    expect((await app.request(`/api/game/combat/${P_ID}/events?after=0`)).status).toBe(401);
+    mockIsParticipant.mockImplementation(async () => true);
+    expect((await app.request(`/api/game/combat/${P_ID}/events?after=x`, { headers: authHeaders() })).status).toBe(400);
+    mockSnapshotFor.mockImplementation(() => live(0));
+    mockWaitForChange.mockImplementation(async () => 'busy');
+    const body = await (await app.request(`/api/game/combat/${P_ID}/events?after=0&wait=1`, { headers: authHeaders() })).json();
+    expect(body).toMatchObject({ changed: false, retry: 1 });
+  });
+
+  test('a finished battle answers with its result', async () => {
+    mockIsParticipant.mockImplementation(async () => true);
+    mockSnapshotFor.mockImplementation(() => ({ session: { id: P_ID, status: 'finished', winner: 'B' }, state: { turn: 31, finished: true } }));
+    mockWaitForChange.mockImplementation(async () => 'gone');
+    const body = await (await app.request(`/api/game/combat/${P_ID}/events?after=30`, { headers: authHeaders() })).json();
+    expect(body).toMatchObject({ changed: true, status: 'finished', ended: { winner: 'B' } });
   });
 });
 

@@ -33,4 +33,10 @@ export class MemoryFriendRoomRepo implements FriendRoomRepo {
   async setBattle(id: string, battleId: string) { this.rows.get(id)!.battleId = battleId; }
   async revertStart(id: string) { const r = this.rows.get(id); if (r && r.status === 'in_battle' && !r.battleId) Object.assign(r, { status: 'seated' as FriendRoomStatus, hostReady: false, guestReady: false }); }
   async setStatus(id: string, status: FriendRoomStatus) { this.rows.get(id)!.status = status; }
+  async insertRematch(row: FriendRoomRow) {
+    if ([...this.rows.values()].some((r) => r.rematchOf === row.rematchOf)) return null;
+    this.rows.set(row.id, { ...row });
+    return { ...row };
+  }
+  async findRematchOf(roomId: string) { const r = [...this.rows.values()].find((x) => x.rematchOf === roomId); return r ? { ...r } : null; }
 }

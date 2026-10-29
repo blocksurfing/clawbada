@@ -15,6 +15,8 @@ import { api, type FriendRoomView } from '@/lib/api';
 export const FRIEND_JOIN_PATH = '/battle-friends/join';
 /** Lobby poll: well inside the API's 90 requests/min per IP on room routes, quick enough to feel live. */
 const POLL_MS = 2000;
+/** How long the Dojo keeps an eye out for the friend's rematch after a battle. */
+const REMATCH_WATCH_MS = 2 * 60_000;
 const ROOM_KEY = 'clawbada.friend.room';
 const INVITE_KEY = (roomId: string) => `clawbada.friend.invite.${roomId}`;
 const ROOM_ID_RE = /^r_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -54,17 +56,27 @@ export function saveRoom(roomId: string, invite?: string) {
 export function savedInvite(roomId: string): string | null {
   return store.get(INVITE_KEY(roomId));
 }
+/** Which room a friend battle came from, so the way back from the battle can offer a rematch. */
+const BATTLE_ROOM_KEY = (battleId: string) => `clawbada.friend.battle.${battleId}`;
+export function rememberBattleRoom(battleId: string, roomId: string) { store.set(BATTLE_ROOM_KEY(battleId), roomId); }
+export function roomOfBattle(battleId: string): string | null {
+  const id = store.get(BATTLE_ROOM_KEY(battleId));
+  return isRoomId(id) ? id : null;
+}
+
 export function forgetRoom(roomId?: string | null) {
   store.del(ROOM_KEY);
   if (roomId) store.del(INVITE_KEY(roomId));
 }
 
 /**
- * The lobby, polled. Stops on a closed room (ended / expired / cancelled) and once the battle has started. `error` is
- * set when the room is gone or not ours (404) — the caller resets the tab.
+ * The lobby, polled. Stops on a closed room (ended / expired / cancelled) and once the battle has started — or, with
+ * `untilRematch` (the Dojo just after a friend battle), once the finished room shows a rematch. `error` is set when the
+ * room is gone or not ours (404) — the caller resets the tab.
  */
-export function useFriendRoom(roomId: string | null, getAuthHeaders: () => Promise<Record<string, string>>, initial?: FriendRoomView | null) {
-  const [view, setView] = useState<FriendRoomView | null>(initial ?? null);
+export function useFriendRoom(roomId: string | null, getAuthHeaders: () => Promise<Record<string, string>>, opts: { untilRematch?: boolean } = {}) {
+  const untilRematch = !!opts.untilRematch;
+  const [view, setView] = useState<FriendRoomView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const authRef = useRef(getAuthHeaders);
   authRef.current = getAuthHeaders;
@@ -73,13 +85,17 @@ export function useFriendRoom(roomId: string | null, getAuthHeaders: () => Promi
     setError(null);
     if (!roomId) { setView(null); return; }
     let live = true;
+    const since = Date.now();
     let timer: ReturnType<typeof setTimeout> | null = null;
     const poll = async () => {
       try {
         const v = await api.friend.room(roomId, await authRef.current());
         if (!live) return;
         setView(v);
-        if (isTerminal(v.status) || (v.status === 'in_battle' && v.battleId)) return;
+        // After a battle (untilRematch): keep watching the finished room for the friend's rematch, for two minutes.
+        if (untilRematch) {
+          if (v.rematch || v.status !== 'ended' || Date.now() - since > REMATCH_WATCH_MS) return;
+        } else if (isTerminal(v.status) || (v.status === 'in_battle' && v.battleId)) return;
       } catch (e) {
         if (!live) return;
         const msg = e instanceof Error ? e.message : 'Lost the lobby';
@@ -92,7 +108,7 @@ export function useFriendRoom(roomId: string | null, getAuthHeaders: () => Promi
     };
     void poll();
     return () => { live = false; if (timer) clearTimeout(timer); };
-  }, [roomId, tick]);
+  }, [roomId, tick, untilRematch]);
   return { view, setView, error, refresh: () => setTick((t) => t + 1) };
 }
 

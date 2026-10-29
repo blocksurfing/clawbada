@@ -113,6 +113,13 @@
       "when": 1793208418859,
       "tag": "0015_battle_session_lease",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793290148045,
+      "tag": "0016_friend_rematch",
+      "breakpoints": true
     }
   ]
 }
