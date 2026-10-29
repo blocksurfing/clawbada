@@ -16,6 +16,7 @@ import { applyAudioPrefChange } from '@/lib/audio-prefs';
 import { INTRO_FADE_IN_MS } from '@/lib/arena-music';
 import { enterBattleView, leaveBattleView } from '@/lib/arena-music';
 import { playResultMusic, preloadResultMusic, stopResultMusic } from '@/lib/result-music';
+import { EXIT_IRIS_CLOSE_MS, startBattleExit } from '@/lib/battle-exit';
 import { isOffChainId, type Side, type TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
 import { BattleStage, type BattleStageControls } from './BattleStage';
@@ -218,6 +219,14 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   const [countdown, setCountdown] = useState<number | null>(null);
   const [stayHere, setStayHere] = useState(false);
   const [closing, setClosing] = useState(false);
+  /** Leave the result: the Looney Tunes zoom-out first (lib/battle-exit.ts, 1.5 s), then the view closes under the navy. */
+  const exitStarted = useRef(false);
+  const leaveResult = useCallback(() => {
+    if (exitStarted.current) return;
+    exitStarted.current = true;
+    stopResultMusic(EXIT_IRIS_CLOSE_MS);   // the stinger fades with the circle
+    void startBattleExit().then(() => setClosing(true));
+  }, []);
   useEffect(() => {
     if (!resultShown || !onClose || stay || stayHere || closing) return;
     console.log(`[LiveBattle] result shown — back to the arena in ${RETURN_SECONDS} s`);
@@ -225,11 +234,11 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
     const started = Date.now();
     const t = setInterval(() => {
       const left = RETURN_SECONDS - Math.floor((Date.now() - started) / 1000);
-      if (left <= 0) { clearInterval(t); setCountdown(0); setClosing(true); }
+      if (left <= 0) { clearInterval(t); setCountdown(0); leaveResult(); }
       else setCountdown(left);
     }, 250);
     return () => clearInterval(t);
-  }, [resultShown, onClose, stay, stayHere, closing]);
+  }, [resultShown, onClose, stay, stayHere, closing, leaveResult]);
   useEffect(() => {
     if (closing) console.log(`[LiveBattle] closing the battle view${unityAvailable === false ? ' (plain board)' : ''}`);
   }, [closing, unityAvailable]);
@@ -258,11 +267,11 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
       ) : countdown !== null && !stayHere && !stay ? (
         <>
           <span className="font-pixel text-[10px]">Back to the arena in {countdown}s</span>
-          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setClosing(true)}>Back now</Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={leaveResult}>Back now</Button>
           <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => { setStayHere(true); setCountdown(null); }}>Stay</Button>
         </>
       ) : (
-        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setClosing(true)}>Back to the arena</Button>
+        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={leaveResult}>Back to the arena</Button>
       )}
     </div>
   ) : null;

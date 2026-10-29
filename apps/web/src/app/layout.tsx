@@ -5,6 +5,7 @@ import { Web3Provider } from '@/providers/web3-provider';
 import { MusicToggle } from '@/components/music-toggle';
 import { PixelCursor } from '@/components/pixel/pixel-cursor-mount';
 import { BattleEntryOverlay } from '@/components/battle/battle-entry-overlay';
+import { BattleExitOverlay } from '@/components/battle/battle-exit-overlay';
 import './globals.css';
 
 const blackHanSans = Black_Han_Sans({
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <MusicToggle />
           {/* The battle entry loading screen: at the root so it survives the /dojo → /battle navigation. */}
           <BattleEntryOverlay />
+          <BattleExitOverlay />
         </Web3Provider>
       </body>
     </html>
