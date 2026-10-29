@@ -47,7 +47,7 @@ export const DISPLAY_NAME_MAX = 20;
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-/** The wallet's own scale: `.user-section` pins it at 3× whatever the rest of the chrome uses (chrome.css). */
+/** The wallet's scale: the page's one pixel size (chrome.css; the Dojo pins its scaled composition's 3 px). */
 const pixelScale = () => parseFloat(getComputedStyle(document.querySelector('.user-section') ?? document.documentElement).getPropertyValue('--pixel')) || 3;
 const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
