@@ -57,7 +57,13 @@ app.onError((err, c) => {
 });
 
 // Rate limiting — applied before auth so we limit by IP for unauthenticated routes
-app.use('/api/*', rateLimit(100));
+// Playing a live battle over REST (agents without a socket, 2026-10-29: GET …/events long-poll, …/legal, POST …/turn)
+// gets the socket's budget — 40 frames per 10 s = 240/min — instead of the general 100/min, which a fast agent-vs-agent
+// battle (a turn a second, both sides) used to run into. Everything else keeps 100/min.
+const LIVE_PLAY_PATH = /^\/api\/game\/combat\/[^/]+\/(events|legal|turn|state)$/;
+const generalLimit = rateLimit(100);
+const livePlayLimit = rateLimit(240, 60_000, 'play');
+app.use('/api/*', (c, next) => (LIVE_PLAY_PATH.test(c.req.path) ? livePlayLimit(c, next) : generalLimit(c, next)));
 // The 5/min faucet budget guards the WRITE routes (claim calldata). Since D-10 a lobster claim is
 // two steps and clients poll GET /api/faucet/status/:address until the keeper has minted, so the
 // read gets a budget of its own — at 5/min a wallet that polled every 2 s was locked out of its

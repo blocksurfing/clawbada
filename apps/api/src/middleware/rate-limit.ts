@@ -123,6 +123,9 @@ export const rateLimit = (maxRequests = 100, windowMs = 60_000, scope = ''): Mid
     const count = await b.hit(key, windowMs);
 
     if (count > maxRequests) {
+      // One line per caller per burst (the first refusal), never one per refused request: a flood must not flood the
+      // logs. Counted by the `rate_limited` log-based metric (scripts/gcp-observability.sh). No IP or address logged.
+      if (count === maxRequests + 1) log.warn({ scope: scope || `${maxRequests}/${windowMs / 1000}s`, path: c.req.path }, 'rate_limited');
       throw new ApiError('RATE_LIMITED', `Rate limit exceeded: ${maxRequests} requests per ${windowMs / 1000}s`);
     }
 

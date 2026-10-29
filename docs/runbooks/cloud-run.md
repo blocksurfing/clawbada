@@ -110,6 +110,31 @@ The request log (`@clawbada/logger` hono middleware) records method, path and an
 which carry tokens. Before 2026-10-22 every header was logged, bearer tokens included.
 `gcloud run services logs read clawbada-api --region us-east4 --limit 200`.
 
+## Cloud Armor (flood limits at the edge) — 2026-10-29
+
+`scripts/gcp-armor.sh` puts one security policy (`clawbada-api-armor`) on the load balancer's backend
+(`clawbada-api-bs`): four per-IP rules, all well above the app's own limits, so only floods meet them.
+
+| Priority | Paths | Limit |
+|---|---|---|
+| 1000 | `/api/auth/guest` | 60/min → 429; over 120/min banned 10 min |
+| 1100 | `/api/game/friend/rooms*`, `/api/game/combat/practice` | 300/min → 429 |
+| 1200 | `/ws` | 120/min → 429 |
+| 1300 | `/api/*` | 1,200/min → 429; over 3,000/min banned 10 min |
+
+Run once `--preview` (rules log what they would block, block nothing), check a day of LB logs, then `--enforce`.
+Preview hits: `resource.type="http_load_balancer" AND jsonPayload.previewSecurityPolicy.outcome="DENY"`; enforced:
+`jsonPayload.enforcedSecurityPolicy.outcome="DENY"`. Roll back with `--remove`. Cost at 2026-10 traffic (~235k
+requests/month): about $9–10/month (policy + 4 rules; the per-request fee is pennies until millions of requests).
+
+## Metrics (log-based) — 2026-10-29
+
+The API has no metrics endpoint; `scripts/gcp-observability.sh --apply` turns its structured log lines into counters
+(Metrics Explorer → `logging/user/clawbada_…`): friend rooms created / joined, friend battles started (label
+`rematch`), rematches, battles finished (label `kind`: real / practice / friend), WebSocket refusals (label `reason`),
+and rate-limit hits (label `scope`; one line per caller per burst, never per request). Re-run after adding a log line
+worth counting.
+
 ## Monitoring
 
 An uptime check on `https://api.clawbada.com/health` (every minute, three regions) alerts the owner by email;

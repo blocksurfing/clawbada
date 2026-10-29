@@ -17,7 +17,7 @@ const SEED_ROUND = seedRoundFor(DRAND_INFO, REVEALED_AT);
 const randomnessOf = (round: number) => round.toString(16).padStart(64, '0');
 const seedPin = (battleId: bigint, master = MASTER) => ({ seedCommit: seedCommitment(battleId, deriveSeedSecret(master, battleId)), revealedAt: REVEALED_AT });
 import { FakeClock, ShotClock } from '../../lib/battle-session/clock';
-import { BattleSessionManager, PracticeConflictError, arenaTierFor } from '../../lib/battle-session/manager';
+import { BattleSessionManager, PracticeConflictError, arenaTierFor, MAX_WAITERS_PER_BATTLE } from '../../lib/battle-session/manager';
 import type { NewSessionRow, PendingRealBattle, SessionRow, SessionStore, SettleJobPayload } from '../../lib/battle-session/store';
 
 const ALICE = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -771,3 +771,42 @@ describe('battle leases', () => {
     expect(mgr.get(id)).toBeDefined();
   });
 });
+
+// GET …/events (2026-10-29): agents without a socket long-poll; any event of the battle wakes them.
+describe('long-poll waiters', () => {
+  const guestTeam = [LobsterClass.Kraken, LobsterClass.Ember, LobsterClass.Abyss].map((c, i) => ({ input: { id: `G${i}`, class: c, tier: EvolutionTier.Apex, purity: 4, legend: false } }));
+  const start = (mgr: BattleSessionManager) => mgr.startFriend({ host: ALICE, guest: BOB, hostTeam: practiceLobsters, guestTeam });
+
+  test('a poll waits, and the battle starting wakes it', async () => {
+    const { mgr } = make(new FakeStore(), { startWaitMs: 60_000 });
+    const id = (await start(mgr)).record.id;
+    const poll = mgr.waitForChange(id, 0, 5_000);
+    expect(mgr.waitingCount()).toBe(1);
+    mgr.ready(id, ALICE);
+    mgr.ready(id, BOB);
+    expect(await poll).toBe('changed');
+    expect(mgr.waitingCount()).toBe(0);
+  });
+
+  test('answers at once when the battle is already past `after`; times out otherwise', async () => {
+    const { mgr } = make(new FakeStore(), { startWaitMs: 60_000 });
+    const id = (await start(mgr)).record.id;
+    expect(await mgr.waitForChange(id, -5, 5_000)).toBe('changed');
+    const t0 = Date.now();
+    expect(await mgr.waitForChange(id, 0, 40)).toBe('timeout');
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(35);
+    expect(mgr.waitingCount()).toBe(0);
+  });
+
+  test('not live here: gone; too many polls on one battle: busy', async () => {
+    const { mgr } = make(new FakeStore(), { startWaitMs: 60_000 });
+    expect(await mgr.waitForChange('f_00000000-0000-4000-8000-000000000000', 0, 1_000)).toBe('gone');
+    const id = (await start(mgr)).record.id;
+    const polls = Array.from({ length: MAX_WAITERS_PER_BATTLE }, () => mgr.waitForChange(id, 0, 5_000));
+    expect(await mgr.waitForChange(id, 0, 5_000)).toBe('busy');
+    mgr.stop();                                   // shutdown answers every open poll
+    expect(new Set(await Promise.all(polls))).toEqual(new Set(['gone']));
+    expect(mgr.waitingCount()).toBe(0);
+  });
+});
+

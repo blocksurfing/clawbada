@@ -1,4 +1,4 @@
-import { pgTable, text, jsonb, boolean, timestamp, index, check } from 'drizzle-orm/pg-core';
+import { pgTable, text, jsonb, boolean, timestamp, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -30,12 +30,17 @@ export const friendRooms = pgTable(
     battleId: text('battle_id'),
     /** An open room expires (15 min); a seated lobby gets a fresh window when the guest joins. */
     expiresAt: timestamp('expires_at').notNull(),
+    /** A rematch (2026-10-29): the finished room this one follows (sides swapped, both seated, no link). One per room. */
+    rematchOf: text('rematch_of'),
+    /** Who pressed Rematch first — the other player sees "your friend wants a rematch". */
+    rematchBy: text('rematch_by'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => ({
     hostIdx: index('friend_rooms_host_status_idx').on(t.host, t.status),
     guestIdx: index('friend_rooms_guest_status_idx').on(t.guest, t.status),
+    rematchUq: uniqueIndex('friend_rooms_rematch_of_uq').on(t.rematchOf),
     statusCk: check('friend_rooms_status_ck', sql`${t.status} IN ('open', 'seated', 'in_battle', 'ended', 'expired', 'cancelled')`),
   }),
 );

@@ -12,7 +12,8 @@ import { FriendRoomService, FriendRoomError } from '../../lib/friend-rooms/servi
 import { MemoryFriendRoomRepo } from '../../lib/friend-rooms/memory-repo';
 const repo = new MemoryFriendRoomRepo();
 const startBattle = mock(async () => 'f_00000000-0000-4000-8000-000000000001');
-const service = new FriendRoomService({ repo, startBattle, battleActive: async () => true });
+const battleActive = mock(async (_id: string) => true);
+const service = new FriendRoomService({ repo, startBattle, battleActive });
 mock.module('../../lib/friend-rooms', () => ({ friendRooms: service, FriendRoomError }));
 const livePracticeCount = mock(() => 0);
 // Keep the real exports other route test files rely on (bun shares module mocks across files in one run).
@@ -30,7 +31,7 @@ const GUEST = '0x9999999999999999999999999999999999999999';
 const guestHeaders = (address = GUEST) => ({ Authorization: `Bearer ${mintSessionToken(address, undefined, { guest: true }).token}` });
 const json = (headers: Record<string, string>, body?: unknown) => ({ method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
 
-beforeEach(() => { repo.rows.clear(); resetSessionSecret?.(); livePracticeCount.mockImplementation(() => 0); });
+beforeEach(() => { repo.rows.clear(); resetSessionSecret?.(); livePracticeCount.mockImplementation(() => 0); battleActive.mockImplementation(async () => true); });
 
 describe('friend routes', () => {
   test('a guest (no wallet) can open a room; the invite is roomId.secret', async () => {
@@ -83,6 +84,27 @@ describe('friend routes', () => {
     livePracticeCount.mockImplementation(() => 1_000_000);
     const created = await (await app.request('/api/game/friend/rooms', json(guestHeaders()))).json() as { roomId: string };
     expect((await app.request(`/api/game/friend/rooms/${created.roomId}/ready`, json(guestHeaders()))).status).toBe(429);
+  });
+
+  test('rematch: after the battle either player asks; sides swap; strangers 404; empty body only', async () => {
+    const created = await (await app.request('/api/game/friend/rooms', json(authHeaders()))).json() as { roomId: string; secret: string };
+    const id = created.roomId;
+    await app.request(`/api/game/friend/rooms/${id}/join`, json(guestHeaders(), { secret: created.secret }));
+    const team = { classes: ['kraken', 'ember', 'abyss'], tier: 'apex', purity: 6 };
+    await app.request(`/api/game/friend/rooms/${id}/team`, json(authHeaders(), { team }));
+    await app.request(`/api/game/friend/rooms/${id}/team`, json(guestHeaders(), { team }));
+    await app.request(`/api/game/friend/rooms/${id}/ready`, json(authHeaders()));
+    await app.request(`/api/game/friend/rooms/${id}/ready`, json(guestHeaders()));
+    expect((await app.request(`/api/game/friend/rooms/${id}/rematch`, json(guestHeaders()))).status).toBe(409);   // still playing
+    battleActive.mockImplementation(async () => false);
+    expect((await app.request(`/api/game/friend/rooms/${id}/rematch`, json(guestHeaders(), { staked: true }))).status).toBe(400);
+    expect((await app.request(`/api/game/friend/rooms/${id}/rematch`, json(guestHeaders('0x8888888888888888888888888888888888888888')))).status).toBe(404);
+    const res = await app.request(`/api/game/friend/rooms/${id}/rematch`, json(guestHeaders()));
+    expect(res.status).toBe(200);
+    const v = await res.json() as { id: string; role: string; status: string; rematchOf: string };
+    expect(v).toMatchObject({ role: 'host', status: 'seated', rematchOf: id });
+    const hostSees = await (await app.request(`/api/game/friend/rooms/${id}`, { headers: authHeaders() })).json() as { rematch: { roomId: string; offeredBy: string } };
+    expect(hostSees.rematch).toMatchObject({ roomId: v.id, offeredBy: 'opponent' });
   });
 
   test('guest scope: friend battle ids are allowed, chain battle ids are not', () => {

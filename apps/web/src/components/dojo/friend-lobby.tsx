@@ -7,11 +7,14 @@ import type { FriendRoomView } from '@/lib/api';
  * The Fight with friend panel (Battle Friends, owner 2026-10-28) — the view only; the Dojo page owns the room.
  * No room: one button makes an invite link. Host before the friend arrives: the link, Copy / Share, the time left.
  * In the lobby: who is where (the friend's team is never shown — only whether it is locked in), and Leave.
+ * Back from a battle (`after`, 2026-10-29): Good game! → one-tap Rematch, or the friend's offer → Accept / No thanks.
  * Nothing here mentions a wallet: neither side needs one.
  */
 export interface FriendLobbyProps {
   roomId: string | null;
   view: FriendRoomView | null;
+  /** The finished room you just came back from (no current room), watched for a rematch. */
+  after: FriendRoomView | null;
   /** The host's full invite URL (null for the guest, or after a lost tab). */
   inviteLink: string | null;
   busy: boolean;
@@ -24,6 +27,8 @@ export interface FriendLobbyProps {
   onCopy: () => void;
   onShare: () => void;
   onLeave: () => void;
+  onRematch: () => void;
+  onDeclineRematch: () => void;
 }
 
 function useCountdown(iso: string | undefined) {
@@ -41,6 +46,33 @@ function useCountdown(iso: string | undefined) {
 export function FriendLobby(p: FriendLobbyProps) {
   const { view } = p;
   const left = useCountdown(view && (view.status === 'open' || view.status === 'seated') ? view.expiresAt : undefined);
+
+  if (!p.roomId && p.after && p.after.status === 'ended') {
+    const offer = p.after.rematch;
+    const offered = offer && offer.offeredBy === 'opponent' && offer.status === 'seated';
+    const declined = offer && offer.offeredBy === 'you' && offer.status === 'cancelled';
+    return (
+      <div className="dojo-friend" data-testid="friend-lobby" data-state="after" data-rematch={offered ? 'offered' : declined ? 'declined' : 'none'}>
+        <p className="dojo-friend-headline">{offered ? 'Your friend wants a rematch!' : 'Good game!'}</p>
+        <p className="dojo-help">
+          {offered ? 'Same friend, sides swapped. Pick a new team — they won’t see it until the fight.'
+            : declined ? 'Your friend said no thanks this time. Send a new link to play again.'
+              : 'Play your friend again — one tap, sides swapped, new teams.'}
+        </p>
+        {p.error && <p className="dojo-friend-note" data-tone="error" data-testid="friend-error">{p.error}</p>}
+        <div className="dojo-friend-actions">
+          {!declined && (
+            <button type="button" className="dojo-choice dojo-friend-primary" data-testid="friend-rematch" disabled={p.busy} onClick={p.onRematch}>
+              {p.busy ? 'Opening…' : offered ? 'Accept' : 'Rematch'}
+            </button>
+          )}
+          {offered
+            ? <button type="button" className="dojo-choice" data-testid="friend-decline" disabled={p.busy} onClick={p.onDeclineRematch}>No thanks</button>
+            : <button type="button" className="dojo-choice" data-testid="friend-create" disabled={p.busy} onClick={p.onCreate}>New invite link</button>}
+        </div>
+      </div>
+    );
+  }
 
   if (!p.roomId) {
     return (
@@ -87,7 +119,7 @@ export function FriendLobby(p: FriendLobbyProps) {
       )}
       {(view.status === 'seated' || view.status === 'in_battle') && (
         <>
-          <p className="dojo-friend-headline">{host ? 'Your friend is here!' : 'You’re in! Battle your friend.'}</p>
+          <p className="dojo-friend-headline">{view.rematchOf ? 'Rematch!' : host ? 'Your friend is here!' : 'You’re in! Battle your friend.'}</p>
           <ul className="dojo-friend-roster" data-testid="friend-status" data-opponent={oppState} data-you={youState} role="status" aria-live="polite">
             <li><span>Your friend</span><b>{oppState === 'ready' ? 'Ready' : oppState === 'locked' ? 'Locked in' : 'Picking a team…'}</b></li>
             <li><span>You</span><b>{view.status === 'in_battle' ? 'Starting…' : youState === 'ready' ? 'Locked in' : 'Picking a team…'}</b></li>

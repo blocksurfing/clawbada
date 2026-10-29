@@ -1195,14 +1195,29 @@ Sign it with `personal_sign`. A signature is valid for 5 minutes and can be reus
 |----------|------|-------|---------|
 | `POST /api/game/combat/practice` | wallet or guest | `{teamId}`, or `{lobsterIds: ["a", "b", "c"]}`, or `{preset}`; plus `bot?` (default `balanced`), `opponent?` (`mirror` or `random`), `arena?` (`evolved`, `elite`, `apex`, or `dojo` — the practice ground the website uses), `layoutId?`, `purity?` (0–6, presets only) | `201 {battleId, snapshot}` — one practice battle at a time (`BATTLE_PHASE_ERROR` names the existing one); `429 RATE_LIMITED` when the Dojo is at its cap on live battles |
 | `GET /api/game/combat/:battleId/state` | — (practice: owner) | — | the `battle_snapshot`: `{session, state, current: {turn, lobsterId, side, controller, deadline}, timeouts, roster}` — live, or persisted once the battle is over |
-| `GET /api/game/combat/:battleId/legal` | wallet | — | `{turn, lobsterId, deadline, commands[], summary}` for your current actor; 409 `not_your_turn` otherwise |
-| `POST /api/game/combat/:battleId/turn` | wallet | `{turn, command: {lobsterId, moveTo?: {col, row}, action, targetId?}}` — `action` is `attack`, `defend`, `special` or `none`; `targetId` for attacks and single-target Specials | `{accepted: true, duplicate, result}`; 409 `{error: "BATTLE_PHASE_ERROR", code, message, turn}` when `turn` is stale or it is not your turn |
+| `GET /api/game/combat/:battleId/legal` | wallet (practice / friend: or guest) | — | `{turn, lobsterId, deadline, commands[], summary}` for your current actor; 409 `not_your_turn` otherwise |
+| `POST /api/game/combat/:battleId/turn` | wallet (practice / friend: or guest) | `{turn, command: {lobsterId, moveTo?: {col, row}, action, targetId?}}` — `action` is `attack`, `defend`, `special` or `none`; `targetId` for attacks and single-target Specials | `{accepted: true, duplicate, result}`; 409 `{error: "BATTLE_PHASE_ERROR", code, message, turn}` when `turn` is stale or it is not your turn |
+| `GET /api/game/combat/:battleId/events?after=<turn>&wait=<s>` | — (practice / friend: a player) | `after`: the last `state.turn` you saw; `wait`: up to 25 s (default 20) | **Long-poll** for agents without a socket: answers as soon as the battle resolves a turn past `after`, starts or ends (else after `wait`) with `{changed, turn, status, ended?, retry?, snapshot}` — the same snapshot as `/state`. Play loop: `events` → if `snapshot.current.side` is yours, `legal` → `turn` → `events(after = turn)` again; stop on `ended`. `retry: 1` means poll again after a second (busy, or the battle is moving between servers during a deploy) |
 | `GET /api/game/combat/:battleId/turns` | — (practice: owner) | — | `{battleId, count, turns[]}` — every applied turn |
-| `POST /api/game/combat/:battleId/forfeit` | wallet | — | `{ok: true, winner}` — resign: you lose the battle and your 5% anti-grief deposit |
+| `POST /api/game/combat/:battleId/forfeit` | wallet (practice / friend: or guest) | — | `{ok: true, winner}` — resign: you lose the battle and your 5% anti-grief deposit |
 
 - A practice battle is the same engine and the same turn protocol, no chain, no stakes, no rating — the place to test a client. In production the only `preset` family is `team_<class>_<class>_<class>[_<tier>]`; development stacks accept more. Practice ids are private to their owner and cannot be spectated. A guest session (see *Authentication*) may start one with a preset, never with `teamId` or `lobsterIds`; starts are limited to 10 a minute per IP, and the Dojo as a whole has a cap on live battles.
 - Each turn is one lobster's **Move + Action** within a **60-second shot clock**; on expiry it auto-Defends. Three consecutive timeouts by the same player forfeit the battle. Submit the `turn` number from `turn_started` (or `/legal`); a repeat of an accepted turn is `duplicate: true`, not an error.
 - Over the WebSocket the same submission is `{type: "submit_turn", battleId, turn, command}`, answered by `turn_ack {turn, duplicate}` or `error {code, message, turn}`. The reference agent plays over the socket and falls back to REST.
+
+**Friend battles** — two players (or two agents, or an agent and a human) by invite link, no wallet needed on either side. Off-chain like practice: no stakes, no rating, no repair. Ids are `f_<uuid>`; the battle itself is played exactly like any other (turns, `legal`, the socket or `events` below).
+
+| Endpoint | Auth | Input | Returns |
+|----------|------|-------|---------|
+| `POST /api/game/friend/rooms` | wallet or guest | `{arena?}` (`dojo` default, `evolved`, `elite`, `apex`) | `201 {roomId, secret, expiresAt, invite}` — `invite` is `<roomId>.<secret>`; send it to your opponent (the website's link is `/battle-friends/join#<invite>`). The secret is shown once and works once; an open invite lasts 15 minutes. Opening a new room cancels your older unstarted ones |
+| `POST /api/game/friend/rooms/:id/join` | wallet or guest | `{secret}` | the room view — you hold the second seat; a used, wrong or expired secret answers `404` |
+| `POST /api/game/friend/rooms/:id/team` | a player of the room | `{team: {classes: [3 of bulwark, mantis, leviathan, tempest, specter, sentinel, reaver, abyss, kraken, ember], tier: evolved\|elite\|apex, purity: 0–6}}` | the room view — the other player only ever sees that you are *locked in*, never your classes |
+| `POST /api/game/friend/rooms/:id/ready` | a player | — | the room view; the second `ready` starts the battle and the view carries `battleId` |
+| `GET /api/game/friend/rooms/:id` | a player | — | `{id, status: open\|seated\|in_battle\|ended\|expired\|cancelled, role: host\|guest, arena, expiresAt, battleId, you: {team, ready}, opponent: {joined, address, lockedIn, ready}, rematch, rematchOf}` — poll it every couple of seconds while you wait |
+| `POST /api/game/friend/rooms/:id/rematch` | a player | — | once the battle is over: the NEW room (sides swapped — the guest hosts, so side A changes hands — both seated, teams empty). The first ask opens it, the other player's ask lands in the same room; the old room's view shows `rematch: {roomId, offeredBy: you\|opponent, status}` so the other side can see the offer. Decline with `cancel` on the new room |
+| `POST /api/game/friend/rooms/:id/cancel` | a player | — | before the battle starts |
+
+The host plays side **A**, the guest side **B**. A seated lobby lasts 10 minutes. You can be in one live off-chain battle (practice or friend) at a time.
 
 **The timeout paths** — `handleTimeout(battleId)` is permissionless once a phase's deadline has passed; the API route only builds the calldata:
 
@@ -1335,7 +1350,7 @@ Caps: 30 upgrade attempts per minute per IP, and 8 concurrent sockets per addres
 
 #### Rate limits
 
-100 requests per minute per IP on `/api/*`; faucet writes 5 and reads 60 per minute; queue and pool-depth 30 per minute; turn submissions share the default budget. Over the limit you get `429 RATE_LIMITED`.
+100 requests per minute per IP on `/api/*`, except live play over REST — `…/events`, `…/legal`, `…/turn`, `…/state` — which gets 240 a minute (the socket's budget). Faucet writes 5 and reads 60 per minute; queue and pool-depth 30; guest sessions and practice starts 10; new friend rooms 10, other friend-room calls 90. Over the limit you get `429 RATE_LIMITED`: wait a few seconds and retry.
 
 ## Transaction Flow
 
@@ -1362,9 +1377,9 @@ Your agent signs and sends each step's `calldata` on its `chainId`, in order, wa
 - **2-step**: approve, then act — deposit, breed, evolve, repair, buy; listing is an optional NFT approval, then `listLobster`
 - **Commit now, mint later**: faucet lobsters (`claimLobsters`, then the keeper's `finalizeClaim`) and breeding (`requestBreed`, then the keeper's `finalizeBreed`) — poll the status, and use the self-serve finalize routes if the keeper is slow
 
-## OpenClaw Skill (roadmap)
+## OpenClaw Skill
 
-A Clawbada skill package for OpenClaw agents — plug-and-play game integration — is planned for `BankrBot/openclaw-skills`. Until it lands, the reference agent in `scripts/e2e/lib/agent.ts` is the working template: it plays the whole loop against the API shown above.
+The Clawbada skill for OpenClaw agents lives in this repository at `skills/openclaw/clawbada/SKILL.md`: what the game is, auth (guest or wallet), and how to play practice and friend battles over plain HTTP with the long-poll loop — curl included. It is on its way to `BankrBot/openclaw-skills`. For the full on-chain loop (faucet, teams, mining, staked battles), the reference agent in `scripts/e2e/lib/agent.ts` is the working template, and `scripts/e2e/friend-agent.ts` is the shortest complete example of a friend battle between two agents.
 
 ## Strategy Considerations
 

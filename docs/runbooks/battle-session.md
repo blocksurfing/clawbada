@@ -243,3 +243,16 @@ credit, no wallet needed on either side (guest sessions welcome). Lobby rules li
   10 s per socket (then `error rate_limited`), 120 closes it (1008, `ws_flood_closed`).
 - `{type:"forfeit", battleId}` over the socket resigns, like the REST route.
 - Leases: see docs/runbooks/cloud-run.md → Shutdown contract.
+
+## Rematch and the agents' long-poll — 2026-10-29
+
+- `POST /api/game/friend/rooms/:id/rematch` (after `ended`): the first ask inserts ONE room (`friend_rooms.rematch_of`
+  unique, migration 0016) — sides swapped, both seated, teams empty, 10-min lobby, no link; every later ask returns it.
+  The old room's view carries `rematch {roomId, offeredBy, status}`; decline = `cancel` on the new room.
+- `GET /api/game/combat/:id/events?after=<turn>&wait=≤25` — `BattleSessionManager.waitForChange`: any event of the
+  battle wakes it (the manager wraps `emit`); capped at 16 waits per battle / 4,000 in all (`busy` → `retry: 1`);
+  shutdown and a lost lease answer `gone`, and a finished battle answers from the stored row. Live play over REST
+  (`events`, `legal`, `turn`, `state`) has its own 240/min per-IP budget (the socket's), not the general 100.
+- Log lines (counted by `scripts/gcp-observability.sh`): `friend_room_created / _joined / _cancelled / _expired`,
+  `friend_battle_started {rematch}`, `friend_rematch_offered / _accepted`, `rate_limited {scope, path}`.
+

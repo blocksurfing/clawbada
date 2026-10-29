@@ -235,6 +235,41 @@ sessionRoutes.get(
   }),
 );
 
+// ──────────── GET /:battleId/events?after=<turn>&wait=<s> ────────────
+// Long-poll for agents without a socket (2026-10-29). Answers as soon as the battle has resolved a turn past `after`,
+// started, ended, or sent any other event; otherwise after `wait` seconds (default 20, at most 25 — under the load
+// balancer's 30 s). The answer is the same snapshot as /state plus `changed` and, once over, `ended`. Loop:
+//   events(after = snapshot.state.turn) → if current.side is yours: legal → turn → events(...) again.
+// Turn-by-turn results are on /turns. Same auth as /state (off-chain battles: their players only).
+const EVENTS_MAX_WAIT_S = 25;
+sessionRoutes.get(
+  '/:battleId/events',
+  catchErrors(async (c) => {
+    const { battleId } = c.req.param();
+    assertBattleId(battleId);
+    await requireParticipantIfPractice(c, battleId);
+    const afterRaw = c.req.query('after');
+    const after = afterRaw === undefined ? -1 : Number(afterRaw);
+    if (!Number.isInteger(after) || after < -1) throw new ApiError('INVALID_INPUT', 'after must be a turn number (-1 for "anything")');
+    const waitRaw = Number(c.req.query('wait') ?? 20);
+    const waitS = Number.isFinite(waitRaw) ? Math.min(EVENTS_MAX_WAIT_S, Math.max(0, waitRaw)) : 20;
+    const result = after < 0 ? 'changed' : await battleSessions.waitForChange(battleId, after, waitS * 1000);
+    const snap = battleSessions.snapshotFor(battleId) ?? (await persistedSnapshot(battleId));
+    if (!snap) throw new ApiError('NOT_FOUND', 'No battle session with that id');
+    const over = snap.session.status !== 'active' || snap.state.finished;
+    return c.json({
+      changed: result === 'changed' || (result === 'gone' && over),
+      // 'busy': too many open polls — poll again after a short pause. 'gone' while not over: the battle is moving
+      // between instances (a deploy) — poll again in a second.
+      retry: result === 'busy' || (result === 'gone' && !over) ? 1 : undefined,
+      turn: snap.state.turn,
+      status: snap.session.status,
+      ended: over ? { winner: snap.session.winner ?? snap.state.winner ?? null } : undefined,
+      snapshot: snap,
+    });
+  }),
+);
+
 // ──────────── GET /:battleId/turns ────────────
 
 sessionRoutes.get(

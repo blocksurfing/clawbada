@@ -73,6 +73,12 @@ friendRoutes.post('/rooms/:id/cancel', playerAuth, catchErrors(async (c) => {
   try { return c.json(await friendRooms.cancel(c.req.param('id'), caller(c as never))); } catch (err) { mapError(err); }
 }));
 
+// Play again with the same friend (2026-10-29): after the battle, either player; both asks land in one new room.
+friendRoutes.post('/rooms/:id/rematch', playerAuth, catchErrors(async (c) => {
+  await body(c, []);
+  try { return c.json(await friendRooms.rematch(c.req.param('id'), caller(c as never))); } catch (err) { mapError(err); }
+}));
+
 friendRoutes.get('/rooms/:id', playerAuth, catchErrors(async (c) => {
   try { return c.json(await friendRooms.view(c.req.param('id'), caller(c as never))); } catch (err) { mapError(err); }
 }));

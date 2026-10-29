@@ -20,6 +20,8 @@ const toRow = (r: Row): FriendRoomRow => ({
   arena: r.arena as FriendRoomRow['arena'],
   battleId: r.battleId,
   expiresAt: r.expiresAt,
+  rematchOf: r.rematchOf ?? null,
+  rematchBy: r.rematchBy ?? null,
 });
 
 export class DbFriendRoomRepo implements FriendRoomRepo {
@@ -85,5 +87,16 @@ export class DbFriendRoomRepo implements FriendRoomRepo {
 
   async setStatus(id: string, status: FriendRoomStatus): Promise<void> {
     await this.dbx.update(friendRooms).set({ status, updatedAt: new Date() }).where(eq(friendRooms.id, id));
+  }
+
+  /** The unique index on rematch_of makes this the one atomic step: two players pressing Rematch at once get one room. */
+  async insertRematch(row: FriendRoomRow): Promise<FriendRoomRow | null> {
+    const [r] = await this.dbx.insert(friendRooms).values({ ...row }).onConflictDoNothing({ target: friendRooms.rematchOf }).returning();
+    return r ? toRow(r) : null;
+  }
+
+  async findRematchOf(roomId: string): Promise<FriendRoomRow | null> {
+    const [r] = await this.dbx.select().from(friendRooms).where(eq(friendRooms.rematchOf, roomId)).limit(1);
+    return r ? toRow(r) : null;
   }
 }
