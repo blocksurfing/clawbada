@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
       { source: '/audio/music/:file*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
       // The site's UI sounds, content-hashed the same way by scripts/build-sfx.ts (SFX_UI_<Name>.<sha8>.m4a).
       { source: '/audio/sfx/:file*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
+      // Battle Friends invites carry their secret in the URL fragment (never sent to a server); the join page also sends
+      // no Referer at all, so nothing it loads or links to can learn where the player came from.
+      { source: '/battle-friends/:path*', headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }] },
       // The book (public/book, written by scripts/build-gitbook.sh): a new build must show within minutes.
       { source: '/book/:file*', headers: [{ key: 'Cache-Control', value: 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400' }] },
     ];

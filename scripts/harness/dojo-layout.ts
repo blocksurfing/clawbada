@@ -5,7 +5,7 @@ import { chromePixelScale } from '../../apps/web/src/components/pixel/pixel-asse
  * The Dojo (Nzib's drop 5cb6655, ported 2026-10-26) — the acceptance checks of his dojo-browser.py / dojo-drag.py:
  *   · per window size at its chrome scale (3 / 2.5 / 2): a guest opens on Build a team; six fighters stand; the Battle
  *     button and the status line are on screen and clear of both cards; the cards don't overlap, and nothing inside a
- *     card spills out of it; Fight with friend is shown, disabled, "Coming soon"; the page doesn't scroll;
+ *     card spills out of it; Fight with friend is a live tab (Battle Friends) that opens the invite panel; the page doesn't scroll;
  *   · My lobsters (a burner wallet whose lobsters and teams are stubbed in the page — no chain on a dev stack): opens on
  *     My lobsters with the first saved team; click removes and refills; drag replaces, swaps (never a duplicate) and,
  *     dropped on the tiles, removes; Escape cancels a drag; Battle sends lobsterIds and a failure lands in the status.
@@ -82,7 +82,7 @@ export default async function (b: Browser) {
       ok(`${tag}: every control takes its own click (${mode})`, blocked.length === 0, blocked.join(' | '));
     }
     await b.eval(`document.querySelector('[data-team-mode=builder]').click()`);
-    ok(`${tag}: Fight with friend is disabled, "Coming soon"`, await b.eval(`(() => { const t = document.querySelector('[data-testid=dojo-friend-tab]'); return !!t && t.getAttribute('aria-disabled') === 'true' && t.textContent.includes('Coming soon'); })()`));
+    ok(`${tag}: Fight with friend is a live tab, no "Coming soon"`, await b.eval(`(() => { const t = document.querySelector('[data-testid=dojo-friend-tab]'); return !!t && !t.disabled && t.getAttribute('aria-disabled') !== 'true' && !t.textContent.includes('Coming soon') && !!document.querySelector('#dojo-friend [data-testid=friend-lobby]'); })()`));
     // His composition at one uniform scale (owner 2026-10-26), with the wallet chip scaled along on this page.
     const stage = await b.eval(`parseFloat(getComputedStyle(document.querySelector('.dojo-stage')).getPropertyValue('--dojo-stage-scale'))`) as number;
     const wantStage = Math.min(w / 1920, (h - (w < 1024 ? 64 : 0)) / 955);   // compact sidebar

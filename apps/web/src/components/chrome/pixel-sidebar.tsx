@@ -43,10 +43,13 @@ const ASSETS = {
 };
 
 /** Same rule as the game shell's `isActive`: Dashboard is exact, everything else is a prefix. A battle belongs to the
- *  page it was started from (owner 2026-10-28): practice battles (`/battle/p_…`) to the Dojo, the rest to The Shell. */
+ *  page it was started from (owner 2026-10-28): practice and friend battles (`/battle/p_…`, `/battle/f_…`) to the Dojo,
+ *  the rest to The Shell. */
 export function activeMenuLabel(pathname: string | null): string | null {
   if (!pathname) return null;
-  if (pathname.startsWith('/battle/')) return pathname.startsWith('/battle/p_') ? 'Dojo' : 'The Shell';
+  // Friend battles start in the Dojo too, and so does their invite page.
+  if (pathname.startsWith('/battle-friends')) return 'Dojo';
+  if (pathname.startsWith('/battle/')) return /^\/battle\/[pf]_/.test(pathname) ? 'Dojo' : 'The Shell';
   for (const item of MENU) {
     if ('external' in item) continue;
     if (item.href === '/game' ? pathname === '/game' : pathname.startsWith(item.href)) return item.label;
