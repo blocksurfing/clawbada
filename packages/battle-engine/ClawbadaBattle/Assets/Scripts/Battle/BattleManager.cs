@@ -591,8 +591,8 @@ public class BattleManager : MonoBehaviour
     {
         if (PerfMonitor.Enabled)
         {
-            string cls = lobsters.TryGetValue(data.lobsterId ?? "", out var who) ? who.className : "?";
-            PerfMonitor.MarkSegment($"turn:{data.turn}:{data.action}:{cls}");
+            bool known = lobsters.TryGetValue(data.lobsterId ?? "", out var who);
+            PerfMonitor.MarkSegment($"turn:{data.turn}:{data.action}:{(known ? who.className : "?")}:{(known ? who.side : "?")}");
         }
         // React holds every later turn until NotifyTurnAnimationComplete arrives, so this
         // callback must fire even if a prefab/animation step throws — otherwise the HUD
