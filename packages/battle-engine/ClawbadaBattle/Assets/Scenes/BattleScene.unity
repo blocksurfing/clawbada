@@ -822,7 +822,7 @@ MonoBehaviour:
   arenaArtApex: {fileID: 3180318831769434282, guid: ef269366adef31741a23b5d7f2427a76, type: 3}
   arenaArtDojo: {fileID: 5711324840924948117, guid: 557cdfaebd2bdb44dba2bffc5645185d, type: 3}
   initialArenaArt: {fileID: 71312957}
-  secondsPerHexMove: 0.7
+  secondsPerHexMove: 0.45
   attackDuration: 0.55
   hitDuration: 0.45
   deathDuration: 0.9

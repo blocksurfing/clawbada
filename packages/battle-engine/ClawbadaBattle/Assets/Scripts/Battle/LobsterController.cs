@@ -288,31 +288,46 @@ public class LobsterController : MonoBehaviour
         }
 
         PlayState("Move");
+        // The Move clips' foot cadence was authored for 0.7 s per hex; a quicker walk plays them faster to match, so the
+        // claws keep pace with the ground instead of skating over it.
+        float cadence = secondsPerHex > 0.01f ? Mathf.Clamp(AuthoredSecondsPerHex / secondsPerHex, 0.5f, 2.5f) : 1f;
+        if (animator != null && !frozen) animator.speed = cadence;
         Debug.Log($"[LobsterController] move {className} {path.Count} hex @ {secondsPerHex:F2}s each");
         if (path.Count > 0) BattleSfx.StartMove();
         Moving = true;
 
-        foreach (var step in path)
+        // One eased walk over the whole path (smoothness campaign 2026-10-30) rather than an ease per hop, which would
+        // stop-start at every cell centre. The legs follow the ground speed frame by frame (the cadence scaled by the
+        // ease's slope), so they slow into the first step and the landing instead of pedalling in place. Hops still pass
+        // through cell centres, turn the rig, fire the step VFX and update col/row as they land.
+        int n = path.Count;
+        float total = n * secondsPerHex;
+        int hop = -1;
+        Vector3 hopFrom = transform.position, hopTo = hopFrom;
+        float t = 0f;
+        while (n > 0)
         {
-            Vector3 start = transform.position;
-            Vector3 end = grid.GetWorldPosition(step.x, step.y);
-            FaceToward(end);
-            BattleVfxLibrary.Spawn(vfx?.moveStep, this, null, this);
-
-            float t = 0f;
-            while (t < secondsPerHex)
+            t += Time.deltaTime;
+            float along = WalkProgress(Mathf.Clamp01(t / total), n) * n;   // 0 … n hexes
+            int k = Mathf.Min(n - 1, Mathf.FloorToInt(along));
+            while (hop < k)
             {
-                t += Time.deltaTime;
-                transform.position = Vector3.Lerp(start, end, Mathf.Clamp01(t / secondsPerHex));
-                yield return null;
+                if (hop >= 0) LandOn(path[hop], hopTo);
+                hop++;
+                hopFrom = transform.position;
+                hopTo = grid.GetWorldPosition(path[hop].x, path[hop].y);
+                FaceToward(hopTo);
+                BattleVfxLibrary.Spawn(vfx?.moveStep, this, null, this);
             }
-
-            transform.position = end;
-            col = step.x;
-            row = step.y;
-            UpdateSortingOrder();
+            transform.position = Vector3.Lerp(hopFrom, hopTo, Mathf.Clamp01(along - hop));
+            if (animator != null && !frozen && pose == poseGen)
+                animator.speed = cadence * Mathf.Max(0.25f, WalkSpeedFactor(Mathf.Clamp01(t / total), n));
+            if (t >= total) break;
+            yield return null;
         }
+        if (n > 0) LandOn(path[n - 1], hopTo);
 
+        if (animator != null && !frozen && pose == poseGen) animator.speed = 1f;
         Moving = false;
         BattleSfx.StopMove();
         // Where the walk ends (user 2026-09-30): Nzib's shockwave, small and faint — it marks the move landing (with
@@ -320,6 +335,37 @@ public class LobsterController : MonoBehaviour
         if (path.Count > 0 && vfx != null && vfx.introLanding != null)
             IntroDust.Ring(vfx.introLanding, transform.position, MoveArrivalScale, MoveArrivalAlpha);
         if (pose == poseGen) { FaceEnemySide(); PlayState("Idle"); }
+    }
+
+    /// <summary>The walk speed the Move states were tuned against (the battle's pace until 2026-10-30). Every Move state
+    /// runs at 0.5×, so a hex took ~1.05 Evolved / 0.7 Elite–Apex leg cycles; scaling by 0.7 / secondsPerHex keeps that.</summary>
+    public const float AuthoredSecondsPerHex = 0.7f;
+
+    /// <summary>Progress along a walk of <paramref name="hexes"/> hexes at time fraction <paramref name="x"/>: a blend of
+    /// linear and smoothstep with weight w = 0.8 / hexes. A one-hex step is 80% smoothstep (it starts and lands at a
+    /// fifth of its average speed, peaks at 1.4×); longer walks ease less over their whole length, so a three-hex walk
+    /// stays between 0.73× and 1.13× of a steady pace. Always strictly increasing (slope ≥ 1 − w ≥ 0.2).</summary>
+    public static float WalkProgress(float x, int hexes)
+    {
+        float smooth = x * x * (3f - 2f * x);
+        return Mathf.Lerp(x, smooth, WalkEase(hexes));
+    }
+
+    /// <summary>Ground speed relative to the walk's average at time fraction x: the slope of WalkProgress.</summary>
+    public static float WalkSpeedFactor(float x, int hexes)
+    {
+        float w = WalkEase(hexes);
+        return 1f - w + 6f * w * x * (1f - x);
+    }
+
+    private static float WalkEase(int hexes) => Mathf.Min(1f, 0.8f / Mathf.Max(1, hexes));
+
+    private void LandOn(Vector2Int cell, Vector3 world)
+    {
+        transform.position = world;
+        col = cell.x;
+        row = cell.y;
+        UpdateSortingOrder();
     }
 
     /// <summary>The arrival ring at the end of a walk. It must reach past the lobster to read (0.6 and 1.0 hid under its body
@@ -584,6 +630,7 @@ public class LobsterController : MonoBehaviour
         if (grid != null) { transform.position = grid.GetWorldPosition(col, row); UpdateSortingOrder(); }
         Debug.Log($"[LobsterController] move {className} cut short at ({col},{row}) — loop stopped, back to Idle");
         if (!alive || frozen) return;
+        if (animator != null) animator.speed = 1f;   // the walk's quickened cadence ends with it
         FaceEnemySide();
         PlayState("Idle");
     }
