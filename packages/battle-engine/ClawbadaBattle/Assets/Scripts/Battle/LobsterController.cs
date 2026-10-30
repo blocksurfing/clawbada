@@ -198,6 +198,28 @@ public class LobsterController : MonoBehaviour
         return false;
     }
 
+    // ─── Pose ownership ───
+
+    /// <summary>Who owns this rig's pose (Animator state, speed, facing). Every action — walk, dash, wind-up, swing,
+    /// defend, hit, death, snap — takes a new generation when it starts; a routine only puts the rig back to rest if it
+    /// still owns it. Hits play on their own coroutine and outlive their turn (Evolved's Hit clip is 1.0 s, the turn
+    /// releases ~0.8 s in), so without this an old flinch snapped a lobster back to Idle — and turned it round —
+    /// halfway into its own next move (smoothness campaign 2026-10-30, found by the Codex audit).</summary>
+    private int poseGen;
+    /// <summary>Take the pose. A newer action also ends any flinch it interrupts (the hit's own ending won't run).</summary>
+    private int BeginPose() { inHitRead = false; return ++poseGen; }
+
+    /// <summary>Claim the pose at the start of an action that faces or waits before its own swing (a Special's wind-up,
+    /// a delayed SwingAfter), so a flinch from the previous turn can't turn the caster back round meanwhile.</summary>
+    public void TakePose() => BeginPose();
+
+    /// <summary>The pose a lobster settles into when nothing is playing: its guard while defending, else Idle.</summary>
+    private void SettleToRest()
+    {
+        FaceEnemySide();
+        if (!(defending && HasState("Defense") && PlayState("Defense"))) PlayState("Idle");
+    }
+
     // ─── Facing & sorting ───
 
     /// <summary>Face toward the opposing team's side of the board.</summary>
@@ -257,6 +279,7 @@ public class LobsterController : MonoBehaviour
     public IEnumerator MoveTo(int toCol, int toRow, float secondsPerHex)
     {
         AbortMove();   // a walk still flagged here was cut off without its ending: tidy it before starting over
+        int pose = BeginPose();
         var path = grid.FindPath(col, row, toCol, toRow);
         if (path.Count == 0 && (col != toCol || row != toRow))
         {
@@ -296,8 +319,7 @@ public class LobsterController : MonoBehaviour
         // touch-move, the moment it became final) without the stomp a full ring on every hop would read as.
         if (path.Count > 0 && vfx != null && vfx.introLanding != null)
             IntroDust.Ring(vfx.introLanding, transform.position, MoveArrivalScale, MoveArrivalAlpha);
-        FaceEnemySide();
-        PlayState("Idle");
+        if (pose == poseGen) { FaceEnemySide(); PlayState("Idle"); }
     }
 
     /// <summary>The arrival ring at the end of a walk. It must reach past the lobster to read (0.6 and 1.0 hid under its body
@@ -317,6 +339,7 @@ public class LobsterController : MonoBehaviour
     {
         Vector3 start = transform.position;
         Vector3 end = grid != null ? grid.GetWorldPosition(toCol, toRow) : start;
+        BeginPose();
         FaceToward(facePoint);
         PlayState(dash.state, 0.05f);
         Debug.Log($"[LobsterController] dash {className} ({col},{row}) → ({toCol},{toRow}) {Vector3.Distance(start, end):F2}u, flight {dash.landAt - dash.takeoffAt:F2}s");
@@ -383,15 +406,19 @@ public class LobsterController : MonoBehaviour
         float raise = Mathf.Min(0.45f, total * 0.35f);
         float hold = Mathf.Max(0f, total - raise - Drop);
         float t0 = Time.time;
+        int pose = BeginPose();
         FaceToward(targetWorldPos);
         PlayState(state);
         if (animator != null) animator.speed = peakAt / raise;   // reach the top exactly as the raise ends
         yield return new WaitForSeconds(raise);
-        if (animator != null && !frozen) animator.speed = 0f;    // claws up — hold the pose
+        if (animator != null && !frozen && pose == poseGen) animator.speed = 0f;    // claws up — hold the pose
         Debug.Log($"[LobsterController] {className} wind-up held: raise {raise:F2}s, hold {hold:F2}s, drop {Drop:F2}s");
         yield return new WaitForSeconds(hold);
-        if (animator != null && !frozen) animator.speed = 1f;
-        PlayState("Idle", Drop);                                 // claws come down just before the strike
+        if (pose == poseGen)
+        {
+            if (animator != null && !frozen) animator.speed = 1f;
+            PlayState("Idle", Drop);                             // claws come down just before the strike
+        }
         // End on the planned moment exactly: each wait above rounds up to a frame, and the swing's contact is timed
         // from here to land on the impact sound.
         float left = total - (Time.time - t0);
@@ -400,6 +427,7 @@ public class LobsterController : MonoBehaviour
 
     public IEnumerator PlayAttack(Vector3 targetWorldPos, float duration, bool melee, System.Action onImpact, float animSpeed = 1f, string state = "Attack")
     {
+        int pose = BeginPose();
         FaceToward(targetWorldPos);
         PlayState(state);
         // A slowed swing (Bind casts at 0.5×): the Animator runs slower for the swing only, and the
@@ -436,6 +464,8 @@ public class LobsterController : MonoBehaviour
         }
 
         transform.position = start;
+        // A counter or reflect hit mid-swing took the pose over: it settles the rig itself.
+        if (pose != poseGen) yield break;
         if (animator != null && !frozen) animator.speed = 1f;   // the swing's own speed ends with it (a stun freeze keeps 0)
         FaceEnemySide();
         PlayState("Idle");
@@ -445,6 +475,8 @@ public class LobsterController : MonoBehaviour
     /// which has no Defense state yet).</summary>
     public void PlayDefend()
     {
+        BeginPose();
+        defending = true;   // both the turn and the round routines come through here; a hit read settles back into the guard
         PlayState("Defense");
         BattleVfxLibrary.Spawn(vfx?.defend, this, null, this);
         BattleSfx.PlayDefend(classId);   // both the turn and the round routines come through here
@@ -473,19 +505,24 @@ public class LobsterController : MonoBehaviour
     public IEnumerator PlayHit(float duration, Vector3 attackerWorldPos)
     {
         // A stunned (frozen) rig still flinches when hit; the freeze re-applies once the read ends.
+        if (deathPlayed) yield break;   // a corpse doesn't flinch
+        int pose = BeginPose();
         inHitRead = true;
-        if (animator != null && frozen) { animator.speed = 1f; frozen = false; }
+        // The flinch plays at normal speed: unfreezes a stunned rig, and resets a slowed swing (Bind's 0.5×) it interrupts.
+        if (animator != null) { animator.speed = 1f; frozen = false; }
         FaceToward(attackerWorldPos);
         PlayState("Hit");
         // Evolved's Hit clip is 1.0 s (Elite/Apex 0.33 s): let it finish before returning to Idle.
         yield return new WaitForSeconds(Mathf.Max(duration, ClipLength("Hit")));
+        // Something newer owns the rig (its own move or swing, another hit, its death): leave the pose to it.
+        if (pose != poseGen)
+        {
+            Debug.Log($"[LobsterController] {lobsterId} ({className}) flinch superseded — its ending skipped");
+            yield break;
+        }
         inHitRead = false;
         bool stunned = alive && statuses.Exists(s => s.type == "stun");
-        if (alive && !stunned)
-        {
-            FaceEnemySide();
-            PlayState("Idle");
-        }
+        if (alive && !stunned) SettleToRest();
         RefreshFreeze();   // stunned: hold the flinch's last frame instead of settling back to Idle
     }
 
@@ -558,6 +595,7 @@ public class LobsterController : MonoBehaviour
         row = toRow;
         if (grid != null) transform.position = grid.GetWorldPosition(col, row);
         UpdateSortingOrder();
+        BeginPose();
         FaceEnemySide();
         PlayState("Idle");
     }
@@ -726,6 +764,7 @@ public class LobsterController : MonoBehaviour
         ClearStatusVfx();
         if (deathPlayed) yield break;
         deathPlayed = true;
+        BeginPose();
         if (animator != null) { animator.speed = 1f; frozen = false; }   // a frozen rig still dies on screen
         Debug.Log($"[LobsterController] death {lobsterId} ({className})");
         BattleSfx.PlayDeath(classId);
@@ -733,16 +772,16 @@ public class LobsterController : MonoBehaviour
         defending = false;
         bool hasDie = PlayState("Die", 0.05f);
         BattleVfxLibrary.Spawn(vfx?.death, this, null, this);
-        float wait = duration;
-        if (hasDie && animator != null)
-        {
-            yield return null; // let the cross-fade start so the state info is the Die clip
-            var info = animator.GetCurrentAnimatorStateInfo(0);
-            if (info.shortNameHash == DieHash && info.length > 0f && !float.IsInfinity(info.length))
-                wait = Mathf.Max(0.2f, Mathf.Min(duration, info.length / Mathf.Max(0.01f, info.speed)));
-        }
-        yield return new WaitForSeconds(wait);
+        yield return new WaitForSeconds(hasDie ? DeathSeconds(duration) : duration);
         FreezeAsCorpse();
+    }
+
+    /// <summary>How long this rig's death plays: the whole Die clip (Evolved 0.92 s, Elite/Apex 1.25 s — the battle's
+    /// 0.9 s used to cut the last third of the fall and freeze mid-air), else the fallback.</summary>
+    public float DeathSeconds(float fallback)
+    {
+        float clip = HasState("Die") ? ClipLength("Die") : 0f;
+        return clip > 0f && !float.IsInfinity(clip) ? Mathf.Max(0.2f, clip) : fallback;
     }
 
     private bool deathPlayed;
