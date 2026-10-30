@@ -6,6 +6,7 @@
  * If the build is not deployed (loader 404) it reports `onUnavailable` and the
  * page falls back to the SVG board.
  */
+import { attachUnityPerf, perfEnabled, startPagePerf } from '@/lib/battle-perf';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getBattleMusicPref, getBattleMusicVolume, getSfxPref, getSfxVolume, BATTLE_MUSIC_EVENT, SFX_EVENT, VOLUME_EVENT, type AudioPrefChange } from '@/lib/audio-prefs';
 import { Unity, useUnityContext } from 'react-unity-webgl';
@@ -314,6 +315,14 @@ function UnityStage(props: BattleStageProps) {
   }, [initialisationError]);
 
   const ready = isLoaded && unityReady;
+
+  // Smoothness probes (?perf=1 only): page frame/long-task recorders, and Unity's own frame recorder (lib/battle-perf.ts).
+  useEffect(() => {
+    if (!ready || !perfEnabled()) return;
+    startPagePerf();
+    attachUnityPerf((method, json) => sendMessage(UNITY_GAME_OBJECT, method, json));
+    return () => attachUnityPerf(null);
+  }, [ready, sendMessage]);
 
   // InitBattle once per battle. Never keyed on the turn or on later snapshots: re-initialising
   // mid-battle respawns the rigs and rebinds the HUD.
