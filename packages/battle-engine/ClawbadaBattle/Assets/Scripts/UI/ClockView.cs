@@ -95,10 +95,14 @@ public class ClockView : MonoBehaviour
         if (Running) Tick();
     }
 
+    private int shownSeconds = int.MinValue;
+
     private void Tick()
     {
         float remaining = RemainingSeconds;
-        text.text = Mathf.CeilToInt(remaining).ToString();
+        // The number changes once a second: format it only then (was a new string every frame).
+        int secs = Mathf.CeilToInt(remaining);
+        if (secs != shownSeconds || string.IsNullOrEmpty(text.text)) { shownSeconds = secs; text.text = secs.ToString(); }
         bool danger = remaining * 1000f < skin.clockDangerMs;
         if (indicator != null)
         {
