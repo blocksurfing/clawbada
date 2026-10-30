@@ -66,6 +66,11 @@ public class ActivePanel : MonoBehaviour
     private GameObject badgeRow;
     private Image[] badgeSlots;
     private readonly List<Sprite> badgeList = new();
+    // Refresh runs every LateUpdate for all six cards: reuse these instead of allocating per frame (smoothness 2026-10-30).
+    private readonly List<string> scratchTypes = new(8);
+    private readonly List<Sprite> scratchSprites = new(8);
+    private static readonly IComparer<string> ByStatusPriority =
+        Comparer<string>.Create((a, b) => HudSkin.StatusPriority(a).CompareTo(HudSkin.StatusPriority(b)));
     private int rotateAt;              // index into badgeList shown in slot 3 while more than three are active
     private float nextRotate;
     /// <summary>More than three statuses: slots 1–2 hold the top two by priority, slot 3 cycles through the rest
@@ -256,7 +261,8 @@ public class ActivePanel : MonoBehaviour
         if (badgeRow != null) { RefreshBadges(lob); return; }
 
         // Legacy status row (no StatusRow in the prefab): the defending shield first, then up to three statuses.
-        var sprites = new List<Sprite>(4);
+        var sprites = scratchSprites;
+        sprites.Clear();
         if (lob.alive && lob.defending && skin.iconShield != null) sprites.Add(skin.iconShield);
         if (lob.alive && lob.statuses != null)
             foreach (var st in lob.statuses)
@@ -288,11 +294,13 @@ public class ActivePanel : MonoBehaviour
     /// badge (fortify + reflect) show once; ordered by HudSkin.StatusPriority.</summary>
     private void RefreshBadges(LobsterController lob)
     {
-        var types = new List<string>();
+        var types = scratchTypes;
+        types.Clear();
         if (lob.alive && lob.defending) types.Add("defending");
         if (lob.alive && lob.statuses != null) foreach (var st in lob.statuses) if (st != null) types.Add(st.type);
-        types.Sort((a, b) => HudSkin.StatusPriority(a).CompareTo(HudSkin.StatusPriority(b)));
-        var list = new List<Sprite>();
+        if (types.Count > 1) types.Sort(ByStatusPriority);
+        var list = scratchSprites;
+        list.Clear();
         foreach (var t in types)
         {
             var sp = skin.StatusBadge(t);
