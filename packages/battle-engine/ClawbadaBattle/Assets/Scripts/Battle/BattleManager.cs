@@ -641,6 +641,10 @@ public class BattleManager : MonoBehaviour
             UndoPreview();
         }
 
+        // The server ends a lobster's guard when its own turn starts (game-logic v3 turn.ts); mirror it here, before any
+        // hit read this turn can settle the rig back into a Defense stance that no longer exists.
+        if (actor != null) actor.defending = false;
+
         // 1. Movement along the server's path (cell-by-cell hops), or the Special's leap.
         bool leapt = false;
         if (dash != null)
@@ -687,6 +691,7 @@ public class BattleManager : MonoBehaviour
                             ? vfxLibrary != null ? vfxLibrary.SpecialFor(actor.classId) : null
                             : vfxLibrary != null ? vfxLibrary.attackWindup : null;
                         var impactSlot = special && vfxLibrary != null ? vfxLibrary.SpecialImpactFor(actor.classId) : null;
+                        actor.TakePose();   // own the pose now: a wind-up can wait ~1 s before its swing starts
                         if (target != null && target != actor) actor.FaceToward(targetPos); // so a mirrored windup faces the target
                         // One hook for all three Special branches (projectile / cinematic / plain):
                         // the sound starts with the windup, so it underscores the whole cast rather
@@ -923,15 +928,19 @@ public class BattleManager : MonoBehaviour
         // 3. Deaths (server-authoritative list).
         if (data.deaths != null && data.deaths.Length > 0)
         {
+            // Simultaneous deaths fall together; the turn holds until the longest Die clip has finished (Elite/Apex
+            // 1.25 s — the fixed 0.9 s released the turn while the fall was still playing).
+            float longest = 0f;
             foreach (var deadId in data.deaths)
             {
                 if (lobsters.TryGetValue(deadId, out var lob) && lob.alive)
                 {
+                    longest = Mathf.Max(longest, lob.DeathSeconds(deathDuration));
                     StartCoroutine(lob.PlayDeath(deathDuration));
                     Died?.Invoke(lob);
                 }
             }
-            yield return new WaitForSeconds(deathDuration);
+            yield return new WaitForSeconds(longest > 0f ? longest : deathDuration);
         }
     }
 
@@ -1103,14 +1112,16 @@ public class BattleManager : MonoBehaviour
         // 3. Deaths (server-authoritative list; HP application already happened per action).
         if (result.deaths != null && result.deaths.Length > 0)
         {
+            float longest = 0f;
             foreach (var deadId in result.deaths)
             {
                 if (lobsters.TryGetValue(deadId, out var lob) && lob.alive)
                 {
+                    longest = Mathf.Max(longest, lob.DeathSeconds(deathDuration));
                     StartCoroutine(lob.PlayDeath(deathDuration));
                 }
             }
-            yield return new WaitForSeconds(deathDuration);
+            yield return new WaitForSeconds(longest > 0f ? longest : deathDuration);
         }
 
         currentPhase = BattlePhase.Idle;
@@ -1122,6 +1133,7 @@ public class BattleManager : MonoBehaviour
         lobsters.TryGetValue(action.actorId ?? "", out var actor);
         lobsters.TryGetValue(action.targetId ?? "", out var target);
         if (actor == null) yield break;
+        actor.defending = false;   // a guard lasts until its owner acts again (PlayDefend sets it)
 
         switch (action.actionType)
         {

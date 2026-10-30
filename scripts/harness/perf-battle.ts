@@ -26,6 +26,7 @@ export default async function (b: Browser) {
   await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 755, deviceScaleFactor: 2, mobile: false });
   const runs: Record<string, unknown>[] = [];
   for (const cls of CLASSES) {
+    const logStart = b.allLogs.length;
     await b.goto(`${BASE}/dojo?team=${cls},${cls},${cls}&tier=${TIER}&purity=6&bot=balanced&arena=${ARENA}&auto=1&perf=1&stay=1`);
     if (!(await b.waitFor(`!!document.querySelector('[data-testid=dojo-battle]')`, 90000, 250))) { console.log(`${cls}: no Dojo`); continue; }
     await b.sleep(3000);
@@ -55,8 +56,12 @@ export default async function (b: Browser) {
     // One live practice battle per player: resign this one before the next class (the house rule, and the API's).
     const resigned = await b.eval(`(async () => { const id = location.pathname.split('/').pop(); const raw = localStorage.getItem('clawbada.session.guest'); const tok = raw && JSON.parse(raw).token; if (!tok) return 'no session'; const r = await fetch(${JSON.stringify(API)} + '/api/game/combat/' + id + '/forfeit', { method: 'POST', headers: { Authorization: 'Bearer ' + tok } }); return r.status; })()`);
     if (resigned !== 200) console.log(`${cls}: forfeit -> ${resigned}`);
+    const errors = b.allLogs.slice(logStart).filter((l) => /Exception|NullReference|\[error\]/i.test(l) && !/Aave Wallet|FamilyAccountsSdk/.test(l));
+    const superseded = b.allLogs.slice(logStart).filter((l) => /flinch superseded/.test(l)).length;
+    (run as Record<string, unknown>).superseded = superseded;
+    (run as Record<string, unknown>).errors = errors.slice(0, 10);
     const u = unity.all;
-    console.log(`${cls.padEnd(9)} unity p50 ${u.p50} p95 ${u.p95} p99 ${u.p99} max ${u.max} | >25 ${u.over25} >50 ${u.over50} >100 ${u.over100} gc ${u.gc} | page p95 ${page.frames.p95} max ${page.frames.max} longtasks ${page.longTasks.length} (${page.longTaskMs} ms) | turns ${turns.length} specials ${specials.length} worst-special-max ${Math.max(0, ...specials.map((s) => s.stats.max ?? 0))} | idle median ${run.idleMs.median} ms`);
+    console.log(`${cls.padEnd(9)} unity p50 ${u.p50} p95 ${u.p95} p99 ${u.p99} max ${u.max} | >25 ${u.over25} >50 ${u.over50} >100 ${u.over100} gc ${u.gc} | page p95 ${page.frames.p95} max ${page.frames.max} longtasks ${page.longTasks.length} (${page.longTaskMs} ms) | turns ${turns.length} specials ${specials.length} worst-special-max ${Math.max(0, ...specials.map((s) => s.stats.max ?? 0))} | idle median ${run.idleMs.median} ms | errors ${errors.length} | flinches superseded ${superseded}`);
   }
   await Bun.write(`${OUT}/perf-${LABEL}.json`, JSON.stringify({ label: LABEL, at: new Date().toISOString(), base: BASE, arena: ARENA, runs }, null, 1));
   console.log(`[perf] wrote out/perf-${LABEL}.json (${runs.length} runs)`);
