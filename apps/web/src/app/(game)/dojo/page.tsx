@@ -216,7 +216,7 @@ export default function DojoPage() {
       rememberPracticeOwner(res.battleId, res.snapshot?.session?.playerA);
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
-      for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
+      for (const k of ['auto', 'speed', 'stay', 'perf']) { const v = q.get(k); if (v) carry.set(k, v); }
       // Navigate once the loading loop is fully open, so the page switch (a main-thread freeze) never lands mid-iris.
       await entryRevealed();
       router.push(`/battle/${res.battleId}${carry.size ? `?${carry}` : ''}`);
@@ -251,7 +251,7 @@ export default function DojoPage() {
       forgetRoom(roomId);
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
-      for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) carry.set(k, v); }
+      for (const k of ['auto', 'speed', 'stay', 'perf']) { const v = q.get(k); if (v) carry.set(k, v); }
       await entryRevealed();
       router.push(`/battle/${battleId}${carry.size ? `?${carry}` : ''}`);
     } catch (e) {

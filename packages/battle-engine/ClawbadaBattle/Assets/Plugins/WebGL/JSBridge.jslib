@@ -1,5 +1,13 @@
 mergeInto(LibraryManager.library, {
 
+    // Smoothness campaign (2026-10-29): the frame-time report, only ever sent when the page asked for it (?perf=1).
+    SendPerfReport: function(jsonPtr) {
+        var json = UTF8ToString(jsonPtr);
+        if (window.__clawbadaPerf && window.__clawbadaPerf.onUnityReport) {
+            window.__clawbadaPerf.onUnityReport(json);
+        }
+    },
+
     SendLobsterSelected: function(jsonPtr) {
         var json = UTF8ToString(jsonPtr);
         if (window.__clawbada && window.__clawbada.onLobsterSelected) {

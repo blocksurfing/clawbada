@@ -23,7 +23,7 @@ type Phase = 'joining' | 'needs-sign-in' | 'failed';
 function dojoUrl(roomId: string): string {
   const q = new URLSearchParams(window.location.search);
   const out = new URLSearchParams({ room: roomId });
-  for (const k of ['auto', 'speed', 'stay']) { const v = q.get(k); if (v) out.set(k, v); }
+  for (const k of ['auto', 'speed', 'stay', 'perf']) { const v = q.get(k); if (v) out.set(k, v); }
   return `/dojo?${out}`;
 }
 

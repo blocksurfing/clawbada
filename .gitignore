@@ -71,5 +71,7 @@ audio-masters/
 # Browser playtest harness (scripts/harness): per-run output, headless Chrome profile and log
 scripts/harness/out/
 scripts/harness/chrome-profile/
+scripts/harness/chrome-gpu-profile/
+scripts/harness/chrome-gpu.log
 scripts/harness/chrome.log
 scripts/harness/*.out

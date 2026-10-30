@@ -589,6 +589,11 @@ public class BattleManager : MonoBehaviour
 
     private IEnumerator PlayTurnRoutine(TurnPlayData data)
     {
+        if (PerfMonitor.Enabled)
+        {
+            string cls = lobsters.TryGetValue(data.lobsterId ?? "", out var who) ? who.className : "?";
+            PerfMonitor.MarkSegment($"turn:{data.turn}:{data.action}:{cls}");
+        }
         // React holds every later turn until NotifyTurnAnimationComplete arrives, so this
         // callback must fire even if a prefab/animation step throws — otherwise the HUD
         // locks for the rest of the battle. C# allows yields inside try/finally.
@@ -600,6 +605,7 @@ public class BattleManager : MonoBehaviour
         {
             turnRoutine = null;
             if (currentPhase != BattlePhase.BattleOver) currentPhase = BattlePhase.Idle;
+            PerfMonitor.MarkSegment("idle");
             bridge?.NotifyTurnAnimationComplete(data.turn);
         }
     }
