@@ -36,6 +36,7 @@ public class BattleBridge : MonoBehaviour
     [DllImport("__Internal")] private static extern void SendIntroComplete();
     [DllImport("__Internal")] private static extern void SendIntroMusic();
     [DllImport("__Internal")] private static extern void SendLoadingShown();
+    [DllImport("__Internal")] private static extern void SendPerfReport(string json);
 
     private BattleManager battleManager;
     private HexGrid hexGrid;
@@ -56,6 +57,26 @@ public class BattleBridge : MonoBehaviour
     }
 
     // ─── React → Unity (called via SendMessage) ───
+
+    /// <summary>Frame-time recording for probes (PerfMonitor; the web sends it only with ?perf=1). {"enabled":true|false}</summary>
+    public void SetPerf(string json)
+    {
+        bool on = json != null && json.Contains("true");
+        PerfMonitor.Ensure();
+        if (on) PerfMonitor.Instance.Begin(); else PerfMonitor.Instance.End();
+    }
+
+    /// <summary>Send the current frame-time report to the page (window.__clawbadaPerf.onUnityReport).</summary>
+    public void RequestPerf(string _)
+    {
+        if (PerfMonitor.Instance == null) return;
+        string report = PerfMonitor.Instance.Report();
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendPerfReport(report);
+        #else
+        Debug.Log("[PerfMonitor] " + report);
+        #endif
+    }
 
     /// <summary>Initialize the battle with arena layout, teams, and player info.</summary>
     public void InitBattle(string json)

@@ -9,6 +9,7 @@ canvas gets a probe here before it ships.
 scripts/harness/
   cdp.ts              the driver: goto / eval / clickAt / screenshot / waitFor / logs
   chrome-restart.sh   fresh headless Chrome on :9222 — run before EVERY probe
+  chrome-gpu.sh       the same on the REAL GPU (Metal ANGLE) — use it for anything that measures frame time
   *.ts                probes; each is `export default async (b: Browser) => { … }`
   out/                screenshots + handoff files (gitignored)
 ```
@@ -116,3 +117,19 @@ failure shows up, check that column for the turn first.
 - **`timeout` does not exist on macOS** (`gtimeout`); `bun cdp.ts` scripts run to completion.
 - **Local practice-create can fail** with `TEAM_MANAGER_ADDRESS is not set` on the dev API — an
   env gap, not the probe; the next attempt usually lands.
+
+## Frame timing (`perf-battle.ts`)
+
+Smoothness campaign, 2026-10-29. `?perf=1` on a battle page turns on two recorders, both off for players:
+Unity's `PerfMonitor` (every frame's time, hitches over 25/50/100 ms, GC collections, split per turn and per
+Special by `PerfMonitor.MarkSegment`) and the page's own rAF-gap + long-task recorder (`lib/battle-perf.ts`).
+Probes read them through `window.__clawbadaPerf` (`reset()`, `requestUnity()`, `pageReport()`).
+
+```bash
+bash chrome-gpu.sh && BASE=http://127.0.0.1:3010 LABEL=before bun cdp.ts perf-battle.ts
+# CLASSES=tempest,bulwark ARENA=evolved|elite|apex|dojo SECONDS=70 TIER=elite — writes out/perf-<LABEL>.json
+```
+
+Measure on a production build (`next build && next start`) and the GPU Chrome: the dev server and SwiftShader
+both add their own stalls. Each class plays a mirror trio vs the balanced bot on autoplay; the probe resigns
+through the API before the next class (one live practice battle per player).
