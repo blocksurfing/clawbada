@@ -27,22 +27,22 @@ export function dojoSummary(state) {
 export function mountDojo(root) {
   if (root.dataset.page !== 'dojo') return () => {};
   const $ = selector => root.querySelector(selector);
-  $('[data-shifu-guidance]').style.setProperty('--shifu-guidance-art', `url("${pixelAssets.dojoShifuGuidance.src}")`);
-  const shifuButton = $('[data-shifu-guidance]');
-  const shifuTooltip = $('#dojo-shifu-tooltip');
-  const positionShifuTooltip = () => {
-    if (!shifuTooltip.matches(':popover-open')) return;
-    const rect = shifuButton.getBoundingClientRect();
-    shifuTooltip.style.left = `${rect.right + 9}px`;
-    shifuTooltip.style.top = `${Math.max(6, rect.top + (rect.height - shifuTooltip.offsetHeight) / 2)}px`;
+  $('[data-master-lob-guidance]').style.setProperty('--master-lob-guidance-art', `url("${pixelAssets.dojoMasterLobGuidance.src}")`);
+  const masterLobButton = $('[data-master-lob-guidance]');
+  const masterLobTooltip = $('#dojo-master-lob-tooltip');
+  const positionMasterLobTooltip = () => {
+    if (!masterLobTooltip.matches(':popover-open')) return;
+    const rect = masterLobButton.getBoundingClientRect();
+    masterLobTooltip.style.left = `${rect.right + 9}px`;
+    masterLobTooltip.style.top = `${Math.max(6, rect.top + (rect.height - masterLobTooltip.offsetHeight) / 2)}px`;
   };
-  const showShifuTooltip = () => { if (!shifuTooltip.matches(':popover-open')) shifuTooltip.showPopover(); positionShifuTooltip(); };
-  const hideShifuTooltip = () => { if (!shifuButton.matches(':hover, :focus')) shifuTooltip.hidePopover(); };
-  shifuButton.addEventListener('mouseenter', showShifuTooltip);
-  shifuButton.addEventListener('focus', showShifuTooltip);
-  shifuButton.addEventListener('mouseleave', hideShifuTooltip);
-  shifuButton.addEventListener('blur', hideShifuTooltip);
-  window.addEventListener('resize', positionShifuTooltip);
+  const showMasterLobTooltip = () => { if (!masterLobTooltip.matches(':popover-open')) masterLobTooltip.showPopover(); positionMasterLobTooltip(); };
+  const hideMasterLobTooltip = () => { if (!masterLobButton.matches(':hover, :focus')) masterLobTooltip.hidePopover(); };
+  masterLobButton.addEventListener('mouseenter', showMasterLobTooltip);
+  masterLobButton.addEventListener('focus', showMasterLobTooltip);
+  masterLobButton.addEventListener('mouseleave', hideMasterLobTooltip);
+  masterLobButton.addEventListener('blur', hideMasterLobTooltip);
+  window.addEventListener('resize', positionMasterLobTooltip);
   const headings = $('.dojo-team-headings');
   root.prepend(headings);
   $('.dojo-vs').src = new URL('../../site/The Dojo/VS.png', import.meta.url).href;
@@ -399,7 +399,7 @@ export function mountDojo(root) {
     if (button.hasAttribute('data-create-room')) setRoom(createDemoRoom(), false);
     if (button.hasAttribute('data-copy-room')) void copyRoom();
     if (button.hasAttribute('data-share-room')) void shareRoom();
-    if (button.hasAttribute('data-shifu-guidance')) {
+    if (button.hasAttribute('data-master-lob-guidance')) {
       button.setAttribute('aria-pressed', String(button.getAttribute('aria-pressed') !== 'true'));
     }
     if (button.hasAttribute('data-inventory-page')) void goToInventoryPage(Number(button.dataset.inventoryPage));
@@ -483,12 +483,12 @@ export function mountDojo(root) {
   update();
   return () => {
     disposed = true;
-    shifuTooltip.hidePopover();
-    window.removeEventListener('resize', positionShifuTooltip);
-    shifuButton.removeEventListener('mouseenter', showShifuTooltip);
-    shifuButton.removeEventListener('focus', showShifuTooltip);
-    shifuButton.removeEventListener('mouseleave', hideShifuTooltip);
-    shifuButton.removeEventListener('blur', hideShifuTooltip);
+    masterLobTooltip.hidePopover();
+    window.removeEventListener('resize', positionMasterLobTooltip);
+    masterLobButton.removeEventListener('mouseenter', showMasterLobTooltip);
+    masterLobButton.removeEventListener('focus', showMasterLobTooltip);
+    masterLobButton.removeEventListener('mouseleave', hideMasterLobTooltip);
+    masterLobButton.removeEventListener('blur', hideMasterLobTooltip);
     pageTransition?.cancel();
     mobileRoom.removeEventListener('change', fitRoom);
     $('[data-join-form]').removeEventListener('submit', joinRoom);

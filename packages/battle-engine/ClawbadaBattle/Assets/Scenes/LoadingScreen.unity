@@ -4085,7 +4085,7 @@ GameObject:
   - component: {fileID: 1578258119}
   - component: {fileID: 1578258120}
   m_Layer: 0
-  m_Name: ShifuBulwarkSparring
+  m_Name: MasterLobBulwarkSparring
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4142,7 +4142,7 @@ GameObject:
   - component: {fileID: 1617322199}
   - component: {fileID: 1617322200}
   m_Layer: 0
-  m_Name: Shifu
+  m_Name: MasterLob
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

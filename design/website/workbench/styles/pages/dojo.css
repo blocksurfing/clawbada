@@ -403,20 +403,20 @@ body:has(#page-content[data-page="dojo"]) .sidebar-shell :is(button,a) { pointer
  #page-content[data-page="dojo"] .dojo-card { height:calc(100% + 48px); }
 }
 #page-content[data-page="dojo"] .dojo-card { position:relative; }
-#page-content[data-page="dojo"] .dojo-shifu-guidance { position:absolute; left:24px; bottom:calc(100% + 9px); z-index:6; }
-#page-content[data-page="dojo"] [data-shifu-guidance] { display:block; width:calc(32 * var(--pixel)); height:calc(33 * var(--pixel)); padding:0; border:0; background:var(--shifu-guidance-art) no-repeat; background-size:calc(64 * var(--pixel)) calc(33 * var(--pixel)); background-position:calc(-32 * var(--pixel)) 0; image-rendering:pixelated; box-shadow:none; }
-#page-content[data-page="dojo"] [data-shifu-guidance] { transform:translateY(0) scale(1); transition:none; transform-origin:center; }
-#page-content[data-page="dojo"] [data-shifu-guidance]:hover { transform:translateY(-1px) scale(1); }
-#page-content[data-page="dojo"] [data-shifu-guidance]:active { transform:translateY(-1px) scale(.96); }
+#page-content[data-page="dojo"] .dojo-master-lob-guidance { position:absolute; left:24px; bottom:calc(100% + 9px); z-index:6; }
+#page-content[data-page="dojo"] [data-master-lob-guidance] { display:block; width:calc(32 * var(--pixel)); height:calc(33 * var(--pixel)); padding:0; border:0; background:var(--master-lob-guidance-art) no-repeat; background-size:calc(64 * var(--pixel)) calc(33 * var(--pixel)); background-position:calc(-32 * var(--pixel)) 0; image-rendering:pixelated; box-shadow:none; }
+#page-content[data-page="dojo"] [data-master-lob-guidance] { transform:translateY(0) scale(1); transition:none; transform-origin:center; }
+#page-content[data-page="dojo"] [data-master-lob-guidance]:hover { transform:translateY(-1px) scale(1); }
+#page-content[data-page="dojo"] [data-master-lob-guidance]:active { transform:translateY(-1px) scale(.96); }
 @media(prefers-reduced-motion:reduce) {
- #page-content[data-page="dojo"] [data-shifu-guidance] { transition:none; }
+ #page-content[data-page="dojo"] [data-master-lob-guidance] { transition:none; }
 }
-#page-content[data-page="dojo"] [data-shifu-guidance][aria-pressed="true"] { background-position:0 0; }
-#page-content[data-page="dojo"] [data-shifu-guidance]:focus-visible { outline:3px solid #ffe4a0; outline-offset:3px; }
-#page-content[data-page="dojo"] .dojo-shifu-tooltip { visibility:hidden; position:fixed; inset:auto; margin:0; width:240px; padding:12px; border:3px solid #b78454; background:#302129; color:#fff0cd; font:14px/1.5 var(--type-body); box-shadow:3px 3px 0 #17131c; pointer-events:none; }
-#page-content[data-page="dojo"] .dojo-shifu-tooltip strong { display:block; margin-bottom:6px; }
-#page-content[data-page="dojo"] .dojo-shifu-guidance:hover .dojo-shifu-tooltip,
-#page-content[data-page="dojo"] .dojo-shifu-guidance:focus-within .dojo-shifu-tooltip { visibility:visible; }
+#page-content[data-page="dojo"] [data-master-lob-guidance][aria-pressed="true"] { background-position:0 0; }
+#page-content[data-page="dojo"] [data-master-lob-guidance]:focus-visible { outline:3px solid #ffe4a0; outline-offset:3px; }
+#page-content[data-page="dojo"] .dojo-master-lob-tooltip { visibility:hidden; position:fixed; inset:auto; margin:0; width:240px; padding:12px; border:3px solid #b78454; background:#302129; color:#fff0cd; font:14px/1.5 var(--type-body); box-shadow:3px 3px 0 #17131c; pointer-events:none; }
+#page-content[data-page="dojo"] .dojo-master-lob-tooltip strong { display:block; margin-bottom:6px; }
+#page-content[data-page="dojo"] .dojo-master-lob-guidance:hover .dojo-master-lob-tooltip,
+#page-content[data-page="dojo"] .dojo-master-lob-guidance:focus-within .dojo-master-lob-tooltip { visibility:visible; }
 #page-content[data-page="dojo"] .dojo-inventory-viewport { overflow:clip; }
 /* Artist pagination: top = active dot / normal arrows; bottom = inactive dot / pressed arrows. */
 #page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager { height:calc(16 * var(--pixel)); flex-shrink:0; margin:6px 0 12px; gap:var(--pixel); }

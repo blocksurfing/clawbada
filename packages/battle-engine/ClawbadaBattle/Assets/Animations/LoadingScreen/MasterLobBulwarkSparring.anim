@@ -6,7 +6,7 @@ AnimationClip:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: ShifuBulwarkSparring
+  m_Name: MasterLobBulwarkSparring
   serializedVersion: 7
   m_Legacy: 0
   m_Compressed: 0
@@ -243,7 +243,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -475,7 +475,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -707,7 +707,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -939,7 +939,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Tail
+    path: MasterLob/Tail
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -1171,7 +1171,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -1403,7 +1403,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -1635,7 +1635,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -1867,7 +1867,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -2099,7 +2099,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -2331,7 +2331,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -2563,7 +2563,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -2795,7 +2795,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -3027,7 +3027,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -3259,7 +3259,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -3491,7 +3491,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -3723,7 +3723,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -7670,7 +7670,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -7902,7 +7902,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -8134,7 +8134,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -8366,7 +8366,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Tail
+    path: MasterLob/Tail
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -8598,7 +8598,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -8830,7 +8830,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -9062,7 +9062,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -9294,7 +9294,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -9526,7 +9526,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -9758,7 +9758,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -9990,7 +9990,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -10222,7 +10222,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -10454,7 +10454,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -10686,7 +10686,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -10918,7 +10918,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -11150,7 +11150,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -15095,7 +15095,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -15327,7 +15327,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -15559,7 +15559,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -15791,7 +15791,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Tail
+    path: MasterLob/Tail
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -16023,7 +16023,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -16255,7 +16255,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -16487,7 +16487,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -16719,7 +16719,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -16951,7 +16951,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -17183,7 +17183,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -17415,7 +17415,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -17647,7 +17647,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -17879,7 +17879,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -18111,7 +18111,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -18343,7 +18343,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -18575,7 +18575,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -22363,7 +22363,7 @@ AnimationClip:
   m_ClipBindingConstant:
     genericBindings:
     - serializedVersion: 2
-      path: 3116530932
+      path: 728274590
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22372,7 +22372,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2816101294
+      path: 896573892
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22381,7 +22381,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1338168541
+      path: 589566522
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22390,7 +22390,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2498712598
+      path: 4161377009
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22399,7 +22399,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1707845287
+      path: 3121003590
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22408,7 +22408,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3296799389
+      path: 2896765798
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22417,7 +22417,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2680462276
+      path: 1074364709
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22426,7 +22426,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1472148711
+      path: 1066876188
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22435,7 +22435,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1984807487
+      path: 237581299
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22444,7 +22444,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 21689001
+      path: 2033058661
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22453,7 +22453,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2554569491
+      path: 3760673503
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22462,7 +22462,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1626688581
+      path: 412204425
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22471,7 +22471,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 401767635
+      path: 1872137503
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22480,7 +22480,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2398825833
+      path: 4137671845
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22489,7 +22489,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 4192271862
+      path: 1800017820
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22498,7 +22498,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1420335365
+      path: 3322049391
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -22651,7 +22651,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3116530932
+      path: 728274590
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22660,7 +22660,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2816101294
+      path: 896573892
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22669,7 +22669,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1338168541
+      path: 589566522
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22678,7 +22678,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2498712598
+      path: 4161377009
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22687,7 +22687,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1707845287
+      path: 3121003590
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22696,7 +22696,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3296799389
+      path: 2896765798
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22705,7 +22705,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2680462276
+      path: 1074364709
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22714,7 +22714,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1472148711
+      path: 1066876188
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22723,7 +22723,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1984807487
+      path: 237581299
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22732,7 +22732,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 21689001
+      path: 2033058661
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22741,7 +22741,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2554569491
+      path: 3760673503
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22750,7 +22750,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1626688581
+      path: 412204425
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22759,7 +22759,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 401767635
+      path: 1872137503
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22768,7 +22768,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2398825833
+      path: 4137671845
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22777,7 +22777,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 4192271862
+      path: 1800017820
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22786,7 +22786,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1420335365
+      path: 3322049391
       attribute: 2
       script: {fileID: 0}
       typeID: 4
@@ -22939,7 +22939,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3116530932
+      path: 728274590
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -22948,7 +22948,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2816101294
+      path: 896573892
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -22957,7 +22957,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1338168541
+      path: 589566522
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -22966,7 +22966,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2498712598
+      path: 4161377009
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -22975,7 +22975,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1707845287
+      path: 3121003590
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -22984,7 +22984,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3296799389
+      path: 2896765798
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -22993,7 +22993,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2680462276
+      path: 1074364709
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23002,7 +23002,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1472148711
+      path: 1066876188
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23011,7 +23011,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1984807487
+      path: 237581299
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23020,7 +23020,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 21689001
+      path: 2033058661
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23029,7 +23029,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2554569491
+      path: 3760673503
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23038,7 +23038,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1626688581
+      path: 412204425
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23047,7 +23047,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 401767635
+      path: 1872137503
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23056,7 +23056,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2398825833
+      path: 4137671845
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23065,7 +23065,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 4192271862
+      path: 1800017820
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23074,7 +23074,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1420335365
+      path: 3322049391
       attribute: 3
       script: {fileID: 0}
       typeID: 4
@@ -23504,7 +23504,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -23741,7 +23741,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -23978,7 +23978,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -24215,7 +24215,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -24452,7 +24452,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -24689,7 +24689,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -24926,7 +24926,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -25163,7 +25163,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -25400,7 +25400,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -25637,7 +25637,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -25874,7 +25874,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -26111,7 +26111,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -26348,7 +26348,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -26585,7 +26585,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -26822,7 +26822,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -27059,7 +27059,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -27296,7 +27296,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -27533,7 +27533,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -27770,7 +27770,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -28007,7 +28007,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -28244,7 +28244,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -28481,7 +28481,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -28718,7 +28718,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -28955,7 +28955,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -29192,7 +29192,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -29429,7 +29429,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -29666,7 +29666,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -29903,7 +29903,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -30140,7 +30140,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -30377,7 +30377,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -30614,7 +30614,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -30851,7 +30851,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -31088,7 +31088,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -31325,7 +31325,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -31562,7 +31562,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -31799,7 +31799,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -32036,7 +32036,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -32273,7 +32273,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -32510,7 +32510,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -32747,7 +32747,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -32984,7 +32984,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -33221,7 +33221,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -33458,7 +33458,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -33695,7 +33695,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -33932,7 +33932,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -34169,7 +34169,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -34406,7 +34406,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -34643,7 +34643,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -34880,7 +34880,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -35117,7 +35117,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -35354,7 +35354,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -35591,7 +35591,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -35828,7 +35828,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -36065,7 +36065,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -36302,7 +36302,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -36539,7 +36539,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -36776,7 +36776,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -37013,7 +37013,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -37250,7 +37250,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -37487,7 +37487,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -37724,7 +37724,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -37961,7 +37961,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -38198,7 +38198,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -38435,7 +38435,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -38672,7 +38672,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -38909,7 +38909,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -39146,7 +39146,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -39383,7 +39383,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -39620,7 +39620,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -39857,7 +39857,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -40094,7 +40094,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -40331,7 +40331,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -40568,7 +40568,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -40805,7 +40805,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -41042,7 +41042,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -41279,7 +41279,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -41516,7 +41516,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -41753,7 +41753,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -41990,7 +41990,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -42227,7 +42227,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -42464,7 +42464,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -42701,7 +42701,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -42938,7 +42938,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -43175,7 +43175,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -43412,7 +43412,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -43649,7 +43649,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -43886,7 +43886,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -44123,7 +44123,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -44360,7 +44360,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -44597,7 +44597,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -44834,7 +44834,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -45071,7 +45071,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -45308,7 +45308,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -45545,7 +45545,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -45782,7 +45782,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -46019,7 +46019,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -46256,7 +46256,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -46493,7 +46493,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -46730,7 +46730,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -46967,7 +46967,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -47204,7 +47204,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -47441,7 +47441,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -47678,7 +47678,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -47915,7 +47915,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -48152,7 +48152,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -48389,7 +48389,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -48626,7 +48626,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -48863,7 +48863,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -49100,7 +49100,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -49337,7 +49337,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -49574,7 +49574,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -49811,7 +49811,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -50048,7 +50048,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -50285,7 +50285,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -50522,7 +50522,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -50759,7 +50759,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -50996,7 +50996,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -51233,7 +51233,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -51470,7 +51470,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -51707,7 +51707,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -51944,7 +51944,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -52181,7 +52181,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -52418,7 +52418,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -52655,7 +52655,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -52892,7 +52892,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -53129,7 +53129,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -53366,7 +53366,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -53603,7 +53603,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -53840,7 +53840,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -54077,7 +54077,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -54314,7 +54314,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -54551,7 +54551,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -54788,7 +54788,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -55025,7 +55025,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -55262,7 +55262,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -55499,7 +55499,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -55736,7 +55736,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -55973,7 +55973,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -56210,7 +56210,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -56447,7 +56447,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -56684,7 +56684,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -56921,7 +56921,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -57158,7 +57158,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -57395,7 +57395,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -57632,7 +57632,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -57869,7 +57869,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -58106,7 +58106,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -58343,7 +58343,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -58580,7 +58580,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -58817,7 +58817,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -59054,7 +59054,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -59291,7 +59291,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -59528,7 +59528,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -59765,7 +59765,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.x
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -60002,7 +60002,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.y
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -60239,7 +60239,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.z
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -60476,7 +60476,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalRotation.w
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -60713,7 +60713,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.x
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -60950,7 +60950,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.y
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -61187,7 +61187,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalScale.z
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -100104,7 +100104,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -100341,7 +100341,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -100578,7 +100578,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Antennae
+    path: MasterLob/Antennae
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -100815,7 +100815,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -101052,7 +101052,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -101289,7 +101289,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Carapace
+    path: MasterLob/Carapace
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -101526,7 +101526,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -101763,7 +101763,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -102000,7 +102000,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Eyes
+    path: MasterLob/Eyes
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -102237,7 +102237,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -102474,7 +102474,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -102711,7 +102711,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Tail
+    path: MasterLob/Tail
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -102948,7 +102948,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -103185,7 +103185,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -103422,7 +103422,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/UpperArm_R
+    path: MasterLob/UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -103659,7 +103659,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -103896,7 +103896,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -104133,7 +104133,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/UpperArm_R/Claw_R
+    path: MasterLob/UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -104370,7 +104370,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -104607,7 +104607,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -104844,7 +104844,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/UpperArm_L
+    path: MasterLob/UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -105081,7 +105081,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -105318,7 +105318,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -105555,7 +105555,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/UpperArm_L/Claw_L
+    path: MasterLob/UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -105792,7 +105792,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -106029,7 +106029,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -106266,7 +106266,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Leg_R_3
+    path: MasterLob/Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -106503,7 +106503,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -106740,7 +106740,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -106977,7 +106977,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Leg_R_2
+    path: MasterLob/Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -107214,7 +107214,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -107451,7 +107451,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -107688,7 +107688,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Leg_R_1
+    path: MasterLob/Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -107925,7 +107925,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -108162,7 +108162,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -108399,7 +108399,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Leg_L_3
+    path: MasterLob/Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -108636,7 +108636,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -108873,7 +108873,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -109110,7 +109110,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Leg_L_2
+    path: MasterLob/Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -109347,7 +109347,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -109584,7 +109584,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -109821,7 +109821,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/Leg_L_1
+    path: MasterLob/Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -110058,7 +110058,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -110295,7 +110295,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -110532,7 +110532,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/AttackFX
+    path: MasterLob/AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -121434,7 +121434,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.x
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -121671,7 +121671,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.y
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 0
@@ -121908,7 +121908,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAngles.z
-    path: Shifu/ImpactFX
+    path: MasterLob/ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 0
