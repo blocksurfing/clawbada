@@ -405,7 +405,7 @@ body:has(#page-content[data-page="dojo"]) .sidebar-shell :is(button,a) { pointer
 #page-content[data-page="dojo"] .dojo-card { position:relative; }
 #page-content[data-page="dojo"] .dojo-shifu-guidance { position:absolute; left:24px; bottom:calc(100% + 9px); z-index:6; }
 #page-content[data-page="dojo"] [data-shifu-guidance] { display:block; width:calc(32 * var(--pixel)); height:calc(33 * var(--pixel)); padding:0; border:0; background:var(--shifu-guidance-art) no-repeat; background-size:calc(64 * var(--pixel)) calc(33 * var(--pixel)); background-position:calc(-32 * var(--pixel)) 0; image-rendering:pixelated; box-shadow:none; }
-#page-content[data-page="dojo"] [data-shifu-guidance] { transform:translateY(0) scale(1); transition:transform 100ms ease-out; transform-origin:center; }
+#page-content[data-page="dojo"] [data-shifu-guidance] { transform:translateY(0) scale(1); transition:none; transform-origin:center; }
 #page-content[data-page="dojo"] [data-shifu-guidance]:hover { transform:translateY(-1px) scale(1); }
 #page-content[data-page="dojo"] [data-shifu-guidance]:active { transform:translateY(-1px) scale(.96); }
 @media(prefers-reduced-motion:reduce) {
