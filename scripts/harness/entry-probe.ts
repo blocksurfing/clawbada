@@ -61,7 +61,7 @@ export default async function (b: Browser) {
   const tAppear = Date.now() - t0;
   ok('the iris starts after the 2 s wind-up', appeared && tAppear >= WINDUP_MS - 100 && tAppear <= WINDUP_MS + 1200, `${tAppear} ms`);
   ok('page is fullscreen', await b.eval(`document.fullscreenElement === document.documentElement`) as boolean);
-  // The way in: a navy iris closes on the Battle button while the Dojo eases back, a beat of navy, then the Shifu loop
+  // The way in: a navy iris closes on the Battle button while the Dojo eases back, a beat of navy, then the Master Lob loop
   // opens from a growing circle in the middle (owner 2026-10-27). Sampled against the overlay's own clock.
   const waitAge = async (ms: number) => { const age = (await overlay(b))?.age ?? 0; if (ms - age > 0) await b.sleep(ms - age); return overlay(b); };
   const closing = await waitAge(500);
@@ -76,14 +76,14 @@ export default async function (b: Browser) {
   await b.screenshot(`${OUT}/entry-iris-navy.png`);
   const opening = await waitAge(IRIS_CLOSE_MS + NAVY_BEAT_MS + IRIS_OPEN_MS / 2);
   await b.screenshot(`${OUT}/entry-iris-opening.png`);
-  ok('Shifu opens from a circle in the middle', !!opening && opening.loopVisible && (opening.loopR ?? 0) > 0 && !opening.revealed, opening ? `circle ${opening.loopR} px at ${opening.age} ms` : 'no overlay');
-  ok('the battle page waits until Shifu is fully open', !!opening && opening.path === '/dojo', opening ? `path ${opening.path} at ${opening.age} ms` : '');
+  ok('Master Lob opens from a circle in the middle', !!opening && opening.loopVisible && (opening.loopR ?? 0) > 0 && !opening.revealed, opening ? `circle ${opening.loopR} px at ${opening.age} ms` : 'no overlay');
+  ok('the battle page waits until Master Lob is fully open', !!opening && opening.path === '/dojo', opening ? `path ${opening.path} at ${opening.age} ms` : '');
   const mid = await waitAge(IRIS_CLOSE_MS + NAVY_BEAT_MS + IRIS_OPEN_MS + 400);
-  ok('Shifu fully open ≈ 2.55 s after the press', !!mid && mid.revealed && mid.loopVisible, mid ? `revealed ${mid.revealed} at ${mid.age} ms` : 'no overlay');
+  ok('Master Lob fully open ≈ 2.55 s after the press', !!mid && mid.revealed && mid.loopVisible, mid ? `revealed ${mid.revealed} at ${mid.age} ms` : 'no overlay');
   // The beat is short (0.25 s): measured from the overlay's own marks, not a lucky sample.
   const marks = await b.eval(`(() => { const o = document.querySelector('[data-testid=battle-entry]'); return o ? { closed: Number(o.dataset.closedAt), opened: Number(o.dataset.openedAt) } : null; })()`) as { closed: number; opened: number } | null;
   const gap = marks && marks.closed && marks.opened ? Math.round(marks.opened - marks.closed) : null;
-  ok('a beat of navy between the iris shutting and Shifu opening', !!beat && beat.bg === NAVY && gap !== null && gap >= NAVY_BEAT_MS - 60, `${gap} ms of navy (${NAVY_BEAT_MS} ms planned), ${beat?.bg}`);
+  ok('a beat of navy between the iris shutting and Master Lob opening', !!beat && beat.bg === NAVY && gap !== null && gap >= NAVY_BEAT_MS - 60, `${gap} ms of navy (${NAVY_BEAT_MS} ms planned), ${beat?.bg}`);
   const maxGap = await b.eval(`Number(document.querySelector('[data-testid=battle-entry]')?.dataset.maxFrameGap ?? NaN)`) as number;
   checks.push(`info longest frame while the iris moved: ${maxGap} ms (headless SwiftShader; a real GPU is smoother)`);
   ok('loop is animating (frame advances)', !!mid && mid.frame !== null && mid.frame !== '0', `frame ${mid?.frame}`);

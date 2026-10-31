@@ -102,7 +102,7 @@ GameObject:
   - component: {fileID: 4687374930404593069}
   - component: {fileID: 2784945675524358338}
   m_Layer: 0
-  m_Name: FX_Shifu_Poof
+  m_Name: FX_MasterLob_Poof
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

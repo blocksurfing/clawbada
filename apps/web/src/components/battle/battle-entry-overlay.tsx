@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * The web half of the battle entry sequence: Nzib's Shifu-under-the-tree loading loop, full screen, over everything.
+ * The web half of the battle entry sequence: Nzib's Master Lob-under-the-tree loading loop, full screen, over everything.
  *
  * A straight port of his workbench renderer (design/website/workbench/components/web-loading.js + web-loading.css,
  * 57ed790): a 320×180 canvas scaled to cover the viewport with pixel snapping, nine layers in his order where the
- * hill is a ten-frame image sequence and the leaves and Shifu are 3200×180 ten-frame sheets, 100 ms a frame
+ * hill is a ten-frame image sequence and the leaves and Master Lob are 3200×180 ten-frame sheets, 100 ms a frame
  * (lib/loading-timeline.ts), "LOADING" bottom-right in Upheaval with dots cycling every 400 ms.
  *
  * The way in is a Looney Tunes iris (owner 2026-10-27): this element — the theme's dark navy — is masked by a circle
@@ -24,9 +24,9 @@ import { loadingFrame } from '@/lib/loading-timeline';
 
 const ART_BASE = '/loading';
 /** Nzib's draw order; `Hill` is the frame sequence Hill1..Hill10, the sheets are 3200×180 strips. */
-const ORDER = ['BG', 'Clouds', 'Hill', 'Rock', 'Tree', 'Back_Leaves', 'Tree_Leaves', 'Shifu', 'Front_Leaves'] as const;
-const SHEETS = new Set(['Back_Leaves', 'Shifu', 'Front_Leaves']);
-const FILES = ['BG', 'Clouds', 'Rock', 'Tree', 'Back_Leaves', 'Tree_Leaves', 'Shifu', 'Front_Leaves', ...Array.from({ length: 10 }, (_, i) => `Hill${i + 1}`)];
+const ORDER = ['BG', 'Clouds', 'Hill', 'Rock', 'Tree', 'Back_Leaves', 'Tree_Leaves', 'MasterLob', 'Front_Leaves'] as const;
+const SHEETS = new Set(['Back_Leaves', 'MasterLob', 'Front_Leaves']);
+const FILES = ['BG', 'Clouds', 'Rock', 'Tree', 'Back_Leaves', 'Tree_Leaves', 'MasterLob', 'Front_Leaves', ...Array.from({ length: 10 }, (_, i) => `Hill${i + 1}`)];
 const DOTS = ['...', '..', '.', '..'];
 /** The loop's own bed, behind the art. */
 const BED = '#aecdc6';
@@ -66,7 +66,7 @@ export function BattleEntryOverlay() {
     preloadEntryAmbience();
   }, []);
 
-  // The iris: close on the pressed button, a beat of navy, open Shifu from the middle. Radii in window px, every frame.
+  // The iris: close on the pressed button, a beat of navy, open Master Lob from the middle. Radii in window px, every frame.
   // A layout effect: the first mask is on before the overlay is ever painted (no flash of navy), and React's style
   // prop never touches the mask afterwards.
   useLayoutEffect(() => {
@@ -99,7 +99,7 @@ export function BattleEntryOverlay() {
       else setMask(root, 'none');
       root.dataset.irisR = String(Math.round(r));
       if (close >= 1 && closedT === null) { closedT = t; root.dataset.closedAt = String(now); }   // for the harness
-      // Opening: after the beat, Shifu shows through a growing circle in the middle.
+      // Opening: after the beat, Master Lob shows through a growing circle in the middle.
       // The beat runs from when the iris actually shut (a late frame must not eat the navy beat).
       const open = closedT === null ? 0 : Math.min(1, Math.max(0, (t - Math.max(ENTRY_IRIS_CLOSE_MS, closedT) - ENTRY_NAVY_BEAT_MS) / ENTRY_IRIS_OPEN_MS));
       const cx = innerWidth / 2, cy = innerHeight / 2;

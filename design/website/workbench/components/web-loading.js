@@ -1,7 +1,7 @@
 import { loadingFrame } from './loading-timeline.js';
 const sources = import.meta.glob('../../site/Loading Screen/*.png', { eager: true, query: '?url', import: 'default' });
-const order = ['BG','Clouds','Hill','Rock','Tree','Back_Leaves','Tree_Leaves','Shifu','Front_Leaves'];
-const sheets = new Set(['Back_Leaves','Shifu','Front_Leaves']);
+const order = ['BG','Clouds','Hill','Rock','Tree','Back_Leaves','Tree_Leaves','MasterLob','Front_Leaves'];
+const sheets = new Set(['Back_Leaves','MasterLob','Front_Leaves']);
 export async function prepareWebLoading() {
   const root = document.querySelector('#web-loading');
   const canvas = root.querySelector('canvas');
