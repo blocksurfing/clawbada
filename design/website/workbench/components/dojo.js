@@ -27,6 +27,22 @@ export function dojoSummary(state) {
 export function mountDojo(root) {
   if (root.dataset.page !== 'dojo') return () => {};
   const $ = selector => root.querySelector(selector);
+  $('[data-shifu-guidance]').style.setProperty('--shifu-guidance-art', `url("${pixelAssets.dojoShifuGuidance.src}")`);
+  const shifuButton = $('[data-shifu-guidance]');
+  const shifuTooltip = $('#dojo-shifu-tooltip');
+  const positionShifuTooltip = () => {
+    if (!shifuTooltip.matches(':popover-open')) return;
+    const rect = shifuButton.getBoundingClientRect();
+    shifuTooltip.style.left = `${rect.right + 9}px`;
+    shifuTooltip.style.top = `${Math.max(6, rect.top + (rect.height - shifuTooltip.offsetHeight) / 2)}px`;
+  };
+  const showShifuTooltip = () => { if (!shifuTooltip.matches(':popover-open')) shifuTooltip.showPopover(); positionShifuTooltip(); };
+  const hideShifuTooltip = () => { if (!shifuButton.matches(':hover, :focus')) shifuTooltip.hidePopover(); };
+  shifuButton.addEventListener('mouseenter', showShifuTooltip);
+  shifuButton.addEventListener('focus', showShifuTooltip);
+  shifuButton.addEventListener('mouseleave', hideShifuTooltip);
+  shifuButton.addEventListener('blur', hideShifuTooltip);
+  window.addEventListener('resize', positionShifuTooltip);
   const headings = $('.dojo-team-headings');
   root.prepend(headings);
   $('.dojo-vs').src = new URL('../../site/The Dojo/VS.png', import.meta.url).href;
@@ -57,7 +73,9 @@ export function mountDojo(root) {
   $('[data-owned-inventory]').innerHTML = owned.map(item => `<button type="button" class="dojo-inventory-tile" data-owned-id="${item.id}" aria-pressed="false"><i class="dojo-portrait-clip" aria-hidden="true"><canvas width="64" height="64" data-inventory-class="${item.name}" aria-hidden="true"></canvas></i><span title="${item.name} #${item.id}" aria-label="${item.name} #${item.id}">${item.name}</span><span data-slot-badge hidden aria-hidden="true"></span><i class="dojo-selected-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></i></button>`).join('');
   const pager = document.createElement('div');
   pager.className = 'dojo-inventory-pager';
-  pager.innerHTML = '<button type="button" data-inventory-prev aria-label="Previous lobsters">‹</button><span data-inventory-page></span><button type="button" data-inventory-next aria-label="Next lobsters">›</button>';
+  pager.setAttribute('aria-label', 'Inventory pages');
+  pager.style.setProperty('--pagination-art', `url("${pixelAssets.dojoPagination.src}")`);
+  pager.innerHTML = '<button type="button" data-inventory-prev aria-label="Previous lobsters"></button><div data-inventory-pages></div><button type="button" data-inventory-next aria-label="Next lobsters"></button>';
   $('[data-owned-inventory]').after(pager);
   function paginateInventory() {
     pageSize = 10;
@@ -67,9 +85,49 @@ export function mountDojo(root) {
     inventoryPage = Math.min(inventoryPage, pages - 1);
     root.querySelectorAll('[data-owned-id]').forEach((tile, i) => { tile.hidden = Math.floor(i / pageSize) !== inventoryPage; });
     $('[data-owned-inventory]').style.gridTemplateColumns = 'repeat(5, var(--portrait-size))';
-    $('[data-inventory-page]').textContent = `${inventoryPage + 1} / ${pages}`;
+    const dots = $('[data-inventory-pages]');
+    if (dots.children.length !== pages) dots.innerHTML = Array.from({ length: pages }, (_, i) => `<button type="button" data-inventory-page="${i}" aria-label="Page ${i + 1}"></button>`).join('');
+    [...dots.children].forEach((dot, i) => dot.setAttribute('aria-current', i === inventoryPage ? 'page' : 'false'));
     $('[data-inventory-prev]').disabled = inventoryPage === 0;
     $('[data-inventory-next]').disabled = inventoryPage === pages - 1;
+  }
+  const inventoryGrid = $('[data-owned-inventory]');
+  const inventoryViewport = document.createElement('div');
+  inventoryViewport.className = 'dojo-inventory-viewport';
+  inventoryGrid.before(inventoryViewport);
+  inventoryViewport.append(inventoryGrid);
+  let pageTransition = null;
+  let pageTransitionBusy = false;
+  let disposed = false;
+  async function goToInventoryPage(target) {
+    const next = Math.max(0, Math.min(target, Math.ceil(owned.length / pageSize) - 1));
+    if (pageTransitionBusy || next === inventoryPage) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      inventoryPage = next; paginateInventory(); return;
+    }
+    pageTransitionBusy = true;
+    const direction = next > inventoryPage ? 1 : -1;
+    const distance = 36;
+    const options = { duration: 130, easing: 'ease-out', fill: 'both' };
+    try {
+      pageTransition = inventoryGrid.animate([
+        { transform: 'translateX(0)', opacity: 1 },
+        { transform: `translateX(${-direction * distance}px)`, opacity: 0 },
+      ], options);
+      await pageTransition.finished;
+      if (disposed) return;
+      inventoryPage = next; paginateInventory();
+      pageTransition.cancel();
+      pageTransition = inventoryGrid.animate([
+        { transform: `translateX(${direction * distance}px)`, opacity: 0 },
+        { transform: 'translateX(0)', opacity: 1 },
+      ], options);
+      await pageTransition.finished;
+    } catch (error) {
+      if (error.name !== 'AbortError') throw error;
+    } finally {
+      pageTransition?.cancel(); pageTransition = null; pageTransitionBusy = false;
+    }
   }
   const inventoryObserver = new ResizeObserver(paginateInventory);
   inventoryObserver.observe($('[data-owned-inventory]'));
@@ -79,7 +137,7 @@ export function mountDojo(root) {
   });
   $('[data-builder-slots]').innerHTML = [0, 1, 2].map(i => `<label class="dojo-field">Slot ${i + 1}<select data-builder-slot="${i}" aria-label="Class slot ${i + 1}">${dojoClasses.map(name => option(name, name)).join('')}</select></label>`).join('');
   $('[data-bot]').innerHTML = dojoBots.map(bot => option(bot.label, `${bot.label} · ${bot.difficulty}`)).join('');
-  const choices = { tier: ['Evolved', 'Elite', 'Apex'], purity: ['0', '1', '2', '3', '4', '5', '6'], opponent: ['Mirror mine', 'Random classes'], arena: ['Match team', 'Evolved', 'Elite', 'Apex'] };
+  const choices = { tier: ['Evolved', 'Elite', 'Apex'], purity: ['0', '1', '2', '3', '4', '5', '6'], opponent: ['Mirror mine', 'Random classes'] };
   Object.entries(choices).forEach(([key, values]) => {
     $(`[data-choices="${key}"]`).innerHTML = values.map(value => `<button type="button" class="dojo-choice" data-choice="${key}" data-value="${value}" aria-pressed="false">${value}</button>`).join('');
   });
@@ -341,8 +399,12 @@ export function mountDojo(root) {
     if (button.hasAttribute('data-create-room')) setRoom(createDemoRoom(), false);
     if (button.hasAttribute('data-copy-room')) void copyRoom();
     if (button.hasAttribute('data-share-room')) void shareRoom();
-    if (button.hasAttribute('data-inventory-prev')) { inventoryPage--; paginateInventory(); }
-    if (button.hasAttribute('data-inventory-next')) { inventoryPage++; paginateInventory(); }
+    if (button.hasAttribute('data-shifu-guidance')) {
+      button.setAttribute('aria-pressed', String(button.getAttribute('aria-pressed') !== 'true'));
+    }
+    if (button.hasAttribute('data-inventory-page')) void goToInventoryPage(Number(button.dataset.inventoryPage));
+    if (button.hasAttribute('data-inventory-prev')) void goToInventoryPage(inventoryPage - 1);
+    if (button.hasAttribute('data-inventory-next')) void goToInventoryPage(inventoryPage + 1);
     if (button.dataset.ownedId) {
       const id = button.dataset.ownedId;
       const previous = state.ids.indexOf(id);
@@ -420,6 +482,14 @@ export function mountDojo(root) {
   }
   update();
   return () => {
+    disposed = true;
+    shifuTooltip.hidePopover();
+    window.removeEventListener('resize', positionShifuTooltip);
+    shifuButton.removeEventListener('mouseenter', showShifuTooltip);
+    shifuButton.removeEventListener('focus', showShifuTooltip);
+    shifuButton.removeEventListener('mouseleave', hideShifuTooltip);
+    shifuButton.removeEventListener('blur', hideShifuTooltip);
+    pageTransition?.cancel();
     mobileRoom.removeEventListener('change', fitRoom);
     $('[data-join-form]').removeEventListener('submit', joinRoom);
     finishDrag({ type: 'unmount' });
