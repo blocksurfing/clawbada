@@ -11,7 +11,9 @@ import { ENTRY_IRIS_CLOSE_MS, getEntryState, reducedMotion, useBattleEntry } fro
 const ENTRY_ZOOM = 0.92;
 import { DojoSign } from './dojo-sign';
 import { DojoSmoke } from './dojo-smoke';
-import { anchorFighter, cssPx, drawClass, loadTierSheets } from './dojo-sprites';
+import { anchorFighter, anchorShadow, cssPx, drawClass, drawIdleFrame, idleSheetSrc, IDLE_FRAMES, loadTierSheets, onIdleTick } from './dojo-sprites';
+import { loadPixelImage } from '@/components/pixel/pixel-assets';
+import { DojoSquirrel } from './dojo-squirrel';
 import {
   EMPTY_SLOTS, INVENTORY_PAGE_SIZE, builderSummary, dropOnSlot, ownedSummary, pageCount, purityDescription,
   removeFromSlots, slotsComplete, toggleSlot, type Slots,
@@ -166,26 +168,50 @@ function Fighter({ side, slot, classIndex, unknown, sheet, label, ghost, ghostSh
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ghostRef = useRef<HTMLCanvasElement>(null);
   const figureRef = useRef<HTMLElement>(null);
+  const shadowRef = useRef<HTMLImageElement>(null);
+  const ghostShadowRef = useRef<HTMLImageElement>(null);
   useLayoutEffect(() => {
     const canvas = canvasRef.current, figure = figureRef.current;
     if (!canvas || !figure || !sheet || classIndex === null) return;
-    anchorFighter(canvas, drawClass(canvas, sheet, classIndex, cssPx(figure, '--dojo-selected-pixel', 4)), side);
+    const crop = drawClass(canvas, sheet, classIndex, cssPx(figure, '--dojo-selected-pixel', 4));
+    anchorFighter(canvas, crop, side);
+    if (shadowRef.current) anchorShadow(shadowRef.current, crop);
+  }, [sheet, classIndex, side]);
+  // The battle's Idle, once its sheet has loaded (the still frame shows until then, and stays under reduced motion).
+  useEffect(() => {
+    const canvas = canvasRef.current, figure = figureRef.current;
+    const src = sheet ? idleSheetSrc(sheet) : null;
+    if (!canvas || !figure || !src || classIndex === null || reducedMotion()) return;
+    let off: (() => void) | null = null, live = true;
+    loadPixelImage(src).then((idle) => {
+      if (!live) return;
+      const phase = Math.floor(Math.random() * IDLE_FRAMES);
+      off = onIdleTick((tick) => {
+        // Re-anchored every frame too (a few style writes): the stage's pixel changes when the window resizes.
+        const crop = drawIdleFrame(canvas, idle, classIndex, tick + phase, cssPx(figure, '--dojo-selected-pixel', 4));
+        anchorFighter(canvas, crop, side);
+        if (shadowRef.current) anchorShadow(shadowRef.current, crop);
+      });
+    }).catch(() => { /* no idle sheet: the still frame stays */ });
+    return () => { live = false; off?.(); };
   }, [sheet, classIndex, side]);
   useLayoutEffect(() => {
     const canvas = ghostRef.current, figure = figureRef.current;
     if (!canvas || !figure || !ghostSheet || ghost == null) return;
-    anchorFighter(canvas, drawClass(canvas, ghostSheet, ghost, cssPx(figure, '--dojo-selected-pixel', 4)), 'team');
+    const crop = drawClass(canvas, ghostSheet, ghost, cssPx(figure, '--dojo-selected-pixel', 4));
+    anchorFighter(canvas, crop, 'team');
+    if (ghostShadowRef.current) anchorShadow(ghostShadowRef.current, crop);
   }, [ghostSheet, ghost]);
   const filled = classIndex !== null;
   return (
     <figure ref={figureRef} className="dojo-fighter" data-fighter={side} data-slot={slot} data-unknown={unknown ? 'true' : undefined}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="dojo-shadow" src="/ui/dojo/Character_Shadow.png" width={64} height={32} alt="" draggable={false} hidden={!filled} />
+      <img ref={shadowRef} className="dojo-shadow" src="/ui/dojo/Character_Shadow.png" width={64} height={32} alt="" draggable={false} hidden={!filled} />
       <canvas ref={canvasRef} role="img" aria-label={filled ? label : undefined} hidden={!filled} data-class={filled ? DOJO_CLASSES[classIndex] : undefined} />
       {ghost != null && (
         <div data-drag-preview="" aria-hidden="true">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="dojo-shadow" src="/ui/dojo/Character_Shadow.png" alt="" draggable={false} />
+          <img ref={ghostShadowRef} className="dojo-shadow" src="/ui/dojo/Character_Shadow.png" alt="" draggable={false} />
           <canvas ref={ghostRef} />
         </div>
       )}
@@ -434,6 +460,7 @@ export function DojoRoom(props: DojoRoomProps) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/ui/dojo/Dojo_Dark.png" alt="" width={640} height={360} draggable={false} />
       </div>
+      <DojoSquirrel />
       <div className="dojo-stage" ref={stageRef}>
       <div id="page-content" data-page="dojo" ref={rootRef}>
         <div className="dojo-team-headings"><h2 id="dojo-team-title">Your Team</h2><h2 id="dojo-opponent-title">Opponent</h2></div>

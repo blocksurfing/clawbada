@@ -83,6 +83,8 @@ html[data-dojo-stage] .sidebar-shell :is(a, button, .sidebar-panel) { pointer-ev
 /* Every 640×360 layer shares the same centered cover projection. */
 .dojo-arena { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
 .dojo-arena img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; image-rendering: pixelated; pointer-events: none; }
+/* Nzib's ninja squirrel, running along the top of the Dojo sign (dojo-squirrel.tsx places and steps it). Above the stage. */
+.dojo-squirrel { position: fixed; z-index: 6; background-repeat: no-repeat; image-rendering: pixelated; pointer-events: none; }
 #page-content[data-page="dojo"] { z-index: 1; }
 /* Local crisp contrast on light sky/walls, without dimming the artwork. */
 [data-page="dojo"] :is(.page-title, .dojo-intro) { text-shadow: -2px -2px #302129, 0 -2px #302129, 2px -2px #302129, -2px 0 #302129, 2px 0 #302129, -2px 2px #302129, 0 2px #302129, 2px 2px #302129; }
