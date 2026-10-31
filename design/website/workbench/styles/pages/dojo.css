@@ -394,3 +394,37 @@ body:has(#page-content[data-page="dojo"]) .sidebar-shell :is(button,a) { pointer
  body:not(.sidebar-compact) #page-content[data-page="dojo"] [data-side="opponent"] .dojo-options legend { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
  body:not(.sidebar-compact) #page-content[data-page="dojo"] [data-side="opponent"] .dojo-options { display:block; }
 }
+
+/* Extend only the setup panels upward; preserve their lower edge and lineup anchors. */
+@media(min-width:700px) {
+ #page-content[data-page="dojo"] .dojo-card { transform:translateY(-48px); height:calc(100% - 24px + 48px); max-height:456px; }
+}
+@media(min-width:700px) and (max-height:699px) {
+ #page-content[data-page="dojo"] .dojo-card { height:calc(100% + 48px); }
+}
+#page-content[data-page="dojo"] .dojo-card { position:relative; }
+#page-content[data-page="dojo"] .dojo-shifu-guidance { position:absolute; left:24px; bottom:calc(100% + 9px); z-index:6; }
+#page-content[data-page="dojo"] [data-shifu-guidance] { display:block; width:calc(32 * var(--pixel)); height:calc(33 * var(--pixel)); padding:0; border:0; background:var(--shifu-guidance-art) no-repeat; background-size:calc(64 * var(--pixel)) calc(33 * var(--pixel)); background-position:calc(-32 * var(--pixel)) 0; image-rendering:pixelated; box-shadow:none; }
+#page-content[data-page="dojo"] [data-shifu-guidance] { transform:translateY(0) scale(1); transition:transform 100ms ease-out; transform-origin:center; }
+#page-content[data-page="dojo"] [data-shifu-guidance]:hover { transform:translateY(-1px) scale(1); }
+#page-content[data-page="dojo"] [data-shifu-guidance]:active { transform:translateY(-1px) scale(.96); }
+@media(prefers-reduced-motion:reduce) {
+ #page-content[data-page="dojo"] [data-shifu-guidance] { transition:none; }
+}
+#page-content[data-page="dojo"] [data-shifu-guidance][aria-pressed="true"] { background-position:0 0; }
+#page-content[data-page="dojo"] [data-shifu-guidance]:focus-visible { outline:3px solid #ffe4a0; outline-offset:3px; }
+#page-content[data-page="dojo"] .dojo-shifu-tooltip { visibility:hidden; position:fixed; inset:auto; margin:0; width:240px; padding:12px; border:3px solid #b78454; background:#302129; color:#fff0cd; font:14px/1.5 var(--type-body); box-shadow:3px 3px 0 #17131c; pointer-events:none; }
+#page-content[data-page="dojo"] .dojo-shifu-tooltip strong { display:block; margin-bottom:6px; }
+#page-content[data-page="dojo"] .dojo-shifu-guidance:hover .dojo-shifu-tooltip,
+#page-content[data-page="dojo"] .dojo-shifu-guidance:focus-within .dojo-shifu-tooltip { visibility:visible; }
+#page-content[data-page="dojo"] .dojo-inventory-viewport { overflow:clip; }
+/* Artist pagination: top = active dot / normal arrows; bottom = inactive dot / pressed arrows. */
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager { height:calc(16 * var(--pixel)); flex-shrink:0; margin:6px 0 12px; gap:var(--pixel); }
+#page-content[data-page="dojo"] .dojo-inventory-pager [data-inventory-pages] { display:flex; gap:0; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager button { width:calc(16 * var(--pixel)); height:calc(16 * var(--pixel)); min-width:0; min-height:0; flex-shrink:0; padding:0; border:0; box-shadow:none; transform:none; background:var(--pagination-art) no-repeat; background-size:calc(48 * var(--pixel)) calc(32 * var(--pixel)); image-rendering:pixelated; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager [data-inventory-prev] { background-position:calc(-16 * var(--pixel)) 0; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager [data-inventory-next] { background-position:calc(-32 * var(--pixel)) 0; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager :is([data-inventory-prev],[data-inventory-next]):active:not(:disabled) { background-position-y:calc(-16 * var(--pixel)); }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager [data-inventory-page] { width:calc(10 * var(--pixel)); background-position:calc(-3 * var(--pixel)) calc(-16 * var(--pixel)); }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager [aria-current="page"] { background-position:calc(-3 * var(--pixel)) 0; }
+#page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager button:focus-visible { outline:3px solid #ffda77; outline-offset:0; }
