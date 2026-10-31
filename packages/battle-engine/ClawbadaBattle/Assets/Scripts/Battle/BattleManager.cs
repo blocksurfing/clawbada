@@ -144,7 +144,7 @@ public class BattleManager : MonoBehaviour
     [Tooltip("Seconds to cross one hex. Playtest 2026-09-11: halved from the original 0.35 (→ 0.467 → 0.7); " +
              "the Move state speed in every rig controller is scaled to match (now 0.5), so the walk cycle " +
              "does not skate. The value that ships is the one serialized in BattleScene, not this default.")]
-    public float secondsPerHexMove = 0.7f;
+    public float secondsPerHexMove = 0.45f;
     public float attackDuration = 0.55f;
     public float hitDuration = 0.45f;
     /// <summary>How long a stunned lobster's skipped turn stays on screen before the stun's end read
@@ -514,7 +514,10 @@ public class BattleManager : MonoBehaviour
 
     private IEnumerator PreviewRoutine(LobsterController lob, int col, int row, bool toOrigin)
     {
-        yield return lob.MoveTo(col, row, secondsPerHexMove * 0.5f);
+        // The local player's own move plays here, at once, as they choose it — a touch quicker than the resolved walks:
+        // 0.34 s/hex at the 0.45 default, about the old 0.35 (0.5 × 0.7). Its legs now keep pace (≈2× the old cadence,
+        // which skated).
+        yield return lob.MoveTo(col, row, secondsPerHexMove * 0.75f);
         previewRoutine = null;
         if (toOrigin) previewActorId = null;
         PreviewMoved?.Invoke(lob, col, row);
@@ -661,7 +664,7 @@ public class BattleManager : MonoBehaviour
         {
             var last = data.path[data.path.Length - 1];
             yield return actor.MoveTo(last.col, last.row, secondsPerHexMove);
-            yield return new WaitForSeconds(delayBetweenActions * 0.5f);
+            // No pause after the walk: the arrival ring and the settle at the end of the eased walk mark the landing.
         }
 
         // 2. Action. Every damage/heal event lands at the impact frame; secondary kinds
@@ -1094,7 +1097,6 @@ public class BattleManager : MonoBehaviour
             {
                 if (move == null || !lobsters.TryGetValue(move.lobsterId, out var lob)) continue;
                 yield return lob.MoveTo(move.to.col, move.to.row, secondsPerHexMove);
-                yield return new WaitForSeconds(delayBetweenActions * 0.5f);
             }
         }
 

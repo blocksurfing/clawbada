@@ -110,7 +110,10 @@ export interface StartPracticeOptions {
 }
 
 export const DEFAULT_SHOT_CLOCK_MS = 60_000;
-export const DEFAULT_BOT_THINK_MS = 800;
+/** The practice bot's pause before it acts, counted from the moment its turn starts on the server — which is while the
+ *  previous turn is still animating on the client. 800 ms left the board still for ~0.35 s after short turns
+ *  (Defend ≈ 0.47 s); 450 ms lets the bot's move be waiting when a short turn ends (smoothness campaign 2026-10-30). */
+export const DEFAULT_BOT_THINK_MS = 450;
 export const DEFAULT_POLL_MS = 2_000;
 /** A resumed human turn always gets at least this long, even if its deadline had passed. */
 export const RESUME_MIN_CLOCK_MS = 5_000;

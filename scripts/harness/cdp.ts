@@ -23,6 +23,8 @@ export interface Browser {
   drainLogs(): void;
   /** Every log line including drained ones, oldest first. */
   readonly allLogs: string[];
+  /** Subscribe to a raw CDP event (e.g. Page.screencastFrame). Returns an unsubscribe function. */
+  on(method: string, cb: (params: any) => void): () => void;
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -51,6 +53,7 @@ async function connect(host = HOST): Promise<Browser> {
   const archive: string[] = [];
   let nextId = 1;
   let loadedAt = 0;
+  const listeners = new Map<string, Set<(params: any) => void>>();
 
   await new Promise<void>((resolve, reject) => {
     ws.addEventListener('open', () => resolve(), { once: true });
@@ -67,6 +70,7 @@ async function connect(host = HOST): Promise<Browser> {
       else p.resolve(msg.result);
       return;
     }
+    listeners.get(msg.method)?.forEach((cb) => cb(msg.params));
     switch (msg.method) {
       case 'Runtime.consoleAPICalled': {
         const text = (msg.params.args ?? [])
@@ -117,6 +121,12 @@ async function connect(host = HOST): Promise<Browser> {
     logs,
     drainLogs: () => { archive.push(...logs); logs.length = 0; },
     get allLogs() { return [...archive, ...logs]; },
+    on(method, cb) {
+      let set = listeners.get(method);
+      if (!set) listeners.set(method, (set = new Set()));
+      set.add(cb);
+      return () => { set!.delete(cb); };
+    },
     sleep,
     eval: evaluate,
     async goto(url) {

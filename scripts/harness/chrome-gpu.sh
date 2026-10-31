@@ -1,13 +1,14 @@
 #!/bin/zsh
 # Headless Chrome on the REAL GPU (Metal through ANGLE) on :9222 — for timing and smoothness measurements.
 # chrome-restart.sh uses SwiftShader (software WebGL), which is fine for correctness probes but inflates every frame
-# time; perf-battle.ts and frame-gap checks need this one. Fresh profile each run.
+# time; perf-battle.ts and frame-gap checks need this one. Fresh profile each run. WINDOW=1280,720 for clip-battle.ts
+# (fullscreen in headless Chrome takes the window size, not the emulated viewport).
 SP="$(cd "$(dirname "$0")" && pwd)"
 pkill -f "remote-debugging-port=9222" 2>/dev/null
 sleep 1
 rm -rf "$SP/chrome-gpu-profile"
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --headless=new --remote-debugging-port=9222 --window-size=1600,1000 \
+  --headless=new --remote-debugging-port=9222 --window-size=${WINDOW:-1600,1000} \
   --user-data-dir="$SP/chrome-gpu-profile" \
   --use-angle=metal --enable-gpu-rasterization --ignore-gpu-blocklist \
   about:blank > "$SP/chrome-gpu.log" 2>&1 &
