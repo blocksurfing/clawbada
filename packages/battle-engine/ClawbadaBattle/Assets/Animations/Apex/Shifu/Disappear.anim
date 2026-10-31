@@ -93,7 +93,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/AttackFX
+    path: AttackFX
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -172,7 +172,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Leg_L_3
+    path: Leg_L_3
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -251,7 +251,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Antennae
+    path: Antennae
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -330,7 +330,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/UpperArm_R
+    path: UpperArm_R
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -409,7 +409,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/UpperArm_R/Claw_R
+    path: UpperArm_R/Claw_R
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -488,7 +488,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Leg_R_2
+    path: Leg_R_2
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -567,7 +567,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/UpperArm_L
+    path: UpperArm_L
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -646,7 +646,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/UpperArm_L/Claw_L
+    path: UpperArm_L/Claw_L
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -725,7 +725,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Carapace
+    path: Carapace
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -804,7 +804,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Leg_R_3
+    path: Leg_R_3
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -883,7 +883,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Character_Shadow
+    path: Character_Shadow
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -962,7 +962,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Leg_R_1
+    path: Leg_R_1
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -1041,7 +1041,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Eyes
+    path: Eyes
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -1120,7 +1120,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Leg_L_1
+    path: Leg_L_1
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -1199,7 +1199,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/ImpactFX
+    path: ImpactFX
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -1278,7 +1278,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Leg_L_2
+    path: Leg_L_2
   - curve:
       serializedVersion: 2
       m_Curve:
@@ -1357,7 +1357,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Actor/Tail
+    path: Tail
   m_ScaleCurves: []
   m_FloatCurves:
   - serializedVersion: 2
@@ -1395,7 +1395,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_L_3
+    path: Leg_L_3
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1434,7 +1434,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Antennae
+    path: Antennae
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1473,7 +1473,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/UpperArm_R
+    path: UpperArm_R
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1512,7 +1512,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/UpperArm_R/Claw_R
+    path: UpperArm_R/Claw_R
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1551,7 +1551,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_R_2
+    path: Leg_R_2
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1590,7 +1590,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/UpperArm_L
+    path: UpperArm_L
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1629,7 +1629,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/UpperArm_L/Claw_L
+    path: UpperArm_L/Claw_L
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1668,7 +1668,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Carapace
+    path: Carapace
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1707,7 +1707,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_R_3
+    path: Leg_R_3
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1746,7 +1746,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Character_Shadow
+    path: Character_Shadow
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1785,7 +1785,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_R_1
+    path: Leg_R_1
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1824,7 +1824,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Eyes
+    path: Eyes
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1863,7 +1863,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_L_1
+    path: Leg_L_1
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1902,7 +1902,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_L_2
+    path: Leg_L_2
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -1941,7 +1941,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Tail
+    path: Tail
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -2025,7 +2025,7 @@ AnimationClip:
   m_ClipBindingConstant:
     genericBindings:
     - serializedVersion: 2
-      path: 2463331194
+      path: 38909281
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2034,7 +2034,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 942289941
+      path: 99728922
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2043,7 +2043,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3539071608
+      path: 1114846307
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2052,7 +2052,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 4177376500
+      path: 600606825
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2061,7 +2061,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 4192800376
+      path: 1767535100
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2070,7 +2070,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1502972665
+      path: 1682833654
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2079,7 +2079,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 49449367
+      path: 3653481738
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2088,7 +2088,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1792479234
+      path: 4200886150
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2097,7 +2097,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3437872418
+      path: 1550517049
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2106,7 +2106,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 781367919
+      path: 323563616
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2115,7 +2115,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3401919226
+      path: 3332849653
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2124,7 +2124,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3231505219
+      path: 4249309516
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2133,7 +2133,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2179942980
+      path: 120101800
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2142,7 +2142,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3592705337
+      path: 3959414582
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2151,7 +2151,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1067128713
+      path: 2937704850
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2160,7 +2160,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1328350339
+      path: 1928760972
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2169,7 +2169,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1522715279
+      path: 3691322211
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -2178,7 +2178,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 942289941
+      path: 99728922
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2187,7 +2187,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3539071608
+      path: 1114846307
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2196,7 +2196,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 4177376500
+      path: 600606825
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2205,7 +2205,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 4192800376
+      path: 1767535100
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2214,7 +2214,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1502972665
+      path: 1682833654
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2223,7 +2223,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 49449367
+      path: 3653481738
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2232,7 +2232,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1792479234
+      path: 4200886150
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2241,7 +2241,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3437872418
+      path: 1550517049
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2250,7 +2250,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 781367919
+      path: 323563616
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2259,7 +2259,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3401919226
+      path: 3332849653
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2268,7 +2268,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3231505219
+      path: 4249309516
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2277,7 +2277,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 2179942980
+      path: 120101800
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2286,7 +2286,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 3592705337
+      path: 3959414582
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2295,7 +2295,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1328350339
+      path: 1928760972
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2304,7 +2304,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 1522715279
+      path: 3691322211
       attribute: 3305885265
       script: {fileID: 0}
       typeID: 212
@@ -2440,7 +2440,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/AttackFX
+    path: AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -2524,7 +2524,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/AttackFX
+    path: AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -2608,7 +2608,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/AttackFX
+    path: AttackFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -2692,7 +2692,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Leg_L_3
+    path: Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -2776,7 +2776,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Leg_L_3
+    path: Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -2860,7 +2860,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Leg_L_3
+    path: Leg_L_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -2899,7 +2899,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_L_3
+    path: Leg_L_3
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -2983,7 +2983,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Antennae
+    path: Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3067,7 +3067,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Antennae
+    path: Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3151,7 +3151,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Antennae
+    path: Antennae
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3190,7 +3190,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Antennae
+    path: Antennae
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -3274,7 +3274,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/UpperArm_R
+    path: UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3358,7 +3358,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/UpperArm_R
+    path: UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3442,7 +3442,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/UpperArm_R
+    path: UpperArm_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3481,7 +3481,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/UpperArm_R
+    path: UpperArm_R
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -3565,7 +3565,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/UpperArm_R/Claw_R
+    path: UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3649,7 +3649,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/UpperArm_R/Claw_R
+    path: UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3733,7 +3733,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/UpperArm_R/Claw_R
+    path: UpperArm_R/Claw_R
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3772,7 +3772,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/UpperArm_R/Claw_R
+    path: UpperArm_R/Claw_R
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -3856,7 +3856,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Leg_R_2
+    path: Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -3940,7 +3940,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Leg_R_2
+    path: Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4024,7 +4024,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Leg_R_2
+    path: Leg_R_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4063,7 +4063,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_R_2
+    path: Leg_R_2
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -4147,7 +4147,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/UpperArm_L
+    path: UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4231,7 +4231,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/UpperArm_L
+    path: UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4315,7 +4315,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/UpperArm_L
+    path: UpperArm_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4354,7 +4354,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/UpperArm_L
+    path: UpperArm_L
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -4438,7 +4438,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/UpperArm_L/Claw_L
+    path: UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4522,7 +4522,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/UpperArm_L/Claw_L
+    path: UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4606,7 +4606,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/UpperArm_L/Claw_L
+    path: UpperArm_L/Claw_L
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4645,7 +4645,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/UpperArm_L/Claw_L
+    path: UpperArm_L/Claw_L
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -4729,7 +4729,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Carapace
+    path: Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4813,7 +4813,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Carapace
+    path: Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4897,7 +4897,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Carapace
+    path: Carapace
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -4936,7 +4936,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Carapace
+    path: Carapace
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -5020,7 +5020,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Leg_R_3
+    path: Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5104,7 +5104,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Leg_R_3
+    path: Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5188,7 +5188,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Leg_R_3
+    path: Leg_R_3
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5227,7 +5227,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_R_3
+    path: Leg_R_3
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -5311,7 +5311,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Character_Shadow
+    path: Character_Shadow
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5395,7 +5395,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Character_Shadow
+    path: Character_Shadow
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5479,7 +5479,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Character_Shadow
+    path: Character_Shadow
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5518,7 +5518,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Character_Shadow
+    path: Character_Shadow
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -5602,7 +5602,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Leg_R_1
+    path: Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5686,7 +5686,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Leg_R_1
+    path: Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5770,7 +5770,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Leg_R_1
+    path: Leg_R_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5809,7 +5809,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_R_1
+    path: Leg_R_1
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -5893,7 +5893,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Eyes
+    path: Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -5977,7 +5977,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Eyes
+    path: Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6061,7 +6061,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Eyes
+    path: Eyes
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6100,7 +6100,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Eyes
+    path: Eyes
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -6184,7 +6184,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Leg_L_1
+    path: Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6268,7 +6268,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Leg_L_1
+    path: Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6352,7 +6352,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Leg_L_1
+    path: Leg_L_1
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6391,7 +6391,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_L_1
+    path: Leg_L_1
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -6475,7 +6475,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/ImpactFX
+    path: ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6559,7 +6559,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/ImpactFX
+    path: ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6643,7 +6643,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/ImpactFX
+    path: ImpactFX
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6727,7 +6727,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Leg_L_2
+    path: Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6811,7 +6811,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Leg_L_2
+    path: Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6895,7 +6895,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Leg_L_2
+    path: Leg_L_2
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -6934,7 +6934,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Leg_L_2
+    path: Leg_L_2
     classID: 212
     script: {fileID: 0}
     flags: 16
@@ -7018,7 +7018,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Actor/Tail
+    path: Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -7102,7 +7102,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Actor/Tail
+    path: Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -7186,7 +7186,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Actor/Tail
+    path: Tail
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -7225,7 +7225,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Enabled
-    path: Actor/Tail
+    path: Tail
     classID: 212
     script: {fileID: 0}
     flags: 16
