@@ -1940,7 +1940,7 @@ GameObject:
   - component: {fileID: 782834403}
   - component: {fileID: 782834402}
   m_Layer: 0
-  m_Name: Shifu
+  m_Name: MasterLob
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

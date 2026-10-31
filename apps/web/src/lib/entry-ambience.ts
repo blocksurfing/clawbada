@@ -1,5 +1,5 @@
 /**
- * The breeze under the web loading loop — a gentle ambient bed that fades in as the Shifu screen fades in from the
+ * The breeze under the web loading loop — a gentle ambient bed that fades in as the Master Lob screen fades in from the
  * navy curtain and fades out at the handover to the Unity training scene (owner 2026-10-23). Same HTML5 <audio>
  * pattern as the arena bed (arena-music.ts): streamed from a content-hashed file, never in the Unity bundle.
  *
