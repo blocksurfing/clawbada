@@ -154,6 +154,12 @@ export function shadowRoot(still: HTMLImageElement, classIndex: number): [number
 export function anchorShadow(shadow: HTMLElement, crop: Crop, side: 'team' | 'opponent', root: [number, number]) {
   const [rx, ry] = root;
   const centreRow = ry + idle.shadowBelowRoot;
+  // Its exact 64 × 32 art px at the lobster's own scale. Set here, not left to CSS: the site's image reset
+  // (max-width: 100%) capped it at the slot's width and a width rule overrode the rest, squashing Nzib's flat 2:1 oval
+  // into a round blob — the reason the lobby's shadows never looked like the battle's.
+  shadow.style.width = `${64 * crop.scale}px`;
+  shadow.style.height = `${32 * crop.scale}px`;
+  shadow.style.maxWidth = 'none';
   shadow.style.bottom = `calc(16 * var(--dojo-selected-pixel) + ${(44 - centreRow - 16) * crop.scale}px)`;
   shadow.style.marginLeft = `${(side === 'team' ? 32 - rx : rx - 32) * crop.scale}px`;
 }

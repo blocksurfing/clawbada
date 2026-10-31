@@ -25,8 +25,10 @@ export default async function (b: Browser) {
     const shadows = await b.eval(`(() => [...document.querySelectorAll('.dojo-fighter')].filter(f => f.querySelector('canvas:not([hidden])')).map(f => {
       const c = f.querySelector('canvas').getBoundingClientRect(), s = f.querySelector('.dojo-shadow').getBoundingClientRect();
       const px = parseFloat(getComputedStyle(f).getPropertyValue('--dojo-selected-pixel')) || 4;
-      return { side: f.dataset.fighter, slot: f.dataset.slot, above: Math.round((c.bottom - (s.top + s.height / 2)) / px * 10) / 10 };
-    }))()`) as { side: string; slot: string; above: number }[];
+      return { side: f.dataset.fighter, slot: f.dataset.slot, above: Math.round((c.bottom - (s.top + s.height / 2)) / px * 10) / 10, ratio: Math.round(s.width / s.height * 100) / 100 };
+    }))()`) as { side: string; slot: string; above: number; ratio: number }[];
+    // Nzib's shadow is a flat 2:1 oval; the site's image reset once squashed it round.
+    ok(shadows.every((s) => Math.abs(s.ratio - 2) < 0.02), `${tier}: shadows keep their 2:1 shape (${shadows.map((s) => s.ratio).join(', ')})`);
     // As in battle: centred 8 px under the rig root, which sits 10–21 px above the lowest pixel → 2–13 px above the feet.
     ok(shadows.length === 6 && shadows.every((s) => s.above >= 2 && s.above <= 14), `${tier}: shadows tucked under the bodies like the battle (centre above the feet, art px: ${shadows.map((s) => s.above).join(', ')})`);
     // Some classes hold a pose for two frames, so sample six times over half a second.
@@ -39,7 +41,7 @@ export default async function (b: Browser) {
   await b.sleep(1700);
   const shot = await b.send('Page.captureScreenshot', { format: 'png' });
   await Bun.write(`${import.meta.dir}/out/dojo-squirrel.png`, Buffer.from(shot.data, 'base64'));
-  await b.sleep(2500);
-  ok(await b.eval(`document.querySelector('[data-testid=dojo-squirrel]').hidden`) as boolean, 'squirrel hidden again after its 3.5 s run');
+  await b.sleep(3500);
+  ok(await b.eval(`document.querySelector('[data-testid=dojo-squirrel]').hidden`) as boolean, 'squirrel hidden again after its run (4.5 s with the run-in)');
   console.log(failures ? `${failures} FAILED` : 'all ok');
 }

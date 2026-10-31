@@ -253,7 +253,12 @@ public static class WebSpriteExporter
             cam.allowHDR = false;
             cam.allowMSAA = false;
             cam.targetTexture = rt;
-            cam.Render();
+            // Snap every sprite to the art-pixel grid, exactly as the battle's PixelPerfectCamera does in OnPreRender
+            // (pixel snapping on, 64 PPU). The Idle clips move parts by quarter and half pixels; without the snap those
+            // offsets rasterise unevenly (an edge on a pixel centre rounds either way) and the idle flickers.
+            UnityEngine.U2D.PixelPerfectRendering.pixelSnapSpacing = 1f / Ppu;
+            try { cam.Render(); }
+            finally { UnityEngine.U2D.PixelPerfectRendering.pixelSnapSpacing = 0f; }
             var prev = RenderTexture.active;
             RenderTexture.active = rt;
             tex.ReadPixels(new Rect(0, 0, w, h), 0, 0);
