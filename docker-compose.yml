@@ -59,7 +59,7 @@ services:
       # V3 battle sessions: one drand beacon per real battle at team reveal.
       DRAND_CHAIN_URL: ${DRAND_CHAIN_URL:-https://api.drand.sh}
       BATTLE_SHOT_CLOCK_MS: ${BATTLE_SHOT_CLOCK_MS:-60000}
-      BOT_THINK_MS: ${BOT_THINK_MS:-800}
+      BOT_THINK_MS: ${BOT_THINK_MS:-450}
     depends_on:
       migrate:
         condition: service_completed_successfully

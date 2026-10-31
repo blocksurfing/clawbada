@@ -19,7 +19,7 @@ Status column on `battle_sessions`: `active` → `finished` (practice) or `settl
 |---|---|---|
 | `BATTLE_SESSIONS_ENABLED` | `true` | Set `false` to run an API without the loop (e.g. a read-only replica). |
 | `BATTLE_SHOT_CLOCK_MS` | `60000` | Per-turn clock. Expiry auto-Defends; 3 in a row = forfeit. |
-| `BOT_THINK_MS` | `800` | Practice-bot delay so turns are readable. |
+| `BOT_THINK_MS` | `450` | Practice-bot delay so turns are readable. |
 | `BATTLE_SESSION_POLL_MS` | `2000` | Poll period for newly Active real battles. |
 | `PRACTICE_ENABLED` | `true` | Practice endpoint on/off. |
 | `PRACTICE_PRESETS` | on outside production | Lets dev environments start a practice battle without owning lobsters. `team_*` rosters (the `/dojo` team builder) stay open even when this is off. |
