@@ -1,4 +1,5 @@
 import { PIXEL_ASSETS, loadPixelImage } from '@/components/pixel/pixel-assets';
+import idle from '../../../public/ui/dojo/idle/idle.json';
 
 /**
  * Class art for the Dojo, from the Apex class sheet (64 px frames, class order = sheet order), as in Nzib's
@@ -137,9 +138,22 @@ export function onIdleTick(cb: IdleListener): () => void {
 
 // ─── Shadows ───
 
-/** Put a fighter's shadow on its feet, as the battle does (Nzib's handoff: centred 2 px above the lowest pixel). The
- *  class art stands on the floor point (32, 44), but most classes' feet end well above it, so a shadow pinned to the
- *  floor point sat ~10 px below them and the lobsters floated. 64 × 32 art px, centred on x = 32 (the rig root). */
-export function anchorShadow(shadow: HTMLElement, crop: Crop) {
-  shadow.style.bottom = `calc(16 * var(--dojo-selected-pixel) + ${(44 - crop.bottom + 2 - 16) * crop.scale}px)`;
+/** Exactly as the battle (CharacterShadow.cs): Nzib's shadow, centred `shadowBelowRoot` (8) art px under the rig's
+ *  root. The root sits 10–21 px above a lobster's lowest pixel, so the shadow tucks behind the body with a sliver
+ *  showing under the feet. Roots per tier and class come from WebSpriteExporter (idle.json, sheet-frame coords). */
+const ROOT_TIERS: Record<number, keyof typeof idle.roots> = { 1: 'evolved', 2: 'elite', 3: 'apex' };
+export function shadowRoot(still: HTMLImageElement, classIndex: number): [number, number] {
+  const path = new URL(still.src, 'http://x').pathname;
+  const tier = ROOT_TIERS[TIER_SHEETS.indexOf(path as (typeof TIER_SHEETS)[number])] ?? 'evolved';   // Base never battles: Evolved's
+  const root = idle.roots[tier]?.[classIndex];
+  return root ? [root[0], root[1]] : [32, 32];
+}
+
+/** Place a fighter's shadow (64 × 32 art px, normally left: 50%, translateX(-50%)) under its rig root. The class art
+ *  stands frame row 44 on the floor line (16 px above the figure's bottom); Your Team is mirrored. */
+export function anchorShadow(shadow: HTMLElement, crop: Crop, side: 'team' | 'opponent', root: [number, number]) {
+  const [rx, ry] = root;
+  const centreRow = ry + idle.shadowBelowRoot;
+  shadow.style.bottom = `calc(16 * var(--dojo-selected-pixel) + ${(44 - centreRow - 16) * crop.scale}px)`;
+  shadow.style.marginLeft = `${(side === 'team' ? 32 - rx : rx - 32) * crop.scale}px`;
 }

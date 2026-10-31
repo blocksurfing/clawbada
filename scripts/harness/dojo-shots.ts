@@ -4,7 +4,7 @@
  *   bash chrome-gpu.sh && BASE=http://127.0.0.1:3010 bun cdp.ts dojo-shots.ts
  *
  * Per tier, at the owner's MacBook Air size (1440 × 755 @2): a lineup screenshot (out/dojo-<tier>.png), every
- * fighter's shadow centre against its lobster's lowest pixel (should sit 2 art px above it), and whether the canvases
+ * fighter's shadow centre against its lobster's lowest pixel (as in battle: 8 px under the rig root), and whether the canvases
  * change over a fifth of a second (the idle). Then ?squirrel=now and a screenshot mid-run (out/dojo-squirrel.png).
  */
 import type { Browser } from './cdp';
@@ -25,9 +25,10 @@ export default async function (b: Browser) {
     const shadows = await b.eval(`(() => [...document.querySelectorAll('.dojo-fighter')].filter(f => f.querySelector('canvas:not([hidden])')).map(f => {
       const c = f.querySelector('canvas').getBoundingClientRect(), s = f.querySelector('.dojo-shadow').getBoundingClientRect();
       const px = parseFloat(getComputedStyle(f).getPropertyValue('--dojo-selected-pixel')) || 4;
-      return { side: f.dataset.fighter, slot: f.dataset.slot, off: Math.round(((c.bottom - 2 * px) - (s.top + s.height / 2)) / px * 10) / 10 };
-    }))()`) as { side: string; slot: string; off: number }[];
-    ok(shadows.length === 6 && shadows.every((s) => Math.abs(s.off) <= 1), `${tier}: shadows centred 2 px above the feet (off in art px: ${shadows.map((s) => s.off).join(', ')})`);
+      return { side: f.dataset.fighter, slot: f.dataset.slot, above: Math.round((c.bottom - (s.top + s.height / 2)) / px * 10) / 10 };
+    }))()`) as { side: string; slot: string; above: number }[];
+    // As in battle: centred 8 px under the rig root, which sits 10–21 px above the lowest pixel → 2–13 px above the feet.
+    ok(shadows.length === 6 && shadows.every((s) => s.above >= 2 && s.above <= 14), `${tier}: shadows tucked under the bodies like the battle (centre above the feet, art px: ${shadows.map((s) => s.above).join(', ')})`);
     // Some classes hold a pose for two frames, so sample six times over half a second.
     const frames = await b.eval(`(async () => { const cs=[...document.querySelectorAll('.dojo-fighter canvas:not([hidden])')]; const seen=cs.map(()=>new Set()); for (let i=0;i<6;i++){ cs.forEach((c,j)=>seen[j].add(c.toDataURL())); await new Promise(r=>setTimeout(r,90)); } return seen.filter(s=>s.size>1).length; })()`) as number;
     ok(frames === 6, `${tier}: lineup idles (${frames} of 6 canvases moved in 0.5 s)`);

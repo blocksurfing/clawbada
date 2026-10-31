@@ -11,7 +11,7 @@ import { ENTRY_IRIS_CLOSE_MS, getEntryState, reducedMotion, useBattleEntry } fro
 const ENTRY_ZOOM = 0.92;
 import { DojoSign } from './dojo-sign';
 import { DojoSmoke } from './dojo-smoke';
-import { anchorFighter, anchorShadow, cssPx, drawClass, drawIdleFrame, idleSheetSrc, IDLE_FRAMES, loadTierSheets, onIdleTick } from './dojo-sprites';
+import { anchorFighter, anchorShadow, cssPx, drawClass, drawIdleFrame, idleSheetSrc, IDLE_FRAMES, loadTierSheets, onIdleTick, shadowRoot } from './dojo-sprites';
 import { loadPixelImage } from '@/components/pixel/pixel-assets';
 import { DojoSquirrel } from './dojo-squirrel';
 import {
@@ -175,13 +175,14 @@ function Fighter({ side, slot, classIndex, unknown, sheet, label, ghost, ghostSh
     if (!canvas || !figure || !sheet || classIndex === null) return;
     const crop = drawClass(canvas, sheet, classIndex, cssPx(figure, '--dojo-selected-pixel', 4));
     anchorFighter(canvas, crop, side);
-    if (shadowRef.current) anchorShadow(shadowRef.current, crop);
+    if (shadowRef.current) anchorShadow(shadowRef.current, crop, side, shadowRoot(sheet, classIndex));
   }, [sheet, classIndex, side]);
   // The battle's Idle, once its sheet has loaded (the still frame shows until then, and stays under reduced motion).
   useEffect(() => {
     const canvas = canvasRef.current, figure = figureRef.current;
-    const src = sheet ? idleSheetSrc(sheet) : null;
-    if (!canvas || !figure || !src || classIndex === null || reducedMotion()) return;
+    const still = sheet, src = still ? idleSheetSrc(still) : null;
+    if (!canvas || !figure || !still || !src || classIndex === null || reducedMotion()) return;
+    const root = shadowRoot(still, classIndex);
     let off: (() => void) | null = null, live = true;
     loadPixelImage(src).then((idle) => {
       if (!live) return;
@@ -190,7 +191,7 @@ function Fighter({ side, slot, classIndex, unknown, sheet, label, ghost, ghostSh
         // Re-anchored every frame too (a few style writes): the stage's pixel changes when the window resizes.
         const crop = drawIdleFrame(canvas, idle, classIndex, tick + phase, cssPx(figure, '--dojo-selected-pixel', 4));
         anchorFighter(canvas, crop, side);
-        if (shadowRef.current) anchorShadow(shadowRef.current, crop);
+        if (shadowRef.current) anchorShadow(shadowRef.current, crop, side, root);
       });
     }).catch(() => { /* no idle sheet: the still frame stays */ });
     return () => { live = false; off?.(); };
@@ -200,7 +201,7 @@ function Fighter({ side, slot, classIndex, unknown, sheet, label, ghost, ghostSh
     if (!canvas || !figure || !ghostSheet || ghost == null) return;
     const crop = drawClass(canvas, ghostSheet, ghost, cssPx(figure, '--dojo-selected-pixel', 4));
     anchorFighter(canvas, crop, 'team');
-    if (ghostShadowRef.current) anchorShadow(ghostShadowRef.current, crop);
+    if (ghostShadowRef.current) anchorShadow(ghostShadowRef.current, crop, 'team', shadowRoot(ghostSheet, ghost));
   }, [ghostSheet, ghost]);
   const filled = classIndex !== null;
   return (

@@ -30,6 +30,8 @@ public static class WebSpriteExporter
     private const int IdleFrames = 5;
     private const float IdleFps = 12f;
     private const float SquirrelFps = 20f;
+    /// <summary>CharacterShadow.Offset (−0.125 units) in pixels: the shadow's centre sits this far below the rig root.</summary>
+    private const int ShadowBelowRootPx = 8;
     private static readonly string[] Classes = { "Bulwark", "Mantis", "Leviathan", "Tempest", "Specter", "Sentinel", "Reaver", "Abyss", "Kraken", "Ember" };
     private static readonly (int index, string name)[] Tiers = { (1, "Evolved"), (2, "Elite"), (3, "Apex") };
 
@@ -57,11 +59,16 @@ public static class WebSpriteExporter
         Directory.CreateDirectory(Path.Combine(WebDojoDir, "idle"));
         int problems = 0;
         var report = new StringBuilder();
+        // Where each rig's root lands in its sheet frame after the shift (x from the left, y from the top): the battle
+        // hangs the lobster's shadow 8 px under the root (CharacterShadow.Offset), so the web does the same from these.
+        var roots = new StringBuilder();
         foreach (var (tierIndex, tierName) in Tiers)
         {
             var sheet = new Texture2D(Frame * Classes.Length, Frame * IdleFrames, TextureFormat.RGBA32, false);
             sheet.SetPixels32(new Color32[sheet.width * sheet.height]);
             var still = LoadPng(Path.Combine(RepoRoot, $"apps/web/public/ui/market/sheets/{tierName}.png"));
+            if (roots.Length > 0) roots.Append(',');
+            roots.Append($"\"{tierName.ToLowerInvariant()}\":[");
             for (int c = 0; c < Classes.Length; c++)
             {
                 var prefab = library.Get(tierIndex, Classes[c]);
@@ -88,6 +95,7 @@ public static class WebSpriteExporter
                     // idle up with the class's still frame — same foot line, same horizontal centre — so swapping the
                     // still for the idle never moves the lobster.
                     var (sx, sy) = still != null ? Offset(frames[0], still, c) : (0, 0);
+                    roots.Append(c > 0 ? "," : "").Append($"[{FloorX + sx},{FloorY - sy}]");
                     for (int f = 0; f < IdleFrames; f++)
                     {
                         var shifted = Shift(frames[f], sx, sy);
@@ -97,13 +105,14 @@ public static class WebSpriteExporter
                 }
                 finally { Object.DestroyImmediate(rig); }
             }
+            roots.Append(']');
             sheet.Apply();
             File.WriteAllBytes(Path.Combine(WebDojoDir, "idle", $"{tierName}.png"), sheet.EncodeToPNG());
             Object.DestroyImmediate(sheet);
             if (still != null) Object.DestroyImmediate(still);
         }
         File.WriteAllText(Path.Combine(WebDojoDir, "idle", "idle.json"),
-            $"{{\"frames\":{IdleFrames},\"fps\":{IdleFps},\"frame\":{Frame},\"floor\":[{FloorX},{FloorY}],\"classes\":[{string.Join(",", Classes.Select(n => $"\"{n.ToLowerInvariant()}\""))}]}}\n");
+            $"{{\"frames\":{IdleFrames},\"fps\":{IdleFps},\"frame\":{Frame},\"floor\":[{FloorX},{FloorY}],\"shadowBelowRoot\":{ShadowBelowRootPx},\"classes\":[{string.Join(",", Classes.Select(n => $"\"{n.ToLowerInvariant()}\""))}],\"roots\":{{{roots}}}}}\n");
         Debug.Log($"[WebSpriteExporter] idle sheets written\n{report}");
         return problems;
     }
