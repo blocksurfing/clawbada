@@ -193,7 +193,7 @@ GameObject:
   - component: {fileID: 3994841798735103944}
   - component: {fileID: 2910295066578658152}
   m_Layer: 0
-  m_Name: ShifuTutorial
+  m_Name: MasterLobTutorial
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

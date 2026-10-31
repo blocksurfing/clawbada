@@ -13,4 +13,4 @@ Strips and JSON are copied byte-for-byte from their artist-source exports. Main 
 
 Point filter,64PPU, no compression or mipmaps. Tiled band Image pixelsPerUnitMultiplier=100/64. Main source bounds16/26/42/48/42/44; horizontal caps6/6/6/6/13/14; vertical caps6/6/6/6/9/12.
 
-Evidence and isolated preview: `_workspace/verification/speech-bubble/concurrent-evidence/`. Real Unity camera preview includes the original Shifu prefab in a static neutral pose, Animator disabled; no Speak playback. Production scenes and Shifu assets are not changed.
+Evidence and isolated preview: `_workspace/verification/speech-bubble/concurrent-evidence/`. Real Unity camera preview includes the original Master Lob prefab in a static neutral pose, Animator disabled; no Speak playback. Production scenes and Master Lob assets are not changed.
