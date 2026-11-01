@@ -1,6 +1,14 @@
 // Register each new PNG once. URLs are bundled by Vite and watched in dev.
 // Scale comes exclusively from CSS --pixel; do not add per-asset scales.
 export const pixelAssets = Object.freeze({
+  dojoMasterLobGuidance: {
+    kind:'sprite', src:new URL('../site/The Dojo/MasterLob_Guidance.png', import.meta.url).href,
+    width:64, height:33, frame:[32,33],
+  },
+  dojoPagination: {
+    kind:'sprite', src:new URL('../site/The Dojo/pagination.png', import.meta.url).href,
+    width:48, height:32, frame:[16,16],
+  },
   dojoDarkPanel: {
     kind:'panel', src:new URL('../site/The Dojo/Dark_Panel.png', import.meta.url).href,
     width:48, height:48, region:[0,0,48,48], tile:16,
