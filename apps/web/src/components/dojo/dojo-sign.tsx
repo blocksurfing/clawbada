@@ -98,7 +98,7 @@ export function DojoSign({ title }: { title: string }) {
     <div className="page-header" ref={headerRef}>
       <div className="dojo-sign" ref={signRef}>
         <canvas className="dojo-sign-chains" ref={chainsRef} aria-hidden="true" />
-        <canvas ref={boardRef} aria-hidden="true" />
+        <canvas ref={boardRef} aria-hidden="true" data-dojo-sign-board="" />
         <h1 className="page-title" ref={titleRef}>
           <canvas className="dojo-sign-ink" width={16} height={16} ref={inkRefs[0]} aria-hidden="true" />
           <span ref={labelRef}>{title}</span>
