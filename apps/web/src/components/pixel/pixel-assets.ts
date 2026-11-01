@@ -47,6 +47,10 @@ export const PIXEL_ASSETS = {
   classBadges: { kind: 'sprite', src: '/ui/shell/class-badges.png', width: 160, height: 16, frame: [16, 16] },
   menuIcons: { kind: 'sprite', src: '/ui/sidebar/Icons.png', width: 192, height: 16, frame: [16, 16] },
   dojoDarkPanel: { kind: 'panel', src: '/ui/dojo/Dark_Panel.png', width: 48, height: 48, region: [0, 0, 48, 48], tile: 16 },
+  // Nzib 2026-11-01: the Master Lob guidance toggle (on frame | off frame) and the inventory pager (top row: active dot /
+  // arrows; bottom row: inactive dot / pressed arrows).
+  dojoMasterLobGuidance: { kind: 'sprite', src: '/ui/dojo/MasterLob_Guidance.png', width: 64, height: 33, frame: [32, 33] },
+  dojoPagination: { kind: 'sprite', src: '/ui/dojo/pagination.png', width: 48, height: 32, frame: [16, 16] },
   dojoSign: { kind: 'sprite', src: '/ui/dojo/Wooden_Sign.png', width: 96, height: 64, frame: [96, 64] },
   dojoSelectedFrame: { kind: 'sprite', src: '/ui/dojo/Selected_Frame.png', width: 128, height: 32, frame: [32, 32] },
   cursor: { kind: 'sprite', src: '/ui/cursor/cursor.png', width: 160, height: 32, frame: [32, 32] },
