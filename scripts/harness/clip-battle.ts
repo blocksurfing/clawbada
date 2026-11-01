@@ -24,7 +24,7 @@ export default async function (b: Browser) {
   // The battle goes fullscreen, which in headless Chrome takes the WINDOW size: launch with WINDOW=1280,720.
   await b.send('Emulation.clearDeviceMetricsOverride');
   for (const cls of CLASSES) {
-    await b.goto(`${BASE}/dojo?team=${cls},${cls},${cls}&tier=${TIER}&purity=6&bot=balanced&arena=${ARENA}&auto=1&stay=1`);
+    await b.goto(`${BASE}/dojo?team=${cls},${cls},${cls}&tier=${TIER}&purity=6&bot=balanced&arena=${ARENA}&auto=1&stay=1${process.env.EXTRA ?? ''}`);
     if (!(await b.waitFor(`!!document.querySelector('[data-testid=dojo-battle]')`, 90000, 250))) { console.log(`${cls}: no Dojo`); continue; }
     await b.sleep(3000);
     const r = await b.eval(`(() => { const q = document.querySelector('[data-testid=dojo-battle]').getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number };

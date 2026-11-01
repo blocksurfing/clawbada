@@ -158,6 +158,9 @@ export const UNITY_METHODS = {
   SET_AUDIO_PREFS: 'SetAudioPrefs',
   /** The loading screen's gameplay tip ({tip}); Unity puts it on the training scene and restarts its hold. */
   SHOW_LOADING: 'ShowLoading',
+  /** Master Lob (Dojo coach): say a tip now if the moment allows — {"id","text"}. */
+  COACH_SAY: 'CoachSay',
+  COACH_DISMISS: 'CoachDismiss',
 } as const;
 
 export interface LoadingData { tip: string }
@@ -176,7 +179,11 @@ export const JS_CALLBACKS = {
   ON_INTRO_MUSIC: 'onIntroMusic',
   /** The Unity training scene (loading screen) is on screen: React lifts its web loading loop and sends ShowLoading. */
   ON_LOADING_SHOWN: 'onLoadingShown',
+  /** Master Lob's state: shown | skipped | done (a tip counts as seen once shown). */
+  ON_COACH_STATE: 'onCoachState',
 } as const;
+
+export interface CoachState { id: string; state: 'shown' | 'skipped' | 'done'; detail: string }
 
 export interface UnityCallbackHandler {
   onUnityReady: () => void;
@@ -195,6 +202,7 @@ export interface UnityCallbackHandler {
   onIntroMusic?: () => void;
   /** The training scene is visible (an older player build never sends it). */
   onLoadingShown?: () => void;
+  onCoachState?: (state: CoachState) => void;
 }
 
 /** Register the callbacks Unity's jslib calls. Returns a cleanup. */
@@ -213,6 +221,7 @@ export function registerUnityCallbacks(handlers: UnityCallbackHandler): () => vo
     [JS_CALLBACKS.ON_INTRO_COMPLETE]: () => handlers.onIntroComplete?.(),
     [JS_CALLBACKS.ON_INTRO_MUSIC]: () => handlers.onIntroMusic?.(),
     [JS_CALLBACKS.ON_LOADING_SHOWN]: () => handlers.onLoadingShown?.(),
+    [JS_CALLBACKS.ON_COACH_STATE]: (json) => handlers.onCoachState?.(JSON.parse(json ?? '{}') as CoachState),
     [JS_CALLBACKS.ON_AUDIO_PREF]: (json) => {
       const p = JSON.parse(json ?? '{}');
       if (p.kind === 'music' || p.kind === 'sfx') handlers.onAudioPref?.({ kind: p.kind, on: !!p.on });
