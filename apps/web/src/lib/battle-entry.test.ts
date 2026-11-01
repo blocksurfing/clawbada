@@ -40,10 +40,10 @@ describe('battle entry store', () => {
     expect(getEntryState().unityShown).toBe(true);
   });
 
-  test('constants: the Shifu hold is 6 s; the way in is slower than the way out', () => {
+  test('constants: the Master Lob hold is 6 s; the way in is slower than the way out', () => {
     expect(ENTRY_HOLD_MS).toBe(6000);
     expect(ENTRY_IRIS_CLOSE_MS + ENTRY_NAVY_BEAT_MS + ENTRY_IRIS_OPEN_MS).toBe(ENTRY_REVEALED_MS);
-    expect(ENTRY_REVEALED_MS).toBeGreaterThanOrEqual(2300);   // owner 2026-10-27: about 2.5 s press → Shifu
+    expect(ENTRY_REVEALED_MS).toBeGreaterThanOrEqual(2300);   // owner 2026-10-27: about 2.5 s press → Master Lob
     expect(ENTRY_REVEALED_MS).toBeLessThanOrEqual(2800);
   });
 
