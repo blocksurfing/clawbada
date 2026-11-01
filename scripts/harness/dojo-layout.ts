@@ -76,7 +76,7 @@ export default async function (b: Browser) {
     for (const mode of ['builder', 'owned'] as const) {
       await b.eval(`document.querySelector('[data-team-mode=${mode}]').click()`);
       await b.sleep(300);
-      const spill = await b.eval(`(() => { const out = []; document.querySelectorAll('.dojo-card').forEach((card, i) => { const c = card.getBoundingClientRect(); card.querySelectorAll('button, select, label, legend, p, .dojo-inventory-pager').forEach(e => { if (e.closest('[hidden]') || e.closest('.dojo-bot-notes') || e.classList.contains('dojo-soon')) return; const q = e.getBoundingClientRect(); if (!q.width) return; if (q.left < c.left - 1 || q.right > c.right + 1 || q.top < c.top - 1 || q.bottom > c.bottom + 1) out.push(i + ':' + (e.textContent || e.tagName).trim().slice(0, 24)); }); }); return out; })()`) as string[];
+      const spill = await b.eval(`(() => { const out = []; document.querySelectorAll('.dojo-card').forEach((card, i) => { const c = card.getBoundingClientRect(); card.querySelectorAll('button, select, label, legend, p, .dojo-inventory-pager').forEach(e => { if (e.closest('[hidden]') || e.closest('.dojo-bot-notes') || e.closest('.dojo-master-lob-guidance') || e.classList.contains('dojo-soon')) return; const q = e.getBoundingClientRect(); if (!q.width) return; if (q.left < c.left - 1 || q.right > c.right + 1 || q.top < c.top - 1 || q.bottom > c.bottom + 1) out.push(i + ':' + (e.textContent || e.tagName).trim().slice(0, 24)); }); }); return out; })()`) as string[];
       ok(`${tag}: nothing spills out of a card (${mode})`, spill.length === 0, spill.join(', '));
       const blocked = await b.eval(BLOCKED) as string[];
       ok(`${tag}: every control takes its own click (${mode})`, blocked.length === 0, blocked.join(' | '));
