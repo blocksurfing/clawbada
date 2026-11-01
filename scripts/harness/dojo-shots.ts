@@ -41,7 +41,7 @@ export default async function (b: Browser) {
   await b.sleep(1700);
   const shot = await b.send('Page.captureScreenshot', { format: 'png' });
   await Bun.write(`${import.meta.dir}/out/dojo-squirrel.png`, Buffer.from(shot.data, 'base64'));
-  await b.sleep(3500);
-  ok(await b.eval(`document.querySelector('[data-testid=dojo-squirrel]').hidden`) as boolean, 'squirrel hidden again after its run (4.5 s with the run-in)');
+  // The run-in's length depends on the sign's width (whole run cycles from behind the doorway frame): wait it out.
+  ok(await b.waitFor(`document.querySelector('[data-testid=dojo-squirrel]').hidden`, 10000, 100), 'squirrel hidden again after its run');
   console.log(failures ? `${failures} FAILED` : 'all ok');
 }

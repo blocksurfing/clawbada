@@ -22,14 +22,14 @@ public class MasterLobCoach : MonoBehaviour
 {
     /// <summary>Nzib's clip lengths (AC_Apex_MasterLob): Appear 1.0 s, Disappear 1.3 s; the Speak loop starts a little
     /// before Appear ends so he is already talking as the bubble opens.</summary>
-    public const float AppearSeconds = 1.0f, SpeakFromSeconds = 0.8f, DisappearSeconds = 1.3f;
+    public const float AppearSeconds = 1.0f, SpeakFromSeconds = 0.8f, DisappearSeconds = 1.3f, DisappearSmokeAt = 0.45f;
     /// <summary>Reading time per page: a base plus per character, clamped (an 8-px pixel font reads slower than body text).</summary>
     public const float ReadBase = 2.2f, ReadPerChar = 0.05f, ReadMin = 3.5f, ReadMax = 9f;
     /// <summary>Bubble text: at most this many characters per line and lines per page (his bubble grows 10 px a line).</summary>
     public const int LineChars = 26, PageLines = 4;
     /// <summary>His mouth, from the rig root, in world units: up, and forward in the direction he faces. The bubble's tail
     /// lands here and the bubble opens on that side (owner 2026-11-01: lined up with his face, never over his back).</summary>
-    public const float MouthHeight = 0.5f, MouthForward = 0.3f;
+    public const float MouthHeight = 0.2f, MouthForward = 0.38f;   // owner 2026-11-01: the tail starts at his face, the bubble just above
     private const int CanvasOrder = 90;   // under the HUD (100)
 
     private BattleManager manager;
@@ -98,6 +98,7 @@ public class MasterLobCoach : MonoBehaviour
         actor.SetActive(true);
         animator.Play("Appear", 0, 0f);
         animator.Update(0f);
+        BattleSfx.PlayMasterLobPoofIn();   // the Appear clip's smoke starts at once
         Debug.Log($"[MasterLobCoach] appears at ({hex.x},{hex.y}) on turn {shownOnTurn}: {tipId}");
         Report(tipId, "shown", $"{hex.x},{hex.y}");
         yield return new WaitForSeconds(SpeakFromSeconds);
@@ -122,7 +123,10 @@ public class MasterLobCoach : MonoBehaviour
         {
             animator.Play("Disappear", 0, 0f);
             Debug.Log($"[MasterLobCoach] leaves ({why})");
-            yield return new WaitForSeconds(DisappearSeconds);
+            // Nzib's Disappear: a short wind-up, the smoke from 0.45 s (he is gone inside it at 0.55 s), clear by 1.25 s.
+            yield return new WaitForSeconds(DisappearSmokeAt);
+            BattleSfx.PlayMasterLobPoofOut();
+            yield return new WaitForSeconds(DisappearSeconds - DisappearSmokeAt);
             actor.SetActive(false);
         }
         Report(tipId, "done", why);
@@ -153,6 +157,29 @@ public class MasterLobCoach : MonoBehaviour
 
     private Vector3 Mouth(Vector3 actorPos) => actorPos + new Vector3((faceRight ? 1f : -1f) * MouthForward, MouthHeight, 0f);
 
+    /// <summary>
+    /// Nzib's MasterLobTutorial prefab (2026-10-31) keeps its Animator on the root, but the rig's parts live under the
+    /// "Actor" child while his Appear / Speak / Disappear clips address them as direct children ("Antennae", "Carapace",
+    /// …) — the paths only resolve from Actor. From the root only "Smoke" bound: he stood fully visible before the smoke
+    /// and after it cleared, and never moved his mouth. Here the Smoke goes under Actor and the Animator moves onto
+    /// Actor, so every path binds: he appears behind the smoke, vanishes inside it, and talks. (Raised with Nzib to fix in
+    /// the prefab; this keeps working either way.)
+    /// </summary>
+    private static Animator BindAnimatorToRig(GameObject root)
+    {
+        var rootAnimator = root.GetComponent<Animator>();
+        var rig = root.transform.Find("Actor");
+        if (rootAnimator == null || rig == null || rig.Find("Carapace") == null || root.transform.Find("Carapace") != null)
+            return rootAnimator != null ? rootAnimator : root.GetComponentInChildren<Animator>();
+        var smoke = root.transform.Find("Smoke");
+        if (smoke != null) smoke.SetParent(rig, true);
+        var controller = rootAnimator.runtimeAnimatorController;
+        Object.DestroyImmediate(rootAnimator);
+        var animator = rig.gameObject.GetComponent<Animator>() ?? rig.gameObject.AddComponent<Animator>();
+        animator.runtimeAnimatorController = controller;
+        return animator;
+    }
+
     private string PlayerSide()
     {
         foreach (var l in manager.AllLobsters) if (l != null && l.lobsterId == manager.activeLobsterId) return l.side;
@@ -176,7 +203,7 @@ public class MasterLobCoach : MonoBehaviour
         {
             actor = Instantiate(library.masterLobTutorial, manager.transform.parent);
             actor.name = "MasterLobCoach";
-            animator = actor.GetComponent<Animator>() ?? actor.GetComponentInChildren<Animator>();
+            animator = BindAnimatorToRig(actor);
             sorting = actor.GetComponent<SortingGroup>() ?? actor.AddComponent<SortingGroup>();
             actor.SetActive(false);
         }
