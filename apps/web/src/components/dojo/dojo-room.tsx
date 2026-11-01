@@ -3,7 +3,7 @@
 import './dojo.css';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { PixelPanel } from '@/components/shell/pixel-panel';
-import { PIXEL_SCALE_EVENT, pixelScale } from '@/components/pixel/pixel-assets';
+import { PIXEL_ASSETS, PIXEL_SCALE_EVENT, pixelScale } from '@/components/pixel/pixel-assets';
 import { BOT_CATALOG, botInfo, type BotName } from '@/lib/bot-catalog';
 import { playUiClick } from '@/lib/site-sfx';
 import { ENTRY_IRIS_CLOSE_MS, getEntryState, reducedMotion, useBattleEntry } from '@/lib/battle-entry';
@@ -41,7 +41,6 @@ export const DOJO_CLASSES = ['bulwark', 'mantis', 'leviathan', 'tempest', 'spect
 export const DOJO_TIERS = ['evolved', 'elite', 'apex'] as const;
 export type DojoTier = (typeof DOJO_TIERS)[number];
 export type DojoArena = 'match' | 'dojo' | DojoTier;
-const ARENA_CHOICES: readonly [DojoArena, string][] = [['dojo', 'Dojo'], ['match', 'Team tier'], ['evolved', 'Evolved'], ['elite', 'Elite'], ['apex', 'Apex']];
 
 export interface DojoLobster { id: string; classIndex: number; className: string; tierName: string; /** 0 Base … 3 Apex */ tier: number }
 export interface DojoTeam { id: string; lobsterIds: string[] }
@@ -63,7 +62,8 @@ interface DojoRoomProps {
   purity: number; onPurity: (purity: number) => void;
   bot: BotName; onBot: (bot: BotName) => void;
   opponent: 'mirror' | 'random'; onOpponent: (o: 'mirror' | 'random') => void;
-  arena: DojoArena; onArena: (a: DojoArena) => void;
+  /** Master Lob's coaching in practice battles (Nzib's toggle on the team panel; the page remembers it, default off). */
+  coach: boolean; onCoach: (on: boolean) => void;
   busy: boolean;
   /** A blocking state (the signature gate) keeps Battle off. */
   blocked: boolean;
@@ -220,6 +220,36 @@ function Fighter({ side, slot, classIndex, unknown, sheet, label, ghost, ghostSh
   );
 }
 
+/** Nzib's Master Lob guidance toggle (2026-11-01): a 32×33 sprite button (on frame | off frame) above the team panel,
+ *  with his tooltip on hover and focus. Off by default; the page remembers the choice. */
+function MasterLobToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+  const place = useCallback(() => {
+    const b = buttonRef.current, tip = tipRef.current;
+    if (!b || !tip || !tip.matches(':popover-open')) return;
+    const r = b.getBoundingClientRect();
+    tip.style.left = `${r.right + 9}px`;
+    tip.style.top = `${Math.max(6, r.top + (r.height - tip.offsetHeight) / 2)}px`;
+  }, []);
+  const show = useCallback(() => { const tip = tipRef.current; if (tip && !tip.matches(':popover-open')) tip.showPopover?.(); place(); }, [place]);
+  const hide = useCallback(() => { const b = buttonRef.current; if (b && !b.matches(':hover, :focus')) tipRef.current?.hidePopover?.(); }, []);
+  useEffect(() => {
+    window.addEventListener('resize', place);
+    return () => { window.removeEventListener('resize', place); try { tipRef.current?.hidePopover?.(); } catch { /* not open */ } };
+  }, [place]);
+  return (
+    <div className="dojo-master-lob-guidance" style={{ ['--master-lob-guidance-art' as string]: `url('${PIXEL_ASSETS.dojoMasterLobGuidance.src}')` }}>
+      <button ref={buttonRef} type="button" data-master-lob-guidance="" data-testid="dojo-master-lob" aria-label="Master Lob guidance" aria-pressed={on}
+        aria-describedby="dojo-master-lob-tooltip" onClick={() => { playUiClick(); onChange(!on); }}
+        onMouseEnter={show} onFocus={show} onMouseLeave={hide} onBlur={hide} />
+      <div ref={tipRef} id="dojo-master-lob-tooltip" className="dojo-master-lob-tooltip" role="tooltip" popover="manual">
+        <strong>Master Lob Guidance</strong><span>Turn Master Lob’s tutorial guidance on or off.</span>
+      </div>
+    </div>
+  );
+}
+
 /** A portrait tile (an owned lobster, or a class in Build a team), drawn at the stage's pixel. */
 function InventoryTile({ id, classIndex, name, detail, slot, sheet, unit, hidden, onClick }: {
   id: string; classIndex: number; name: string; detail: string; slot: number; sheet: HTMLImageElement | null; unit: number; hidden?: boolean; onClick: () => void;
@@ -243,7 +273,7 @@ function InventoryTile({ id, classIndex, name, detail, slot, sheet, unit, hidden
 }
 
 export function DojoRoom(props: DojoRoomProps) {
-  const { lobsters, teams, initialMode, isWallet, team, tier, purity, bot, opponent, arena, busy, blocked, error } = props;
+  const { lobsters, teams, initialMode, isWallet, team, tier, purity, bot, opponent, busy, blocked, error } = props;
   const stageRef = useRef<HTMLDivElement>(null);
   const arenaRef = useRef<HTMLDivElement>(null);
   const unit = useStage(stageRef);
@@ -296,6 +326,25 @@ export function DojoRoom(props: DojoRoomProps) {
   }, [byId]);
 
   const pages = pageCount(lobsters.length);
+  // His page turn: the grid slides 36 px out (130 ms), the page changes, then it slides in from the other side.
+  const turning = useRef(false);
+  const goToPage = useCallback(async (target: number) => {
+    const next = Math.max(0, Math.min(target, pages - 1));
+    const grid = inventoryRef.current;
+    if (turning.current || next === page) return;
+    if (!grid || reducedMotion()) { setPage(next); return; }
+    turning.current = true;
+    const dir = next > page ? 1 : -1, options: KeyframeAnimationOptions = { duration: 130, easing: 'ease-out', fill: 'both' };
+    try {
+      const out = grid.animate([{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-dir * 36}px)`, opacity: 0 }], options);
+      await out.finished;
+      setPage(next);
+      out.cancel();
+      const back = grid.animate([{ transform: `translateX(${dir * 36}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }], options);
+      await back.finished;
+      back.cancel();
+    } catch { /* interrupted: the page is already set */ } finally { turning.current = false; }
+  }, [page, pages]);
   useEffect(() => { if (page > pages - 1) setPage(pages - 1); }, [page, pages]);
 
   // Portrait size: five per row across the inventory's width (gap 9 px × 4), as in the drop.
@@ -483,6 +532,7 @@ export function DojoRoom(props: DojoRoomProps) {
                 ))}
               </div>
               <PixelPanel asset="dojoDarkPanel" className="dojo-card" aria-labelledby="dojo-team-title">
+                {!vsFriend && <MasterLobToggle on={props.coach} onChange={props.onCoach} />}
                 <div className="dojo-tabs" role="tablist" aria-label="Team source">
                   {(['owned', 'builder'] as const).map((m) => (
                     <button key={m} id={`dojo-${m}-tab`} type="button" role="tab" aria-selected={mode === m} aria-controls={`dojo-${m}`} tabIndex={mode === m ? 0 : -1}
@@ -509,6 +559,7 @@ export function DojoRoom(props: DojoRoomProps) {
                         </select>
                       </label>
                       <p className="dojo-selection-feedback" role="status" aria-live="polite">{mode === 'owned' ? feedback : ''}</p>
+                      <div className="dojo-inventory-viewport">
                       <div className="dojo-inventory" data-owned-inventory="" ref={inventoryRef} aria-label="Your lobsters" data-testid="dojo-inventory">
                         {lobsters.map((l, i) => (
                           <InventoryTile key={l.id} id={l.id} classIndex={l.classIndex} name={l.className} detail={`${lobsterName(l)} · ${l.tierName}`}
@@ -516,10 +567,16 @@ export function DojoRoom(props: DojoRoomProps) {
                             hidden={Math.floor(i / INVENTORY_PAGE_SIZE) !== page} onClick={() => clickTile(l.id)} />
                         ))}
                       </div>
-                      <div className="dojo-inventory-pager">
-                        <button type="button" aria-label="Previous lobsters" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>‹</button>
-                        <span>{page + 1} / {pages}</span>
-                        <button type="button" aria-label="Next lobsters" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>›</button>
+                      </div>
+                      {/* Nzib 2026-11-01: his page dots and arrows, and a short slide between pages. */}
+                      <div className="dojo-inventory-pager" aria-label="Inventory pages" style={{ ['--pagination-art' as string]: `url('${PIXEL_ASSETS.dojoPagination.src}')` }}>
+                        <button type="button" data-inventory-prev="" aria-label="Previous lobsters" disabled={page === 0} onClick={() => void goToPage(page - 1)} />
+                        <div data-inventory-pages="">
+                          {Array.from({ length: pages }, (_, i) => (
+                            <button key={i} type="button" data-inventory-page={i} aria-label={`Page ${i + 1}`} aria-current={i === page ? 'page' : 'false'} onClick={() => void goToPage(i)} />
+                          ))}
+                        </div>
+                        <button type="button" data-inventory-next="" aria-label="Next lobsters" disabled={page >= pages - 1} onClick={() => void goToPage(page + 1)} />
                       </div>
                     </div>
                   ) : (
@@ -610,13 +667,6 @@ export function DojoRoom(props: DojoRoomProps) {
                         <button key={o} type="button" className="dojo-choice" data-choice="opponent" aria-pressed={opponent === o} onClick={() => props.onOpponent(o)}>
                           {o === 'mirror' ? 'Mirror mine' : 'Random classes'}
                         </button>
-                      ))}
-                    </div>
-                  </fieldset>
-                  <fieldset className="dojo-options"><legend>Arena</legend>
-                    <div data-choices="arena" data-testid="dojo-arena">
-                      {ARENA_CHOICES.map(([a, text]) => (
-                        <button key={a} type="button" className="dojo-choice" data-choice="arena" data-value={a} aria-pressed={arena === a} onClick={() => props.onArena(a)}>{text}</button>
                       ))}
                     </div>
                   </fieldset>

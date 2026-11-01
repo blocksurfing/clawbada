@@ -80,6 +80,8 @@ type Arena = 'match' | (typeof ARENAS)[number];
 
 /** Nobody picked until the player chooses (owner 2026-10-26); deep links (?team ?class) still pre-fill. */
 const DEFAULT_TEAM = ['', '', ''];
+/** localStorage: Master Lob guidance on/off. */
+const COACH_KEY = 'clawbada_master_lob';
 // Showcase by default (user decision 2026-09-21): Apex rigs are the best-looking assets and
 // purity 6 fires the enhanced Special about one cast in three (5% + 5% × purity = 35%).
 const DEFAULT_TIER: Tier = 'apex';
@@ -99,6 +101,13 @@ export default function DojoPage() {
   const [bot, setBot] = useState<BotName>(DEFAULT_BOT);
   const [opponent, setOpponent] = useState<'mirror' | 'random'>('mirror');
   const [arena, setArena] = useState<Arena>('dojo');
+  // Master Lob guidance (Nzib's toggle, owner 2026-10-31: off until switched on, then remembered).
+  const [coach, setCoachState] = useState(false);
+  useEffect(() => { try { setCoachState(localStorage.getItem(COACH_KEY) === 'on'); } catch { /* private mode */ } }, []);
+  const setCoach = useCallback((on: boolean) => {
+    setCoachState(on);
+    try { localStorage.setItem(COACH_KEY, on ? 'on' : 'off'); } catch { /* private mode */ }
+  }, []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // Review presets (dev review stack + the browser harness): /dojo?preset=trio_tempest_evolved&auto=1.
@@ -217,6 +226,7 @@ export default function DojoPage() {
       const q = new URLSearchParams(window.location.search);
       const carry = new URLSearchParams();
       for (const k of ['auto', 'speed', 'stay', 'perf']) { const v = q.get(k); if (v) carry.set(k, v); }
+      if (coach || q.get('coach') === '1') carry.set('coach', '1');   // Master Lob coaches practice battles only
       // Navigate once the loading loop is fully open, so the page switch (a main-thread freeze) never lands mid-iris.
       await entryRevealed();
       router.push(`/battle/${res.battleId}${carry.size ? `?${carry}` : ''}`);
@@ -226,7 +236,7 @@ export default function DojoPage() {
       cancelBattleEntry();
       exitBattleFullscreen();
     }
-  }, [kind, hasLiveSession, arena, getAuthHeaders, router]);
+  }, [kind, hasLiveSession, arena, coach, getAuthHeaders, router]);
 
   const startPreset = useCallback(() => {
     if (!preset) return;
@@ -403,7 +413,7 @@ export default function DojoPage() {
       purity={purity} onPurity={setPurity}
       bot={bot} onBot={setBot}
       opponent={opponent} onOpponent={setOpponent}
-      arena={arena} onArena={setArena}
+      coach={coach} onCoach={setCoach}
       busy={busy}
       blocked={gate !== 'none'}
       error={err}
