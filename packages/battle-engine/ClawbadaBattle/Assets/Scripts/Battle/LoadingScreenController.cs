@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// The Unity half of the battle entry sequence (owner spec 2026-10-21): while the arena is built, the player sees
-/// Nzib's training scene — the three lobsters sparring with Shifu in the Dojo — with a gameplay tip, for at least
+/// Nzib's training scene — the three lobsters sparring with Master Lob in the Dojo — with a gameplay tip, for at least
 /// MinHoldSeconds, then a fade to black into the arena intro.
 ///
 /// How it fits:
