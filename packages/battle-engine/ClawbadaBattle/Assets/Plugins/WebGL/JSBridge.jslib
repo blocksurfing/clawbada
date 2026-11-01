@@ -28,6 +28,13 @@ mergeInto(LibraryManager.library, {
         }
     },
 
+    SendCoachState: function(jsonPtr) {
+        var json = UTF8ToString(jsonPtr);
+        if (window.__clawbada && window.__clawbada.onCoachState) {
+            window.__clawbada.onCoachState(json);
+        }
+    },
+
     SendTurnAnimationComplete: function(jsonPtr) {
         var json = UTF8ToString(jsonPtr);
         if (window.__clawbada && window.__clawbada.onTurnAnimationComplete) {

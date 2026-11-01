@@ -104,6 +104,8 @@ public class BattleManager : MonoBehaviour
     /// The arena reacts to it — StormReaction speeds the sea up and scatters the gulls for Tempest's Maelstrom.</summary>
     public event Action<string, float, float> SpecialEffectStarted;
     public event Action<SelectionData> SelectionChanged;
+    /// <summary>A resolved turn starts to play (the player committed, or the bot acted): Master Lob makes way.</summary>
+    public event Action<int> TurnPlayStarted;
     /// <summary>(lobster, col, row) after a tentative move (or the return to origin).</summary>
     public event Action<LobsterController, int, int> PreviewMoved;
 
@@ -159,6 +161,14 @@ public class BattleManager : MonoBehaviour
     private HexGrid hexGrid;
     private BattleBridge bridge;
     private readonly Dictionary<string, LobsterController> lobsters = new();
+    /// <summary>Every lobster on the board, the dead included (their corpses still stand on their hexes).</summary>
+    public IEnumerable<LobsterController> AllLobsters => lobsters.Values;
+    /// <summary>The board (Master Lob picks his hex from it).</summary>
+    public HexGrid Grid => hexGrid;
+    /// <summary>The turn the HUD is on (the last StartTurn).</summary>
+    public int CurrentTurn => currentTurn;
+    /// <summary>Master Lob, the Dojo coach (MasterLobCoach): idle unless the web asks him to speak.</summary>
+    public MasterLobCoach Coach { get; private set; }
     private Transform lobsterRoot;
     private Coroutine turnRoutine;
 
@@ -166,6 +176,8 @@ public class BattleManager : MonoBehaviour
     {
         hexGrid = FindAnyObjectByType<HexGrid>();
         bridge = FindAnyObjectByType<BattleBridge>();
+        Coach = gameObject.AddComponent<MasterLobCoach>();
+        Coach.Bind(this);
         // Live input: the click router lives on the HexGrid object. Attach it at runtime so a
         // scene edit (designer's unity-setup port, prefab rebuild) can never drop it silently —
         // without it, board clicks never reach React and the HUD cannot pick moves or targets.
@@ -592,6 +604,7 @@ public class BattleManager : MonoBehaviour
 
     private IEnumerator PlayTurnRoutine(TurnPlayData data)
     {
+        TurnPlayStarted?.Invoke(data.turn);
         if (PerfMonitor.Enabled)
         {
             bool known = lobsters.TryGetValue(data.lobsterId ?? "", out var who);

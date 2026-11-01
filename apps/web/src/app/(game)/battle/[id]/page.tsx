@@ -67,11 +67,11 @@ export default function BattlePage() {
   // Review tools (designer VFX passes, harness): ?auto=1 lets the bot policy play this wallet's
   // turns; ?speed=2 scales Unity playback; ?stay=1 keeps the view open after the result instead
   // of returning to the arena page. Read after mount to avoid a Suspense boundary.
-  const [review, setReview] = useState<{ autoPlay: boolean; speed: number; stay: boolean }>({ autoPlay: false, speed: 1, stay: false });
+  const [review, setReview] = useState<{ autoPlay: boolean; speed: number; stay: boolean; coach: boolean }>({ autoPlay: false, speed: 1, stay: false, coach: false });
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const speed = Number(q.get('speed') ?? '1');
-    setReview({ autoPlay: q.get('auto') === '1', speed: Number.isFinite(speed) && speed > 0 ? speed : 1, stay: q.get('stay') === '1' });
+    setReview({ autoPlay: q.get('auto') === '1', speed: Number.isFinite(speed) && speed > 0 ? speed : 1, stay: q.get('stay') === '1', coach: q.get('coach') === '1' });
   }, []);
   // After the result the view closes itself and comes back here. A practice session is gone
   // once it ends (in-memory), so Back must not lead into it: replace. A chain battle keeps its
@@ -113,7 +113,7 @@ export default function BattlePage() {
     return (
       <BattleBackdrop kind="dojo">
           {address ? (
-            <LiveBattle battleId={battleId} address={address} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} onClose={leave} />
+            <LiveBattle battleId={battleId} address={address} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} coach={review.coach} onClose={leave} />
           ) : identityPending ? (
             <FrostedPanel className="py-10 text-center text-sm text-text-secondary flex items-center justify-center gap-2">
               <Loader2 className="size-4 animate-spin" /> {friend ? 'Opening your battle…' : 'Opening your practice battle…'}
@@ -162,7 +162,7 @@ export default function BattlePage() {
   if (live) {
     return (
       <BattleBackdrop kind="shell">
-        <LiveBattle battleId={battleId} address={address} spectate={!participant} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} onClose={leave} />
+        <LiveBattle battleId={battleId} address={address} spectate={!participant} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} coach={review.coach} onClose={leave} />
         {/* Result in review (5) or frozen for review (8): say so — players have nothing to do */}
         {chain && (phase === 5 || phase === 8) && participant && address && (
           <div className="mt-4 max-w-6xl mx-auto"><BattleMoves battleId={battleId} address={address} battleData={battleData} /></div>

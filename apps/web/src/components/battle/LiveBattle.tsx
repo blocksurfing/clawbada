@@ -19,6 +19,7 @@ import { playResultMusic, preloadResultMusic, stopResultMusic } from '@/lib/resu
 import { EXIT_IRIS_CLOSE_MS, startBattleExit } from '@/lib/battle-exit';
 import { isOffChainId, type Side, type TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
+import { useMasterLob } from '@/lib/master-lob/use-master-lob';
 import { BattleStage, type BattleStageControls } from './BattleStage';
 import { selectionToData } from './unity-bridge';
 import { HexBoard } from './HexBoard';
@@ -42,13 +43,23 @@ export interface LiveBattleProps {
   onClose?: () => void;
   /** Review / harness: never leave on its own (URL ?stay=1). The Stay button does the same at runtime. */
   stay?: boolean;
+  /** Master Lob coaches this battle (the Dojo's guidance toggle, ?coach=1). Practice battles only. */
+  coach?: boolean;
 }
 
 /** Seconds the result stays on screen before the view returns to the arena page (owner 2026-10-28: 8 s, was 6). Wall
  *  clock — ?speed does not touch it. */
 const RETURN_SECONDS = 8;
 
-export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed, onClose, stay }: LiveBattleProps) {
+/** Review tool: how long autoplay waits before it picks the player's move (?autodelay=ms; default 350). Long enough
+ *  (e.g. 9000) lets Master Lob finish his tip in review clips. */
+function autoDelayMs(): number {
+  if (typeof window === 'undefined') return 350;
+  const v = Number(new URLSearchParams(window.location.search).get('autodelay'));
+  return Number.isFinite(v) && v > 0 ? Math.min(v, 30_000) : 350;
+}
+
+export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, speed, onClose, stay, coach }: LiveBattleProps) {
   // A practice battle may be played by a guest session; `forAddress` keeps the token on the identity the page
   // pinned (the guest that started the battle) even after a wallet connects. Chain battles are wallet-only.
   const { getAuthParams, getAuthHeaders, getSessionToken } = useAuth({ allowGuest: isOffChainId(battleId), forAddress: address });
@@ -117,6 +128,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   // Unity's action bar submits on tap (LOKR); the React fallback panel confirms explicitly.
   const selection = useTurnSelection(snapshot, current, canAct, { autoSubmit: gate, onSubmit });
   const pendingAck = current !== null && sentTurn === current.turn;
+  const masterLob = useMasterLob({ enabled: !!coach, snapshot, current, mySide, canAct: canAct && !pendingAck, introDone });
   // The bar belongs to a turn the player can act on: not while earlier turns are still
   // animating (React's `current` runs ahead of the picture), except to show "Sending…".
   const barTurn = myTurn && (!animating || pendingAck);
@@ -188,7 +200,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
       }
       console.log(`[LiveBattle] autoplay turn ${turn}: ${cmd.action} ${cmd.targetId ?? ''}`);
       onSubmit(cmd);
-    }, 350);
+    }, autoDelayMs());
     return () => clearTimeout(t);
   }, [autoPlay, introDone, canAct, pendingAck, snapshot, current, onSubmit]);
 
@@ -349,6 +361,8 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
           onReady={handleReady}
           onIntroComplete={handleIntroComplete}
           onIntroMusic={handleIntroMusic}
+          coach={masterLob.request}
+          onCoachState={masterLob.onCoachState}
           closing={closing}
           onClosed={handleClosed}
           overlay={gate ? returnRow : undefined}
