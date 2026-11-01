@@ -20,8 +20,11 @@ const SRC = '/ui/dojo/squirrel.png';
 const RUN_FEET_ROW = 44, BOARD_TOP_ROW = 16;
 /** The board's top edge stops this many art px short of its canvas's right edge (Wooden_Sign.png's end cap). */
 const BOARD_TOP_RIGHT_INSET = 6;
-/** How many art px the squirrel takes to fade in as it comes round the end of the board. */
-const EDGE_SOFTNESS = 10;
+/** The doorway's inner right edge in Dojo_Dark.png (backdrop px), rows 28–64: the slanted beam, then the post. The
+ *  squirrel comes out from behind this wood (owner 2026-11-01: no appearing out of thin air). */
+const DOOR_EDGE_FIRST_ROW = 28;
+const DOOR_EDGE = [389, 391, 393, 395, 397, 399, 401, 403, 405, 407, 409, 411, 413, 415, 416, 416, 416, 416, 416, 416, 416, 416, 415, 412, 411, 410, 410, 410, 410, 408, 407, 407, 407, 408, 408, 406, 405];
+const BACKDROP_W = 640, BACKDROP_H = 360;
 /** Where the strip's left edge sits from the board's left edge, in art px: the run crosses the open middle of the board
  *  and the leap lands in the blossom crown over its left end. */
 const LEFT_FROM_BOARD = 30;
@@ -50,20 +53,30 @@ export function DojoSquirrel() {
       const r = board?.getBoundingClientRect();
       if (!r || !r.height) return 0;
       const s = r.height / 64;
-      // The outer box is the clip: from the strip's left edge to the board's right end.
+      // The outer box is the clip. Its right edge is the doorway's wooden frame at the height of the board's top (the
+      // squirrel runs out from behind it), or the board's end if that comes first.
       const left = r.left + LEFT_FROM_BOARD * s;
+      const boardTop = r.top + BOARD_TOP_ROW * s;
+      const clipRight = Math.min(r.right - BOARD_TOP_RIGHT_INSET * s, doorEdgeAt(boardTop) ?? Infinity);
       el.style.left = `${left}px`;
       el.style.top = `${r.top + (BOARD_TOP_ROW - RUN_FEET_ROW - 1) * s}px`;
-      el.style.width = `${Math.max(0, r.right - BOARD_TOP_RIGHT_INSET * s - left)}px`;   // clipped where the board's top edge ends
+      el.style.width = `${Math.max(0, clipRight - left)}px`;
       el.style.height = `${run.height * s}px`;
-      // A soft edge where it comes round the board's end, so it materialises over a few pixels instead of along a line.
-      const mask = `linear-gradient(to left, transparent 0, #000 ${EDGE_SOFTNESS * s}px)`;
-      el.style.maskImage = mask;
-      el.style.webkitMaskImage = mask;
       frameEl.style.width = `${run.width * s}px`;
       frameEl.style.height = `${run.height * s}px`;
       frameEl.style.backgroundSize = `${run.width * run.frames * s}px ${run.height * s}px`;
       return s;
+    };
+    // The doorway edge, in screen px, at screen height y — from the arena backdrop (object-fit: cover, centred).
+    const doorEdgeAt = (y: number): number | null => {
+      const arena = document.querySelector<HTMLElement>('.dojo-arena');
+      if (!arena) return null;
+      const a = arena.getBoundingClientRect();
+      const k = Math.max(a.width / BACKDROP_W, a.height / BACKDROP_H);
+      const ox = a.left + (a.width - BACKDROP_W * k) / 2, oy = a.top + (a.height - BACKDROP_H * k) / 2;
+      const row = Math.round((y - oy) / k) - DOOR_EDGE_FIRST_ROW;
+      const edge = DOOR_EDGE[Math.max(0, Math.min(DOOR_EDGE.length - 1, row))];
+      return ox + edge * k;
     };
     const play = () => {
       if (stopped) return;
