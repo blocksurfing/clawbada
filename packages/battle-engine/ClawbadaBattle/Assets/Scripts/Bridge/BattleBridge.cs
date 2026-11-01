@@ -29,6 +29,7 @@ public class BattleBridge : MonoBehaviour
     [DllImport("__Internal")] private static extern void SendUnityReady();
     [DllImport("__Internal")] private static extern void SendAnimationComplete(string json);
     [DllImport("__Internal")] private static extern void SendTurnAnimationComplete(string json);
+    [DllImport("__Internal")] private static extern void SendCoachState(string json);
     [DllImport("__Internal")] private static extern void SendActionSelected(string json);
     [DllImport("__Internal")] private static extern void SendUndoMove();
     [DllImport("__Internal")] private static extern void SendForfeit();
@@ -255,6 +256,31 @@ public class BattleBridge : MonoBehaviour
         #endif
     }
 
+    /// <summary>Master Lob (Dojo coach): say a tip now if the moment allows ({"id","text"}).</summary>
+    public void CoachSay(string json)
+    {
+        var data = JsonUtility.FromJson<CoachSayData>(json);
+        if (battleManager != null && battleManager.Coach != null && data != null) battleManager.Coach.Say(data.id, data.text);
+    }
+
+    /// <summary>Master Lob leaves now (the web's call, e.g. the player opened a menu).</summary>
+    public void CoachDismiss(string _)
+    {
+        if (battleManager != null && battleManager.Coach != null) battleManager.Coach.Dismiss("web");
+    }
+
+    /// <summary>Master Lob's state back to the web: shown | skipped | done, so a tip only counts as seen once said.</summary>
+    public void NotifyCoachState(string id, string state, string detail)
+    {
+        string json = $"{{\"id\":\"{Esc(id)}\",\"state\":\"{Esc(state)}\",\"detail\":\"{Esc(detail)}\"}}";
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        SendCoachState(json);
+        #else
+        Debug.Log($"[BattleBridge] CoachState {json}");
+        #endif
+    }
+    private static string Esc(string s) => (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
+
     public void NotifyTurnAnimationComplete(int turn)
     {
         string json = $"{{\"turn\":{turn}}}";
@@ -398,6 +424,13 @@ public class BattleInitData
 }
 
 // ─── V3 per-turn payloads ───
+
+[System.Serializable]
+public class CoachSayData
+{
+    public string id;
+    public string text;
+}
 
 [System.Serializable]
 public class TurnStartData

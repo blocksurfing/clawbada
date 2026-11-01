@@ -117,6 +117,12 @@ public class BattleVfxLibrary : ScriptableObject
     [Tooltip("Nzib's soft shadow under every lobster (Prefabs/Lobsters/Shared/Character_Shadow). Empty = no shadows.")]
     public GameObject characterShadow;
 
+    [Header("Master Lob (Dojo coach)")]
+    [Tooltip("Nzib's Master Lob tutorial actor (Prefabs/Unique/MasterLobTutorial): Appear / Speak / Disappear, smoke included.")]
+    public GameObject masterLobTutorial;
+    [Tooltip("Nzib's animated speech bubble (Prefabs/UI/SpeechBubble/AnimatedSpeechBubble).")]
+    public GameObject speechBubble;
+
     [Header("Special windups (index = classId; falls back to Attack Windup)")]
     [Tooltip("0 Bulwark, 1 Mantis, 2 Leviathan, 3 Tempest, 4 Specter, 5 Sentinel, 6 Reaver, 7 Abyss, 8 Kraken, 9 Ember")]
     public VfxSlot[] specialByClass = new VfxSlot[10];

@@ -22,6 +22,7 @@ import {
   type HexListData,
   type HexPosition,
   type SelectionData,
+  type CoachState,
 } from './unity-bridge';
 import type { BattleEndedPayload, BattleSnapshot, CurrentTurn, Side, TurnResolvedPayload, WireBarEntry } from '@/lib/battle-protocol';
 import { cancelBattleEntry, markArenaReady, markUnityLoadingShown, useBattleEntry } from '@/lib/battle-entry';
@@ -68,6 +69,9 @@ export interface BattleStageProps {
   onIntroComplete?: () => void;
   /** The intro reached its music beat: the teams are on the board, the arena bed should start creeping in. */
   onIntroMusic?: () => void;
+  /** Master Lob (Dojo coach): a tip to say now; a new `seq` asks again. Null = say nothing. */
+  coach?: { id: string; text: string; seq: number } | null;
+  onCoachState?: (state: CoachState) => void;
 }
 
 /** If Unity never reports the intro's end (an old build, an error), carry on after this long. Counted from InitBattle,
@@ -266,6 +270,7 @@ function UnityStage(props: BattleStageProps) {
       onAudioPref: props.onAudioPref,
       onIntroComplete: () => reportIntro('unity'),
       onIntroMusic: () => props.onIntroMusic?.(),
+      onCoachState: (state) => props.onCoachState?.(state),
       onTurnAnimationComplete: (turn) => {
         if (watchdog.current) { clearTimeout(watchdog.current); watchdog.current = null; }
         animating.current = null;
@@ -273,7 +278,7 @@ function UnityStage(props: BattleStageProps) {
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit, props.onAudioPref, props.onIntroMusic, reportIntro]);
+  }, [props.onLobsterClick, props.onHexClick, props.onTurnAnimationComplete, props.onActionSelected, props.onUndoMove, props.onForfeit, props.onAudioPref, props.onIntroMusic, props.onCoachState, reportIntro]);
 
   // Site-wide audio preferences → Unity, on init and whenever they change (floating toggle,
   // options-menu echo, another tab). Unity applies SFX and refreshes its menu labels.
@@ -323,6 +328,14 @@ function UnityStage(props: BattleStageProps) {
     attachUnityPerf((method, json) => sendMessage(UNITY_GAME_OBJECT, method, json));
     return () => attachUnityPerf(null);
   }, [ready, sendMessage]);
+  // Master Lob: hand each new tip to Unity (it decides whether the moment allows it and reports back).
+  const coachSeq = useRef(-1);
+  useEffect(() => {
+    const c = props.coach;
+    if (!ready || !c || c.seq === coachSeq.current) return;
+    coachSeq.current = c.seq;
+    send(UNITY_METHODS.COACH_SAY, { id: c.id, text: c.text });
+  }, [ready, props.coach, send]);
 
   // InitBattle once per battle. Never keyed on the turn or on later snapshots: re-initialising
   // mid-battle respawns the rigs and rebinds the HUD.
