@@ -70,7 +70,8 @@ export function cssPx(element: Element, name: string, fallback: number): number 
  *  the still frame (same foot line and centre), so swapping the still for the idle never moves the lobster. */
 export const IDLE_SHEETS: Record<number, string> = { 1: '/ui/dojo/idle/Evolved.png', 2: '/ui/dojo/idle/Elite.png', 3: '/ui/dojo/idle/Apex.png' };
 export const IDLE_FRAMES = 5;
-export const IDLE_FPS = 12;
+/** Played 8 % slower than the battle's 12 fps (owner 2026-11-01): a calmer lineup. */
+export const IDLE_FPS = 12 * 0.92;
 
 /** The idle sheet for a tier sheet (Base has none: it never battles). */
 export function idleSheetSrc(still: HTMLImageElement): string | null {
@@ -119,7 +120,7 @@ export function drawIdleFrame(canvas: HTMLCanvasElement, sheet: HTMLImageElement
 type IdleListener = (frame: number) => void;
 const idleListeners = new Set<IdleListener>();
 let idleRaf = 0, idleLast = 0, idleTick = 0;
-/** One 12 fps clock for every lineup fighter (each adds its own phase so the three don't bob in step). */
+/** One IDLE_FPS clock for every lineup fighter (each adds its own phase so the three don't bob in step). */
 export function onIdleTick(cb: IdleListener): () => void {
   idleListeners.add(cb);
   if (!idleRaf && typeof window !== 'undefined') {

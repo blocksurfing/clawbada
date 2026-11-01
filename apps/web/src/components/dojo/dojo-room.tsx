@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { PixelPanel } from '@/components/shell/pixel-panel';
 import { PIXEL_ASSETS, PIXEL_SCALE_EVENT, pixelScale } from '@/components/pixel/pixel-assets';
 import { BOT_CATALOG, botInfo, type BotName } from '@/lib/bot-catalog';
-import { playUiClick } from '@/lib/site-sfx';
+import { playSiteSfx, playUiClick, preloadSiteSfx } from '@/lib/site-sfx';
 import { ENTRY_IRIS_CLOSE_MS, getEntryState, reducedMotion, useBattleEntry } from '@/lib/battle-entry';
 /** How far the scene eases back while the iris closes (owner 2026-10-27: "a looney tunes style zoom out"). */
 const ENTRY_ZOOM = 0.92;
@@ -328,6 +328,7 @@ export function DojoRoom(props: DojoRoomProps) {
   const pages = pageCount(lobsters.length);
   // His page turn: the grid slides 36 px out (130 ms), the page changes, then it slides in from the other side.
   const turning = useRef(false);
+  useEffect(() => { preloadSiteSfx('teamAdd', 'teamRemove'); }, []);
   const goToPage = useCallback(async (target: number) => {
     const next = Math.max(0, Math.min(target, pages - 1));
     const grid = inventoryRef.current;
@@ -376,6 +377,10 @@ export function DojoRoom(props: DojoRoomProps) {
   /** One edit path for both tabs: owned picks are lobster ids, built picks are class names (the page's `team`). */
   const editSlots = (next: Slots) => {
     setFeedback('');
+    // The owner's team sounds (2026-11-01): one in when a lobster joins (or replaces one on a slot), one out when it leaves.
+    const before = activeSlots.filter(Boolean).length, after = next.filter(Boolean).length;
+    if (after < before) playSiteSfx('teamRemove', { cut: ['teamAdd', 'teamRemove'] });
+    else if (next.some((id, i) => id !== activeSlots[i])) playSiteSfx('teamAdd', { cut: ['teamAdd', 'teamRemove'] });
     if (mode === 'builder') { props.onTeam([...next]); return; }
     setSlots(next); setSavedTeam('');
   };
