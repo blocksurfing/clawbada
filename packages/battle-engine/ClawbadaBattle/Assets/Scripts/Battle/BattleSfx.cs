@@ -126,6 +126,9 @@ public static class BattleSfx
     private static AudioClip RandomOf(AudioClip[] takes) =>
         takes == null || takes.Length == 0 ? null : takes[Random.Range(0, takes.Length)];
     public static void PlayUiClose() => Play(Library?.uiClose, "ui-close");
+    /// <summary>Master Lob's smoke: his arrival puff, and his departure puff (on the Disappear clip's smoke beat).</summary>
+    public static void PlayMasterLobPoofIn() => Play(Library?.masterLobPoofIn, "master-lob-in");
+    public static void PlayMasterLobPoofOut() => Play(Library?.masterLobPoofOut, "master-lob-out");
 
     /// <summary>An action button lit up under the pointer: its hover click, at <see cref="HoverLevel"/> — the takes are
     /// mastered near full scale (~8 dB over the menu clicks) and hover fires often, so it sits under everything else.</summary>

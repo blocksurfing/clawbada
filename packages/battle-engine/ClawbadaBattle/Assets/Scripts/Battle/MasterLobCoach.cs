@@ -22,7 +22,7 @@ public class MasterLobCoach : MonoBehaviour
 {
     /// <summary>Nzib's clip lengths (AC_Apex_MasterLob): Appear 1.0 s, Disappear 1.3 s; the Speak loop starts a little
     /// before Appear ends so he is already talking as the bubble opens.</summary>
-    public const float AppearSeconds = 1.0f, SpeakFromSeconds = 0.8f, DisappearSeconds = 1.3f;
+    public const float AppearSeconds = 1.0f, SpeakFromSeconds = 0.8f, DisappearSeconds = 1.3f, DisappearSmokeAt = 0.45f;
     /// <summary>Reading time per page: a base plus per character, clamped (an 8-px pixel font reads slower than body text).</summary>
     public const float ReadBase = 2.2f, ReadPerChar = 0.05f, ReadMin = 3.5f, ReadMax = 9f;
     /// <summary>Bubble text: at most this many characters per line and lines per page (his bubble grows 10 px a line).</summary>
@@ -98,6 +98,7 @@ public class MasterLobCoach : MonoBehaviour
         actor.SetActive(true);
         animator.Play("Appear", 0, 0f);
         animator.Update(0f);
+        BattleSfx.PlayMasterLobPoofIn();   // the Appear clip's smoke starts at once
         Debug.Log($"[MasterLobCoach] appears at ({hex.x},{hex.y}) on turn {shownOnTurn}: {tipId}");
         Report(tipId, "shown", $"{hex.x},{hex.y}");
         yield return new WaitForSeconds(SpeakFromSeconds);
@@ -122,7 +123,10 @@ public class MasterLobCoach : MonoBehaviour
         {
             animator.Play("Disappear", 0, 0f);
             Debug.Log($"[MasterLobCoach] leaves ({why})");
-            yield return new WaitForSeconds(DisappearSeconds);
+            // Nzib's Disappear: a short wind-up, the smoke from 0.45 s (he is gone inside it at 0.55 s), clear by 1.25 s.
+            yield return new WaitForSeconds(DisappearSmokeAt);
+            BattleSfx.PlayMasterLobPoofOut();
+            yield return new WaitForSeconds(DisappearSeconds - DisappearSmokeAt);
             actor.SetActive(false);
         }
         Report(tipId, "done", why);

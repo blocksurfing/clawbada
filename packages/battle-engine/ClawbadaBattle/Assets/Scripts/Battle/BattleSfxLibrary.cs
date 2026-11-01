@@ -145,6 +145,9 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("In-game UI closing: Assets/Audio/SFX/UI/SFX_UI_Close.wav.")]
     public AudioClip uiClose;
 
+    [Tooltip("Master Lob (Dojo coach): his smoke puff arriving and leaving — Assets/Audio/SFX/MasterLob/SFX_MasterLob_PoofIn/Out.wav.")]
+    public AudioClip masterLobPoofIn, masterLobPoofOut;
+
     /// <summary>The class's own Defend clip if one is bound, else a random pick from the shared pool, else null.</summary>
     public AudioClip DefendFor(int classId)
     {
