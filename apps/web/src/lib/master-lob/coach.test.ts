@@ -5,7 +5,7 @@ import { TIPS } from './tips';
 const tip = (id: string, tier: CoachTip['tier'], extra: Partial<CoachTip> = {}): CoachTip => ({ id, tier, text: id, ...extra });
 
 describe('Master Lob cadence', () => {
-  test('speaks on the first player turn, then every 2–4 player turns', () => {
+  test('speaks on the first player turn, then every 2–3 player turns', () => {
     for (const r of [0, 0.5, 0.99]) {
       const c = new CoachCadence(() => r);
       const spoke: number[] = [];
@@ -16,7 +16,7 @@ describe('Master Lob cadence', () => {
       for (let i = 1; i < spoke.length; i++) {
         const gap = spoke[i] - spoke[i - 1];
         expect(gap).toBeGreaterThanOrEqual(2);
-        expect(gap).toBeLessThanOrEqual(4);
+        expect(gap).toBeLessThanOrEqual(3);
       }
     }
   });

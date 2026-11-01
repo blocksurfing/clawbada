@@ -27,8 +27,9 @@ public class MasterLobCoach : MonoBehaviour
     public const float ReadBase = 2.2f, ReadPerChar = 0.05f, ReadMin = 3.5f, ReadMax = 9f;
     /// <summary>Bubble text: at most this many characters per line and lines per page (his bubble grows 10 px a line).</summary>
     public const int LineChars = 26, PageLines = 4;
-    /// <summary>His head, above the rig root, in world units (the bubble's tail points here).</summary>
-    public const float HeadHeight = 0.62f;
+    /// <summary>His mouth, from the rig root, in world units: up, and forward in the direction he faces. The bubble's tail
+    /// lands here and the bubble opens on that side (owner 2026-11-01: lined up with his face, never over his back).</summary>
+    public const float MouthHeight = 0.5f, MouthForward = 0.3f;
     private const int CanvasOrder = 90;   // under the HUD (100)
 
     private BattleManager manager;
@@ -43,6 +44,9 @@ public class MasterLobCoach : MonoBehaviour
     private int shownOnTurn = -1;
     private string tipId = "";
     private bool leaving;
+    /// <summary>He faces the way the player's team faces (toward the enemy side): side A faces right.</summary>
+    private bool faceRight;
+    private RectTransform connector;
 
     /// <summary>True from his first puff of smoke until the last.</summary>
     public bool Busy => routine != null;
@@ -64,6 +68,7 @@ public class MasterLobCoach : MonoBehaviour
         if (Busy) { Report(id, "skipped", "already talking"); return; }
         if (manager.IntroPlaying || !manager.isPlayerTurn) { Report(id, "skipped", "not the player's moment"); return; }
         var pages = Pages(text ?? "");
+        faceRight = PlayerSide() == "A";
         if (!PickHex(BubbleSizeEstimate(pages), out hex)) { Report(id, "skipped", "no free hex"); return; }
         tipId = id ?? "";
         shownOnTurn = manager.CurrentTurn;
@@ -85,9 +90,9 @@ public class MasterLobCoach : MonoBehaviour
         var grid = manager.Grid;
         Vector3 pos = grid.GetWorldPosition(hex.x, hex.y);
         actor.transform.position = pos;
-        // Face the middle of the board (the rig faces left at rotation 0, like every lobster).
-        float centreX = grid.GetWorldPosition(2, 2).x;
-        actor.transform.rotation = Quaternion.Euler(0f, pos.x < centreX ? 180f : 0f, 0f);
+        // Facing the same way as the player's team. Nzib's prefab turns its inner Actor 180°, so at rotation 0 Master Lob
+        // already faces RIGHT — the opposite of the battle rigs (LobsterController: 0 faces left).
+        actor.transform.rotation = Quaternion.Euler(0f, faceRight ? 0f : 180f, 0f);
         sorting.sortingLayerName = DepthSort.Layer;
         sorting.sortingOrder = grid.SortingOrderAtY(pos.y, DepthSort.RowActor);
         actor.SetActive(true);
@@ -125,22 +130,44 @@ public class MasterLobCoach : MonoBehaviour
         leaving = false;
     }
 
-    /// <summary>The tail's tip on his head; the bubble kept inside the 640×360 view, clear of the HUD's top band.</summary>
+    /// <summary>The tail's tip at his mouth, the bubble opening on the side he faces; kept inside the 640×360 view, clear
+    /// of the HUD's top band.</summary>
     private void PlaceBubble(Vector3 actorPos)
     {
         var cam = Camera.main;
         var rt = (RectTransform)bubble.transform;
         var root = (RectTransform)canvas.transform;
         if (cam == null) return;
-        Vector2 screen = cam.WorldToScreenPoint(actorPos + Vector3.up * HeadHeight);
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(root, screen, null, out var head);
+        Vector2 screen = cam.WorldToScreenPoint(Mouth(actorPos));
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(root, screen, null, out var mouth);
         Vector2 size = bubble.ExpandedSize;
-        // AnimatedSpeechBubble puts the connector's lower-left at (−w/2 − 2, −h/2 − 12) from the bubble's centre.
-        Vector2 centre = head + new Vector2(size.x / 2f + 2f, size.y / 2f + 12f);
+        // AnimatedSpeechBubble puts the connector's lower-left at (−w/2 − 2, −h/2 − 12) from the bubble's centre; facing
+        // left, LateUpdate mirrors it to the lower-right, so the bubble opens to his left instead.
+        float dir = faceRight ? 1f : -1f;
+        Vector2 centre = mouth + new Vector2(dir * (size.x / 2f + 2f), size.y / 2f + 12f);
         Vector2 half = root.rect.size / 2f;
         centre.x = Mathf.Clamp(centre.x, -half.x + size.x / 2f + 4f, half.x - size.x / 2f - 4f);
         centre.y = Mathf.Clamp(centre.y, -half.y + size.y / 2f + 16f, half.y - size.y / 2f - 44f);
         rt.anchoredPosition = new Vector2(Mathf.Round(centre.x), Mathf.Round(centre.y));
+    }
+
+    private Vector3 Mouth(Vector3 actorPos) => actorPos + new Vector3((faceRight ? 1f : -1f) * MouthForward, MouthHeight, 0f);
+
+    private string PlayerSide()
+    {
+        foreach (var l in manager.AllLobsters) if (l != null && l.lobsterId == manager.activeLobsterId) return l.side;
+        return "A";
+    }
+
+    void LateUpdate()
+    {
+        // His bubble's tail is drawn for a speaker on its left. Facing left he speaks from its right: mirror the tail
+        // to the bubble's lower-right corner (after AnimatedSpeechBubble.Evaluate has placed it, every frame it plays).
+        if (connector == null || bubble == null || !bubble.gameObject.activeSelf) return;
+        Vector2 size = bubble.ExpandedSize;
+        if (faceRight) { connector.localScale = Vector3.one; return; }
+        connector.localScale = new Vector3(-1f, 1f, 1f);
+        connector.anchoredPosition = new Vector2(size.x / 2f + 2f, -size.y / 2f - 12f);
     }
 
     private void Ensure()
@@ -161,6 +188,7 @@ public class MasterLobCoach : MonoBehaviour
             if (raycaster != null) raycaster.enabled = false;   // never takes a click meant for the board
             var go = Instantiate(library.speechBubble, canvas.transform, false);
             bubble = go.GetComponent<AnimatedSpeechBubble>();
+            foreach (var t in go.GetComponentsInChildren<RectTransform>(true)) if (t.name == "Connector") connector = t;
             var rt = (RectTransform)go.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
@@ -249,11 +277,12 @@ public class MasterLobCoach : MonoBehaviour
     }
 
     /// <summary>How many living lobsters his bubble would cover if he stood at <paramref name="actorPos"/> (world units;
-    /// 64 art px a unit). Mirrors PlaceBubble: the tail on his head, the bubble up and to the right.</summary>
+    /// 64 art px a unit). Mirrors PlaceBubble: the tail at his mouth, the bubble up and to the side he faces.</summary>
     private float BubbleCovers(Vector3 actorPos, Vector2 size)
     {
-        Vector2 head = (Vector2)actorPos + Vector2.up * HeadHeight;
-        var bubble = new Rect(head.x + 2f / 64f, head.y + 12f / 64f, size.x / 64f, size.y / 64f);
+        Vector2 mouth = Mouth(actorPos);
+        float w = size.x / 64f, x = faceRight ? mouth.x + 2f / 64f : mouth.x - 2f / 64f - w;
+        var bubble = new Rect(x, mouth.y + 12f / 64f, w, size.y / 64f);
         float covered = 0f;
         foreach (var l in manager.AllLobsters)
         {

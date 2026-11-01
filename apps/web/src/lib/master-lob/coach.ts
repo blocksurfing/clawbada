@@ -37,7 +37,7 @@ export interface CoachTip {
 }
 
 /** The player's turns between appearances (inclusive range). */
-export const GAP_TURNS: readonly [number, number] = [2, 4];
+export const GAP_TURNS: readonly [number, number] = [2, 3];   // owner 2026-11-01: with guidance on, the player wants coaching
 
 /** Decides on which of the player's turns he appears: the first, then every GAP_TURNS. */
 export class CoachCadence {
