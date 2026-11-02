@@ -6,7 +6,7 @@ import { BOTS } from './bots';
 import { greedyPolicy, type Policy } from './sim';
 import { STYLE_BOTS } from './styles';
 
-export const BOT_NAMES = ['greedy', 'aggressive', 'balanced', 'cautious', 'charger', 'focus', 'roles', 'deep'] as const;
+export const BOT_NAMES = ['greedy', 'aggressive', 'balanced', 'cautious', 'charger', 'focus', 'roles', 'deep', 'planner'] as const;
 export type BotName = (typeof BOT_NAMES)[number];
 
 export function isBotName(x: unknown): x is BotName {
