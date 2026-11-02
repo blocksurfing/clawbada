@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
 /// <summary>
 /// Fighting-game battle start (user 2026-09-28), lengthened for suspense (user 2026-09-29, ~13 s):
@@ -9,7 +8,7 @@ using UnityEngine.UI;
 ///   2. the obstacles all drop together and hit the board at once — one smash, dust at each, a bigger shake;
 ///   3. the lobsters drop in ONE AT A TIME, alternating sides (yours first), heavier landings;
 ///   4. a beat to take in both teams, while the arena music starts fading in (onMusicCue → React);
-///   5. centre screen: "CLAWS UP!" rises in, then "BATTLE!" slams down (white flash, camera shake);
+///   5. authored Intro: transition, Claws Up loop, Battle and exit;
 ///   6. the HUD slides into place (BattleHud.SlideIn).
 /// Runs on unscaled time (presentation, not playback — ?speed never stretches it). A click or tap skips to the end.
 /// The type treatment and dust are placeholders for Nzib's art; sounds are optional clips (BattleSfx.PlayIntro*).
@@ -25,11 +24,9 @@ public static class BattleIntro
     // Lobster section 30 % quicker (user 2026-09-29): was 0.5 s stagger / 0.4 s fall.
     private const float LobsterStagger = 0.35f, LobsterDrop = 0.28f, LobsterHeight = 2.4f, Bounce = 0.08f;
     private const float TeamsHold = 1.0f;
-    private const float ReadyIn = 0.35f, ReadyHold = 0.8f, ReadyOut = 0.15f;
-    private const float FightSlam = 0.14f, FightHold = 0.75f, FightOut = 0.2f;
+    private const float ReadyHold = 0.8f;
     private const float SlideTime = 0.7f;
 
-    private static readonly Color Gold = new Color32(0xfb, 0xbf, 0x24, 0xff);
 
     /// <param name="obstacleSet">The board's obstacles (HexGrid.Obstacles); dropped in before the lobsters.</param>
     /// <param name="firstSide">The side whose lobsters land first ("A"/"B"): the player's own.</param>
@@ -68,10 +65,6 @@ public static class BattleIntro
         var canvas = HudFactory.Canvas("IntroCanvas", 400, new Vector2(960f, 540f), 0.5f, 64f);
         var root = canvas.GetComponent<RectTransform>();
         var black = HudFactory.AddImage(HudFactory.Stretch(root, "Black"), skin != null ? skin.barFill : null, Color.black);
-        var flash = HudFactory.AddImage(HudFactory.Stretch(root, "Flash"), skin != null ? skin.barFill : null, new Color(1f, 1f, 1f, 0f));
-        Font font = skin != null ? skin.PixelFontOrDefault() : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        var ready = Title(root, "ClawsUp", font, 48, Color.white, "CLAWS UP!");
-        var fight = Title(root, "Battle", font, 72, Gold, "BATTLE!");
 
         bool skip = false;
         bool Skipped()
@@ -145,30 +138,19 @@ public static class BattleIntro
         CueMusic();
         yield return Wait(TeamsHold);
 
-        // 5. CLAWS UP!, then BATTLE! — titles only: the voice clips are pulled (owner 2026-10-25). The clips and their
-        // BattleSfxLibrary slots stay; to bring them back, call BattleSfx.PlayIntroReady() here and PlayIntroFight() below.
+        // 5. Authored Intro includes Claws Up, Battle and the exit transition.
+        // Voice clips remain disabled; no legacy title/flash is overlaid on the artist's frames.
         if (!skip)
         {
-            ready.gameObject.SetActive(true);
+            var prefab = Resources.Load<Intro>("UI/Intro");
+            if (prefab != null)
+            {
+                var ready = Object.Instantiate(prefab, root, false);
+                yield return ready.Play(Skipped, ReadyHold);
+                Object.Destroy(ready.gameObject);
+            }
+            else Debug.LogError("[BattleIntro] Missing UI/Intro prefab");
         }
-        yield return Tween(ReadyIn, k => { SetAlpha(ready, k); ready.transform.localScale = Vector3.one * Mathf.Lerp(0.7f, 1f, EaseOut(k)); });
-        yield return Wait(ReadyHold);
-        yield return Tween(ReadyOut, k => SetAlpha(ready, 1f - k));
-        ready.gameObject.SetActive(false);
-
-        if (!skip)
-        {
-            fight.gameObject.SetActive(true);
-        }
-        yield return Tween(FightSlam, k => { SetAlpha(fight, k); fight.transform.localScale = Vector3.one * Mathf.Lerp(2.4f, 1f, k * k); });
-        if (!skip)
-        {
-            CameraShake.Shake(0.08f, 0.3f);
-            host.StartCoroutine(FadeFlash(flash));
-        }
-        yield return Wait(FightHold);
-        yield return Tween(FightOut, k => { SetAlpha(fight, 1f - k); fight.transform.localScale = Vector3.one * Mathf.Lerp(1f, 1.3f, k); });
-        fight.gameObject.SetActive(false);
 
         // 6. HUD slides in.
         if (hud != null && !skip) yield return hud.SlideIn(SlideTime, Skipped);
@@ -180,33 +162,6 @@ public static class BattleIntro
         hud?.EndIntro();
         Object.Destroy(canvas.gameObject);
         Debug.Log($"[BattleIntro] done{(skip ? " (skipped)" : "")}");
-    }
-
-    private static Text Title(RectTransform root, string name, Font font, int size, Color color, string text)
-    {
-        var t = HudFactory.Text(root, name, font, size, color, TextAnchor.MiddleCenter, new Vector2(900f, 120f));
-        t.text = text;
-        var shadow = t.gameObject.AddComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.7f);
-        shadow.effectDistance = new Vector2(4f, -4f);
-        SetAlpha(t, 0f);
-        t.gameObject.SetActive(false);
-        return t;
-    }
-
-    private static void SetAlpha(Graphic g, float a)
-    {
-        var c = g.color;
-        c.a = a;
-        g.color = c;
-    }
-
-    private static float EaseOut(float k) => 1f - (1f - k) * (1f - k);
-
-    private static IEnumerator FadeFlash(Image flash)
-    {
-        for (float t = 0f; t < 0.3f; t += Time.unscaledDeltaTime) { flash.color = new Color(1f, 1f, 1f, 0.7f * (1f - t / 0.3f)); yield return null; }
-        flash.color = new Color(1f, 1f, 1f, 0f);
     }
 
     private static IEnumerator SmashOnContact(float delay, System.Func<bool> skipped)
