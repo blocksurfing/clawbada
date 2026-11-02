@@ -53,6 +53,8 @@ export interface TurnSelection {
   setAction: (a: ActionChoice) => void;
   /** Action-bar press with LOKR semantics (see file header). */
   pressAction: (a: ActionChoice) => void;
+  /** Space/Enter: the second tap — commits a picked move hex, else confirms the selected target. */
+  confirm: () => void;
   clearMove: () => void;
   onHexClick: (hex: HexPosition) => void;
   onLobsterClick: (id: string) => void;
@@ -353,6 +355,7 @@ export function useTurnSelection(
     actor, moveTo, pendingMove, moveLocked: manualMove, action, targetId, summary, canSpecial, specialKind, highlights, command,
     valid: validity.valid, invalidReason: validity.reason, hint,
     setAction, pressAction,
+    confirm: () => { if (pendingMove) onHexClick(pendingMove); else confirmTarget(); },
     // Drops an uncommitted pick, a selection and a selection's step — never a committed move (touch-move).
     clearMove: () => { setPendingMove(null); if (autoMoved) { setMoveTo(null); setAutoMoved(false); } setTargetId(null); setHint(null); },
     onHexClick, onLobsterClick,

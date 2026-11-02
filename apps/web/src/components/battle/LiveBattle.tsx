@@ -139,7 +139,8 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   );
   const handleActionSelected = useCallback((a: string) => {
     console.log(`[LiveBattle] unity action ${a}`);
-    selection.pressAction(a as ActionChoice);
+    if (a === 'confirm') selection.confirm();
+    else selection.pressAction(a as ActionChoice);
   }, [selection]);
   const handleUndo = useCallback(() => selection.clearMove(), [selection]);
   useEffect(() => {

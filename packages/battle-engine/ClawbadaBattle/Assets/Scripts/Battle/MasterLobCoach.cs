@@ -47,6 +47,12 @@ public class MasterLobCoach : MonoBehaviour
     /// <summary>He faces the way the player's team faces (toward the enemy side): side A faces right.</summary>
     private bool faceRight;
     private RectTransform connector;
+    /// <summary>The rig as the prefab made it (what his clips' write-defaults must return to), restored before each visit.</summary>
+    private Renderer[] rigRenderers;
+    private bool[] rigRendererOn;
+    private Transform[] rigParts;
+    private bool[] rigPartOn;
+    private Vector3[] rigPartPos;
 
     /// <summary>True from his first puff of smoke until the last.</summary>
     public bool Busy => routine != null;
@@ -95,6 +101,7 @@ public class MasterLobCoach : MonoBehaviour
         actor.transform.rotation = Quaternion.Euler(0f, faceRight ? 0f : 180f, 0f);
         sorting.sortingLayerName = DepthSort.Layer;
         sorting.sortingOrder = grid.SortingOrderAtY(pos.y, DepthSort.RowActor);
+        RestoreRig();
         actor.SetActive(true);
         animator.Play("Appear", 0, 0f);
         animator.Update(0f);
@@ -110,6 +117,7 @@ public class MasterLobCoach : MonoBehaviour
             bubble.SetText(page);
             PlaceBubble(pos);
             bubble.Replay();
+            if (page == pages[0]) Debug.Log($"[MasterLobCoach] speaking with {VisibleParts()} parts visible");
             yield return new WaitForSeconds(Mathf.Clamp(ReadBase + ReadPerChar * page.Replace("\n", " ").Length, ReadMin, ReadMax));
         }
         routine = StartCoroutine(Leave("read"));
@@ -180,6 +188,45 @@ public class MasterLobCoach : MonoBehaviour
         return animator;
     }
 
+    /// <summary>
+    /// His states write defaults, and Speak keys no visibility, so while he talks every part shows as the Animator's
+    /// default. Those defaults are re-read from the rig each time he is switched on — and his Disappear leaves every part
+    /// hidden. So from his SECOND visit on he came out of the smoke and vanished the moment he began to speak, leaving
+    /// the bubble alone (owner 2026-11-01). Putting the rig back as the prefab made it before each visit keeps the
+    /// defaults right.
+    /// </summary>
+    private void SnapshotRig()
+    {
+        var root = animator != null ? animator.gameObject : actor;
+        rigRenderers = root.GetComponentsInChildren<Renderer>(true);
+        rigRendererOn = new bool[rigRenderers.Length];
+        for (int i = 0; i < rigRenderers.Length; i++) rigRendererOn[i] = rigRenderers[i].enabled;
+        rigParts = root.GetComponentsInChildren<Transform>(true);
+        rigPartOn = new bool[rigParts.Length];
+        rigPartPos = new Vector3[rigParts.Length];
+        for (int i = 0; i < rigParts.Length; i++) { rigPartOn[i] = rigParts[i].gameObject.activeSelf; rigPartPos[i] = rigParts[i].localPosition; }
+    }
+
+    /// <summary>Harness signal: rig parts drawing right now (0 while he talks = the bug above).</summary>
+    private int VisibleParts()
+    {
+        int n = 0;
+        if (rigRenderers != null) foreach (var r in rigRenderers) if (r != null && r.enabled && r.gameObject.activeInHierarchy && r.name != "Smoke" && !(r.transform.parent != null && r.transform.parent.name == "Smoke")) n++;
+        return n;
+    }
+
+        private void RestoreRig()
+    {
+        if (rigRenderers == null) return;
+        for (int i = 0; i < rigRenderers.Length; i++) if (rigRenderers[i] != null) rigRenderers[i].enabled = rigRendererOn[i];
+        for (int i = 0; i < rigParts.Length; i++)
+        {
+            if (rigParts[i] == null || rigParts[i].gameObject == actor) continue;
+            rigParts[i].localPosition = rigPartPos[i];
+            rigParts[i].gameObject.SetActive(rigPartOn[i]);
+        }
+    }
+
     private string PlayerSide()
     {
         foreach (var l in manager.AllLobsters) if (l != null && l.lobsterId == manager.activeLobsterId) return l.side;
@@ -204,6 +251,7 @@ public class MasterLobCoach : MonoBehaviour
             actor = Instantiate(library.masterLobTutorial, manager.transform.parent);
             actor.name = "MasterLobCoach";
             animator = BindAnimatorToRig(actor);
+            SnapshotRig();
             sorting = actor.GetComponent<SortingGroup>() ?? actor.AddComponent<SortingGroup>();
             actor.SetActive(false);
         }

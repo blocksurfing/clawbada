@@ -21,17 +21,25 @@ public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     public System.Action onHover;
 
     private Selectable sel;
-    private bool over, down, armed;
+    private bool over, down, armed, keyDown;
     private string state = "";
 
     void Awake() => sel = GetComponent<Selectable>();
 
     void OnEnable() { state = ""; Apply(); }
-    void OnDisable() { over = down = false; }
+    void OnDisable() { over = down = keyDown = false; }
 
     public void SetArmed(bool on)
     {
         armed = on;
+        Apply();
+    }
+
+    /// <summary>The button's hotkey is held (ActionBar): shows Pressed, like a held pointer.</summary>
+    public void SetKeyDown(bool on)
+    {
+        if (on == keyDown) return;
+        keyDown = on;
         Apply();
     }
 
@@ -54,7 +62,7 @@ public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private void Apply()
     {
         bool live = sel == null || sel.interactable;
-        string want = live && down ? "Pressed" : live && armed ? "Selected" : "Normal";
+        string want = live && (down || keyDown) ? "Pressed" : live && armed ? "Selected" : "Normal";
         if (animator != null && animator.isActiveAndEnabled && want != state)
         {
             animator.Play(want, 0, 0f);
