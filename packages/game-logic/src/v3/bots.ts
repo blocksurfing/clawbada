@@ -50,6 +50,12 @@ export const BOT_WEIGHTS: Record<'aggressive' | 'balanced' | 'cautious', BotWeig
 
 const n = (b: bigint) => Number(b);
 
+/** Focus-on-Wait experiment: a focused lobster's next hit is worth more. */
+function focusMult(l: AtbLobster): number {
+  const f = l.statuses.find(s => s.type === 'focus');
+  return f ? 1 + n(f.value) / 10_000 : 1;
+}
+
 /** Expected Attack damage (mean VRF, crit expectation, distance falloff), capped at target HP. */
 export function expectedAttack(actor: AtbLobster, target: AtbLobster, dist: number, state?: AtbBattleState): number {
   const mult = state ? attackDistanceMult(state, actor.class, dist) : DISTANCE_MULT[dist] ?? 0n;
@@ -57,7 +63,7 @@ export function expectedAttack(actor: AtbLobster, target: AtbLobster, dist: numb
   const a = effectiveStats(actor), t = effectiveStats(target);
   const base = n(calculateAttackDamage(a.attack, t.armor, getClassAdvantage(actor.class, target.class), false, 1000n));
   const pCrit = n(critChance(a.critical)) / 10_000;
-  let dmg = base * (1 + 0.5 * pCrit) * (n(mult) / 1000);
+  let dmg = base * (1 + 0.5 * pCrit) * (n(mult) / 1000) * focusMult(actor);
   if (target.defending) dmg *= 0.5;
   for (const s of target.statuses) if (s.type === 'fortify' || s.type === 'shield') dmg *= 1 - n(s.value) / 1000;
   if (state && state.rules.focusFalloffBps > 0n && target.recentHits > 0)
@@ -72,7 +78,7 @@ export function expectedAttack(actor: AtbLobster, target: AtbLobster, dist: numb
 function expectedSpecialDamage(actor: AtbLobster, target: AtbLobster, power: bigint, armorMult = 1000n): number {
   const a = effectiveStats(actor), t = effectiveStats(target);
   const armor = (t.armor * armorMult) / 1000n;
-  let dmg = n(calculateSpecialDamage(power, a.attack, armor > 0n ? armor : 1n, getClassAdvantage(actor.class, target.class), actor.purity, 1000n));
+  let dmg = n(calculateSpecialDamage(power, a.attack, armor > 0n ? armor : 1n, getClassAdvantage(actor.class, target.class), actor.purity, 1000n)) * focusMult(actor);
   if (target.defending) dmg *= 0.5;
   for (const s of target.statuses) if (s.type === 'fortify' || s.type === 'shield') dmg *= 1 - n(s.value) / 1000;
   return dmg;
@@ -180,6 +186,22 @@ function specialValue(state: AtbBattleState, actor: AtbLobster, target: AtbLobst
   }
 }
 
+/** What Waiting at `pos` is worth when Wait is Focus: the bonus on my best hit next turn (0 under today's rules). */
+function focusWaitValue(state: AtbBattleState, actor: AtbLobster, pos: HexPos, w: BotWeights): number {
+  const fw = state.rules.focusOnWait;
+  if (!fw) return 0;
+  const bonus = n(fw.bonusBps) / 10_000;
+  const reach = moveRangeOf(state, actor.class) + attackRangeOf(state, actor.class);
+  let best = 0;
+  for (const e of state.lobsters) {
+    if (!e.alive || e.team === actor.team || hexDistance(e.pos, pos) > reach) continue;
+    const dmg = expectedAttack(actor, { ...e, defending: false }, 1, state);
+    const kill = dmg * (1 + bonus) >= n(e.hp) && dmg < n(e.hp) ? killBonus(e) * 0.5 : 0;
+    best = Math.max(best, Math.min(dmg * bonus, Math.max(0, n(e.hp) - dmg)) + kill);
+  }
+  return best * 0.7 * w.aggression;
+}
+
 function killBonus(t: AtbLobster): number {
   return n(t.maxHp) * 0.6 + 150;
 }
@@ -251,8 +273,9 @@ export function rankTurns(state: AtbBattleState, actor: AtbLobster, w: BotWeight
     // Defend (also banks charge)
     const chargeValue = actor.charge < state.rules.specialCost ? 15 : 0;
     consider({ lobsterId: actor.id, moveTo, action: 'defend' }, chargeValue - expDef * exposurePenalty + positional + (exp > 0 ? expDef * 0.3 : 0));
-    // Move only / hold
-    consider({ lobsterId: actor.id, moveTo, action: 'none' }, -exp * exposurePenalty + positional - 5);
+    // Move only / hold (Focus when the rules make Wait a Focus)
+    const fw = state.rules.focusOnWait;
+    consider({ lobsterId: actor.id, moveTo, action: 'none' }, -exp * exposurePenalty + positional - 5 + (fw ? focusWaitValue(state, actor, pos, w) + (fw.bonusCharge > 0 ? chargeValue : 0) : 0));
   }
   // Stable order: higher score first; ties keep enumeration order (deterministic).
   return all.map((c, i) => ({ c, i })).sort((a, b) => b.c.score - a.c.score || a.i - b.i).map(x => x.c);

@@ -14,7 +14,7 @@ import { calculateAttackDamage, calculateDefendCounter, critChance, enhancedProc
 import { nextActor, nextTick, projectBar } from './atb';
 import { hasCover, hexDistance, reachableCells, sameHex, shortestPath, type HexPos } from './board';
 import { ATTACK_MAX_RANGE, CHARGE_CAP, CHARGE_PER_TURN, DEFEND_BONUS_CHARGE, DISTANCE_MULT, DISTANCE_MULT_LONG, MAX_TURNS, MOVE_RANGE, SPECIAL_COST, STUN_IMMUNITY_TURNS } from './constants';
-import { applyIncomingDamage, dealDamage, effectiveStats, findLobster, hasStatus } from './effects';
+import { addStatus, applyIncomingDamage, dealDamage, effectiveStats, findLobster, hasStatus } from './effects';
 import { hashState } from './log';
 import { resolveSpecial, specialInRange, specialTargetKind } from './specials';
 import type { AtbBattleState, AtbLobster, Team, TurnCommand, TurnResult } from './state';
@@ -221,11 +221,13 @@ export function applyTurn(state: AtbBattleState, cmd: TurnCommand | null): TurnR
         break;
       }
       case 'none':
+        if (state.rules.focusOnWait) addStatus(actor, { type: 'focus', turns: 1, value: state.rules.focusOnWait.bonusBps }, out);
         break;
     }
+    if (cmd.action === 'attack' || cmd.action === 'special') actor.statuses = actor.statuses.filter(s => s.type !== 'focus');
     // Charge economy.
     if (cmd.action === 'special') actor.charge = 0;
-    else actor.charge = Math.min(CHARGE_CAP, actor.charge + CHARGE_PER_TURN + (cmd.action === 'defend' ? DEFEND_BONUS_CHARGE : 0));
+    else actor.charge = Math.min(CHARGE_CAP, actor.charge + CHARGE_PER_TURN + (cmd.action === 'defend' ? DEFEND_BONUS_CHARGE : cmd.action === 'none' ? (state.rules.focusOnWait?.bonusCharge ?? 0) : 0));
   }
   out.chargeAfter = actor.charge;
 

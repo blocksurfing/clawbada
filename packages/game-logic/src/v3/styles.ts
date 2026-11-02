@@ -146,6 +146,7 @@ function evaluate(state: AtbBattleState, team: AtbLobster['team']): number {
       if (s.type === 'stun') v -= sign * 120;
       if (s.type === 'bleed') v -= sign * n(s.value) * Math.min(s.turns, 3);
       if (s.type === 'haunt') v -= sign * 60;
+      if (s.type === 'focus') v += sign * (n(s.value) / 10_000) * n(l.stats.attack) * 1.2;   // a bigger hit to come
     }
   }
   if (state.finished && state.winner) v += state.winner === team ? 5000 : state.winner === 'draw' ? 0 : -5000;
