@@ -71,6 +71,11 @@ export function applyIncomingDamage(
   opts: DamageOpts = {},
 ): bigint {
   if (amount < 0n) amount = 0n;
+  // Focus-on-Wait (campaign experiment): a focused lobster's next Attack/Special hits harder; applyTurn spends it.
+  if ((kind === 'attack' || kind === 'special') && source.team !== target.team) {
+    const f = source.statuses.find(s => s.type === 'focus');
+    if (f) amount = (amount * (10_000n + f.value)) / 10_000n;
+  }
   let dmg = amount;
   if (!opts.raw) {
     if (target.defending && !opts.pierceDefend) dmg = (dmg * DEFEND_REDUCTION_BPS) / 10_000n;

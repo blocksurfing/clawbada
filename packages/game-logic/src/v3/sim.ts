@@ -73,6 +73,8 @@ export function createBattle(cfg: BattleConfig): AtbBattleState {
     if (cfg.hpScale !== undefined) stats.hp = (stats.hp * cfg.hpScale) / HP_BATTLE_SCALE;
     const am = cfg.rules?.attackMult?.[input.class];
     if (am !== undefined) stats.attack = (stats.attack * am) / 1000n;
+    const sm = cfg.rules?.statMult?.[input.class];
+    if (sm) for (const k of Object.keys(sm) as (keyof typeof stats)[]) stats[k] = (stats[k] * sm[k]!) / 1000n;
     const spawns = team === 'A' ? layout.teamASpawns : layout.teamBSpawns;
     return {
       id: input.id, team, slot, class: input.class, tier: input.tier, purity: input.purity, legend: !!input.legend,
