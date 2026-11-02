@@ -10,6 +10,8 @@
  *   deep      — considers the opponent's best reply (2-ply beam search), with the team committing to one
  *               target (focus fire) and covering its own likeliest victim — upgraded 2026-09-28 after the
  *               naive `focus` script beat the old deep 60–40 (scripts/focus-probe.ts)
+ *   planner   — searches until its OWN next turn (every turn between played by `balanced`), then scores the
+ *               board: beats balanced 79.8 % and deep 54.8 % (n=600, 2026-11-01); ~11 ms a move — the Dojo's Hard bot
  */
 import { deriveRandom } from '../hash';
 import { LobsterClass } from '../types';
@@ -180,9 +182,54 @@ export function deepPolicy(beam = 4, bias: ((s: AtbBattleState, a: AtbLobster) =
   };
 }
 
+/**
+ * Planner (2026-11-01): searches until the actor's OWN next turn — every turn in between is played by the balanced
+ * bot, then the actor's best next action — and scores the board there. `deep` stops after one reply, so it never
+ * sees anything that pays off on its next turn (Focus, a charge it is banking, a kill it is setting up).
+ * Candidates: the heuristic's top `beam`, plus its best Defend and best Wait, so a slow-burn move is always
+ * searched. Each line is played under `samples` masked dice streams and averaged (one lucky crit must not decide).
+ */
+export function plannerPolicy(beam = 5, samples = 2, horizon = 10, bias: ((s: AtbBattleState, a: AtbLobster) => Bias) | null = teamplayBias): Policy {
+  return (state, actor) => {
+    const ranked = rankTurns(state, actor, BOT_WEIGHTS.balanced, bias ? bias(state, actor) : undefined);
+    const cands = ranked.slice(0, beam);
+    for (const kind of ['defend', 'none'] as const) {
+      const best = ranked.find(c => c.cmd.action === kind);
+      if (best && !cands.includes(best)) cands.push(best);
+    }
+    if (cands.length === 1) return cands[0].cmd;
+    let best: { cmd: TurnCommand; value: number } | null = null;
+    for (const cand of cands) {
+      let total = 0;
+      for (let k = 0; k < samples; k++) {
+        const s1 = cloneBattleState(state);
+        s1.vrfSeed = deriveRandom(state.vrfSeed, `plan_${state.turn}_${k}`);
+        applyTurn(s1, cand.cmd);
+        // Everyone else, until the actor is up again.
+        let steps = 0;
+        while (!s1.finished && steps < horizon) {
+          const next = nextActor(s1)!;
+          if (next.id === actor.id) {
+            // The actor's own next action: where Focus, banked charge and set-ups pay off.
+            applyTurn(s1, hasStatus(next, 'stun') ? null : chooseTurn(s1, next, BOT_WEIGHTS.balanced));
+            break;
+          }
+          applyTurn(s1, hasStatus(next, 'stun') ? null : chooseTurn(s1, next, BOT_WEIGHTS.balanced));
+          steps++;
+        }
+        total += evaluate(s1, actor.team);
+      }
+      const value = total / samples + cand.score * 0.05;
+      if (!best || value > best.value) best = { cmd: cand.cmd, value };
+    }
+    return best!.cmd;
+  };
+}
+
 export const STYLE_BOTS: Record<string, Policy> = {
   charger: chargerPolicy,
   focus: focusPolicy,
   roles: rolesPolicy,
   deep: deepPolicy(),
+  planner: plannerPolicy(),
 };
