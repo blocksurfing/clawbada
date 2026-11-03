@@ -45,7 +45,17 @@ export default async function (b: Browser) {
 
   const g = await b.eval(`(() => { const c = [...document.querySelectorAll('canvas')].sort((x, y) => y.width * y.height - x.width * x.height)[0]; const q = c.getBoundingClientRect(); return { x: q.x, y: q.y, w: q.width, h: q.height, bw: c.width, bh: c.height }; })()`) as { x: number; y: number; w: number; h: number; bw: number; bh: number };
   const toCss = (ux: number, uy: number) => ({ x: g.x + ux * g.w / g.bw, y: g.y + (g.bh - uy) * g.h / g.bh });
-  const myTurn = async (ms = 60000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await b.eval(`/Your turn/i.test(document.body.innerText) && !/animating…/.test(document.body.innerText)`)) return true; await b.sleep(250); } return false; };
+  // "Your turn" is React's; the keys work once Unity has shown the action bar (its `buttons` line). On production
+  // the bar lands a beat after the text (network round trip), and a key pressed before it is ignored by design.
+  let mark = 0;
+  const myTurn = async (ms = 60000) => {
+    const t = Date.now();
+    while (Date.now() - t < ms) {
+      if (await b.eval(`/Your turn/i.test(document.body.innerText) && !/animating…/.test(document.body.innerText)`) && since(mark, /\[BattleHud\] buttons/)) return true;
+      await b.sleep(250);
+    }
+    return false;
+  };
 
   // Turn 1: pick a hex by tap, Space commits it, 3 Defends.
   ok(await myTurn(), 'player turn 1');
@@ -69,6 +79,7 @@ export default async function (b: Browser) {
   n = b.logs.length;
   await key('3');
   ok(await waitLog(n, /\[BattleHud\] press defend/, 2000) && await waitLog(n, /unity action defend/, 2000), '3 presses Defend');
+  mark = b.logs.length;
 
   // Turn 2: 1 arms Attack (nothing sent), W Waits.
   ok(await myTurn(), 'player turn 2');
@@ -80,6 +91,7 @@ export default async function (b: Browser) {
   n = b.logs.length;
   await key('w');
   ok(await waitLog(n, /\[BattleHud\] press none/, 2000) && await waitLog(n, /unity action none/, 2000), 'W presses Wait');
+  mark = b.logs.length;
 
   // Turn 3: A arms Attack, D Defends.
   ok(await myTurn(), 'player turn 3');
@@ -91,6 +103,7 @@ export default async function (b: Browser) {
   n = b.logs.length;
   await key('d');
   ok(await waitLog(n, /\[BattleHud\] press defend/, 2000), 'D presses Defend');
+  mark = b.logs.length;
   ok(await myTurn(), 'the battle carries on (player turn 4)');
 
   const errors = b.allLogs.filter((l) => /Exception|NullReference|\[error\]/i.test(l) && !/Aave Wallet|FamilyAccountsSdk/.test(l));
