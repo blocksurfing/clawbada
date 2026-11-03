@@ -9,6 +9,7 @@ const comp = (i: number, k: number) => [ALL[(i * 7 + k) % 10], ALL[(i * 3 + k * 
 describe('strategy styles', () => {
   test('every style produces only legal commands and battles finish (30 battles each)', () => {
     for (const [name, policy] of Object.entries(v3.STYLE_BOTS)) {
+      if (name === 'planner') continue;   // ~1 s a battle: covered by its own suite below
       for (let i = 0; i < 30; i++) {
         const s = v3.createBattle({ battleId: `${name}${i}`, vrfSeed: BigInt(i + 1) * 7919n, tier: 'elite', teamA: team('A', comp(i, 0), i), teamB: team('B', comp(i, 1), i) });
         while (!s.finished) {
@@ -40,4 +41,56 @@ describe('strategy styles', () => {
     expect(v3.legalMoves(s, bul).some(c => v3.hexDistance(c, bul.pos) === 2)).toBe(true);
     expect(bul.stats.attack).toBe((100n * 1400n / 1000n) * 1300n / 1000n);
   });
+});
+
+describe('planner (the Dojo Hard bot)', () => {
+  const planner = v3.STYLE_BOTS.planner!;
+  test('only legal commands, battles finish, the real battle is never mutated (10 battles)', () => {
+    for (let i = 0; i < 10; i++) {
+      const s = v3.createBattle({ battleId: `pl${i}`, vrfSeed: BigInt(i + 1) * 7919n, tier: 'elite', teamA: team('A', comp(i, 0), i), teamB: team('B', comp(i, 1), i) });
+      while (!s.finished) {
+        const actor = v3.nextActor(s)!;
+        if (actor.statuses.some(st => st.type === 'stun')) { v3.applyTurn(s, null); continue; }
+        const before = v3.hashState(s);
+        const cmd = planner(s, actor);
+        expect(v3.hashState(s)).toBe(before);
+        expect(() => v3.validateTurn(s, cmd)).not.toThrow();
+        v3.applyTurn(s, cmd);
+      }
+      expect(s.winner).not.toBeNull();
+    }
+  }, 60_000);
+
+  test('deterministic: the same position gives the same move', () => {
+    const make = () => v3.createBattle({ battleId: 'pld', vrfSeed: 91n, tier: 'apex', teamA: team('A', comp(4, 0), 4), teamB: team('B', comp(4, 1), 4) });
+    const s1 = make(), s2 = make();
+    expect(JSON.stringify(planner(s1, v3.nextActor(s1)!))).toBe(JSON.stringify(planner(s2, v3.nextActor(s2)!)));
+  });
+
+  test('fits the live bot think window: well under 50 ms a move on a full board', () => {
+    let ms = 0, moves = 0;
+    for (let i = 0; i < 3; i++) {
+      const s = v3.createBattle({ battleId: `plt${i}`, vrfSeed: BigInt(i + 3) * 104729n, tier: 'elite', teamA: team('A', comp(i, 2), i), teamB: team('B', comp(i, 3), i) });
+      for (let k = 0; k < 12 && !s.finished; k++) {
+        const actor = v3.nextActor(s)!;
+        if (actor.statuses.some(st => st.type === 'stun')) { v3.applyTurn(s, null); continue; }
+        const t = performance.now();
+        const cmd = planner(s, actor);
+        ms += performance.now() - t; moves++;
+        v3.applyTurn(s, cmd);
+      }
+    }
+    expect(ms / moves).toBeLessThan(50);
+  }, 30_000);
+
+  test('plays clearly better than balanced (20 mirrored pairs)', () => {
+    let wins = 0, games = 0;
+    for (let i = 0; i < 20; i++) for (const asA of [true, false]) {
+      const s = v3.createBattle({ battleId: `plb${i}`, vrfSeed: BigInt(i + 1) * 104729n, tier: 'elite', teamA: team('A', comp(i, 0), i), teamB: team('B', comp(i, 1), i) });
+      v3.runBattle(s, asA ? { A: planner, B: v3.BOTS.balanced! } : { A: v3.BOTS.balanced!, B: planner });
+      games++; if (s.winner === (asA ? 'A' : 'B')) wins++;
+    }
+    // Measured 79.8 % at n=600 (2026-11-01); 60 % is ~2.5 standard errors below that at n=40.
+    expect(wins / games).toBeGreaterThanOrEqual(0.6);
+  }, 90_000);
 });

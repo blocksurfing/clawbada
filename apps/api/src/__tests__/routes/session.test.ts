@@ -214,6 +214,12 @@ describe('POST /practice', () => {
     const bad = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', bot: 'gpt5' }) });
     expect(bad.status).toBe(400);
     mockStartPractice.mockClear();
+    // The Hard bot (2026-11-02): the planner is a valid practice opponent.
+    mockStartPractice.mockImplementation(async (opts: any) => fakeSession(P_ID) && { record: { id: P_ID }, snapshot: () => ({ ok: true, bot: opts.bot, n: opts.lobsters.length }) });
+    const hard = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', bot: 'planner' }) });
+    expect(hard.status).toBe(201);
+    expect(mockStartPractice.mock.calls[0][0]).toMatchObject({ bot: 'planner' });
+    mockStartPractice.mockClear();
     mockStartPractice.mockImplementation(async (opts: any) => fakeSession(P_ID) && { record: { id: P_ID }, snapshot: () => ({ ok: true, bot: opts.bot, n: opts.lobsters.length }) });
     const onApex = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'elite_mix', arena: 'apex' }) });
     expect(onApex.status).toBe(201);
