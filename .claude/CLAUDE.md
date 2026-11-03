@@ -195,7 +195,7 @@ Attacks have range up to 3 hexes with damage falloff:
 | **4 hexes (Specter only)** | 40% | Specter's extended poke; all other classes miss |
 | **4+ hexes** | Miss | Out of range entirely |
 
-**Spectral dodge (live, class knob)**: the FIRST direct hit (Attack or Special) a Specter takes in each window between its own turns is reduced by 30% (`SPECTER_FIRST_HIT_REDUCTION = 300`, `rules.firstHitReduction[class]` — only Specter has a value in S1); later hits in the same window fall under the general focus falloff (see Positioning rules under Combat Resolution).
+**Spectral dodge (live, class knob)**: the FIRST direct hit (Attack or Special) a Specter takes in each window between its own turns is reduced by 20% (`SPECTER_FIRST_HIT_REDUCTION = 200`, 30%→20% in the 2026-11-02 strong-play balance pass; `rules.firstHitReduction[class]` — only Specter has a value in S1); later hits in the same window fall under the general focus falloff (see Positioning rules under Combat Resolution).
 
 #### ATB Initiative Bar
 All 6 lobsters share a single time-tick initiative tracker (LOKR-style). Each lobster's next-turn tick = `prev_tick + (1000 / effective_speed)` — higher Speed means shorter gap between turns and more turns per battle. Battle UI shows the next 6-8 upcoming turns as a portrait sequence in a top HUD; both players see the full turn order in real time, including the effects of slow/haste/stun on enemy positions.
@@ -330,7 +330,7 @@ A lobster's turn = optional **Move** (within class movement range) followed by o
 
 | Stat | Role | Mechanic |
 |------|------|----------|
-| **HP** | Health pool | Lobster dies at 0. Used as-is (battle HP scale ×1), tuned for 24-36 turn pacing. |
+| **HP** | Health pool | Lobster dies at 0. Used as-is (battle HP scale ×1); strong battles run ~50–65 turns. |
 | **Attack** | Offense | Numerator in damage ratio (Attack / Armor) |
 | **Armor** | Defense | Denominator in damage ratio (Attack / Armor) |
 | **Speed** | Initiative tempo | ATB tick frequency: faster = more turns per battle. Clamped to [0.5×, 1.5×] of base by buffs/debuffs. |
@@ -340,16 +340,16 @@ A lobster's turn = optional **Move** (within class movement range) followed by o
 
 | Class | HP | Atk | Armor | Spd | Crit | Identity |
 |-------|-----|-----|-------|-----|------|----------|
-| **Bulwark** | 700 | 100 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
+| **Bulwark** | 700 | 110 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — flanks, strikes first, crits often |
-| **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, slow to reposition |
+| **Leviathan** | 660 | 130 | 100 | 77 | 80 | Bruiser — hits hardest, slow to reposition |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE from range, fragile up close |
 | **Specter** | 425 | 85 | 85 | 125 | 120 | Debuffer — kites and cripples from distance |
-| **Sentinel** | 650 | 70 | 110 | 90 | 100 | Support — positions near allies to heal |
+| **Sentinel** | 650 | 77 | 110 | 90 | 100 | Support — positions near allies to heal |
 | **Reaver** | 475 | 120 | 80 | 110 | 95 | DPS — closes distance, bleeds targets |
 | **Abyss** | 525 | 110 | 90 | 95 | 100 | Lifesteal — self-sustaining in melee |
-| **Kraken** | 550 | 90 | 100 | 105 | 95 | Controller — mid-range stuns decide rounds |
-| **Ember** | 350 | 140 | 60 | 100 | 130 | Glass cannon — nukes from max range, dies up close |
+| **Kraken** | 550 | 90 | 100 | 97 | 95 | Controller — mid-range stuns decide rounds |
+| **Ember** | 400 | 140 | 60 | 100 | 130 | Glass cannon — nukes from max range, dies up close |
 
 Stats scale with evolution (+20/40/60%) and legend (+10%). Body part modifiers add further variation.
 
@@ -376,7 +376,7 @@ guard penalty   = an Attack at distance ≥ 2 deals −20% while ANY enemy stand
 focus falloff   = each direct hit (Attack or Special) a lobster has already taken since its OWN
                   last turn makes the next hit on it −10% per prior hit, floored at 40% of full;
                   the counter resets on the target's own turn. Bleed ticks, counters and
-                  reflects are exempt. (Specter's 30% dodge applies to the FIRST hit of that
+                  reflects are exempt. (Specter's 20% dodge applies to the FIRST hit of that
                   same window — see the distance table.)
 Fortify taunt   = while Fortify is up, the Bulwark taunts: for 2 of its own turns, an enemy
                   standing adjacent to it must aim its Attack or targeted Special at the
@@ -439,9 +439,13 @@ Note: status effect durations are in **turns of the affected lobster** (since AT
 5. Charges granted; ATB bar updated with current lobster's next-tick
 6. Animation plays, control passes to next lobster's player
 
-**Win condition:** Eliminate all 3 enemy lobsters (mutual wipeout = draw). Hard cap: 100 total turns as a griefer cutoff (rarely reached in real games) — tiebreak by remaining HP%, then by total damage dealt (so a passive team cannot secure a draw by refusing to engage), then draw.
+**Late-battle pressure (2026-11-02):** from turn 40, direct damage (Attack/Special) grows +3% per turn past 40 (`DAMAGE_RAMP_FROM_TURN = 40`, `DAMAGE_RAMP_BPS_PER_TURN = 300`, in `DEFAULT_RULES.damageRamp`); bleed, counters and reflect unaffected.
 
-**Battle pacing:** Turns 1-6 typically establish positioning; Specials become available from each lobster's 3rd turn (or 2nd if Defending). Fast classes get more turns on the bar — a Mantis (130 Spd) takes ~1.86× as many turns as a Leviathan (70 Spd) over the same battle window. Most battles resolve in 24-36 total turns (~3-5 minutes).
+**Win condition:** Eliminate all 3 enemy lobsters (mutual wipeout = draw). Hard cap: 100 total turns as a griefer cutoff (~1–2% of strong battles with late-battle pressure) — tiebreak by remaining HP%, then by total damage dealt (so a passive team cannot secure a draw by refusing to engage), then draw.
+
+**Battle pacing:** Turns 1-6 typically establish positioning; Specials become available from each lobster's 3rd turn (or 2nd if Defending). Fast classes get more turns on the bar — a Mantis (130 Spd) takes ~1.69× as many turns as a Leviathan (77 Spd) over the same battle window. Strong battles run ~50–65 total turns (median 62 at Elite under the planner bot, 2026-11-02).
+
+**Balance pass (2026-11-02, Package B, owner-approved):** balance is judged under the planner bot (plans to its own next turn) with `balanced` and `deep` as checks — `packages/game-logic/scripts/strong-balance.ts`, reports `docs/_generated/balance/2026-11-02-*.md`. Bulwark Atk 100→110, Leviathan HP 600→660 Spd 70→77, Sentinel Atk 70→77, Kraken Spd 105→97, Ember HP 350→400, Specter dodge 30→20%, late-battle pressure. Elite strong-play class win rates 46–55% (were 37–67%); watch item: Apex Kraken ~60. Focus-on-Wait was tested and REJECTED (it re-broke balance); the Wait button is being removed (agents keep `none`).
 
 **Randomness:** drand-based VRF (Proof of Play model). One seed per battle drives a deterministic RNG stream: damage variance (±15%), critical hits, enhanced Special procs. The seed is `keccak(drand round, per-battle server secret, battleId)`: the secret is committed on-chain at team reveal and disclosed at settlement, and the drand round is fixed by rule from the reveal timestamp, so neither a player nor the operator can know or choose the rolls in advance, and anyone can recompute the seed afterwards for replay. (The raw public beacon alone is NOT a usable seed — a player could look it up and foresee every roll.)
 

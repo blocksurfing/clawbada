@@ -12,7 +12,8 @@ describe('campaign instruments', () => {
     expect(v3.DEFAULT_RULES.focusOnWait).toBeUndefined();
     expect(v3.DEFAULT_RULES.stunImmunityTurns).toBeUndefined();
     expect(v3.DEFAULT_RULES.maxTurns).toBeUndefined();
-    expect(v3.DEFAULT_RULES.damageRamp).toBeUndefined();
+    // The damage ramp graduated to the spec (Package B, 2026-11-02): on by default.
+    expect(v3.DEFAULT_RULES.damageRamp).toEqual({ fromTurn: 40, bpsPerTurn: 300n });
   });
 
   test('statMult scales the chosen stats of the chosen class only', () => {
@@ -71,8 +72,9 @@ describe('campaign instruments', () => {
       return v3.applyTurn(s, { lobsterId: a.id, action: 'attack', targetId: e.id }).damage.find((d) => d.targetId === e.id)!.amount;
     };
     const ramp = { fromTurn: 40, bpsPerTurn: 300n };
-    expect(hitAt(40, ramp)).toBe(hitAt(40));                      // not yet past fromTurn
-    expect(hitAt(50, ramp)).toBe((hitAt(50) * 13000n) / 10000n);  // 10 turns past: +30 %
+    const off = { fromTurn: 1000, bpsPerTurn: 0n };
+    expect(hitAt(40, ramp)).toBe(hitAt(40, off));                      // not yet past fromTurn
+    expect(hitAt(50, ramp)).toBe((hitAt(50, off) * 13000n) / 10000n);  // 10 turns past: +30 %
   });
 
   test('stunImmunityTurns sets the immunity after a stun', () => {

@@ -29,6 +29,8 @@ export interface WireRules {
   attackRange: Record<string, number>; firstHitReduction: Record<string, string>;
   /** Optional: battles persisted before cover existed replay with it off. */
   coverPenaltyBps?: string; coverExemptSpecial?: Record<string, boolean>;
+  /** Optional: battles persisted before the damage ramp (2026-11-02) replay without it. */
+  damageRamp?: { fromTurn: number; bpsPerTurn: string };
 }
 export interface WireState {
   v: typeof WIRE_VERSION;
@@ -102,6 +104,7 @@ export function rulesToWire(r: BattleRules): WireRules {
     fortifyTaunt: r.fortifyTaunt, focusFalloffBps: s(r.focusFalloffBps), guardPenaltyBps: s(r.guardPenaltyBps), rallyHealPct: s(r.rallyHealPct),
     attackRange: numMap(r.attackRange), firstHitReduction: strMap(r.firstHitReduction),
     coverPenaltyBps: s(r.coverPenaltyBps), coverExemptSpecial: boolMap(r.coverExemptSpecial),
+    ...(r.damageRamp ? { damageRamp: { fromTurn: r.damageRamp.fromTurn, bpsPerTurn: s(r.damageRamp.bpsPerTurn) } } : {}),
   };
 }
 
@@ -115,6 +118,7 @@ export function rulesFromWire(w: WireRules): BattleRules {
     attackRange: numMapBack(w.attackRange), firstHitReduction: bigMapBack(w.firstHitReduction),
     coverPenaltyBps: w.coverPenaltyBps === undefined ? 0n : BigInt(w.coverPenaltyBps),
     coverExemptSpecial: boolMapBack(w.coverExemptSpecial),
+    ...(w.damageRamp ? { damageRamp: { fromTurn: w.damageRamp.fromTurn, bpsPerTurn: BigInt(w.damageRamp.bpsPerTurn) } } : {}),
   };
 }
 

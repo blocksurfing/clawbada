@@ -151,16 +151,16 @@ export const SPECIAL_BASE_POWERS = [
 
 // ──────────── Base Stats [HP, Atk, Armor, Spd, Crit] ────────────
 export const BASE_STATS: readonly [bigint, bigint, bigint, bigint, bigint][] = [
-  [700n, 100n, 120n, 80n, 90n], // Bulwark — Atk 70→100 (2026-08-30 balance: at 70 it could not threaten its designed prey; sweep in docs/_generated or session notes)
+  [700n, 110n, 120n, 80n, 90n], // Bulwark — Atk 70→100 (2026-08-30), 100→110 (2026-11-02 strong-play balance, Package B)
   [375n, 100n, 70n, 130n, 125n], // Mantis
-  [600n, 130n, 100n, 70n, 80n], // Leviathan
+  [660n, 130n, 100n, 77n, 80n], // Leviathan — HP 600→660, Spd 70→77 (2026-11-02, Package B)
   [450n, 110n, 80n, 105n, 115n], // Tempest
   [425n, 85n, 85n, 125n, 120n], // Specter
-  [650n, 70n, 110n, 90n, 100n], // Sentinel
+  [650n, 77n, 110n, 90n, 100n], // Sentinel — Atk 70→77 (2026-11-02, Package B)
   [475n, 120n, 80n, 110n, 95n], // Reaver
   [525n, 110n, 90n, 95n, 100n], // Abyss
-  [550n, 90n, 100n, 105n, 95n], // Kraken
-  [350n, 140n, 60n, 100n, 130n], // Ember
+  [550n, 90n, 100n, 97n, 95n], // Kraken — Spd 105→97 (2026-11-02, Package B: fewer turns = fewer Binds)
+  [400n, 140n, 60n, 100n, 130n], // Ember — HP 350→400 (2026-11-02, Package B: it died before it could fire)
 ];
 
 // ──────────── Season Schedule ────────────

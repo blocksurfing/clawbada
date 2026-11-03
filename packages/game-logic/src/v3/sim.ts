@@ -12,7 +12,7 @@ import { nextActor } from './atb';
 import { hexDistance, type ArenaLayout, type HexPos } from './board';
 import { generateLayout } from './layout';
 import type { AtbBattleState, AtbLobster, BattleRules, LobsterInput, Team, TurnCommand, TurnResult } from './state';
-import { FOCUS_FALLOFF_BPS, FORTIFY_ENHANCED_REFLECT, FORTIFY_REFLECT_BASE, GUARD_PENALTY_BPS, HAUNT_REDUCTION, RALLY_HEAL_PCT, REND_BLEED_PER_TURN, SPECIAL_COST, SPECTER_ATTACK_RANGE, SPECTER_FIRST_HIT_REDUCTION } from './constants';
+import { FOCUS_FALLOFF_BPS, FORTIFY_ENHANCED_REFLECT, FORTIFY_REFLECT_BASE, GUARD_PENALTY_BPS, HAUNT_REDUCTION, RALLY_HEAL_PCT, REND_BLEED_PER_TURN, SPECIAL_COST, SPECTER_ATTACK_RANGE, SPECTER_FIRST_HIT_REDUCTION, DAMAGE_RAMP_FROM_TURN, DAMAGE_RAMP_BPS_PER_TURN } from './constants';
 import { applyTurn, attackTargets, canCastSpecial, legalMoves, specialTargets } from './turn';
 import { hasStatus } from './effects';
 import { specialTargetKind } from './specials';
@@ -63,6 +63,8 @@ export const DEFAULT_RULES: BattleRules = {
   rallyHealPct: RALLY_HEAL_PCT,
   attackRange: { [LobsterClass.Specter]: SPECTER_ATTACK_RANGE },
   firstHitReduction: { [LobsterClass.Specter]: SPECTER_FIRST_HIT_REDUCTION },
+  // Late-battle pressure (2026-11-02, Package B): strong-play grinds finish instead of hitting the 100-turn cap.
+  damageRamp: { fromTurn: DAMAGE_RAMP_FROM_TURN, bpsPerTurn: DAMAGE_RAMP_BPS_PER_TURN },
 };
 
 export function createBattle(cfg: BattleConfig): AtbBattleState {

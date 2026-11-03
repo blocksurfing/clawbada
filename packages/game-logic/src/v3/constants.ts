@@ -22,6 +22,10 @@ export const SPEED_CLAMP_MAX = 1500n;
 export const STUN_IMMUNITY_TURNS = 2;
 /** Griefer cutoff — HP% tiebreak once reached. */
 export const MAX_TURNS = 100;
+/** Late-battle pressure (2026-11-02, Package B): direct damage (Attack/Special) grows 3 % for every turn past turn 40,
+ *  so strong-play grinds finish instead of running into the cap (strong-play cap hits 10–25 % → 0.3–2 %). */
+export const DAMAGE_RAMP_FROM_TURN = 40;
+export const DAMAGE_RAMP_BPS_PER_TURN = 300n;
 /** Upcoming-turn preview length shown on the HUD bar. */
 export const BAR_PREVIEW_LENGTH = 8;
 
@@ -83,7 +87,7 @@ export const DISTANCE_MULT_LONG = 400n;
 /** Specter's unique long poke: attack range 4 (at DISTANCE_MULT_LONG damage). */
 export const SPECTER_ATTACK_RANGE = 4;
 /** Spectral dodge: the first direct hit Specter takes each turn window is reduced (×1000). */
-export const SPECTER_FIRST_HIT_REDUCTION = 300n;
+export const SPECTER_FIRST_HIT_REDUCTION = 200n; // 300→200 (2026-11-02 strong-play balance, Package B)
 export const RALLY_SHIELD_REDUCTION = 300n; // enhanced: -30% incoming for 1 turn
 export const RALLY_SHIELD_TURNS = 1;
 export const REND_BLEED_PER_TURN = 55n; // 40→55 (2026-08-30 weak-Specials sweep); total = 70 hit + 6×55 bleed
