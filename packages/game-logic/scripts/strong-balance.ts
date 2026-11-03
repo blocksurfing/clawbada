@@ -24,7 +24,7 @@ const pick = (i: number, k: number) => ((i * 2654435761 + k * 40503) >>> 0) % 10
 const mk = (p: string, cs: number[], i: number) => cs.map((c, j) => ({ id: `${p}${j}`, class: c as LobsterClass, tier, purity: (i + j) % 7 }));
 
 interface Lob { cls: number; team: 'A' | 'B'; dealt: number; taken: number; kills: number; specials: number; turns: number; alive: boolean; stuns: number }
-interface Battle { a: number[]; b: number[]; winner: string | null; turns: number; lob: Lob[]; firstStrike: number; hpA: number; hpB: number; lastDamageTurn: number }
+interface Battle { a: number[]; b: number[]; winner: string | null; turns: number; cap: number; lob: Lob[]; firstStrike: number; hpA: number; hpB: number; lastDamageTurn: number }
 
 function play(config: string, pilot: string, i: number): Battle {
   const a = [pick(i, 1), pick(i, 2), pick(i, 3)], b = [pick(i, 4), pick(i, 5), pick(i, 6)];
@@ -53,7 +53,7 @@ function play(config: string, pilot: string, i: number): Battle {
   }
   const hp = (t: 'A' | 'B') => { let c = 0, m = 0; for (const l of s.lobsters) if (l.team === t) { c += Number(l.hp > l.maxHp ? l.maxHp : l.hp); m += Number(l.maxHp); } return (100 * c) / m; };
   void byId;
-  return { a, b, winner: s.winner, turns: s.turn, lob: [...lob.values()], firstStrike, hpA: hp('A'), hpB: hp('B'), lastDamageTurn };
+  return { a, b, winner: s.winner, turns: s.turn, cap: s.rules.maxTurns ?? 100, lob: [...lob.values()], firstStrike, hpA: hp('A'), hpB: hp('B'), lastDamageTurn };
 }
 
 // ── worker mode: one config × pilot × seed range → JSON lines ──
@@ -105,7 +105,7 @@ for (const config of configs) {
     for (const b of bs) { for (const c of b.a) { games[c]++; if (b.winner === 'A') wins[c]++; } for (const c of b.b) { games[c]++; if (b.winner === 'B') wins[c]++; } }
     const r = wins.map((w, c) => (100 * w) / Math.max(1, games[c])); rates[pilot] = { r, g: games };
     const t = bs.map((b) => b.turns).sort((x, y) => x - y);
-    const capped = bs.filter((b) => b.turns >= 100).length, draws = bs.filter((b) => b.winner === 'draw').length;
+    const capped = bs.filter((b) => b.turns >= b.cap).length, draws = bs.filter((b) => b.winner === 'draw').length;
     const hi = r.indexOf(Math.max(...r)), lo = r.indexOf(Math.min(...r));
     const spread = r[hi] - r[lo];
     const med = t[t.length >> 1], cap = (100 * capped) / bs.length;
@@ -125,10 +125,10 @@ for (const config of configs) {
   say('| Class | turns | damage dealt | damage taken | kills | Specials | stuns landed | survives | lands the first hit |');
   say('|---|---|---|---|---|---|---|---|---|');
   for (let c = 0; c < 10; c++) { const x = agg[c], k = Math.max(1, x.n); say(`| ${NAMES[c]} | ${f1(x.turns / k)} | ${(x.dealt / k).toFixed(0)} | ${(x.taken / k).toFixed(0)} | ${(x.kills / k).toFixed(2)} | ${(x.specials / k).toFixed(2)} | ${(x.stuns / k).toFixed(2)} | ${f1((100 * x.alive) / k)}% | ${f1((100 * x.first) / Math.max(1, bs.length))}% of battles |`); }
-  const cappedB = bs.filter((b) => b.turns >= 100);
+  const cappedB = bs.filter((b) => b.turns >= b.cap);
   if (cappedB.length) {
     const gap = cappedB.reduce((s, b) => s + Math.abs(b.hpA - b.hpB), 0) / cappedB.length;
-    const quiet = cappedB.reduce((s, b) => s + (100 - b.lastDamageTurn), 0) / cappedB.length;
+    const quiet = cappedB.reduce((s, b) => s + (b.cap - b.lastDamageTurn), 0) / cappedB.length;
     const bothHealthy = cappedB.filter((b) => b.hpA > 50 && b.hpB > 50).length;
     say(); say(`### The ${cappedB.length} battles that hit the cap (${lead})`);
     say(`HP gap at the cap ${f1(gap)} points on average · last damage on average ${f1(quiet)} turns before the cap · both teams above 50 % HP in ${bothHealthy} of them (a standoff, not a slow grind).`);

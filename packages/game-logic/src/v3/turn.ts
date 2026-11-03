@@ -192,7 +192,7 @@ export function applyTurn(state: AtbBattleState, cmd: TurnCommand | null): TurnR
     out.skipped = null; // died to bleed; no action
   } else if (stunned) {
     actor.statuses = actor.statuses.filter(s => s.type !== 'stun');
-    actor.stunImmunity = STUN_IMMUNITY_TURNS + 1; // +1: decremented at the end of this same turn
+    actor.stunImmunity = (state.rules.stunImmunityTurns ?? STUN_IMMUNITY_TURNS) + 1; // +1: decremented at the end of this same turn
     out.skipped = 'stun';
     out.statuses.push({ targetId: actor.id, status: 'stun', applied: false });
   } else {
@@ -294,7 +294,7 @@ function checkWin(state: AtbBattleState): void {
     state.winner = aAlive ? 'A' : bAlive ? 'B' : 'draw';
     return;
   }
-  if (state.turn >= MAX_TURNS) {
+  if (state.turn >= (state.rules.maxTurns ?? MAX_TURNS)) {
     state.finished = true;
     // Tiebreaks at the cap: remaining HP%, then damage dealt (so a passive team
     // cannot secure a draw by refusing to engage), then draw.
