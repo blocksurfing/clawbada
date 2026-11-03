@@ -72,7 +72,7 @@ describe('repairDamage', () => {
 
 describe('bot registry', () => {
   test('every named bot resolves to a policy that produces legal commands', () => {
-    expect(BOT_NAMES).toHaveLength(8);
+    expect(BOT_NAMES).toHaveLength(9);
     for (const name of BOT_NAMES) {
       expect(isBotName(name)).toBe(true);
       const p = botPolicy(name);
