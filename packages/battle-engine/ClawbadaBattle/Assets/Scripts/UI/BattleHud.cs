@@ -192,6 +192,7 @@ public class BattleHud : MonoBehaviour
         Options.MusicVolumeChanged += v => bridge?.NotifyAudioVolume("musicVol", v);
         Options.SfxVolumeChanged += v => bridge?.NotifyAudioVolume("sfxVol", v);
         Options.HintsToggled += _ => Bar.RefreshHint();
+        Bar.KeysBlocked = () => Options.IsOpen;
         floatLayer = HudFactory.Stretch(canvasRect, "Floats");
         Banner = ResultBanner.Create(canvasRect, skin);
         Marker = ActiveMarker.Create(skin);

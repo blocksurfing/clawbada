@@ -49,6 +49,22 @@ export default async function (b: Browser) {
   const t2 = Date.now();
   while (Date.now() - t2 < 30000 && !b.logs.some((l) => /\[MasterLobCoach\] leaves \(read\)/.test(l))) await b.sleep(250);
   ok(b.logs.some((l) => /\[MasterLobCoach\] leaves \(read\)/.test(l)), 'he leaves when his reading time is up');
+  // His later visits (owner 2026-11-01: from the second visit on he vanished as he began to talk, leaving the bubble
+  // alone). Play Defend with the 3 key and let him finish his first page each time he comes.
+  const speaking = () => b.logs.filter((l) => /\[MasterLobCoach\] speaking with/.test(l)).map((l) => Number(/with (\d+) parts/.exec(l)?.[1] ?? 0));
+  const t4 = Date.now();
+  while (Date.now() - t4 < 150000 && speaking().length < 3) {
+    if (!(await b.waitFor(`/Your turn/i.test(document.body.innerText) && !/animating…/.test(document.body.innerText)`, 30000, 250))) break;
+    const before = appears().length;
+    await b.sleep(2000);
+    if (appears().length > before) { const t = Date.now(); while (Date.now() - t < 5000 && speaking().length < appears().length) await b.sleep(200); }
+    await b.send('Input.dispatchKeyEvent', { type: 'keyDown', key: '3', code: 'Digit3', windowsVirtualKeyCode: 51, text: '3' });
+    await b.sleep(80);
+    await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: '3', code: 'Digit3', windowsVirtualKeyCode: 51 });
+    await b.sleep(1500);
+  }
+  const parts = speaking();
+  ok(parts.length >= 3 && parts.every((n) => n > 0), `he stays visible while he talks, every visit (parts drawn per visit: ${parts.join(', ')})`);
   await resign();
 
   // 2. Autoplay: several appearances, only on the player's turns, gone when the turn plays.

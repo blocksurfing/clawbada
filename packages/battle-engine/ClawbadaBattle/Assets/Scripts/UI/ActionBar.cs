@@ -18,6 +18,8 @@ using UnityEngine.UI;
 public class ActionBar : MonoBehaviour
 {
     public event Action<string> ActionPressed;
+    /// <summary>True while something modal (the options menu) owns the keyboard: hotkeys do nothing.</summary>
+    public Func<bool> KeysBlocked;
 
     /// <summary>Canvas units per art pixel: the 960x540 canvas over the 640x360 art frame.</summary>
     public const float ArtScale = 1.5f;
@@ -140,6 +142,40 @@ public class ActionBar : MonoBehaviour
         actorClass = classId;
         var art = skin.SpecialButton(classId);
         if (art != null && specialIcon != null) specialIcon.sprite = art;
+    }
+
+    // Hotkeys (Nzib's suggestion, owner 2026-11-01): 1–4 and A/S/D/W press the four buttons exactly like a click (the
+    // button shows Pressed while the key is held); Space/Enter confirms — the second tap on a selected target or a
+    // picked move hex. React decides what a press means, as for clicks.
+    private static readonly KeyCode[] AttackKeys = { KeyCode.Alpha1, KeyCode.Keypad1, KeyCode.A };
+    private static readonly KeyCode[] SpecialKeys = { KeyCode.Alpha2, KeyCode.Keypad2, KeyCode.S };
+    private static readonly KeyCode[] DefendKeys = { KeyCode.Alpha3, KeyCode.Keypad3, KeyCode.D };
+    private static readonly KeyCode[] WaitKeys = { KeyCode.Alpha4, KeyCode.Keypad4, KeyCode.W };
+    private static readonly KeyCode[] ConfirmKeys = { KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter };
+
+    void Update()
+    {
+        bool blocked = lastSel == null || !lastSel.isPlayerTurn || (KeysBlocked != null && KeysBlocked());
+        Hotkey(attackFeel, attack, "attack", AttackKeys, blocked);
+        Hotkey(specialFeel, special, "special", SpecialKeys, blocked);
+        Hotkey(defendFeel, defend, "defend", DefendKeys, blocked);
+        Hotkey(waitFeel, wait, "none", WaitKeys, blocked);
+        if (!blocked && lastSel.canAct && !lastSel.pendingAck && AnyDown(ConfirmKeys)) Press("confirm");
+    }
+
+    private void Hotkey(ButtonFeel feel, Button b, string action, KeyCode[] keys, bool blocked)
+    {
+        bool live = !blocked && b.interactable;
+        bool held = false;
+        foreach (var k in keys) held |= Input.GetKey(k);
+        feel.SetKeyDown(live && held);
+        if (live && AnyDown(keys)) Press(action);
+    }
+
+    private static bool AnyDown(KeyCode[] keys)
+    {
+        foreach (var k in keys) if (Input.GetKeyDown(k)) return true;
+        return false;
     }
 
     private void Press(string action)
