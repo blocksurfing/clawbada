@@ -202,7 +202,7 @@ describe('turnLogHash', () => {
 // Moved 2026-09-21 by the depth levers (#114): fortifyTaunt on, focusFalloffBps 1000,
 // guardPenaltyBps 2000. That is a genuine balance change, so the version SHOULD move —
 // this pin failing is the mechanism working, not a bug. Previous: 0xa37803c9...
-const PINNED_RULES_VERSION = '0x681a5f6208f7f1a672ab7c27af109f7173fb4f6814b3d3c3871a71f6218d9cde';
+const PINNED_RULES_VERSION = '0x6fd1973c16a75f5a4f11a032b6cb96a6687afedcec64238c10d7dae76563016d'; // 2026-11-02 Package B (old rules tagged engine-rules-681a5f6208f7)
 
 describe('rules version (D-27)', () => {
   const roster = [...cfg(3n).teamA, ...cfg(3n).teamB];

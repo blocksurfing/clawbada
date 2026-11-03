@@ -4,6 +4,7 @@
  */
 
 import type { LobsterData } from './api';
+import { BASE_STATS as ENGINE_BASE_STATS } from '@clawbada/game-logic';
 
 // Class names match the order in CLASS_NAMES_LIST
 const CLASSES = [
@@ -18,19 +19,10 @@ const ROLES = [
 
 const TIER_NAMES = ['Base', 'Evolved', 'Elite', 'Apex'] as const;
 
-// Base stats per class (from game design), scaled by evolution tier
-const BASE_STATS: Record<number, { hp: number; attack: number; armor: number; speed: number; critical: number }> = {
-  0: { hp: 700, attack: 70, armor: 120, speed: 80, critical: 90 },   // Bulwark
-  1: { hp: 375, attack: 100, armor: 70, speed: 130, critical: 125 }, // Mantis
-  2: { hp: 600, attack: 130, armor: 100, speed: 70, critical: 80 },  // Leviathan
-  3: { hp: 450, attack: 110, armor: 80, speed: 105, critical: 115 }, // Tempest
-  4: { hp: 425, attack: 85, armor: 85, speed: 125, critical: 120 },  // Specter
-  5: { hp: 650, attack: 70, armor: 110, speed: 90, critical: 100 },  // Sentinel
-  6: { hp: 475, attack: 120, armor: 80, speed: 110, critical: 95 },  // Reaver
-  7: { hp: 525, attack: 110, armor: 90, speed: 95, critical: 100 },  // Abyss
-  8: { hp: 550, attack: 90, armor: 100, speed: 105, critical: 95 },  // Kraken
-  9: { hp: 350, attack: 140, armor: 60, speed: 100, critical: 130 }, // Ember
-};
+// Base stats per class: the engine's own table (it had drifted — Bulwark still at Atk 70 — until 2026-11-02), scaled by evolution tier
+const BASE_STATS: Record<number, { hp: number; attack: number; armor: number; speed: number; critical: number }> = Object.fromEntries(
+  ENGINE_BASE_STATS.map(([hp, attack, armor, speed, critical], c) => [c, { hp: Number(hp), attack: Number(attack), armor: Number(armor), speed: Number(speed), critical: Number(critical) }]),
+);
 
 const TIER_MULT = [1.0, 1.2, 1.4, 1.6];
 

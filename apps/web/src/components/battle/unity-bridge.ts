@@ -10,7 +10,7 @@
  * C# twin: packages/battle-engine/ClawbadaBattle/Assets/Scripts/Bridge/BattleBridge.cs
  */
 import type { AudioPrefChange } from '@/lib/audio-prefs';
-import { CLASS_NAMES_LIST, CLASS_SPECIAL_NAMES } from '@clawbada/game-logic';
+import { CLASS_NAMES_LIST, CLASS_SPECIAL_NAMES, v3 } from '@clawbada/game-logic';
 import type { LobsterClass } from '@clawbada/game-logic';
 import type { BattleSnapshot, RosterEntry, Side, TurnResolvedPayload, WireBarEntry } from '@/lib/battle-protocol';
 import type { TurnSelection } from './use-turn-selection';
@@ -236,7 +236,8 @@ export function registerUnityCallbacks(handlers: UnityCallbackHandler): () => vo
 
 // ─── Adapters: protocol → Unity payloads ───
 
-const MOVE_RANGE: Record<number, number> = { 0: 1, 1: 3, 2: 1, 3: 3, 4: 3, 5: 2, 6: 2, 7: 2, 8: 2, 9: 3 };
+/** The engine's movement table (was a hand copy here until 2026-11-02). */
+const MOVE_RANGE: Record<number, number> = v3.MOVE_RANGE;
 
 export function rosterToLobsters(snapshot: BattleSnapshot, side: Side): BattleLobster[] {
   return snapshot.roster
