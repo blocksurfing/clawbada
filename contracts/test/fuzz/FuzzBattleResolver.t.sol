@@ -157,12 +157,18 @@ contract FuzzBattleResolver is Test {
         BattleResolver.Stats memory normal = BattleResolver.scaleStats(base, tier, false);
         BattleResolver.Stats memory legend = BattleResolver.scaleStats(base, tier, true);
 
-        // Legend is exactly floor(normal * LEGEND_MULT / 1000) — integer division applies
+        // scaleStats rounds ONCE: floor(base × tier × legend / 1e6) — the same formula as the TS engine
+        // (parity.test.ts). Rounding the tier step first and then the legend step is NOT the formula; it
+        // only happened to agree for every base value until Sentinel Atk 77 (2026-11-02): 77 @ Elite →
+        // normal floor(107.8) = 107, legend floor(118.58) = 118, but floor(107 × 1.1) = 117.
+        uint256 tierMult = tier == 0 ? 1000 : tier == 1 ? 1200 : tier == 2 ? 1400 : 1600;
         assertEq(
             legend.attack,
-            normal.attack * BattleResolver.LEGEND_MULT / 1000,
-            "legend attack = floor(normal * 1100/1000)"
+            base.attack * tierMult * BattleResolver.LEGEND_MULT / 1_000_000,
+            "legend attack = floor(base * tier * 1100 / 1e6)"
         );
+        // …and a legend is never weaker than the rounded normal value times the bonus.
+        assertGe(legend.attack, normal.attack * BattleResolver.LEGEND_MULT / 1000, "legend >= floor(normal * 1.1)");
     }
 
     // ── Special base powers by class ─────────────────────────────
@@ -448,11 +454,11 @@ contract FuzzBattleResolver is Test {
     // implementation drifts from these canonical values (or from each other), one side's
     // KAT fails — locking Solidity⇄TS parity in CI ahead of the S2 replay() port.
     function test_S2_parity_knownAnswers() public view {
-        // scaleStats: Bulwark (700/100/120/80/90 after the 2026-08-30 balance) at Apex (tier 3)
+        // scaleStats: Bulwark (700/110/120/80/90 after the 2026-11-02 Package B balance) at Apex (tier 3)
         // + legend, with HP_BATTLE_SCALE = 1 (2026-08-29 pacing sweep). x1.6 tier, x1.1 legend.
         BattleResolver.Stats memory s = harness.scaleStats(BattleResolver.getBaseStats(0), 3, true);
         assertEq(s.hp, 1232, "KAT scaleStats hp");
-        assertEq(s.attack, 176, "KAT scaleStats attack");
+        assertEq(s.attack, 193, "KAT scaleStats attack");
         assertEq(s.armor, 211, "KAT scaleStats armor");
         assertEq(s.speed, 140, "KAT scaleStats speed");
         assertEq(s.critical, 158, "KAT scaleStats critical");

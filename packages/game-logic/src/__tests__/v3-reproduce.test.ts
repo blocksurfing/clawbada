@@ -78,8 +78,8 @@ describe('reproduceSession', () => {
   // that one entry could not be reproduced — and the watchdog froze it.
   describe('a bleed death during a timed-out turn (M2)', () => {
     /** B's turns time out from the moment a bleeding B lobster reaches its turn with hp <= the
-     *  bleed tick; everyone else plays the aggressive bot. Seed 4 produces it at turn 24. */
-    function playBleedTimeout(seed = 4n) {
+     *  bleed tick; everyone else plays the aggressive bot. Seed 43 produces it at turn 21 (seed 4 did until the 2026-11-02 balance pass). */
+    function playBleedTimeout(seed = 43n) {
       const state = v3.createBattle({ battleId: '9', vrfSeed: seed, tier: 'evolved', teamA: inputs('A'), teamB: inputs('B') });
       let clock: v3.SessionClock = { timeouts: { A: 0, B: 0 } };
       let dyingTurn: number | null = null;

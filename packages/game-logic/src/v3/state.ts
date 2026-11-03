@@ -112,7 +112,8 @@ export interface BattleRules {
   stunImmunityTurns?: number;
   /** Turn cap (spec: MAX_TURNS = 100); the HP% / damage tiebreak decides at the cap. */
   maxTurns?: number;
-  /** Late-battle pressure: direct damage grows by bpsPerTurn for every turn past fromTurn. */
+  /** Late-battle pressure: direct damage grows by bpsPerTurn for every turn past fromTurn. SPEC since 2026-11-02
+   *  (DEFAULT_RULES: from turn 40, +3 %/turn); optional so battles persisted before it replay without it. */
   damageRamp?: { fromTurn: number; bpsPerTurn: bigint };
 }
 

@@ -111,16 +111,16 @@ library BattleResolver {
         if (classId >= NUM_CLASSES) revert InvalidClassId(classId);
 
         // Bulwark, Mantis, Leviathan, Tempest, Specter, Sentinel, Reaver, Abyss, Kraken, Ember
-        if (classId == 0) return Stats(700, 100, 120, 80, 90); // Bulwark (Atk 70->100, 2026-08-30 balance)
+        if (classId == 0) return Stats(700, 110, 120, 80, 90); // Bulwark (Atk 70->100 2026-08-30, ->110 2026-11-02 Package B)
         if (classId == 1) return Stats(375, 100, 70, 130, 125); // Mantis
-        if (classId == 2) return Stats(600, 130, 100, 70, 80); // Leviathan
+        if (classId == 2) return Stats(660, 130, 100, 77, 80); // Leviathan (HP 600->660, Spd 70->77, 2026-11-02)
         if (classId == 3) return Stats(450, 110, 80, 105, 115); // Tempest
         if (classId == 4) return Stats(425, 85, 85, 125, 120); // Specter
-        if (classId == 5) return Stats(650, 70, 110, 90, 100); // Sentinel
+        if (classId == 5) return Stats(650, 77, 110, 90, 100); // Sentinel (Atk 70->77, 2026-11-02)
         if (classId == 6) return Stats(475, 120, 80, 110, 95); // Reaver
         if (classId == 7) return Stats(525, 110, 90, 95, 100); // Abyss
-        if (classId == 8) return Stats(550, 90, 100, 105, 95); // Kraken
-        return Stats(350, 140, 60, 100, 130); // Ember (classId == 9)
+        if (classId == 8) return Stats(550, 90, 100, 97, 95); // Kraken (Spd 105->97, 2026-11-02)
+        return Stats(400, 140, 60, 100, 130); // Ember (classId == 9; HP 350->400, 2026-11-02)
     }
 
     // ──────────── Stat Scaling ────────────
