@@ -12,7 +12,8 @@ export type StatusType =
   | 'reflect' // enhanced Fortify: portion of blocked damage returned (value ×1000)
   | 'shield' // incoming damage reduced (value ×1000)
   | 'slow' // effective speed reduced (value ×1000)
-  | 'taunt'; // anti-focus: adjacent enemies must target this lobster
+  | 'taunt' // anti-focus: adjacent enemies must target this lobster
+  | 'focus'; // Focus-on-Wait experiment: the next Attack/Special deals +value bps
 
 export interface Status {
   type: StatusType;
@@ -101,6 +102,18 @@ export interface BattleRules {
   attackRange: Partial<Record<LobsterClass, number>>;
   /** Per-class reduction (×1000) on the FIRST direct hit taken each turn window ("spectral dodge"). */
   firstHitReduction: Partial<Record<LobsterClass, bigint>>;
+  // ── Balance-campaign instruments (2026-11-02). OPTIONAL and absent from DEFAULT_RULES, so the rules version and
+  // every recorded battle are untouched; sims set them through createBattle({ rules }). Not on the wire. ──
+  /** Per-class stat multipliers (×1000) applied at battle creation — a sweep's stand-in for editing BASE_STATS. */
+  statMult?: Partial<Record<LobsterClass, Partial<Record<keyof Stats, bigint>>>>;
+  /** Wait becomes Focus: +bonusCharge on top of the usual 1, and the next Attack/Special deals +bonusBps. */
+  focusOnWait?: { bonusBps: bigint; bonusCharge: number };
+  /** Turns of stun immunity after a stun (spec: STUN_IMMUNITY_TURNS = 2). */
+  stunImmunityTurns?: number;
+  /** Turn cap (spec: MAX_TURNS = 100); the HP% / damage tiebreak decides at the cap. */
+  maxTurns?: number;
+  /** Late-battle pressure: direct damage grows by bpsPerTurn for every turn past fromTurn. */
+  damageRamp?: { fromTurn: number; bpsPerTurn: bigint };
 }
 
 export interface AtbBattleState {
