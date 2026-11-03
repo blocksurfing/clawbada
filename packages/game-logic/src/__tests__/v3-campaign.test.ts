@@ -10,6 +10,9 @@ describe('campaign instruments', () => {
   test('absent from DEFAULT_RULES (the rules version cannot move)', () => {
     expect(v3.DEFAULT_RULES.statMult).toBeUndefined();
     expect(v3.DEFAULT_RULES.focusOnWait).toBeUndefined();
+    expect(v3.DEFAULT_RULES.stunImmunityTurns).toBeUndefined();
+    expect(v3.DEFAULT_RULES.maxTurns).toBeUndefined();
+    expect(v3.DEFAULT_RULES.damageRamp).toBeUndefined();
   });
 
   test('statMult scales the chosen stats of the chosen class only', () => {
@@ -49,5 +52,34 @@ describe('campaign instruments', () => {
     v3.applyTurn(s, { lobsterId: a.id, action: 'none' });
     expect(a.charge).toBe(1);
     expect(a.statuses.length).toBe(0);
+  });
+
+  test('maxTurns ends the battle at the chosen cap with the usual tiebreak', () => {
+    const s = battle({ maxTurns: 10 });
+    v3.runBattle(s, { A: v3.defendPolicy, B: v3.defendPolicy });
+    expect(s.finished).toBe(true);
+    expect(s.turn).toBe(10);
+  });
+
+  test('damageRamp: a hit past fromTurn grows by bpsPerTurn per turn', () => {
+    const hitAt = (turn: number, ramp?: v3.BattleRules['damageRamp']) => {
+      const s = battle(ramp ? { damageRamp: ramp } : undefined);
+      const a = v3.nextActor(s)!;
+      const e = s.lobsters.find((l) => l.team !== a.team)!;
+      e.pos = { col: a.pos.col + (a.pos.col < 5 ? 1 : -1), row: a.pos.row };
+      s.turn = turn - 1;   // applyTurn increments before resolving
+      return v3.applyTurn(s, { lobsterId: a.id, action: 'attack', targetId: e.id }).damage.find((d) => d.targetId === e.id)!.amount;
+    };
+    const ramp = { fromTurn: 40, bpsPerTurn: 300n };
+    expect(hitAt(40, ramp)).toBe(hitAt(40));                      // not yet past fromTurn
+    expect(hitAt(50, ramp)).toBe((hitAt(50) * 13000n) / 10000n);  // 10 turns past: +30 %
+  });
+
+  test('stunImmunityTurns sets the immunity after a stun', () => {
+    const s = battle({ stunImmunityTurns: 3 });
+    const a = v3.nextActor(s)!;
+    a.statuses.push({ type: 'stun', turns: 1, value: 0n, since: 0 });
+    v3.applyTurn(s, null);
+    expect(a.stunImmunity).toBe(3);
   });
 });
