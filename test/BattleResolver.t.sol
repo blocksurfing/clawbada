@@ -79,7 +79,7 @@ contract BattleResolverTest is Test {
         // Bulwark
         BattleResolver.Stats memory s = resolver.getBaseStats(0);
         assertEq(s.hp, 700);
-        assertEq(s.attack, 100); // 70->100 (2026-08-30 balance)
+        assertEq(s.attack, 110); // 70->100 (2026-08-30), ->110 (2026-11-02 Package B)
         assertEq(s.armor, 120);
         assertEq(s.speed, 80);
         assertEq(s.critical, 90);
@@ -94,10 +94,10 @@ contract BattleResolverTest is Test {
 
         // Leviathan
         s = resolver.getBaseStats(2);
-        assertEq(s.hp, 600);
+        assertEq(s.hp, 660); // 600->660 (Package B)
         assertEq(s.attack, 130);
         assertEq(s.armor, 100);
-        assertEq(s.speed, 70);
+        assertEq(s.speed, 77); // 70->77 (Package B)
         assertEq(s.critical, 80);
 
         // Tempest
@@ -119,7 +119,7 @@ contract BattleResolverTest is Test {
         // Sentinel
         s = resolver.getBaseStats(5);
         assertEq(s.hp, 650);
-        assertEq(s.attack, 70);
+        assertEq(s.attack, 77); // 70->77 (Package B)
         assertEq(s.armor, 110);
         assertEq(s.speed, 90);
         assertEq(s.critical, 100);
@@ -145,12 +145,12 @@ contract BattleResolverTest is Test {
         assertEq(s.hp, 550);
         assertEq(s.attack, 90);
         assertEq(s.armor, 100);
-        assertEq(s.speed, 105);
+        assertEq(s.speed, 97); // 105->97 (Package B)
         assertEq(s.critical, 95);
 
         // Ember
         s = resolver.getBaseStats(9);
-        assertEq(s.hp, 350);
+        assertEq(s.hp, 400); // 350->400 (Package B)
         assertEq(s.attack, 140);
         assertEq(s.armor, 60);
         assertEq(s.speed, 100);
@@ -160,15 +160,15 @@ contract BattleResolverTest is Test {
     function test_baseStatsNonHPTotals() public view {
         // Verify non-HP stat totals match spec values for each class
         uint256[10] memory expectedTotals = [
-            uint256(390), // Bulwark: 100+120+80+90 (Atk 70->100, 2026-08-30)
+            uint256(400), // Bulwark: 110+120+80+90 (Atk 70->100 2026-08-30, ->110 2026-11-02)
             uint256(425), // Mantis: 100+70+130+125
-            uint256(380), // Leviathan: 130+100+70+80
+            uint256(387), // Leviathan: 130+100+77+80 (Package B)
             uint256(410), // Tempest: 110+80+105+115
             uint256(415), // Specter: 85+85+125+120
-            uint256(370), // Sentinel: 70+110+90+100
+            uint256(377), // Sentinel: 77+110+90+100 (Package B)
             uint256(405), // Reaver: 120+80+110+95
             uint256(395), // Abyss: 110+90+95+100
-            uint256(390), // Kraken: 90+100+105+95
+            uint256(382), // Kraken: 90+100+97+95 (Package B)
             uint256(430)  // Ember: 140+60+100+130
         ];
 
@@ -195,7 +195,7 @@ contract BattleResolverTest is Test {
         BattleResolver.Stats memory scaled = resolver.scaleStats(base, 0, false);
 
         assertEq(scaled.hp, 700); // HP_BATTLE_SCALE = 1 (was 5)
-        assertEq(scaled.attack, 100);
+        assertEq(scaled.attack, 110); // Bulwark Atk 110 (2026-11-02 Package B)
         assertEq(scaled.armor, 120);
         assertEq(scaled.speed, 80);
         assertEq(scaled.critical, 90);
@@ -207,7 +207,7 @@ contract BattleResolverTest is Test {
         BattleResolver.Stats memory scaled = resolver.scaleStats(base, 1, false);
 
         assertEq(scaled.hp, 700 * 1200 / 1000); // 700 × 1.2 = 840 (HP scale ×1)
-        assertEq(scaled.attack, 100 * 1200 / 1000); // 120
+        assertEq(scaled.attack, 110 * 1200 / 1000); // 132
         assertEq(scaled.armor, 120 * 1200 / 1000); // 144
         assertEq(scaled.speed, 80 * 1200 / 1000); // 96
         assertEq(scaled.critical, 90 * 1200 / 1000); // 108
@@ -218,8 +218,8 @@ contract BattleResolverTest is Test {
         BattleResolver.Stats memory base = resolver.getBaseStats(9); // Ember
         BattleResolver.Stats memory scaled = resolver.scaleStats(base, 3, true);
 
-        // HP: 350 × 1600 × 1100 / (1000 × 1000) = 350 × 1.6 × 1.1 = 616 (HP scale ×1)
-        assertEq(scaled.hp, uint256(350) * 1600 * 1100 / (1000 * 1000));
+        // HP: 400 × 1.6 × 1.1 = 704 (HP scale ×1; Ember HP 350→400, 2026-11-02 Package B)
+        assertEq(scaled.hp, uint256(400) * 1600 * 1100 / (1000 * 1000));
         // Attack: 140 × 1.6 × 1.1 = 246.4 → 246 (integer)
         assertEq(scaled.attack, uint256(140) * 1600 * 1100 / (1000 * 1000));
         assertEq(scaled.armor, uint256(60) * 1600 * 1100 / (1000 * 1000));

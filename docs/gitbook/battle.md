@@ -81,7 +81,7 @@ How tick scheduling works:
 
 - Each lobster's next-turn tick = `prev_tick + 1000 / effective_speed`
 - Higher Speed = shorter gap between turns = more turns per battle
-- A Mantis (130 Spd) takes roughly **1.86×** as many turns as a Leviathan (70 Spd) over the same battle window
+- A Mantis (130 Spd) takes roughly **1.69×** as many turns as a Leviathan (77 Spd) over the same battle window
 - Initial bar order is seeded by base Speed at battle start (ties broken by VRF beacon)
 
 Speed manipulation matters: Specter's Haunt slows the target down the bar, Tempest's enhanced Maelstrom slows everyone it hits, Kraken's Bind stuns the target into skipping its next turn entirely. Two safety rails prevent runaway speed-stacking:
@@ -121,9 +121,11 @@ Combinations: Move only, Action only, or Move-then-Action. No "act-then-move" in
 
 If your shot clock expires, the lobster auto-Defends and the bar advances. After 3 consecutive timeouts you forfeit, and you lose your anti-grief deposit — the same as resigning.
 
-The opponent watches the animation, then their next-Speed lobster acts. Battles typically resolve in **24-36 total turns (~3-5 minutes)**.
+The opponent watches the animation, then their next-Speed lobster acts. Battles between strong players typically run **about 50–65 total turns**.
 
-**Win condition:** Eliminate all 3 enemy lobsters (a mutual wipeout is a draw). There's a 100-turn hard cap as a griefer cutoff (rarely reached in real games): the team with more remaining HP% wins; if tied, the team that dealt more total damage wins, so a passive team cannot sit out for a draw; only a perfect tie is a draw.
+**Late-battle pressure:** from **turn 40**, every direct hit (Attack or Special) deals **3% more for each turn past 40** — +30% at turn 50, +60% at turn 60. Long grinds finish instead of running out the clock. Bleed, Defend counters and reflected damage are not affected.
+
+**Win condition:** Eliminate all 3 enemy lobsters (a mutual wipeout is a draw). There's a 100-turn hard cap as a griefer cutoff (with late-battle pressure, about 1–2% of strong battles reach it): the team with more remaining HP% wins; if tied, the team that dealt more total damage wins, so a passive team cannot sit out for a draw; only a perfect tie is a draw.
 
 ### 6. Settlement
 The server records the result on-chain: `BattleArena.settle(battleId, winner, finalStateHash, turnLogHash, damageA, damageB, seedSecret, forfeiter)`. The two hashes commit to the off-chain battle — the canonical final state, and `{rules version, battleId, VRF seed, arena layout, roster, ordered turn log}` — so the result can always be checked against the battle itself. `forfeiter` names the player who resigned or timed out three turns in a row (nobody, if the battle was fought out); they lose their anti-grief deposit at payout. No single battle can inflict more than 40 damage on a lobster — the contract refuses anything higher — so a wrong result can never bar your whole roster.
@@ -189,7 +191,7 @@ Attacks work at up to 3 hexes, but damage falls off with distance:
 
 Positioning matters: close the distance for full damage, or stay back and trade reduced damage for safety.
 
-**Specter's kit is the exception** (2026-08 balance update): it attacks up to **4 hexes** (40% damage at max range) and carries a **spectral dodge** — the first direct hit it takes between its own turns is reduced by 30%. Specter is built to kite: hard to pin down, poking from beyond everyone else's reach.
+**Specter's kit is the exception** (2026-08 balance update): it attacks up to **4 hexes** (40% damage at max range) and carries a **spectral dodge** — the first direct hit it takes between its own turns is reduced by 20% (30% until the 2026-11-02 balance pass). Specter is built to kite: hard to pin down, poking from beyond everyone else's reach.
 
 ## Base Class Stats
 
@@ -197,18 +199,20 @@ Base stats before evolution tier bonus, legend bonus, and body part modifiers:
 
 | Class | HP | Atk | Armor | Spd | Crit | Identity |
 |-------|-----|-----|-------|-----|------|----------|
-| **Bulwark** | 700 | 100 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything; Fortify forces adjacent enemies to hit it |
+| **Bulwark** | 700 | 110 | 120 | 80 | 90 | Tank — holds chokepoints, survives everything; Fortify forces adjacent enemies to hit it |
 | **Mantis** | 375 | 100 | 70 | 130 | 125 | Assassin — flanks, strikes first, crits often |
-| **Leviathan** | 600 | 130 | 100 | 70 | 80 | Bruiser — hits hardest, slow to reposition |
+| **Leviathan** | 660 | 130 | 100 | 77 | 80 | Bruiser — hits hardest, slow to reposition |
 | **Tempest** | 450 | 110 | 80 | 105 | 115 | Nuker — AoE from range, fragile up close |
 | **Specter** | 425 | 85 | 85 | 125 | 120 | Debuffer — kites and cripples from distance |
-| **Sentinel** | 650 | 70 | 110 | 90 | 100 | Support — positions near allies to heal |
+| **Sentinel** | 650 | 77 | 110 | 90 | 100 | Support — positions near allies to heal |
 | **Reaver** | 475 | 120 | 80 | 110 | 95 | DPS — closes distance, bleeds targets |
 | **Abyss** | 525 | 110 | 90 | 95 | 100 | Lifesteal — self-sustaining in melee |
-| **Kraken** | 550 | 90 | 100 | 105 | 95 | Controller — mid-range stuns decide rounds |
-| **Ember** | 350 | 140 | 60 | 100 | 130 | Glass cannon — nukes from max range, dies up close |
+| **Kraken** | 550 | 90 | 100 | 97 | 95 | Controller — mid-range stuns decide rounds |
+| **Ember** | 400 | 140 | 60 | 100 | 130 | Glass cannon — nukes from max range, dies up close |
 
-Stats scale with evolution: **+20% at Evolved, +40% at Elite, +60% at Apex**. Legend lobsters get an additional **+10%**. HP is used as-is in battle (battle HP scale ×1), tuned for 24-36 turn battles.
+Stats scale with evolution: **+20% at Evolved, +40% at Elite, +60% at Apex**. Legend lobsters get an additional **+10%**. HP is used as-is in battle (battle HP scale ×1).
+
+**Balance pass (2026-11-02):** tuned against strong, look-ahead play (the planner bot, which plans to its own next turn — agents will play at least this well). Bulwark Atk 100→110, Leviathan HP 600→660 and Spd 70→77, Sentinel Atk 70→77, Kraken Spd 105→97, Ember HP 350→400, Specter's spectral dodge 30%→20%, and late-battle pressure from turn 40. Under strong play every class now wins 46–55% at Elite (it was 37–67%).
 
 ## Combat Math
 
