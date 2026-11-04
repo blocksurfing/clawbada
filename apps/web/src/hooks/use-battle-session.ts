@@ -45,6 +45,8 @@ export interface SessionViewState {
   /** Resolved turns waiting for the renderer (oldest first). */
   pending: TurnResolvedPayload[];
   ended: BattleEndedPayload | null;
+  /** The battle was already over when this page joined (its end was read from the stored snapshot, not heard live). */
+  endedBeforeJoin: boolean;
   /** D-06: a result was submitted on-chain while this battle is still live. */
   settlementAlert: SettlementAlertPayload | null;
   error: SessionErrorPayload | null;
@@ -66,7 +68,7 @@ type Action =
   | { type: 'ack'; data: { turn: number; duplicate: boolean } };
 
 const INITIAL: SessionViewState = {
-  connection: 'idle', snapshot: null, current: null, timeouts: { A: 0, B: 0 }, bar: [], log: [], pending: [], ended: null, settlementAlert: null, error: null, lastAck: null, snapshotSeq: 0,
+  connection: 'idle', snapshot: null, current: null, timeouts: { A: 0, B: 0 }, bar: [], log: [], pending: [], ended: null, endedBeforeJoin: false, settlementAlert: null, error: null, lastAck: null, snapshotSeq: 0,
 };
 
 /** Apply one resolved turn to the client-side wire state (HP, alive, position, turn). */
@@ -94,7 +96,7 @@ function reducer(s: SessionViewState, a: Action): SessionViewState {
     case 'connection':
       return { ...s, connection: a.value };
     case 'snapshot':
-      return { ...s, snapshot: a.snapshot, current: a.snapshot.current, timeouts: a.snapshot.timeouts, bar: a.snapshot.state.bar, pending: [], error: null, snapshotSeq: s.snapshotSeq + 1 };
+      return { ...s, snapshot: a.snapshot, current: a.snapshot.current, timeouts: a.snapshot.timeouts, bar: a.snapshot.state.bar, pending: [], error: null, snapshotSeq: s.snapshotSeq + 1, ...(s.ended ? {} : (() => { const e = endedFromSnapshot(a.snapshot); return e ? { ended: e, endedBeforeJoin: true } : {}; })()) };
     case 'turn_started':
       return { ...s, current: { turn: a.data.turn, lobsterId: a.data.lobsterId, side: a.data.side, controller: a.data.controller, deadline: a.data.deadline, clockMs: a.data.clockMs, playbackMs: a.data.playbackMs }, bar: a.data.bar };
     case 'turn_resolved': {
@@ -136,6 +138,21 @@ export interface UseBattleSessionOptions {
   /** Hold resolved turns until the renderer acknowledges them (Unity). */
   gateOnAnimation: boolean;
   enabled?: boolean;
+}
+
+/**
+ * A battle that ended before this page joined (bug 2026-11-04: a resign while the page was still loading). The server
+ * broadcasts `battle_ended` once and then drops the battle from memory, so a socket that joins later hears nothing —
+ * only the stored snapshot says it is over. Rebuild the ended payload from it so the result shows and the page returns.
+ */
+function endedFromSnapshot(snap: BattleSnapshot): BattleEndedPayload | null {
+  const status = snap.session.status;
+  // The state's own flag too: a snapshot taken from the live session in the moment it ends can still read 'active'.
+  if (!snap.state.finished && status !== 'finished' && status !== 'settling' && status !== 'settled') return null;
+  const winner = snap.session.winner ?? snap.state.winner ?? 'draw';
+  const wiped = (['A', 'B'] as const).some((side) => !snap.state.lobsters.some((l) => l.team === side && l.alive));
+  const reason = wiped ? 'wipeout' : snap.state.turn >= 100 ? 'turn_cap' : 'forfeit';
+  return { winner, reason, finalStateHash: '', turnLogHash: '', settle: 'n/a' };
 }
 
 export function useBattleSession(battleId: string | null, opts: UseBattleSessionOptions) {
@@ -193,6 +210,9 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
       wsRef.current = ws;
       ws.onopen = () => {
         console.log(`[BattleSession] socket open${attempt > 0 ? ` (reconnect #${attempt})` : ''}`);
+        // A live battle answers the join with its snapshot at once. Silence means it is not in the server's memory —
+        // over already (or on another replica): read the stored state, which says how it ended.
+        setTimeout(() => { if (!snapshotRef.current && wsRef.current === ws) void fetchSnapshot(); }, 400);
         attempt = 0;
         dispatch({ type: 'connection', value: 'open' });
         if (readyQueued.current) {
