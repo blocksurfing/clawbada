@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!221 &22100000
+AnimatorOverrideController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Devour
+  m_Controller: {fileID: 9100000, guid: c3b4df5a6b02c4941b0ccfd30f44ccea, type: 2}
+  m_Clips:
+  - m_OriginalClip: {fileID: 7400000, guid: 1a7c207c24efcb64cb4d6d39f460e488, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 50017494bad1bed4db4d9df802667f48, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 34c9446f3e3ff9240a1a666a489e5bd6, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 2874e6a9b1e65c84cbc74a60a9e54b8b, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 0bb8c5218418a2f4eba228358b9221d8, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 71b25670ecb63f94a98bf149686f086f, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: fbf9ca73320e9d941a6d357e802026ac, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 0949afcf36a93be479e8f1efe871cae0, type: 2}

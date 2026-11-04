@@ -1,12 +1,12 @@
 /**
- * Action-bar hotkeys (Nzib's suggestion, owner 2026-11-01): 1–4 / A S D W press Attack, Special, Defend, Wait like a
+ * Action-bar hotkeys (Nzib's suggestion, owner 2026-11-01): 1–3 / A S D press Attack, Special, Defend like a
  * click; Space/Enter is the second tap (commits a picked move hex, confirms a selected target).
  *
  *   bash chrome-gpu.sh && BASE=http://127.0.0.1:3010 bun cdp.ts hotkeys.ts
  *
  * One practice battle, not played by the probe except through the keyboard:
  *  turn 1: tap a reachable hex (picked), Space commits it, then 3 Defends;
- *  turn 2: 1 arms Attack (nothing sent), then W Waits (the turn goes out);
+ *  turn 2: 1 arms Attack (nothing sent), W does nothing (Wait was removed 2026-11-03), then 3 Defends;
  *  turn 3: A arms Attack, D Defends.
  * Muted; resigns through the API at the end (one live practice battle per player).
  */
@@ -81,7 +81,7 @@ export default async function (b: Browser) {
   ok(await waitLog(n, /\[BattleHud\] press defend/, 2000) && await waitLog(n, /unity action defend/, 2000), '3 presses Defend');
   mark = b.logs.length;
 
-  // Turn 2: 1 arms Attack (nothing sent), W Waits.
+  // Turn 2: 1 arms Attack (nothing sent), W does nothing (no Wait any more), 3 Defends.
   ok(await myTurn(), 'player turn 2');
   await b.sleep(800);
   n = b.logs.length;
@@ -90,7 +90,10 @@ export default async function (b: Browser) {
   await b.sleep(400);
   n = b.logs.length;
   await key('w');
-  ok(await waitLog(n, /\[BattleHud\] press none/, 2000) && await waitLog(n, /unity action none/, 2000), 'W presses Wait');
+  ok(!(await waitLog(n, /\[BattleHud\] press /, 800)), 'W does nothing (Wait removed)');
+  n = b.logs.length;
+  await key('3');
+  ok(await waitLog(n, /\[BattleHud\] press defend/, 2000), '3 presses Defend');
   mark = b.logs.length;
 
   // Turn 3: A arms Attack, D Defends.

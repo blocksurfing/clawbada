@@ -53,6 +53,7 @@ public class BattleHud : MonoBehaviour
     public PortraitSnapshot Portraits { get; private set; }
     /// <summary>Settings hex menu, top-left. Participants only; carries the forfeit.</summary>
     public OptionsMenu Options { get; private set; }
+    public PressureGauge Pressure { get; private set; }
 
     private BattleManager manager;
     private RectTransform canvasRect;
@@ -155,6 +156,8 @@ public class BattleHud : MonoBehaviour
         Clock = ClockView.Create(canvasRect, "Clock", skin, TimerSize, 24);
         Clock.Rect.anchorMin = Clock.Rect.anchorMax = Clock.Rect.pivot = new Vector2(0f, 1f);
         Clock.Rect.anchoredPosition = new Vector2(TeamPanels.Edge + GearSize + 6f, -TeamPanels.Edge);
+        // Left edge: Nzib's pressure tube (drop 2cc98d1), placed per battle in Bind (hidden when the battle has no pressure).
+        Pressure = PressureGauge.Create(canvasRect, skin);
         // LOKR-style: the selected target carries a small copy of the armed action's button above it.
         // Clickable (user 2026-09-27): tapping the badge confirms the selected target, exactly like pressing
         // the armed action again — so it is raycast-on and forwards the armed action to React.
@@ -330,6 +333,7 @@ public class BattleHud : MonoBehaviour
         Portraits.Clear();
         foreach (var lob in manager.Lobsters) if (lob != null) Portraits.Capture(lob, ActivePanel.PortraitDrop);
         Teams.Bind(manager.Lobsters, sideOfPlayer == "B" ? "B" : "A");
+        if (Pressure != null) Pressure.Configure(init?.damageRampFromTurn ?? 0, init?.damageRampBps ?? 0, PressureCentreY());
 
         // Team corners used to carry TEAM A · YOU / TEAM B · BOT plates. Sides read from
         // facing, the move prompt and the active-lobster card, so the corners stay clear —
@@ -364,6 +368,7 @@ public class BattleHud : MonoBehaviour
         Marker.Follow(lob);
         SetClock(data.isPlayer ? fallbackRemainingMs : 0);
         Teams.SetTurn(activeId, manager.upcoming);
+        Pressure?.OnTurn(data.turn);
         Debug.Log($"[BattleHud] turn {data.turn} active={activeId} order=[{string.Join(",", Teams.CurrentOrder)}]");
         // Layout dump for the harness: the first two turns, plus the player's first two own
         // turns (the bots may act first, so turn <= 2 alone can miss the player entirely).
@@ -490,6 +495,7 @@ public class BattleHud : MonoBehaviour
         Add(Bar != null ? Bar.GetComponent<RectTransform>() : null, new Vector2(260f, 0f), 0.08f);
         Add(Options != null ? Options.GetComponent<RectTransform>() : null, new Vector2(0f, 120f), 0.12f);
         Add(Clock != null ? Clock.Rect : null, new Vector2(0f, 120f), 0.16f);
+        Add(Pressure != null && Pressure.Active ? Pressure.Rect : null, new Vector2(-120f, 0f), 0.1f);
         foreach (var m in moves) m.rt.anchoredPosition = m.from;
         if (Canvas != null) Canvas.enabled = true;
 
@@ -507,6 +513,23 @@ public class BattleHud : MonoBehaviour
     }
 
     /// <summary>End of the intro (or a skip): HUD visible, everything home.</summary>
+    /// <summary>Owner 2026-11-03: the pressure tube sits on the left edge, centred between the timer card's bottom and the
+    /// top of the player's own team panels (canvas units from the canvas's vertical middle).</summary>
+    private float PressureCentreY()
+    {
+        float top = 270f - (TeamPanels.Edge + TimerSize);
+        float bottom = -270f;
+        var c = new Vector3[4];
+        foreach (var p in Teams.Panels)
+        {
+            if (p == null || p.Rect == null || p.Rect.anchorMin != Vector2.zero || !p.gameObject.activeSelf) continue;
+            p.Rect.GetWorldCorners(c);
+            bottom = Mathf.Max(bottom, canvasRect.InverseTransformPoint(c[1]).y);
+        }
+        if (bottom <= -270f) bottom = -270f + 140f;   // no panel measured yet: leave room for one
+        return Mathf.Round((top + bottom) * 0.5f);
+    }
+
     public void EndIntro()
     {
         if (Canvas != null) Canvas.enabled = true;

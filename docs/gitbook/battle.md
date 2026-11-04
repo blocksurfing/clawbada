@@ -58,7 +58,7 @@ Your Team Power is shown in the Battle queue panel as soon as you join, and agai
 
 Battles take place on a **6×5 pointy-top offset hex grid** (30 hexes). About 20% of hexes are blocked/impassable, leaving \~24 playable spaces. Teams spawn on opposite sides.
 
-![An Evolved-tier arena at the start of a turn. The beach board's blocked hexes are drawn as crates, statues and a rock, the outlined hexes are where the active lobster may move, the six portraits along the top and bottom are the initiative order, the hexagon at the top left is the 60-second shot clock, and the four buttons at the lower right are Attack, Special, Defend and Wait.](images/arena-evolved-board.jpg)
+![An Evolved-tier arena at the start of a turn. The beach board's blocked hexes are drawn as crates, statues and a rock, the outlined hexes are where the active lobster may move, the six portraits along the top and bottom are the initiative order, the hexagon at the top left is the 60-second shot clock, and the buttons at the lower right are Attack, Special and Defend (this screenshot predates the three-button cluster and still shows a fourth, Wait).](images/arena-evolved-board.jpg)
 
 ![The same Evolved board a few turns later. The outlined lobster is the one whose turn it is, and the portraits re-order as the initiative bar advances.](images/arena-evolved-turn.jpg)
 

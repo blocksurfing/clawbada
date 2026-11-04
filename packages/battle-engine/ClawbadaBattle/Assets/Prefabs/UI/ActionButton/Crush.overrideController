@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!221 &22100000
+AnimatorOverrideController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Crush
+  m_Controller: {fileID: 9100000, guid: c3b4df5a6b02c4941b0ccfd30f44ccea, type: 2}
+  m_Clips:
+  - m_OriginalClip: {fileID: 7400000, guid: 1a7c207c24efcb64cb4d6d39f460e488, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 7b751aa48a23dcc47abcce9ce423d797, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 34c9446f3e3ff9240a1a666a489e5bd6, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: fac2c5dc9a1dd104ca93331a59794c1b, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 0bb8c5218418a2f4eba228358b9221d8, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 4e223991f2ddbe74fbee8652486e0a7d, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: fbf9ca73320e9d941a6d357e802026ac, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 6b6dbc989e3811c40bc44ea6611a9362, type: 2}

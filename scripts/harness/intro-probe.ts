@@ -1,7 +1,7 @@
 import type { Browser } from './cdp';
 /**
  * Battle-start intro (user 2026-09-28, lengthened 2026-09-29): a fresh practice battle must fade in on the empty
- * arena, drop the obstacles then the lobsters in one by one, cue the music, play CLAWS UP / BATTLE, slide the HUD in —
+ * arena, drop the obstacles then the lobsters in one by one, cue the music, play Nzib's authored Claws Up / Battle intro (drop 99970d7), slide the HUD in —
  * and only THEN start (server `ready`), so no move happens off screen.
  *   TRIO=Kraken bun cdp.ts intro-probe.ts   → out/intro-fNN.jpg frame burst + log-order checks
  */

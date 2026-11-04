@@ -61,6 +61,18 @@ MonoBehaviour:
   hexGlow: {fileID: 21300000, guid: 660c82333a38e4b47b163d13b8fbc928, type: 3}
   avatarPrefab: {fileID: 564070775698042493, guid: 5db4aac850899234c80ef21e390f3717, type: 3}
   actionButtonPrefab: {fileID: 8078488711306676885, guid: a5ba6b7a9652e084ea3f689d0f27b2b2, type: 3}
+  specialControllers:
+  - {fileID: 22100000, guid: 3accf04b159d9f24fb404c7ad64d345a, type: 2}
+  - {fileID: 22100000, guid: 0b071d39213bb754581b505ff7819369, type: 2}
+  - {fileID: 22100000, guid: 4cb520d5211194f438f2ccebfafea877, type: 2}
+  - {fileID: 22100000, guid: f461a0bd6607c7648ae3db5aa6af90a8, type: 2}
+  - {fileID: 22100000, guid: 996f65307f2d06f42a7f3bd5fe38b7f5, type: 2}
+  - {fileID: 22100000, guid: e3a278bc108fc9f4898cc8c5ed571e28, type: 2}
+  - {fileID: 22100000, guid: dac3dfb2de0ef504abdc328214ac93f8, type: 2}
+  - {fileID: 22100000, guid: 8ceb5d7861981d041af6e1dd52a117f3, type: 2}
+  - {fileID: 22100000, guid: 7b99ce58dd594144fa8b009e61f5383e, type: 2}
+  - {fileID: 22100000, guid: 51bfd68bf38c9104485ce38469a340da, type: 2}
+  pressurePrefab: {fileID: 7359587248410570494, guid: 194e11292994d0542b9c413d3e0a5da7, type: 3}
   actionFrame: {fileID: 868980681, guid: bf904e76c7b4eb247a1c7e110d70105d, type: 3}
   actionAttack: {fileID: 638132931267961869, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
   actionDefend: {fileID: 1052731709752394881, guid: f845396c76c64afd879fdf4c357f19d4, type: 3}
