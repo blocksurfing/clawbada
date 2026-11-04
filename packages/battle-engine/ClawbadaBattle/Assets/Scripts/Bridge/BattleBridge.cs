@@ -421,6 +421,10 @@ public class BattleInitData
     public int stakeAmount;
     /// <summary>Play the battle-start intro (a fresh battle; reconnects mid-battle skip it).</summary>
     public bool intro;
+    /// <summary>Late-battle pressure (rules.damageRamp, 2026-11-02): direct damage +damageRampBps/100 % per battle turn past
+    /// damageRampFromTurn. 0 = this battle has none (persisted before the rule) — the pressure tube hides.</summary>
+    public int damageRampFromTurn;
+    public int damageRampBps;
 }
 
 // ─── V3 per-turn payloads ───
