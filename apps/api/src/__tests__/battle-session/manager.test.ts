@@ -118,6 +118,7 @@ function make(store: FakeStore, extra: Partial<ConstructorParameters<typeof Batt
     shotClockMs: 60_000,
     botThinkMs: 500,
     randomSeed: () => 12345n,
+    playbackEstimate: () => 0,
     ...extra,
   });
   return { mgr, fake, events, logs };

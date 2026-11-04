@@ -89,8 +89,12 @@ export interface CurrentTurn {
   side: Side | null;
   /** Wallet that must act, 'bot', or null when finished. */
   controller: string | null;
-  /** Epoch ms when the shot clock expires; null for bot turns / finished. */
+  /** Epoch ms when the shot clock expires; null for bot turns / finished. Includes `playbackMs`. */
   deadline: number | null;
+  /** The turn's own clock (60 s, or more with the first-turn grace) — what a player should SEE when the turn appears. */
+  clockMs?: number;
+  /** Extra time in `deadline` for the earlier turns the browser is still animating (0 when none). */
+  playbackMs?: number;
 }
 
 export interface BattleSnapshot {
@@ -145,7 +149,7 @@ export function turnResultToWire(r: v3.TurnResult): WireTurnResult {
 
 // ── server → client payloads ──
 
-export interface TurnStartedPayload { turn: number; lobsterId: string; side: Side; controller: string; deadline: number | null; bar: WireBarEntry[] }
+export interface TurnStartedPayload { turn: number; lobsterId: string; side: Side; controller: string; deadline: number | null; bar: WireBarEntry[]; clockMs?: number; playbackMs?: number }
 export interface TurnCommittedPayload { turn: number; lobsterId: string; by: SubmittedBy }
 export interface TurnResolvedPayload {
   turn: number;

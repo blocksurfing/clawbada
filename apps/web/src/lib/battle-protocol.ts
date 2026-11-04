@@ -41,6 +41,17 @@ export interface CurrentTurn {
   side: Side | null;
   controller: string | null;
   deadline: number | null;
+  /** The turn's own clock (60 s, more with the first-turn grace): the most a player is ever SHOWN. The deadline also
+   *  holds `playbackMs` for earlier turns still animating, so the clock starts at its full budget when the turn appears. */
+  clockMs?: number;
+  playbackMs?: number;
+}
+
+/** What the shot clock should read right now: the deadline, capped at the turn's own budget (smoothness 2026-11-04). */
+export function shownRemainingMs(current: Pick<CurrentTurn, 'deadline' | 'clockMs'>, now = Date.now()): number | null {
+  if (!current.deadline) return null;
+  const left = Math.max(0, current.deadline - now);
+  return current.clockMs ? Math.min(left, current.clockMs) : left;
 }
 
 export interface BattleSnapshot {
@@ -74,7 +85,7 @@ export interface WireTurnResult {
   winner: Side | 'draw' | null;
 }
 
-export interface TurnStartedPayload { turn: number; lobsterId: string; side: Side; controller: string; deadline: number | null; bar: WireBarEntry[] }
+export interface TurnStartedPayload { turn: number; lobsterId: string; side: Side; controller: string; deadline: number | null; bar: WireBarEntry[]; clockMs?: number; playbackMs?: number }
 export interface TurnCommittedPayload { turn: number; lobsterId: string; by: SubmittedBy }
 export interface TurnResolvedPayload {
   turn: number;

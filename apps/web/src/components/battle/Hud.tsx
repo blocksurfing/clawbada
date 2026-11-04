@@ -5,7 +5,7 @@ import { CLASS_NAMES_LIST } from '@clawbada/game-logic';
 import { Badge } from '@/components/ui/badge';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { formatAddress } from '@/lib/format';
-import type { BattleSnapshot, CurrentTurn, Side, WireBarEntry } from '@/lib/battle-protocol';
+import { shownRemainingMs, type BattleSnapshot, type CurrentTurn, type Side, type WireBarEntry } from '@/lib/battle-protocol';
 
 export interface HudProps {
   snapshot: BattleSnapshot;
@@ -29,7 +29,8 @@ const STATUS_ICON: Record<string, string> = { bleed: '🩸', stun: '💫', haunt
 
 export function Hud({ snapshot, current, bar, timeouts, mySide, animating }: HudProps) {
   const now = useNow();
-  const remaining = current?.deadline ? Math.max(0, current.deadline - now) : null;
+  // Held at the turn's budget while earlier turns still play; counts down once the turn is on screen.
+  const remaining = current ? shownRemainingMs(current, now) : null;
   const byId = new Map(snapshot.roster.map((r) => [r.id, r]));
   const name = (id: string) => {
     const r = byId.get(id);
