@@ -130,7 +130,7 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("Optional per-class death, indexed by LobsterClass: SFX/Death/SFX_<Class>_Death.wav. Empty slots fall back to the shared pool.")]
     public AudioClip[] deathByClass = new AudioClip[10];
 
-    [Tooltip("Battle-start intro, on \"CLAWS UP!\": Assets/Audio/SFX/UI/SFX_UI_ClawsUp.wav (optional).")]
+    [Tooltip("Battle-start intro, on Claws Up (Nzib's authored intro since drop 99970d7; voice clips pulled 2026-10-25): Assets/Audio/SFX/UI/SFX_UI_ClawsUp.wav (optional, not played).")]
     public AudioClip introReady;
     [Tooltip("Battle-start intro, on the \"BATTLE!\" slam: Assets/Audio/SFX/UI/SFX_UI_Battle.wav (optional).")]
     public AudioClip introFight;

@@ -29,7 +29,7 @@ const actsBefore = (c: CoachContext, enemy: v3.AtbLobster): boolean => {
 };
 
 export const TIPS: readonly CoachTip[] = [
-  { id: "b-turn-shape", tier: 'beginner', text: "Each turn, your lobster may move first, then take one action: Attack, Special, Defend or Wait. You cannot act first and move after." },
+  { id: "b-turn-shape", tier: 'beginner', text: "Each turn, your lobster may move first, then take one action: Attack, Special or Defend. You cannot act first and move after." },
   { id: "b-moves-final", tier: 'beginner', text: "Tap a hex to pick it, tap it again to move there. Moves are final, so decide where you want to end up before you commit." },
   { id: "b-turn-order", tier: 'beginner', text: "The card numbers rank each lobster's next turn, with 1 acting now. Fast lobsters can act again before everyone gets a turn." },
   { id: "b-speed", tier: 'beginner', text: "Speed decides how often a lobster acts, not just who goes first. A lobster with twice the Speed takes twice as many turns." },
@@ -37,7 +37,7 @@ export const TIPS: readonly CoachTip[] = [
   { id: "b-attack-range", tier: 'beginner', text: "Attack reaches 3 hexes, or 4 for Specter. Distance gives 100%, 75%, 50%, then 40% damage. Other penalties can reduce it further." },
   { id: "b-defend", tier: 'beginner', text: "Defend earns 2 charge and halves most incoming damage until your next turn. Bleed, recoil, reflection and enhanced Bind bypass that cut." },
   { id: "b-defend-counter", tier: 'beginner', text: "A Defending lobster that survives strikes back at anyone who Attacks it from an adjacent hex. Ranged Attacks and Specials get no counter." },
-  { id: "b-charge", tier: 'beginner', text: "Attack or Wait earns 1 charge; Defend earns 2, capped at 3. Special spends all 3. Stun skips earn none." },
+  { id: "b-charge", tier: 'beginner', text: "Attack earns 1 charge; Defend earns 2, capped at 3. Special spends all 3. Stun skips earn none." },
   { id: "b-special-unlock", tier: 'beginner', text: "Your Special unlocks on your 4th turn at the earliest, or your 3rd if you Defend once along the way." },
   { id: "b-class-wheel", tier: 'beginner', text: "Each class beats 4, loses to 4, and ties itself plus its opposite. Advantage gives 25% more damage; disadvantage gives 20% less." },
   { id: "b-shot-clock", tier: 'beginner', text: "Watch the clock, young claw. At zero you auto-Defend. Normally turns get 60 seconds, with 15 extra on your side's first turn." },

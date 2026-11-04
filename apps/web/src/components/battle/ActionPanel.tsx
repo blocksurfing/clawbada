@@ -56,7 +56,7 @@ export function ActionPanel({ snapshot, selection: s, turn, disabled, pendingAck
           {special}{s.canSpecial ? '' : ' (3⚡)'}
         </button>
         <button className={btn(s.action === 'defend')} disabled={disabled} onClick={() => s.setAction('defend')}>Defend</button>
-        <button className={btn(s.action === 'none')} disabled={disabled} onClick={() => s.setAction('none')}>Move only</button>
+        {/* No Move-only/Wait button (owner 2026-11-02): it was always worse than Defend. Move, then Defend; agents keep 'none'. */}
       </div>
 
       {/* Target chips: every legal target for the chosen action, so a turn can be

@@ -59,8 +59,14 @@ public class HudSkin : ScriptableObject
     [Header("Nzib's HUD — prefabs + sheets (drop 28c11f5; Clawbada/HUD/Bind Nzib HUD Art)")]
     [Tooltip("Assets/Prefabs/UI/Avatar/AvatarUI.prefab: frame, class background, HP + MP fills, animated selected outline.")]
     public GameObject avatarPrefab;
-    [Tooltip("Assets/Prefabs/UI/ActionButton/ActionButtonUI.prefab: Animator (Normal / Pressed / Selected) → Visual → Frame + Icon.")]
+    [Tooltip("Assets/Prefabs/UI/ActionButton/ActionButtonUI.prefab — Nzib's combined cluster (drop 107c18b, 2026-11-04): " +
+             "children Attack / Special / Defend, each an Animator (Normal / Hover / Pressed / Selected) → Visual → Frame + Icon.")]
     public GameObject actionButtonPrefab;
+    [Tooltip("The Special button's Animator per class, indexed by classId (Bulwark = 0 … Ember = 9): Nzib's override " +
+             "controllers Fortify, Ambush, Crush, Maelstorm, Haunt, Rally, Rend, Devour, Bind, Inferno — they animate frame AND icon.")]
+    public RuntimeAnimatorController[] specialControllers = new RuntimeAnimatorController[10];
+    [Tooltip("Assets/Prefabs/UI/PressureIndicator/PressureIndicatorUI.prefab — the late-battle pressure tube (drop 2cc98d1).")]
+    public GameObject pressurePrefab;
     [Tooltip("Normal button frame (ActionButton_Frame.png → ActionButton_Frame_Normal); the target badge draws it too.")]
     public Sprite actionFrame;
     public Sprite actionAttack;
@@ -137,6 +143,9 @@ public class HudSkin : ScriptableObject
     public Sprite OrderBadge(int n) => orderBadges != null && n >= 1 && n <= orderBadges.Length ? orderBadges[n - 1] : null;
     public Sprite ClassBadge(int classId) =>
         classBadges != null && classId >= 0 && classId < classBadges.Length ? classBadges[classId] : null;
+
+    public RuntimeAnimatorController SpecialController(int classId) =>
+        specialControllers != null && classId >= 0 && classId < specialControllers.Length ? specialControllers[classId] : null;
 
     public Sprite SpecialButton(int classId) =>
         specialButtons != null && classId >= 0 && classId < specialButtons.Length ? specialButtons[classId] : null;
