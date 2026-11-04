@@ -87,7 +87,16 @@ export interface SessionOptions {
    * 0 / undefined = start at once (tests, resumes).
    */
   startWaitMs?: number;
+  /**
+   * How long the browser takes to play one resolved turn (default v3.playbackEstimateMs). The session keeps a playback
+   * cursor and adds the queued playback to a human's deadline, so animation never eats their shot clock (smoothness
+   * campaign 2026-11-04). Tests pass `() => 0` for the plain clock.
+   */
+  playbackEstimate?: (result: v3.TurnResult, state: v3.AtbBattleState) => number;
 }
+
+/** The most queued playback one turn's clock is extended by (a run of long Specials). */
+export const PLAYBACK_DELAY_CAP_MS = 25_000;
 
 export type SubmitResult =
   | { ok: true; result: WireTurnResult; duplicate: boolean }
@@ -113,6 +122,11 @@ export class BattleSession {
   private started = false;
   private readonly readySides = new Set<Side>();
   private readonly fresh: boolean;
+  /** Epoch ms when the browser will have played every turn emitted so far (estimate). */
+  private playbackUntil = 0;
+  /** The current human turn's own clock and its playback extension (for current()). */
+  private clockMs: number | undefined;
+  private playbackMs = 0;
 
   constructor(
     public readonly record: SessionRecord,
@@ -154,6 +168,7 @@ export class BattleSession {
       side: actor.team,
       controller: this.controllerOf(actor.team),
       deadline: this.opts.botSide === actor.team ? null : this.deadline,
+      ...(this.opts.botSide !== actor.team && this.deadline !== null && this.clockMs !== undefined ? { clockMs: this.clockMs, playbackMs: this.playbackMs } : {}),
     };
   }
 
@@ -314,7 +329,12 @@ export class BattleSession {
       ms = this.opts.shotClockMs;
     }
     this.graceOwed[actor.team] = false;
-    this.deadline = this.opts.clock.arm(this.key, ms, () => this.onTimeout(turn));
+    // The browser shows this turn only after playing every earlier one: start the player's clock when it appears.
+    const now = this.opts.clock.now();
+    const playback = Math.min(PLAYBACK_DELAY_CAP_MS, Math.max(0, Math.round(this.playbackUntil - now)));
+    this.clockMs = ms;
+    this.playbackMs = playback;
+    this.deadline = this.opts.clock.arm(this.key, ms + playback, () => this.onTimeout(turn));
     const payload: TurnStartedPayload = {
       turn,
       lobsterId: actor.id,
@@ -322,6 +342,8 @@ export class BattleSession {
       controller: this.controllerOf(actor.team),
       deadline: this.deadline,
       bar: v3.projectBar(this.state).map((b) => ({ lobsterId: b.lobsterId, tick: b.tick.toString() })),
+      clockMs: ms,
+      playbackMs: playback,
     };
     this.flushPersist();
     this.opts.hooks.emit(this.record.id, 'turn_started', payload);
@@ -391,6 +413,10 @@ export class BattleSession {
         state: v3.clientView(this.state),
       };
       this.opts.hooks.emit(this.record.id, 'turn_resolved', resolved);
+      // Every resolved turn is played back in the browser, the bot's and the player's alike.
+      const estimate = (this.opts.playbackEstimate ?? v3.playbackEstimateMs)(r, this.state);
+      const now = this.opts.clock.now();
+      this.playbackUntil = Math.max(this.playbackUntil, now) + estimate;
       if (!this.state.finished) this.opts.hooks.emit(this.record.id, 'bar_updated', { turn: turnNo, bar: wire.bar });
       this.pending.push({ turn: turnNo, lobsterId: r.lobsterId, command: i === 0 ? command : null, result: wire, postStateHash, submittedBy });
     });

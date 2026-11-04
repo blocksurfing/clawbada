@@ -11,7 +11,7 @@
 import { describe, test, expect } from 'bun:test';
 import { v3, EvolutionTier, LobsterClass } from '@clawbada/game-logic';
 import { FakeClock, ShotClock } from '../../lib/battle-session/clock';
-import { BattleSession, endReason, type PersistedTurn, type SessionRecord, type SnapshotWrite } from '../../lib/battle-session/session';
+import { BattleSession, endReason, PLAYBACK_DELAY_CAP_MS, type PersistedTurn, type SessionRecord, type SnapshotWrite } from '../../lib/battle-session/session';
 import type { RosterEntry } from '../../lib/battle-session/protocol';
 
 const ALICE = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -37,7 +37,7 @@ interface Harness {
   ev: (name: string) => any[];
 }
 
-function harness(opts: { bot?: v3.BotName; seed?: bigint; shotClockMs?: number; botThinkMs?: number; startWaitMs?: number; resume?: { timeouts: Record<'A' | 'B', number>; firstTurnClockMs?: number } } = {}): Harness {
+function harness(opts: { bot?: v3.BotName; seed?: bigint; shotClockMs?: number; botThinkMs?: number; startWaitMs?: number; playbackEstimate?: (r: v3.TurnResult, s: v3.AtbBattleState) => number; resume?: { timeouts: Record<'A' | 'B', number>; firstTurnClockMs?: number } } = {}): Harness {
   const fake = new FakeClock();
   const clock = new ShotClock(fake);
   const a = inputs('A', [LobsterClass.Bulwark, LobsterClass.Sentinel, LobsterClass.Reaver]);
@@ -55,6 +55,8 @@ function harness(opts: { bot?: v3.BotName; seed?: bigint; shotClockMs?: number; 
     botPolicy: bot ? v3.botPolicy(bot) : null,
     firstTurnClockMs: opts.resume?.firstTurnClockMs,
     startWaitMs: opts.startWaitMs,
+    // The plain clock unless a test is about the playback extension (smoothness 2026-11-04).
+    playbackEstimate: opts.playbackEstimate ?? (() => 0),
     hooks: {
       emit: (_id, event, data) => h.events!.push({ event, data }),
       persist: async (_s, turns, snap) => { h.persisted!.push({ turns, snap }); },
@@ -231,6 +233,62 @@ describe('BattleSession — human vs human (real)', () => {
     expect(snap.current.deadline).toBe(h.fake.now() + 60_000);
     expect(snap.roster).toHaveLength(6);
     expect(snap.timeouts).toEqual({ A: 0, B: 0 });
+  });
+});
+
+describe('BattleSession — playback extension (smoothness 2026-11-04)', () => {
+  // The browser shows a turn only after playing every earlier one; the clock waits for it.
+  const submitNow = (h: Harness) => {
+    const cur = h.session.current();
+    const actor = h.session.state.lobsters.find((l) => l.id === cur.lobsterId)!;
+    const res = h.session.submit(cur.side!, cur.turn, { lobsterId: actor.id, action: 'defend' });
+    expect(res.ok).toBe(true);
+  };
+
+  test('the next deadline adds the queued playback; back-to-back turns stack it', () => {
+    const h = harness({ playbackEstimate: () => 3_000 });
+    h.session.start();
+    const t0 = h.fake.now();
+    expect(h.ev('turn_started')[0].playbackMs).toBe(0);              // nothing to play yet
+    expect(h.ev('turn_started')[0].clockMs).toBe(60_000);
+    submitNow(h);                                                     // turn 1 resolves at t0: 3 s of playback queued
+    const second = h.ev('turn_started')[1];
+    expect(second.playbackMs).toBe(3_000);
+    expect(second.clockMs).toBe(60_000);
+    expect(second.deadline).toBe(t0 + 63_000);
+    expect(h.session.current()).toMatchObject({ deadline: t0 + 63_000, clockMs: 60_000, playbackMs: 3_000 });
+    submitNow(h);                                                     // answered at once: the queue now holds two turns
+    expect(h.ev('turn_started')[2].playbackMs).toBe(6_000);
+    h.fake.advance(10_000);                                           // the queue drained while the player thought
+    submitNow(h);
+    expect(h.ev('turn_started')[3].playbackMs).toBe(3_000);
+  });
+
+  test('a timeout fires only after the clock AND the playback ahead of it', () => {
+    const h = harness({ shotClockMs: 10_000, playbackEstimate: () => 2_000 });
+    h.session.start();
+    submitNow(h);                                                     // next turn: 10 s clock + 2 s playback
+    const before = h.ev('turn_resolved').length;
+    h.fake.advance(11_999);
+    expect(h.ev('turn_resolved')).toHaveLength(before);
+    h.fake.advance(1);
+    expect(h.ev('turn_resolved')).toHaveLength(before + 1);
+    expect(h.ev('turn_resolved')[before].submittedBy).toBe('timeout');
+  });
+
+  test('the extension is capped (a run of long Specials cannot stretch a turn without limit)', () => {
+    const h = harness({ playbackEstimate: () => 100_000 });
+    h.session.start();
+    submitNow(h);
+    expect(h.ev('turn_started')[1].playbackMs).toBe(PLAYBACK_DELAY_CAP_MS);
+  });
+
+  test('the real estimate: a defend in place is a short beat', () => {
+    const h = harness({ playbackEstimate: v3.playbackEstimateMs });
+    h.session.start();
+    submitNow(h);
+    const ms = h.ev('turn_started')[1].playbackMs;
+    expect(ms).toBe(Math.round((v3.PLAYBACK_GAP_MS + v3.PLAYBACK_DEFEND_MS) * v3.PLAYBACK_MARGIN));
   });
 });
 

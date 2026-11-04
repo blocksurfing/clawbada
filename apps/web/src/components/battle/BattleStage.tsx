@@ -24,7 +24,7 @@ import {
   type SelectionData,
   type CoachState,
 } from './unity-bridge';
-import type { BattleEndedPayload, BattleSnapshot, CurrentTurn, Side, TurnResolvedPayload, WireBarEntry } from '@/lib/battle-protocol';
+import { shownRemainingMs, type BattleEndedPayload, type BattleSnapshot, type CurrentTurn, type Side, type TurnResolvedPayload, type WireBarEntry } from '@/lib/battle-protocol';
 import { cancelBattleEntry, markArenaReady, markUnityLoadingShown, useBattleEntry } from '@/lib/battle-entry';
 import { pickLoadingTip } from '@/lib/loading-tips';
 
@@ -425,7 +425,7 @@ function UnityStage(props: BattleStageProps) {
       // server starts it (it waits for `ready`), then turn_started brings the real deadline — start the clock now.
       if (mine && props.current.deadline && props.current.deadline !== last.deadline) {
         last.deadline = props.current.deadline;
-        send(UNITY_METHODS.SET_CLOCK, { remainingMs: Math.max(0, props.current.deadline - Date.now()) });
+        send(UNITY_METHODS.SET_CLOCK, { remainingMs: shownRemainingMs(props.current) ?? 0 });
       }
       return;
     }
@@ -439,9 +439,10 @@ function UnityStage(props: BattleStageProps) {
       isPlayer: props.playerSide !== 'spectator' && props.current.side === props.playerSide,
     });
     send(UNITY_METHODS.UPDATE_BAR, barToData(props.current.turn, props.bar));
-    // Shot clock: Unity counts down locally from what is left right now.
+    // Shot clock: Unity counts down locally from what is left right now — capped at the turn's own budget, because the
+    // server's deadline also covered the earlier turns this page just finished playing (smoothness 2026-11-04).
     if (mine && props.current.deadline) {
-      send(UNITY_METHODS.SET_CLOCK, { remainingMs: Math.max(0, props.current.deadline - Date.now()) });
+      send(UNITY_METHODS.SET_CLOCK, { remainingMs: shownRemainingMs(props.current) ?? 0 });
     }
   }, [ready, props.current, props.nextToAnimate, props.bar, props.playerSide, send]);
 

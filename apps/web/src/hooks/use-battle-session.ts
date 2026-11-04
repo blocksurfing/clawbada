@@ -96,7 +96,7 @@ function reducer(s: SessionViewState, a: Action): SessionViewState {
     case 'snapshot':
       return { ...s, snapshot: a.snapshot, current: a.snapshot.current, timeouts: a.snapshot.timeouts, bar: a.snapshot.state.bar, pending: [], error: null, snapshotSeq: s.snapshotSeq + 1 };
     case 'turn_started':
-      return { ...s, current: { turn: a.data.turn, lobsterId: a.data.lobsterId, side: a.data.side, controller: a.data.controller, deadline: a.data.deadline }, bar: a.data.bar };
+      return { ...s, current: { turn: a.data.turn, lobsterId: a.data.lobsterId, side: a.data.side, controller: a.data.controller, deadline: a.data.deadline, clockMs: a.data.clockMs, playbackMs: a.data.playbackMs }, bar: a.data.bar };
     case 'turn_resolved': {
       if (s.log.some((x) => x.turn === a.data.turn) || s.pending.some((x) => x.turn === a.data.turn)) return s;
       if (a.gate && s.snapshot) return { ...s, pending: [...s.pending, a.data] };

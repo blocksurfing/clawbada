@@ -71,6 +71,8 @@ export interface ManagerDeps {
   shotClockMs?: number;
   botThinkMs?: number;
   firstTurnGraceMs?: number;
+  /** Playback estimate per resolved turn (default v3.playbackEstimateMs; tests pin it to 0). See SessionOptions. */
+  playbackEstimate?: (result: v3.TurnResult, state: v3.AtbBattleState) => number;
   /** Fresh battles wait up to this long for the players' `ready` (battle-start intro) before the first turn. */
   startWaitMs?: number;
   pollMs?: number;
@@ -720,6 +722,7 @@ export class BattleSessionManager {
         firstTurnClockMs: resume?.firstTurnClockMs,
         firstTurnGraceMs: this.firstTurnGraceMs,
         startWaitMs: resume ? 0 : this.startWaitMs,
+        playbackEstimate: this.deps.playbackEstimate,
         hooks: {
           emit: this.emit,
           persist: (s, turns, snap) => this.deps.store.writeTurns(s.record.id, turns, snap),
