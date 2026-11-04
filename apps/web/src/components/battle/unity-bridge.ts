@@ -75,6 +75,10 @@ export interface BattleInitData {
   stakeAmount: number;
   /** Play the battle-start intro (fresh battle: no turn resolved yet). Reconnects mid-battle skip it. */
   intro: boolean;
+  /** Late-battle pressure (rules.damageRamp): +damageRampBps/100 % direct damage per battle turn past damageRampFromTurn.
+   *  0 = none in this battle (persisted before the rule) — Unity hides the pressure tube. */
+  damageRampFromTurn: number;
+  damageRampBps: number;
 }
 
 export interface TurnStartData { turn: number; lobsterId: string; side: Side; deadlineMs: number; isPlayer: boolean }
@@ -279,6 +283,8 @@ export function buildInitData(snapshot: BattleSnapshot, playerSide: Side | 'spec
     stakeBracket: session.kind,
     stakeAmount: 0,
     intro: snapshot.state.turn === 0 && !snapshot.state.finished,
+    damageRampFromTurn: snapshot.state.rules.damageRamp?.fromTurn ?? 0,
+    damageRampBps: Number(snapshot.state.rules.damageRamp?.bpsPerTurn ?? 0),
   };
 }
 

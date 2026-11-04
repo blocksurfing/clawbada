@@ -6,10 +6,11 @@ using UnityEngine.UI;
 /// Drives Nzib's ActionButtonUI Animator (drop 28c11f5) from input + selection, per his handoff:
 ///   pointer down            → "Pressed" (frame cell 2, the Visual one design pixel down);
 ///   release / leave         → back to the resting state;
-///   resting state           → "Selected" (looping shine) while this action is armed, else "Normal".
+///   resting state           → "Selected" (looping shine) while this action is armed, else "Hover" while the pointer
+///                             rests on a live button (his authored hover frame, drop 107c18b), else "Normal".
 /// A press that is released outside does not select; selection only comes from React (ActionBar.Apply → SetArmed).
-/// Hover shows a soft halo (a separate image — nothing else touches his Frame sprite). Disabled buttons rest at
-/// Normal and never react.
+/// With his cluster (drop 107c18b) hover is his own Hover state; the older single-button art had none, so a soft halo image
+/// (glow) stands in when one is set. Disabled buttons rest at Normal and never react.
 /// </summary>
 public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
 {
@@ -25,6 +26,19 @@ public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private string state = "";
 
     void Awake() => sel = GetComponent<Selectable>();
+
+    /// <summary>True when the animator has an authored Hover state (Nzib's cluster); else hover is the glow image only.</summary>
+    private bool hasHover => animator != null && animator.isActiveAndEnabled
+        && (animator.HasState(0, HoverPathHash) || animator.HasState(0, HoverHash));
+    private static readonly int HoverHash = Animator.StringToHash("Hover");
+    private static readonly int HoverPathHash = Animator.StringToHash("Base Layer.Hover");
+
+    /// <summary>The animator's controller was swapped (the Special button follows the acting class): replay the current state.</summary>
+    public void Resync()
+    {
+        state = "";
+        Apply();
+    }
 
     void OnEnable() { state = ""; Apply(); }
     void OnDisable() { over = down = keyDown = false; }
@@ -62,7 +76,7 @@ public class ButtonFeel : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private void Apply()
     {
         bool live = sel == null || sel.interactable;
-        string want = live && (down || keyDown) ? "Pressed" : live && armed ? "Selected" : "Normal";
+        string want = live && (down || keyDown) ? "Pressed" : live && armed ? "Selected" : live && over && hasHover ? "Hover" : "Normal";
         if (animator != null && animator.isActiveAndEnabled && want != state)
         {
             animator.Play(want, 0, 0f);
