@@ -811,7 +811,7 @@ public class BattleManager : MonoBehaviour
                             if (windup.swingOnImpact)
                             {
                                 string sw = actor.SpecialSwingState;
-                                float contact = Mathf.Max(attackDuration, actor.ClipLength(sw)) * LobsterController.AttackImpactFraction;
+                                float contact = actor.ContactSeconds(sw);
                                 float swingDelay = Mathf.Max(0f, windup.impactAt - contact);
                                 Debug.Log($"[BattleManager] special {actor.className} swing held {swingDelay:F2}s so its contact ({contact:F2}s in) lands on the impact at {windup.impactAt:F2}s");
                                 StartCoroutine(SwingAfter(actor, actorPos, swingDelay, sw));
@@ -851,7 +851,7 @@ public class BattleManager : MonoBehaviour
                                 // Land, tiny wind-up, strike: speed the swing so its contact frame comes
                                 // `strikeWithin` seconds after touchdown (never slower than authored).
                                 string sw = actor.SpecialSwingState;
-                                float normalContact = Mathf.Max(attackDuration, actor.ClipLength(sw) / castSpeed) * LobsterController.AttackImpactFraction;
+                                float normalContact = actor.ContactSeconds(sw, castSpeed);
                                 castSpeed = Mathf.Max(castSpeed, castSpeed * normalContact / dash.strikeWithin);
                                 Debug.Log($"[BattleManager] special {actor.className} after leap: strike in {dash.strikeWithin:F2}s (swing ×{castSpeed:F2}, was {normalContact:F2}s to contact)");
                             }
@@ -859,7 +859,7 @@ public class BattleManager : MonoBehaviour
                             // the contact frame lands on the hit inside the file — the binder measured where it is —
                             // instead of asking the sound to fit a 0.3 s window.
                             string swing = special ? actor.SpecialSwingState : "Attack";
-                            float contactAt = Mathf.Max(attackDuration, actor.ClipLength(swing) / castSpeed) * LobsterController.AttackImpactFraction;
+                            float contactAt = actor.ContactSeconds(swing, castSpeed);
                             if (swingCombo)
                             {
                                 // Cast (the wind-up) then impact (the hit), back to back: the impact clip starts as the

@@ -1,0 +1,243 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e9b6c1a69a142debfff075c6fcb4317, type: 3}
+  m_Name: ContactTimes
+  m_EditorClassIdentifier: 
+  entries:
+  - tier: 1
+    className: Bulwark
+    state: Attack
+    seconds: 0.5000
+  - tier: 1
+    className: Bulwark
+    state: Special
+    seconds: 0.5000
+  - tier: 1
+    className: Mantis
+    state: Attack
+    seconds: 0.5833
+  - tier: 1
+    className: Leviathan
+    state: Attack
+    seconds: 0.3333
+  - tier: 1
+    className: Leviathan
+    state: Special
+    seconds: 0.3333
+  - tier: 1
+    className: Tempest
+    state: Attack
+    seconds: 0.4167
+  - tier: 1
+    className: Tempest
+    state: Special
+    seconds: 0.4167
+  - tier: 1
+    className: Specter
+    state: Attack
+    seconds: 0.4167
+  - tier: 1
+    className: Specter
+    state: Special
+    seconds: 0.4167
+  - tier: 1
+    className: Sentinel
+    state: Attack
+    seconds: 0.5000
+  - tier: 1
+    className: Sentinel
+    state: Special
+    seconds: 0.5000
+  - tier: 1
+    className: Reaver
+    state: Attack
+    seconds: 0.3333
+  - tier: 1
+    className: Reaver
+    state: Special
+    seconds: 0.3333
+  - tier: 1
+    className: Abyss
+    state: Attack
+    seconds: 0.4167
+  - tier: 1
+    className: Abyss
+    state: Special
+    seconds: 0.4167
+  - tier: 1
+    className: Kraken
+    state: Attack
+    seconds: 0.5833
+  - tier: 1
+    className: Kraken
+    state: Special
+    seconds: 0.5833
+  - tier: 1
+    className: Ember
+    state: Attack
+    seconds: 0.5000
+  - tier: 1
+    className: Ember
+    state: Special
+    seconds: 0.5000
+  - tier: 2
+    className: Bulwark
+    state: Attack
+    seconds: 0.6667
+  - tier: 2
+    className: Bulwark
+    state: Special
+    seconds: 0.6667
+  - tier: 2
+    className: Mantis
+    state: Attack
+    seconds: 0.8333
+  - tier: 2
+    className: Leviathan
+    state: Attack
+    seconds: 0.5833
+  - tier: 2
+    className: Leviathan
+    state: Special
+    seconds: 0.5833
+  - tier: 2
+    className: Tempest
+    state: Attack
+    seconds: 0.4167
+  - tier: 2
+    className: Tempest
+    state: Special
+    seconds: 0.4167
+  - tier: 2
+    className: Specter
+    state: Attack
+    seconds: 0.3333
+  - tier: 2
+    className: Specter
+    state: Special
+    seconds: 0.3333
+  - tier: 2
+    className: Sentinel
+    state: Attack
+    seconds: 0.5000
+  - tier: 2
+    className: Sentinel
+    state: Special
+    seconds: 0.5000
+  - tier: 2
+    className: Reaver
+    state: Attack
+    seconds: 0.7500
+  - tier: 2
+    className: Reaver
+    state: Special
+    seconds: 0.7500
+  - tier: 2
+    className: Abyss
+    state: Attack
+    seconds: 0.5000
+  - tier: 2
+    className: Abyss
+    state: Special
+    seconds: 0.5000
+  - tier: 2
+    className: Kraken
+    state: Attack
+    seconds: 0.4167
+  - tier: 2
+    className: Kraken
+    state: Special
+    seconds: 0.4167
+  - tier: 2
+    className: Ember
+    state: Attack
+    seconds: 0.7500
+  - tier: 2
+    className: Ember
+    state: Special
+    seconds: 0.7500
+  - tier: 3
+    className: Bulwark
+    state: Attack
+    seconds: 0.5833
+  - tier: 3
+    className: Bulwark
+    state: Special
+    seconds: 0.5833
+  - tier: 3
+    className: Mantis
+    state: Attack
+    seconds: 0.1667
+  - tier: 3
+    className: Leviathan
+    state: Attack
+    seconds: 0.6667
+  - tier: 3
+    className: Leviathan
+    state: Special
+    seconds: 0.6667
+  - tier: 3
+    className: Tempest
+    state: Attack
+    seconds: 0.4167
+  - tier: 3
+    className: Tempest
+    state: Special
+    seconds: 0.4167
+  - tier: 3
+    className: Specter
+    state: Attack
+    seconds: 0.2500
+  - tier: 3
+    className: Specter
+    state: Special
+    seconds: 0.2500
+  - tier: 3
+    className: Sentinel
+    state: Attack
+    seconds: 0.5000
+  - tier: 3
+    className: Sentinel
+    state: Special
+    seconds: 0.5000
+  - tier: 3
+    className: Reaver
+    state: Attack
+    seconds: 0.5833
+  - tier: 3
+    className: Reaver
+    state: Special
+    seconds: 0.2500
+  - tier: 3
+    className: Abyss
+    state: Attack
+    seconds: 0.5000
+  - tier: 3
+    className: Abyss
+    state: Special
+    seconds: 0.5000
+  - tier: 3
+    className: Kraken
+    state: Attack
+    seconds: 0.4167
+  - tier: 3
+    className: Kraken
+    state: Special
+    seconds: 0.4167
+  - tier: 3
+    className: Ember
+    state: Attack
+    seconds: 0.7500
+  - tier: 3
+    className: Ember
+    state: Special
+    seconds: 0.7500

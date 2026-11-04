@@ -232,6 +232,64 @@ public static class WebSpriteExporter
         finally { Object.DestroyImmediate(arena); }
     }
 
+    // ─── Contact sheets (smoothness campaign 2026-11-04) ───
+
+    /// <summary>Review strips for picking each swing's strike frame: every tier × class × {Attack, Special}, one PNG per clip
+    /// (frames left to right at the clip's own frame rate, 128 × 96 each, root 20 px above the bottom, facing left) plus
+    /// contact-frames.json listing each strip's frame times. Written to scripts/harness/out/contact/ (not committed).</summary>
+    [MenuItem("Clawbada/Web/Export Contact Sheets")]
+    public static void ExportContactSheets()
+    {
+        const int W = 128, H = 96, RootFromBottom = 20;
+        var library = AssetDatabase.LoadAssetAtPath<LobsterPrefabLibrary>(PrefabLibraryPath);
+        var dir = Path.Combine(RepoRoot, "scripts/harness/out/contact");
+        Directory.CreateDirectory(dir);
+        var json = new StringBuilder("[");
+        int problems = 0, strips = 0;
+        foreach (var (tierIndex, tierName) in Tiers)
+            for (int c = 0; c < Classes.Length; c++)
+            {
+                var prefab = library != null ? library.Get(tierIndex, Classes[c]) : null;
+                if (prefab == null) { problems++; continue; }
+                var rig = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                try
+                {
+                    rig.transform.position = Vector3.zero;
+                    rig.transform.rotation = Quaternion.identity;
+                    HideShadows(rig);
+                    foreach (var state in new[] { "Attack", "Special" })
+                    {
+                        var clip = ClipNamed(rig, state);
+                        if (clip == null) continue;
+                        float fps = clip.frameRate > 0f ? clip.frameRate : 12f;
+                        int n = Mathf.Max(1, Mathf.RoundToInt(clip.length * fps) + 1);
+                        var strip = new Texture2D(W * n, H, TextureFormat.RGBA32, false);
+                        for (int f = 0; f < n; f++)
+                        {
+                            clip.SampleAnimation(rig, Mathf.Min(f / fps, clip.length));
+                            var px = Render(new Vector3(0f, (H / 2f - RootFromBottom) / Ppu, 0f), W, H);
+                            // A dark backdrop so pale rigs read, and a 1 px divider between frames.
+                            for (int i = 0; i < px.Length; i++)
+                            {
+                                if (px[i].a == 0) px[i] = new Color32(40, 44, 52, 255);
+                                if (i % W == 0) px[i] = new Color32(90, 90, 90, 255);
+                            }
+                            strip.SetPixels32(f * W, 0, W, H, px);
+                        }
+                        strip.Apply();
+                        File.WriteAllBytes(Path.Combine(dir, $"{tierName}_{Classes[c]}_{state}.png"), strip.EncodeToPNG());
+                        Object.DestroyImmediate(strip);
+                        string len = clip.length.ToString("F4", System.Globalization.CultureInfo.InvariantCulture), rate = fps.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+                        json.Append(strips++ > 0 ? "," : "").Append("{\"tier\":\"" + tierName + "\",\"class\":\"" + Classes[c] + "\",\"state\":\"" + state + "\",\"fps\":" + rate + ",\"frames\":" + n + ",\"length\":" + len + "}");
+                    }
+                }
+                finally { Object.DestroyImmediate(rig); }
+            }
+        File.WriteAllText(Path.Combine(dir, "contact-frames.json"), json.Append("]").ToString());
+        Debug.Log($"[WebSpriteExporter] contact sheets: {strips} strips, {problems} problem(s) → {dir}");
+        if (Application.isBatchMode) EditorApplication.Exit(problems == 0 ? 0 : 1);
+    }
+
     // ─── Rendering ───
 
     /// <summary>Render the scene's enabled renderers into a w × h image centred on <paramref name="centre"/> (world units),
