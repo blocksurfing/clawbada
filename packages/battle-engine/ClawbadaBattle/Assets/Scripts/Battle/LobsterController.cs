@@ -434,8 +434,42 @@ public class LobsterController : MonoBehaviour
         return 0f;
     }
 
-    /// <summary>Fraction of the Attack clip at which the hit lands (impact frame).</summary>
+    /// <summary>Fallback only: the fraction of a swing at which the hit lands when neither the clip (a "Contact" event) nor
+    /// ContactTimes knows its strike frame. Every swing used it until 2026-11-04.</summary>
     public static float AttackImpactFraction = 0.5f;
+
+    /// <summary>
+    /// Seconds from the start of a swing (Attack / Special state) to its strike frame, at <paramref name="speed"/> (a slowed
+    /// cast lands later). Where it comes from, first match wins: an AnimationEvent named "Contact" on the clip (Nzib can set
+    /// one in Unity), the ContactTimes table (picked from contact sheets), else half the clip — the old rule.
+    /// </summary>
+    public float ContactSeconds(string state, float speed = 1f) => ContactSeconds(state, speed, out _);
+
+    public float ContactSeconds(string state, float speed, out string source)
+    {
+        float s = Mathf.Max(0.05f, speed);
+        var clip = Clip(state);
+        if (clip != null)
+            foreach (var e in clip.events)
+                if (e.functionName == "Contact") { source = "event"; return e.time / s; }
+        var table = ContactTimes.Instance;
+        if (table != null && table.TryGet(tier, className, state, out float seconds)) { source = "table"; return seconds / s; }
+        source = "fallback";
+        return (clip != null ? clip.length : 0f) * AttackImpactFraction / s;
+    }
+
+    private AnimationClip Clip(string clipName)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return null;
+        var clips = animator.runtimeAnimatorController.animationClips;
+        if (clips == null) return null;
+        foreach (var c in clips) if (c != null && c.name == clipName) return c;
+        return null;
+    }
+
+    /// <summary>A clip-carried "Contact" event is a marker for ContactSeconds, not a call: this receiver keeps the Animator
+    /// from warning that nothing handles it.</summary>
+    public void Contact() { }
 
     /// <summary>The body animation a Special casts with: the rig's own "Special" state when the designer
     /// has made one (2026-09-27: every rig has it — most are still copies of Attack), else "Attack".</summary>
@@ -488,24 +522,30 @@ public class LobsterController : MonoBehaviour
 
         Vector3 start = transform.position;
         Vector3 apex = Vector3.Lerp(start, targetWorldPos, melee ? 0.7f : 0.12f);
-        float half = total * Mathf.Clamp(AttackImpactFraction, 0.2f, 0.8f);
+        // The hit lands on the swing's own strike frame (ContactSeconds), not halfway through it (2026-11-04).
+        float half = Mathf.Clamp(ContactSeconds(state, animSpeed, out string contactSource), 0.05f, Mathf.Max(0.05f, total - 0.05f));
         float back = Mathf.Max(0.05f, total - half);
+        Debug.Log($"[LobsterController] contact {className} {state} at {half:F2}s of {total:F2}s ({contactSource})");
 
+        // Out: ease-out cubic — the lunge covers most of its distance early and settles into the strike.
         float t = 0f;
         while (t < half)
         {
             t += Time.deltaTime;
-            transform.position = Vector3.Lerp(start, apex, Mathf.Clamp01(t / half));
+            float k = Mathf.Clamp01(t / half);
+            transform.position = Vector3.LerpUnclamped(start, apex, 1f - (1f - k) * (1f - k) * (1f - k));
             yield return null;
         }
 
         onImpact?.Invoke();
 
+        // Back: ease-in-out — a beat at the apex, then home without a snap.
         t = 0f;
         while (t < back)
         {
             t += Time.deltaTime;
-            transform.position = Vector3.Lerp(apex, start, Mathf.Clamp01(t / back));
+            float k = Mathf.Clamp01(t / back);
+            transform.position = Vector3.LerpUnclamped(apex, start, k < 0.5f ? 2f * k * k : 1f - 2f * (1f - k) * (1f - k));
             yield return null;
         }
 
