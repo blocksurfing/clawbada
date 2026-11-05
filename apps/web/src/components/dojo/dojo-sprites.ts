@@ -66,10 +66,14 @@ export function cssPx(element: Element, name: string, fallback: number): number 
 // ─── Idle animation (owner 2026-10-30: the lineup idles, like the battle) ───
 
 /** The battle's Idle, rendered out of the Unity rigs by WebSpriteExporter: one sheet per battle tier, columns = class
- *  (the same order and 64 px frames as the tier sheets), rows = the 5 Idle frames at 12 fps. Frame 0 is lined up with
+ *  (the same order as the tier sheets; 128 px frames = the 64 px still frame padded 32 px), rows = the 5 Idle frames. Frame 0 is lined up with
  *  the still frame (same foot line and centre), so swapping the still for the idle never moves the lobster. */
 export const IDLE_SHEETS: Record<number, string> = { 1: '/ui/dojo/idle/Evolved.png', 2: '/ui/dojo/idle/Elite.png', 3: '/ui/dojo/idle/Apex.png' };
 export const IDLE_FRAMES = 5;
+/** Idle sheet frames are the 64 px still frame padded IDLE_PAD on every side (the Apex rigs reach past 64 — Kraken's
+ *  tentacles and Abyss's claws were cut off, owner 2026-11-04). Crops come back in still-frame coords. */
+export const IDLE_PAD = idle.pad ?? 0;
+export const IDLE_FRAME = idle.idleFrame ?? 64;
 /** Played 8 % slower than the battle's 12 fps (owner 2026-11-01): a calmer lineup. */
 export const IDLE_FPS = 12 * 0.92;
 
@@ -86,19 +90,21 @@ function idleCropOf(sheet: HTMLImageElement, classIndex: number) {
   const key = `${sheet.src}#${classIndex}`;
   const known = idleCrops.get(key);
   if (known) return known;
+  const F = IDLE_FRAME;
   const frame = document.createElement('canvas');
-  frame.width = 64;
-  frame.height = 64 * IDLE_FRAMES;
+  frame.width = F;
+  frame.height = F * IDLE_FRAMES;
   const ctx = frame.getContext('2d', { willReadFrequently: true })!;
-  ctx.drawImage(sheet, classIndex * 64, 0, 64, 64 * IDLE_FRAMES, 0, 0, 64, 64 * IDLE_FRAMES);
-  const pixels = ctx.getImageData(0, 0, 64, 64 * IDLE_FRAMES).data;
-  let left = 64, top = 64, right = 0, bottom = 0;
-  for (let f = 0; f < IDLE_FRAMES; f++) for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
-    if (!pixels[((f * 64 + y) * 64 + x) * 4 + 3]) continue;
+  ctx.drawImage(sheet, classIndex * F, 0, F, F * IDLE_FRAMES, 0, 0, F, F * IDLE_FRAMES);
+  const pixels = ctx.getImageData(0, 0, F, F * IDLE_FRAMES).data;
+  let left = F, top = F, right = 0, bottom = 0;
+  for (let f = 0; f < IDLE_FRAMES; f++) for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
+    if (!pixels[((f * F + y) * F + x) * 4 + 3]) continue;
     left = Math.min(left, x); top = Math.min(top, y);
     right = Math.max(right, x + 1); bottom = Math.max(bottom, y + 1);
   }
-  const crop = right > left ? { left, top, right, bottom } : { left: 0, top: 0, right: 64, bottom: 64 };
+  // Sheet-frame coords; drawIdleFrame hands them back shifted into still-frame coords (− IDLE_PAD).
+  const crop = right > left ? { left, top, right, bottom } : { left: IDLE_PAD, top: IDLE_PAD, right: IDLE_PAD + 64, bottom: IDLE_PAD + 64 };
   idleCrops.set(key, crop);
   return crop;
 }
@@ -113,8 +119,8 @@ export function drawIdleFrame(canvas: HTMLCanvasElement, sheet: HTMLImageElement
   const ctx = canvas.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, w, h);
-  ctx.drawImage(sheet, classIndex * 64 + left, (frame % IDLE_FRAMES) * 64 + top, w, h, 0, 0, w, h);
-  return { left, right, bottom, scale };
+  ctx.drawImage(sheet, classIndex * IDLE_FRAME + left, (frame % IDLE_FRAMES) * IDLE_FRAME + top, w, h, 0, 0, w, h);
+  return { left: left - IDLE_PAD, right: right - IDLE_PAD, bottom: bottom - IDLE_PAD, scale };
 }
 
 type IdleListener = (frame: number) => void;
