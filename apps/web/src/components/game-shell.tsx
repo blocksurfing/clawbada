@@ -68,12 +68,12 @@ export function GameShell({ children }: { children: React.ReactNode }) {
       <PixelChrome />
 
       {/* Main content follows the pole: 96 source px compact (every load), 128 expanded, at the 3 px pixel */}
-      <main className="flex-1 min-h-screen lg:ml-[var(--sidebar-width,288px)] pb-20 lg:pb-0">
+      <main className="flex-1 min-h-screen md:ml-[var(--sidebar-width,288px)] pb-20 md:pb-0">
         {children}
       </main>
 
       {/* Mobile bottom nav */}
-      <nav data-site-chrome className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar/95 backdrop-blur-md border-t border-sidebar-border">
+      <nav data-site-chrome className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar/95 backdrop-blur-md border-t border-sidebar-border">
         <div className="flex items-stretch">
           {BOTTOM_NAV.map((link) => {
             const active = isActive(pathname, link.href);
@@ -139,7 +139,7 @@ export function GameShell({ children }: { children: React.ReactNode }) {
       {/* Backdrop for More drawer */}
       {moreOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/40"
+          className="md:hidden fixed inset-0 z-40 bg-black/40"
           onClick={() => setMoreOpen(false)}
         />
       )}
