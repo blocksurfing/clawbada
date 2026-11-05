@@ -229,7 +229,7 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
   // animating — the same moment BattleStage raises Unity's banner — so the countdown never
   // runs over the last death. Then the stage tears Unity down and the page navigates.
   // A battle that was over before this page joined (a resign while it loaded): nothing to watch — straight back to the
-  // arena (the rematch lobby shows the result). Mounting Unity on a finished battle froze the page (2026-11-04).
+  // arena (the rematch lobby shows the result).
   const endedBeforeJoin = session.endedBeforeJoin;
   useEffect(() => {
     if (!endedBeforeJoin || !onClose || stay) return;
