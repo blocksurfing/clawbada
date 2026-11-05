@@ -6,8 +6,8 @@ import { UI_CLICKS, nextClick } from './site-sfx';
 import { sfxKey } from '../../../../scripts/build-sfx';
 
 describe('site sfx', () => {
-  test('the sidebar, the wallet wheel, the three Shell rocks and the five taps have their sounds', () => {
-    expect(Object.keys(SITE_SFX).sort()).toEqual(['click01', 'click02', 'click03', 'click04', 'click05', 'rock01', 'rock02', 'rock03', 'sidebarClose', 'sidebarOpen', 'wheelClose', 'wheelOpen']);
+  test('the sidebar, the wallet wheel, the three Shell rocks, the team add/remove and the five taps have their sounds', () => {
+    expect(Object.keys(SITE_SFX).sort()).toEqual(['click01', 'click02', 'click03', 'click04', 'click05', 'rock01', 'rock02', 'rock03', 'sidebarClose', 'sidebarOpen', 'teamAdd', 'teamRemove', 'wheelClose', 'wheelOpen']);
   });
   test('taps come from all five, never the same one twice in a row', () => {
     let seed = 7;
