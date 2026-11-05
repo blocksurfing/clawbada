@@ -10,6 +10,7 @@ import { attachUnityPerf, perfEnabled, startPagePerf } from '@/lib/battle-perf';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getBattleMusicPref, getBattleMusicVolume, getSfxPref, getSfxVolume, BATTLE_MUSIC_EVENT, SFX_EVENT, VOLUME_EVENT, type AudioPrefChange } from '@/lib/audio-prefs';
 import { Unity, useUnityContext } from 'react-unity-webgl';
+import { installUnityErrorGuard } from '@/lib/unity-error-guard';
 import {
   UNITY_GAME_OBJECT,
   UNITY_METHODS,
@@ -119,6 +120,8 @@ function UnityStage(props: BattleStageProps) {
     frameworkUrl: `${BUILD_BASE}.framework.js.unityweb`,
     codeUrl: `${BUILD_BASE}.wasm.unityweb`,
   });
+  // Unity answers ANY page error with a blocking alert; keep errors that aren't Unity's away from it (lib/unity-error-guard.ts).
+  useEffect(() => installUnityErrorGuard(), []);
   const [unityReady, setUnityReady] = useState(false);
   /**
    * Pixel-perfect canvas snapping. The arena is authored at 640×360 (PPU 64); at an integer
