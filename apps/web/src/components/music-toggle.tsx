@@ -86,7 +86,7 @@ export function MusicToggle() {
       onClick={toggle}
       title={playing ? 'Pause music' : 'Play music'}
       data-site-chrome
-      className={`fixed bottom-5 right-5 z-50 size-12 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-110 active:scale-95${pixelChrome ? ' lg:hidden' : ''}`}
+      className={`fixed bottom-5 right-5 z-50 size-12 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-110 active:scale-95${pixelChrome ? ' md:hidden' : ''}`}
       style={{
         background: playing
           ? 'linear-gradient(135deg, #fbbf24 0%, #d4a017 100%)'

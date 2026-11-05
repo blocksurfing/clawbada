@@ -99,13 +99,13 @@ function useStage(stageRef: RefObject<HTMLDivElement | null>) {
     if (!stage) return;
     let last = '';
     const fit = () => {
-      const vw = window.innerWidth, vh = window.innerHeight - (vw < 1024 ? MOBILE_NAV : 0);
+      const vw = window.innerWidth, vh = window.innerHeight - (vw < 768 ? MOBILE_NAV : 0);
       // The real sidebar (lg+): his composition is drawn for the COMPACT pole. When the pole opens, the whole
       // composition shrinks and moves right as one piece (owner 2026-10-26: the fighters looked oversized when the
       // open sidebar squeezed only the cards), instead of reflowing.
       const rootStyle = getComputedStyle(document.documentElement);
       const n = parseFloat(rootStyle.getPropertyValue('--pixel-n')) || 3;
-      const progress = vw >= 1024 ? Math.min(1, Math.max(0, parseFloat(rootStyle.getPropertyValue('--sidebar-expand-progress')) || 0)) : 0;
+      const progress = vw >= 768 ? Math.min(1, Math.max(0, parseFloat(rootStyle.getPropertyValue('--sidebar-expand-progress')) || 0)) : 0;
       const key = `${vw}x${vh}@${n}:${progress}`;
       if (key === last) return;
       // During a battle entry the scene holds still: the fullscreen request resizes the window under the closing iris,
@@ -118,7 +118,7 @@ function useStage(stageRef: RefObject<HTMLDivElement | null>) {
       const tx = vw < 700 ? 0 : extra + (avail - DOJO_DESIGN.width * scale) / 2;
       const ty = vw < 700 ? 0 : Math.max(0, (vh - DOJO_DESIGN.height * scale) / 2);
       // The page clears the compact sidebar (his placeholders.css: 48 art px in from its 96), in stage px.
-      const contentLeft = vw >= 1024 ? Math.max(0, (48 * n + extra - tx) / scale) : 0;
+      const contentLeft = vw >= 768 ? Math.max(0, (48 * n + extra - tx) / scale) : 0;
       stage.style.setProperty('--dojo-content-left', `${contentLeft}px`);
       stage.style.setProperty('--dojo-stage-scale', String(scale));
       // The wallet chip belongs to his composition too (owner 2026-10-26): on the Dojo it scales with the room.
