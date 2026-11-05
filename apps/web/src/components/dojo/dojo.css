@@ -32,8 +32,8 @@
 :where(#page-content[data-page="dojo"]) .pixel-grid { display: grid; gap: calc(8 * var(--pixel)); justify-content: start; }
 /* His placeholders.css: the page follows the pole's own frame progress — 48 art px further left while compact. */
 /* Clear of the real sidebar at any chrome scale: dojo-room.tsx works out the offset in stage px. */
-@media (min-width: 1024px) { :where(#page-content[data-page="dojo"]) { left: var(--dojo-content-left, 0px); } }
-/* Below lg the pixel sidebar is gone and the mobile bottom nav takes the foot of the window. */
+@media (min-width: 768px) { :where(#page-content[data-page="dojo"]) { left: var(--dojo-content-left, 0px); } }
+/* Below md (768 px) the pixel sidebar is gone and the mobile bottom nav takes the foot of the window. */
 
 /* ── the stage (owner 2026-10-26: "how Nzib intended it to look on any screen size") ──
    His composition is laid out once at its design size, 1920×955 at the 3 px pixel, and scaled uniformly to fit

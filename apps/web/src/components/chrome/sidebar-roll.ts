@@ -568,9 +568,16 @@ export class SidebarRoll {
     playSiteSfx(this.compact ? 'sidebarOpen' : 'sidebarClose', { cut: ['sidebarOpen', 'sidebarClose'] });
     this.toggle();
   };
+  /** Window width at the last resize: a narrowing window closes an open sidebar (below). */
+  private lastWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
   private readonly onResize = () => {
     this.cfg.pixelScale = applyChromePixelScale();
     if (!this.busy && this.ready) this.layoutPixels();
+    // The window got narrower with the sidebar open (owner 2026-11-04: a wallet side panel squeezed the page and the
+    // expanded menu spilled over it): roll it back to compact, silently. Widening never opens it.
+    const w = window.innerWidth;
+    if (w < this.lastWidth && !this.compact && !this.busy && this.ready) this.toggle();
+    this.lastWidth = w;
   };
 
   private async loadSidebar() {

@@ -30,7 +30,9 @@ const MENU = [
 ] as const;
 
 /** The chrome ships at the desktop breakpoint only (Tailwind `lg`); below it the game shell keeps its bottom nav. */
-export const PIXEL_CHROME_MEDIA = '(min-width: 1024px)';
+/** Where the pixel chrome shows — the `md:` of pixel-chrome.tsx / game-shell.tsx (768 px since 2026-11-04). The engine
+ *  must run wherever the chrome is visible, or the sidebar shows frozen (no toggle, a stale expanded layout). */
+export const PIXEL_CHROME_MEDIA = '(min-width: 768px)';
 /** The expanded pole: 128 source px × the 3 px pixel (compact is 96 × 3 = 288). The live value is `--sidebar-width`. */
 export const SIDEBAR_WIDTH_PX = 384;
 export const SIDEBAR_COMPACT_WIDTH_PX = 288;
@@ -74,7 +76,7 @@ export function PixelSidebar() {
   const pickPage = (label: string) => { if (activeMenuLabel(pathnameRef.current) !== label) playUiClick(); };
   useEffect(() => { preloadUiClicks(); }, []);
 
-  // The engine measures the menu, so it only runs while the chrome is displayed (≥ lg); it is created before
+  // The engine measures the menu, so it only runs while the chrome is displayed (≥ md); it is created before
   // the first paint so the compact start state never transitions from the open position.
   useLayoutEffect(() => {
     const mq = window.matchMedia(PIXEL_CHROME_MEDIA);
