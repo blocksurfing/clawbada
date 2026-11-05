@@ -31,7 +31,7 @@
   z-index: 1;
   padding: 16px;
 }
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .battle-windowed-content { padding: var(--battle-band) 24px 24px; }
   /* The arena keeps its 16:9 and fits the height left under the band, centred. */
   .battle-windowed-content > .battle-live { width: min(100%, calc((100dvh - var(--battle-band) - 24px) * 16 / 9)); margin-inline: auto; }
@@ -59,7 +59,7 @@
 }
 .battle-fullscreen-btn:hover { background: #ffe4a0; color: #302129; border-color: #ffe4a0; }
 .battle-fullscreen-btn:active { transform: translateY(2px); box-shadow: 0 1px #1b1420; }
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .battle-windowed .battle-windowed-bar {
     position: fixed;
     z-index: 18;
