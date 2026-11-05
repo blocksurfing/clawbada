@@ -10,9 +10,10 @@ using UnityEngine;
 /// the ninja squirrel should run over the lobby's backdrop like it does in battle). Off-screen, through an orthographic
 /// camera at 64 PPU into a point-filtered RenderTexture, so every pixel matches the battle.
 ///
-///   · Idle sheets: apps/web/public/ui/dojo/idle/{Evolved,Elite,Apex}.png — 640 × 320, one column per class in the
+///   · Idle sheets: apps/web/public/ui/dojo/idle/{Evolved,Elite,Apex}.png — 1280 × 640, one column per class in the
 ///     web's class order (Bulwark … Ember, as the market sheets), one row per Idle frame (5 frames at 12 fps). Each
-///     64 × 64 frame stands the rig's root on the class sheets' floor point (32, 44), facing left like the sheets.
+///     128 × 128 frame is the 64 × 64 still frame padded 32 px all round (the Apex rigs reach past 64), the rig's root on
+///     the class sheets' floor point (32, 44) of that centre frame, facing left like the sheets.
 ///     A framing check compares frame 0 with the market sheet's still frame (foot line, horizontal centre) and logs
 ///     every class that disagrees by more than a pixel.
 ///   · Squirrel: apps/web/public/ui/dojo/squirrel.png — a horizontal strip of RunJumpVanish (3.5 s at 20 fps), cropped to
@@ -28,6 +29,11 @@ public static class WebSpriteExporter
     private const int Frame = 64;
     private const int FloorX = 32, FloorY = 44;   // the class sheets' floor point, from the top-left of a frame
     private const int IdleFrames = 5;
+    /// <summary>Margin round each idle frame: the Apex rigs reach past the 64 px still frame (Kraken's tentacles, Abyss's
+    /// claws were cut off, owner 2026-11-04). The sheet's frames are the 64 px frame padded by this on every side, so its
+    /// centre is the still frame exactly (same coords for roots and the still alignment).</summary>
+    private const int IdlePad = 32;
+    private const int IdleFrame = Frame + 2 * IdlePad;
     private const float IdleFps = 12f;
     private const float SquirrelFps = 20f;
     /// <summary>CharacterShadow.Offset (−0.125 units) in pixels: the shadow's centre sits this far below the rig root.</summary>
@@ -64,7 +70,7 @@ public static class WebSpriteExporter
         var roots = new StringBuilder();
         foreach (var (tierIndex, tierName) in Tiers)
         {
-            var sheet = new Texture2D(Frame * Classes.Length, Frame * IdleFrames, TextureFormat.RGBA32, false);
+            var sheet = new Texture2D(IdleFrame * Classes.Length, IdleFrame * IdleFrames, TextureFormat.RGBA32, false);
             sheet.SetPixels32(new Color32[sheet.width * sheet.height]);
             var still = LoadPng(Path.Combine(RepoRoot, $"apps/web/public/ui/market/sheets/{tierName}.png"));
             if (roots.Length > 0) roots.Append(',');
@@ -89,18 +95,18 @@ public static class WebSpriteExporter
                         clip.SampleAnimation(rig, Mathf.Min(f / IdleFps, clip.length));
                         // Root on the floor point: the frame's centre is (32, 32) from the top-left, so the camera looks
                         // (44 − 32) px above the root.
-                        frames[f] = Render(new Vector3(0f, (FloorY - Frame / 2f) / Ppu, 0f), Frame, Frame);
+                        frames[f] = Render(new Vector3(0f, (FloorY - Frame / 2f) / Ppu, 0f), IdleFrame, IdleFrame);
                     }
                     // The still sheets were not drawn on the rig root (their feet sit ~9–13 px higher, per tier): line the
                     // idle up with the class's still frame — same foot line, same horizontal centre — so swapping the
                     // still for the idle never moves the lobster.
-                    var (sx, sy) = still != null ? Offset(frames[0], still, c) : (0, 0);
+                    var (sx, sy) = still != null ? Offset(Centre(frames[0]), still, c) : (0, 0);
                     roots.Append(c > 0 ? "," : "").Append($"[{FloorX + sx},{FloorY - sy}]");
                     for (int f = 0; f < IdleFrames; f++)
                     {
-                        var shifted = Shift(frames[f], sx, sy);
-                        sheet.SetPixels32(c * Frame, (IdleFrames - 1 - f) * Frame, Frame, Frame, shifted);
-                        if (f == 0 && still != null) problems += CheckFraming(report, tierName, c, shifted, still, sx, sy);
+                        var shifted = Shift(frames[f], sx, sy, IdleFrame);
+                        sheet.SetPixels32(c * IdleFrame, (IdleFrames - 1 - f) * IdleFrame, IdleFrame, IdleFrame, shifted);
+                        if (f == 0 && still != null) problems += CheckFraming(report, tierName, c, Centre(shifted), still, sx, sy);
                     }
                 }
                 finally { Object.DestroyImmediate(rig); }
@@ -112,7 +118,7 @@ public static class WebSpriteExporter
             if (still != null) Object.DestroyImmediate(still);
         }
         File.WriteAllText(Path.Combine(WebDojoDir, "idle", "idle.json"),
-            $"{{\"frames\":{IdleFrames},\"fps\":{IdleFps},\"frame\":{Frame},\"floor\":[{FloorX},{FloorY}],\"shadowBelowRoot\":{ShadowBelowRootPx},\"classes\":[{string.Join(",", Classes.Select(n => $"\"{n.ToLowerInvariant()}\""))}],\"roots\":{{{roots}}}}}\n");
+            $"{{\"frames\":{IdleFrames},\"fps\":{IdleFps},\"frame\":{Frame},\"idleFrame\":{IdleFrame},\"pad\":{IdlePad},\"floor\":[{FloorX},{FloorY}],\"shadowBelowRoot\":{ShadowBelowRootPx},\"classes\":[{string.Join(",", Classes.Select(n => $"\"{n.ToLowerInvariant()}\""))}],\"roots\":{{{roots}}}}}\n");
         Debug.Log($"[WebSpriteExporter] idle sheets written\n{report}");
         return problems;
     }
@@ -159,17 +165,27 @@ public static class WebSpriteExporter
         return (Mathf.RoundToInt((b.xMin + b.xMax - a.xMin - a.xMax) / 2f), b.yMin - a.yMin);
     }
 
-    private static Color32[] Shift(Color32[] src, int dx, int dy)
+    private static Color32[] Shift(Color32[] src, int dx, int dy, int size = Frame)
     {
         if (dx == 0 && dy == 0) return src;
         var dst = new Color32[src.Length];
-        for (int y = 0; y < Frame; y++)
-            for (int x = 0; x < Frame; x++)
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
             {
                 int sx = x - dx, sy = y - dy;
-                if (sx >= 0 && sx < Frame && sy >= 0 && sy < Frame) dst[y * Frame + x] = src[sy * Frame + sx];
+                if (sx >= 0 && sx < size && sy >= 0 && sy < size) dst[y * size + x] = src[sy * size + sx];
             }
         return dst;
+    }
+
+    /// <summary>The 64 px still-frame region at the centre of a padded idle frame.</summary>
+    private static Color32[] Centre(Color32[] idle)
+    {
+        var c = new Color32[Frame * Frame];
+        for (int y = 0; y < Frame; y++)
+            for (int x = 0; x < Frame; x++)
+                c[y * Frame + x] = idle[(y + IdlePad) * IdleFrame + x + IdlePad];
+        return c;
     }
 
     // ─── Squirrel ───
