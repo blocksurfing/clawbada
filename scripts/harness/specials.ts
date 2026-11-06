@@ -1,398 +1,91 @@
+/**
+ * Every class's Special, cast for real (rebuilt 2026-11-05; the 2026-09 probe drove a preset picker and a burner-wallet
+ * button that no longer exist). For each class: a Dojo battle with three of it (Build-a-team deep link, purity 6), the
+ * battle page's `?auto=special` autoplay casting the Special whenever one is legal (the balanced policy closes in
+ * meanwhile). Checks per class:
+ *   · the battle opens and the intro finishes;
+ *   · at least CASTS of the player's Specials are sent and Unity plays them (its `[BattleManager] special <Class>` lines);
+ *   · no Unity or page errors;
+ * and reports how long each of the player's Special turns took to play on screen (Unity's ?perf=1 turn segments)
+ * against the shot clock's estimate (game-logic v3.PLAYBACK_SPECIAL_MS, walk included) — the numbers for re-timing
+ * Specials with Nzib.
+ *
+ *   bash chrome-gpu.sh && BASE=http://127.0.0.1:3010 API=http://127.0.0.1:3011 bun cdp.ts specials.ts
+ * Knobs: CLASSES=tempest,abyss (default all ten), TIER=elite, ARENA=dojo, CASTS=2 (per class), SECONDS=150 (cap per
+ * class). Muted; resigns each battle through the API (one live practice battle per player). Writes out/specials.json.
+ */
 import type { Browser } from './cdp';
-import { waitForIntro } from './intro-wait';
-const S = `${import.meta.dir}/out`;
-const CLASS = process.env.TRIO ?? 'Ember';
-const PRESET_LABEL = process.env.PRESET_LABEL ?? `Trio · ${CLASS}`;
+import { v3, LobsterClass } from '../../packages/game-logic/src';
 
-async function rectClick(b: Browser, selector: string, text?: string) {
-  const r = await b.eval(`(() => { const els = Array.from(document.querySelectorAll(${JSON.stringify(selector)})); const el = ${text ? `els.find(e => (e.textContent || '').trim().includes(${JSON.stringify(text)}))` : 'els[0]'}; if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
-  if (!r) throw new Error(`no element ${selector} ${text ?? ''}`); await b.clickAt(r.x, r.y);
-}
-const grab = (b: Browser, re: RegExp) => b.logs.filter((l) => re.test(l)).map((l) => l.replace(/^\[log\] /, ''));
-const myTurn = `/Your turn/i.test(document.body.innerText) && !/animating…/.test(document.body.innerText)`;
-const turnNo = `(document.body.innerText.match(/Turn (\\d+)/i) || [])[1]`;
-async function canvasGeom(b: Browser) {
-  return b.eval(`(() => { const c = document.querySelector('canvas'); const r = c.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bw: c.width, bh: c.height }; })()`);
-}
-function toCss(g: { x: number; y: number; w: number; h: number; bw: number; bh: number }, ux: number, uy: number) {
-  const sx = g.w / g.bw, sy = g.h / g.bh;
-  return { x: g.x + ux * sx, y: g.y + (g.bh - uy) * sy };
-}
-function parseButtons(line: string) {
-  const out: Record<string, { x: number; y: number; w: number; h: number }> = {};
-  for (const m of line.matchAll(/(\w+)=\((-?\d+),(-?\d+),(\d+),(\d+)\)/g)) out[m[1]] = { x: +m[2], y: +m[3], w: +m[4], h: +m[5] };
-  return out;
-}
-function cube(p: { col: number; row: number }) { const x = p.col - (p.row - (p.row & 1)) / 2; const z = p.row; return [x, -x - z, z]; }
-function hexDist(a: { col: number; row: number }, b: { col: number; row: number }) { const [ax, ay, az] = cube(a), [bx, by, bz] = cube(b); return (Math.abs(ax - bx) + Math.abs(ay - by) + Math.abs(az - bz)) / 2; }
-function parseCells(line: string) {
-  const out = new Map<string, { x: number; y: number }>();
-  for (const m of line.matchAll(/\((\d+),(\d+)\)=\((-?\d+),(-?\d+)\)/g)) out.set(`${m[1]},${m[2]}`, { x: +m[3], y: +m[4] });
-  return out;
-}
+const ALL = ['bulwark', 'mantis', 'leviathan', 'tempest', 'specter', 'sentinel', 'reaver', 'abyss', 'kraken', 'ember'];
+const CLASSES = (process.env.CLASSES ?? ALL.join(',')).split(',').map((c) => c.trim().toLowerCase());
+const TIER = process.env.TIER ?? 'elite';
+const ARENA = process.env.ARENA ?? 'dojo';
+const CASTS = Number(process.env.CASTS ?? 2);
+const SECONDS = Number(process.env.SECONDS ?? 150);
+const title = (c: string) => c[0].toUpperCase() + c.slice(1);
 
-/** Trio·<CLASS> practice battle: cast the class Special whenever it is available (Defend
- *  otherwise to bank charge). Verifies the submit is accepted, the turn advances, the log
- *  records the special, and Unity raises no exceptions. */
+type Segment = { label: string; stats: { ms?: number; max?: number; p95?: number } };
+
 export default async function (b: Browser) {
-  const fails: string[] = [];
-  const expect = (ok: boolean, what: string) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails.push(what); };
+  const BASE = process.env.BASE ?? 'http://127.0.0.1:3000';
+  const API = process.env.API ?? 'http://127.0.0.1:3011';
+  let failures = 0;
+  const ok = (good: boolean, what: string) => { console.log(`${good ? 'ok  ' : 'FAIL'} ${what}`); if (!good) failures++; };
+  await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 755, deviceScaleFactor: 2, mobile: false });
+  const rows: Record<string, unknown>[] = [];
 
-  if (process.env.DPR) await b.send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1000, deviceScaleFactor: Number(process.env.DPR), mobile: false });
-  await b.send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:3000', storageTypes: 'indexeddb,cache_storage,service_workers,local_storage' });
-  // SPEED scales Unity's playback (0.25-4) through to the battle page — a short Special such as
-  // Crush (0.7 s) only yields one screenshot at 1x, so slow it down when the frames are the point.
-  const speed = process.env.SPEED ? `&speed=${process.env.SPEED}` : '';
-  await b.goto(`http://127.0.0.1:3000/dojo?preset=${process.env.PRESET_ID ?? `trio_${CLASS.toLowerCase()}`}${speed}`);
-  await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner wallet'))`, 90000);
-  for (let attempt = 0; attempt < 4; attempt++) {
-    await b.sleep(800);
-    await rectClick(b, 'button', 'burner wallet').catch(() => {});
-    if (await b.waitFor(`!!Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('burner ✓'))`, 8000, 250)) break;
-  }
-  // Preset comes from the URL (?preset=...); confirm the picker shows it before starting.
-  const shown = await b.waitFor(`(document.querySelector('select[aria-label="Review preset"]')?.selectedOptions?.[0]?.textContent || '').includes(${JSON.stringify(PRESET_LABEL)})`, 20000, 250);
-  expect(!!shown, `preset picker shows '${PRESET_LABEL}' from the URL`);
-  await b.sleep(300);
-  await rectClick(b, 'button', 'Start practice');
-  await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 30000);
-  console.log(`[${CLASS}] battle:`, await b.eval('location.pathname'));
-  // Unity sometimes aborts on init under headless SwiftShader ("GLctx" — WebGL context lost);
-  // a reload of the same battle page recovers it. Try up to 3 loads before giving up.
-  let inited = false;
-  for (let load = 0; load < 3 && !inited; load++) {
-    if (load > 0) { console.log(`[${CLASS}] Unity did not bind — reloading (${load})`); b.drainLogs(); await b.goto(await b.eval('location.href')); }
-    const t0 = Date.now();
-    while (Date.now() - t0 < 150000) {
-      if (b.logs.some((l) => /\[BattleHud\] bind/.test(l))) { inited = true; break; }
-      if (b.logs.some((l) => /GLctx/.test(l))) break; // crashed: reload now instead of waiting out the clock
+  for (const cls of CLASSES) {
+    const Cls = title(cls);
+    const logStart = b.allLogs.length;
+    await b.goto(`${BASE}/dojo?team=${cls},${cls},${cls}&tier=${TIER}&purity=6&bot=balanced&arena=${ARENA}&auto=special&perf=1&stay=1`);
+    if (!(await b.waitFor(`!!document.querySelector('[data-testid=dojo-battle]')`, 90000, 250))) { ok(false, `${Cls}: Dojo opened`); continue; }
+    await b.sleep(2500);
+    const r = await b.eval(`(() => { const q = document.querySelector('[data-testid=dojo-battle]').getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number };
+    b.drainLogs();
+    await b.clickAt(r.x, r.y);
+    if (!(await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 60000))) { ok(false, `${Cls}: battle opened`); continue; }
+    let intro = false;
+    for (const t0 = Date.now(); Date.now() - t0 < 120000 && !intro; ) { intro = b.logs.some((l) => /\[BattleStage\] intro complete/.test(l)); if (!intro) await b.sleep(250); }
+    ok(intro, `${Cls}: battle opened, intro done`);
+    if (!intro) continue;
+    await b.waitFor(`!!window.__clawbadaPerf`, 20000, 200);
+    await b.eval(`window.__clawbadaPerf?.reset()`);
+
+    // Play until CASTS of our Specials have been sent and the last has finished playing, the battle ends, or the cap.
+    const sent = () => b.logs.filter((l) => /\[LiveBattle\] autoplay turn \d+: special/.test(l)).length;
+    const played = () => b.logs.filter((l) => new RegExp(`\\[BattleManager\\] special ${Cls}\\b`).test(l)).length;
+    const over = () => b.logs.some((l) => /\[BattleHud\] banner/.test(l));
+    const tStart = Date.now();
+    while (Date.now() - tStart < SECONDS * 1000 && !over()) {
+      if (sent() >= CASTS && played() > 0) {
+        // Let the last cast finish: its timing segment closes when Unity starts the next turn (a PlayTurn after the
+        // last Special's own PlayTurn), or the battle ends.
+        const lastAt = b.logs.map((l, k) => (/\[BattleBridge\] PlayTurn/.test(l) && /"action":"special"/.test(l) ? k : -1)).filter((k) => k >= 0).pop() ?? b.logs.length;
+        for (const t1 = Date.now(); Date.now() - t1 < 20000 && !over() && !b.logs.slice(lastAt + 1).some((l) => /\[BattleBridge\] PlayTurn/.test(l)); ) await b.sleep(250);
+        await b.sleep(300);
+        break;
+      }
       await b.sleep(500);
     }
-  }
-  expect(inited, 'HUD bound');
-  if (inited) await waitForIntro(b);
-  if (!inited) { console.log(`[${CLASS}] FAILED: HUD never bound (Unity init crashed 3x)`); return; }
-  await b.eval(`document.querySelector('canvas')?.scrollIntoView({ block: 'start' })`);
+    const nSent = sent(), nPlayed = played();
+    const unity = JSON.parse((await b.eval(`window.__clawbadaPerf ? window.__clawbadaPerf.requestUnity() : '{"segments":[]}'`)) as string) as { segments: Segment[] };
+    // Only casts with a turn after them: the battle's last turn (often the killing Special) is cut off by the result.
+    const isOurs = (s: Segment) => new RegExp(`^turn:\\d+:special:${Cls}:A$`).test(s.label);
+    const ours = unity.segments.filter((s, k) => isOurs(s) && unity.segments.slice(k + 1).some((n) => /^turn:/.test(n.label))).map((s) => Math.round(s.stats.ms ?? 0));
+    const estimate = v3.PLAYBACK_SPECIAL_MS[LobsterClass[Cls as keyof typeof LobsterClass]];
+    const details = [...new Set(b.logs.filter((l) => new RegExp(`\\[BattleManager\\] special ${Cls}\\b`).test(l)).map((l) => l.replace(/^\[log\] \[BattleManager\] special \w+ /, '').replace(/\d+\.\d+/g, '#').trim()))];
+    const errors = b.allLogs.slice(logStart).filter((l) => /Exception|NullReference|\[error\]/i.test(l) && !/Aave Wallet|FamilyAccountsSdk|UnityErrorGuard/.test(l));
 
-  const casters = new Set<string>(); let casts = 0; let ownTurns = 0; let errors: string[] = []; let moves = 0;
-  let cellsCache = new Map<string, { x: number; y: number }>();
-  let dashShot = false;
-  let dashLines: string[] = [];
-  let reachTurn = '';
-  let selectSentNothing = false;
-  let attackChecked = false;
-  let badgeClicked = false;
-  let bodyTapLog = '';
-  let attackResult: { panelA: boolean; panelB: boolean; sentBefore: number; sent: string[]; b: string } | null = null;
-  let targetPanelShown = false;
-  let heldInPlace = false;
-  let leapStrike: string[] = [];
-  let walkedInPreview = true;
-  let leapFrom = '';
-  const started = Date.now();
-  while (Date.now() - started < 7 * 60_000 && ownTurns < 16) {
-    if (grab(b, /\[BattleHud\] banner/).length > 0) break;
-    const mine = await b.waitFor(myTurn, 30000, 300);
-    if (!mine) { if (grab(b, /\[BattleHud\] banner/).length > 0) break; continue; }
-    await b.sleep(700);
-    const g = await canvasGeom(b);
-    const fresh = parseCells(grab(b, /\[BattleHud\] cells/).slice(-1)[0] ?? '');
-    if (fresh.size >= 20) cellsCache = fresh;
-    const cells = cellsCache;
-    const btns = parseButtons(grab(b, /\[BattleHud\] buttons/).slice(-1)[0] ?? '');
-    let sel = await b.eval(`window.__clawbada_selection ? JSON.parse(JSON.stringify(window.__clawbada_selection)) : null`) as any;
-    if (!sel || !btns.defend) { await b.sleep(800); continue; }
-    const before = await b.eval(turnNo);
-    ownTurns++;
-    let movedThisTurn = false;
-    // Melee Specials need adjacency: when charged but nothing is in range, step toward the
-    // nearest enemy first (tentative move), then re-read the targets from the new cell.
-    // (Skipped for the Mantis's first charged turn: that turn tests tap-to-reach with NO manual move.)
-    if (sel.specialKind === 'enemy' && (sel.specialTargets ?? []).length === 0 && (sel.moves ?? []).length > 0 && !(CLASS === 'Mantis' && !dashShot && sel.canSpecial)) {
-      const me = (sel.lobsters || []).find((l: any) => l.id === sel.actor);
-      const enemies = (sel.lobsters || []).filter((l: any) => l.alive && me && l.team !== me.team);
-      const near = (p: any) => Math.min(...enemies.map((e: any) => hexDist(p, e)));
-      const best = [...sel.moves].sort((a: any, c: any) => near(a) - near(c))[0];
-      const cell = cells.get(`${best.col},${best.row}`);
-      if (cell && me && near(best) < near(me)) {
-        // Touch-move (2026-09-30): the first tap picks the hex, the second commits the move.
-        const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); await b.sleep(350); await b.clickAt(q.x, q.y); moves++; movedThisTurn = true;
-        await b.sleep(900);
-        sel = await b.eval(`window.__clawbada_selection ? JSON.parse(JSON.stringify(window.__clawbada_selection)) : null`) as any ?? sel;
-      }
-    }
-    // Two-step Attack (2026-09-25): press Attack → nothing sent; tap enemy A → selected only, target
-    // panel for A; tap enemy B → selection moves to B, still nothing; tap B again → one attack on B.
-    if (!attackChecked && !sel.canSpecial && btns.attack && (sel.attackTargets ?? []).length >= 2) {
-      attackChecked = true;
-      const [a, bId] = sel.attackTargets as string[];
-      const cellOf = (id: string) => { const l = (sel.lobsters || []).find((x: any) => x.id === id); return l ? cells.get(`${l.col},${l.row}`) : null; };
-      const ca = cellOf(a), cb = cellOf(bId);
-      if (ca && cb) {
-        b.drainLogs();
-        const pa = toCss(g, btns.attack.x + btns.attack.w / 2, btns.attack.y + btns.attack.h / 2); await b.clickAt(pa.x, pa.y); await b.sleep(400);
-        const qa = toCss(g, ca.x, ca.y); await b.clickAt(qa.x, qa.y); await b.sleep(600);
-        const panelA = grab(b, /\[BattleHud\] target panel/).some((l) => l.includes(a));
-        // Tap B on its UPPER BODY, not its feet: that point lies in the hex behind B — the bug the user hit
-        // (2026-09-27) picked whoever stood there. The body must win.
-        const rowPx = (() => { const ys = [...new Set([...cells.values()].map((c) => Math.round(c.y)))].sort((p, q) => p - q); let m = Infinity; for (let i = 1; i < ys.length; i++) m = Math.min(m, ys[i] - ys[i - 1]); return Number.isFinite(m) ? m : 40; })();
-        const qb = toCss(g, cb.x, cb.y); const qbBody = toCss(g, cb.x, cb.y + rowPx * 0.6);
-        await b.clickAt(qbBody.x, qbBody.y); await b.sleep(600);
-        bodyTapLog = grab(b, /HexInput\] click/).slice(-1)[0] ?? '';
-        const panelB = grab(b, /\[BattleHud\] target panel/).some((l) => l.includes(bId));
-        const sentBefore = grab(b, /\[LiveBattle\] submit/).length;
-        await b.screenshot(`${S}/target-panel.png`);
-        // Confirm by clicking the floating action badge over B (user 2026-09-27); the Ambush flow below
-        // covers the other confirm, tapping the enemy again.
-        const badge = parseButtons(grab(b, /\[BattleHud\] badge/).slice(-1)[0] ?? '').badge;
-        if (badge) { const pb = toCss(g, badge.x + badge.w / 2, badge.y + badge.h / 2); await b.clickAt(pb.x, pb.y); }
-        else await b.clickAt(qb.x, qb.y);
-        badgeClicked = !!badge;
-        await b.sleep(800);
-        const sent = grab(b, /\[LiveBattle\] submit/);
-        attackResult = { panelA, panelB, sentBefore, sent: sent.map((l) => l.replace(/^\[log\] /, '')) , b: bId };
-        console.log(`[targeting] ${JSON.stringify(attackResult)} A=${a}@(${JSON.stringify(ca)}) B=${bId}@(${JSON.stringify(cb)})`);
-        for (const l of grab(b, /TurnSelection|HexInput|lobster|hint|onHex|Selected|target panel/i).slice(-25)) console.log('[targeting-log]', l.slice(0, 200));
-        await b.waitFor(`${turnNo} !== ${JSON.stringify(before)}`, 25000, 200);
-        continue;
-      }
-    }
-    // Mantis: the player flow that was broken (2026-09-25) — arm Ambush, then tap an enemy that is NOT
-    // adjacent, with no manual move. It must step in and cast (the leap), never a plain attack.
-    if (CLASS === 'Mantis' && !dashShot && sel.canSpecial && btns.special && (sel.moves ?? []).length > 0) {
-      const me = (sel.lobsters || []).find((l: any) => l.id === sel.actor);
-      const enemies = (sel.lobsters || []).filter((l: any) => l.alive && me && l.team !== me.team);
-      const far = enemies.find((e: any) => hexDist(e, me) >= 2 && (sel.moves as any[]).some((m) => hexDist(m, e) === 1));
-      const cell = far ? cells.get(`${far.col},${far.row}`) : null;
-      if (far && cell && me) {
-        console.log(`[Mantis] arm Ambush, tap ${far.id} at (${far.col},${far.row}) — ${hexDist(far, me)} hexes away, no manual move`);
-        b.drainLogs();
-        const p = toCss(g, btns.special.x + btns.special.w / 2, btns.special.y + btns.special.h / 2); await b.clickAt(p.x, p.y);
-        await b.sleep(500);
-        const armedCast = grab(b, /TurnSelection|submit/i).filter((l) => /special/i.test(l));
-        const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y);
-        await b.sleep(900);
-        const selectedOnly = grab(b, /\[LiveBattle\] submit/).length;
-        selectSentNothing = selectedOnly === 0;
-        targetPanelShown = grab(b, /\[BattleHud\] target panel/).some((l) => l.includes(far.id));
-        await b.screenshot(`${S}/leap-selected.png`);
-        heldInPlace = grab(b, /held in place \(leap\)/).length > 0;
-        walkedInPreview = grab(b, /LobsterController\] move Mantis/).length > 0;
-        leapFrom = `(${me.col},${me.row})`;
-        await b.clickAt(q.x, q.y); // confirm
-        dashShot = true; movedThisTurn = true; casts++;
-        for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/dash-Mantis-f${String(f).padStart(2, '0')}.png`); await b.sleep(90); }
-        dashLines = grab(b, /LobsterController\] dash Mantis/);
-        leapStrike = grab(b, /special Mantis (after leap|effect on contact at)/);
-        const played = grab(b, /BattleBridge\] PlayTurn/).find((l) => l.includes(`"lobsterId":"${sel.actor}"`)) ?? '';
-        reachTurn = played;
-        console.log(`[Mantis] pressing Special alone sent ${armedCast.length} turn(s); played: ${played.slice(0, 160)}`);
-        for (const l of grab(b, /LobsterController\] dash|Afterimage|Exception/i)) console.log('[Mantis-dash]', l.slice(0, 220));
-        await b.waitFor(`${turnNo} !== ${JSON.stringify(before)}`, 25000, 200);
-        continue;
-      }
-    }
-    if (sel.canSpecial && btns.special) {
-      const kind = sel.specialKind as string;
-      const targets: string[] = sel.specialTargets ?? [];
-      if (kind !== 'none' && targets.length === 0) {
-        // Special armed but nothing in range: Defend and try next turn.
-        const p = toCss(g, btns.defend.x + btns.defend.w / 2, btns.defend.y + btns.defend.h / 2); await b.clickAt(p.x, p.y);
-      } else {
-        b.drainLogs();
-        const p = toCss(g, btns.special.x + btns.special.w / 2, btns.special.y + btns.special.h / 2); await b.clickAt(p.x, p.y);
-        await b.sleep(500);
-        if (kind !== 'none') {
-          const pick = targets.find((t: string) => t !== sel.actor) ?? targets[0]; // prefer a teammate over self for ally Specials
-          const lob = (sel.lobsters || []).find((l: any) => l.id === pick);
-          const cell = lob ? cells.get(`${lob.col},${lob.row}`) : null;
-          // Two-step targeting: the first tap selects, the second confirms.
-          if (cell) { const q = toCss(g, cell.x, cell.y); await b.clickAt(q.x, q.y); await b.sleep(450); await b.clickAt(q.x, q.y); }
-          else errors.push(`no cell for target ${pick}`);
-        }
-        if (CLASS === 'Tempest' && casts === 0) {
-          // Frame burst across the storm's flash + electric hits (impactAt 3.9 s, hit clip 0.33 s).
-          await b.sleep(2400);
-          for (let f = 0; f < 14; f++) { await b.screenshot(`${S}/specials-Tempest-g${f}.png`); }
-        }
-        if (CLASS === 'Bulwark' && casts === 0) {
-          // Frame burst through the whole Fortify dome: spawn 3.3 s -> idle hold -> out (clip 6.8 s).
-          for (let f = 0; f < 14; f++) { await b.screenshot(`${S}/specials-Bulwark-f${f}.png`); await b.sleep(480); }
-          // Past the dome's 6.85 s lifetime: it must be GONE from around the caster by here.
-          for (const t of [8, 10, 12, 15]) { await b.sleep(t === 8 ? 1300 : 2000); await b.screenshot(`${S}/specials-Bulwark-late${t}s.png`); }
-          for (const l of grab(b, /OneShotVfx|Destroy|Fortify/i)) console.log('[Bulwark-vfx]', l.slice(0, 200));
-          for (const l of grab(b, /BattleManager\] special|StatusChanged|SetStatus|fortify/i)) console.log('[Bulwark-log]', l.slice(0, 220));
-        }
-        if (CLASS === 'Mantis' && movedThisTurn && !dashShot) {
-          // Ambush dash (2026-09-25): crouch 0–0.58 s, flight to 0.83 s, swing from 1.0 s. Dense burst so
-          // the afterimage at the take-off hex and the trail are caught mid-air.
-          dashShot = true;
-          for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/dash-Mantis-f${String(f).padStart(2, '0')}.png`); await b.sleep(90); }
-          dashLines = grab(b, /LobsterController\] dash Mantis/);
-        leapStrike = grab(b, /special Mantis (after leap|effect on contact at)/);
-          for (const l of grab(b, /LobsterController\] dash|BattleManager\] special|Afterimage|Exception/i)) console.log('[Mantis-dash]', l.slice(0, 220));
-        }
-        if (CLASS === 'Sentinel' && casts === 0) {
-          // Rally (2026-09-27): heal + cleanse on an ally, visual Spawn 0.5 → Loop 1.25 → Out 0.67 on the healed lobster.
-          for (let f = 0; f < 14; f++) { await b.screenshot(`${S}/specials-Sentinel-f${String(f).padStart(2, '0')}.png`); await b.sleep(180); }
-          for (const l of grab(b, /BattleManager\] (special|heal)|cast visual|status fx|Exception/i)) console.log('[Sentinel-log]', l.slice(0, 220));
-        }
-        if (CLASS === 'Reaver' && casts === 0) {
-          // Rend drop (2026-09-25): cinematic on the target, 1.67 s (Spawn 0.5 → Attack → Out), hit at 0.67 s.
-          for (let f = 0; f < 16; f++) { await b.screenshot(`${S}/specials-Reaver-f${String(f).padStart(2, '0')}.png`); await b.sleep(120); }
-          for (const l of grab(b, /BattleManager\] special|FX_Reaver|CameraShake|bleed|BattleSfx|Exception/i)) console.log('[Reaver-log]', l.slice(0, 220));
-        }
-        if ((CLASS === 'Mantis' || CLASS === 'Kraken' || CLASS === 'Abyss') && casts === 0) {
-          // New drop (2026-09-15): burst through the cast so the frames can be eyeballed —
-          // Ambush is a 0.5 s slash at the claws, Bind a per-target tentacle impact, Devour a
-          // vortex under the target with its impact at 0.5 s.
-          await b.sleep(250);
-          for (let f = 0; f < 10; f++) { await b.screenshot(`${S}/specials-${CLASS}-f${f}.png`); await b.sleep(300); }
-          for (const l of grab(b, /BattleManager\] special|BattleManager\] heal events|ScreenDim|Devour|Bind|Ambush|SortingGroup|wind-up held|Exception/i)) console.log(`[${CLASS}-log]`, l.slice(0, 220));
-        }
-        if (CLASS === 'Specials') {
-          // Mixed roster: capture each finished Special as it fires.
-          await b.sleep(500);
-          for (let f = 0; f < 4; f++) { await b.screenshot(`${S}/live-specials-c${casts}-f${f}.png`); await b.sleep(320); }
-        }
-        if (CLASS === 'Leviathan' && casts === 0) {
-          // Frame burst across the Crush slam. The burst has no wind-up of its own — it spawns ON
-          // the swing's contact frame and dissipates over 0.7 s — so its four layers straddle the
-          // target only briefly. Run with SPEED=0.25 to actually catch the flash and the shockwave.
-          await b.sleep(400);
-          for (let f = 0; f < 10; f++) { await b.screenshot(`${S}/specials-Leviathan-f${f}.png`); await b.sleep(200); }
-          for (const l of grab(b, /BattleManager\] special|BattleVfxLibrary\] FX_Leviathan|CameraShake|row layer/i)) console.log('[Leviathan-log]', l.slice(0, 220));
-        }
-        if (CLASS === 'Specter' && casts === 0) {
-          // Frame burst through the Haunt turn: spirit detaches → drifts to the target → possession → sigil spawns under it.
-          await b.sleep(600);
-          for (let f = 0; f < 10; f++) { await b.screenshot(`${S}/specials-Specter-f${f}.png`); await b.sleep(150); }
-          for (const l of grab(b, /BattleManager\] special|StatusChanged|SetStatus|haunt/i)) console.log('[Specter-log]', l.slice(0, 220));
-        }
-        if (CLASS === 'Ember' && casts === 0) {
-          // Frame burst through the projectile turn: formation → launch → flight → burst.
-          await b.sleep(700);
-          for (let f = 0; f < 8; f++) { await b.screenshot(`${S}/specials-Ember-f${f}.png`); await b.sleep(380); }
-          for (const l of grab(b, /BattleManager\] (special|Play|Unknown)|LiveBattle\] submit|turn_resolved|targetId|LobsterController\] (attack|special)|FX_Ember_Inferno_(EmberScatter|FirePatch)/)) console.log('[Ember-log]', l.slice(0, 260));
-        }
-        await b.sleep(900);
-        const sub = grab(b, /\[LiveBattle\] submit special/);
-        if (sub.length > 0) { casts++; casters.add(sel.actor); }
-        else {
-          errors.push(`turn ${before}: special pressed (kind=${kind}, targets=${targets.length}) but no submit`);
-          for (const l of grab(b, /TurnSelection|hint|target panel|target badge|HexInput|Clicked|Selected/i).slice(-20)) console.log('[nosubmit-log]', l.slice(0, 220));
-        }
-      }
-    } else {
-      const p = toCss(g, btns.defend.x + btns.defend.w / 2, btns.defend.y + btns.defend.h / 2); await b.clickAt(p.x, p.y);
-    }
-    const advanced = await b.waitFor(`${turnNo} !== ${JSON.stringify(before)}`, 25000, 200);
-    if (!advanced) errors.push(`turn ${before}: did not advance`);
-    const errText = await b.eval(`(document.body.innerText.match(/(not legal|rejected|error:[^\\n]*)/i) || [])[0] || ''`);
-    if (errText) errors.push(`turn ${before}: page error '${errText}'`);
-    if (casters.size >= 3 && casts >= 3) break;
+    ok(nSent >= Math.min(CASTS, 1) && nPlayed > 0, `${Cls}: Specials sent ${nSent}, played by Unity ${nPlayed > 0 ? 'yes' : 'NO'}${over() && nSent < CASTS ? ' (battle ended first)' : ''}`);
+    ok(errors.length === 0, `${Cls}: no errors${errors.length ? ` — ${errors.slice(0, 2).map((e) => e.slice(0, 140)).join(' | ')}` : ''}`);
+    console.log(`     ${Cls} on screen: ${ours.length ? ours.map((ms) => `${(ms / 1000).toFixed(2)} s`).join(', ') : '—'} (walk included; the shot-clock estimate without walk is ${(estimate / 1000).toFixed(2)} s); Unity: ${details.slice(0, 3).join(' · ').slice(0, 220)}`);
+    rows.push({ cls: Cls, sent: nSent, played: nPlayed, onScreenMs: ours, estimateMs: estimate, details, errors: errors.slice(0, 5) });
+
+    const resigned = await b.eval(`(async () => { const id = location.pathname.split('/').pop(); const raw = localStorage.getItem('clawbada.session.guest'); const tok = raw && JSON.parse(raw).token; if (!tok) return 'no session'; return (await fetch(${JSON.stringify(API)} + '/api/game/combat/' + id + '/forfeit', { method: 'POST', headers: { Authorization: 'Bearer ' + tok } })).status; })()`);
+    if (resigned !== 200 && resigned !== 404 && !over()) console.log(`     ${Cls}: forfeit -> ${resigned}`);
   }
-  // The loop breaks right after the last cast is clicked, and a cinematic (Maelstrom, Fortify, Devour)
-  // holds its beat for seconds — wait for its hold line so the beat's logs (shake, damage) are in the buffer.
-  for (let w = 0; w < 32 && grab(b, /effect clip=/).length > 0 && grab(b, /effect held to/).length === 0; w++) await b.sleep(250);
-  await b.sleep(1500);
-  await b.screenshot(`${S}/specials-${CLASS}.png`);
-  const logSpecials = await b.eval(`Array.from(document.querySelectorAll('span.text-claw-gold')).map(s => s.textContent).filter(Boolean).slice(0, 6)`);
-  console.log(`[${CLASS}] own turns ${ownTurns}, moves ${moves}, casts ${casts} by ${[...casters].join(',')}; log specials: ${JSON.stringify(logSpecials)}`);
-  expect(casts >= 1, `${CLASS}: at least one Special cast was accepted`);
-  expect(errors.length === 0, `${CLASS}: no turn errors: ${errors.slice(0, 3).join(' | ')}`);
-  const exc = b.logs.filter((l) => /\[exception\]|NullReference|GLctx/.test(l) && !/Family Accounts/.test(l));
-  expect(exc.length === 0, `${CLASS}: no Unity/page exceptions: ${exc.slice(0, 2).join(' | ')}`);
-  // Plain Specials that asked for their effect on the contact frame (Ambush): the effect must
-  // fire at the swing's midpoint, not at t=0.
-  for (const l of grab(b, /\[BattleManager\] special .* (contact at .*cast speed|cast beat)/).slice(0, 6)) console.log('  swing:', l.slice(0, 130));
-  const onContact = grab(b, /\[BattleManager\] special .* effect on contact at/);
-  for (const l of onContact.slice(0, 4)) console.log('  contact:', l.slice(0, 120));
-  if (onContact.length) {
-    const ts = onContact.map((l) => Number((l.match(/at ([\d.]+)s/) || [])[1] ?? '0'));
-    // 0.2 s floor: a Mantis strike right after its leap lands at ~0.25 s by design (2026-09-27); an effect
-    // spawned at the turn start would read ~0.
-    expect(ts.every((t) => t >= 0.2), `${CLASS}: effect spawned on the contact frame, not at the turn start (${ts.map((t) => t.toFixed(2)).join(', ')} s)`);
-  }
-  // Projectile audio fit (Inferno with both a cast and an impact clip bound): the impact clip must start
-  // the instant the cast clip ends, so the two files the sound designer authored play back to back.
-  const fit = grab(b, /\[BattleManager\] special .* audio fit:/);
-  for (const l of fit.slice(0, 3)) console.log('  fit:', l.slice(0, 170));
-  if (fit.length) {
-    const m = fit[fit.length - 1].match(/cast ([\d.]+)s .* cast starts at ([\d.]+)s/);
-    const sched = grab(b, /\(impact\) scheduled: .*starts in ([\d.]+)s/).slice(-1)[0]?.match(/starts in ([\d.]+)s/);
-    if (m && sched) {
-      const castEnd = Number(m[1]) + Number(m[2]); const impactStart = Number(sched[1]);
-      expect(Math.abs(castEnd - impactStart) < 0.03, `${CLASS}: impact clip starts the instant the cast clip ends (cast ends ${castEnd.toFixed(2)} s, impact starts ${impactStart.toFixed(2)} s)`);
-    } else if (m && !process.env.AUDIO) {
-      // Muted run (harness default): nothing is scheduled, so check the plan instead — the swing's contact must
-      // land where the fit put it (cast + the chosen impact take's hit).
-      // Pair the LAST fit with the first swing contact logged after it (a Mantis leap's contact belongs to another cast).
-      const all = b.logs.map((l) => l.replace(/^\[log\] /, ''));
-      const fi = all.map((l, i) => (/\[BattleManager\] special .* audio fit:/.test(l) ? i : -1)).filter((i) => i >= 0).pop() ?? -1;
-      const planned = fi >= 0 ? all[fi].match(/contact at ([\d.]+)s, swing/) : null;
-      const actual = fi >= 0 ? all.slice(fi + 1).find((l) => /\[BattleManager\] special .* contact at [\d.]+s \(cast speed/.test(l))?.match(/contact at ([\d.]+)s/) : null;
-      if (planned && actual) expect(Math.abs(Number(planned[1]) - Number(actual[1])) <= 0.08, `${CLASS}: the swing lands on the planned audio hit (planned ${planned[1]} s, contact ${actual[1]} s; muted run)`);
-      else console.log(`  fit: muted run, no contact line to compare (AUDIO=1 checks the scheduled clip)`);
-    } else expect(false, `${CLASS}: audio-fit and impact-schedule lines both present`);
-  }
-  for (const l of grab(b, /\[HexGrid\] row depth|frame art per row/).slice(0, 2)) console.log('  rows:', l.slice(0, 240));
-  for (const l of grab(b, /\[BattleVfxLibrary\] .* order \d+/).slice(0, 3)) console.log('  vfx:', l.slice(0, 130));
-  // Row layers: every lobster sits in its row's actor slot, and a walk moves it to another row's.
-  // A mirror trio that never walks logs nothing after the drain, so only assert what was observed.
-  const layers = grab(b, /\[LobsterController\] .* row layer/);
-  for (const l of layers.slice(0, 3)) console.log('  layer:', l.slice(0, 110));
-  const orders = layers.map((l) => Number((l.match(/order (\d+)/) || [])[1])).filter(Boolean);
-  if (orders.length) {
-    expect(orders.every((o) => o >= 100 && (o - 100) % 4 === 1), `${CLASS}: every row layer is a row's actor slot (${orders.join(', ')})`);
-    if (orders.length > 1) expect(new Set(orders).size > 1, `${CLASS}: walking changed the row layer (${orders.join(', ')})`);
-  }
-  // A Special's effect rides its caster's row, so a rock one row closer draws over it.
-  for (const l of grab(b, /\[BattleVfxLibrary\] .*(_Above|_Below) order/).slice(0, 2)) console.log('  straddle:', l.slice(0, 130));
-  const vfx = grab(b, /\[BattleVfxLibrary\] .* order \d+ \(row of/).slice(-1)[0];
-  if (vfx) {
-    const m = vfx.match(/order (\d+) \(row of \w+ at (\d+)\)/);
-    expect(!!m && Number(m[1]) === Number(m[2]) + 1, `${CLASS}: effect sits one slot above its caster's row (${vfx.slice(-40)})`);
-  }
-  for (const l of grab(b, /\[BattleManager\] heal events|\(heal\)|special .* heal at/).slice(0, 4)) console.log('  heal:', l.slice(0, 120));
-  for (const l of grab(b, /\[CameraShake\]/).slice(0, 4)) console.log('  shake:', l.slice(0, 100));
-  for (const l of [...new Set(grab(b, /GroundVfx\]/).map((x) => x.replace(/ under .*/, '')))]) console.log('  ground:', l.slice(0, 120));
-  const deaths = grab(b, /LobsterController\] death /);
-  const fades = grab(b, /corpse .* fades away/);
-  for (const l of fades) console.log('  corpse:', l.slice(0, 140));
-  if (deaths.length) expect(fades.every((l) => /died turn \d+/.test(l)), `${CLASS}: corpses fade on schedule (${deaths.length} deaths, ${fades.length} faded)`);
-  if (attackResult) {
-    expect(attackResult.sentBefore === 0, 'Attack: pressing Attack and tapping two enemies sent nothing');
-    expect(attackResult.panelA && attackResult.panelB, `Attack: the target panel followed the selection (A, then B — B tapped on its upper body: ${bodyTapLog.slice(0, 90)})`);
-    expect(badgeClicked, 'Attack: the floating action badge was on screen to click');
-    expect(attackResult.sent.length === 1 && attackResult.sent[0].includes(`attack ${attackResult.b}`), `Attack: clicking the badge over B sent exactly one attack on B (${attackResult.sent.join(' | ')})`);
-  } else console.log('[targeting] no turn with 2+ attack targets and no Special — attack two-step not exercised');
-  if (CLASS === 'Mantis' && dashShot) {
-    expect(dashLines.length >= 1, `Mantis: a moving Ambush leapt instead of walking (${dashLines.slice(-1)[0] ?? 'no dash line'})`);
-    expect(selectSentNothing, 'Mantis: the first tap on the enemy only SELECTED it (no turn sent)');
-    expect(targetPanelShown, 'Mantis: selecting the enemy opened the target panel for it');
-    const strikeAt = leapStrike.map((l) => Number((l.match(/effect on contact at ([\d.]+)s/) || [])[1] ?? 'NaN')).filter((x) => !Number.isNaN(x));
-    expect(leapStrike.some((l) => /after leap/.test(l)) && strikeAt.length > 0 && strikeAt[0] <= 0.6, `Mantis: after the leap the slash lands with only a tiny wind-up (${strikeAt[0]?.toFixed(2) ?? '?'} s after touchdown hand-off)`);
-    expect(heldInPlace && !walkedInPreview, 'Mantis: selecting a leap target does NOT walk the Mantis there first');
-    expect(dashLines.some((l) => l.includes(`dash Mantis ${leapFrom}`)), `Mantis: the leap starts from where it stood ${leapFrom}, no snap-back (${dashLines.slice(-1)[0] ?? ''})`);
-    expect(/"action":"special"/.test(reachTurn) && !/"path":\[\]/.test(reachTurn), `Mantis: tapping a non-adjacent enemy with Ambush armed stepped in and cast Ambush, not an attack (${reachTurn.slice(0, 140)})`);
-  }
-  if (CLASS === 'Tempest' || CLASS === 'Ember') {
-    expect(grab(b, /\[CameraShake\] amp=/).length >= 1, `${CLASS}: screen shake fired on the beat`);
-    // The camera actually moved: at least a few rendered frames with a visible peak, then back at base.
-    const done = grab(b, /\[CameraShake\] done:/).slice(-1)[0]?.match(/done: (\d+) frames, peak ([\d.]+)u \(([\d.]+)px\)/);
-    expect(!!done && Number(done[1]) >= 3 && Number(done[3]) >= 2, `${CLASS}: shake moved the camera over several frames (${done ? `${done[1]} frames, peak ${done[3]} px` : 'no done line'})`);
-  }
-  const held = grab(b, /\[BattleManager\] special .* effect held to/);
-  for (const l of held.slice(0, 4)) console.log('  hold:', l.slice(0, 120));
-  if (held.length) {
-    // The turn must hold until the effect is (nearly) done — 15 % tail on a short clip, 0.8 s on a long one.
-    const short = held.map((l) => l.match(/held to ([\d.]+)s of ([\d.]+)s/)).filter(Boolean).map((m) => [Number(m![1]), Number(m![2])] as const);
-    expect(short.every(([t, clip]) => t >= clip - Math.min(0.8, clip * 0.15) - 0.05), `${CLASS}: every cinematic held to its clip's end (${short.map(([t, c]) => `${t}/${c}`).join(', ')})`);
-  }
-  const cine = grab(b, /\[BattleManager\] special .* effect clip=/);
-  if (cine.length) console.log(`[${CLASS}] cinematic special timing: ${cine[0]}`);
-  const floats = grab(b, /\[BattleHud\] float .* special/);
-  console.log(`[${CLASS}] special damage floats seen: ${floats.length}`);
-  console.log(fails.length ? `[${CLASS}] FAILED: ${fails.join('; ')}` : `[${CLASS}] ALL CHECKS PASSED`);
+  await Bun.write(`${import.meta.dir}/out/specials.json`, JSON.stringify({ at: new Date().toISOString(), base: BASE, tier: TIER, arena: ARENA, rows }, null, 1));
+  await b.goto('about:blank');
+  console.log(failures ? `${failures} FAILED` : 'all ok');
 }

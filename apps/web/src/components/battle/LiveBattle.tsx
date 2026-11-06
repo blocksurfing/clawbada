@@ -35,8 +35,10 @@ export interface LiveBattleProps {
   /** Force read-only even when the wallet is a participant. */
   spectate?: boolean;
   onEnded?: () => void;
-  /** Review tool: the balanced bot policy plays this wallet's turns (URL ?auto=1). */
-  autoPlay?: boolean;
+  /** Review tool: the balanced bot policy plays this wallet's turns (URL ?auto=1). 'special' (URL ?auto=special) casts
+   *  the Special whenever one is legal and lets the balanced policy close in meanwhile — every class's Special comes up
+   *  (scripts/harness/specials.ts; the balanced policy alone rarely casts Rally or Devour). */
+  autoPlay?: boolean | 'special';
   /** Review tool: Unity playback speed multiplier (URL ?speed=2). */
   speed?: number;
   /** Called once the view has closed itself after the result (stage torn down) — the page navigates. Absent → the view stays. */
@@ -192,7 +194,8 @@ export function LiveBattle({ battleId, address, spectate, onEnded, autoPlay, spe
         const state = v3.fromWire({ ...snapshot.state, vrfSeed: '0' });
         const actor = state.lobsters.find((l) => l.id === current.lobsterId);
         if (actor) {
-          const chosen = v3.botPolicy('balanced')(state, actor) as TurnCommand;
+          const special = autoPlay === 'special' ? v3.legalCommands(state, actor).find((c) => c.action === 'special') : undefined;
+          const chosen = (special ?? v3.botPolicy('balanced')(state, actor)) as TurnCommand;
           v3.validateTurn(state, chosen);
           cmd = chosen;
         }
