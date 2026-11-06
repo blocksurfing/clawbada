@@ -23,5 +23,10 @@ export function frameRect(asset, index=0) {
   const columns = Math.floor(asset.width/width);
   const count = columns * Math.floor(asset.height/height);
   if (!Number.isInteger(index) || index<0 || index>=count) throw new Error(`Invalid sprite frame: ${index}`);
+  if (asset.spriteRegion) {
+    const [x,y,w,h] = asset.spriteRegion;
+    if (index !== 0 || w !== width || h !== height) throw new Error('Sprite region must match one frame');
+    return {x,y,width,height};
+  }
   return {x:(index%columns)*width,y:Math.floor(index/columns)*height,width,height};
 }
