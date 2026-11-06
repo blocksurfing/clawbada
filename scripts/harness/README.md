@@ -50,7 +50,7 @@ failure shows up, check that column for the turn first.
 |---|---|---|
 | `specials.ts` | a class's Special casts, is accepted, animates, raises no exception; frame bursts per class | `TRIO=<Class>` `PRESET_ID` `PRESET_LABEL` `DPR` |
 | `ui-feel.ts` | Nzib's HUD: round avatar + button row, then Defend hovered (glow, +2 px) and pressed (darker, −2 px) → `out/ui-feel-<Class>-{idle,hover,press}.png` | `TRIO` |
-| `hints-probe.ts` | the hint line under the shot clock; options menu Hints row turns it off and back on (setting persists in PlayerPrefs, left ON) → `out/hints-{on,menu,off}.png` | — |
+| `options-panel.ts` | Nzib's options panel (2026-11-06): gear slides it in; music/SFX toggles + volume sliders persist; hints toggle; FLEE asks (STAY returns, FLEE forfeits); close arrow → `out/options-{closed,sliding,open,confirm}.png` | — |
 | `intro-probe.ts` | battle-start intro: frame burst (`out/intro-fNN.jpg`: black → READY → FIGHT → lobsters drop → HUD slides in) and order checks — intro done → `ready` sent → first turn; nothing animated before it | `TRIO` |
 | `sfx-probe.ts` | attack / cast / impact sound counts reconcile with turn actions; arena bed start, `<audio>` state, log order | `TRIO` `PRESET` `QUICK=1` |
 | `audio-prefs-probe.ts` → `audio-prefs-probe-2.ts` | Music/SFX toggles live, then persisted into a **fresh Chrome** via `out/audio-prefs.json` | run 1, restart Chrome, run 2 |
@@ -72,7 +72,6 @@ failure shows up, check that column for the turn first.
 | `storm-probe.ts` | The Maelstrom reaction (2026-10-07/08): three Tempests on the Evolved arena in autoplay; every storm gets `[StormReaction] storm start`/`end` (sea ×3 + chop) and, with a flock on the rocks, `[BirdFlock] panic: N gulls flee on Foreground/270` (above the storm's runtime wrap) in front of the storm clouds, then the next flock back within ~25 s of the storm clearing → `out/storm-{sea,panic}-N.png` | `PRESET` `BASE` `MAX_STORMS` `WATCH_MS` `SPEED` |
 | `gridvis.ts` | hex grid hidden at rest, shown only when the player can act | — |
 | `guest.ts` | the guest Dojo (2026-10-18): `/dojo` opens with no wallet and no burner click, Train mints a guest session (`clawbada.session.guest`) and opens `/battle/p_…`, the battle page gives the guest the turn → `out/guest-{dojo,battle}.png`. Needs no `NEXT_PUBLIC_DEV_BURNER` | `BASE` |
-| `forfeit.ts` | options menu → forfeit → `battle_ended` | — |
 | `stunprobe.ts` | Kraken Bind as a stun hold: tentacles Spawn on the hit → Idle loop while the victim is stunned (through its skipped turn) → Out when the stun ends; victim's rig frozen meanwhile; follows one victim by id; frames in `out/stun-*.png` | `PRESET` `SPEED` |
 | `movedefend.ts` | the reported freeze: click a move hex, let the preview walk, press Defend in the Unity bar — the turn goes out and resolves; `OFFLINE_TURN=n` closes the socket for real before the press on own turn *n* and checks the press is queued, "Sending…" shows in the canvas, and it is sent on reconnect | `PRESET` `TURNS` `OFFLINE_TURN` |
 | `autoclose.ts` | after the result banner the view closes itself: countdown under the result, Unity quit, music faded, back on `/dojo`; `STAY=1` checks the `?stay=1` opt-out | `PRESET` `SPEED` `STAY` |
