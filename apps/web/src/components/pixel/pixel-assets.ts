@@ -14,6 +14,8 @@ export interface SpriteAsset {
   width: number;
   height: number;
   frame: readonly [number, number];
+  /** One fixed frame anywhere on the sheet (Nzib's GlobalUI social icons, e35532b) instead of row-major counting. */
+  spriteRegion?: readonly [number, number, number, number];
 }
 
 export interface PanelAsset {
@@ -26,9 +28,13 @@ export interface PanelAsset {
   sliceSpan?: number;
   horizontal?: boolean;
   identityJoins?: readonly [number, number, number, number];
+  /** The pressed art for the same panel (his GlobalUI buttons): drawn into a second canvas shown on :active. */
+  pressedRegion?: readonly [number, number, number, number];
 }
 
 const MARKET_TILESET = '/ui/market/Tileset.png';
+/** Nzib's shared site tileset (design/website e35532b + 02cba45): brown and gold buttons, the social icons. */
+const GLOBAL_UI = '/ui/tileset/GlobalUI.png';
 
 export const PIXEL_ASSETS = {
   woodenPanel: { kind: 'panel', src: '/ui/tileset/WoodenPanel.png', width: 192, height: 192, region: [0, 0, 48, 48], tile: 16 },
@@ -55,6 +61,12 @@ export const PIXEL_ASSETS = {
   dojoSelectedFrame: { kind: 'sprite', src: '/ui/dojo/Selected_Frame.png', width: 128, height: 32, frame: [32, 32] },
   cursor: { kind: 'sprite', src: '/ui/cursor/cursor.png', width: 160, height: 32, frame: [32, 32] },
   apexClassSheet: { kind: 'sprite', src: '/ui/shell/apex-class-sheet.png', width: 640, height: 64, frame: [64, 64] },
+  globalButton: { kind: 'panel', src: GLOBAL_UI, width: 192, height: 192, region: [0, 0, 48, 48], pressedRegion: [48, 0, 48, 48], tile: 16 },
+  globalGoldenButton: { kind: 'panel', src: GLOBAL_UI, width: 192, height: 192, region: [96, 0, 48, 48], pressedRegion: [144, 0, 48, 48], tile: 16 },
+  socialXNormal: { kind: 'sprite', src: GLOBAL_UI, width: 192, height: 192, frame: [32, 32], spriteRegion: [0, 48, 32, 32] },
+  socialXPressed: { kind: 'sprite', src: GLOBAL_UI, width: 192, height: 192, frame: [32, 32], spriteRegion: [32, 48, 32, 32] },
+  socialDiscordNormal: { kind: 'sprite', src: GLOBAL_UI, width: 192, height: 192, frame: [32, 32], spriteRegion: [64, 48, 32, 32] },
+  socialDiscordPressed: { kind: 'sprite', src: GLOBAL_UI, width: 192, height: 192, frame: [32, 32], spriteRegion: [96, 48, 32, 32] },
 } as const satisfies Record<string, SpriteAsset | PanelAsset>;
 
 export type PixelAssetName = keyof typeof PIXEL_ASSETS;
@@ -64,6 +76,11 @@ export type PanelAssetName = { [K in PixelAssetName]: (typeof PIXEL_ASSETS)[K] e
 /** Frames are counted row-major; the sheet's width decides the columns (his `geometry.js`). */
 export function frameRect(asset: SpriteAsset, index = 0) {
   const [width, height] = asset.frame;
+  if (asset.spriteRegion) {
+    const [x, y, w, h] = asset.spriteRegion;
+    if (index !== 0 || w !== width || h !== height) throw new Error('Sprite region must match one frame');
+    return { x, y, width, height };
+  }
   const columns = Math.floor(asset.width / width);
   const count = columns * Math.floor(asset.height / height);
   if (!Number.isInteger(index) || index < 0 || index >= count) throw new Error(`Invalid sprite frame: ${index}`);
