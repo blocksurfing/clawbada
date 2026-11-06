@@ -26,8 +26,9 @@ public static class MaelstromVfxBinder
     private const string HitClipPath = "Assets/Prefabs/VFX/Clips/FX_Tempest_Maelstrom_Hit.anim";
     private const string HitControllerPath = "Assets/Prefabs/VFX/Clips/AC_FX_Tempest_Maelstrom_Hit.controller";
     private const string LibraryPath = "Assets/Prefabs/VFX/BattleVfxLibrary.asset";
-    /// <summary>Lightning flash peak in the designer's committed clip (Flash alpha 0.95 at 3.83 s; hits at 4.0 s).</summary>
-    private const float ImpactAt = 3.9f;
+    /// <summary>Lightning flash peak in the designer's committed clip. Nzib trimmed 2 s of build-up (5009ba1, 2026-11-06:
+    /// clip 6 → 4 s): flash peak 1.83 s (was 3.83), hits at 2.0 s (was 4.0).</summary>
+    private const float ImpactAt = 1.9f;
     private const float HitFps = 24f;
 
     [MenuItem("Clawbada/VFX/Bind Tempest Maelstrom")]
