@@ -13,6 +13,11 @@ export const routes = Object.freeze({
   "docs": "Docs"
 });
 
+// Temporary public entry gate; existing design routes remain intact.
+export function isDojoRoute(hash) {
+  return hash === '#/dojo';
+}
+
 export function resolveRoute(hash) {
   const slug = hash.replace(/^#\//, "");
   return Object.hasOwn(routes, slug) ? slug : "dashboard";
