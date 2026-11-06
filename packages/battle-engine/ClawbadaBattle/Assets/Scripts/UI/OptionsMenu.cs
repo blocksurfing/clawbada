@@ -1,5 +1,8 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Text;
+using Clawbada.UI;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -16,7 +19,13 @@ using UnityEngine.UI;
 /// floating toggle on the page can never disagree.
 ///
 /// Only shown to a participant (spectators have nothing to forfeit) and hidden once the
-/// battle ends. Built in code from the HudSkin like the rest of the HUD.
+/// battle ends.
+///
+/// The panel is Nzib's (OptionsPanel.prefab, drop 5009ba1, owner 2026-11-06: "wire it in"): it slides in from the left
+/// under the gear (his PanelSlideMotion, 0.51 s, unscaled time), with icon toggles and volume sliders for music and SFX,
+/// the hints toggle, FLEE and the exterior close arrow. FLEE still asks first — the panel's controls give way to a
+/// "flee and lose this battle?" view with FLEE / STAY built here from his button art (for Nzib to restyle in the prefab).
+/// Without the prefab on the HudSkin, the earlier code-built panel stands in.
 /// </summary>
 public class OptionsMenu : MonoBehaviour
 {
@@ -48,7 +57,18 @@ public class OptionsMenu : MonoBehaviour
     private const int VolStep = 10;
     private Button musicDown, musicUp, sfxDown, sfxUp;
 
-    public bool IsOpen => panel != null && panel.gameObject.activeSelf;
+    // Nzib's panel (null → the code-built one above).
+    private PanelSlideMotion slide;
+    private Toggle musicToggle, sfxToggle, hintToggle;
+    private Slider musicSlider, sfxSlider;
+    private Text hintsStatus;
+    private Button flee, closeArrow, fleeYes, fleeNo;
+    private RectTransform confirmView;
+    private readonly List<GameObject> controls = new List<GameObject>();
+    private bool wantOpen;
+    private Coroutine settle;
+
+    public bool IsOpen => slide != null ? wantOpen : panel != null && panel.gameObject.activeSelf;
 
     /// <param name="topLeft">Where the settings hex's top-left corner sits, from the canvas's top-left.</param>
     public static OptionsMenu Create(Transform parent, HudSkin skin, Vector2 topLeft, float hexSize)
@@ -87,6 +107,15 @@ public class OptionsMenu : MonoBehaviour
             gearIcon.anchoredPosition = Vector2.zero;
         }
 
+        if (skin.optionsPanelPrefab != null)
+        {
+            root.gameObject.SetActive(false);   // shown by BattleHud for participants only — and the panel wakes inactive (below)
+            menu.BuildNzibPanel(root, skin, gearSize);
+            menu.Refresh();
+            return menu;
+        }
+        Debug.LogWarning("[BattleHud] no options panel prefab on the HudSkin — the code-built panel stands in");
+
         menu.panel = HudFactory.Rect(root, "Panel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(0f, -(gearSize + 6f)), new Vector2(176f, 234f));
         HudFactory.AddImage(menu.panel, skin.panelBg, new Color(1f, 1f, 1f, 0.97f), raycast: true);
@@ -120,6 +149,101 @@ public class OptionsMenu : MonoBehaviour
         menu.panel.gameObject.SetActive(false);
         root.gameObject.SetActive(false);   // shown by BattleHud for participants only
         return menu;
+    }
+
+    /// <summary>Nzib's panel under the gear. It is instantiated while the Options root is inactive, so his PanelSlideMotion
+    /// wakes (and records its resting place) only after it has been placed here — not at his preview spot.</summary>
+    private void BuildNzibPanel(RectTransform root, HudSkin skin, float gearSize)
+    {
+        var go = Instantiate(skin.optionsPanelPrefab, root, false);
+        go.name = "OptionsPanel";
+        var rt = (RectTransform)go.transform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = new Vector2(0f, -(gearSize + 6f));
+        rt.localScale = new Vector3(ActionBar.ArtScale, ActionBar.ArtScale, 1f);
+        // His tiled art assumes a canvas of 100 reference px per unit (multiplier 100/64); this HUD's canvas is 64, so a
+        // tiled frame would draw at 0.64 of its size. Match each tiled/sliced image to this canvas instead.
+        var scaler = root.GetComponentInParent<CanvasScaler>(true);
+        float refPpu = scaler != null ? scaler.referencePixelsPerUnit : 100f;
+        foreach (var img in go.GetComponentsInChildren<Image>(true))
+            if (img.sprite != null && (img.type == Image.Type.Tiled || img.type == Image.Type.Sliced))
+                img.pixelsPerUnitMultiplier = refPpu / img.sprite.pixelsPerUnit;
+
+        slide = go.GetComponent<PanelSlideMotion>();
+        var content = go.transform.Find("Content");
+        T Find<T>(string path) where T : Component { var t = go.transform.Find(path); var c = t != null ? t.GetComponent<T>() : null; if (c == null) Debug.LogError($"[BattleHud] OptionsPanel is missing {path}"); return c; }
+        musicToggle = Find<Toggle>("Content/MusicToggle");
+        sfxToggle = Find<Toggle>("Content/SFXToggle");
+        hintToggle = Find<Toggle>("Content/HintToggle");
+        musicSlider = Find<Slider>("Content/MusicVolume");
+        sfxSlider = Find<Slider>("Content/SFXVolume");
+        hintsStatus = Find<Text>("Content/HintsStatus");
+        flee = Find<Button>("Content/FleeButton");
+        closeArrow = Find<Button>("CloseButton");
+        if (content != null) foreach (Transform c in content) controls.Add(c.gameObject);
+        foreach (var sl in new[] { musicSlider, sfxSlider }) if (sl != null) { sl.minValue = 0f; sl.maxValue = 100f; sl.wholeNumbers = true; }
+
+        if (flee != null && content != null) BuildConfirm((RectTransform)content, skin);
+
+        musicToggle?.onValueChanged.AddListener(OnMusicToggle);
+        sfxToggle?.onValueChanged.AddListener(OnSfxToggle);
+        hintToggle?.onValueChanged.AddListener(OnHintToggle);
+        musicSlider?.onValueChanged.AddListener(v => SetMusic(Mathf.RoundToInt(v)));
+        sfxSlider?.onValueChanged.AddListener(v => SetSfx(Mathf.RoundToInt(v)));
+        flee?.onClick.AddListener(AskConfirm);
+        closeArrow?.onClick.AddListener(Close);
+        fleeYes?.onClick.AddListener(Confirm);
+        fleeNo?.onClick.AddListener(AskCancel);
+    }
+
+    /// <summary>The flee confirmation inside his panel: a question in his label face and two buttons cloned from FLEE —
+    /// FLEE (his red art) where FLEE sits, STAY (his brown pair) above it.</summary>
+    private void BuildConfirm(RectTransform content, HudSkin skin)
+    {
+        confirmView = HudFactory.Stretch(content, "Confirm");
+        var fleeRt = (RectTransform)flee.transform;
+        var label = flee.GetComponentInChildren<Text>(true);
+        var heading = content.Find("MusicHeading")?.GetComponent<Text>();
+
+        fleeYes = Instantiate(flee.gameObject, confirmView, false).GetComponent<Button>();
+        fleeYes.name = "Yes";
+        Place((RectTransform)fleeYes.transform, fleeRt, 0f);
+        SetLabel(fleeYes, "FLEE");
+
+        fleeNo = Instantiate(flee.gameObject, confirmView, false).GetComponent<Button>();
+        fleeNo.name = "No";
+        Place((RectTransform)fleeNo.transform, fleeRt, fleeRt.rect.height + 6f);
+        SetLabel(fleeNo, "STAY");
+        if (skin.optionsButton != null && fleeNo.targetGraphic is Image noImg)
+        {
+            noImg.sprite = skin.optionsButton;
+            var ss = fleeNo.spriteState;
+            ss.pressedSprite = skin.optionsButtonPressed;
+            fleeNo.spriteState = ss;
+        }
+
+        var q = HudFactory.Text(confirmView, "Question", label != null ? label.font : skin.FontOrDefault(),
+            heading != null ? heading.fontSize : (label != null ? label.fontSize : 8), heading != null ? heading.color : Color.white,
+            TextAnchor.MiddleCenter, new Vector2(content.rect.width - 12f, 60f));
+        q.rectTransform.anchorMin = q.rectTransform.anchorMax = q.rectTransform.pivot = new Vector2(0.5f, 1f);
+        q.rectTransform.anchoredPosition = new Vector2(0f, -24f);
+        q.text = "FLEE AND\nLOSE THIS\nBATTLE?";   // three short lines: his panel is 100 art px wide
+        q.horizontalOverflow = HorizontalWrapMode.Overflow;
+        if (heading != null) foreach (var fx in heading.GetComponents<Shadow>()) { var copy = q.gameObject.AddComponent(fx.GetType()) as Shadow; copy.effectColor = fx.effectColor; copy.effectDistance = fx.effectDistance; }
+        confirmView.gameObject.SetActive(false);
+    }
+
+    private static void Place(RectTransform rt, RectTransform like, float up)
+    {
+        rt.anchorMin = like.anchorMin; rt.anchorMax = like.anchorMax; rt.pivot = like.pivot;
+        rt.sizeDelta = like.sizeDelta;
+        rt.anchoredPosition = like.anchoredPosition + new Vector2(0f, up);
+    }
+
+    private static void SetLabel(Button b, string text)
+    {
+        var t = b.GetComponentInChildren<Text>(true);
+        if (t != null) t.text = text;
     }
 
     private static Button Row(Transform parent, HudSkin skin, string name, string label, Color tint, float y,
@@ -174,9 +298,12 @@ public class OptionsMenu : MonoBehaviour
         Refresh();
     }
 
-    private void StepMusic(int delta)
+    private void StepMusic(int delta) => SetMusic(musicVol + delta);
+    private void StepSfx(int delta) => SetSfx(sfxVol + delta);
+
+    private void SetMusic(int value)
     {
-        int v = Mathf.Clamp(musicVol + delta, 0, 100);
+        int v = Mathf.Clamp(value, 0, 100);
         if (v == musicVol) return;
         musicVol = v;   // optimistic, like the toggles; React echoes the persisted value
         Refresh();
@@ -185,9 +312,9 @@ public class OptionsMenu : MonoBehaviour
         LogRects();
     }
 
-    private void StepSfx(int delta)
+    private void SetSfx(int value)
     {
-        int v = Mathf.Clamp(sfxVol + delta, 0, 100);
+        int v = Mathf.Clamp(value, 0, 100);
         if (v == sfxVol) return;
         sfxVol = v;
         BattleSfx.Volume = sfxVol / 100f;   // immediate, so the next sound obeys the press
@@ -197,8 +324,20 @@ public class OptionsMenu : MonoBehaviour
         LogRects();
     }
 
+    // Nzib's toggles report the requested state; the code-built rows flip it.
+    private void OnMusicToggle(bool on) { if (on != musicOn) ToggleMusic(); }
+    private void OnSfxToggle(bool on) { if (on != sfxOn) ToggleSfx(); }
+    private void OnHintToggle(bool on) { if (on != ActionBar.HintsEnabled) ToggleHints(); }
+
     private void Refresh()
     {
+        // Nzib's controls show the state without raising their events (React's echo must not bounce back).
+        musicToggle?.SetIsOnWithoutNotify(musicOn);
+        sfxToggle?.SetIsOnWithoutNotify(sfxOn);
+        musicSlider?.SetValueWithoutNotify(musicVol);
+        sfxSlider?.SetValueWithoutNotify(sfxVol);
+        hintToggle?.SetIsOnWithoutNotify(ActionBar.HintsEnabled);
+        if (hintsStatus != null) hintsStatus.text = ActionBar.HintsEnabled ? "ON" : "OFF";
         if (musicLabel != null) musicLabel.text = musicOn ? $"Music {musicVol}%" : "Music: Off";
         if (sfxLabel != null) sfxLabel.text = sfxOn ? $"SFX {sfxVol}%" : "SFX: Off";
         if (musicDown != null) { musicDown.interactable = musicVol > 0; musicUp.interactable = musicVol < 100; }
@@ -216,6 +355,7 @@ public class OptionsMenu : MonoBehaviour
         Refresh();
         Debug.Log($"[BattleHud] music {(musicOn ? "on" : "off")}");
         MusicToggled?.Invoke(musicOn);
+        LogRects();   // the row's key carries its state (music:on) — a driver finds it by the new name
     }
 
     private void ToggleSfx()
@@ -225,6 +365,7 @@ public class OptionsMenu : MonoBehaviour
         Refresh();
         Debug.Log($"[BattleHud] sfx {(sfxOn ? "on" : "off")}");
         SfxToggled?.Invoke(sfxOn);
+        LogRects();
     }
 
     private void ToggleHints()
@@ -254,7 +395,28 @@ public class OptionsMenu : MonoBehaviour
     {
         var sb = new StringBuilder("[BattleHud] options");
         Append(sb, "gear", gear);
-        if (IsOpen)
+        if (slide != null)
+        {
+            if (wantOpen && slide.IsOpen)
+            {
+                if (!confirmView.gameObject.activeSelf)
+                {
+                    Append(sb, $"music:{(musicOn ? "on" : "off")}", musicToggle);
+                    Append(sb, $"musicSlider:{musicVol}", musicSlider);
+                    Append(sb, $"sfx:{(sfxOn ? "on" : "off")}", sfxToggle);
+                    Append(sb, $"sfxSlider:{sfxVol}", sfxSlider);
+                    Append(sb, $"hints:{(ActionBar.HintsEnabled ? "on" : "off")}", hintToggle);
+                    Append(sb, "forfeit", flee);
+                    Append(sb, "close", closeArrow);
+                }
+                else
+                {
+                    Append(sb, "yes", fleeYes);
+                    Append(sb, "no", fleeNo);
+                }
+            }
+        }
+        else if (IsOpen)
         {
             if (mainRows.gameObject.activeSelf)
             {
@@ -279,7 +441,7 @@ public class OptionsMenu : MonoBehaviour
 
     private static readonly Vector3[] corners = new Vector3[4];
 
-    private static void Append(StringBuilder sb, string name, Button b)
+    private static void Append(StringBuilder sb, string name, Selectable b)
     {
         if (b == null) return;
         var rt = b.GetComponent<RectTransform>();
@@ -291,6 +453,16 @@ public class OptionsMenu : MonoBehaviour
     {
         if (IsOpen) { Close(); return; }
         ShowMain();
+        if (slide != null)
+        {
+            wantOpen = true;
+            Refresh();
+            slide.Open();
+            BattleSfx.PlayUiOpen();
+            Debug.Log("[BattleHud] options opened");
+            LogWhenSettled();
+            return;
+        }
         panel.gameObject.SetActive(true);
         BattleSfx.PlayUiOpen();
         Debug.Log("[BattleHud] options opened");
@@ -300,6 +472,15 @@ public class OptionsMenu : MonoBehaviour
 
     private void Close()
     {
+        if (slide != null)
+        {
+            if (!wantOpen) return;
+            wantOpen = false;
+            BattleSfx.PlayUiClose();   // the Close clip covers every way out: the arrow, gear again, flee confirmed
+            Debug.Log("[BattleHud] options closed");
+            if (slide.isActiveAndEnabled) slide.Close();
+            return;
+        }
         if (panel == null) return;
         if (panel.gameObject.activeSelf)
         {
@@ -311,14 +492,45 @@ public class OptionsMenu : MonoBehaviour
 
     private void ShowMain()
     {
+        if (slide != null)
+        {
+            foreach (var c in controls) if (c != null) c.SetActive(true);
+            if (confirmView != null) confirmView.gameObject.SetActive(false);
+            return;
+        }
         mainRows.gameObject.SetActive(true);
         confirmRows.gameObject.SetActive(false);
     }
 
     private void AskConfirm()
     {
-        mainRows.gameObject.SetActive(false);
-        confirmRows.gameObject.SetActive(true);
+        if (slide != null)
+        {
+            if (confirmView == null) return;
+            foreach (var c in controls) if (c != null) c.SetActive(false);
+            confirmView.gameObject.SetActive(true);
+        }
+        else
+        {
+            mainRows.gameObject.SetActive(false);
+            confirmRows.gameObject.SetActive(true);
+        }
+        Canvas.ForceUpdateCanvases();
+        LogRects();
+    }
+
+    /// <summary>Log the rects once the slide has landed: a driver clicks where the controls rest, not mid-flight.</summary>
+    private void LogWhenSettled()
+    {
+        if (settle != null) StopCoroutine(settle);
+        settle = StartCoroutine(Settle());
+    }
+
+    private IEnumerator Settle()
+    {
+        float until = Time.unscaledTime + 2f;
+        while (wantOpen && !slide.IsOpen && Time.unscaledTime < until) yield return null;
+        settle = null;
         Canvas.ForceUpdateCanvases();
         LogRects();
     }
@@ -327,6 +539,8 @@ public class OptionsMenu : MonoBehaviour
     {
         ShowMain();
         Debug.Log("[BattleHud] forfeit cancelled");
+        Canvas.ForceUpdateCanvases();
+        LogRects();
     }
 
     private void Confirm()

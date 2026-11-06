@@ -67,6 +67,12 @@ public class HudSkin : ScriptableObject
     public RuntimeAnimatorController[] specialControllers = new RuntimeAnimatorController[10];
     [Tooltip("Assets/Prefabs/UI/PressureIndicator/PressureIndicatorUI.prefab — the late-battle pressure tube (drop 2cc98d1).")]
     public GameObject pressurePrefab;
+    [Tooltip("Assets/Prefabs/UI/OptionsPanel.prefab — Nzib's options panel (drop 5009ba1, 2026-11-06): music / SFX toggles and " +
+             "volume sliders, hints, FLEE, the exterior close arrow; slides in from the left (PanelSlideMotion). Null → the code-built panel.")]
+    public GameObject optionsPanelPrefab;
+    [Tooltip("Art/UI/Options/Button.png + ButtonPressed.png — his brown button pair, used for the flee confirmation's STAY.")]
+    public Sprite optionsButton;
+    public Sprite optionsButtonPressed;
     [Tooltip("Normal button frame (ActionButton_Frame.png → ActionButton_Frame_Normal); the target badge draws it too.")]
     public Sprite actionFrame;
     public Sprite actionAttack;

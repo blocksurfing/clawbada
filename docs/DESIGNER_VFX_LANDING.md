@@ -133,7 +133,7 @@ go in **`specialImpactByClass[classId]`**: spawned on every enemy the Special da
 impact beat (falls back to the generic `attackImpact`).
 
 Worked example — Tempest Maelstrom (`Clawbada ▸ VFX ▸ Bind Tempest Maelstrom` does this):
-`specialByClass[3]` = `FX_Tempest_Maelstrom` (CameraCenter, impactAt 3.9 s = the lightning
+`specialByClass[3]` = `FX_Tempest_Maelstrom` (CameraCenter, 4 s clip since Nzib's trim, impactAt 1.9 s = the lightning
 flash, hide `Hit_`), `specialImpactByClass[3]` = `FX_Tempest_Maelstrom_Strike` (TargetImpactFx,
 onTop) — a composite the binder builds from the designer's `FX_Tempest_Maelstrom_LightningBolt`
 (5 frames, 48 × 304; the binder offsets it so the tip lands on the target and the bolt rises

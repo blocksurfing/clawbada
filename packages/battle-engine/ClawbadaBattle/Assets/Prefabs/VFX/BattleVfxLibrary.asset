@@ -243,7 +243,7 @@ MonoBehaviour:
     anchor: 6
     delay: 0
     mirrorWithFacing: 0
-    impactAt: 3.9
+    impactAt: 1.9
     frontChildPrefix: 
     hideChildrenPrefix: Hit_
     onTop: 0
