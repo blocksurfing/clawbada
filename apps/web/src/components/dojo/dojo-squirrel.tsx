@@ -7,10 +7,16 @@ import run from '../../../public/ui/dojo/squirrel.json';
 /**
  * Nzib's ninja squirrel on the Dojo lobby (owner 2026-10-30). In battle (DojoSquirrel.cs) it runs over the stones above
  * the doorway, jumps into the blossom tree and is gone, three leaves falling. On the lobby the Dojo sign hangs over
- * those stones, so here it runs along the TOP OF THE SIGN instead and makes the same leap into the tree just left of
- * it. The run is rendered out of the Unity arena by WebSpriteExporter (`squirrel.png` strip + `squirrel.json`); its
- * feet run on row 44 of the strip (RUN_FEET_ROW), which stands on the board's top edge (row 16 of Wooden_Sign.png). It
- * is drawn at the sign's own pixel size (one pixel size for all pixel art, Nzib's rule).
+ * those stones, so here it runs along the TOP OF THE SIGN instead and makes the same leap up and left. The run is
+ * rendered out of the Unity arena by WebSpriteExporter (`squirrel.png` strip + `squirrel.json`); its feet run on row 44
+ * of the strip (RUN_FEET_ROW), which stands on the board's top edge (row 16 of Wooden_Sign.png). It is drawn at the
+ * sign's own pixel size (one pixel size for all pixel art, Nzib's rule).
+ *
+ * The doorway hides it, exactly: the box is masked by Window_Mask.png — the hole in Nzib's wall layer (BG_Dojo.png,
+ * which matches the lobby backdrop pixel for pixel), placed like the backdrop (object-fit: cover). So it runs out from
+ * behind the post or the slanted beam (owner 2026-11-01, 2026-11-05) and its leap goes up behind the top beam. In battle
+ * the leap ends in the tree; here the tree is not where the leap ends, so the last leap pose carries on up and left
+ * (ASCENT) until the top beam has swallowed it, instead of vanishing in mid-air (owner 2026-11-06).
  *
  * Timing as in battle: the first run 10–20 s after the lobby opens, then a random 30–60 s after each run. Skipped while
  * the tab is hidden and under reduced motion. `?squirrel=now` runs it after 2.5 s (probes, clips).
@@ -20,26 +26,23 @@ const SRC = '/ui/dojo/squirrel.png';
 const RUN_FEET_ROW = 44, BOARD_TOP_ROW = 16;
 /** The board's top edge stops this many art px short of its canvas's right edge (Wooden_Sign.png's end cap). */
 const BOARD_TOP_RIGHT_INSET = 6;
-/** The doorway's inner right edge in Dojo_Dark.png (backdrop px), one value per row from row 22: the slanted beam (rows
- *  22–41), the post (42–74), the lower slant (75–83). Measured from Nzib's refreshed backdrop (b7e9d5e) — the first
- *  table bent back left below row 49, so a squirrel on the lowered sign (sidebar open) appeared in mid-air, and its
- *  head showed over the beam (owner 2026-11-05). The squirrel comes out from behind this wood (owner 2026-11-01). */
-const DOOR_EDGE_FIRST_ROW = 22;
-const DOOR_EDGE = [377, 379, 381, 383, 385, 387, 389, 391, 393, 395, 397, 399, 401, 403, 405, 407, 409, 411, 413, 415,
-  416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 416,
-  416, 416, 416, 416, 416, 416, 416, 416, 416, 416, 415, 413, 411, 409, 407, 405, 403, 401, 399];
 const BACKDROP_W = 640, BACKDROP_H = 360;
 /** Where the strip's left edge sits from the board's left edge, in art px: the run crosses the open middle of the board
  *  and the leap lands in the blossom crown over its left end. */
 const LEFT_FROM_BOARD = 30;
-/** The run enters from behind the board's right end instead of appearing mid-board (owner 2026-10-31: "appears out of
- *  thin air"). Nzib's run cycle is 12 frames (six poses, two frames each) that carry the squirrel CYCLE_STRIDE art px
- *  left; whole cycles are played first, each shifted one stride further right, starting past the board's end — so the
- *  squirrel comes round the end of the sign and runs straight on into his run with no jump or repeated pose. */
+/** The run enters from behind the doorway instead of appearing mid-board (owner 2026-10-31: "appears out of thin air").
+ *  Nzib's run cycle is 12 frames (six poses, two frames each) that carry the squirrel CYCLE_STRIDE art px left; whole
+ *  cycles are played first, each shifted one stride further right, starting past the board's end — so the squirrel
+ *  comes round the end of the sign and runs straight on into his run with no jump or repeated pose. */
 const CYCLE_FRAMES = 12, CYCLE_STRIDE = 25;
 /** The strip's x where the run starts (frame 0's left edge). */
 const RUN_START_X = 59;
-const RUN_MS = (run.frames / run.fps) * 1000;   // plus the run-in, which depends on the sign's width
+/** The leap: frames 24–25 rise 8 px left and 7 px up per frame; the strip then shows nothing until the leaves (28+).
+ *  ASCENT more frames carry frame 25's pose on along that line, so the top beam hides it. */
+const LAST_LEAP_FRAME = 25, ASCENT = 12, ASCENT_DX = -8, ASCENT_DY = -7;
+/** Room around the strip for the ascent (art px): up and to the left of the strip's box. */
+const ROOM_UP = ASCENT * -ASCENT_DY, ROOM_LEFT = ASCENT * -ASCENT_DX;
+const RUN_MS = ((run.frames + ASCENT) / run.fps) * 1000;   // plus the run-in, which depends on the sign's width
 const FIRST_MS: [number, number] = [10_000, 20_000];
 const GAP_MS: [number, number] = [30_000, 60_000];
 const between = ([lo, hi]: [number, number]) => lo + Math.random() * (hi - lo);
@@ -54,73 +57,63 @@ export function DojoSquirrel() {
     // On the sign: its board canvas is 64 art px tall, so its rect gives both the place and the pixel size.
     const place = () => {
       const board = document.querySelector<HTMLElement>('[data-dojo-sign-board]');
+      const arena = document.querySelector<HTMLElement>('.dojo-arena');
       const r = board?.getBoundingClientRect();
-      if (!r || !r.height) return 0;
+      if (!r || !r.height || !arena) return 0;
       const s = r.height / 64;
-      // The outer box is the clip: its right side follows the doorway's wooden frame row by row — the slanted beam as
-      // well as the post — so the squirrel runs out from behind the wood, head included; the board's end caps it where
-      // the sign stops first.
-      const left = r.left + LEFT_FROM_BOARD * s;
-      const top = r.top + (BOARD_TOP_ROW - RUN_FEET_ROW - 1) * s;
-      const height = run.height * s;
-      const boardEnd = r.right - BOARD_TOP_RIGHT_INSET * s;
-      const outline = doorOutline(top, height);
-      const right = (x: number) => Math.max(0, Math.min(boardEnd, x) - left);
-      const width = outline.length ? Math.max(...outline.map((p) => right(p.x))) : right(boardEnd);
+      // The strip's own box (as before) grown up and left for the ascent; its right side stops at the board's end.
+      const stripLeft = r.left + LEFT_FROM_BOARD * s;
+      const stripTop = r.top + (BOARD_TOP_ROW - RUN_FEET_ROW - 1) * s;
+      const left = stripLeft - ROOM_LEFT * s, top = stripTop - ROOM_UP * s;
+      const right = r.right - BOARD_TOP_RIGHT_INSET * s;
       el.style.left = `${left}px`;
       el.style.top = `${top}px`;
-      el.style.width = `${width}px`;
-      el.style.height = `${height}px`;
-      el.style.clipPath = outline.length
-        ? `polygon(0 0, ${outline.map((p) => `${right(p.x)}px ${p.y - top}px`).join(', ')}, 0 ${height}px)`
-        : '';
+      el.style.width = `${Math.max(0, right - left)}px`;
+      el.style.height = `${(run.height + ROOM_UP) * s}px`;
+      frameEl.style.left = `${ROOM_LEFT * s}px`;
+      frameEl.style.top = `${ROOM_UP * s}px`;
       frameEl.style.width = `${run.width * s}px`;
       frameEl.style.height = `${run.height * s}px`;
       frameEl.style.backgroundSize = `${run.width * run.frames * s}px ${run.height * s}px`;
-      return s;
-    };
-    // The doorway edge as screen points down the band [top, top + height]: two points per backdrop row (its top and
-    // bottom), from the arena backdrop (object-fit: cover, centred). Rows above and below the table take its end values.
-    const doorOutline = (top: number, height: number): { x: number; y: number }[] => {
-      const arena = document.querySelector<HTMLElement>('.dojo-arena');
-      if (!arena) return [];
+      // The window mask, laid out like the backdrop (object-fit: cover, centred) and shifted into this box.
       const a = arena.getBoundingClientRect();
       const k = Math.max(a.width / BACKDROP_W, a.height / BACKDROP_H);
       const ox = a.left + (a.width - BACKDROP_W * k) / 2, oy = a.top + (a.height - BACKDROP_H * k) / 2;
-      const pts: { x: number; y: number }[] = [];
-      const first = Math.floor((top - oy) / k), last = Math.floor((top + height - oy) / k);
-      const edgeOf = (row: number) => DOOR_EDGE[Math.max(0, Math.min(DOOR_EDGE.length - 1, row - DOOR_EDGE_FIRST_ROW))];
-      for (let row = first; row <= last; row++) {
-        // The beam is a staircase of 2-px steps; the nearest step either side keeps the head off its dark outline when
-        // the screen's pixel grid and the art's disagree by a fraction (the post, a straight edge, is unchanged).
-        const x = ox + Math.min(edgeOf(row - 1), edgeOf(row), edgeOf(row + 1)) * k;
-        pts.push({ x, y: Math.max(top, oy + row * k) }, { x, y: Math.min(top + height, oy + (row + 1) * k) });
-      }
-      return pts;
+      const size = `${BACKDROP_W * k}px ${BACKDROP_H * k}px`, pos = `${ox - left}px ${oy - top}px`;
+      el.style.setProperty('mask-size', size); el.style.setProperty('-webkit-mask-size', size);
+      el.style.setProperty('mask-position', pos); el.style.setProperty('-webkit-mask-position', pos);
+      return s;
     };
     const play = () => {
       if (stopped) return;
       if (document.hidden) { schedule(GAP_MS); return; }
       const start = performance.now();
-      // Enough whole cycles that the first one starts behind the end of the board.
+      // Enough whole cycles that the first one starts behind the doorway / the end of the board.
       const s0 = place();
-      const clipArt = s0 ? parseFloat(el.style.width) / s0 : run.width;   // still hidden here: read the width we set, not the layout
-      const cycles = Math.max(1, Math.ceil((clipArt - RUN_START_X) / CYCLE_STRIDE));
+      const reach = s0 ? (parseFloat(el.style.width) / s0) - ROOM_LEFT : run.width;   // strip px from its left to the box's right
+      const cycles = Math.max(1, Math.ceil((reach - RUN_START_X) / CYCLE_STRIDE));
       const runIn = cycles * CYCLE_FRAMES;
       const step = (now: number) => {
         const tick = Math.floor(((now - start) / 1000) * run.fps);
-        if (stopped || tick >= runIn + run.frames) {
+        if (stopped || tick >= runIn + run.frames + ASCENT) {
           el.hidden = true;
           delete el.dataset.running;
           if (!stopped) schedule(GAP_MS);
           return;
         }
         const s = place();
-        const inRunIn = tick < runIn;
-        const frame = inRunIn ? tick % CYCLE_FRAMES : tick - runIn;
-        const shift = inRunIn ? (cycles - Math.floor(tick / CYCLE_FRAMES)) * CYCLE_STRIDE : 0;
+        let frame: number, dx = 0, dy = 0;
+        if (tick < runIn) {
+          frame = tick % CYCLE_FRAMES;
+          dx = (cycles - Math.floor(tick / CYCLE_FRAMES)) * CYCLE_STRIDE;
+        } else {
+          const f = tick - runIn;
+          if (f <= LAST_LEAP_FRAME) frame = f;
+          else if (f <= LAST_LEAP_FRAME + ASCENT) { frame = LAST_LEAP_FRAME; dx = (f - LAST_LEAP_FRAME) * ASCENT_DX; dy = (f - LAST_LEAP_FRAME) * ASCENT_DY; }
+          else frame = f - ASCENT;   // the vanish frames, then the falling leaves
+        }
         frameEl.style.backgroundPosition = `${-frame * run.width * s}px 0`;
-        frameEl.style.transform = `translateX(${shift * s}px)`;
+        frameEl.style.transform = `translate(${dx * s}px, ${dy * s}px)`;
         raf = requestAnimationFrame(step);
       };
       step(start);   // the first pose and shift are set before it shows, so no frame ever paints a stale position
@@ -140,3 +133,4 @@ export function DojoSquirrel() {
     </div>
   );
 }
+
