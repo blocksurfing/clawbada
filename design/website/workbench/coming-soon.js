@@ -13,8 +13,8 @@ document.querySelector('#app').innerHTML = `
   <main class="coming-soon" aria-labelledby="coming-soon-title">
     <div class="coming-soon-content">
       <div class="construction-art" role="img" aria-label="Lobsters at work with a wheelbarrow"></div>
-      <h1 id="coming-soon-title">WE’RE COMING SOON</h1>
-      <p>Clawbada is getting ready. In the meantime, step into the Dojo and put your skills to the test.</p>
+      <h1 id="coming-soon-title"><span class="coming-soon-heading-lead">WE’RE</span> <span class="coming-soon-heading-end">COMING SOON</span></h1>
+      <p><span class="coming-soon-copy-desktop">Clawbada is getting ready. In the meantime, step into the Dojo and put your skills to the test.</span><span class="coming-soon-copy-mobile">Clawbada is getting ready. Step into the Dojo and put your skills to the test.</span></p>
       <div class="coming-soon-actions">
         <a class="pixel-button coming-soon-action" data-pixel-panel="globalGoldenButton" data-button-shine href="#/dojo">ENTER DOJO</a>
         <div class="coming-soon-socials">

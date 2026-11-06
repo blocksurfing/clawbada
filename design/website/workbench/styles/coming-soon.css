@@ -54,7 +54,23 @@
 @media (max-height: 650px) {
   .coming-soon { padding-block: 12px; }
 }
+.coming-soon-copy-mobile { display: none; }
 @media (max-width: 600px) {
-  .coming-soon h1 { font-size: var(--type-heading-lg); }
-  .coming-soon p { font-size: var(--type-body-md); }
+  .coming-soon {
+    padding: 24px 16px;
+    align-items: safe center;
+  }
+  .coming-soon-content { min-width: 0; }
+  /* Keep artwork pixel-perfect and fully visible including the wider FX. */
+  .construction-art { --pixel: 2px; margin-bottom: 24px; }
+  .coming-soon h1 { font-size: var(--type-heading-lg); line-height: 0.9; }
+  .coming-soon-heading-lead, .coming-soon-heading-end { display: block; white-space: nowrap; }
+  .coming-soon-copy-desktop { display: none; }
+  .coming-soon-copy-mobile { display: inline; }
+  .coming-soon p { font-size: 14px; line-height: 1.5; text-align: center; text-wrap: wrap; max-width: 360px; margin: 28px auto 24px; }
+  .coming-soon-copy-mobile br { display: none; }
+  .coming-soon-actions { row-gap: 6px; }
+}
+@media (max-height: 500px) {
+  .coming-soon { align-items: safe center; padding-block: 16px; }
 }
