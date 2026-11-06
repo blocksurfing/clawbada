@@ -5,7 +5,8 @@
  *   · gated pages (/, /game, /game/mining, /market, /agents, /faucet, /leaderboard) show Coming Soon, the address kept;
  *   · the gold ENTER DOJO button is drawn and shines (?shine=paused freezes the sweep), the lobsters' art animates;
  *   · X is a link; Discord never navigates and says "Currently invite only"; no Docs icon;
- *   · ENTER DOJO opens the Dojo; there the sidebar offers only Dojo + Docs;
+ *   · ENTER DOJO opens the Dojo; its sidebar keeps every page (owner 2026-11-06) and a gated one (Mining) opens
+ *     Coming Soon at its own address;
  *   · open pages stay themselves: the friend-invite page and the docs book (/book/index.html).
  * Screenshots: out/coming-soon-desktop.png, -phone.png, -discord.png.
  */
@@ -58,7 +59,7 @@ export default async function (b: Browser) {
     if (label === 'desktop') await b.screenshot(`${OUT}/coming-soon-discord.png`);
   }
 
-  // ENTER DOJO → the Dojo; its sidebar offers only Dojo + Docs.
+  // ENTER DOJO → the Dojo; its sidebar keeps every page, and a gated one opens Coming Soon.
   await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 756, deviceScaleFactor: 2, mobile: false });
   await b.goto(`${BASE}/`);
   await b.waitFor(`document.querySelector('[data-testid=enter-dojo]')?.dataset.pixelReady === 'true'`, 15000, 200);
@@ -66,7 +67,12 @@ export default async function (b: Browser) {
   await b.clickAt(e.x, e.y);
   ok(await b.waitFor(`location.pathname === '/dojo' && !!document.querySelector('[data-testid=dojo-battle]')`, 30000, 200), 'ENTER DOJO opens the Dojo');
   const menu = await b.eval(`[...document.querySelectorAll('.pixel-chrome .menu-item .menu-label')].map((e) => e.textContent.trim())`) as string[];
-  ok(menu.join(',') === 'Dojo,Docs', `Dojo sidebar offers ${menu.join(', ')}`);
+  ok(menu.length >= 10 && menu.includes('Mining') && menu.includes('Market') && menu.includes('Dojo'), `Dojo sidebar keeps every page (${menu.join(', ')})`);
+  await b.sleep(2500);   // the sidebar's opening roll
+  const mining = await b.eval(`(() => { const a = document.querySelector('.pixel-chrome a.menu-item[href="/game/mining"]'); if (!a) return null; const q = a.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number } | null;
+  if (mining) await b.clickAt(mining.x, mining.y);
+  const minedSoon = await b.waitFor(isComingSoon, 20000, 200);
+  ok(!!mining && minedSoon && (await b.eval('location.pathname')) === '/game/mining', `clicking Mining in the sidebar opens Coming Soon at /game/mining (${await b.eval('location.pathname')})`);
 
   // Open pages stay themselves.
   await b.goto(`${BASE}/battle-friends/join`);
