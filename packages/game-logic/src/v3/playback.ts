@@ -35,9 +35,9 @@ export const PLAYBACK_ATTACK_MS: Record<LobsterClass, number> = {
 };
 
 /** Special playback per class (ms) without the walk, same run. Sentinel's Rally never fired: conservative value. Tempest's
- *  Maelstrom is the long one (~5.2 s). */
+ *  Maelstrom was the long one (~5.2 s); Nzib trimmed 2 s of build-up (2026-11-06) and it now plays ~3.4 s. */
 export const PLAYBACK_SPECIAL_MS: Record<LobsterClass, number> = {
-  [LobsterClass.Bulwark]: 2770, [LobsterClass.Mantis]: 1850, [LobsterClass.Leviathan]: 1450, [LobsterClass.Tempest]: 5250,
+  [LobsterClass.Bulwark]: 2770, [LobsterClass.Mantis]: 1850, [LobsterClass.Leviathan]: 1450, [LobsterClass.Tempest]: 3450,
   [LobsterClass.Specter]: 1700, [LobsterClass.Sentinel]: 3000, [LobsterClass.Reaver]: 1900, [LobsterClass.Abyss]: 3700,
   [LobsterClass.Kraken]: 2350, [LobsterClass.Ember]: 4100,
 };
