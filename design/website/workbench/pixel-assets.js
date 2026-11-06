@@ -1,6 +1,21 @@
 // Register each new PNG once. URLs are bundled by Vite and watched in dev.
 // Scale comes exclusively from CSS --pixel; do not add per-asset scales.
 export const pixelAssets = Object.freeze({
+  socialDocsNormal: { kind:'sprite', src:new URL('../site/Tileset/GlobalUI.png', import.meta.url).href, width:192, height:192, frame:[32,32], spriteRegion:[128,48,32,32] },
+  socialDocsPressed: { kind:'sprite', src:new URL('../site/Tileset/GlobalUI.png', import.meta.url).href, width:192, height:192, frame:[32,32], spriteRegion:[160,48,32,32] },
+  socialXNormal: { kind:'sprite', src:new URL('../site/Tileset/GlobalUI.png', import.meta.url).href, width:192, height:192, frame:[32,32], spriteRegion:[0,48,32,32] },
+  socialXPressed: { kind:'sprite', src:new URL('../site/Tileset/GlobalUI.png', import.meta.url).href, width:192, height:192, frame:[32,32], spriteRegion:[32,48,32,32] },
+  socialDiscordNormal: { kind:'sprite', src:new URL('../site/Tileset/GlobalUI.png', import.meta.url).href, width:192, height:192, frame:[32,32], spriteRegion:[64,48,32,32] },
+  socialDiscordPressed: { kind:'sprite', src:new URL('../site/Tileset/GlobalUI.png', import.meta.url).href, width:192, height:192, frame:[32,32], spriteRegion:[96,48,32,32] },
+
+  globalGoldenButton: {
+    kind: 'panel', src: new URL('../site/Tileset/GlobalUI.png', import.meta.url).href,
+    width:192, height:192, region:[96,0,48,48], pressedRegion:[144,0,48,48], tile:16,
+  },
+  globalButton: {
+    kind: 'panel', src: new URL('../site/Tileset/GlobalUI.png', import.meta.url).href,
+    width:192, height:192, region:[0,0,48,48], pressedRegion:[48,0,48,48], tile:16,
+  },
   dojoMasterLobGuidance: {
     kind:'sprite', src:new URL('../site/The Dojo/MasterLob_Guidance.png', import.meta.url).href,
     width:64, height:33, frame:[32,33],

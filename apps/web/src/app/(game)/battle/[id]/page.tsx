@@ -7,6 +7,7 @@
  */
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { COMING_SOON_GATE } from '@/lib/site-gate';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
@@ -81,7 +82,8 @@ export default function BattlePage() {
   // A friend battle comes back to the Dojo's friend tab, which offers the rematch (owner 2026-10-29).
   const leave = useCallback(() => {
     const room = friend ? roomOfBattle(battleId) : null;
-    const to = practice ? (friend ? (room ? `/dojo?after=${room}` : '/dojo?vs=friend') : '/dojo') : '/game';
+    // While the Coming Soon gate is on, the Shell is closed: every battle comes back to the Dojo.
+    const to = practice ? (friend ? (room ? `/dojo?after=${room}` : '/dojo?vs=friend') : '/dojo') : COMING_SOON_GATE ? '/dojo' : '/game';
     console.log(`[BattlePage] leaving ${battleId} → ${to}`);
     if (practice) router.replace(to);
     else router.push(to);

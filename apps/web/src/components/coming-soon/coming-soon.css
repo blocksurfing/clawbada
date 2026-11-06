@@ -1,0 +1,160 @@
+/* Nzib's Coming Soon (design/website e35532b + 6d32be9: styles/coming-soon.css, and the global-button / icon-button /
+   shine rules of styles/pixel.css), scoped under .coming-soon. Asset paths moved to /ui. */
+
+/* ── coming-soon.css ── */
+.coming-soon {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 100dvh;
+  overflow: auto;
+  padding: 36px 24px;
+  background: #002036;
+  text-align: center;
+}
+.coming-soon-content { width: min(100%, 720px); }
+.coming-soon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(6 * var(--pixel));
+}
+.coming-soon-socials { display: flex; gap: 0; align-items: center; }
+.coming-soon .construction-art {
+  width: calc(var(--art-width) * var(--pixel));
+  height: calc(var(--art-height) * var(--pixel));
+  margin: 0 auto 30px;
+  background-image: url('/ui/construction/Under_Construction.png');
+  background-size: calc(var(--sheet-width) * var(--pixel)) auto;
+  background-repeat: no-repeat;
+  background-position: 0px 0px;
+  image-rendering: pixelated;
+  animation: construction-work 400ms steps(4) infinite;
+}
+@keyframes construction-work {
+  to { background-position-x: calc(var(--sheet-width) * var(--pixel) * -1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coming-soon .construction-art { animation: none; }
+}
+@media (max-width: 362px) {
+  .coming-soon { padding-inline: 0; }
+  .coming-soon h1, .coming-soon p { margin-inline: 15px; }
+}
+.coming-soon h1 {
+  margin: 0;
+  font: 400 var(--type-heading-xl)/var(--type-display-leading) var(--type-display);
+  letter-spacing: var(--type-display-tracking);
+  color: #f3eedc;
+  text-wrap: balance;
+}
+.coming-soon p {
+  max-width: 540px;
+  margin: 24px auto 36px;
+  font: 400 var(--type-body-lg)/var(--type-body-leading) var(--type-body);
+  letter-spacing: var(--type-body-tracking);
+  color: #c5ccd1;
+  text-wrap: pretty;
+}
+@media (max-height: 650px) {
+  .coming-soon { padding-block: 12px; }
+}
+.coming-soon-copy-mobile { display: none; }
+@media (max-width: 600px) {
+  .coming-soon {
+    padding: 24px 16px;
+    align-items: safe center;
+  }
+  .coming-soon-content { min-width: 0; }
+  /* Keep artwork pixel-perfect and fully visible including the wider FX. */
+  .coming-soon .construction-art { --pixel: 2px; margin-bottom: 24px; }
+  .coming-soon h1 { font-size: var(--type-heading-lg); line-height: 0.9; }
+  .coming-soon-heading-lead, .coming-soon-heading-end { display: block; white-space: nowrap; }
+  .coming-soon-copy-desktop { display: none; }
+  .coming-soon-copy-mobile { display: inline; }
+  .coming-soon p { font-size: 14px; line-height: 1.5; text-align: center; text-wrap: wrap; max-width: 360px; margin: 28px auto 24px; }
+  .coming-soon-actions { row-gap: 6px; }
+}
+@media (max-height: 500px) {
+  .coming-soon { align-items: safe center; padding-block: 16px; }
+}
+
+/* ── pixel.css: sprites ── */
+.coming-soon .pixel-sprite { display: inline-block; flex: 0 0 auto; width: calc(var(--sprite-width) * var(--pixel)); height: calc(var(--sprite-height) * var(--pixel)); }
+.coming-soon .pixel-sprite > canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+/* ── pixel.css: the global tileset button (gold here) ── */
+.coming-soon .pixel-button[data-pixel-panel="globalGoldenButton"] {
+  --button-text-color: #ffffc6;
+  --button-pressed-text-color: #d6d6d6;
+  --button-text-shadow: -2px -2px 0 #0e0e0e, 0 -2px 0 #0e0e0e, 2px -2px 0 #0e0e0e, -2px 0 0 #0e0e0e, 2px 0 0 #0e0e0e, -2px 2px 0 #0e0e0e, 0 2px 0 #0e0e0e, 2px 2px 0 #0e0e0e;
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc-size(max-content, round(up, size, var(--pixel)));
+  min-width: calc(80 * var(--pixel));
+  min-height: calc(32 * var(--pixel));
+  border: 0;
+  background: transparent;
+  padding: calc(6 * var(--pixel)) calc(10 * var(--pixel));
+  font: 400 var(--type-button)/var(--type-display-leading) var(--type-display);
+  letter-spacing: var(--type-action-tracking);
+  color: var(--button-text-color);
+  text-shadow: var(--button-text-shadow);
+  text-decoration: none;
+  cursor: pointer;
+}
+.coming-soon .pixel-button[data-pixel-panel] > .pixel-panel-art { position: absolute; top: 0; left: 0; z-index: -1; pointer-events: none; image-rendering: pixelated; }
+.coming-soon .pixel-button[data-pixel-panel]:hover { text-decoration: none; transform: translateY(-2px); }
+.coming-soon .pixel-button[data-pixel-panel]:active { transform: translateY(2px); color: var(--button-pressed-text-color); }
+.coming-soon .pixel-button[data-pixel-panel]:focus-visible { outline: 3px solid #f4dd9c; outline-offset: 4px; }
+.coming-soon .pixel-panel-art--pressed { visibility: hidden; }
+.coming-soon .pixel-button:active > .pixel-panel-art--normal { visibility: hidden; }
+.coming-soon .pixel-button:active > .pixel-panel-art--pressed { visibility: visible; }
+.coming-soon .pixel-button-shine { position: absolute; top: 0; left: 0; z-index: -1; pointer-events: none; image-rendering: pixelated; }
+
+/* ── pixel.css: icon buttons ── */
+.coming-soon .pixel-icon-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: calc(32 * var(--pixel));
+  height: calc(32 * var(--pixel));
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.coming-soon .pixel-icon-button > span { grid-area: 1 / 1; pointer-events: none; }
+.coming-soon .pixel-icon-button > .icon-pressed { visibility: hidden; }
+.coming-soon .pixel-icon-button:hover { transform: translateY(-2px); }
+.coming-soon .pixel-icon-button:active { transform: translateY(2px); }
+.coming-soon .pixel-icon-button:active > .icon-normal { visibility: hidden; }
+.coming-soon .pixel-icon-button:active > .icon-pressed { visibility: visible; }
+.coming-soon .pixel-icon-button:focus-visible { outline: 3px solid #f4dd9c; outline-offset: -12px; }
+
+/* Discord is invite-only (owner 2026-11-06): hover, keyboard focus or a tap shows the note above the icon. */
+.coming-soon-invite { position: relative; display: inline-grid; }
+.coming-soon-invite-note {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  translate: -50% 4px;
+  padding: calc(2 * var(--pixel)) calc(4 * var(--pixel));
+  border: var(--pixel) solid #0e0e0e;
+  background: #2e222f;
+  color: #ffe4a0;
+  font: 400 var(--type-body-md)/1.2 var(--type-body);
+  letter-spacing: var(--type-body-tracking);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease, translate 150ms ease;
+}
+.coming-soon-invite:hover .coming-soon-invite-note,
+.coming-soon-invite:focus-within .coming-soon-invite-note,
+.coming-soon-invite-note[data-shown] { opacity: 1; translate: -50% 0; }
+@media (prefers-reduced-motion: reduce) { .coming-soon-invite-note { transition: none; } }

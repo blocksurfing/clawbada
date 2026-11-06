@@ -1,9 +1,17 @@
 import './styles/web-loading.css';
 import { prepareWebLoading } from './components/web-loading.js';
+import { isDojoRoute } from './routes.js';
 const preview = new URLSearchParams(location.search).get('loading') === 'preview';
 const root = document.querySelector('#web-loading');
 async function boot() {
   try {
+    if (!isDojoRoute(location.hash)) {
+      await import('./coming-soon.js');
+      root.remove();
+      document.body.classList.remove('web-is-loading');
+      document.querySelector('#app').inert = false;
+      return;
+    }
     const finish = await prepareWebLoading();
     // Mockup only: real integration will replace this with Unity's ready signal.
     await import('./main.js');

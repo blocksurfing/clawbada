@@ -1,4 +1,5 @@
 import { pixelAssets } from '../../pixel-assets.js';
+import { mountButtonShine } from './shine.js';
 import { gridTracks, tileAxis, frameRect } from './geometry.js';
 
 const images = new Map();
@@ -20,7 +21,7 @@ export function mountPixelUI(root) {
     if (!Number.isInteger(value) || value<1) throw new Error('Pixel scale must be a positive integer');
     return value;
   };
-  const panels = [...root.querySelectorAll('[data-pixel-panel]')].map(element => {
+  const panels = [...root.querySelectorAll('[data-pixel-panel]')].flatMap(element => {
     const asset = pixelAssets[element.dataset.pixelPanel];
     if (!asset || asset.kind !== 'panel') throw new Error('Unknown pixel panel');
     element.classList.add('pixel-panel');
@@ -31,7 +32,14 @@ export function mountPixelUI(root) {
     element.prepend(canvas);
     const entry = {element,asset,canvas,image:null};
     loadImage(asset.src).then(image => { if (!disposed) { entry.image=image; schedule(); } }).catch(console.error);
-    return entry;
+    if (!asset.pressedRegion) return [entry];
+    const pressedCanvas = canvas.cloneNode();
+    pressedCanvas.classList.add('pixel-panel-art--pressed');
+    canvas.classList.add('pixel-panel-art--normal');
+    element.prepend(pressedCanvas);
+    const pressedEntry = {element, asset:{...asset, region:asset.pressedRegion}, canvas:pressedCanvas, image:null};
+    loadImage(asset.src).then(image => { if (!disposed) { pressedEntry.image=image; schedule(); } }).catch(console.error);
+    return [entry, pressedEntry];
   });
   for (const element of root.querySelectorAll('[data-pixel-sprite]')) {
     const asset = pixelAssets[element.dataset.pixelSprite];
@@ -118,7 +126,9 @@ export function mountPixelUI(root) {
   window.addEventListener('resize',schedule);
   document.fonts.ready.then(schedule);
   schedule();
+  const cleanupShine = mountButtonShine(root);
   return () => {
+    cleanupShine();
     disposed=true; cancelAnimationFrame(scheduled); observer.disconnect();
     root.removeEventListener('scroll',schedule); window.removeEventListener('resize',schedule);
   };

@@ -11,7 +11,7 @@ import './styles/placeholders.css';
 import sidebar from './components/sidebar.html?raw';
 import userSection from './components/user-section.html?raw';
 import { initShell } from './components/shell.js';
-import { routes, resolveRoute } from './routes.js';
+import { routes, resolveRoute, isDojoRoute } from './routes.js';
 import { mountBattleLobby } from './components/battle-lobby.js';
 import { mountShellArt } from './components/shell-art.js';
 import { createBattleModal } from './components/battle-modal.js';
@@ -84,11 +84,11 @@ history.replaceState(null, '', '#/' + initial);
 if (initialBattle) battleModal.open();
 const shell = initShell(routes[initial], label => {
   const slug = Object.keys(routes).find(key => routes[key] === label) || 'dashboard';
-  if (slug === 'battle') { battleModal.open(); shell.selectMenu(routes[main.dataset.page]); return; }
   if (location.hash !== '#/' + slug) location.hash = '/' + slug;
 });
 const pageTransition = createPageTransition(main, render, initial);
 window.addEventListener('hashchange', () => {
+  if (!isDojoRoute(location.hash)) { location.reload(); return; }
   const slug = resolveRoute(location.hash);
   if (slug === 'battle') {
     history.replaceState(null, '', '#/' + main.dataset.page);

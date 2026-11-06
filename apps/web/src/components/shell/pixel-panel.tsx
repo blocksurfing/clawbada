@@ -9,10 +9,13 @@ import { PIXEL_ASSETS, PIXEL_SCALE_EVENT, loadPixelImage, pixelScale, tileAxis, 
  * edges AND the centre repeat whole source pixels; a partial end tile clips. No border-image stretch.
  * `usePixelPanel` paints any element (the market's Buy button is a panel too); `PixelPanel` is the element.
  */
-export function usePixelPanel(ref: RefObject<HTMLElement | null>, canvasRef: RefObject<HTMLCanvasElement | null>, asset: PanelAsset) {
+export function usePixelPanel(ref: RefObject<HTMLElement | null>, canvasRef: RefObject<HTMLCanvasElement | null>, asset: PanelAsset,
+  /** Optional second canvas drawn from `asset.pressedRegion` (his GlobalUI buttons swap to it on :active). */
+  pressedCanvasRef?: RefObject<HTMLCanvasElement | null>) {
   useEffect(() => {
     const element = ref.current, canvas = canvasRef.current;
     if (!element || !canvas) return;
+    const pressed = asset.pressedRegion ? pressedCanvasRef?.current ?? null : null;
     let disposed = false, scheduled = 0, image: HTMLImageElement | null = null;
     element.style.setProperty('--panel-tile', String(asset.tile));
     const update = () => {
@@ -30,26 +33,31 @@ export function usePixelPanel(ref: RefObject<HTMLElement | null>, canvasRef: Ref
       // Canvas resolution is in source pixels; CSS displays exactly unit × source dimensions.
       const pad = asset.identityJoins ? 2 : 0;
       if (canvas.width === width + pad * 2 && canvas.height === height + pad * 2 && element.dataset.pixelReady === 'true') return;
-      canvas.width = width + pad * 2; canvas.height = height + pad * 2;
-      canvas.style.width = `${canvas.width * unit}px`; canvas.style.height = `${canvas.height * unit}px`;
-      if (pad) { canvas.style.top = `${-pad * unit}px`; canvas.style.left = `${-pad * unit}px`; }
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.imageSmoothingEnabled = false;
-      ctx.translate(pad, pad);
-      const [sx, sy] = asset.region;
-      const rows = asset.horizontal
-        ? Array.from({ length: asset.region[3] / asset.tile }, (_, i) => ({ source: i * asset.tile, dest: i * asset.tile, size: asset.tile }))
-        : tileAxis(height, asset.tile, asset.sliceSpan);
-      for (const row of rows) for (const col of tileAxis(width, asset.tile, asset.sliceSpan)) {
-        ctx.drawImage(image, sx + col.source, sy + row.source, col.size, row.size, col.dest, row.dest, col.size, row.size);
-      }
-      if (asset.identityJoins) {
-        const [x, y] = asset.identityJoins;
-        // Only the top-left cream corner of this single tile is opaque: paint its 2×2 outside each junction.
-        ctx.drawImage(image, x, y, 2, 2, width, 0, 2, 2);
-        ctx.drawImage(image, x, y, 2, 2, 0, height, 2, 2);
-      }
+      const paint = (target: HTMLCanvasElement, region: readonly [number, number, number, number]) => {
+        target.width = width + pad * 2; target.height = height + pad * 2;
+        target.style.width = `${target.width * unit}px`; target.style.height = `${target.height * unit}px`;
+        if (pad) { target.style.top = `${-pad * unit}px`; target.style.left = `${-pad * unit}px`; }
+        const ctx = target.getContext('2d');
+        if (!ctx || !image) return false;
+        ctx.imageSmoothingEnabled = false;
+        ctx.translate(pad, pad);
+        const [sx, sy] = region;
+        const rows = asset.horizontal
+          ? Array.from({ length: region[3] / asset.tile }, (_, i) => ({ source: i * asset.tile, dest: i * asset.tile, size: asset.tile }))
+          : tileAxis(height, asset.tile, asset.sliceSpan);
+        for (const row of rows) for (const col of tileAxis(width, asset.tile, asset.sliceSpan)) {
+          ctx.drawImage(image, sx + col.source, sy + row.source, col.size, row.size, col.dest, row.dest, col.size, row.size);
+        }
+        if (asset.identityJoins) {
+          const [x, y] = asset.identityJoins;
+          // Only the top-left cream corner of this single tile is opaque: paint its 2×2 outside each junction.
+          ctx.drawImage(image, x, y, 2, 2, width, 0, 2, 2);
+          ctx.drawImage(image, x, y, 2, 2, 0, height, 2, 2);
+        }
+        return true;
+      };
+      if (!paint(canvas, asset.region)) return;
+      if (pressed && asset.pressedRegion) paint(pressed, asset.pressedRegion);
       element.dataset.pixelReady = 'true';
     };
     const schedule = () => { if (!disposed && !scheduled) scheduled = requestAnimationFrame(update); };
@@ -59,7 +67,7 @@ export function usePixelPanel(ref: RefObject<HTMLElement | null>, canvasRef: Ref
     void document.fonts.ready.then(schedule);
     window.addEventListener(PIXEL_SCALE_EVENT, schedule);   // the page pixel size changed (pixel-assets.ts chromePixelScale)
     return () => { disposed = true; cancelAnimationFrame(scheduled); observer.disconnect(); window.removeEventListener(PIXEL_SCALE_EVENT, schedule); };
-  }, [ref, canvasRef, asset]);
+  }, [ref, canvasRef, asset, pressedCanvasRef]);
 }
 
 type PanelTag = 'section' | 'div' | 'article' | 'form' | 'nav' | 'aside';

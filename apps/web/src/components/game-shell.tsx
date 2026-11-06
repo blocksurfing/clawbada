@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ConnectKitButton } from 'connectkit';
+import { COMING_SOON_GATE, linkIsOpen } from '@/lib/site-gate';
 import { cn } from '@/lib/utils';
 import { MoreHorizontal, X } from 'lucide-react';
 import { useState } from 'react';
@@ -48,6 +49,11 @@ const MORE_NAV = [
   { href: '/leaderboard', label: 'Ranks', icon: makeIcon('Ranks') },
 ];
 
+/** While the Coming Soon gate is on (lib/site-gate.ts) the phone nav offers only what is open: the Dojo. */
+const GATED_BOTTOM_NAV = [{ href: '/dojo', label: 'Dojo', icon: makeIcon('Battle') }];
+const bottomNav = COMING_SOON_GATE ? GATED_BOTTOM_NAV : BOTTOM_NAV;
+const moreNav = MORE_NAV.filter((link) => linkIsOpen(link.href) && !bottomNav.some((b) => b.href === link.href));
+
 function isActive(pathname: string, href: string) {
   // A battle belongs to where it started: practice → the Dojo, staked → home (The Shell).
   if (pathname.startsWith('/battle-friends')) return href === '/dojo';
@@ -60,7 +66,7 @@ export function GameShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const isMoreActive = MORE_NAV.some((link) => isActive(pathname, link.href));
+  const isMoreActive = moreNav.some((link) => isActive(pathname, link.href));
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -75,7 +81,7 @@ export function GameShell({ children }: { children: React.ReactNode }) {
       {/* Mobile bottom nav */}
       <nav data-site-chrome className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar/95 backdrop-blur-md border-t border-sidebar-border">
         <div className="flex items-stretch">
-          {BOTTOM_NAV.map((link) => {
+          {bottomNav.map((link) => {
             const active = isActive(pathname, link.href);
             return (
               <Link
@@ -93,7 +99,7 @@ export function GameShell({ children }: { children: React.ReactNode }) {
           })}
 
           {/* More button */}
-          <button
+          {moreNav.length > 0 && <button
             onClick={() => setMoreOpen(!moreOpen)}
             className={cn(
               'flex-1 flex flex-col items-center justify-center py-2 min-h-[52px] transition-colors',
@@ -102,14 +108,14 @@ export function GameShell({ children }: { children: React.ReactNode }) {
           >
             {moreOpen ? <X className="size-5" /> : <MoreHorizontal className="size-5" />}
             <span className="text-[10px] mt-0.5 font-pixel">More</span>
-          </button>
+          </button>}
         </div>
 
         {/* More drawer */}
-        {moreOpen && (
+        {moreOpen && moreNav.length > 0 && (
           <div className="border-t border-sidebar-border bg-sidebar/98 backdrop-blur-md px-4 py-3">
             <div className="grid grid-cols-3 gap-2">
-              {MORE_NAV.map((link) => {
+              {moreNav.map((link) => {
                 const active = isActive(pathname, link.href);
                 return (
                   <Link
