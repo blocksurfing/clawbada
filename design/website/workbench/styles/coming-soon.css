@@ -1,0 +1,76 @@
+.coming-soon {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100dvh;
+  overflow: auto;
+  padding: 36px 24px;
+  background: #002036;
+  text-align: center;
+}
+.coming-soon-content { width: min(100%, 720px); }
+.coming-soon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(6 * var(--pixel));
+}
+.coming-soon-socials { display: flex; gap: 0; align-items: center; }
+.construction-art {
+  width: calc(var(--art-width) * var(--pixel));
+  height: calc(var(--art-height) * var(--pixel));
+  margin: 0 auto 30px;
+  background-size: calc(var(--sheet-width) * var(--pixel)) auto;
+  background-repeat: no-repeat;
+  background-position: 0px 0px;
+  image-rendering: pixelated;
+  animation: construction-work 400ms steps(4) infinite;
+}
+@keyframes construction-work {
+  to { background-position-x: calc(var(--sheet-width) * var(--pixel) * -1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .construction-art { animation: none; }
+}
+@media (max-width: 362px) {
+  .coming-soon { padding-inline: 0; }
+  .coming-soon h1, .coming-soon p { margin-inline: 15px; }
+}
+.coming-soon h1 {
+  margin: 0;
+  font: 400 var(--type-heading-xl)/var(--type-display-leading) var(--type-display);
+  letter-spacing: var(--type-display-tracking);
+  color: #f3eedc;
+  text-wrap: balance;
+}
+.coming-soon p {
+  max-width: 540px;
+  margin: 24px auto 36px;
+  font: 400 var(--type-body-lg)/var(--type-body-leading) var(--type-body);
+  letter-spacing: var(--type-body-tracking);
+  color: #c5ccd1;
+  text-wrap: pretty;
+}
+@media (max-height: 650px) {
+  .coming-soon { padding-block: 12px; }
+}
+.coming-soon-copy-mobile { display: none; }
+@media (max-width: 600px) {
+  .coming-soon {
+    padding: 24px 16px;
+    align-items: safe center;
+  }
+  .coming-soon-content { min-width: 0; }
+  /* Keep artwork pixel-perfect and fully visible including the wider FX. */
+  .construction-art { --pixel: 2px; margin-bottom: 24px; }
+  .coming-soon h1 { font-size: var(--type-heading-lg); line-height: 0.9; }
+  .coming-soon-heading-lead, .coming-soon-heading-end { display: block; white-space: nowrap; }
+  .coming-soon-copy-desktop { display: none; }
+  .coming-soon-copy-mobile { display: inline; }
+  .coming-soon p { font-size: 14px; line-height: 1.5; text-align: center; text-wrap: wrap; max-width: 360px; margin: 28px auto 24px; }
+  .coming-soon-copy-mobile br { display: none; }
+  .coming-soon-actions { row-gap: 6px; }
+}
+@media (max-height: 500px) {
+  .coming-soon { align-items: safe center; padding-block: 16px; }
+}
