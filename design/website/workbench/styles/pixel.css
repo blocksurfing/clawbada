@@ -1,4 +1,25 @@
 /* Pixel foundations; only components opting into these classes are affected. */
+.pixel-button-shine { position: absolute; top: 0; left: 0; z-index: -1; pointer-events: none; image-rendering: pixelated; }
+.pixel-icon-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: calc(32 * var(--pixel));
+  height: calc(32 * var(--pixel));
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.pixel-icon-button > span { grid-area: 1 / 1; pointer-events: none; }
+.pixel-icon-button > .icon-pressed { visibility: hidden; }
+.pixel-icon-button:hover { transform: translateY(-2px); }
+.pixel-icon-button:active { transform: translateY(2px); }
+.pixel-icon-button:active > .icon-normal { visibility: hidden; }
+.pixel-icon-button:active > .icon-pressed { visibility: visible; }
+.pixel-icon-button:focus-visible { outline: 3px solid #f4dd9c; outline-offset: -12px; }
+
 .pixel-sprite {
   display: inline-block;
   flex: 0 0 auto;
@@ -29,3 +50,37 @@
 .pixel-button:not(:disabled):hover { text-decoration: underline; }
 .pixel-button:not(:disabled):active { transform: translateY(var(--pixel)); }
 .pixel-button:focus-visible { outline: var(--pixel) solid #2e222f; outline-offset: var(--pixel); }
+/* Global tileset button template: only the art variant changes. */
+.pixel-button:is([data-pixel-panel="globalButton"], [data-pixel-panel="globalGoldenButton"]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc-size(max-content, round(up, size, var(--pixel)));
+  min-width: calc(80 * var(--pixel));
+  min-height: calc(32 * var(--pixel));
+  border: 0;
+  background: transparent;
+  padding: calc(6 * var(--pixel)) calc(10 * var(--pixel));
+  font: 400 var(--type-button)/var(--type-display-leading) var(--type-display);
+  text-decoration: none;
+}
+.pixel-button:is([data-pixel-panel="globalButton"], [data-pixel-panel="globalGoldenButton"]) > .pixel-panel-art { top: 0; left: 0; }
+.pixel-button:is([data-pixel-panel="globalButton"], [data-pixel-panel="globalGoldenButton"]):not(:disabled):hover { text-decoration: none; transform: translateY(-2px); }
+.pixel-button:is([data-pixel-panel="globalButton"], [data-pixel-panel="globalGoldenButton"]):not(:disabled):active { transform: translateY(2px); }
+.pixel-button:is([data-pixel-panel="globalButton"], [data-pixel-panel="globalGoldenButton"]):focus-visible { outline-color: #f4dd9c; }
+.pixel-panel-art--pressed { visibility: hidden; }
+[data-pixel-panel="globalButton"],
+[data-pixel-panel="globalGoldenButton"] {
+  --button-text-color: #ffffc6;
+  --button-pressed-text-color: #d6d6d6;
+  --button-text-shadow: -2px -2px 0 #0e0e0e, 0 -2px 0 #0e0e0e, 2px -2px 0 #0e0e0e, -2px 0 0 #0e0e0e, 2px 0 0 #0e0e0e, -2px 2px 0 #0e0e0e, 0 2px 0 #0e0e0e, 2px 2px 0 #0e0e0e;
+}
+.pixel-button[data-pixel-panel] {
+  color: var(--button-text-color, #fff0ce);
+  text-shadow: var(--button-text-shadow, none);
+}
+.pixel-button[data-pixel-panel]:not(:disabled):active {
+  color: var(--button-pressed-text-color, var(--button-text-color));
+}
+.pixel-button:not(:disabled):active > .pixel-panel-art--normal { visibility: hidden; }
+.pixel-button:not(:disabled):active > .pixel-panel-art--pressed { visibility: visible; }
