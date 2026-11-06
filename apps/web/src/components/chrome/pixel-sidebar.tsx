@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { linkIsOpen } from '@/lib/site-gate';
 import { Fragment, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { SidebarRoll } from './sidebar-roll';
 import { PixelMusicToggle } from './pixel-music-toggle';
@@ -116,7 +115,7 @@ export function PixelSidebar() {
           <div ref={overlayRef} className="menu-overlay" hidden id="menu-overlay" inert>
             <nav aria-label="Clawbada navigation">
               <ul ref={listRef} className="menu-list" id="menu-list">
-                {MENU.filter((item) => linkIsOpen(item.href)).map((item) => {
+                {MENU.map((item) => {
                   const key = 'key' in item ? item.key : item.label.toLowerCase();
                   const content = (
                     <>
