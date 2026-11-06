@@ -64,14 +64,14 @@ export default function BattlePage() {
     }
     if (address && guest && address === guest && !pinnedGuest.current) pinnedGuest.current = guest;
   }
-  // Review tools (designer VFX passes, harness): ?auto=1 lets the bot policy play this wallet's
+  // Review tools (designer VFX passes, harness): ?auto=1 lets the bot policy play this wallet's (?auto=special casts every Special it can)
   // turns; ?speed=2 scales Unity playback; ?stay=1 keeps the view open after the result instead
   // of returning to the arena page. Read after mount to avoid a Suspense boundary.
-  const [review, setReview] = useState<{ autoPlay: boolean; speed: number; stay: boolean; coach: boolean }>({ autoPlay: false, speed: 1, stay: false, coach: false });
+  const [review, setReview] = useState<{ autoPlay: boolean | 'special'; speed: number; stay: boolean; coach: boolean }>({ autoPlay: false, speed: 1, stay: false, coach: false });
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const speed = Number(q.get('speed') ?? '1');
-    setReview({ autoPlay: q.get('auto') === '1', speed: Number.isFinite(speed) && speed > 0 ? speed : 1, stay: q.get('stay') === '1', coach: q.get('coach') === '1' });
+    setReview({ autoPlay: q.get('auto') === 'special' ? 'special' : q.get('auto') === '1', speed: Number.isFinite(speed) && speed > 0 ? speed : 1, stay: q.get('stay') === '1', coach: q.get('coach') === '1' });
   }, []);
   // After the result the view closes itself and comes back here. A practice session is gone
   // once it ends (in-memory), so Back must not lead into it: replace. A chain battle keeps its
