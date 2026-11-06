@@ -153,13 +153,13 @@ export default async function (b: Browser) {
   await b.waitFor(`document.documentElement.hasAttribute('data-dojo-stage')`, 60000, 250);
   ok('on the Dojo the wallet chip scales with the room', await b.eval(`getComputedStyle(document.querySelector('.user-section')).transform !== 'none'`));
   const shellLink = await b.eval(`(() => { const a = document.querySelector('a[data-menu="dashboard"]') || document.querySelector('a[href="/game"]'); if (!a) return null; const q = a.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number } | null;
-  if (!shellLink) {
-    // The Coming Soon gate (lib/site-gate.ts) hides the Shell link: there is no in-app page to leave the Dojo for.
-    console.log('skip leaving the Dojo restores the full-size wallet chip — no Shell link (Coming Soon gate on)');
+  if (shellLink) await b.clickAt(shellLink.x, shellLink.y);
+  await b.waitFor(`location.pathname === '/game'`, 120000, 250);
+  await b.sleep(800);
+  if (await b.eval(`!!document.querySelector('main.coming-soon')`)) {
+    // The Coming Soon gate (lib/site-gate.ts): the Shell link opens Coming Soon, which has no wallet chip to check.
+    console.log('skip leaving the Dojo restores the full-size wallet chip — the Shell shows Coming Soon (gate on)');
   } else {
-    await b.clickAt(shellLink.x, shellLink.y);
-    await b.waitFor(`location.pathname === '/game'`, 120000, 250);
-    await b.sleep(800);
     const left = await b.eval(`({ path: location.pathname, attr: document.documentElement.hasAttribute('data-dojo-stage'), transform: getComputedStyle(document.querySelector('.user-section')).transform })`) as { path: string; attr: boolean; transform: string };
     ok('leaving the Dojo restores the full-size wallet chip', left.path === '/game' && !left.attr && left.transform === 'none', JSON.stringify({ link: shellLink, ...left }));
   }
