@@ -84,7 +84,12 @@ html[data-dojo-stage] .sidebar-shell :is(a, button, .sidebar-panel) { pointer-ev
 .dojo-arena { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
 .dojo-arena img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; image-rendering: pixelated; pointer-events: none; }
 /* Nzib's ninja squirrel, running along the top of the Dojo sign (dojo-squirrel.tsx places and steps it). Above the stage. */
-.dojo-squirrel { position: fixed; z-index: 6; overflow: hidden; pointer-events: none; }
+.dojo-squirrel {
+  position: fixed; z-index: 6; overflow: hidden; pointer-events: none;
+  /* The hole in Nzib's wall layer: the squirrel only shows inside the doorway (size/position set by dojo-squirrel.tsx). */
+  -webkit-mask-image: url('/ui/dojo/Window_Mask.png'); mask-image: url('/ui/dojo/Window_Mask.png');
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; mask-mode: alpha;
+}
 .dojo-squirrel > div { position: absolute; left: 0; top: 0; background-repeat: no-repeat; image-rendering: pixelated; }
 #page-content[data-page="dojo"] { z-index: 1; }
 /* Local crisp contrast on light sky/walls, without dimming the artwork. */
