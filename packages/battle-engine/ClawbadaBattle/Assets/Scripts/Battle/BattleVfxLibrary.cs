@@ -36,8 +36,16 @@ public class BattleVfxLibrary : ScriptableObject
         [Tooltip("Mirror the effect horizontally when its owner faces left.")]
         public bool mirrorWithFacing = true;
         [Tooltip("Specials only: seconds after this effect starts when the hit beat lands (damage, hit reads, per-target " +
-                 "impact effects). 0 = use the attacker's swing timing.")]
+                 "impact effects), in real time — with playbackSpeed below 1 that is later in the clip. 0 = use the " +
+                 "attacker's swing timing.")]
         public float impactAt = 0f;
+        [Tooltip("Animator speed for this effect (1 = as authored). 0.8 plays it 25 % longer — Maelstrom, owner 2026-11-07: " +
+                 "\"about 0.55 s too fast\" after Nzib's trim.")]
+        public float playbackSpeed = 1f;
+        [Tooltip("Cinematic Specials: seconds after the effect starts (real time) when the turn moves on. 0 = the clip's end " +
+                 "less a short tail. Set it where the effect is visibly over when a clip runs on with hidden guide tracks " +
+                 "(Maelstrom's Hit_ layers outlast its clouds).")]
+        public float holdUntil = 0f;
         [Tooltip("Effects that straddle the owner's depth (Devour: vortex under the lobster, suck above it). Direct children " +
                  "whose name starts with this render just ABOVE the owner; every other child renders just BELOW it. " +
                  "Empty = the whole effect sits just above the owner, as usual.")]
@@ -373,6 +381,7 @@ public class BattleVfxLibrary : ScriptableObject
     {
         var fx = Instantiate(slot.prefab, centre, Quaternion.identity);
         HideGuideChildren(fx, slot.hideChildrenPrefix);
+        ApplySpeed(fx, slot);
         var group = fx.GetComponent<SortingGroup>();
         if (group == null) group = fx.AddComponent<SortingGroup>();
         group.sortingLayerName = DepthSort.Layer;
@@ -380,6 +389,17 @@ public class BattleVfxLibrary : ScriptableObject
         if (fx.GetComponent<OneShotVfx>() == null) fx.AddComponent<OneShotVfx>();
         return fx;
     }
+
+    /// <summary>The slot's playback speed on every Animator in the effect (OneShotVfx's lifetime follows it).</summary>
+    private static void ApplySpeed(GameObject fx, VfxSlot slot)
+    {
+        if (slot.playbackSpeed <= 0f || Mathf.Approximately(slot.playbackSpeed, 1f)) return;
+        foreach (var a in fx.GetComponentsInChildren<Animator>(true)) a.speed = slot.playbackSpeed;
+    }
+
+    /// <summary>How long a slot's effect plays in real time: its clip at the slot's playback speed.</summary>
+    public static float PlayLength(VfxSlot slot) =>
+        slot == null ? 0f : ClipLength(slot.prefab) / (slot.playbackSpeed > 0f ? slot.playbackSpeed : 1f);
 
     private static void HideGuideChildren(GameObject fx, string prefix)
     {
@@ -398,6 +418,7 @@ public class BattleVfxLibrary : ScriptableObject
 
         var fx = Instantiate(slot.prefab, position, Quaternion.identity);
         HideGuideChildren(fx, slot.hideChildrenPrefix);
+        ApplySpeed(fx, slot);
 
         if (slot.mirrorWithFacing && owner.IsFacingLeft)
         {

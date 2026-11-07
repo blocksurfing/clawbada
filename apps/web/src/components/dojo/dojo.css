@@ -529,7 +529,7 @@ html[data-dojo-stage] .sidebar-shell :is(a, button, .sidebar-panel) { pointer-ev
 #page-content[data-page="dojo"] .dojo-master-lob-tooltip { visibility:hidden; position:fixed; inset:auto; margin:0; width:240px; padding:12px; border:3px solid #b78454; background:#302129; color:#fff0cd; font:14px/1.5 var(--type-body); box-shadow:3px 3px 0 #17131c; pointer-events:none; }
 #page-content[data-page="dojo"] .dojo-master-lob-tooltip strong { display:block; margin-bottom:6px; }
 #page-content[data-page="dojo"] .dojo-master-lob-guidance:hover .dojo-master-lob-tooltip,
-#page-content[data-page="dojo"] .dojo-master-lob-guidance:focus-within .dojo-master-lob-tooltip { visibility:visible; }
+#page-content[data-page="dojo"] .dojo-master-lob-guidance:has(:focus-visible) .dojo-master-lob-tooltip { visibility:visible; }
 #page-content[data-page="dojo"] .dojo-inventory-viewport { overflow:clip; }
 /* Artist pagination: top = active dot / normal arrows; bottom = inactive dot / pressed arrows. */
 #page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager { height:calc(16 * var(--pixel)); flex-shrink:0; margin:6px 0 12px; gap:var(--pixel); }

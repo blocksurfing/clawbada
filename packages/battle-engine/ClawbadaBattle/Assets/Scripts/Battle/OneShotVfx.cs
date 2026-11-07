@@ -30,6 +30,8 @@ public class OneShotVfx : MonoBehaviour
                 }
             }
         }
-        Destroy(gameObject, lifetime + extraLifetime);
+        // A slot can slow the effect (BattleVfxLibrary.VfxSlot.playbackSpeed): the clip then lasts longer in real time.
+        float speed = animator != null && animator.speed > 0.01f ? animator.speed : 1f;
+        Destroy(gameObject, lifetime / speed + extraLifetime);
     }
 }

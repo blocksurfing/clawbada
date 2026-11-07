@@ -790,7 +790,7 @@ public class BattleManager : MonoBehaviour
                             // the effect's impact beat; the turn holds until the effect is nearly done.
                             // The effect's timeline runs from the turn start: a slot that appears late
                             // (Rend pops in mid-swing) holds the turn for its delay plus its clip.
-                            float clip = windup.delay + BattleVfxLibrary.ClipLength(windup.prefab);
+                            float clip = windup.delay + BattleVfxLibrary.PlayLength(windup);
                             float t0 = Time.time;
                             Debug.Log($"[BattleManager] special {actor.className} effect clip={clip:F2}s impactAt={windup.impactAt:F2}s");
                             SpecialEffectStarted?.Invoke(actor.className, clip, windup.impactAt);
@@ -838,8 +838,11 @@ public class BattleManager : MonoBehaviour
                             // Hold until the effect is done, less a tail the next turn may overlap: 0.8 s on
                             // a long cast (Maelstrom's fade), but never more than 15 % of a short one — the
                             // old flat 0.8 s let the next turn start while Devour's Out was still playing.
+                            // A slot can say where the effect is visibly over (holdUntil): Maelstrom's hidden Hit_ guide
+                            // tracks outlast its clouds by ~1 s of empty screen (owner 2026-11-07: "remove the dead time").
                             float tail = Mathf.Min(0.8f, clip * 0.15f);
-                            float untilEnd = Mathf.Max(hitDuration * 0.5f, clip - tail - (Time.time - t0));
+                            float holdTo = windup.holdUntil > 0f ? windup.delay + windup.holdUntil : clip - tail;
+                            float untilEnd = Mathf.Max(hitDuration * 0.5f, holdTo - (Time.time - t0));
                             yield return new WaitForSeconds(untilEnd);
                             Debug.Log($"[BattleManager] special {actor.className} effect held to {Time.time - t0:F2}s of {clip:F2}s");
                         }

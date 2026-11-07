@@ -26,9 +26,13 @@ public static class MaelstromVfxBinder
     private const string HitClipPath = "Assets/Prefabs/VFX/Clips/FX_Tempest_Maelstrom_Hit.anim";
     private const string HitControllerPath = "Assets/Prefabs/VFX/Clips/AC_FX_Tempest_Maelstrom_Hit.controller";
     private const string LibraryPath = "Assets/Prefabs/VFX/BattleVfxLibrary.asset";
-    /// <summary>Lightning flash peak in the designer's committed clip. Nzib trimmed 2 s of build-up (5009ba1, 2026-11-06:
-    /// clip 6 → 4 s): flash peak 1.83 s (was 3.83), hits at 2.0 s (was 4.0).</summary>
-    private const float ImpactAt = 1.9f;
+    /// <summary>Nzib trimmed 2 s of build-up (5009ba1, 2026-11-06: clip 6 → 4 s; flash peak 1.83 s, hits at 2.0 s, clouds
+    /// gone at 2.71 s). The owner found it ~0.55 s too fast (2026-11-07), so it plays at 0.8× (2.71 → 3.39 s of storm):
+    /// the hit beat is the flash in real time (1.9 / 0.8) and the turn moves on as the clouds leave (no dead time after
+    /// the lightning — the hidden Hit_ tracks run to 3.9 s of clip).</summary>
+    private const float Speed = 0.8f;
+    private const float ImpactAt = 1.9f / Speed;
+    private const float HoldUntil = 2.75f / Speed;
     private const float HitFps = 24f;
 
     [MenuItem("Clawbada/VFX/Bind Tempest Maelstrom")]
@@ -48,7 +52,7 @@ public static class MaelstromVfxBinder
         lib.specialByClass[Tempest] = new BattleVfxLibrary.VfxSlot
         {
             prefab = storm, anchor = BattleVfxLibrary.AnchorPoint.CameraCenter, delay = 0f,
-            mirrorWithFacing = false, impactAt = ImpactAt, hideChildrenPrefix = "Hit_",
+            mirrorWithFacing = false, impactAt = ImpactAt, hideChildrenPrefix = "Hit_", playbackSpeed = Speed, holdUntil = HoldUntil,
             shakeAmplitude = 0.10f, shakeSeconds = 0.45f,   // the lightning hits the ground (designer's ask)
         };
         lib.specialImpactByClass[Tempest] = new BattleVfxLibrary.VfxSlot

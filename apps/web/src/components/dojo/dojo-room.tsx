@@ -232,8 +232,11 @@ function MasterLobToggle({ on, onChange }: { on: boolean; onChange: (on: boolean
     tip.style.left = `${r.right + 9}px`;
     tip.style.top = `${Math.max(6, r.top + (r.height - tip.offsetHeight) / 2)}px`;
   }, []);
+  // Hover shows it; so does KEYBOARD focus. A click also focuses the button, but that must not pin the note open once
+  // the pointer leaves (owner 2026-11-07) — so focus only counts when it is :focus-visible.
   const show = useCallback(() => { const tip = tipRef.current; if (tip && !tip.matches(':popover-open')) tip.showPopover?.(); place(); }, [place]);
-  const hide = useCallback(() => { const b = buttonRef.current; if (b && !b.matches(':hover, :focus')) tipRef.current?.hidePopover?.(); }, []);
+  const showOnFocus = useCallback(() => { if (buttonRef.current?.matches(':focus-visible')) show(); }, [show]);
+  const hide = useCallback(() => { const b = buttonRef.current; if (b && !b.matches(':hover, :focus-visible')) tipRef.current?.hidePopover?.(); }, []);
   useEffect(() => {
     window.addEventListener('resize', place);
     return () => { window.removeEventListener('resize', place); try { tipRef.current?.hidePopover?.(); } catch { /* not open */ } };
@@ -242,7 +245,7 @@ function MasterLobToggle({ on, onChange }: { on: boolean; onChange: (on: boolean
     <div className="dojo-master-lob-guidance" style={{ ['--master-lob-guidance-art' as string]: `url('${PIXEL_ASSETS.dojoMasterLobGuidance.src}')` }}>
       <button ref={buttonRef} type="button" data-master-lob-guidance="" data-testid="dojo-master-lob" aria-label="Master Lob guidance" aria-pressed={on}
         aria-describedby="dojo-master-lob-tooltip" onClick={() => { playUiClick(); onChange(!on); }}
-        onMouseEnter={show} onFocus={show} onMouseLeave={hide} onBlur={hide} />
+        onMouseEnter={show} onFocus={showOnFocus} onMouseLeave={hide} onBlur={hide} />
       <div ref={tipRef} id="dojo-master-lob-tooltip" className="dojo-master-lob-tooltip" role="tooltip" popover="manual">
         <strong>Master Lob Guidance</strong><span>Turn Master Lob’s tutorial guidance on or off.</span>
       </div>

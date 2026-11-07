@@ -243,7 +243,9 @@ MonoBehaviour:
     anchor: 6
     delay: 0
     mirrorWithFacing: 0
-    impactAt: 1.9
+    impactAt: 2.375
+    playbackSpeed: 0.8
+    holdUntil: 3.4375
     frontChildPrefix: 
     hideChildrenPrefix: Hit_
     onTop: 0
