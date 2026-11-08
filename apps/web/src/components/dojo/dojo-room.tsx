@@ -388,7 +388,7 @@ export function DojoRoom(props: DojoRoomProps) {
   const activeSlots = mode === 'owned' ? slots : builtSlots;
   const botLabel = botInfo(bot)?.label ?? bot;
   const summary = vsFriend
-    ? props.friendLockedIn ? 'Locked in — waiting for your friend.'
+    ? props.friendLockedIn ? 'Locked in. Waiting for your friend.'
       : builderReady ? builderSummary(team, tier, purity, 'your friend') : 'Pick three classes for your team.'
     : mode === 'builder'
     ? builderReady ? builderSummary(team, tier, purity, botLabel) : 'Pick three classes for your team.'
@@ -407,7 +407,7 @@ export function DojoRoom(props: DojoRoomProps) {
   };
   const clickTile = (id: string) => {
     const r = mode === 'builder' ? cycleClass(activeSlots, id) : toggleSlot(activeSlots, id);
-    if (r.full) { setFeedback(`Team full — remove a ${mode === 'builder' ? 'class' : 'lobster'} first.`); return; }
+    if (r.full) { setFeedback(`Team full. Remove a ${mode === 'builder' ? 'class' : 'lobster'} first.`); return; }
     editSlots(r.slots);
   };
 
@@ -709,7 +709,7 @@ export function DojoRoom(props: DojoRoomProps) {
               <div className="dojo-battle-cue" data-testid="dojo-battle-cue" data-cue={cue} role="status" aria-live="polite"
                 style={{ ['--master-lob-guidance-art' as string]: `url('${PIXEL_ASSETS.dojoMasterLobGuidance.src}')` }}>
                 <i className="dojo-battle-cue-lob" aria-hidden="true" />
-                <p>{cue === 'ready' ? <>Team ready? Press <b>Battle</b> to let your friend know you&apos;re ready!</> : <>Locked in — waiting for your friend.</>}</p>
+                <p>{cue === 'ready' ? <>Team ready? Press <b>Battle</b> to let your friend know you&apos;re ready!</> : <>Locked in. Waiting for your friend.</>}</p>
               </div>
             )}
             <button className="dojo-battle" type="button" aria-label={busy ? 'Starting…' : 'Battle'} title={busy ? 'Starting…' : 'Battle'} data-testid="dojo-battle"

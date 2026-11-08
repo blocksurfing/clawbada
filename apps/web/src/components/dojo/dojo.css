@@ -544,8 +544,8 @@ html[data-dojo-stage] .sidebar-shell :is(a, button, .sidebar-panel) { pointer-ev
 
 /* ── Friend match rules + the commit cue (owner 2026-11-07) ── */
 /* The host's match rules, above Create invite link. */
-#page-content[data-page="dojo"] .dojo-friend-rules { display:grid; gap:6px; margin:0; padding:6px 9px 9px; border:var(--pixel) solid #392624; background:#2a1d1c; min-width:0; }
-#page-content[data-page="dojo"] .dojo-friend-rules legend { padding:0 3px; font:400 14px/1.2 var(--type-display); color:#ffe4a0; }
+#page-content[data-page="dojo"] .dojo-friend-rules { display:grid; gap:6px; margin:0; padding:9px; border:var(--pixel) solid #392624; background:#2a1d1c; min-width:0; }
+#page-content[data-page="dojo"] .dojo-friend-rules-title { margin:0 0 3px; font:400 14px/1.2 var(--type-display); color:#ffe4a0; }
 #page-content[data-page="dojo"] .dojo-friend-rules-row { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
 #page-content[data-page="dojo"] .dojo-friend-rules-row > span { min-width:48px; }
 #page-content[data-page="dojo"] .dojo-friend-rules-row > div { display:flex; flex-wrap:wrap; gap:3px; }

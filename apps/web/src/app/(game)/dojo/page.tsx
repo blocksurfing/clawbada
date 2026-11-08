@@ -375,12 +375,12 @@ export default function DojoPage() {
 
   const copyLink = useCallback(async () => {
     if (!inviteLink) return;
-    setShareLabel((await copyText(inviteLink)) ? 'Link copied — send it to your friend. Waiting for them…' : 'Select the link and copy it.');
+    setShareLabel((await copyText(inviteLink)) ? 'Link copied. Send it to your friend. Waiting for them…' : 'Select the link and copy it.');
   }, [inviteLink]);
   const shareLink = useCallback(async () => {
     if (!inviteLink) return;
     const r = await shareInvite(inviteLink);
-    if (r === 'copied') setShareLabel('Link copied — send it to your friend. Waiting for them…');
+    if (r === 'copied') setShareLabel('Link copied. Send it to your friend. Waiting for them…');
     else if (r === 'shared') setShareLabel('Link sent. Waiting for your friend…');
   }, [inviteLink]);
 

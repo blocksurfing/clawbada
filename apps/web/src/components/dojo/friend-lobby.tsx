@@ -67,9 +67,9 @@ export function FriendLobby(p: FriendLobbyProps) {
       <div className="dojo-friend" data-testid="friend-lobby" data-state="after" data-rematch={offered ? 'offered' : declined ? 'declined' : 'none'}>
         <p className="dojo-friend-headline">{offered ? 'Your friend wants a rematch!' : 'Good game!'}</p>
         <p className="dojo-help">
-          {offered ? 'Same friend, sides swapped. Pick a new team — they won’t see it until the fight.'
+          {offered ? 'Same friend, sides swapped. Pick a new team. They won’t see it until the fight.'
             : declined ? 'Your friend said no thanks this time. Send a new link to play again.'
-              : 'Play your friend again — one tap, sides swapped, new teams.'}
+              : 'Play your friend again: one tap, sides swapped, new teams.'}
         </p>
         {p.error && <p className="dojo-friend-note" data-tone="error" data-testid="friend-error">{p.error}</p>}
         <div className="dojo-friend-actions">
@@ -89,8 +89,9 @@ export function FriendLobby(p: FriendLobbyProps) {
   if (!p.roomId) {
     return (
       <div className="dojo-friend" data-testid="friend-lobby" data-state="none">
-        <p className="dojo-help">Battle a friend: make a link and send it. They open it and they&apos;re in — no wallet, no sign-up.</p>
-        <fieldset className="dojo-friend-rules" data-testid="friend-rules"><legend>Match rules — you both play at these</legend>
+        <p className="dojo-help">Battle a friend: make a link and send it. They open it and they&apos;re in. No wallet, no sign-up.</p>
+        <div className="dojo-friend-rules" data-testid="friend-rules" role="group" aria-labelledby="friend-rules-title">
+          <p className="dojo-friend-rules-title" id="friend-rules-title">Match rules: you both play at these</p>
           <div className="dojo-friend-rules-row"><span>Tier</span>
             <div data-choices="tier" data-testid="friend-rules-tier">
               {TIERS.map((t) => <button key={t} type="button" className="dojo-choice" aria-pressed={p.tier === t} onClick={() => p.onTier(t)}>{title(t)}</button>)}
@@ -101,7 +102,7 @@ export function FriendLobby(p: FriendLobbyProps) {
               {[0, 1, 2, 3, 4, 5, 6].map((n) => <button key={n} type="button" className="dojo-choice" aria-pressed={p.purity === n} onClick={() => p.onPurity(n)}>{n}</button>)}
             </div>
           </div>
-        </fieldset>
+        </div>
         {p.note && <p className="dojo-friend-note" data-testid="friend-note">{p.note}</p>}
         {p.error && <p className="dojo-friend-note" data-tone="error" data-testid="friend-error">{p.error}</p>}
         <div className="dojo-friend-actions">
@@ -152,8 +153,8 @@ export function FriendLobby(p: FriendLobbyProps) {
           </ul>
           <p className="dojo-help">
             {view.status === 'in_battle' ? 'Here we go!'
-              : youState === 'ready' ? 'Locked in — waiting for your friend to press Battle…'
-                : oppState === 'ready' ? 'Your friend is ready — press Battle when your team is set.'
+              : youState === 'ready' ? 'Locked in. Waiting for your friend to press Battle…'
+                : oppState === 'ready' ? 'Your friend is ready. Press Battle when your team is set.'
                   : 'Pick three classes, then press Battle to lock your team in. Your friend won’t see it until the fight.'}
           </p>
           {left && view.status === 'seated' && <p className="dojo-friend-note dojo-friend-time">Lobby closes in {left}</p>}
