@@ -18,6 +18,8 @@ public class HexInput : MonoBehaviour
     private HexGrid hexGrid;
     private BattleManager battleManager;
     private BattleBridge bridge;
+    private DojoNinjaPlants ninjaPlants;
+    private float ninjaSearchAt;
 
     void Awake()
     {
@@ -60,7 +62,17 @@ public class HexInput : MonoBehaviour
             return;
         }
 
-        if (!onHex) return;
+        if (!onHex)
+        {
+            // Off the board: the Dojo's plants may hide a ninja (Nzib 2026-11-08). The board and lobsters always win.
+            if (ninjaPlants == null && Time.unscaledTime >= ninjaSearchAt)
+            {
+                ninjaSearchAt = Time.unscaledTime + 2f;
+                ninjaPlants = FindFirstObjectByType<DojoNinjaPlants>();
+            }
+            if (ninjaPlants != null && ninjaPlants.isActiveAndEnabled) ninjaPlants.TryClick(world);
+            return;
+        }
         if (lobster != null && lobster.alive)
         {
             Debug.Log($"[HexInput] click → lobster {lobster.lobsterId} at ({col},{row})");
