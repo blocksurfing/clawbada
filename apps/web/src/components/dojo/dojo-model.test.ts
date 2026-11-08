@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { EMPTY_SLOTS, builderSummary, dropOnSlot, ownedSummary, pageCount, purityDescription, removeFromSlots, slotsComplete, toggleSlot } from './dojo-model';
+import { EMPTY_SLOTS, builderSummary, countOf, cycleClass, dropOnSlot, placeOnSlot, removeSlot, swapSlots, ownedSummary, pageCount, purityDescription, removeFromSlots, slotsComplete, toggleSlot } from './dojo-model';
 
 describe('dojo lineup edits', () => {
   test('click fills the first free slot, then reports a full team', () => {
@@ -42,6 +42,29 @@ describe('dojo lineup edits', () => {
     expect(slotsComplete(['101', '102', '103'])).toBe(true);
     expect(slotsComplete(['101', '102', ''])).toBe(false);
     expect(slotsComplete(['101', '101', '103'])).toBe(false);
+  });
+});
+
+describe('stacked picks (Build a team)', () => {
+  test('a tap adds another copy; when full, a tap on a picked class clears it', () => {
+    let s = EMPTY_SLOTS;
+    for (let i = 0; i < 3; i++) s = cycleClass(s, 'kraken').slots;
+    expect(s).toEqual(['kraken', 'kraken', 'kraken']);
+    expect(countOf(s, 'kraken')).toBe(3);
+    expect(cycleClass(s, 'kraken')).toEqual({ slots: ['', '', ''], full: false });
+  });
+  test('mixed: clearing one class closes ranks; an absent class on a full team is refused', () => {
+    const s = cycleClass(cycleClass(cycleClass(EMPTY_SLOTS, 'kraken').slots, 'kraken').slots, 'ember').slots;
+    expect(s).toEqual(['kraken', 'kraken', 'ember']);
+    expect(cycleClass(s, 'kraken').slots).toEqual(['ember', '', '']);
+    expect(cycleClass(s, 'mantis')).toEqual({ slots: s, full: true });
+  });
+  test('drags work by position, so duplicates are safe', () => {
+    const s = ['kraken', 'kraken', 'ember'] as const;
+    expect(swapSlots(s, 0, 2)).toEqual(['ember', 'kraken', 'kraken']);
+    expect(removeSlot(s, 1)).toEqual(['kraken', 'ember', '']);
+    expect(placeOnSlot(s, 'kraken', 2)).toEqual(['kraken', 'kraken', 'kraken']);
+    expect(placeOnSlot(s, 'mantis', 3)).toBe(s);
   });
 });
 

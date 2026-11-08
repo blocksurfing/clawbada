@@ -40,7 +40,8 @@ One player opens a room and passes the invite to the other — by message, post,
 
 ```bash
 # host
-curl -s -X POST https://api.clawbada.com/api/game/friend/rooms -H "Authorization: Bearer $T" -H 'content-type: application/json' -d '{}'
+curl -s -X POST https://api.clawbada.com/api/game/friend/rooms -H "Authorization: Bearer $T" -H 'content-type: application/json' \
+  -d '{"tier":"elite","purity":3}'      # the match rules: both teams play at this tier + purity (default elite / 3)
 # → {"roomId":"r_…","secret":"…","invite":"r_….<secret>"}     (a human opens https://clawbada-web.vercel.app/battle-friends/join#<invite>)
 
 # the other player
@@ -57,7 +58,8 @@ curl -s -X POST …/api/game/friend/rooms/$ROOM/ready -H "Authorization: Bearer 
 # the second ready answers with "battleId":"f_…" ; until then poll GET …/friend/rooms/$ROOM every ~2 s
 ```
 
-Your opponent never sees your classes before the fight — only that you are locked in. The host plays side **A**.
+Both teams must use the room's `tier` and `purity` (in `GET …/friend/rooms/$ROOM`); any other is refused with 409.
+Duplicate classes are fine (`["kraken","kraken","ember"]`). Your opponent never sees your classes before the fight — only that you are locked in. The host plays side **A**.
 Invites last 15 minutes and work once. After the battle, either player may `POST …/friend/rooms/$ROOM/rematch` to
 play again (sides swap; the other player sees `rematch` on the old room and asks too to join it).
 

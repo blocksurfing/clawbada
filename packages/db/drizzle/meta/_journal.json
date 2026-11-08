@@ -120,6 +120,13 @@
       "when": 1793290148045,
       "tag": "0016_friend_rematch",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794113750959,
+      "tag": "0017_friend_room_rules",
+      "breakpoints": true
     }
   ]
 }

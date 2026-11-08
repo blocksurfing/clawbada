@@ -1,11 +1,14 @@
 /**
  * Battle Friends lobby (owner 2026-10-28) — the rules, separate from storage so they can be tested in memory.
  *
- *   create  → a host opens a room; the invite secret (128 bits) goes back once and only its hash is stored.
+ *   create  → a host opens a room and sets its match rules — tier and purity (owner 2026-11-07: a fair fight, both
+ *             teams play at the same tier and purity); the invite secret (128 bits) goes back once and only its
+ *             hash is stored.
  *             Opening a new room cancels the host's older unstarted rooms (one live invite at a time).
  *   join    → the first player who presents the secret takes the guest seat (atomic, single use). The host cannot
  *             take their own seat; a wrong, used, expired or cancelled link all answer the same "not found".
- *   team    → each player builds a team (3 classes, tier, purity); the other player only ever learns "locked in".
+ *   team    → each player builds a team (3 classes, at the room's tier and purity); the other player only ever learns
+ *             "locked in".
  *   ready   → once both have a team and both are ready, the battle starts (kind 'friend', host = A, guest = B).
  *   cancel  → either player, before the battle starts.
  *   rematch → after the battle (2026-10-29): either player asks; the first ask opens ONE new room for the same pair, sides
@@ -34,6 +37,9 @@ export interface FriendRoomRow {
   hostReady: boolean;
   guestReady: boolean;
   arena: FriendArena;
+  /** The room's match rules: every team plays at this tier and purity. */
+  tier: FriendTier;
+  purity: number;
   battleId: string | null;
   expiresAt: Date;
   /** Rematch rooms: the finished room this follows, and who asked. Null on a room opened by link. */
@@ -78,6 +84,9 @@ export interface FriendRoomDeps {
 
 /** An open invite lives this long; a seated lobby gets this long again when the friend arrives. */
 export const INVITE_TTL_MS = 15 * 60_000;
+/** Match rules for a room created without any (older clients). */
+export const DEFAULT_TIER: FriendTier = 'elite';
+export const DEFAULT_PURITY = 3;
 export const LOBBY_TTL_MS = 10 * 60_000;
 
 export class FriendRoomError extends Error {
@@ -98,6 +107,9 @@ export interface FriendRoomView {
   status: FriendRoomStatus;
   role: 'host' | 'guest';
   arena: FriendArena;
+  /** The match rules both teams play at. */
+  tier: FriendTier;
+  purity: number;
   expiresAt: string;
   battleId: string | null;
   you: { team: FriendTeam | null; ready: boolean };
@@ -126,16 +138,21 @@ export class FriendRoomService {
   private now() { return this.deps.now ? this.deps.now() : Date.now(); }
   private log(msg: string, obj: Record<string, unknown>) { this.deps.log?.info(obj, msg); }
 
-  async create(host: string, opts: { arena?: unknown } = {}): Promise<{ roomId: string; secret: string; expiresAt: string }> {
+  async create(host: string, opts: { arena?: unknown; tier?: unknown; purity?: unknown } = {}): Promise<{ roomId: string; secret: string; expiresAt: string }> {
     const h = host.toLowerCase();
     const arena = opts.arena === undefined ? 'dojo' : opts.arena;
     if (typeof arena !== 'string' || !(FRIEND_ARENAS as readonly string[]).includes(arena)) throw new FriendRoomError('INVALID_INPUT', `arena must be one of ${FRIEND_ARENAS.join(', ')}`);
+    // Match rules: older clients send none and get Elite / purity 3.
+    const tier = opts.tier === undefined ? DEFAULT_TIER : opts.tier;
+    if (typeof tier !== 'string' || !(FRIEND_TIERS as readonly string[]).includes(tier)) throw new FriendRoomError('INVALID_INPUT', `tier must be one of ${FRIEND_TIERS.join(', ')}`);
+    const purity = opts.purity === undefined ? DEFAULT_PURITY : opts.purity;
+    if (typeof purity !== 'number' || !Number.isInteger(purity) || purity < 0 || purity > 6) throw new FriendRoomError('INVALID_INPUT', 'purity must be an integer 0-6');
     await this.deps.repo.cancelUnstartedOf(h);
     const id = `r_${randomUUID()}`;
     const secret = randomBytes(16).toString('base64url');   // 128 bits
     const expiresAt = new Date(this.now() + INVITE_TTL_MS);
-    await this.deps.repo.insert({ id, host: h, guest: null, secretHash: hashSecret(secret), status: 'open', hostTeam: null, guestTeam: null, hostReady: false, guestReady: false, arena: arena as FriendArena, battleId: null, expiresAt, rematchOf: null, rematchBy: null });
-    this.log('friend_room_created', { roomId: id, arena });
+    await this.deps.repo.insert({ id, host: h, guest: null, secretHash: hashSecret(secret), status: 'open', hostTeam: null, guestTeam: null, hostReady: false, guestReady: false, arena: arena as FriendArena, tier: tier as FriendTier, purity, battleId: null, expiresAt, rematchOf: null, rematchBy: null });
+    this.log('friend_room_created', { roomId: id, arena, tier, purity });
     return { roomId: id, secret, expiresAt: expiresAt.toISOString() };
   }
 
@@ -159,6 +176,9 @@ export class FriendRoomService {
     const { row, seat } = await this.seatOf(roomId, player);
     if (row.status !== 'seated') throw new FriendRoomError('CONFLICT', row.status === 'open' ? 'Wait for your friend to join first' : 'This lobby is closed');
     if ((seat === 'host' ? row.hostReady : row.guestReady)) throw new FriendRoomError('CONFLICT', 'You are already ready — your team is locked');
+    if (team.tier !== row.tier || team.purity !== row.purity) {
+      throw new FriendRoomError('CONFLICT', `This match is ${row.tier}, purity ${row.purity} — pick your team at those rules`);
+    }
     const updated = await this.deps.repo.setTeam(roomId, seat, team);
     if (!updated) throw new FriendRoomError('CONFLICT', 'This lobby is closed');
     return this.viewOf(updated, player);
@@ -216,7 +236,7 @@ export class FriendRoomService {
     if (!next) {
       next = await this.deps.repo.insertRematch({
         id: `r_${randomUUID()}`, host: row.guest, guest: row.host, secretHash: hashSecret(randomBytes(16).toString('base64url')),
-        status: 'seated', hostTeam: null, guestTeam: null, hostReady: false, guestReady: false, arena: row.arena, battleId: null,
+        status: 'seated', hostTeam: null, guestTeam: null, hostReady: false, guestReady: false, arena: row.arena, tier: row.tier, purity: row.purity, battleId: null,
         expiresAt: new Date(this.now() + LOBBY_TTL_MS), rematchOf: roomId, rematchBy: p,
       }) ?? await this.deps.repo.findRematchOf(roomId);   // lost the race to the other player's ask: theirs
       if (next?.rematchBy === p) this.log('friend_rematch_offered', { roomId: next.id, after: roomId });
@@ -262,6 +282,8 @@ export class FriendRoomService {
       status: row.status,
       role: host ? 'host' : 'guest',
       arena: row.arena,
+      tier: row.tier,
+      purity: row.purity,
       expiresAt: row.expiresAt.toISOString(),
       battleId: row.battleId,
       you: { team: host ? row.hostTeam : row.guestTeam, ready: host ? row.hostReady : row.guestReady },

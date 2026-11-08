@@ -5,8 +5,9 @@ import { MemoryFriendRoomRepo } from '../../lib/friend-rooms/memory-repo';
 const HOST = '0x1111111111111111111111111111111111111111';
 const FRIEND = '0x2222222222222222222222222222222222222222';
 const STRANGER = '0x3333333333333333333333333333333333333333';
-const TEAM = { classes: ['kraken', 'ember', 'abyss'], tier: 'apex', purity: 6 };
-const TEAM2 = { classes: ['bulwark', 'mantis', 'sentinel'], tier: 'evolved', purity: 2 };
+// Both play at the room's rules — a room created without any is Elite, purity 3 (owner 2026-11-07: a fair fight).
+const TEAM = { classes: ['kraken', 'ember', 'abyss'], tier: 'elite', purity: 3 };
+const TEAM2 = { classes: ['bulwark', 'mantis', 'sentinel'], tier: 'elite', purity: 3 };
 
 function setup(opts: { startFails?: boolean } = {}) {
   let now = 1_800_000_000_000;
@@ -165,7 +166,7 @@ describe('friend rooms', () => {
   });
 
   test('team validation is strict (no extra fields, known classes/tiers, purity 0-6)', () => {
-    expect(validateTeam(TEAM).tier).toBe('apex');
+    expect(validateTeam(TEAM).tier).toBe('elite');
     for (const bad of [
       { ...TEAM, staked: true },
       { ...TEAM, classes: ['kraken', 'ember'] },
@@ -175,6 +176,27 @@ describe('friend rooms', () => {
       { ...TEAM, purity: 2.5 },
       null,
     ]) expect(() => validateTeam(bad)).toThrow(FriendRoomError);
+  });
+
+  test('match rules: the host sets tier and purity; both players see them; a team at other rules is refused', async () => {
+    const { svc } = setup();
+    const room = await svc.create(HOST, { tier: 'apex', purity: 6 });
+    const view = await svc.join(room.roomId, room.secret, FRIEND);
+    expect(view).toMatchObject({ tier: 'apex', purity: 6 });
+    expect(await svc.view(room.roomId, HOST)).toMatchObject({ tier: 'apex', purity: 6 });
+    // The old loophole: the host at Apex, the friend at Evolved.
+    await expect(svc.setTeam(room.roomId, FRIEND, { ...TEAM2, tier: 'evolved', purity: 6 })).rejects.toMatchObject({ code: 'CONFLICT' });
+    await expect(svc.setTeam(room.roomId, FRIEND, { ...TEAM2, tier: 'apex', purity: 0 })).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect((await svc.setTeam(room.roomId, FRIEND, { ...TEAM2, tier: 'apex', purity: 6 })).you.team?.tier).toBe('apex');
+  });
+
+  test('match rules: defaults Elite / purity 3; bad values refused', async () => {
+    const { svc } = setup();
+    const room = await svc.create(HOST);
+    expect(await svc.view(room.roomId, HOST)).toMatchObject({ tier: 'elite', purity: 3 });
+    for (const bad of [{ tier: 'base' }, { tier: 7 }, { purity: 7 }, { purity: -1 }, { purity: 2.5 }, { purity: '3' }]) {
+      await expect(svc.create(HOST, bad)).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    }
   });
 
   test('create rejects unknown arenas', async () => {
@@ -216,7 +238,7 @@ describe('friend rematch', () => {
     expect(v.opponent).toMatchObject({ joined: true, lockedIn: false, ready: false });
     expect(v.rematchOf).toBe(s.room.roomId);
     const row = s.repo.rows.get(v.id)!;
-    expect(row).toMatchObject({ host: FRIEND, guest: HOST, arena: 'dojo', rematchBy: FRIEND });
+    expect(row).toMatchObject({ host: FRIEND, guest: HOST, arena: 'dojo', tier: 'elite', purity: 3, rematchBy: FRIEND });   // same rules
     expect(row.expiresAt.getTime() - 1_800_000_000_000).toBe(LOBBY_TTL_MS);
   });
 

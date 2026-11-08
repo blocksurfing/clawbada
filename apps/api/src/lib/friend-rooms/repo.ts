@@ -18,6 +18,8 @@ const toRow = (r: Row): FriendRoomRow => ({
   hostReady: r.hostReady,
   guestReady: r.guestReady,
   arena: r.arena as FriendRoomRow['arena'],
+  tier: r.tier as FriendRoomRow['tier'],
+  purity: r.purity,
   battleId: r.battleId,
   expiresAt: r.expiresAt,
   rematchOf: r.rematchOf ?? null,

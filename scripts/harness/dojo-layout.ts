@@ -104,7 +104,10 @@ export default async function (b: Browser) {
   await b.waitFor(`document.querySelectorAll('#dojo-builder [data-owned-id]').length === 10 && !!document.querySelector('.dojo-sign[data-ready=true]')`, 60000, 250);
   await b.sleep(800);
   const teamCount = () => b.eval(`Array.from(document.querySelectorAll('[data-fighter="team"] > canvas')).filter(c => !c.hidden).length`) as Promise<number>;
-  const built = () => b.eval(`Array.from(document.querySelectorAll('#dojo-builder [data-owned-id]')).filter(t => t.getAttribute('aria-pressed') === 'true').map(t => [t.dataset.ownedId, t.querySelector('[data-slot-badge]').textContent]).sort((a, c) => a[1] - c[1]).map(x => x[0]).join(',')`) as Promise<string>;
+  // The lineup's own classes, slot by slot (Build a team may hold several of one class — owner 2026-11-07).
+  const built = () => b.eval(`Array.from(document.querySelectorAll('[data-fighter="team"] > canvas')).map(c => c.dataset.class || '').filter(Boolean).join(',')`) as Promise<string>;
+  const badge = (c: string) => b.eval(`(() => { const t = document.querySelector('#dojo-builder [data-owned-id="${c}"] [data-slot-badge]'); return t.hidden ? '' : t.textContent; })()`) as Promise<string>;
+  const tap = async (c: string) => { await b.eval(`document.querySelector('#dojo-builder [data-owned-id="${c}"]').click()`); await b.sleep(120); };
   ok('build: the Dojo opens with nobody picked', (await teamCount()) === 0 && (await built()) === '');
   ok('build: Battle is off until three are picked', await b.eval(`document.querySelector('[data-testid=dojo-battle]').disabled`));
   {
@@ -132,6 +135,29 @@ export default async function (b: Browser) {
     await b.sleep(300);
     ok('build: dragging a class onto a slot replaces it', (await built()) === 'kraken,mantis,abyss', await built());
   }
+  // Stacked picks: a tap adds another copy; on a full team a tap on a picked class clears it; drags work by slot.
+  await tap('kraken');
+  ok('stack: a full team, a picked class tapped → cleared, the rest close ranks', (await built()) === 'mantis,abyss', await built());
+  await tap('mantis');
+  ok('stack: a second tap adds another copy, badge ×2', (await built()) === 'mantis,abyss,mantis' && (await badge('mantis')) === '×2', `${await built()} ${await badge('mantis')}`);
+  await tap('mantis');
+  ok('stack: full + picked → that class clears', (await built()) === 'abyss', await built());
+  await tap('abyss'); await tap('abyss');
+  ok('stack: three of one class, badge ×3', (await built()) === 'abyss,abyss,abyss' && (await badge('abyss')) === '×3', `${await built()} ${await badge('abyss')}`);
+  ok('stack: three of one class can battle', !(await b.eval(`document.querySelector('[data-testid=dojo-battle]').disabled`)));
+  await tap('abyss');
+  ok('stack: a fourth tap clears it', (await built()) === '' && (await badge('abyss')) === '', await built());
+  await tap('kraken'); await tap('kraken'); await tap('ember');
+  {
+    const center = (sel: string) => b.eval(`(() => { const q = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as Promise<{ x: number; y: number }>;
+    const a = await center('[data-fighter="team"][data-slot="0"] > canvas'), z = await center('#dojo-builder [data-owned-id="bulwark"]');
+    await b.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', buttons: 1, clickCount: 1 });
+    for (let i = 1; i <= 8; i++) { await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x + ((z.x - a.x) * i) / 8, y: a.y + ((z.y - a.y) * i) / 8, button: 'left', buttons: 1 }); await b.sleep(30); }
+    await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: z.x, y: z.y, button: 'left', buttons: 0, clickCount: 1 });
+    await b.sleep(300);
+    ok('stack: dragging one Kraken off removes just that one', (await built()) === 'kraken,ember' && (await badge('kraken')) === '×1', `${await built()} ${await badge('kraken')}`);
+  }
+  await tap('abyss');
   // The open sidebar: the composition shrinks and moves right as one piece, clear of the sidebar.
   const toggle = await b.eval(`(() => { const e = document.querySelector('#toggle'); if (!e || e.disabled) return null; const q = e.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number } | null;
   if (toggle) {

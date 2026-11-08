@@ -541,3 +541,47 @@ html[data-dojo-stage] .sidebar-shell :is(a, button, .sidebar-panel) { pointer-ev
 #page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager [data-inventory-page] { width:calc(10 * var(--pixel)); background-position:calc(-3 * var(--pixel)) calc(-16 * var(--pixel)); }
 #page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager [aria-current="page"] { background-position:calc(-3 * var(--pixel)) 0; }
 #page-content[data-page="dojo"] .dojo-card .dojo-inventory-pager button:focus-visible { outline:3px solid #ffda77; outline-offset:0; }
+
+/* ── Friend match rules + the commit cue (owner 2026-11-07) ── */
+/* The host's match rules, above Create invite link. */
+#page-content[data-page="dojo"] .dojo-friend-rules { display:grid; gap:6px; margin:0; padding:6px 9px 9px; border:var(--pixel) solid #392624; background:#2a1d1c; min-width:0; }
+#page-content[data-page="dojo"] .dojo-friend-rules legend { padding:0 3px; font:400 14px/1.2 var(--type-display); color:#ffe4a0; }
+#page-content[data-page="dojo"] .dojo-friend-rules-row { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+#page-content[data-page="dojo"] .dojo-friend-rules-row > span { min-width:48px; }
+#page-content[data-page="dojo"] .dojo-friend-rules-row > div { display:flex; flex-wrap:wrap; gap:3px; }
+#page-content[data-page="dojo"] .dojo-friend .dojo-friend-rules .dojo-choice { min-height:30px; padding:3px 8px; font-size:14px; }
+#page-content[data-page="dojo"] .dojo-friend-note b { color:#ffe4a0; font-weight:400; font-family:var(--type-display); }
+/* A room's rules lock the team card's Tier / Purity: the picks stay lit, the rest dim. */
+#page-content[data-page="dojo"] #dojo-builder .dojo-compact[data-locked="true"] .dojo-choice:disabled { cursor:not-allowed; opacity:.4; }
+#page-content[data-page="dojo"] #dojo-builder .dojo-compact[data-locked="true"] .dojo-choice[aria-pressed="true"]:disabled { opacity:1; }
+#page-content[data-page="dojo"] [data-testid="dojo-rules-note"] b { color:#ffe4a0; font-weight:400; font-family:var(--type-display); }
+/* Master Lob over the Battle button, in the gap between the cards: his speech bubble, then his "on" frame just above
+   the button, so nothing on either card is covered. */
+#page-content[data-page="dojo"] .dojo-battle-cue {
+  position:absolute; left:50%; bottom:calc(100% - 12px); z-index:5; width:192px; margin-left:-96px; display:flex; flex-direction:column; align-items:center; gap:3px; pointer-events:none;
+  animation:dojo-cue-in 240ms ease-out both;
+}
+#page-content[data-page="dojo"] .dojo-battle-cue-lob {
+  order:2; flex:none; width:calc(32 * var(--pixel)); height:calc(33 * var(--pixel)); background:var(--master-lob-guidance-art) no-repeat 0 0;
+  background-size:calc(64 * var(--pixel)) calc(33 * var(--pixel)); image-rendering:pixelated;
+}
+#page-content[data-page="dojo"] .dojo-battle-cue p {
+  order:1; position:relative; margin:0 0 6px; padding:8px 10px; border:3px solid #b78454; background:#302129; color:#fff0cd; text-align:center;
+  font:13px/1.4 var(--type-body); box-shadow:3px 3px 0 #17131c;
+}
+#page-content[data-page="dojo"] .dojo-battle-cue p b { color:#ffe4a0; font-weight:400; font-family:var(--type-display); }
+/* The bubble's tail, pointing down at Master Lob. */
+#page-content[data-page="dojo"] .dojo-battle-cue p::before { content:''; position:absolute; left:50%; bottom:-15px; margin-left:-6px; border:6px solid transparent; border-top-color:#b78454; }
+#page-content[data-page="dojo"] .dojo-battle-cue[data-cue="locked"] p { border-color:#7f9c5a; }
+#page-content[data-page="dojo"] .dojo-battle-cue[data-cue="locked"] p::before { border-top-color:#7f9c5a; }
+@keyframes dojo-cue-in { from { opacity:0; translate:0 6px; } to { opacity:1; translate:0 0; } }
+/* Battle pulses while it is the next step. `scale` keeps clear of the hover `translate` and the wind-up `transform`. */
+#page-content[data-page="dojo"] .dojo-battle[data-cue="true"]:enabled { animation:dojo-battle-cue 1.4s ease-in-out infinite; }
+@keyframes dojo-battle-cue {
+  0%, 100% { scale:1; filter:drop-shadow(0 0 0 #ffe4a000); }
+  50%      { scale:1.04; filter:drop-shadow(0 0 9px #ffe4a0cc); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #page-content[data-page="dojo"] .dojo-battle[data-cue="true"]:enabled { animation:none; filter:drop-shadow(0 0 6px #ffe4a0cc); }
+  #page-content[data-page="dojo"] .dojo-battle-cue { animation:none; }
+}

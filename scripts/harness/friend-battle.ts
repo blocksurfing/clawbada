@@ -44,9 +44,16 @@ export default async function (host: Browser, h: { connect(host: string): Promis
     }
 
     // ── host opens a lobby ──
-    await host.goto(`${BASE}/dojo?team=kraken,ember,abyss&tier=elite&purity=3&auto=1`);
-    ok(!!(await host.waitFor(`document.body.innerText.includes('Kraken · Ember · Abyss, Elite, purity 3')`, 90000, 250)), 'host: Dojo hydrated with the team');
+    await host.goto(`${BASE}/dojo?team=kraken,ember,abyss&tier=apex&purity=6&auto=1`);
+    ok(!!(await host.waitFor(`document.body.innerText.includes('Kraken · Ember · Abyss, Apex, purity 6')`, 90000, 250)), 'host: Dojo hydrated with the team');
     await click(host, '[data-testid=dojo-friend-tab]');
+    // Match rules (owner 2026-11-07): the host picks them before the link; they default to the host's picks.
+    const pressed = (b: Browser, sel: string) => b.eval(`document.querySelector('${sel} [aria-pressed=true]')?.textContent`) as Promise<string>;
+    ok((await pressed(host, '[data-testid=friend-rules-tier]')) === 'Apex' && (await pressed(host, '[data-testid=friend-rules-purity]')) === '6', 'host: match rules default to the host\'s picks (Apex · 6)');
+    await host.eval(`[...document.querySelectorAll('[data-testid=friend-rules-tier] button')].find((x) => x.textContent === 'Elite').click()`);
+    await host.eval(`[...document.querySelectorAll('[data-testid=friend-rules-purity] button')].find((x) => x.textContent === '3').click()`);
+    await host.sleep(200);
+    await host.screenshot(`${OUT}/friend-host-rules.png`);
     await click(host, '[data-testid=friend-create]');
     ok(!!(await host.waitFor(`(document.querySelector('[data-testid=friend-link]')?.value || '').includes('/battle-friends/join#r_')`, 20000)), 'host: an invite link appears');
     const link = await host.eval(`document.querySelector('[data-testid=friend-link]').value`) as string;
@@ -64,15 +71,32 @@ export default async function (host: Browser, h: { connect(host: string): Promis
     ok(!!(await friend.eval(`!!localStorage.getItem('clawbada.session.guest')`)), 'friend: a guest session was minted silently');
     ok(!(await friend.eval(WALLET_DIALOG)), 'friend: no wallet prompt, no signature, no sign-up');
     ok(!!(await host.waitFor(`document.querySelector('[data-testid=friend-status]')?.getAttribute('data-opponent') === 'picking'`, 15000)), 'host: sees the friend arrive');
+    const rules = (b: Browser) => b.eval(`(() => { const l = document.querySelector('[data-testid=friend-rules-label]'); const t = document.querySelector('[data-testid=dojo-tier]'); const p = document.querySelector('[data-testid=dojo-purity]');
+      return { label: l ? l.dataset.tier + '/' + l.dataset.purity : null, tier: t.querySelector('[aria-pressed=true]')?.textContent, purity: p.querySelector('[aria-pressed=true]')?.textContent,
+        locked: [...t.querySelectorAll('button'), ...p.querySelectorAll('button')].every((x) => x.disabled), note: document.querySelector('[data-testid=dojo-rules-note]')?.textContent || '' }; })()`) as Promise<{ label: string | null; tier: string; purity: string; locked: boolean; note: string }>;
+    for (const [who, b] of [['host', host], ['friend', friend]] as const) {
+      const r = await rules(b);
+      ok(r.label === 'elite/3' && r.tier === 'Elite' && r.purity === '3' && r.locked && r.note.includes('Set by the room: Elite · Purity 3'), `${who}: the room's rules (Elite · 3) are set and locked`, JSON.stringify(r));
+    }
+    ok(!!(await host.waitFor(`document.body.innerText.includes('Kraken · Ember · Abyss, Elite, purity 3')`, 5000)), 'host: the team now plays at the room\'s rules');
+    const cue = (b: Browser) => b.eval(`(() => { const c = document.querySelector('[data-testid=dojo-battle-cue]'); return (c?.dataset.cue || 'none') + '/' + (document.querySelector('[data-testid=dojo-battle]').dataset.cue || ''); })()`) as Promise<string>;
+    ok((await cue(friend)) === 'none/', 'friend: no Battle cue before a team is picked', await cue(friend));
+    ok(!!(await host.waitFor(`document.querySelector('[data-testid=dojo-battle-cue]')?.dataset.cue === 'ready'`, 5000)) && (await cue(host)) === 'ready/true', 'host: team set → Master Lob says press Battle, Battle pulses', await cue(host));
 
     // ── teams: the friend picks with the tiles; the host's is the deep-linked one ──
     for (const c of ['bulwark', 'mantis', 'sentinel']) await click(friend, `#dojo-builder [data-owned-id="${c}"]`);
     ok(!!(await friend.waitFor(`document.body.innerText.includes('Bulwark · Mantis · Sentinel')`, 5000)), 'friend: picked a team');
     await click(host, '[data-testid=dojo-battle]');
     ok(!!(await host.waitFor(`document.querySelector('[data-testid=friend-status]')?.getAttribute('data-you') === 'ready'`, 15000)), 'host: locked in, waiting for the friend');
+    ok(!!(await host.waitFor(`document.querySelector('[data-testid=dojo-battle-cue]')?.dataset.cue === 'locked'`, 5000)) && (await cue(host)) === 'locked/', 'host: after the press — "Locked in — waiting for your friend", no pulse', await cue(host));
+    await host.sleep(500);   // the cue's fade-in
+    ok(Number(await host.eval(`getComputedStyle(document.querySelector('[data-testid=dojo-battle-cue]')).opacity`)) > 0.95, 'host: the locked-in note is fully shown');
+    await host.screenshot(`${OUT}/friend-host-locked.png`);
     ok(!!(await friend.waitFor(`['locked', 'ready'].includes(document.querySelector('[data-testid=friend-lobby] [data-testid=friend-status]')?.getAttribute('data-opponent'))`, 10000)), 'friend: sees the host locked in');
     const shown = await friend.eval(`[...document.querySelectorAll('[data-testid=dojo-friend-lineup] canvas')].map((c) => c.getAttribute('data-class'))`) as (string | null)[];
     ok(!shown.includes('ember') && !shown.includes('abyss'), 'friend: the host\'s team stays hidden (silhouettes only)', JSON.stringify(shown));
+    ok((await cue(friend)) === 'ready/true', 'friend: team set → the Battle cue', await cue(friend));
+    ok(String(await friend.eval(`document.querySelector('[data-testid=friend-lobby]').innerText`)).includes('Your friend is ready'), 'friend: "Your friend is ready — press Battle…"');
     await friend.screenshot(`${OUT}/friend-lobby.png`);
 
     // ── the friend presses Battle: both go in ──
@@ -108,6 +132,10 @@ export default async function (host: Browser, h: { connect(host: string): Promis
     ok(!!(await friend.waitFor(`document.querySelector('[data-testid=friend-lobby]')?.getAttribute('data-state') === 'seated'`, 15000)), 'friend: Accept → the same lobby');
     const roles = [(await lobby(host))?.role, (await lobby(friend))?.role];
     ok(roles[0] === 'guest' && roles[1] === 'host', 'sides swapped (the friend hosts the rematch)', JSON.stringify(roles));
+    for (const [who, b] of [['host', host], ['friend', friend]] as const) {
+      const r = await rules(b);
+      ok(r.label === 'elite/3' && r.locked, `${who}: the rematch keeps the rules (Elite · 3)`, JSON.stringify(r));
+    }
     for (const c of ['kraken', 'ember', 'abyss']) await click(host, `#dojo-builder [data-owned-id="${c}"]`);
     for (const c of ['bulwark', 'mantis', 'sentinel']) await click(friend, `#dojo-builder [data-owned-id="${c}"]`);
     await click(friend, '[data-testid=dojo-battle]');

@@ -283,7 +283,8 @@ export default function DojoPage() {
     const origin = originOf(document.querySelector('[data-testid=dojo-battle]'));
     const start = (async () => {
       const auth = await getAuthHeaders();
-      await api.friend.setTeam(roomId, { classes: team, tier, purity }, auth);
+      // The room's rules, never the picker's (the rows are locked to them anyway).
+      await api.friend.setTeam(roomId, { classes: team, tier: room?.tier ?? tier, purity: room?.purity ?? purity }, auth);
       return api.friend.ready(roomId, auth);
     })();
     let failed: unknown = null;
@@ -294,7 +295,15 @@ export default function DojoPage() {
     setRoom(v);
     if (v.battleId) await enterFriendBattle(v.battleId, true, origin);
     else setBusy(false);   // locked in; the lobby poll brings the battle when the friend presses
-  }, [roomId, kind, hasLiveSession, getAuthHeaders, team, tier, purity, setRoom, enterFriendBattle]);
+  }, [roomId, kind, hasLiveSession, getAuthHeaders, team, tier, purity, room?.tier, room?.purity, setRoom, enterFriendBattle]);
+
+  // A live room sets the match rules for both players (owner 2026-11-07): the team card's Tier / Purity follow it.
+  const roomLive = !!room && (room.status === 'open' || room.status === 'seated' || room.status === 'in_battle');
+  const roomTier = roomLive ? room.tier : null, roomPurity = roomLive ? room.purity : null;
+  useEffect(() => {
+    if (roomTier && (TIERS as readonly string[]).includes(roomTier)) setTier(roomTier as Tier);
+    if (roomPurity !== null && roomPurity !== undefined) setPurity(roomPurity);
+  }, [roomTier, roomPurity]);
 
   // The lobby's news: the battle started (the friend pressed second), or the room closed.
   useEffect(() => {
@@ -346,7 +355,7 @@ export default function DojoPage() {
     setFriendBusy(true); setFriendErr(null); setFriendNote(null);
     setAfterId(null);
     try {
-      const created = await api.friend.createRoom(await getAuthHeaders());
+      const created = await api.friend.createRoom(await getAuthHeaders(), { tier, purity });
       saveRoom(created.roomId, created.invite);
       setInviteLink(inviteUrl(created.invite));
       setRoomId(created.roomId);
@@ -355,7 +364,7 @@ export default function DojoPage() {
     } finally {
       setFriendBusy(false);
     }
-  }, [kind, hasLiveSession, getAuthHeaders]);
+  }, [kind, hasLiveSession, getAuthHeaders, tier, purity]);
 
   const leaveRoom = useCallback(async () => {
     const id = roomId;
@@ -422,8 +431,11 @@ export default function DojoPage() {
       onVs={(v) => { setVs(v); setErr(null); }}
       friendOpponent={room && (room.status === 'seated' || room.status === 'in_battle') ? { joined: room.opponent.joined, lockedIn: room.opponent.lockedIn } : null}
       friendCanBattle={!!room && room.status === 'seated' && room.opponent.joined && !room.you.ready}
+      friendRules={roomTier && roomPurity !== null ? { tier: roomTier, purity: roomPurity } : null}
+      friendLockedIn={!!room && room.status === 'seated' && room.you.ready}
       friendPanel={
         <FriendLobby roomId={roomId} view={room} after={roomId ? null : after} inviteLink={inviteLink} busy={friendBusy} error={friendErr} note={friendNote}
+          tier={tier} purity={purity} onTier={setTier} onPurity={setPurity}
           onRematch={() => { void rematch(); }} onDeclineRematch={() => { void declineRematch(); }}
           shareLabel={shareLabel} canShare={canShare}
           onCreate={() => { void createLink(); }} onCopy={() => { void copyLink(); }} onShare={() => { void shareLink(); }} onLeave={() => { void leaveRoom(); }} />

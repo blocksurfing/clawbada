@@ -649,6 +649,9 @@ export interface FriendRoomView {
   status: FriendRoomStatus;
   role: 'host' | 'guest';
   arena: string;
+  /** The match rules the host set: both teams play at this tier and purity. */
+  tier: FriendTeamBody['tier'];
+  purity: number;
   expiresAt: string;
   battleId: string | null;
   you: { team: FriendTeamBody | null; ready: boolean };
@@ -662,7 +665,7 @@ export interface FriendRoomCreated { roomId: string; secret: string; expiresAt: 
 
 const friend = {
   /** Open a room. The invite (`<roomId>.<secret>`) is shown once: the secret is only stored hashed. */
-  createRoom: (auth: AuthHeaders) => post<FriendRoomCreated>('/api/game/friend/rooms', {}, auth),
+  createRoom: (auth: AuthHeaders, rules: { tier: FriendTeamBody['tier']; purity: number }) => post<FriendRoomCreated>('/api/game/friend/rooms', rules, auth),
   room: (roomId: string, auth: AuthHeaders) => get<FriendRoomView>(`/api/game/friend/rooms/${roomId}`, auth),
   join: (roomId: string, secret: string, auth: AuthHeaders) => post<FriendRoomView>(`/api/game/friend/rooms/${roomId}/join`, { secret }, auth),
   setTeam: (roomId: string, team: FriendTeamBody, auth: AuthHeaders) => post<FriendRoomView>(`/api/game/friend/rooms/${roomId}/team`, { team }, auth),

@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { FriendRoomView } from '@/lib/api';
+import type { FriendRoomView, FriendTeamBody } from '@/lib/api';
+
+type FriendTier = FriendTeamBody['tier'];
+const TIERS: FriendTier[] = ['evolved', 'elite', 'apex'];
+const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** "Elite · Purity 3" */
+export const rulesLabel = (tier: string, purity: number) => `${title(tier)} · Purity ${purity}`;
 
 /**
  * The Fight with friend panel (Battle Friends, owner 2026-10-28) — the view only; the Dojo page owns the room.
@@ -9,6 +15,7 @@ import type { FriendRoomView } from '@/lib/api';
  * In the lobby: who is where (the friend's team is never shown — only whether it is locked in), and Leave.
  * Back from a battle (`after`, 2026-10-29): Good game! → one-tap Rematch, or the friend's offer → Accept / No thanks.
  * Nothing here mentions a wallet: neither side needs one.
+ * Match rules (owner 2026-11-07): the host picks the tier and purity before making the link; both players play at them.
  */
 export interface FriendLobbyProps {
   roomId: string | null;
@@ -23,6 +30,11 @@ export interface FriendLobbyProps {
   note: string | null;
   shareLabel: string | null;
   canShare: boolean;
+  /** The match rules the host's link will set (the page's tier / purity before a room exists). */
+  tier: FriendTier;
+  purity: number;
+  onTier: (tier: FriendTier) => void;
+  onPurity: (purity: number) => void;
   onCreate: () => void;
   onCopy: () => void;
   onShare: () => void;
@@ -78,6 +90,18 @@ export function FriendLobby(p: FriendLobbyProps) {
     return (
       <div className="dojo-friend" data-testid="friend-lobby" data-state="none">
         <p className="dojo-help">Battle a friend: make a link and send it. They open it and they&apos;re in — no wallet, no sign-up.</p>
+        <fieldset className="dojo-friend-rules" data-testid="friend-rules"><legend>Match rules — you both play at these</legend>
+          <div className="dojo-friend-rules-row"><span>Tier</span>
+            <div data-choices="tier" data-testid="friend-rules-tier">
+              {TIERS.map((t) => <button key={t} type="button" className="dojo-choice" aria-pressed={p.tier === t} onClick={() => p.onTier(t)}>{title(t)}</button>)}
+            </div>
+          </div>
+          <div className="dojo-friend-rules-row"><span>Purity</span>
+            <div data-choices="purity" data-testid="friend-rules-purity">
+              {[0, 1, 2, 3, 4, 5, 6].map((n) => <button key={n} type="button" className="dojo-choice" aria-pressed={p.purity === n} onClick={() => p.onPurity(n)}>{n}</button>)}
+            </div>
+          </div>
+        </fieldset>
         {p.note && <p className="dojo-friend-note" data-testid="friend-note">{p.note}</p>}
         {p.error && <p className="dojo-friend-note" data-tone="error" data-testid="friend-error">{p.error}</p>}
         <div className="dojo-friend-actions">
@@ -103,6 +127,7 @@ export function FriendLobby(p: FriendLobbyProps) {
       {view.status === 'open' && host && (
         <>
           <p className="dojo-help">Send this link to a friend. Whoever opens it first joins you.</p>
+          <p className="dojo-friend-note" data-testid="friend-rules-label" data-tier={view.tier} data-purity={view.purity}>Match rules: <b>{rulesLabel(view.tier, view.purity)}</b></p>
           <div className="dojo-friend-link">
             <input data-testid="friend-link" readOnly value={p.inviteLink ?? ''} placeholder="Your link was made in another tab" aria-label="Invite link"
               onFocus={(e) => e.currentTarget.select()} />
@@ -120,14 +145,16 @@ export function FriendLobby(p: FriendLobbyProps) {
       {(view.status === 'seated' || view.status === 'in_battle') && (
         <>
           <p className="dojo-friend-headline">{view.rematchOf ? 'Rematch!' : host ? 'Your friend is here!' : 'You’re in! Battle your friend.'}</p>
+          <p className="dojo-friend-note" data-testid="friend-rules-label" data-tier={view.tier} data-purity={view.purity}>Match rules: <b>{rulesLabel(view.tier, view.purity)}</b></p>
           <ul className="dojo-friend-roster" data-testid="friend-status" data-opponent={oppState} data-you={youState} role="status" aria-live="polite">
             <li><span>Your friend</span><b>{oppState === 'ready' ? 'Ready' : oppState === 'locked' ? 'Locked in' : 'Picking a team…'}</b></li>
             <li><span>You</span><b>{view.status === 'in_battle' ? 'Starting…' : youState === 'ready' ? 'Locked in' : 'Picking a team…'}</b></li>
           </ul>
           <p className="dojo-help">
             {view.status === 'in_battle' ? 'Here we go!'
-              : youState === 'ready' ? 'Waiting for your friend to press Battle…'
-                : 'Pick three classes, a tier and purity, then press Battle. Your friend won’t see your team until the fight.'}
+              : youState === 'ready' ? 'Locked in — waiting for your friend to press Battle…'
+                : oppState === 'ready' ? 'Your friend is ready — press Battle when your team is set.'
+                  : 'Pick three classes, then press Battle to lock your team in. Your friend won’t see it until the fight.'}
           </p>
           {left && view.status === 'seated' && <p className="dojo-friend-note dojo-friend-time">Lobby closes in {left}</p>}
           {view.status === 'seated' && (

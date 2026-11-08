@@ -35,6 +35,46 @@ export function removeFromSlots(slots: Slots, id: string): Slots {
   return compactSlots(slots.filter((s) => s !== id));
 }
 
+/** Build a team allows several of one class (owner 2026-11-07): a tap on a class tile adds one more copy to the first
+ *  free slot; once the team is full, a tap on a class already in it clears every copy (the rest close ranks), so the
+ *  count cycles 1 → 2 → 3 → 0. `full` = the team is full and the class is not in it, so nothing changed. */
+export function cycleClass(slots: Slots, cls: string): { slots: Slots; full: boolean } {
+  const free = slots.indexOf('');
+  if (free >= 0) {
+    const next = [...slots];
+    next[free] = cls;
+    return { slots: asSlots(next), full: false };
+  }
+  if (slots.includes(cls)) return { slots: compactSlots(slots.filter((s) => s !== cls)), full: false };
+  return { slots, full: true };
+}
+
+/** How many copies of `cls` the lineup holds. */
+export function countOf(slots: Slots, cls: string): number {
+  return slots.filter((s) => s === cls).length;
+}
+
+/** A lineup fighter dragged from slot `from` onto slot `to`: the two swap (by position, so duplicates are safe). */
+export function swapSlots(slots: Slots, from: number, to: number): Slots {
+  if (from < 0 || from > 2 || to < 0 || to > 2) return slots;
+  const next = [...slots];
+  [next[from], next[to]] = [next[to], next[from]];
+  return asSlots(next);
+}
+
+/** A class from the tiles dropped on slot `slot` takes that slot (copies of it elsewhere stay). */
+export function placeOnSlot(slots: Slots, cls: string, slot: number): Slots {
+  if (slot < 0 || slot > 2) return slots;
+  const next = [...slots];
+  next[slot] = cls;
+  return asSlots(next);
+}
+
+/** One lineup fighter (slot `i`) dragged back onto the tiles leaves; the rest close ranks. */
+export function removeSlot(slots: Slots, i: number): Slots {
+  return compactSlots(slots.filter((_, j) => j !== i));
+}
+
 export function compactSlots(ids: readonly string[]): Slots {
   return asSlots(ids.filter(Boolean));
 }

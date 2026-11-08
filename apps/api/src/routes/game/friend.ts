@@ -47,9 +47,9 @@ function mapError(err: unknown): never {
 const caller = (c: { get(k: 'address'): string }) => c.get('address').toLowerCase();
 
 friendRoutes.post('/rooms', playerAuth, catchErrors(async (c) => {
-  const b = await body(c, ['arena']);
+  const b = await body(c, ['arena', 'tier', 'purity']);
   try {
-    const room = await friendRooms.create(caller(c as never), { arena: b.arena });
+    const room = await friendRooms.create(caller(c as never), { arena: b.arena, tier: b.tier, purity: b.purity });
     return c.json({ ...room, invite: `${room.roomId}.${room.secret}` }, 201);
   } catch (err) { mapError(err); }
 }));

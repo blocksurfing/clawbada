@@ -16,7 +16,7 @@ import { loadPixelImage } from '@/components/pixel/pixel-assets';
 import { DojoSquirrel } from './dojo-squirrel';
 import {
   EMPTY_SLOTS, INVENTORY_PAGE_SIZE, builderSummary, dropOnSlot, ownedSummary, pageCount, purityDescription,
-  removeFromSlots, slotsComplete, toggleSlot, type Slots,
+  countOf, cycleClass, placeOnSlot, removeSlot, slotsComplete, swapSlots, toggleSlot, type Slots,
 } from './dojo-model';
 
 /**
@@ -83,6 +83,10 @@ interface DojoRoomProps {
   friendOpponent: { joined: boolean; lockedIn: boolean } | null;
   /** In a lobby with your friend and not locked in yet: Battle locks your team in. */
   friendCanBattle: boolean;
+  /** The live room's match rules: both players' Tier / Purity rows are locked to them. Null = no room. */
+  friendRules?: { tier: string; purity: number } | null;
+  /** You pressed Battle in the lobby and wait for your friend. */
+  friendLockedIn?: boolean;
 }
 
 /** His design window: the composition is laid out at this size (at the 3 px pixel) and scaled to fit. */
@@ -254,8 +258,11 @@ function MasterLobToggle({ on, onChange }: { on: boolean; onChange: (on: boolean
 }
 
 /** A portrait tile (an owned lobster, or a class in Build a team), drawn at the stage's pixel. */
-function InventoryTile({ id, classIndex, name, detail, slot, sheet, unit, hidden, onClick }: {
-  id: string; classIndex: number; name: string; detail: string; slot: number; sheet: HTMLImageElement | null; unit: number; hidden?: boolean; onClick: () => void;
+function InventoryTile({ id, classIndex, name, detail, slot, count, sheet, unit, hidden, onClick }: {
+  id: string; classIndex: number; name: string; detail: string; slot: number;
+  /** Build a team: how many of this class are in the lineup (the badge shows ×N instead of the slot number). */
+  count?: number;
+  sheet: HTMLImageElement | null; unit: number; hidden?: boolean; onClick: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
@@ -265,11 +272,14 @@ function InventoryTile({ id, classIndex, name, detail, slot, sheet, unit, hidden
   return (
     <button
       type="button" className="dojo-inventory-tile" data-owned-id={id} aria-pressed={picked} hidden={hidden} onClick={onClick}
-      aria-label={`${detail}${picked ? `, slot ${slot + 1}, click to remove` : ', click to add'}`}
+      aria-label={count !== undefined
+        ? `${detail}${count ? `, ${count} in team` : ''}, ${count && count >= 3 ? 'tap to clear' : count ? 'tap to add another' : 'tap to add'}`
+        : `${detail}${picked ? `, slot ${slot + 1}, click to remove` : ', click to add'}`}
+      data-count={count || undefined}
     >
       <i className="dojo-portrait-clip" aria-hidden="true"><canvas ref={canvasRef} width={64} height={64} /></i>
       <span title={detail}>{name}</span>
-      <span data-slot-badge="" hidden={!picked} aria-hidden="true">{picked ? slot + 1 : ''}</span>
+      <span data-slot-badge="" hidden={!picked} aria-hidden="true">{!picked ? '' : count !== undefined ? `×${count}` : slot + 1}</span>
       <i className="dojo-selected-corners" aria-hidden="true"><i /><i /><i /><i /></i>
     </button>
   );
@@ -368,10 +378,18 @@ export function DojoRoom(props: DojoRoomProps) {
   const builtSlots: Slots = [team[0] ?? '', team[1] ?? '', team[2] ?? ''];
   const builderReady = builtSlots.every(Boolean);
   const valid = vsFriend ? builderReady && props.friendCanBattle : mode === 'builder' ? builderReady : ownedReady;
+  /** A friend room sets the tier and purity (owner 2026-11-07): the rows show them, locked. */
+  const rulesLocked = vsFriend && !!props.friendRules;
+  /** The commit step, said out loud (owner 2026-11-07): once your team is set, Battle pulses and Master Lob tells you to
+   *  press it; after the press he says you are locked in. Shown whatever the guidance toggle says — it is the next
+   *  step, not a tutorial tip. */
+  const cue = !vsFriend || busy || error || props.gate ? null
+    : props.friendLockedIn ? 'locked' : valid ? 'ready' : null;
   const activeSlots = mode === 'owned' ? slots : builtSlots;
   const botLabel = botInfo(bot)?.label ?? bot;
   const summary = vsFriend
-    ? builderReady ? builderSummary(team, tier, purity, 'your friend') : 'Pick three classes for your team.'
+    ? props.friendLockedIn ? 'Locked in — waiting for your friend.'
+      : builderReady ? builderSummary(team, tier, purity, 'your friend') : 'Pick three classes for your team.'
     : mode === 'builder'
     ? builderReady ? builderSummary(team, tier, purity, botLabel) : 'Pick three classes for your team.'
     : ownedReady ? ownedSummary(slots.map((id) => lobsterName(byId.get(id)!)), savedTeam || null, botLabel)
@@ -388,7 +406,7 @@ export function DojoRoom(props: DojoRoomProps) {
     setSlots(next); setSavedTeam('');
   };
   const clickTile = (id: string) => {
-    const r = toggleSlot(activeSlots, id);
+    const r = mode === 'builder' ? cycleClass(activeSlots, id) : toggleSlot(activeSlots, id);
     if (r.full) { setFeedback(`Team full — remove a ${mode === 'builder' ? 'class' : 'lobster'} first.`); return; }
     editSlots(r.slots);
   };
@@ -399,14 +417,14 @@ export function DojoRoom(props: DojoRoomProps) {
   /** Built teams show the chosen tier's art; own lobsters show their own tier. */
   const sheetFor = (id: string) => sheets?.[mode === 'builder' ? TIER_INDEX[tier] : Math.min(3, Math.max(0, byId.get(id)?.tier ?? 1))] ?? null;
   const builderSheet = sheets?.[TIER_INDEX[tier]] ?? null;
-  const live = useRef({ slots: activeSlots, classIndexOf, sheetFor, unit });
-  live.current = { slots: activeSlots, classIndexOf, sheetFor, unit };
+  const live = useRef({ slots: activeSlots, classIndexOf, sheetFor, unit, builder: mode === 'builder' });
+  live.current = { slots: activeSlots, classIndexOf, sheetFor, unit, builder: mode === 'builder' };
   const editRef = useRef(editSlots);
   editRef.current = editSlots;
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    type Drag = { id: string; source: HTMLElement; fromLineup: boolean; pointerId: number; x: number; y: number; active: boolean; slot: number; follower?: HTMLCanvasElement };
+    type Drag = { id: string; source: HTMLElement; fromLineup: boolean; pointerId: number; x: number; y: number; active: boolean; slot: number; fromSlot: number; follower?: HTMLCanvasElement };
     let d: Drag | null = null;
     let suppressClick = false;
     const teamFighters = () => [...root.querySelectorAll<HTMLElement>('[data-fighter="team"]')];
@@ -420,9 +438,10 @@ export function DojoRoom(props: DojoRoomProps) {
       const source = (e.target as Element).closest<HTMLElement>('[data-owned-id], [data-fighter="team"]');
       if (!source) return;
       const fromLineup = source.matches('[data-fighter="team"]');
-      const id = fromLineup ? live.current.slots[Number(source.dataset.slot)] : source.dataset.ownedId;
+      const fromSlot = fromLineup ? Number(source.dataset.slot) : -1;
+      const id = fromLineup ? live.current.slots[fromSlot] : source.dataset.ownedId;
       if (!id) return;
-      d = { id, source, fromLineup, pointerId: e.pointerId, x: e.clientX, y: e.clientY, active: false, slot: -1 };
+      d = { id, source, fromLineup, pointerId: e.pointerId, x: e.clientX, y: e.clientY, active: false, slot: -1, fromSlot };
       source.setPointerCapture(e.pointerId);
     };
     const move = (e: PointerEvent) => {
@@ -461,8 +480,9 @@ export function DojoRoom(props: DojoRoomProps) {
       const pe = e as PointerEvent;
       const slot = targetSlot(pe.clientX, pe.clientY);
       const s = live.current.slots;
-      if (slot >= 0) editRef.current(dropOnSlot(s, cur.id, slot));
-      else if (cur.fromLineup && inside(inventory(), pe.clientX, pe.clientY)) editRef.current(removeFromSlots(s, cur.id));
+      // Lineup drags work by position (a built team may hold several of one class); tiles place by id.
+      if (slot >= 0) editRef.current(cur.fromLineup ? swapSlots(s, cur.fromSlot, slot) : live.current.builder ? placeOnSlot(s, cur.id, slot) : dropOnSlot(s, cur.id, slot));
+      else if (cur.fromLineup && inside(inventory(), pe.clientX, pe.clientY)) editRef.current(removeSlot(s, cur.fromSlot));
     };
     const blockClick = (e: MouseEvent) => {
       if (!suppressClick || e.detail === 0) return;
@@ -597,24 +617,26 @@ export function DojoRoom(props: DojoRoomProps) {
                 <div id="dojo-builder" role="tabpanel" aria-labelledby="dojo-builder-tab" hidden={mode !== 'builder'}>
                   {/* Nzib 2026-10-26: Build a team works like My lobsters — the ten classes as tiles, Tier and Purity compact. */}
                   <div data-owned-controls="">
-                    <div className="dojo-compact" title={purityDescription(purity)}>
+                    <div className="dojo-compact" title={purityDescription(purity)} data-locked={rulesLocked ? 'true' : undefined}>
                       <fieldset className="dojo-compact-group"><legend>Tier</legend>
                         <div data-choices="tier" data-testid="dojo-tier">
-                          {DOJO_TIERS.map((t) => <button key={t} type="button" className="dojo-choice" aria-pressed={tier === t} onClick={() => props.onTier(t)}>{title(t)}</button>)}
+                          {DOJO_TIERS.map((t) => <button key={t} type="button" className="dojo-choice" aria-pressed={tier === t} disabled={rulesLocked} onClick={() => props.onTier(t)}>{title(t)}</button>)}
                         </div>
                       </fieldset>
                       <fieldset className="dojo-compact-group" aria-describedby="dojo-purity-help"><legend>Purity</legend>
                         <div data-choices="purity" data-testid="dojo-purity">
-                          {[0, 1, 2, 3, 4, 5, 6].map((p) => <button key={p} type="button" className="dojo-choice" aria-pressed={purity === p} onClick={() => props.onPurity(p)}>{p}</button>)}
+                          {[0, 1, 2, 3, 4, 5, 6].map((p) => <button key={p} type="button" className="dojo-choice" aria-pressed={purity === p} disabled={rulesLocked} onClick={() => props.onPurity(p)}>{p}</button>)}
                         </div>
                       </fieldset>
                     </div>
-                    <p id="dojo-purity-help" className="dojo-help" data-purity-description="">{purityDescription(purity)}</p>
+                    <p id="dojo-purity-help" className="dojo-help" data-purity-description="" data-testid="dojo-rules-note" data-locked={rulesLocked ? 'true' : undefined}>
+                      {rulesLocked ? <>Set by the room: <b>{title(props.friendRules!.tier)} · Purity {props.friendRules!.purity}</b>. </> : null}{purityDescription(purity)}
+                    </p>
                     <p className="dojo-selection-feedback" role="status" aria-live="polite">{mode === 'builder' ? feedback : ''}</p>
                     <div className="dojo-inventory" data-owned-inventory="" ref={classGridRef} aria-label="Classes" data-testid="dojo-classes">
                       {DOJO_CLASSES.map((c, i) => (
                         <InventoryTile key={c} id={c} classIndex={i} name={title(c)} detail={`${title(c)}, ${title(tier)}, purity ${purity}`}
-                          slot={builtSlots.indexOf(c)} sheet={builderSheet} unit={unit} onClick={() => clickTile(c)} />
+                          slot={builtSlots.indexOf(c)} count={countOf(builtSlots, c)} sheet={builderSheet} unit={unit} onClick={() => clickTile(c)} />
                       ))}
                     </div>
                   </div>
@@ -683,8 +705,15 @@ export function DojoRoom(props: DojoRoomProps) {
             </div>
           </div>
           <div className="dojo-footer">
+            {cue && (
+              <div className="dojo-battle-cue" data-testid="dojo-battle-cue" data-cue={cue} role="status" aria-live="polite"
+                style={{ ['--master-lob-guidance-art' as string]: `url('${PIXEL_ASSETS.dojoMasterLobGuidance.src}')` }}>
+                <i className="dojo-battle-cue-lob" aria-hidden="true" />
+                <p>{cue === 'ready' ? <>Team ready? Press <b>Battle</b> to let your friend know you&apos;re ready!</> : <>Locked in — waiting for your friend.</>}</p>
+              </div>
+            )}
             <button className="dojo-battle" type="button" aria-label={busy ? 'Starting…' : 'Battle'} title={busy ? 'Starting…' : 'Battle'} data-testid="dojo-battle"
-              data-launching={busy && !error ? 'true' : undefined}
+              data-launching={busy && !error ? 'true' : undefined} data-cue={cue === 'ready' ? 'true' : undefined}
               aria-busy={busy} disabled={busy || blocked || !valid} onClick={battle} />
             {busy && !error && <DojoSmoke />}
             <div className="dojo-status" role="status" data-testid="dojo-status">

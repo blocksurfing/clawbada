@@ -1,4 +1,4 @@
-import { pgTable, text, jsonb, boolean, timestamp, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, text, jsonb, boolean, smallint, timestamp, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -26,6 +26,10 @@ export const friendRooms = pgTable(
     guestReady: boolean('guest_ready').notNull().default(false),
     /** Board: 'dojo' by default. */
     arena: text('arena').notNull().default('dojo'),
+    /** The match rules the host sets before sharing the link (owner 2026-11-07: a fair fight): both teams play at this
+     *  tier and purity. */
+    tier: text('tier').notNull().default('elite'),
+    purity: smallint('purity').notNull().default(3),
     /** The `f_<uuid>` battle once started. */
     battleId: text('battle_id'),
     /** An open room expires (15 min); a seated lobby gets a fresh window when the guest joins. */
@@ -42,5 +46,7 @@ export const friendRooms = pgTable(
     guestIdx: index('friend_rooms_guest_status_idx').on(t.guest, t.status),
     rematchUq: uniqueIndex('friend_rooms_rematch_of_uq').on(t.rematchOf),
     statusCk: check('friend_rooms_status_ck', sql`${t.status} IN ('open', 'seated', 'in_battle', 'ended', 'expired', 'cancelled')`),
+    tierCk: check('friend_rooms_tier_ck', sql`${t.tier} IN ('evolved', 'elite', 'apex')`),
+    purityCk: check('friend_rooms_purity_ck', sql`${t.purity} BETWEEN 0 AND 6`),
   }),
 );

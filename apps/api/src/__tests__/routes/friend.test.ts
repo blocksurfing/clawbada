@@ -57,11 +57,20 @@ describe('friend routes', () => {
     }
   });
 
+  test('the host sets the match rules (tier, purity) when opening the room; the view carries them', async () => {
+    const res = await app.request('/api/game/friend/rooms', json(guestHeaders(), { tier: 'apex', purity: 6 }));
+    expect(res.status).toBe(201);
+    const { roomId } = await res.json() as { roomId: string };
+    const view = await (await app.request(`/api/game/friend/rooms/${roomId}`, { headers: guestHeaders() })).json() as { tier: string; purity: number };
+    expect(view).toMatchObject({ tier: 'apex', purity: 6 });
+    expect((await app.request('/api/game/friend/rooms', json(guestHeaders(), { tier: 'mythic' }))).status).toBe(400);
+  });
+
   test('a guest and a wallet play the whole lobby: join, teams, ready → battle', async () => {
     const created = await (await app.request('/api/game/friend/rooms', json(authHeaders()))).json() as { roomId: string; secret: string };
     const joined = await app.request(`/api/game/friend/rooms/${created.roomId}/join`, json(guestHeaders(), { secret: created.secret }));
     expect(joined.status).toBe(200);
-    const team = { classes: ['kraken', 'ember', 'abyss'], tier: 'apex', purity: 6 };
+    const team = { classes: ['kraken', 'ember', 'abyss'], tier: 'elite', purity: 3 };   // the room's default rules
     expect((await app.request(`/api/game/friend/rooms/${created.roomId}/team`, json(authHeaders(), { team }))).status).toBe(200);
     expect((await app.request(`/api/game/friend/rooms/${created.roomId}/team`, json(guestHeaders(), { team: { ...team, classes: ['bulwark', 'mantis', 'sentinel'] } }))).status).toBe(200);
     // The host's view never carries the friend's classes.
@@ -90,7 +99,7 @@ describe('friend routes', () => {
     const created = await (await app.request('/api/game/friend/rooms', json(authHeaders()))).json() as { roomId: string; secret: string };
     const id = created.roomId;
     await app.request(`/api/game/friend/rooms/${id}/join`, json(guestHeaders(), { secret: created.secret }));
-    const team = { classes: ['kraken', 'ember', 'abyss'], tier: 'apex', purity: 6 };
+    const team = { classes: ['kraken', 'ember', 'abyss'], tier: 'elite', purity: 3 };   // the room's default rules
     await app.request(`/api/game/friend/rooms/${id}/team`, json(authHeaders(), { team }));
     await app.request(`/api/game/friend/rooms/${id}/team`, json(guestHeaders(), { team }));
     await app.request(`/api/game/friend/rooms/${id}/ready`, json(authHeaders()));
