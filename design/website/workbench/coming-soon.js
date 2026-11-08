@@ -45,6 +45,6 @@ art.style.backgroundImage = `url("${constructionSheet}")`;
 art.style.animationDuration = `${construction.frames.reduce((sum, item) => sum + item.duration, 0)}ms`;
 art.style.animationTimingFunction = `steps(${construction.frames.length})`;
 window.addEventListener('hashchange', () => {
-  if (isDojoRoute(location.hash)) location.reload();
+  if (isDojoRoute(location.hash) || location.hash === '#/docs') location.reload();
 });
 if (import.meta.hot) import.meta.hot.accept(() => location.reload());
