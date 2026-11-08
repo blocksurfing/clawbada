@@ -13,6 +13,6 @@ export const ENTRY_AMBIENCE: string | null = "/audio/music/AMB_Loading_Breeze.15
 /** The Victory / Defeat stingers (lib/result-music.ts): each result plays one of its list at random. Empty = no
  *  BGM_Result_<Name>.wav master yet: that result is silent. */
 export const RESULT_MUSIC: Record<'victory' | 'defeat', readonly string[]> = {
-  victory: ["/audio/music/BGM_Result_Victory_01.b6785923.m4a","/audio/music/BGM_Result_Victory_02.0d0c4c89.m4a"],
-  defeat: ["/audio/music/BGM_Result_Defeat.0b9fd9b9.m4a"],
+  victory: ["/audio/music/BGM_Result_Victory_01.c023e7f4.m4a","/audio/music/BGM_Result_Victory_02.0d4942ed.m4a"],
+  defeat: ["/audio/music/BGM_Result_Defeat.fcbf2847.m4a"],
 };

@@ -42,6 +42,11 @@ const AMBIENCE = 'AMB_Loading_Breeze';
 const GAIN_DB: Record<string, number> = { [AMBIENCE]: 17 };
 // 2026-10-25: the owner's new breeze master is 7 dB hotter (-44.9 dB mean / -29.2 peak), so its make-up drops from
 // +24 to +17 dB — the built file stays at the level approved at 50 % gain (~-28 dB mean).
+/** The Victory / Defeat stingers are loudness-matched to the arena beds while encoding (owner 2026-11-07: "the victory
+ *  track didn't play" — it did, but its masters average −23 to −29 dB against the beds' −14 to −18, and at the result's
+ *  gain it sat ~10 dB under the theme on laptop speakers). EBU R128 at −14 LUFS (the theme is −13.5, the Dojo beds −12.5 to −16.5), true peaks limited to −1.5 dBTP
+ *  so a loud hit never clips. The masters themselves are left untouched. */
+const RESULT_LOUDNORM = 'loudnorm=I=-14:TP=-1.5:LRA=11';
 /** A built track averaging below this is treated as a mastering mistake: the build stops instead of shipping silence. */
 const MIN_MEAN_DB = -40;
 /**
@@ -84,7 +89,7 @@ for (const file of masters) {
   const tmp = join(outDir, `.${basename(file, '.wav')}.tmp.m4a`);
   const gain = GAIN_DB[stem] ?? 0;
   const loop = tier === null && !result ? seamlessLoopFilter(join(inDir, file), gain) : null;
-  const filter = loop ? ['-filter_complex', loop] : gain ? ['-af', `volume=${gain}dB`] : [];
+  const filter = loop ? ['-filter_complex', loop] : result ? ['-af', RESULT_LOUDNORM, '-ar', '48000'] : gain ? ['-af', `volume=${gain}dB`] : [];
   const enc = (codec: string) => Bun.spawnSync(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', join(inDir, file),
     '-vn', ...filter, '-c:a', codec, '-b:a', bitrate, '-movflags', '+faststart', tmp]);
   // The looping ambience uses ffmpeg's own AAC: Apple's (aac_at) pads ~22 ms of silence onto the end, which a looping
@@ -104,7 +109,7 @@ for (const file of masters) {
   if (tier) urls[tier].push(`/audio/music/${name}`);
   else if (result) results[result].push(`/audio/music/${name}`);
   else ambience = `/audio/music/${name}`;
-  console.log(`${file} → ${name}  ${(bytes.length / 1048576).toFixed(2)} MB @ ${bitrate}, mean ${mean} dB / peak ${peak} dB${gain ? ` (+${gain} dB make-up)` : ''}`);
+  console.log(`${file} → ${name}  ${(bytes.length / 1048576).toFixed(2)} MB @ ${bitrate}, mean ${mean} dB / peak ${peak} dB${gain ? ` (+${gain} dB make-up)` : ''}${result ? ' (loudness-matched)' : ''}`);
 }
 for (const r of RESULTS) if (results[r].length === 0) console.log(`no BGM_Result_${r[0].toUpperCase()}${r.slice(1)}.wav master yet — RESULT_MUSIC.${r} stays empty (that result is silent)`);
 if (!ambience) console.log(`no ${AMBIENCE}.wav master yet — ENTRY_AMBIENCE stays null (the battle entry is silent)`);
