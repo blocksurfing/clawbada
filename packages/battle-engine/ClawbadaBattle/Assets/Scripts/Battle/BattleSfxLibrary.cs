@@ -148,6 +148,9 @@ public class BattleSfxLibrary : ScriptableObject
     [Tooltip("Master Lob (Dojo coach): his smoke puff arriving and leaving — Assets/Audio/SFX/MasterLob/SFX_MasterLob_PoofIn/Out.wav.")]
     public AudioClip masterLobPoofIn, masterLobPoofOut;
 
+    [Tooltip("Dojo plants + ninja (Assets/Audio/SFX/Dojo/, each stem alone or as _01, _02 … takes): SFX_Dojo_Bush_Rustle (empty bush clicked), SFX_Dojo_Bush_Shake (bush before the ninja jumps; falls back to the rustle), SFX_Dojo_Ninja_Jump, SFX_Dojo_Ninja_Voice (his shout at the throw), SFX_Dojo_Star_Whirl (the star spinning across, ~1 s), SFX_Dojo_Star_Hit (the star landing in the other bush).")]
+    public AudioClip[] dojoBushRustle, dojoBushShake, dojoNinjaJump, dojoNinjaVoice, dojoStarWhirl, dojoStarHit;
+
     /// <summary>The class's own Defend clip if one is bound, else a random pick from the shared pool, else null.</summary>
     public AudioClip DefendFor(int classId)
     {

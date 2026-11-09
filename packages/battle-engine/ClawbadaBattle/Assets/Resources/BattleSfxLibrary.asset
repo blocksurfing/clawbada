@@ -635,3 +635,24 @@ MonoBehaviour:
   uiClose: {fileID: 8300000, guid: 24db77162692246f79cb0b0c6798e4eb, type: 3}
   masterLobPoofIn: {fileID: 8300000, guid: f908bfd0e25040c897158a7907f4a6c1, type: 3}
   masterLobPoofOut: {fileID: 8300000, guid: 2ff166caa82449dda9b086169cc65f6a, type: 3}
+  dojoBushRustle:
+  - {fileID: 8300000, guid: fd5e6a685f70a4e92b816256ffd1c33c, type: 3}
+  - {fileID: 8300000, guid: ca3860566a2aa4721a56835fc7324d0d, type: 3}
+  - {fileID: 8300000, guid: db0916d2e621149e4a3bc86fd37c124a, type: 3}
+  dojoBushShake:
+  - {fileID: 8300000, guid: e60c6b397ac9748a1836a51b2424dff2, type: 3}
+  dojoNinjaJump:
+  - {fileID: 8300000, guid: e88137c5142714812b8de97a196e2432, type: 3}
+  - {fileID: 8300000, guid: aa1909931692840348831a7198f5527a, type: 3}
+  dojoNinjaVoice:
+  - {fileID: 8300000, guid: dfa8f4d219335463f83082ed732e289d, type: 3}
+  - {fileID: 8300000, guid: 184ee4958501543b88adc34ef557e35a, type: 3}
+  - {fileID: 8300000, guid: c7ad526857fe143549ea9ce58d891ba7, type: 3}
+  dojoStarWhirl:
+  - {fileID: 8300000, guid: 78ac486e971c84265b002b5bd51ecae1, type: 3}
+  - {fileID: 8300000, guid: bff8ce6c4aee246b09e3a1fb9a45306d, type: 3}
+  - {fileID: 8300000, guid: 01c1940861abb4a78be0b2f80053b3ef, type: 3}
+  - {fileID: 8300000, guid: 5bc35ba72dd09468d9987523059e47ee, type: 3}
+  dojoStarHit:
+  - {fileID: 8300000, guid: 66cd00aa804ab482fb316772920a63f5, type: 3}
+  - {fileID: 8300000, guid: ddb81ae29036c4ae1bddb0206efc901a, type: 3}

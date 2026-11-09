@@ -38,6 +38,7 @@ public static class BattleSfxBinder
     private const string DefendDir = "Assets/Audio/SFX/Defend";
     private const string UiDir = "Assets/Audio/SFX/UI/";
     private const string DeathDir = "Assets/Audio/SFX/Death";
+    private const string DojoDir = "Assets/Audio/SFX/Dojo/";
     private const string LibraryPath = "Assets/Resources/BattleSfxLibrary.asset";
 
     /// <summary>Index = LobsterClass. Order is the enum's, not alphabetical — do not sort.</summary>
@@ -143,6 +144,13 @@ public static class BattleSfxBinder
         lib.uiHoverWait = LoadAny($"{UiDir}SFX_UI_Hover_Wait");
         lib.introObstacleLand = LoadTakes($"{UiDir}SFX_UI_IntroObstacleLand");
         lib.introLobsterLand = LoadTakes($"{UiDir}SFX_UI_IntroLobsterLand");
+        // The Dojo plants' ninja (2026-11-08): all optional.
+        lib.dojoBushRustle = LoadTakes($"{DojoDir}SFX_Dojo_Bush_Rustle");
+        lib.dojoBushShake = LoadTakes($"{DojoDir}SFX_Dojo_Bush_Shake");
+        lib.dojoNinjaJump = LoadTakes($"{DojoDir}SFX_Dojo_Ninja_Jump");
+        lib.dojoNinjaVoice = LoadTakes($"{DojoDir}SFX_Dojo_Ninja_Voice");
+        lib.dojoStarWhirl = LoadTakes($"{DojoDir}SFX_Dojo_Star_Whirl");
+        lib.dojoStarHit = LoadTakes($"{DojoDir}SFX_Dojo_Star_Hit");
 
         EditorUtility.SetDirty(lib);
         AssetDatabase.SaveAssets();
@@ -155,6 +163,7 @@ public static class BattleSfxBinder
                   $" | ui: open {(lib.uiOpen != null ? "✓" : "—")} close {(lib.uiClose != null ? "✓" : "—")}" +
                   $" | intro: claws-up {(lib.introReady != null ? lib.introReady.name : "—")} battle {(lib.introFight != null ? lib.introFight.name : "—")} obstacle-land ×{lib.introObstacleLand.Length} lobster-land ×{lib.introLobsterLand.Length}" +
                   $" | hover: {new[] { lib.uiHoverAttack, lib.uiHoverSpecial, lib.uiHoverDefend, lib.uiHoverWait }.Count(c => c != null)}/4" +
+                  $" | dojo: rustle ×{lib.dojoBushRustle.Length} shake ×{lib.dojoBushShake.Length} jump ×{lib.dojoNinjaJump.Length} voice ×{lib.dojoNinjaVoice.Length} whirl ×{lib.dojoStarWhirl.Length} hit ×{lib.dojoStarHit.Length}" +
                   $" → {LibraryPath}");
     }
 

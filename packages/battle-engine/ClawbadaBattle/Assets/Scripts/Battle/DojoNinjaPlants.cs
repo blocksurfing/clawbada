@@ -11,6 +11,11 @@ using UnityEngine;
 /// because the ninja is instantly back inside — and both return to their occupancy states. He never moves to the other
 /// plant and there is no visible way back down.
 ///
+/// Owner 2026-11-08: an empty plant rustles when clicked (its Shake, no ninja), so players learn the plants are
+/// interactive; after a hidden number of clicks on it (5–10, per plant, seeded per battle) a ninja suddenly jumps out
+/// of it — and from then on lives there, peeking. Only one sequence ever runs: while it plays, every plant click is
+/// ignored (no rustle, no count), so clicking back and forth can never start two at once.
+///
 /// The logic and timings are his preview's (Assets/Preview/DojoNinja/DojoNinjaPreview.cs); the anchors are his preview
 /// anchors as offsets from each plant (64 px per unit, mirrored on the right). Clicks come from HexInput, only for
 /// points that are not on the board or a lobster, and only once the battle's first turn has started (so the intro's
@@ -45,6 +50,9 @@ public class DojoNinjaPlants : MonoBehaviour
     private float elapsed, flightTime;
     private bool fromRight;
     private bool leftOccupied, rightOccupied, rolled, battleUnderway;
+    [Tooltip("Clicks on an empty plant before its ninja jumps out: a random count in this range (inclusive), per plant.")]
+    public int surpriseMin = 5, surpriseMax = 10;
+    private readonly int[] clicks = new int[2], surpriseAt = new int[2];
     private Vector3 flightOrigin, flightTarget;
     private Animator ninja, star;
     private SpriteRenderer ninjaRenderer;
@@ -128,7 +136,12 @@ public class DojoNinjaPlants : MonoBehaviour
         uint h = Mix(ObstacleLayoutGenerator.Fnv1a("ninja|" + seedKey));
         leftOccupied = (h & 0xFFFF) / 65536f < occupiedChance;
         rightOccupied = (h >> 16) / 65536f < occupiedChance;
-        Debug.Log($"[DojoNinja] occupancy L={(leftOccupied ? 1 : 0)} R={(rightOccupied ? 1 : 0)}");
+        uint c = Mix(ObstacleLayoutGenerator.Fnv1a("ninja-clicks|" + seedKey));
+        int span = Mathf.Max(0, surpriseMax - surpriseMin) + 1;
+        surpriseAt[0] = surpriseMin + (int)((c & 0xFFFF) % (uint)span);
+        surpriseAt[1] = surpriseMin + (int)((c >> 16) % (uint)span);
+        clicks[0] = clicks[1] = 0;
+        Debug.Log($"[DojoNinja] occupancy L={(leftOccupied ? 1 : 0)} R={(rightOccupied ? 1 : 0)} surprise L={surpriseAt[0]} R={surpriseAt[1]}");
         ShowOccupancy(true);
     }
 
@@ -154,15 +167,18 @@ public class DojoNinjaPlants : MonoBehaviour
         }
     }
 
-    /// <summary>NinjaPeeking is not a looping clip: start it again when it ends (or if the controller left it).</summary>
+    /// <summary>NinjaPeeking is not a looping clip: start it again when it ends (or if the controller left it). A rustle
+    /// plays to its end first; an empty plant then settles on Idle.</summary>
     private void KeepPeeking()
     {
         foreach (var plant in new[] { leftPlant, rightPlant })
         {
-            if (plant == null || !plant.isActiveAndEnabled || !Occupied(plant)) continue;
+            if (plant == null || !plant.isActiveAndEnabled) continue;
             if (Busy && plant == Source) continue;   // its ninja is out (or it is shaking)
             var st = plant.GetCurrentAnimatorStateInfo(0);
-            if (!st.IsName("NinjaPeeking") || st.normalizedTime >= 1f) plant.Play("NinjaPeeking", 0, 0f);
+            if (st.IsName("Shake") && st.normalizedTime < 1f) continue;
+            if (Occupied(plant)) { if (!st.IsName("NinjaPeeking") || st.normalizedTime >= 1f) plant.Play("NinjaPeeking", 0, 0f); }
+            else if (!st.IsName("Idle")) plant.Play("Idle", 0, 0f);
         }
     }
 
@@ -178,8 +194,24 @@ public class DojoNinjaPlants : MonoBehaviour
             if (world.x >= b.min.x && world.x <= b.max.x && world.y >= b.min.y && world.y <= b.max.y) { hit = plant; break; }
         }
         if (hit == null) return false;
-        if (!rolled || !battleUnderway || Busy || !Occupied(hit) || ninja == null || star == null) return true;
-        Play(hit == rightPlant);
+        if (!rolled || !battleUnderway || Busy || ninja == null || star == null) return true;   // one sequence at a time
+        int i = hit == rightPlant ? 1 : 0;
+        if (!Occupied(hit))
+        {
+            clicks[i]++;
+            if (clicks[i] < surpriseAt[i])
+            {
+                // A rustle; clicks during one still count but do not restart it.
+                var st = hit.GetCurrentAnimatorStateInfo(0);
+                if (!(st.IsName("Shake") && st.normalizedTime < 1f)) { hit.Play("Shake", 0, 0f); BattleSfx.PlayDojoBushRustle(); }
+                Debug.Log($"[DojoNinja] rustle {(i == 1 ? "right" : "left")} {clicks[i]}/{surpriseAt[i]}");
+                return true;
+            }
+            // Surprise: a ninja was in there after all, and stays.
+            if (i == 1) rightOccupied = true; else leftOccupied = true;
+            Debug.Log($"[DojoNinja] surprise {(i == 1 ? "right" : "left")} after {clicks[i]} clicks");
+        }
+        Play(i == 1);
         return true;
     }
 
@@ -188,6 +220,7 @@ public class DojoNinjaPlants : MonoBehaviour
         fromRight = right;
         HideTransients();
         Source.Play("Shake", 0, 0f);
+        BattleSfx.PlayDojoBushShake();
         Debug.Log($"[DojoNinja] play from {(right ? "right" : "left")}");
         SetStage(Stage.SourceShake);
     }
@@ -204,13 +237,14 @@ public class DojoNinjaPlants : MonoBehaviour
                 if (ninjaRenderer != null) ninjaRenderer.flipX = fromRight;
                 ninja.gameObject.SetActive(true);
                 ninja.Play("Jump", 0, 0f);
+                BattleSfx.PlayDojoNinjaJump();
                 Source.Play("Idle", 0, 0f);   // empty while he is out
                 SetStage(Stage.Jump);
                 break;
             case Stage.Jump:
                 float t = Mathf.Clamp01(elapsed / Mathf.Max(0.01f, jumpDuration));
                 ninja.transform.localPosition = Vector3.Lerp(Anchor(fromRight, Vector2.zero), Anchor(fromRight, peakPx), 1f - (1f - t) * (1f - t));
-                if (t >= 1f) { ninja.Play("ThrowingStar", 0, 0f); SetStage(Stage.Throw); }
+                if (t >= 1f) { ninja.Play("ThrowingStar", 0, 0f); BattleSfx.PlayDojoNinjaVoice(); SetStage(Stage.Throw); }
                 break;
             case Stage.Throw:
                 var st = ninja.GetCurrentAnimatorStateInfo(0);
@@ -222,6 +256,7 @@ public class DojoNinjaPlants : MonoBehaviour
                 star.transform.localPosition = flightOrigin;
                 star.gameObject.SetActive(true);
                 star.Play("Spinning", 0, 0f);
+                BattleSfx.PlayDojoStarThrow();
                 flightTime = Mathf.Max(flightDuration, ThrowLength - Mathf.Clamp(releaseTime, 0f, ThrowLength) + 0.05f);
                 SetStage(Stage.Flight);
                 break;
@@ -231,6 +266,7 @@ public class DojoNinjaPlants : MonoBehaviour
                 HideTransients();   // his clip has already shown its transparent last frame
                 leftPlant.Play("Shake", 0, 0f);
                 rightPlant.Play("Shake", 0, 0f);
+                BattleSfx.PlayDojoStarHit();
                 Debug.Log("[DojoNinja] impact");
                 SetStage(Stage.Impact);
                 break;

@@ -129,6 +129,15 @@ public static class BattleSfx
     /// <summary>Master Lob's smoke: his arrival puff, and his departure puff (on the Disappear clip's smoke beat).</summary>
     public static void PlayMasterLobPoofIn() => Play(Library?.masterLobPoofIn, "master-lob-in");
     public static void PlayMasterLobPoofOut() => Play(Library?.masterLobPoofOut, "master-lob-out");
+    /// <summary>The Dojo plants and their ninja (owner 2026-11-08). Each is optional; a missing file is silent. The bush
+    /// Shake before the ninja falls back to the rustle when it has no clip of its own.</summary>
+    public static void PlayDojoBushRustle() => Play(RandomOf(Library?.dojoBushRustle), "dojo-rustle");
+    public static void PlayDojoBushShake() => Play(RandomOf(Library?.dojoBushShake) ?? RandomOf(Library?.dojoBushRustle), "dojo-shake");
+    public static void PlayDojoNinjaJump() => Play(RandomOf(Library?.dojoNinjaJump), "dojo-jump");
+    public static void PlayDojoNinjaVoice() => Play(RandomOf(Library?.dojoNinjaVoice), "dojo-voice");
+    /// <summary>At the release: the star's whirl across the room (one clip covering the ~1 s flight).</summary>
+    public static void PlayDojoStarThrow() => Play(RandomOf(Library?.dojoStarWhirl), "dojo-star");
+    public static void PlayDojoStarHit() => Play(RandomOf(Library?.dojoStarHit), "dojo-hit");
 
     /// <summary>An action button lit up under the pointer: its hover click, at <see cref="HoverLevel"/> — the takes are
     /// mastered near full scale (~8 dB over the menu clicks) and hover fires often, so it sits under everything else.</summary>
