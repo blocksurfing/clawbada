@@ -585,3 +585,38 @@ html[data-dojo-stage] .sidebar-shell :is(a, button, .sidebar-panel) { pointer-ev
   #page-content[data-page="dojo"] .dojo-battle[data-cue="true"]:enabled { animation:none; filter:drop-shadow(0 0 6px #ffe4a0cc); }
   #page-content[data-page="dojo"] .dojo-battle-cue { animation:none; }
 }
+
+/* ── Phones (< 700 px), owner 2026-11-09 ── The small-screen layout above (Nzib's: one card at a time behind the Your
+   Team / Opponent switch) was sized to a single fixed screen, so the card ran off the bottom, the opponent/friend card
+   could not be reached, the Battle button sat on the class tiles and Tier/Purity overflowed. Here the stage scrolls,
+   everything takes its natural height, Battle sits under the card, and the duplicate headings (the switch says the
+   same) are hidden. Desktop is untouched. */
+@media (max-width: 699px) {
+  .dojo-stage { overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  #page-content[data-page="dojo"] { position: relative; inset: auto; min-height: 100%; height: auto; overflow: visible; padding: 6px 16px 24px; }
+  /* Fighters at the phone chrome's 2 px pixel (4 px drew three Apex lobsters wider than the screen). */
+  #page-content[data-page="dojo"] { --dojo-selected-pixel: 2px; --dojo-lineup-height: 132px; }
+  #page-content[data-page="dojo"] .dojo-lineup { padding-inline: 24px; }
+  #page-content[data-page="dojo"] [data-fighter="team"][data-slot="2"], #page-content[data-page="dojo"] [data-fighter="opponent"][data-slot="0"] { translate: 0 -24px; }
+  #page-content[data-page="dojo"] .dojo-fighter[data-slot="1"] { translate: 0 -12px; }
+  #page-content[data-page="dojo"] .dojo-team-headings { display: none; }
+  #page-content[data-page="dojo"] .page-header { flex: 0 0 auto; margin-bottom: 6px; }
+  #page-content[data-page="dojo"] .dojo { flex: none; display: flex; flex-direction: column; gap: 12px; }
+  #page-content[data-page="dojo"] .dojo-panel-switch { flex: 0 0 auto; }
+  #page-content[data-page="dojo"] .dojo-panel-switch button { min-height: 40px; font-size: 15px; }
+  #page-content[data-page="dojo"] .dojo-cards { height: auto; margin: 0; translate: none; }
+  #page-content[data-page="dojo"] .dojo-side { grid-template-rows: var(--dojo-lineup-height) auto; row-gap: 12px; }
+  #page-content[data-page="dojo"] .dojo-card { height: auto; max-height: none; top: 0; }
+  /* Tier and Purity: a row each, buttons sharing the width. */
+  #page-content[data-page="dojo"] #dojo-builder .dojo-compact { flex-direction: column; align-items: stretch; gap: 8px; }
+  #page-content[data-page="dojo"] #dojo-builder .dojo-compact-group { width: 100%; }
+  #page-content[data-page="dojo"] #dojo-builder .dojo-compact-group legend { width: 52px; flex: none; }
+  #page-content[data-page="dojo"] #dojo-builder .dojo-compact-group > div { flex: 1; min-width: 0; }
+  #page-content[data-page="dojo"] #dojo-builder .dojo-compact .dojo-choice { flex: 1; min-width: 0; min-height: 36px; padding: 3px 2px; font-size: 13px; }
+  /* Class names fit their tiles. */
+  #page-content[data-page="dojo"] .dojo-card .dojo-inventory-tile span:not([data-slot-badge]) { font-size: 10px; letter-spacing: -0.04em; padding: 4px 0; text-overflow: clip; }
+  #page-content[data-page="dojo"] .dojo-card .dojo-inventory { gap: 6px; }
+  /* Battle under the card, in the page, centred; Master Lob's cue still floats above it. */
+  #page-content[data-page="dojo"] .dojo-footer { position: relative; inset: auto; transform: none; translate: none; width: 100%; height: 168px; display: flex; justify-content: center; align-items: center; margin: 0; }
+  #page-content[data-page="dojo"] .dojo-footer .dojo-status { top: calc(100% - 12px); }
+}

@@ -361,10 +361,14 @@ export function DojoRoom(props: DojoRoomProps) {
   }, [page, pages]);
   useEffect(() => { if (page > pages - 1) setPage(pages - 1); }, [page, pages]);
 
-  // Portrait size: five per row across the inventory's width (gap 9 px × 4), as in the drop.
+  // Portrait size: five per row across the inventory's width, less its four gaps (9 px in the drop, tighter on phones).
   useEffect(() => {
     const grids = [inventoryRef.current, classGridRef.current].filter((g): g is HTMLDivElement => !!g);
-    const fit = (el: HTMLDivElement) => { el.style.setProperty('--portrait-size', `${Math.max(0, (el.clientWidth - 36) / 5)}px`); el.style.gridTemplateColumns = 'repeat(5, var(--portrait-size))'; };
+    const fit = (el: HTMLDivElement) => {
+      const gap = parseFloat(getComputedStyle(el).columnGap) || 9;
+      el.style.setProperty('--portrait-size', `${Math.max(0, (el.clientWidth - 4 * gap) / 5)}px`);
+      el.style.gridTemplateColumns = 'repeat(5, var(--portrait-size))';
+    };
     grids.forEach(fit);
     const ro = new ResizeObserver(() => grids.forEach(fit));
     grids.forEach((g) => ro.observe(g));

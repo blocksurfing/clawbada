@@ -30,16 +30,17 @@ function makeIcon(name: string) {
   return Icon;
 }
 
-/* Bottom nav shows 4 primary + More drawer */
+/* Bottom nav shows 4 primary + More drawer. The Dojo is in the bar (owner 2026-11-09): while the Coming Soon gate is
+   on it is the one open page, and phone players arriving by a friend's invite land there. */
 const BOTTOM_NAV = [
   { href: '/game', label: 'Home', icon: makeIcon('Dashboard') },
   { href: '/game/mining', label: 'Mine', icon: makeIcon('Mining') },
   { href: '/game/battle', label: 'Battle', icon: makeIcon('Battle') },
-  { href: '/market', label: 'Market', icon: makeIcon('Market') },
+  { href: '/dojo', label: 'Dojo', icon: makeIcon('Battle') },
 ];
 
 const MORE_NAV = [
-  { href: '/dojo', label: 'Dojo', icon: makeIcon('Battle') },
+  { href: '/market', label: 'Market', icon: makeIcon('Market') },
   { href: '/game/breeding', label: 'Breeding', icon: makeIcon('Breeding') },
   { href: '/game/evolution', label: 'Evolve', icon: makeIcon('Evolve') },
   { href: '/game/repair', label: 'Repair', icon: makeIcon('Repair') },
@@ -73,7 +74,7 @@ export function GameShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav data-site-chrome className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar/95 backdrop-blur-md border-t border-sidebar-border">
+      <nav data-site-chrome data-bottom-nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar/95 backdrop-blur-md border-t border-sidebar-border pb-[env(safe-area-inset-bottom,0px)]">
         <div className="flex items-stretch">
           {BOTTOM_NAV.map((link) => {
             const active = isActive(pathname, link.href);

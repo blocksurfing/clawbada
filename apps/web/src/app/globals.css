@@ -374,3 +374,9 @@
 html[data-battle-fullscreen] [data-site-chrome] {
   display: none !important;
 }
+
+/* The floating music button sat on top of the phone bar's More button (owner 2026-11-09): wherever the bottom bar is
+   showing, it floats just above the bar instead. */
+@media (max-width: 767px) {
+  html:has(nav[data-bottom-nav]) .site-music-fab { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+}
