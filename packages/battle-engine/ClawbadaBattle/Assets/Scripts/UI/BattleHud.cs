@@ -440,13 +440,14 @@ public class BattleHud : MonoBehaviour
     {
         Color c = kind == "self" ? Skin.floatSelf : isCrit ? Skin.floatCrit : Skin.floatNormal;
         string text = "-" + amount + (isCrit ? "!" : "");
-        SpawnFloatFor(target, text, c, isCrit ? 24 : 16);   // Silkscreen sits on an 8 px grid: 16 / 24, never 22
+        // Upheaval on its 20 px grid (Nzib 2026-11-09): 20 art px, a crit twice that.
+        SpawnFloatFor(target, text, c, HudSkin.HudPx(isCrit ? 2 * HudSkin.UpheavalPx : HudSkin.UpheavalPx));
         Debug.Log($"[BattleHud] float {target.lobsterId} {text} {kind}");
     }
 
     private void OnHealApplied(LobsterController target, int amount)
     {
-        SpawnFloatFor(target, "+" + amount, Skin.floatHeal, 16);
+        SpawnFloatFor(target, "+" + amount, Skin.floatHeal, HudSkin.HudPx(HudSkin.UpheavalPx));
         Debug.Log($"[BattleHud] float {target.lobsterId} +{amount} heal");
     }
 

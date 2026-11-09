@@ -19,9 +19,9 @@ public class ResultBanner : MonoBehaviour
         HudFactory.AddImage(dim, null, new Color(0f, 0f, 0f, 0.35f));
 
         banner.panel = HudFactory.Image(root, "Panel", skin.panelBg, Color.white, new Vector2(380f, 130f));
-        banner.title = HudFactory.Text(banner.panel.rectTransform, "Title", skin.FontOrDefault(), 34, skin.gold, TextAnchor.MiddleCenter, new Vector2(360f, 50f));
+        banner.title = HudFactory.Text(banner.panel.rectTransform, "Title", skin.FontOrDefault(), HudSkin.HudPx(2 * HudSkin.UpheavalPx), skin.gold, TextAnchor.MiddleCenter, new Vector2(360f, 64f));
         banner.title.rectTransform.anchoredPosition = new Vector2(0f, 16f);
-        banner.subtitle = HudFactory.Text(banner.panel.rectTransform, "Subtitle", skin.FontOrDefault(), 14, skin.textSecondary, TextAnchor.MiddleCenter, new Vector2(360f, 24f));
+        banner.subtitle = HudFactory.Text(banner.panel.rectTransform, "Subtitle", skin.FontOrDefault(), HudSkin.HudPx(HudSkin.UpheavalPx), skin.textSecondary, TextAnchor.MiddleCenter, new Vector2(360f, 32f));
         banner.subtitle.rectTransform.anchoredPosition = new Vector2(0f, -22f);
         root.gameObject.SetActive(false);
         return banner;

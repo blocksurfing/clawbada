@@ -51,9 +51,9 @@ public class PressureGauge : MonoBehaviour
         {
             var bitmap = art.GetComponent<Image>();
             if (bitmap != null) bitmap.enabled = false;   // his static "15%" — a placeholder, not a readout
-            // The readout: the HUD pixel font at 8 art px, centred over the tube where his bitmap sat (wider values
-            // centre and may spill past his 19 px slot).
-            g.label = HudFactory.Text(art, "Readout", skin.PixelFontOrDefault(), 8, Color.white, TextAnchor.MiddleCenter, new Vector2(40f, 10f));
+            // The readout: the HUD face (Upheaval, its 20 px grid) centred over the tube where his bitmap sat (wider
+            // values centre and may spill past his 19 px slot).
+            g.label = HudFactory.Text(art, "Readout", skin.PixelFontOrDefault(), HudSkin.UpheavalPx, Color.white, TextAnchor.MiddleCenter, new Vector2(56f, 16f));
             g.label.horizontalOverflow = HorizontalWrapMode.Overflow;
             g.label.rectTransform.anchoredPosition = Vector2.zero;
             var outline = g.label.gameObject.AddComponent<Outline>();

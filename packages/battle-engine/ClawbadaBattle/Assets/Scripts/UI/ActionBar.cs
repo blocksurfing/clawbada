@@ -90,7 +90,11 @@ public class ActionBar : MonoBehaviour
         }
 
         // On the canvas, not the row: bottom-right, right-aligned so long lines grow leftwards.
-        bar.hint = HudFactory.Text(parent, "Hint", skin.FontOrDefault(), 12, skin.textPrimary, TextAnchor.LowerRight, new Vector2(560f, 18f));
+        // Upheaval at 20 art px (Nzib 2026-11-09): long hints wrap into a compact block at the right edge, growing upwards
+        // (at 560 wide a two-line hint reached the middle of the board and ran over Master Lob's bubble).
+        bar.hint = HudFactory.Text(parent, "Hint", skin.FontOrDefault(), HudSkin.HudPx(HudSkin.UpheavalPx), skin.textPrimary, TextAnchor.LowerRight, new Vector2(360f, 24f));
+        bar.hint.horizontalOverflow = HorizontalWrapMode.Wrap;
+        bar.hint.verticalOverflow = VerticalWrapMode.Overflow;
         var hrt = bar.hint.rectTransform;
         hrt.anchorMin = hrt.anchorMax = hrt.pivot = new Vector2(1f, 0f);
         hrt.anchoredPosition = hintBottomRight;

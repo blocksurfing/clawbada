@@ -183,9 +183,15 @@ public class HudSkin : ScriptableObject
     public float fillOrthographicSize = 2.8125f;
 
     [Header("Font (null → built-in LegacyRuntime)")]
+    [Tooltip("Every in-game text (Nzib 2026-11-09: one face, Upheaval — Assets/Fonts/Upheaval.ttf, set in Resources/UI/HudSkin.asset).")]
     public Font font;
-    [Tooltip("Pixel face for floating combat numbers (null → Resources/UI/Fonts/Silkscreen-Regular, the web's pixel heading font).")]
+    [Tooltip("Floating combat numbers, the clock, the gauge (Upheaval too; null → Resources/UI/Fonts/Silkscreen-Regular).")]
     public Font pixelFont;
+    /// <summary>Upheaval is a pixel face drawn on a 20 px grid: crisp at 20, 40 … (capitals 10 px tall at 20, ~11 px a
+    /// character, caps only). Sizes are art px; <see cref="HudPx"/> turns them into HUD canvas units.</summary>
+    public const int UpheavalPx = 20;
+    /// <summary>The HUD canvas (960×540) draws one art px as 1.5 units (ActionBar.ArtScale).</summary>
+    public static int HudPx(int artPx) => Mathf.RoundToInt(artPx * 1.5f);
     [System.NonSerialized] private Font pixelFallback;
 
     /// <summary>The pixel face for damage/heal/buff numbers — the designer's ask so they rhyme with the

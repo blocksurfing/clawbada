@@ -52,7 +52,8 @@ export default async function (b: Browser) {
     // An empty plant: a rustle per click, then the surprise ninja at its hidden count; the other plant is locked out meanwhile.
     const empty = !L ? 'left' : !R ? 'right' : null;
     if (empty && !seen.empty) {
-      const need = Number(occ.match(new RegExp(`surprise ${empty === 'left' ? 'L' : 'R'}=(\\d+)`))?.[1] ?? 0);
+      const sm = occ.match(/surprise L=(\d+) R=(\d+)/);
+      const need = Number(sm?.[empty === 'left' ? 1 : 2] ?? 0);
       ok(need >= 5 && need <= 10, `empty ${empty} plant: its surprise count is 5–10 (${need})`);
       const n = b.logs.length;
       for (let k = 1; k < need; k++) { await b.clickAt(plant[empty].x, plant[empty].y); await b.sleep(k === 1 ? 300 : 120); }

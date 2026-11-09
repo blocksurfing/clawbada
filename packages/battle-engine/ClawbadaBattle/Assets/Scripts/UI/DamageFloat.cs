@@ -13,7 +13,7 @@ public class DamageFloat : MonoBehaviour
 
     public static DamageFloat Spawn(RectTransform layer, HudSkin skin, Vector2 canvasPos, string label, Color color, int fontSize)
     {
-        var textRt = HudFactory.Rect(layer, "Float", HudFactory.Center, HudFactory.Center, HudFactory.Center, canvasPos, new Vector2(120f, 30f));
+        var textRt = HudFactory.Rect(layer, "Float", HudFactory.Center, HudFactory.Center, HudFactory.Center, canvasPos, new Vector2(240f, 70f));   // room for a 60-unit crit
         var f = textRt.gameObject.AddComponent<DamageFloat>();
         f.rt = textRt;
         f.text = HudFactory.AddText(textRt, skin.PixelFontOrDefault(), fontSize, color, TextAnchor.MiddleCenter);

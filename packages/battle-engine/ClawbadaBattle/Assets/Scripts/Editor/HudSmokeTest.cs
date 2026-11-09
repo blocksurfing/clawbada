@@ -23,6 +23,8 @@ public static class HudSmokeTest
         if (skin == null) throw new System.Exception("HudSkin missing — run Clawbada/Generate HUD Placeholder Art first.");
         Check(skin.hexFrame56 != null && skin.hexMask56 != null && skin.barBg != null && skin.pip != null, "skin sprites seeded");
         Check(skin.FontOrDefault() != null, "font available");
+        // Nzib 2026-11-09: one in-game face.
+        Check(skin.FontOrDefault().name.Contains("Upheaval") && skin.PixelFontOrDefault().name.Contains("Upheaval"), "in-game fonts are Upheaval");
 
         EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         var bridge = Object.FindFirstObjectByType<BattleBridge>();

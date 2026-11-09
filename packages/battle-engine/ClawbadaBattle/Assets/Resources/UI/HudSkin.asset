@@ -160,8 +160,8 @@ MonoBehaviour:
   cardInner: {r: 0.0627451, g: 0.101960786, b: 0.15294118, a: 1}
   fillCanvas: 1
   fillOrthographicSize: 2.8125
-  font: {fileID: 0}
-  pixelFont: {fileID: 0}
+  font: {fileID: 12800000, guid: 0c14fafcc55aecc4f9dd9c4b7246d8a7, type: 3}
+  pixelFont: {fileID: 12800000, guid: 0c14fafcc55aecc4f9dd9c4b7246d8a7, type: 3}
   selectorController: {fileID: 9100000, guid: 7c24562e530663043886cf1e52630450, type: 2}
   selectorSprite: {fileID: -1794730122, guid: f883cc5724df12c44bddcfdc5cbd9d7c, type: 3}
   selectorOffset: {x: 0, y: -0.02, z: 0}

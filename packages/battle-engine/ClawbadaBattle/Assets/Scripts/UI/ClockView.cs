@@ -49,13 +49,14 @@ public class ClockView : MonoBehaviour
             view.text = card.Find("Number")?.GetComponent<Text>();
             if (view.text != null)
             {
-                // His note: the numeral reads blurry beside the pixel art. A 16 px Silkscreen scaled ×k is resampled,
-                // and the saved style is Bold (synthesised, off the 8 px grid). Undo the card's scale on the text and
-                // render it at its on-screen size instead, in the regular weight; the outline keeps its 1 art-pixel.
+                // His note: the numeral reads blurry beside the pixel art. A font scaled ×k is resampled, and the saved
+                // style is Bold (synthesised, off the pixel grid). Undo the card's scale on the text and render it at its
+                // on-screen size instead, in the regular weight; the outline keeps its 1 art-pixel. Upheaval since
+                // 2026-11-09 (Nzib: one in-game face), at its 20 px grid in card px.
                 var trt = view.text.rectTransform;
                 trt.localScale = new Vector3(1f / k, 1f / k, 1f);
                 trt.sizeDelta *= k;
-                view.text.fontSize = Mathf.RoundToInt(view.text.fontSize * k / 8f) * 8;   // stay on Silkscreen's 8 px grid
+                view.text.fontSize = Mathf.RoundToInt(HudSkin.UpheavalPx * k);
                 view.text.fontStyle = FontStyle.Normal;
                 view.text.font = skin.PixelFontOrDefault();
                 var outline = view.text.GetComponent<Outline>();

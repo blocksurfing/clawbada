@@ -25,8 +25,11 @@ public class MasterLobCoach : MonoBehaviour
     public const float AppearSeconds = 1.0f, SpeakFromSeconds = 0.8f, DisappearSeconds = 1.3f, DisappearSmokeAt = 0.45f;
     /// <summary>Reading time per page: a base plus per character, clamped (an 8-px pixel font reads slower than body text).</summary>
     public const float ReadBase = 2.2f, ReadPerChar = 0.05f, ReadMin = 3.5f, ReadMax = 9f;
-    /// <summary>Bubble text: at most this many characters per line and lines per page (his bubble grows 10 px a line).</summary>
-    public const int LineChars = 26, PageLines = 4;
+    /// <summary>Bubble text: at most this many characters per line and lines per page. Upheaval at 20 px since 2026-11-09
+    /// (Nzib: one in-game face; owner: the bubble grows to fit) — ~11 px a character, so 18 keeps a bubble near a third
+    /// of the screen; it grows AnimatedSpeechBubble.LinePitch a line.</summary>
+    public const int LineChars = 18, PageLines = 4;
+    private const float CharPx = 11.2f;
     /// <summary>His mouth, from the rig root, in world units: up, and forward in the direction he faces. The bubble's tail
     /// lands here and the bubble opens on that side (owner 2026-11-01: lined up with his face, never over his back).</summary>
     public const float MouthHeight = 0.2f, MouthForward = 0.38f;   // owner 2026-11-01: the tail starts at his face, the bubble just above
@@ -274,8 +277,8 @@ public class MasterLobCoach : MonoBehaviour
 
     // ─── Where to stand ───
 
-    /// <summary>His bubble's size for these pages, in art px, before it exists (8 px Silkscreen ≈ 5.5 px a character; his
-    /// component pads 28 px and grows 10 px a line past two).</summary>
+    /// <summary>His bubble's size for these pages, in art px, before it exists (20 px Upheaval ≈ 11.2 px a character; his
+    /// component pads 28 px; the height follows AnimatedSpeechBubble.HeightFor).</summary>
     public static Vector2 BubbleSizeEstimate(List<string> pages)
     {
         int chars = 0, lines = 1;
@@ -285,7 +288,7 @@ public class MasterLobCoach : MonoBehaviour
             lines = Mathf.Max(lines, ls.Length);
             foreach (var l in ls) chars = Mathf.Max(chars, l.Length);
         }
-        return new Vector2(Mathf.Max(44f, chars * 5.5f + 28f), 24f + Mathf.Max(0, lines - 2) * 10f);
+        return new Vector2(Mathf.Max(44f, chars * CharPx + 28f), Clawbada.UI.AnimatedSpeechBubble.HeightFor(lines));
     }
 
     private bool PickHex(Vector2 bubbleSize, out Vector2Int best)
@@ -340,6 +343,7 @@ public class MasterLobCoach : MonoBehaviour
                                 + (HexCoord.Distance(c, r, active.col, active.row) <= active.moveRange ? 0.6f : 0f)
                                 - 0.25f * Mathf.Min(nearEnemy, 4f)
                                 + 3f * BubbleCovers(grid.GetWorldPosition(c, r), bubbleSize)
+                                + 4f * BubbleOffLimits(grid.GetWorldPosition(c, r), bubbleSize)
                                 + Random.value * 0.5f;
                     options.Add((cell, score));
                 }
@@ -349,6 +353,19 @@ public class MasterLobCoach : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    /// <summary>The art frame (640×360 px centred on the origin, 64 px a unit) less the HUD's turn-order strip along the
+    /// top (~54 px): his bubble, twice as tall since Upheaval (2026-11-09), must stay inside it.</summary>
+    private const float FrameHalfW = 5f, FrameTopY = 2.8125f - 54f / 64f;
+    /// <summary>How far his bubble would poke out of that area, in bubble heights (0 = inside).</summary>
+    private float BubbleOffLimits(Vector3 actorPos, Vector2 size)
+    {
+        Vector2 mouth = Mouth(actorPos);
+        float w = size.x / 64f, h = size.y / 64f, x = faceRight ? mouth.x + 2f / 64f : mouth.x - 2f / 64f - w;
+        float top = mouth.y + 12f / 64f + h;
+        float over = Mathf.Max(0f, top - FrameTopY) + Mathf.Max(0f, x + w - FrameHalfW) + Mathf.Max(0f, -FrameHalfW - x);
+        return over / Mathf.Max(0.1f, h);
     }
 
     /// <summary>How many living lobsters his bubble would cover if he stood at <paramref name="actorPos"/> (world units;

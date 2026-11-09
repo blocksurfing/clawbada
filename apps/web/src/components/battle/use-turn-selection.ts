@@ -196,7 +196,7 @@ export function useTurnSelection(
     if (!summary || !home) return { ok: false, why: 'Not your turn' };
     if (act === 'attack') {
       const legal = manualMove ? summary.attackTargets : home.attackTargets;
-      return legal.includes(id) ? { ok: true, step: null } : { ok: false, why: manualMove ? 'Out of range from here. Defend or Wait' : 'Out of range. Move closer first' };
+      return legal.includes(id) ? { ok: true, step: null } : { ok: false, why: manualMove ? 'Out of range from here. Defend instead' : 'Out of range. Move closer first' };
     }
     if (manualMove) return summary.specialTargets.includes(id) ? { ok: true, step: null } : { ok: false, why: `Out of reach for ${specialName} from here` };
     if (home.specialTargets.includes(id)) return { ok: true, step: null };
@@ -251,7 +251,7 @@ export function useTurnSelection(
         if (targetId && planTarget(targetId, 'attack').ok) { selectTarget(targetId, 'attack'); return; }
         clearTarget();
         const ids = manualMove ? summary.attackTargets : home?.attackTargets ?? [];
-        setHint(ids.length ? 'Tap an enemy to select it' : 'No enemy in range. Move closer, Defend or Wait');
+        setHint(ids.length ? 'Tap an enemy to select it' : 'No enemy in range. Move closer or Defend');
         return;
       }
       case 'special': {
@@ -263,7 +263,7 @@ export function useTurnSelection(
         clearTarget();
         if (specialKind === 'ally') { setHint('Tap an ally to select it'); return; }
         const reachable = (manualMove ? summary.specialTargets.length : (home?.specialTargets.length ?? 0) + specialReach.size);
-        setHint(reachable ? 'Tap a highlighted enemy to select it' : 'No enemy within reach this turn. Attack, Defend or Wait');
+        setHint(reachable ? 'Tap a highlighted enemy to select it' : 'No enemy within reach this turn. Attack or Defend');
         return;
       }
       case 'defend':
@@ -281,7 +281,7 @@ export function useTurnSelection(
 
   const onHexClick = useCallback((hex: HexPosition) => {
     if (!actor || !summary || !home) return;
-    if (manualMove) { setHint('Already moved this turn. Attack, Special, Defend or Wait'); return; }
+    if (manualMove) { setHint('Already moved this turn. Attack, Special or Defend'); return; }
     const same = (a: HexPosition | null) => !!a && a.col === hex.col && a.row === hex.row;
     // Any reachable hex the player taps is THEIR move (it replaces a selection's step and drops the target):
     // first tap picks it, the second tap on the same hex commits it — final.

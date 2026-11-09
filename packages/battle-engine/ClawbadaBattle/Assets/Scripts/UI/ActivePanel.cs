@@ -146,7 +146,7 @@ public class ActivePanel : MonoBehaviour
         {
             p.orderHex = HudFactory.Image(rt, "Order", skin.orderHex, Color.white, skin.orderHex.rect.size * ActionBar.ArtScale);
             p.orderHex.rectTransform.anchoredPosition = new Vector2(-44f, 13f) * ActionBar.ArtScale;
-            p.orderText = HudFactory.Text(p.orderHex.transform, "N", skin.PixelFontOrDefault(), 16, skin.textPrimary, TextAnchor.MiddleCenter, p.orderHex.rectTransform.sizeDelta);
+            p.orderText = HudFactory.Text(p.orderHex.transform, "N", skin.PixelFontOrDefault(), HudSkin.HudPx(HudSkin.UpheavalPx), skin.textPrimary, TextAnchor.MiddleCenter, p.orderHex.rectTransform.sizeDelta);
             p.orderText.rectTransform.anchoredPosition = new Vector2(0.5f, 0.5f);
             p.orderHex.gameObject.SetActive(false);
         }
