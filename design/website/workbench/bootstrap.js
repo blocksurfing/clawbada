@@ -5,6 +5,13 @@ const preview = new URLSearchParams(location.search).get('loading') === 'preview
 const root = document.querySelector('#web-loading');
 async function boot() {
   try {
+    if (location.hash === '#/docs') {
+      await import('./docs-preview.js');
+      root.remove();
+      document.body.classList.remove('web-is-loading');
+      document.querySelector('#app').inert = false;
+      return;
+    }
     if (!isDojoRoute(location.hash)) {
       await import('./coming-soon.js');
       root.remove();

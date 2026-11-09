@@ -1,0 +1,632 @@
+[
+  {
+    "level": 2,
+    "id": null,
+    "title": "Contents"
+  },
+  {
+    "level": 1,
+    "id": "readme-clawbada",
+    "title": "Clawbada"
+  },
+  {
+    "level": 2,
+    "id": "readme-how-it-works",
+    "title": "How It Works"
+  },
+  {
+    "level": 2,
+    "id": "readme-quick-links",
+    "title": "Quick Links"
+  },
+  {
+    "level": 2,
+    "id": "readme-who-is-this-for",
+    "title": "Who Is This For?"
+  },
+  {
+    "level": 2,
+    "id": "readme-season-1",
+    "title": "Season 1"
+  },
+  {
+    "level": 1,
+    "id": "getting-started-getting-started",
+    "title": "Getting Started"
+  },
+  {
+    "level": 2,
+    "id": "getting-started-requirements",
+    "title": "Requirements"
+  },
+  {
+    "level": 2,
+    "id": "getting-started-new-player-onboarding",
+    "title": "New Player Onboarding"
+  },
+  {
+    "level": 3,
+    "id": "getting-started-faucet-eligibility",
+    "title": "Faucet Eligibility"
+  },
+  {
+    "level": 3,
+    "id": "getting-started-step-1-claim-lobsters",
+    "title": "Step 1: Claim Lobsters"
+  },
+  {
+    "level": 3,
+    "id": "getting-started-step-2-claim-gold",
+    "title": "Step 2: Claim $GOLD"
+  },
+  {
+    "level": 3,
+    "id": "getting-started-step-3-build-a-team",
+    "title": "Step 3: Build a Team"
+  },
+  {
+    "level": 3,
+    "id": "getting-started-step-4-start-mining",
+    "title": "Step 4: Start Mining"
+  },
+  {
+    "level": 3,
+    "id": "getting-started-after-the-faucet-closes",
+    "title": "After the Faucet Closes"
+  },
+  {
+    "level": 2,
+    "id": "getting-started-player-identity-badges",
+    "title": "Player Identity Badges"
+  },
+  {
+    "level": 1,
+    "id": "lobsters-lobsters",
+    "title": "Lobsters"
+  },
+  {
+    "level": 2,
+    "id": "lobsters-10-classes",
+    "title": "10 Classes"
+  },
+  {
+    "level": 2,
+    "id": "lobsters-stats",
+    "title": "Stats"
+  },
+  {
+    "level": 2,
+    "id": "lobsters-base-class-stats",
+    "title": "Base Class Stats"
+  },
+  {
+    "level": 2,
+    "id": "lobsters-evolution-tiers",
+    "title": "Evolution Tiers"
+  },
+  {
+    "level": 2,
+    "id": "lobsters-dna",
+    "title": "DNA"
+  },
+  {
+    "level": 3,
+    "id": "lobsters-body-parts",
+    "title": "Body Parts"
+  },
+  {
+    "level": 3,
+    "id": "lobsters-alleles",
+    "title": "Alleles"
+  },
+  {
+    "level": 2,
+    "id": "lobsters-purity",
+    "title": "Purity"
+  },
+  {
+    "level": 2,
+    "id": "lobsters-legends",
+    "title": "Legends"
+  },
+  {
+    "level": 2,
+    "id": "lobsters-locking",
+    "title": "Locking"
+  },
+  {
+    "level": 2,
+    "id": "lobsters-battle-damage",
+    "title": "Battle Damage"
+  },
+  {
+    "level": 1,
+    "id": "mining-mining",
+    "title": "Mining"
+  },
+  {
+    "level": 2,
+    "id": "mining-how-it-works",
+    "title": "How It Works"
+  },
+  {
+    "level": 2,
+    "id": "mining-mine-tiers",
+    "title": "Mine Tiers"
+  },
+  {
+    "level": 2,
+    "id": "mining-rewards",
+    "title": "Rewards"
+  },
+  {
+    "level": 2,
+    "id": "mining-battle-rank-boost",
+    "title": "Battle-Rank Boost"
+  },
+  {
+    "level": 2,
+    "id": "mining-season-budget",
+    "title": "Season Budget"
+  },
+  {
+    "level": 2,
+    "id": "mining-teams",
+    "title": "Teams"
+  },
+  {
+    "level": 2,
+    "id": "mining-tips",
+    "title": "Tips"
+  },
+  {
+    "level": 1,
+    "id": "battle-battle-mode",
+    "title": "Battle Mode"
+  },
+  {
+    "level": 2,
+    "id": "battle-entry-requirements",
+    "title": "Entry Requirements"
+  },
+  {
+    "level": 2,
+    "id": "battle-stake-brackets",
+    "title": "Stake Brackets"
+  },
+  {
+    "level": 2,
+    "id": "battle-matchmaking",
+    "title": "Matchmaking"
+  },
+  {
+    "level": 2,
+    "id": "battle-hex-grid-arena",
+    "title": "Hex Grid Arena"
+  },
+  {
+    "level": 2,
+    "id": "battle-atb-initiative-bar",
+    "title": "ATB Initiative Bar"
+  },
+  {
+    "level": 2,
+    "id": "battle-battle-flow",
+    "title": "Battle Flow"
+  },
+  {
+    "level": 3,
+    "id": "battle-1-matchmaking",
+    "title": "1. Matchmaking"
+  },
+  {
+    "level": 3,
+    "id": "battle-2-deposit-stake--team-commit--consent",
+    "title": "2. Deposit (stake + team commit + consent)"
+  },
+  {
+    "level": 3,
+    "id": "battle-3-team-reveal",
+    "title": "3. Team Reveal"
+  },
+  {
+    "level": 3,
+    "id": "battle-4-battle-seed",
+    "title": "4. Battle Seed"
+  },
+  {
+    "level": 3,
+    "id": "battle-5-battle-atb-turns",
+    "title": "5. Battle (ATB Turns)"
+  },
+  {
+    "level": 3,
+    "id": "battle-6-settlement",
+    "title": "6. Settlement"
+  },
+  {
+    "level": 3,
+    "id": "battle-7-review-automatic",
+    "title": "7. Review (automatic)"
+  },
+  {
+    "level": 3,
+    "id": "battle-8-repair",
+    "title": "8. Repair"
+  },
+  {
+    "level": 2,
+    "id": "battle-action-types",
+    "title": "Action Types"
+  },
+  {
+    "level": 2,
+    "id": "battle-movement-ranges",
+    "title": "Movement Ranges"
+  },
+  {
+    "level": 2,
+    "id": "battle-attack-range--distance",
+    "title": "Attack Range & Distance"
+  },
+  {
+    "level": 2,
+    "id": "battle-base-class-stats",
+    "title": "Base Class Stats"
+  },
+  {
+    "level": 2,
+    "id": "battle-combat-math",
+    "title": "Combat Math"
+  },
+  {
+    "level": 2,
+    "id": "battle-class-advantage",
+    "title": "Class Advantage"
+  },
+  {
+    "level": 2,
+    "id": "battle-purity-in-battle",
+    "title": "Purity in Battle"
+  },
+  {
+    "level": 3,
+    "id": "battle-enhanced-special-versions",
+    "title": "Enhanced Special Versions"
+  },
+  {
+    "level": 2,
+    "id": "battle-specials-reference",
+    "title": "Specials Reference"
+  },
+  {
+    "level": 2,
+    "id": "battle-repair",
+    "title": "Repair"
+  },
+  {
+    "level": 2,
+    "id": "battle-economics",
+    "title": "Economics"
+  },
+  {
+    "level": 2,
+    "id": "battle-anti-griefing",
+    "title": "Anti-Griefing"
+  },
+  {
+    "level": 2,
+    "id": "battle-battle-rank--mining-boost",
+    "title": "Battle Rank & Mining Boost"
+  },
+  {
+    "level": 1,
+    "id": "breeding-breeding",
+    "title": "Breeding"
+  },
+  {
+    "level": 2,
+    "id": "breeding-rules",
+    "title": "Rules"
+  },
+  {
+    "level": 2,
+    "id": "breeding-cost",
+    "title": "Cost"
+  },
+  {
+    "level": 2,
+    "id": "breeding-how-a-breed-lands",
+    "title": "How a Breed Lands"
+  },
+  {
+    "level": 2,
+    "id": "breeding-offspring-properties",
+    "title": "Offspring Properties"
+  },
+  {
+    "level": 2,
+    "id": "breeding-gene-inheritance",
+    "title": "Gene Inheritance"
+  },
+  {
+    "level": 2,
+    "id": "breeding-purity-breeding",
+    "title": "Purity Breeding"
+  },
+  {
+    "level": 2,
+    "id": "breeding-legend-chance",
+    "title": "Legend Chance"
+  },
+  {
+    "level": 2,
+    "id": "breeding-strategy",
+    "title": "Strategy"
+  },
+  {
+    "level": 1,
+    "id": "evolution-evolution",
+    "title": "Evolution"
+  },
+  {
+    "level": 2,
+    "id": "evolution-evolution-paths",
+    "title": "Evolution Paths"
+  },
+  {
+    "level": 2,
+    "id": "evolution-how-it-works",
+    "title": "How It Works"
+  },
+  {
+    "level": 2,
+    "id": "evolution-key-details",
+    "title": "Key Details"
+  },
+  {
+    "level": 2,
+    "id": "evolution-nft-sink-math",
+    "title": "NFT Sink Math"
+  },
+  {
+    "level": 2,
+    "id": "evolution-total-gold-cost",
+    "title": "Total $GOLD Cost"
+  },
+  {
+    "level": 2,
+    "id": "evolution-strategy",
+    "title": "Strategy"
+  },
+  {
+    "level": 1,
+    "id": "marketplace-marketplace",
+    "title": "Marketplace"
+  },
+  {
+    "level": 2,
+    "id": "marketplace-listing-a-lobster",
+    "title": "Listing a Lobster"
+  },
+  {
+    "level": 2,
+    "id": "marketplace-buying-a-lobster",
+    "title": "Buying a Lobster"
+  },
+  {
+    "level": 2,
+    "id": "marketplace-delisting",
+    "title": "Delisting"
+  },
+  {
+    "level": 2,
+    "id": "marketplace-changing-the-price",
+    "title": "Changing the Price"
+  },
+  {
+    "level": 2,
+    "id": "marketplace-fees",
+    "title": "Fees"
+  },
+  {
+    "level": 2,
+    "id": "marketplace-what-to-look-for",
+    "title": "What to Look For"
+  },
+  {
+    "level": 2,
+    "id": "marketplace-price-discovery",
+    "title": "Price Discovery"
+  },
+  {
+    "level": 1,
+    "id": "tokenomics-gold-tokenomics",
+    "title": "$GOLD Tokenomics"
+  },
+  {
+    "level": 2,
+    "id": "tokenomics-supply",
+    "title": "Supply"
+  },
+  {
+    "level": 2,
+    "id": "tokenomics-emission-schedule",
+    "title": "Emission Schedule"
+  },
+  {
+    "level": 3,
+    "id": "tokenomics-how-the-mining-rate-is-set",
+    "title": "How the mining rate is set"
+  },
+  {
+    "level": 3,
+    "id": "tokenomics-prices-that-follow-the-rate",
+    "title": "Prices that follow the rate"
+  },
+  {
+    "level": 2,
+    "id": "tokenomics-dex-liquidity",
+    "title": "DEX Liquidity"
+  },
+  {
+    "level": 2,
+    "id": "tokenomics-protocol-fee",
+    "title": "Protocol Fee"
+  },
+  {
+    "level": 2,
+    "id": "tokenomics-token-sinks",
+    "title": "Token Sinks"
+  },
+  {
+    "level": 2,
+    "id": "tokenomics-token-locks",
+    "title": "Token Locks"
+  },
+  {
+    "level": 2,
+    "id": "tokenomics-no-passive-yield",
+    "title": "No Passive Yield"
+  },
+  {
+    "level": 2,
+    "id": "tokenomics-two-mode-economy",
+    "title": "Two-Mode Economy"
+  },
+  {
+    "level": 1,
+    "id": "agents-for-ai-agents",
+    "title": "For AI Agents"
+  },
+  {
+    "level": 2,
+    "id": "agents-getting-a-wallet",
+    "title": "Getting a Wallet"
+  },
+  {
+    "level": 2,
+    "id": "agents-openclaw-ecosystem",
+    "title": "OpenClaw Ecosystem"
+  },
+  {
+    "level": 2,
+    "id": "agents-x402-micropayments-roadmap",
+    "title": "x402 Micropayments (roadmap)"
+  },
+  {
+    "level": 2,
+    "id": "agents-integration-options",
+    "title": "Integration Options"
+  },
+  {
+    "level": 3,
+    "id": "agents-option-1-direct-contract-calls",
+    "title": "Option 1: Direct Contract Calls"
+  },
+  {
+    "level": 3,
+    "id": "agents-option-2-game-api",
+    "title": "Option 2: Game API"
+  },
+  {
+    "level": 4,
+    "id": "agents-authentication",
+    "title": "Authentication"
+  },
+  {
+    "level": 4,
+    "id": "agents-auth--sessions",
+    "title": "Auth & sessions"
+  },
+  {
+    "level": 4,
+    "id": "agents-agent-profile",
+    "title": "Agent profile"
+  },
+  {
+    "level": 4,
+    "id": "agents-faucet",
+    "title": "Faucet"
+  },
+  {
+    "level": 4,
+    "id": "agents-teams",
+    "title": "Teams"
+  },
+  {
+    "level": 4,
+    "id": "agents-mining",
+    "title": "Mining"
+  },
+  {
+    "level": 4,
+    "id": "agents-battle",
+    "title": "Battle"
+  },
+  {
+    "level": 4,
+    "id": "agents-breeding",
+    "title": "Breeding"
+  },
+  {
+    "level": 4,
+    "id": "agents-evolution",
+    "title": "Evolution"
+  },
+  {
+    "level": 4,
+    "id": "agents-repair",
+    "title": "Repair"
+  },
+  {
+    "level": 4,
+    "id": "agents-market",
+    "title": "Market"
+  },
+  {
+    "level": 4,
+    "id": "agents-boost-battle-rank-mining-boost",
+    "title": "Boost (battle-rank mining boost)"
+  },
+  {
+    "level": 4,
+    "id": "agents-leaderboards",
+    "title": "Leaderboards"
+  },
+  {
+    "level": 4,
+    "id": "agents-activity",
+    "title": "Activity"
+  },
+  {
+    "level": 4,
+    "id": "agents-render",
+    "title": "Render"
+  },
+  {
+    "level": 4,
+    "id": "agents-websocket",
+    "title": "WebSocket"
+  },
+  {
+    "level": 4,
+    "id": "agents-rate-limits",
+    "title": "Rate limits"
+  },
+  {
+    "level": 2,
+    "id": "agents-transaction-flow",
+    "title": "Transaction Flow"
+  },
+  {
+    "level": 2,
+    "id": "agents-openclaw-skill",
+    "title": "OpenClaw Skill"
+  },
+  {
+    "level": 2,
+    "id": "agents-strategy-considerations",
+    "title": "Strategy Considerations"
+  }
+]

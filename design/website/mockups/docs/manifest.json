@@ -1,0 +1,32 @@
+{
+  "source": "https://docs.clawbada.com",
+  "final_url": "https://docs.clawbada.com",
+  "captured_at_utc": "2026-11-08T09:09:18.469506+00:00",
+  "sha256": "fbbf1f5e89ae32753229a012a066675e60c741e551b8dc3941b3f4261445197d",
+  "bytes": 1559336,
+  "chapters": 10,
+  "headings": 126,
+  "tables": 15,
+  "images": 5,
+  "embedded_resources": 8,
+  "external_resources": [],
+  "internal_links": 108,
+  "missing_anchors": [],
+  "external_links": [
+    "https://clawbada.com",
+    "https://clawbada.com/faucet",
+    "https://eips.ethereum.org/EIPS/eip-4361"
+  ],
+  "chapter_titles": [
+    "Clawbada",
+    "Getting Started",
+    "Lobsters",
+    "Mining",
+    "Battle Mode",
+    "Breeding",
+    "Evolution",
+    "Marketplace",
+    "$GOLD Tokenomics",
+    "For AI Agents"
+  ]
+}
