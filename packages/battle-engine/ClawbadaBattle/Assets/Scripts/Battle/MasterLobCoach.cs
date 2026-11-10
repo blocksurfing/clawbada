@@ -33,7 +33,19 @@ public class MasterLobCoach : MonoBehaviour
     /// <summary>His mouth, from the rig root, in world units: up, and forward in the direction he faces. The bubble's tail
     /// lands here and the bubble opens on that side (owner 2026-11-01: lined up with his face, never over his back).</summary>
     public const float MouthHeight = 0.2f, MouthForward = 0.38f;   // owner 2026-11-01: the tail starts at his face, the bubble just above
-    private const int CanvasOrder = 90;   // under the HUD (100)
+    /// <summary>Above the HUD (100) since 2026-11-10 — the owner saw the half-transparent action buttons show through his
+    /// bubble; below the intro (400) and the loading fade. It steps aside while the options menu is open.</summary>
+    private const int CanvasOrder = 110;
+    private BattleHud hud;
+
+    /// <summary>The options menu sits on the HUD canvas, under his bubble now: hide the bubble while it is open.</summary>
+    private void HideUnderOptionsMenu()
+    {
+        if (canvas == null) return;
+        if (hud == null) hud = FindFirstObjectByType<BattleHud>();
+        bool menuOpen = hud != null && hud.Options != null && hud.Options.IsOpen;
+        if (canvas.enabled == menuOpen) { canvas.enabled = !menuOpen; Debug.Log($"[MasterLob] bubble {(menuOpen ? "hidden under the options menu" : "back")}"); }
+    }
 
     private BattleManager manager;
     private BattleVfxLibrary library;
@@ -238,6 +250,7 @@ public class MasterLobCoach : MonoBehaviour
 
     void LateUpdate()
     {
+        HideUnderOptionsMenu();
         // His bubble's tail is drawn for a speaker on its left. Facing left he speaks from its right: mirror the tail
         // to the bubble's lower-right corner (after AnimatedSpeechBubble.Evaluate has placed it, every frame it plays).
         if (connector == null || bubble == null || !bubble.gameObject.activeSelf) return;
