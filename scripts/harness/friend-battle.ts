@@ -96,7 +96,8 @@ export default async function (host: Browser, h: { connect(host: string): Promis
     const shown = await friend.eval(`[...document.querySelectorAll('[data-testid=dojo-friend-lineup] canvas')].map((c) => c.getAttribute('data-class'))`) as (string | null)[];
     ok(!shown.includes('ember') && !shown.includes('abyss'), 'friend: the host\'s team stays hidden (silhouettes only)', JSON.stringify(shown));
     ok((await cue(friend)) === 'ready/true', 'friend: team set → the Battle cue', await cue(friend));
-    ok(String(await friend.eval(`document.querySelector('[data-testid=friend-lobby]').innerText`)).includes('Your friend is ready'), 'friend: "Your friend is ready — press Battle…"');
+    // The lobby shows "locked in" first and "ready" on its next 2 s poll: wait for the ready line.
+    ok(!!(await friend.waitFor(`(document.querySelector('[data-testid=friend-lobby]')?.innerText || '').includes('Your friend is ready')`, 6000, 250)), 'friend: "Your friend is ready. Press Battle…"');
     await friend.screenshot(`${OUT}/friend-lobby.png`);
 
     // ── the friend presses Battle: both go in ──
