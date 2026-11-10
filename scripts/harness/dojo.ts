@@ -31,8 +31,9 @@ export default async function (b: Browser) {
   if (await b.waitFor(`!!document.querySelector('[data-testid=dojo-gate]')`, 3000, 200)) {
     expect(await b.eval(`(() => { const q = document.querySelector('[data-testid=dojo-gate] button').getBoundingClientRect(); return q.bottom <= innerHeight && q.top >= 0; })()`), 'the gate button is on screen');
     await rectClick(b, '[data-testid=dojo-gate] button', 'Sign in');
-    expect(!!(await b.waitFor(`(document.querySelector('[data-testid=dojo-gate]')?.textContent || '').includes('Enter Training')`, 20000, 250)), 'the gate signs in, then offers Enter Training');
-    await rectClick(b, '[data-testid=dojo-gate] button', 'Enter Training');
+    // Signed in: the gate goes and Battle lights up again (owner 2026-11-09) — the next press starts.
+    expect(!!(await b.waitFor(`!document.querySelector('[data-testid=dojo-gate]') && !document.querySelector('[data-testid=dojo-battle]').disabled`, 20000, 250)), 'the gate signs in, then Battle lights up again');
+    await rectClick(b, '[data-testid=dojo-battle]');
   }
   const opened = !!(await b.waitFor(`/^\\/battle\\/p_/.test(location.pathname)`, 30000));
   expect(opened, 'Battle opens a practice battle');

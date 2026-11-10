@@ -93,7 +93,7 @@ export default function DojoPage() {
   const { setOpen: openWalletPicker } = useModal();
   /** The signature gate (owner spec 2026-10-21): a wallet whose session has expired must sign BEFORE anything goes
    *  fullscreen or fades — 'expired' shows the prompt, 'signing' is the wallet popup, 'ready' offers Enter Training. */
-  const [gate, setGate] = useState<'none' | 'expired' | 'signing' | 'ready'>('none');
+  const [gate, setGate] = useState<'none' | 'expired' | 'signing'>('none');
   const [gateErr, setGateErr] = useState<string | null>(null);
   const [team, setTeam] = useState<string[]>(DEFAULT_TEAM);
   const [tier, setTier] = useState<Tier>(DEFAULT_TIER);
@@ -385,9 +385,7 @@ export default function DojoPage() {
   }, [inviteLink]);
 
   /** The Battle press. Own lobsters fight with the tier and purity in their DNA; a saved team goes by its id. */
-  const [lastChoice, setLastChoice] = useState<DojoChoice | null>(null);
   const start = useCallback((choice: DojoChoice) => {
-    setLastChoice(choice);
     if (vs === 'friend') return launchFriend();
     if (choice.mode === 'builder') return launch({ preset: `team_${team.join('_')}_${tier}`, purity, bot, opponent }, 'Could not start the dojo battle', tier);
     const picked = choice.lobsterIds.map((id) => lobsters.find((l) => l.id === id));
@@ -397,13 +395,15 @@ export default function DojoPage() {
     return launch({ ...roster, bot, opponent }, 'Could not start the dojo battle', teamTier);
   }, [vs, launchFriend, team, tier, purity, bot, opponent, lobsters, launch]);
 
-  /** The gate's Sign in: the wallet prompt, with nothing else moving. Success turns the button into Enter Training. */
+  /** The gate's Sign in: the wallet prompt, with nothing else moving. Success simply clears the gate and Battle lights up
+   *  gold again (owner 2026-11-09: no second, smaller "Enter Training" button) — the next Battle press is the fresh tap
+   *  that fullscreen and audio need, which the wallet prompt used up. */
   const signIn = useCallback(async () => {
     setGate('signing');
     setGateErr(null);
     try {
       await getSessionToken();
-      setGate('ready');
+      setGate('none');
     } catch (e) {
       setGate('expired');
       setGateErr(e instanceof Error ? e.message : 'The wallet did not sign');
@@ -452,12 +452,8 @@ export default function DojoPage() {
       }
       gate={gate !== 'none' && (
         <div className="dojo-gate" data-testid="dojo-gate" data-gate={gate}>
-          <p>{gate === 'ready' ? 'Signed in.' : gateErr ?? 'Session expired. Sign in to train.'}</p>
-          {gate === 'ready' ? (
-            <button type="button" onClick={() => { setGate('none'); if (lastChoice) void start(lastChoice); }}>Enter Training</button>
-          ) : (
-            <button type="button" onClick={signIn} disabled={gate === 'signing'}>{gate === 'signing' ? 'Waiting for the wallet…' : 'Sign in'}</button>
-          )}
+          <p>{gateErr ?? 'Session expired. Sign in to train.'}</p>
+          <button type="button" onClick={signIn} disabled={gate === 'signing'}>{gate === 'signing' ? 'Waiting for the wallet…' : 'Sign in'}</button>
         </div>
       )}
       devTools={presetsAllowed && (

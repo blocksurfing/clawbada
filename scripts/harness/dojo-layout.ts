@@ -251,11 +251,11 @@ export default async function (b: Browser) {
   ok('Battle is on with three', await b.eval(`!document.querySelector('[data-testid=dojo-battle]').disabled`));
   const bp = await center('[data-testid=dojo-battle]');
   await b.clickAt(bp.x, bp.y);
-  // A burner session may need a signature first: the gate, then Enter Training.
+  // A burner session may need a signature first: the gate, then (signed in) Battle lights up again for the next press.
   if (await b.waitFor(`!!document.querySelector('[data-testid=dojo-gate]')`, 3000, 200)) {
     await b.eval(`Array.from(document.querySelectorAll('[data-testid=dojo-gate] button')).find(x => x.textContent.includes('Sign in'))?.click()`);
-    await b.waitFor(`(document.querySelector('[data-testid=dojo-gate]')?.textContent || '').includes('Enter Training')`, 20000, 250);
-    await b.eval(`Array.from(document.querySelectorAll('[data-testid=dojo-gate] button')).find(x => x.textContent.includes('Enter Training'))?.click()`);
+    await b.waitFor(`!document.querySelector('[data-testid=dojo-gate]') && !document.querySelector('[data-testid=dojo-battle]').disabled`, 20000, 250);
+    await b.clickAt(bp.x, bp.y);
   }
   await b.waitFor(`window.__practiceBodies.length > 0`, 20000, 250);
   const body = await b.eval(`window.__practiceBodies[0]`) as { lobsterIds?: string[]; teamId?: string; preset?: string; purity?: number } | undefined;
