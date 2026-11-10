@@ -43,3 +43,6 @@ scripts/e2e/.runs/
 .vscode/
 .idea/
 **/.DS_Store
+
+# Git hooks (husky + git-lfs) — tooling, never part of an image
+.husky/

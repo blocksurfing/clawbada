@@ -54,7 +54,11 @@ fi
 # ── Tag = short sha of HEAD; -dirty if anything is modified or untracked (COPY . . would ship it) ──
 SHA="$(git rev-parse --short=12 HEAD)"
 TAG="$SHA"
-if [ -n "$(git status --porcelain)" ]; then
+# .husky/_ is not ours: git-lfs (re)installs its hooks there (husky owns core.hooksPath) whenever it touches the index,
+# so a fresh worktree shows it as untracked right at this check (2026-11-10, refused three deploys). It is never in
+# the image (.dockerignore), so it does not count as dirty.
+DIRTY="$(git status --porcelain | grep -v '^?? \.husky/_/' || true)"
+if [ -n "$DIRTY" ]; then
   if [ "$ALLOW_DIRTY" != 1 ]; then
     echo "deploy-api: REFUSING to deploy a dirty tree — commit, or pass --allow-dirty:" >&2
     git status --short >&2
