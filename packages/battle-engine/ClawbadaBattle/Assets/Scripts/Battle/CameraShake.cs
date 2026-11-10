@@ -26,6 +26,7 @@ public class CameraShake : MonoBehaviour
     public static void Shake(float amplitude, float seconds)
     {
         if (amplitude <= 0f || seconds <= 0f) return;
+        if (HitFeel.ReduceMotion) { Debug.Log($"[CameraShake] skipped (reduce motion) amp={amplitude:F2}u"); return; }
         var cam = Camera.main;
         if (cam == null) return;
         if (instance == null) instance = cam.GetComponent<CameraShake>() ?? cam.gameObject.AddComponent<CameraShake>();

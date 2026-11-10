@@ -222,7 +222,7 @@ public class BattleHud : MonoBehaviour
 
     private void OnTurnSkipped(LobsterController lob, string reason)
     {
-        SpawnFloatFor(lob, reason == "stun" ? "STUNNED" : reason.ToUpperInvariant(), Skin.textSecondary, 14);
+        SpawnFloatFor(lob, reason == "stun" ? "STUNNED" : reason.ToUpperInvariant(), Skin.textSecondary, HudSkin.HudPx(HudSkin.UpheavalPx));
         Debug.Log($"[BattleHud] float {lob.lobsterId} {reason} skip");
     }
 
@@ -441,13 +441,13 @@ public class BattleHud : MonoBehaviour
         Color c = kind == "self" ? Skin.floatSelf : isCrit ? Skin.floatCrit : Skin.floatNormal;
         string text = "-" + amount + (isCrit ? "!" : "");
         // Upheaval on its 20 px grid (Nzib 2026-11-09): 20 art px, a crit twice that.
-        SpawnFloatFor(target, text, c, HudSkin.HudPx(isCrit ? 2 * HudSkin.UpheavalPx : HudSkin.UpheavalPx));
+        SpawnFloatFor(target, text, c, HudSkin.HudPx(isCrit ? 2 * HudSkin.UpheavalPx : HudSkin.UpheavalPx), isCrit ? 1.8f : 1.4f, true);   // hit feel: pop + blink
         Debug.Log($"[BattleHud] float {target.lobsterId} {text} {kind}");
     }
 
     private void OnHealApplied(LobsterController target, int amount)
     {
-        SpawnFloatFor(target, "+" + amount, Skin.floatHeal, HudSkin.HudPx(HudSkin.UpheavalPx));
+        SpawnFloatFor(target, "+" + amount, Skin.floatHeal, HudSkin.HudPx(HudSkin.UpheavalPx), 1.2f);
         Debug.Log($"[BattleHud] float {target.lobsterId} +{amount} heal");
     }
 
@@ -612,11 +612,11 @@ public class BattleHud : MonoBehaviour
         if (Canvas != null) Canvas.enabled = true;
     }
 
-    public void SpawnFloatFor(LobsterController lob, string text, Color color, int fontSize)
+    public void SpawnFloatFor(LobsterController lob, string text, Color color, int fontSize, float pop = 1f, bool blink = false)
     {
         if (lob == null) return;
         var pos = CanvasPointFor(lob.transform.position + Vector3.up * (Skin.overlayWorldYOffset * 0.7f));
-        DamageFloat.Spawn(floatLayer, Skin, pos, text, color, fontSize);
+        DamageFloat.Spawn(floatLayer, Skin, pos, text, color, fontSize, pop, blink);
     }
 
     private Vector2 CanvasPointFor(Vector3 world)

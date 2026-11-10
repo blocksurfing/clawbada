@@ -139,7 +139,7 @@ public class BattleBridge : MonoBehaviour
     }
 
     // Volumes are 0–100; -1 = not sent (an older page), leave as is.
-    [Serializable] private class AudioPrefsData { public bool music = true; public bool sfx = true; public int musicVol = -1; public int sfxVol = -1; }
+    [Serializable] private class AudioPrefsData { public bool music = true; public bool sfx = true; public int musicVol = -1; public int sfxVol = -1; public bool reduceMotion; }
     [Serializable] private class AudioPrefEvent { public string kind; public bool on; public int value; }
 
     /// <summary>Site-wide audio preferences from React's localStorage — sent after InitBattle and
@@ -150,10 +150,11 @@ public class BattleBridge : MonoBehaviour
     {
         var d = JsonUtility.FromJson<AudioPrefsData>(json) ?? new AudioPrefsData();
         BattleSfx.Enabled = d.sfx;
+        HitFeel.ReduceMotion = d.reduceMotion;   // the OS "reduce motion" setting: no shakes, flashes or recoil
         if (d.sfxVol >= 0) BattleSfx.Volume = d.sfxVol / 100f;
         var hud = FindFirstObjectByType<BattleHud>();
         hud?.Options?.SetAudioState(d.music, d.sfx, d.musicVol, d.sfxVol);
-        Debug.Log($"[BattleBridge] SetAudioPrefs music={d.music} sfx={d.sfx} musicVol={d.musicVol} sfxVol={d.sfxVol}");
+        Debug.Log($"[BattleBridge] SetAudioPrefs music={d.music} sfx={d.sfx} musicVol={d.musicVol} sfxVol={d.sfxVol} reduceMotion={d.reduceMotion}");
     }
 
     /// <summary>Options-menu volume − / + pressed ("musicVol" / "sfxVol", 0–100): same round trip as the toggles.</summary>

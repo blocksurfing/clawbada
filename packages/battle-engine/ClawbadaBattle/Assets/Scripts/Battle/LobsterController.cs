@@ -537,7 +537,20 @@ public class LobsterController : MonoBehaviour
             yield return null;
         }
 
-        onImpact?.Invoke();
+        atContact = true;
+        try { onImpact?.Invoke(); } finally { atContact = false; }
+
+        // Hit stop (hit feel, 2026-11-09): the strike holds on its contact frame for the beat BattleManager queued when the
+        // hit landed — longer on a crit or a kill — then the swing carries on.
+        if (queuedHold > 0f)
+        {
+            float hold = queuedHold;
+            queuedHold = 0f;
+            float speedBefore = animator != null ? animator.speed : 1f;
+            if (animator != null) animator.speed = 0f;
+            yield return new WaitForSeconds(hold);
+            if (animator != null && pose == poseGen && !frozen) animator.speed = speedBefore;
+        }
 
         // Back: ease-in-out — a beat at the apex, then home without a snap.
         t = 0f;
@@ -588,7 +601,57 @@ public class LobsterController : MonoBehaviour
         }
     }
 
-    public IEnumerator PlayHit(float duration, Vector3 attackerWorldPos)
+    // ─── Hit feel (2026-11-09) ───
+
+    private float queuedHold;
+    private bool atContact;
+    /// <summary>The attacker's strike holds this long on its contact frame (the longest hit of the swing wins). Only a
+    /// swing at its contact frame takes it: a projectile or cinematic Special lands while the caster is elsewhere in its
+    /// motion, and a hold left queued would fire on its next swing.</summary>
+    public void QueueHitStop(float seconds) { if (atContact && seconds > queuedHold) queuedHold = seconds; }
+
+    private static Material flashMaterial;
+    private static bool flashLoaded;
+    /// <summary>White flash: every part of the rig drawn pure white for <paramref name="seconds"/> (Resources/Shaders/
+    /// SpriteFlash — a multiplied tint can only darken), then each part's own material back.</summary>
+    public IEnumerator PlayFlash(float seconds)
+    {
+        if (seconds <= 0f || deathPlayed && !alive && CorpseGone) yield break;
+        if (!flashLoaded)
+        {
+            flashLoaded = true;
+            var shader = Resources.Load<Shader>("Shaders/SpriteFlash");
+            if (shader != null && shader.isSupported) { flashMaterial = new Material(shader) { name = "SpriteFlash (runtime)" }; Debug.Log("[HitFeel] flash material ready"); }
+            else Debug.LogWarning("[LobsterController] SpriteFlash shader missing/unsupported — no hit flash");
+        }
+        if (flashMaterial == null) yield break;
+        var renderers = GetComponentsInChildren<SpriteRenderer>(false);
+        var originals = new Material[renderers.Length];
+        for (int i = 0; i < renderers.Length; i++) { originals[i] = renderers[i].sharedMaterial; renderers[i].sharedMaterial = flashMaterial; }
+        yield return new WaitForSeconds(seconds);
+        for (int i = 0; i < renderers.Length; i++) if (renderers[i] != null) renderers[i].sharedMaterial = originals[i];
+    }
+
+    /// <summary>Recoil: nudged <paramref name="px"/> art px straight away from the attacker, then back. Moves by deltas, so
+    /// it composes with nothing else moving the rig and always removes exactly what it added.</summary>
+    public IEnumerator PlayRecoil(Vector3 fromWorld, float px, float outSeconds, float backSeconds)
+    {
+        if (px <= 0f || deathPlayed && CorpseGone) yield break;
+        Vector3 dir = transform.position - fromWorld; dir.z = 0f;
+        dir = dir.sqrMagnitude > 1e-6f ? dir.normalized : (IsFacingLeft ? Vector3.right : Vector3.left);
+        Vector3 full = dir * (px * HitFeel.ArtPx), applied = Vector3.zero;
+        for (float t = 0f; t < outSeconds + backSeconds; t += Time.deltaTime)
+        {
+            float k = t < outSeconds ? 1f - Mathf.Pow(1f - t / outSeconds, 2f) : 1f - Mathf.SmoothStep(0f, 1f, (t - outSeconds) / backSeconds);
+            Vector3 want = full * k;
+            transform.position += want - applied;
+            applied = want;
+            yield return null;
+        }
+        transform.position -= applied;
+    }
+
+    public IEnumerator PlayHit(float duration, Vector3 attackerWorldPos, float hold = 0f)
     {
         // A stunned (frozen) rig still flinches when hit; the freeze re-applies once the read ends.
         if (deathPlayed) yield break;   // a corpse doesn't flinch
@@ -598,6 +661,13 @@ public class LobsterController : MonoBehaviour
         if (animator != null) { animator.speed = 1f; frozen = false; }
         FaceToward(attackerWorldPos);
         PlayState("Hit");
+        // Hit stop: the struck rig holds its first flinch frame as long as the attacker holds the strike.
+        if (hold > 0f && animator != null)
+        {
+            animator.speed = 0f;
+            yield return new WaitForSeconds(hold);
+            if (pose == poseGen && !frozen) animator.speed = 1f;
+        }
         // Evolved's Hit clip is 1.0 s (Elite/Apex 0.33 s): let it finish before returning to Idle.
         yield return new WaitForSeconds(Mathf.Max(duration, ClipLength("Hit")));
         // Something newer owns the rig (its own move or swing, another hit, its death): leave the pose to it.
@@ -846,7 +916,7 @@ public class LobsterController : MonoBehaviour
 
     /// <summary>Death: play Die once, then freeze on its final frame (the Animator is
     /// disabled, so nothing can move the corpse again) and fade to the corpse tint.</summary>
-    public IEnumerator PlayDeath(float duration)
+    public IEnumerator PlayDeath(float duration, float slowSpeed = 1f, float slowSeconds = 0f)
     {
         ClearStatusVfx();
         if (deathPlayed) yield break;
@@ -859,12 +929,27 @@ public class LobsterController : MonoBehaviour
         defending = false;
         bool hasDie = PlayState("Die", 0.05f);
         BattleVfxLibrary.Spawn(vfx?.death, this, null, this);
+        // Killing blow (hit feel): the fall starts in slow motion, then plays out at full speed.
+        if (hasDie && animator != null && slowSpeed > 0f && slowSpeed < 1f && slowSeconds > 0f)
+        {
+            animator.speed = slowSpeed;
+            yield return new WaitForSeconds(slowSeconds);
+            if (animator != null && animator.enabled) animator.speed = 1f;
+            // The rest of the clip at full speed (the slow stretch covered slowSeconds × slowSpeed of it).
+            yield return new WaitForSeconds(Mathf.Max(0f, (hasDie ? DeathSeconds(duration) : duration) - slowSeconds * slowSpeed));
+            FreezeAsCorpse();
+            yield break;
+        }
         yield return new WaitForSeconds(hasDie ? DeathSeconds(duration) : duration);
         FreezeAsCorpse();
     }
 
     /// <summary>How long this rig's death plays: the whole Die clip (Evolved 0.92 s, Elite/Apex 1.25 s — the battle's
     /// 0.9 s used to cut the last third of the fall and freeze mid-air), else the fallback.</summary>
+    /// <summary>How much longer a slow-started death plays than <see cref="DeathSeconds"/>.</summary>
+    public static float SlowDeathExtra(float slowSpeed, float slowSeconds) =>
+        slowSpeed > 0f && slowSpeed < 1f && slowSeconds > 0f ? slowSeconds * (1f - slowSpeed) : 0f;
+
     public float DeathSeconds(float fallback)
     {
         float clip = HasState("Die") ? ClipLength("Die") : 0f;

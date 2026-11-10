@@ -149,6 +149,10 @@ public class BattleManager : MonoBehaviour
     public float secondsPerHexMove = 0.45f;
     public float attackDuration = 0.55f;
     public float hitDuration = 0.45f;
+    [Tooltip("Hit feel (2026-11-09): hit stop, white flash, recoil, crit/kill shake, bigger spark, slow-motion fall on a kill.")]
+    public HitFeel hitFeel = new HitFeel();
+    /// <summary>Lobsters a killing blow struck this turn: their fall starts in slow motion.</summary>
+    private readonly HashSet<string> slowDeaths = new HashSet<string>();
     /// <summary>How long a stunned lobster's skipped turn stays on screen before the stun's end read
     /// (tentacles out, rig unfrozen). Without a beat the skip was instant, and when the victim was next
     /// on the bar the Bind tentacles vanished a moment after they appeared.</summary>
@@ -954,8 +958,11 @@ public class BattleManager : MonoBehaviour
             {
                 if (lobsters.TryGetValue(deadId, out var lob) && lob.alive)
                 {
-                    longest = Mathf.Max(longest, lob.DeathSeconds(deathDuration));
-                    StartCoroutine(lob.PlayDeath(deathDuration));
+                    // A killing blow's fall starts in slow motion (hit feel); the turn waits for the longer fall.
+                    bool slow = slowDeaths.Remove(deadId);
+                    float sp = slow ? hitFeel.killSlowSpeed : 1f, ss = slow ? hitFeel.killSlowSeconds : 0f;
+                    longest = Mathf.Max(longest, lob.DeathSeconds(deathDuration) + LobsterController.SlowDeathExtra(sp, ss));
+                    StartCoroutine(lob.PlayDeath(deathDuration, sp, ss));
                     Died?.Invoke(lob);
                 }
             }
@@ -1080,6 +1087,8 @@ public class BattleManager : MonoBehaviour
     {
         if (applyHeals && (primaryOnly || includePrimary)) ApplyHealEvents(data, actor);
         if (data.damage == null) return;
+        var hf = hitFeel ?? new HitFeel();
+        float strongestHold = 0f, shakePx = 0f, shakeSec = 0f;
         foreach (var d in data.damage)
         {
             if (d == null || !lobsters.TryGetValue(d.targetId ?? "", out var t)) continue;
@@ -1088,10 +1097,29 @@ public class BattleManager : MonoBehaviour
             if (!primaryOnly && primary && !includePrimary) continue;
             t.ApplyDamage(d.amount);
             DamageApplied?.Invoke(t, d.amount, d.kind, d.isCrit);
-            if (spawnImpactFx || !primary) BattleVfxLibrary.Spawn(primary && impactSlot != null ? impactSlot : vfxLibrary?.attackImpact, actor, t, this);
+            // Hit feel: what this hit is worth decides the hold, the flash, the push, the spark and the shake.
+            bool crit = d.isCrit, kill = d.killed;
+            float hold = d.amount > 0 ? hf.HoldFor(crit, kill) : 0f;
+            float spark = crit || kill ? hf.sparkScaleBig : 1f;
+            if (spawnImpactFx || !primary) BattleVfxLibrary.Spawn(primary && impactSlot != null ? impactSlot : vfxLibrary?.attackImpact, actor, t, this, spark);
             Vector3 from = t == actor ? t.transform.position + Vector3.right : actorPos;
-            StartCoroutine(t.PlayHit(hitDuration, from));
+            StartCoroutine(t.PlayHit(hitDuration, from, hold));
+            float flash = 0f, recoil = 0f;
+            if (d.amount > 0 && !HitFeel.ReduceMotion)
+            {
+                flash = kill ? hf.flashKill : hf.flash;
+                recoil = t == actor ? 0f : hf.RecoilFor(crit, kill);
+                StartCoroutine(t.PlayFlash(flash));
+                if (recoil > 0f) StartCoroutine(t.PlayRecoil(from, recoil, hf.recoilOut, hf.recoilBack));
+            }
+            if (kill) { slowDeaths.Add(t.lobsterId); if (hf.shakeKillPx > shakePx) { shakePx = hf.shakeKillPx; shakeSec = hf.shakeKillSeconds; } }
+            else if (crit && hf.shakeCritPx > shakePx) { shakePx = hf.shakeCritPx; shakeSec = hf.shakeCritSeconds; }
+            if (primary) strongestHold = Mathf.Max(strongestHold, hold);
+            Debug.Log($"[HitFeel] hit {t.lobsterId} kind={d.kind} crit={crit} kill={kill} hold={hold:F3} flash={flash:F2} recoil={recoil:F0}px spark={spark:F1}");
         }
+        // The attacker's strike holds as long as its strongest hit (a swing it is still in reads the queued hold).
+        if (actor != null && strongestHold > 0f) actor.QueueHitStop(strongestHold);
+        if (shakePx > 0f) { CameraShake.Shake(shakePx * HitFeel.ArtPx, shakeSec); Debug.Log($"[HitFeel] shake {shakePx:F1}px {shakeSec:F2}s"); }
     }
 
     /// <summary>Play a round's results — animate movements then combat.</summary>

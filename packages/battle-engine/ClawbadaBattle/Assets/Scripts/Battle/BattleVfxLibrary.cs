@@ -266,7 +266,7 @@ public class BattleVfxLibrary : ScriptableObject
     /// slot, prefab, or lobsters simply spawn nothing. The effect is spawned in
     /// world space (not parented, so rig mirroring and corpse tints don't distort
     /// it) and sorted just above its owner so it always reads on top.</summary>
-    public static void Spawn(VfxSlot slot, LobsterController actor, LobsterController target, MonoBehaviour host)
+    public static void Spawn(VfxSlot slot, LobsterController actor, LobsterController target, MonoBehaviour host, float scale = 1f)
     {
         if (slot == null || slot.prefab == null || host == null) return;
 
@@ -288,11 +288,11 @@ public class BattleVfxLibrary : ScriptableObject
 
         if (slot.delay > 0f)
         {
-            host.StartCoroutine(SpawnAfterDelay(slot, owner, pos, host));
+            host.StartCoroutine(SpawnAfterDelay(slot, owner, pos, host, scale));
         }
         else
         {
-            SpawnNow(slot, owner, pos);
+            SpawnNow(slot, owner, pos, scale);
         }
     }
 
@@ -322,10 +322,10 @@ public class BattleVfxLibrary : ScriptableObject
         };
     }
 
-    private static IEnumerator SpawnAfterDelay(VfxSlot slot, LobsterController owner, Vector3 position, MonoBehaviour host)
+    private static IEnumerator SpawnAfterDelay(VfxSlot slot, LobsterController owner, Vector3 position, MonoBehaviour host, float scale = 1f)
     {
         yield return new WaitForSeconds(slot.delay);
-        if (owner != null) SpawnNow(slot, owner, position);
+        if (owner != null) SpawnNow(slot, owner, position, scale);
     }
 
     private static IEnumerator SpawnScreenAfterDelay(VfxSlot slot, Vector3 centre)
@@ -408,7 +408,7 @@ public class BattleVfxLibrary : ScriptableObject
             if (t != fx.transform && t.name.StartsWith(prefix)) t.gameObject.SetActive(false);
     }
 
-    private static void SpawnNow(VfxSlot slot, LobsterController owner, Vector3 position)
+    private static void SpawnNow(VfxSlot slot, LobsterController owner, Vector3 position, float scale = 1f)
     {
         if (!string.IsNullOrEmpty(slot.frontChildPrefix))
         {
@@ -417,6 +417,7 @@ public class BattleVfxLibrary : ScriptableObject
         }
 
         var fx = Instantiate(slot.prefab, position, Quaternion.identity);
+        if (scale > 0f && !Mathf.Approximately(scale, 1f)) fx.transform.localScale *= scale;   // hit feel: a bigger spark on crits and kills
         HideGuideChildren(fx, slot.hideChildrenPrefix);
         ApplySpeed(fx, slot);
 
