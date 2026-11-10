@@ -3,6 +3,7 @@ import { RepairShopAbi, GoldTokenAbi, addresses } from '@clawbada/chain';
 import { REPAIR_RATES, DAMAGE_THRESHOLD, EvolutionTier } from '@clawbada/game-logic';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
+import { parseUint } from '../../lib/parse-uint';
 import { readLobster, readRepairRate, serializeBigInts, WEI } from '../../lib/chain';
 import { buildCalldata, multiStep } from '../../lib/calldata';
 
@@ -65,7 +66,7 @@ repairRoutes.post(
       throw new ApiError('INVALID_INPUT', 'lobsterId required');
     }
 
-    const lobsterId = BigInt(body.lobsterId);
+    const lobsterId = parseUint(body.lobsterId, 'lobsterId');
     const lobster = await readLobster(lobsterId);
 
     if (lobster.owner.toLowerCase() !== address.toLowerCase()) {

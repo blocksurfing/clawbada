@@ -235,12 +235,18 @@ credit, no wallet needed on either side (guest sessions welcome). Lobby rules li
 ## WebSocket tickets, Origin and limits — 2026-10-28
 
 - Clients open `/ws?ticket=…&battleId=…`: `POST /api/auth/ws-ticket` (token or signature headers, body
-  `{battleId?}`) returns a 30 s single-use ticket bound to that battle (`lib/ws-ticket.ts`, in memory). `?token=`
-  still works and logs `ws_token_param_used` — remove it once that line stops appearing.
+  `{battleId?}`) returns a 30 s single-use ticket bound to that battle (`lib/ws-ticket.ts`, in memory). The session
+  token itself is not accepted in the URL (`?token=` was removed 2026-11; agents may still pass signature parameters).
 - Browser upgrades must come from an allowed `Origin` (`lib/ws-origin.ts`; `WS_ALLOWED_ORIGINS` overrides the
   defaults: AUTH_DOMAINS hosts, docs.clawbada.com, this project's Vercel previews). Refusals log `ws_origin_refused`.
 - Bun limits: 4 KB frames, no compression, 60 s idle timeout with pings, 1 MB backpressure then close. 40 frames per
   10 s per socket (then `error rate_limited`), 120 closes it (1008, `ws_flood_closed`).
+- Open sockets are capped per address (8), per client IP (`WS_PER_IP_MAX_CONCURRENT`, 16) and in total
+  (`WS_MAX_SOCKETS`, 600 — the instance serves 1000 requests at once and every socket is one): `lib/socket-budget.ts`.
+  A refused socket is closed 1013 with reason `address-capacity` / `ip-capacity` / `server-capacity`; the last two log
+  `ws_capacity_refused`.
+- Live off-chain battles are capped per client IP (`PRACTICE_MAX_LIVE_PER_IP`, 6) on top of `PRACTICE_MAX_LIVE`:
+  `lib/live-battle-budget.ts`. Past it `POST /practice` and the starting `ready` answer 429.
 - `{type:"forfeit", battleId}` over the socket resigns, like the REST route.
 - Leases: see docs/runbooks/cloud-run.md → Shutdown contract.
 

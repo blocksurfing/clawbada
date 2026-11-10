@@ -10,6 +10,7 @@ import {
 } from '@clawbada/game-logic';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
+import { parseUint } from '../../lib/parse-uint';
 import { readLobster, readEvolutionCost, serializeBigInts } from '../../lib/chain';
 import { buildCalldata, multiStep } from '../../lib/calldata';
 
@@ -67,9 +68,9 @@ evolutionRoutes.post(
       throw new ApiError('INVALID_INPUT', 'lobsterId, fuelId1, and fuelId2 required');
     }
 
-    const lobsterId = BigInt(body.lobsterId);
-    const fuelId1 = BigInt(body.fuelId1);
-    const fuelId2 = BigInt(body.fuelId2);
+    const lobsterId = parseUint(body.lobsterId, 'lobsterId');
+    const fuelId1 = parseUint(body.fuelId1, 'fuelId1');
+    const fuelId2 = parseUint(body.fuelId2, 'fuelId2');
 
     const [lobster, fuel1, fuel2] = await Promise.all([
       readLobster(lobsterId),

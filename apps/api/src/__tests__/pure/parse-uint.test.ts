@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { parseUint } from '../../lib/parse-uint';
+import { parseUint, parseDbId } from '../../lib/parse-uint';
 import { ApiError } from '../../lib/errors';
 
 describe('parseUint', () => {
@@ -27,5 +27,18 @@ describe('parseUint', () => {
     expect(caught).toBeInstanceOf(ApiError);
     expect((caught as ApiError).code).toBe('INVALID_INPUT');
     expect((caught as ApiError).message).toContain('tokenId');
+  });
+});
+
+describe('parseDbId', () => {
+  test('an id that fits a Postgres bigint column', () => {
+    expect(parseDbId('1', 'battleId')).toBe(1n);
+    expect(parseDbId('9223372036854775807', 'battleId')).toBe(9223372036854775807n);
+  });
+
+  test('refuses what cannot be a row: too large for the column, or not a number at all', () => {
+    for (const raw of ['9223372036854775808', '9'.repeat(40), 'abc', '-1']) {
+      expect(() => parseDbId(raw, 'battleId')).toThrow(ApiError);
+    }
   });
 });

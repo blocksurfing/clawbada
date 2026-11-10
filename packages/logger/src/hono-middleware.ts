@@ -11,14 +11,19 @@ const usePretty = env === 'development';
  *  verified against a live request. */
 const LOGGED_HEADERS = ['user-agent', 'content-type', 'content-length', 'origin', 'x-forwarded-for', 'x-auth-domain'] as const;
 
-/** Query strings can carry credentials too (`/ws?token=…`, `signature=`): log the path only. */
-function requestBindings(c: Context): pino.Bindings {
+/** The longest path or header value kept in a log line. A request can carry kilobytes in either, and a line is
+ *  written for every request — the caller must not get to choose how much the log costs. */
+export const MAX_LOGGED_CHARS = 200;
+const clip = (v: string): string => (v.length > MAX_LOGGED_CHARS ? `${v.slice(0, MAX_LOGGED_CHARS)}…` : v);
+
+/** Query strings can carry credentials too (`signature=`, a socket ticket): log the path only. Exported for the test. */
+export function requestBindings(c: Context): pino.Bindings {
   const headers: Record<string, string> = {};
   for (const name of LOGGED_HEADERS) {
     const v = c.req.header(name);
-    if (v) headers[name] = v;
+    if (v) headers[name] = clip(v);
   }
-  return { req: { url: c.req.path, method: c.req.method, headers } };
+  return { req: { url: clip(c.req.path), method: c.req.method, headers } };
 }
 
 export function createHonoLogger(service = 'api'): MiddlewareHandler {

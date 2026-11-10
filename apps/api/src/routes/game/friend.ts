@@ -15,7 +15,9 @@
  */
 import { Hono } from 'hono';
 import { playerAuth } from '../../middleware/auth';
-import { catchErrors, ApiError } from '../../lib/errors';
+import { catchErrors, ApiError, pathParam } from '../../lib/errors';
+import { clientIpOf } from '../../lib/client-ip';
+import { liveBattles, TOO_MANY_BATTLES_MESSAGE } from '../../lib/live-battles';
 import { battleSessions, PracticeConflictError } from '../../lib/battle-session';
 import { friendRooms, FriendRoomError } from '../../lib/friend-rooms';
 
@@ -56,29 +58,43 @@ friendRoutes.post('/rooms', playerAuth, catchErrors(async (c) => {
 
 friendRoutes.post('/rooms/:id/join', playerAuth, catchErrors(async (c) => {
   const b = await body(c, ['secret']);
-  try { return c.json(await friendRooms.join(c.req.param('id'), b.secret, caller(c as never))); } catch (err) { mapError(err); }
+  try { return c.json(await friendRooms.join(pathParam(c, 'id'), b.secret, caller(c as never))); } catch (err) { mapError(err); }
 }));
 
 friendRoutes.post('/rooms/:id/team', playerAuth, catchErrors(async (c) => {
   const b = await body(c, ['team']);
-  try { return c.json(await friendRooms.setTeam(c.req.param('id'), caller(c as never), b.team)); } catch (err) { mapError(err); }
+  try { return c.json(await friendRooms.setTeam(pathParam(c, 'id'), caller(c as never), b.team)); } catch (err) { mapError(err); }
 }));
 
 friendRoutes.post('/rooms/:id/ready', playerAuth, catchErrors(async (c) => {
   if (battleSessions.livePracticeCount() >= maxLive()) throw new ApiError('RATE_LIMITED', 'The Dojo is full right now — try again in a minute');
-  try { return c.json(await friendRooms.ready(c.req.param('id'), caller(c as never))); } catch (err) { mapError(err); }
+  // The second `ready` starts the battle, and a battle counts against the IP that started it (lib/live-battle-budget.ts).
+  const ip = clientIpOf(c);
+  if (!liveBattles.tryStart(ip)) throw new ApiError('RATE_LIMITED', TOO_MANY_BATTLES_MESSAGE);
+  let startedId: string | null = null;
+  try {
+    const view = await friendRooms.ready(pathParam(c, 'id'), caller(c as never));
+    // Only if this request is the one that started it: the first `ready` starts nothing, and a repeat finds it counted.
+    if (view.status === 'in_battle' && view.battleId && !liveBattles.has(view.battleId)) startedId = view.battleId;
+    return c.json(view);
+  } catch (err) {
+    mapError(err);
+  } finally {
+    if (startedId) liveBattles.started(ip, startedId);
+    else liveBattles.abandoned(ip);
+  }
 }));
 
 friendRoutes.post('/rooms/:id/cancel', playerAuth, catchErrors(async (c) => {
-  try { return c.json(await friendRooms.cancel(c.req.param('id'), caller(c as never))); } catch (err) { mapError(err); }
+  try { return c.json(await friendRooms.cancel(pathParam(c, 'id'), caller(c as never))); } catch (err) { mapError(err); }
 }));
 
 // Play again with the same friend (2026-10-29): after the battle, either player; both asks land in one new room.
 friendRoutes.post('/rooms/:id/rematch', playerAuth, catchErrors(async (c) => {
   await body(c, []);
-  try { return c.json(await friendRooms.rematch(c.req.param('id'), caller(c as never))); } catch (err) { mapError(err); }
+  try { return c.json(await friendRooms.rematch(pathParam(c, 'id'), caller(c as never))); } catch (err) { mapError(err); }
 }));
 
 friendRoutes.get('/rooms/:id', playerAuth, catchErrors(async (c) => {
-  try { return c.json(await friendRooms.view(c.req.param('id'), caller(c as never))); } catch (err) { mapError(err); }
+  try { return c.json(await friendRooms.view(pathParam(c, 'id'), caller(c as never))); } catch (err) { mapError(err); }
 }));

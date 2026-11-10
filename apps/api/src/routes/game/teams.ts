@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { TeamManagerAbi, addresses } from '@clawbada/chain';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
+import { parseUint } from '../../lib/parse-uint';
 import { readTeam, readTeamsByOwner, readLobster, serializeBigInts } from '../../lib/chain';
 import { buildCalldata, singleStep } from '../../lib/calldata';
 
@@ -56,11 +57,11 @@ teamRoutes.post(
     const address = c.get('address') as string;
     const body = await c.req.json<{ lobsterIds: [string, string, string] }>();
 
-    if (!body.lobsterIds || body.lobsterIds.length !== 3) {
+    if (!Array.isArray(body.lobsterIds) || body.lobsterIds.length !== 3) {
       throw new ApiError('INVALID_INPUT', 'Must provide exactly 3 lobsterIds');
     }
 
-    const ids = body.lobsterIds.map(BigInt) as [bigint, bigint, bigint];
+    const ids = body.lobsterIds.map((id) => parseUint(id, 'lobsterIds')) as [bigint, bigint, bigint];
 
     // Validate ownership and lock status
     const lobsters = await Promise.all(ids.map((id) => readLobster(id)));

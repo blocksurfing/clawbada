@@ -4,6 +4,7 @@ import { MarketplaceAbi, GoldTokenAbi, LobsterNFTAbi, addresses } from '@clawbad
 import { db, listings, priceHistory, lobsters } from '@clawbada/db';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
+import { parseUint } from '../../lib/parse-uint';
 import { readListing, readLobster, serializeBigInts } from '../../lib/chain';
 import { buildCalldata, singleStep, multiStep } from '../../lib/calldata';
 
@@ -128,8 +129,8 @@ marketRoutes.post(
       throw new ApiError('INVALID_INPUT', 'lobsterId and price required');
     }
 
-    const lobsterId = BigInt(body.lobsterId);
-    const price = BigInt(body.price);
+    const lobsterId = parseUint(body.lobsterId, 'lobsterId');
+    const price = parseUint(body.price, 'price');
 
     if (price <= 0n) {
       throw new ApiError('INVALID_INPUT', 'Price must be > 0');
@@ -254,7 +255,7 @@ marketRoutes.patch(
       throw new ApiError('INVALID_INPUT', 'Listing is not active');
     }
 
-    const newPrice = BigInt(body.price);
+    const newPrice = parseUint(body.price, 'price');
     if (newPrice <= 0n) {
       throw new ApiError('INVALID_INPUT', 'Price must be > 0');
     }

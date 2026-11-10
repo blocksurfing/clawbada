@@ -11,7 +11,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { db, breeds, lobsters } from '@clawbada/db';
 import { walletAuth } from '../../middleware/auth';
-import { catchErrors, ApiError } from '../../lib/errors';
+import { catchErrors, ApiError, pathParam } from '../../lib/errors';
 import { readLobster, readCooldownEnd, readBreedCost, serializeBigInts } from '../../lib/chain';
 import { buildCalldata, multiStep } from '../../lib/calldata';
 import { parseUint } from '../../lib/parse-uint';
@@ -68,9 +68,8 @@ async function lineageNode(tokenId: bigint, depth: number): Promise<LineageNode 
 breedingRoutes.get(
   '/lineage/:tokenId',
   catchErrors(async (c) => {
-    const raw = c.req.param('tokenId');
-    if (!/^\d+$/.test(raw)) throw new ApiError('INVALID_INPUT', 'tokenId must be a number');
-    const node = await lineageNode(BigInt(raw), 2);
+    const raw = pathParam(c, 'tokenId');
+    const node = await lineageNode(parseUint(raw, 'tokenId'), 2);
     if (!node) throw new ApiError('NOT_FOUND', `Lobster #${raw} is not indexed`);
     return c.json(serializeBigInts(node));
   }),
@@ -135,7 +134,7 @@ breedingRoutes.get(
   '/cooldowns/:lobsterId',
   catchErrors(async (c) => {
     const { lobsterId } = c.req.param();
-    const cooldownEnd = await readCooldownEnd(BigInt(lobsterId));
+    const cooldownEnd = await readCooldownEnd(parseUint(lobsterId, 'lobsterId'));
     const now = BigInt(Math.floor(Date.now() / 1000));
     const remaining = cooldownEnd > now ? Number(cooldownEnd - now) : 0;
 
@@ -160,8 +159,8 @@ breedingRoutes.post(
       throw new ApiError('INVALID_INPUT', 'parentA and parentB required');
     }
 
-    const parentAId = BigInt(body.parentA);
-    const parentBId = BigInt(body.parentB);
+    const parentAId = parseUint(body.parentA, 'parentA');
+    const parentBId = parseUint(body.parentB, 'parentB');
 
     if (parentAId === parentBId) {
       throw new ApiError('INVALID_INPUT', 'Cannot breed a lobster with itself');
@@ -249,7 +248,7 @@ breedingRoutes.post(
 breedingRoutes.post(
   '/finalize/:requestId',
   catchErrors(async (c) => {
-    const raw = c.req.param('requestId');
+    const raw = pathParam(c, 'requestId');
     if (!/^[1-9]\d{0,30}$/.test(raw)) throw new ApiError('INVALID_INPUT', 'requestId must be a positive integer');
     const calldata = buildCalldata(addresses.breedingLab, BreedingLabAbi as any, 'finalizeBreed', [BigInt(raw)]);
     return c.json({

@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { renderLobsterPng, renderIdleSpriteSheetPng, hasArt, VALID_SIZES } from '@clawbada/asset-gen';
 import { readLobster } from '../../lib/chain';
-import { ApiError, catchErrors } from '../../lib/errors';
+import { ApiError, catchErrors, pathParam } from '../../lib/errors';
+import { parseUint } from '../../lib/parse-uint';
 
 export const renderRoutes = new Hono();
 
@@ -68,7 +69,7 @@ function parseDna(raw: string): bigint {
 renderRoutes.get(
   '/sprite/dna/:dna',
   catchErrors(async (c) => {
-    const dna = parseDna(c.req.param('dna'));
+    const dna = parseDna(pathParam(c, 'dna'));
     const size = parseSpriteSize(c.req.query('size'));
     const tier = parseTier(c.req.query('tier'));
     const frames = parseFrames(c.req.query('frames'));
@@ -90,7 +91,7 @@ renderRoutes.get(
 renderRoutes.get(
   '/sprite/:tokenId',
   catchErrors(async (c) => {
-    const tokenId = BigInt(c.req.param('tokenId'));
+    const tokenId = parseUint(pathParam(c, 'tokenId'), 'tokenId');
     const size = parseSpriteSize(c.req.query('size'));
     const frames = parseFrames(c.req.query('frames'));
 
@@ -115,7 +116,7 @@ renderRoutes.get(
 renderRoutes.get(
   '/dna/:dna',
   catchErrors(async (c) => {
-    const dna = parseDna(c.req.param('dna'));
+    const dna = parseDna(pathParam(c, 'dna'));
     const size = parseSize(c.req.query('size'));
     const tier = parseTier(c.req.query('tier'));
 
@@ -136,7 +137,7 @@ renderRoutes.get(
 renderRoutes.get(
   '/:tokenId',
   catchErrors(async (c) => {
-    const tokenId = BigInt(c.req.param('tokenId'));
+    const tokenId = parseUint(pathParam(c, 'tokenId'), 'tokenId');
     const size = parseSize(c.req.query('size'));
 
     const lobster = await readLobster(tokenId);

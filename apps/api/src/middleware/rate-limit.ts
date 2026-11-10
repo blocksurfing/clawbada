@@ -8,8 +8,8 @@ const log = baseLog.child({ module: 'rate-limit' });
 // ─── Backend interface ───
 
 interface RateLimitBackend {
-  /** Returns the request count after incrementing. */
-  hit(key: string, windowMs: number): Promise<number>;
+  /** Counts this request and returns the caller's total for the window; anything above `max` is over the limit. */
+  hit(key: string, windowMs: number, max: number): Promise<number>;
 }
 
 // ─── In-memory backend (single instance / local dev) ───
@@ -32,10 +32,17 @@ class MemoryBackend implements RateLimitBackend {
     }, 5 * 60 * 1000);
   }
 
-  async hit(key: string, windowMs: number): Promise<number> {
+  async hit(key: string, windowMs: number, max: number): Promise<number> {
     const now = Date.now();
     const timestamps = this.windows.get(key) ?? [];
     const recent = timestamps.filter((t) => t > now - windowMs);
+    // Past the limit nothing more is recorded. The list is filtered on every request, so one that grew with a
+    // flood would make each refused request cost more than the last — and a refused request must not push the
+    // caller's wait further out either. `max + 2` = "over, and already reported" (the caller logs at max + 1).
+    if (recent.length > max) {
+      this.windows.set(key, recent);
+      return max + 2;
+    }
     recent.push(now);
     this.windows.set(key, recent);
     return recent.length;
@@ -51,7 +58,7 @@ class RedisBackend implements RateLimitBackend {
     this.redis = redis;
   }
 
-  async hit(key: string, windowMs: number): Promise<number> {
+  async hit(key: string, windowMs: number, _max: number): Promise<number> {
     const redisKey = `rl:${key}`;
     const ttlSeconds = Math.ceil(windowMs / 1000);
 
@@ -120,7 +127,7 @@ export const rateLimit = (maxRequests = 100, windowMs = 60_000, scope = ''): Mid
     const key = `${scope ? `${scope}:` : ''}${maxRequests}/${windowMs}:${address ?? ip}`;
 
     const b = await getBackend();
-    const count = await b.hit(key, windowMs);
+    const count = await b.hit(key, windowMs, maxRequests);
 
     if (count > maxRequests) {
       // One line per caller per burst (the first refusal), never one per refused request: a flood must not flood the

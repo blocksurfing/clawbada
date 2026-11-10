@@ -45,6 +45,16 @@ export class ApiError extends Error {
 
 type HandlerFn = (c: Context) => Promise<Response>;
 
+/**
+ * A path parameter the route pattern guarantees. A handler wrapped in `catchErrors` sees a plain Context, where
+ * Hono types `c.req.param(name)` as possibly undefined — read it through here instead of asserting at each call.
+ */
+export function pathParam(c: Context, name: string): string {
+  const value = c.req.param(name);
+  if (value === undefined) throw new ApiError('INVALID_INPUT', `Missing path parameter: ${name}`);
+  return value;
+}
+
 export function catchErrors(handler: HandlerFn): HandlerFn {
   return async (c: Context) => {
     try {

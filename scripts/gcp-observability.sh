@@ -8,8 +8,9 @@
 #   clawbada_friend_battles_started   friend_battle_started        (label: rematch true|false)
 #   clawbada_friend_rematches         friend_rematch_offered
 #   clawbada_battles_finished         battle_session_finished      (label: kind real|practice|friend)
-#   clawbada_ws_refused               ws_origin_refused | ws_flood_closed | ws_closed_auth_expired   (label: reason)
+#   clawbada_ws_refused               ws_origin_refused | ws_flood_closed | ws_closed_auth_expired | ws_capacity_refused   (label: reason)
 #   clawbada_rate_limited             rate_limited                 (label: scope)
+#   clawbada_process_guard            unhandled_rejection | uncaught_exception   (label: kind) — each one is a bug to fix
 #
 #   scripts/gcp-observability.sh            dry run: prints the configs it would apply
 #   scripts/gcp-observability.sh --apply    create or update every metric (idempotent)
@@ -56,6 +57,8 @@ metric clawbada_friend_battles_started "Friend battles started"                 
 metric clawbada_friend_rematches       "Rematches asked for"                      'jsonPayload.msg="friend_rematch_offered"'
 metric clawbada_battles_finished       "Battles finished, by kind"                'jsonPayload.msg="battle_session_finished"' kind jsonPayload.kind
 metric clawbada_ws_refused             "WebSocket upgrades refused or closed by a guard" \
-  'jsonPayload.msg="ws_origin_refused" OR jsonPayload.msg="ws_flood_closed" OR jsonPayload.msg="ws_closed_auth_expired"' reason jsonPayload.msg
+  'jsonPayload.msg="ws_origin_refused" OR jsonPayload.msg="ws_flood_closed" OR jsonPayload.msg="ws_closed_auth_expired" OR jsonPayload.msg="ws_capacity_refused"' reason jsonPayload.msg
 metric clawbada_rate_limited           "Callers who hit an API rate limit (one per burst)" 'jsonPayload.msg="rate_limited"' scope jsonPayload.scope
+metric clawbada_process_guard          "Errors the process guards caught instead of the server exiting (each is a bug)" \
+  'jsonPayload.msg="unhandled_rejection" OR jsonPayload.msg="uncaught_exception"' kind jsonPayload.msg
 echo "gcp-observability: done ($MODE)"

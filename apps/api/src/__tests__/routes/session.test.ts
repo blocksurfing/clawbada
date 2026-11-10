@@ -84,6 +84,65 @@ beforeEach(() => {
   resetSessionSecret();
 });
 
+describe('POST /practice — one IP\'s share of live battles', () => {
+  // The caller's IP, both ways it can be resolved: the connection peer (the real resolver) and X-Forwarded-For (the
+  // stub rate-limit.test.ts installs for the whole run — bun shares module mocks across files).
+  const at = (ip: string) => ({ server: { requestIP: () => ({ address: ip }) } });
+  const guest = (k: number) => guestHeaders(`0x00000000000000000000000000000000000000${(0xc0 + k).toString(16)}`);
+  const start = (k: number, ip: string) =>
+    app.request('/api/game/combat/practice', { method: 'POST', headers: { ...guest(k), 'content-type': 'application/json', 'x-forwarded-for': ip }, body: JSON.stringify({ preset: 'specials' }) }, at(ip));
+
+  test('an IP runs PRACTICE_MAX_LIVE_PER_IP battles at once; the next is refused until one ends; another IP is unaffected', async () => {
+    process.env.PRACTICE_MAX_LIVE_PER_IP = '2';
+    try {
+      const live = new Set<string>();
+      mockGet.mockImplementation((id: string) => (live.has(id) ? fakeSession(id) : undefined));
+      let n = 0;
+      mockStartPractice.mockImplementation(async () => { const id = `p_00000000-0000-4000-8000-00000000000${n++}`; live.add(id); return fakeSession(id); });
+
+      expect((await start(1, '203.0.113.5')).status).toBe(201);
+      expect((await start(2, '203.0.113.5')).status).toBe(201);
+      const refused = await start(3, '203.0.113.5');
+      expect(refused.status).toBe(429);
+      expect((await refused.json() as { message: string }).message).toContain('Too many battles');
+      expect(mockStartPractice).toHaveBeenCalledTimes(2);                 // refused before any battle is built
+      expect((await start(4, '203.0.113.6')).status).toBe(201);
+
+      live.delete('p_00000000-0000-4000-8000-000000000000');              // one of the first IP's battles ends
+      expect((await start(3, '203.0.113.5')).status).toBe(201);
+    } finally {
+      delete process.env.PRACTICE_MAX_LIVE_PER_IP;
+    }
+  });
+
+  test('a start that fails gives the slot back', async () => {
+    process.env.PRACTICE_MAX_LIVE_PER_IP = '1';
+    try {
+      mockGet.mockImplementation(() => undefined);
+      mockStartPractice.mockImplementationOnce(async () => { throw new PracticeConflictError('p_existing'); });
+      expect((await start(5, '203.0.113.9')).status).toBe(409);
+      mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+      expect((await start(5, '203.0.113.9')).status).toBe(201);
+    } finally {
+      delete process.env.PRACTICE_MAX_LIVE_PER_IP;
+    }
+  });
+
+  test('a caller whose IP cannot be resolved is not held to the share', async () => {
+    process.env.PRACTICE_MAX_LIVE_PER_IP = '1';
+    try {
+      mockGet.mockImplementation((id: string) => fakeSession(id));
+      mockStartPractice.mockResolvedValue(fakeSession(P_ID));
+      for (let k = 6; k < 9; k++) {
+        const res = await app.request('/api/game/combat/practice', { method: 'POST', headers: { ...guest(k), 'content-type': 'application/json' }, body: JSON.stringify({ preset: 'specials' }) });
+        expect(res.status).toBe(201);
+      }
+    } finally {
+      delete process.env.PRACTICE_MAX_LIVE_PER_IP;
+    }
+  });
+});
+
 describe('POST /practice', () => {
   test('random_<tier> preset → 201 with three distinct classes at that tier, random purity', async () => {
     const { rollRandomRoster } = await import('../../lib/battle-session/random-roster');

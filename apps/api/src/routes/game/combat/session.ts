@@ -17,6 +17,9 @@ import { v3, EvolutionTier, LobsterClass } from '@clawbada/game-logic';
 import { rollRandomRoster, rollTrioRoster, rollSpecialsRoster, rollTeamRoster, RANDOM_PRESET_RE, TRIO_PRESET_RE, SPECIALS_PRESET_RE, TEAM_PRESET_RE } from '../../../lib/battle-session/random-roster';
 import { playerAuth, resolveCaller, assertGuestScope } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
+import { parseUint } from '../../../lib/parse-uint';
+import { clientIpOf } from '../../../lib/client-ip';
+import { liveBattles, TOO_MANY_BATTLES_MESSAGE } from '../../../lib/live-battles';
 import { evidenceBundle } from '../../../lib/battle-session/evidence';
 import { readLobster, readTeam, serializeBigInts } from '../../../lib/chain';
 import {
@@ -101,6 +104,9 @@ sessionRoutes.post(
     if (battleSessions.livePracticeCount() >= practiceMaxLive()) {
       throw new ApiError('RATE_LIMITED', 'The Dojo is full right now — try again in a minute');
     }
+    // One IP's share of the Dojo (lib/live-battle-budget.ts): refused here, before any other work.
+    const ip = clientIpOf(c);
+    if (liveBattles.atLimit(ip)) throw new ApiError('RATE_LIMITED', TOO_MANY_BATTLES_MESSAGE);
     const address = (c.get('address') as string).toLowerCase();
     const guest = c.get('guest') === true;
     const body = await c.req.json<{ teamId?: string; lobsterIds?: string[]; bot?: string; opponent?: string; layoutId?: string; preset?: string; arena?: string; purity?: number }>().catch(() => ({} as Record<string, never>));
@@ -147,13 +153,11 @@ sessionRoutes.post(
       }
       let tokenIds: bigint[];
       if (body.teamId) {
-        if (!/^\d+$/.test(body.teamId)) throw new ApiError('INVALID_INPUT', 'teamId must be a decimal id');
-        const team = await readTeam(BigInt(body.teamId));
+        const team = await readTeam(parseUint(body.teamId, 'teamId'));
         if (team.owner.toLowerCase() !== address) throw new ApiError('UNAUTHORIZED', 'You do not own that team');
         tokenIds = [...team.lobsterIds];
       } else if (Array.isArray(body.lobsterIds) && body.lobsterIds.length === 3) {
-        if (!body.lobsterIds.every((x) => typeof x === 'string' && /^\d+$/.test(x))) throw new ApiError('INVALID_INPUT', 'lobsterIds must be decimal ids');
-        tokenIds = body.lobsterIds.map((x) => BigInt(x));
+        tokenIds = body.lobsterIds.map((x) => parseUint(x, 'lobsterIds'));
         if (new Set(tokenIds.map(String)).size !== 3) throw new ApiError('INVALID_INPUT', 'lobsterIds must be distinct');
       } else {
         throw new ApiError('INVALID_INPUT', 'Provide teamId, three lobsterIds, or a preset');
@@ -167,13 +171,20 @@ sessionRoutes.post(
       }));
     }
 
+    // Hold this IP's slot across the start, so a burst of starts cannot all slip under the cap.
+    if (!liveBattles.tryStart(ip)) throw new ApiError('RATE_LIMITED', TOO_MANY_BATTLES_MESSAGE);
+    let startedId: string | null = null;
     try {
       const session = await battleSessions.startPractice({ owner: address, lobsters, bot, opponent, layoutId: body.layoutId, arena, purity });
+      startedId = session.record.id;
       return c.json({ battleId: session.record.id, snapshot: session.snapshot() }, 201);
     } catch (err) {
       if (err instanceof PracticeConflictError) throw new ApiError('BATTLE_PHASE_ERROR', `You already have an active practice battle: ${err.existingId}`);
       if (err instanceof Error && /unknown layout/.test(err.message)) throw new ApiError('INVALID_INPUT', err.message);
       throw err;
+    } finally {
+      if (startedId) liveBattles.started(ip, startedId);
+      else liveBattles.abandoned(ip);
     }
   }),
 );

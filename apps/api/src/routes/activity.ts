@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { desc, lt, inArray, sql } from 'drizzle-orm';
 import { db, onChainEvents } from '@clawbada/db';
 import { catchErrors } from '../lib/errors';
+import { parseDbId } from '../lib/parse-uint';
 import { serializeBigInts } from '../lib/chain';
 
 export const activityRoutes = new Hono();
@@ -56,7 +57,7 @@ activityRoutes.get(
 
     // Cursor pagination (older events)
     if (cursor) {
-      conditions.push(lt(onChainEvents.id, BigInt(cursor)));
+      conditions.push(lt(onChainEvents.id, parseDbId(cursor, 'cursor')));
     }
 
     // Type filter — map friendly name back to event name

@@ -48,3 +48,9 @@ export function getClientIp(
   const peer = server?.requestIP?.(req);
   return peer?.address || 'unknown';
 }
+
+/** The same resolution for a Hono route handler: index.ts threads Bun's `server` through the app's env. */
+export function clientIpOf(c: { req: { raw: Request }; env?: unknown }): string {
+  const server = (c.env as { server?: BunServerLike } | undefined)?.server;
+  return getClientIp(c.req.raw, server);
+}

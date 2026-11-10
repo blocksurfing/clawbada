@@ -19,7 +19,9 @@ const livePracticeCount = mock(() => 0);
 // Keep the real exports other route test files rely on (bun shares module mocks across files in one run).
 import { isPracticeId, isOffChainId, CHAIN_ID_RE } from '../../lib/battle-session/protocol';
 import { PracticeConflictError } from '../../lib/battle-session/manager';
-mock.module('../../lib/battle-session', () => ({ isPracticeId, isOffChainId, CHAIN_ID_RE, PracticeConflictError, battleSessions: { livePracticeCount } }));
+/** Which battles are still being played, as the per-IP share of live battles asks (lib/live-battles.ts). */
+const liveGet = mock((_id: string): unknown => undefined);
+mock.module('../../lib/battle-session', () => ({ isPracticeId, isOffChainId, CHAIN_ID_RE, PracticeConflictError, battleSessions: { livePracticeCount, get: liveGet } }));
 
 import { friendRoutes } from '../../routes/game/friend';
 import { createTestApp, authHeaders, TEST_ADDRESS } from '../helpers/route-test-utils';
@@ -87,6 +89,49 @@ describe('friend routes', () => {
     const created = await (await app.request('/api/game/friend/rooms', json(guestHeaders()))).json() as { roomId: string; secret: string };
     expect((await app.request(`/api/game/friend/rooms/${created.roomId}/join`, json(authHeaders(), { secret: 'B'.repeat(22) }))).status).toBe(404);
     expect((await app.request(`/api/game/friend/rooms/${created.roomId}/join`, json(guestHeaders(), { secret: created.secret }))).status).toBe(409);
+  });
+
+  test('a battle counts against the IP whose `ready` started it: at its share that IP starts no other, a different IP does', async () => {
+    process.env.PRACTICE_MAX_LIVE_PER_IP = '1';
+    try {
+      const live = new Set<string>();
+      liveGet.mockImplementation((id: string) => (live.has(id) ? {} : undefined));
+      let n = 0;
+      startBattle.mockImplementation(async () => { const id = `f_00000000-0000-4000-8000-0000000000${10 + n++}`; live.add(id); return id; });
+      // The caller's IP, both ways it can be resolved: the connection peer (the real resolver) and X-Forwarded-For
+      // (the stub rate-limit.test.ts installs for the whole run — bun shares module mocks across files).
+      const at = (ip: string) => ({ server: { requestIP: () => ({ address: ip }) } });
+      const who = (k: number) => guestHeaders(`0x00000000000000000000000000000000000000${(0xb0 + k).toString(16)}`);
+      const team = { classes: ['kraken', 'ember', 'abyss'], tier: 'elite', purity: 3 };
+      /** A lobby with both teams locked in, nobody ready yet. */
+      const lobby = async (host: number, friend: number): Promise<string> => {
+        const created = await (await app.request('/api/game/friend/rooms', json(who(host)))).json() as { roomId: string; secret: string };
+        await app.request(`/api/game/friend/rooms/${created.roomId}/join`, json(who(friend), { secret: created.secret }));
+        await app.request(`/api/game/friend/rooms/${created.roomId}/team`, json(who(host), { team }));
+        await app.request(`/api/game/friend/rooms/${created.roomId}/team`, json(who(friend), { team }));
+        return created.roomId;
+      };
+      const ready = (room: string, player: number, ip: string) => app.request(`/api/game/friend/rooms/${room}/ready`, json({ ...who(player), 'x-forwarded-for': ip }), at(ip));
+
+      const first = await lobby(1, 2);
+      expect((await ready(first, 1, '198.51.100.1')).status).toBe(200);          // starts nothing: the slot is given back
+      const started = await (await ready(first, 2, '198.51.100.1')).json() as { status: string };
+      expect(started.status).toBe('in_battle');
+
+      const second = await lobby(3, 4);
+      const refused = await ready(second, 3, '198.51.100.1');                    // that IP is at its share (1)
+      expect(refused.status).toBe(429);
+      expect((await refused.json() as { message: string }).message).toContain('Too many battles');
+      expect((await ready(second, 3, '198.51.100.2')).status).toBe(200);         // another IP is not
+      expect((await (await ready(second, 4, '198.51.100.2')).json() as { status: string }).status).toBe('in_battle');
+
+      live.clear();                                                               // both battles end
+      const third = await lobby(5, 6);
+      expect((await ready(third, 5, '198.51.100.1')).status).toBe(200);
+    } finally {
+      delete process.env.PRACTICE_MAX_LIVE_PER_IP;
+      startBattle.mockImplementation(async () => 'f_00000000-0000-4000-8000-000000000001');
+    }
   });
 
   test('ready answers 429 when the Dojo is full', async () => {

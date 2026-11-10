@@ -12,6 +12,7 @@ import { db, battles, battleSessions } from '@clawbada/db';
 import { judgeProposal, isRogueVerdict, type ProposalVerdict } from '@clawbada/db/src/queries/proposal-verdict';
 import { BattlePhase } from '@clawbada/game-logic';
 import { catchErrors, ApiError } from '../../../lib/errors';
+import { parseDbId } from '../../../lib/parse-uint';
 import { readBattle, serializeBigInts } from '../../../lib/chain';
 import { walletAuth } from '../../../middleware/auth';
 
@@ -148,12 +149,12 @@ battleReadRoutes.get(
     const dbResult = await db
       .select()
       .from(battles)
-      .where(eq(battles.battleId, BigInt(battleId)))
+      .where(eq(battles.battleId, parseDbId(battleId, 'battleId')))
       .limit(1);
 
     const dbRow = dbResult[0];
     const skipChainRead = dbRow && (dbRow.status === 0 || dbRow.status === 4);
-    const chainBattle = skipChainRead ? null : await readBattle(BigInt(battleId));
+    const chainBattle = skipChainRead ? null : await readBattle(parseDbId(battleId, 'battleId'));
 
     // D-06: only worth a session read while a result is in review or frozen.
     const session =
@@ -190,7 +191,7 @@ battleReadRoutes.get(
         queuedTeamB: battles.queuedTeamB,
       })
       .from(battles)
-      .where(eq(battles.battleId, BigInt(battleId)))
+      .where(eq(battles.battleId, parseDbId(battleId, 'battleId')))
       .limit(1);
 
     if (row.length === 0) throw new ApiError('NOT_FOUND', `Battle #${battleId} not found`);

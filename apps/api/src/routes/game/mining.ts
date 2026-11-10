@@ -3,6 +3,7 @@ import { MiningPoolAbi, addresses } from '@clawbada/chain';
 import { TIER_WEIGHTS, EXPEDITION_DURATION_SECONDS, SEASON_DURATION_DAYS, EvolutionTier } from '@clawbada/game-logic';
 import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
+import { parseUint } from '../../lib/parse-uint';
 import {
   readTeamsByOwner,
   readTeam,
@@ -195,7 +196,7 @@ miningRoutes.post(
       throw new ApiError('INVALID_INPUT', 'teamId and mineTier required');
     }
 
-    const teamId = BigInt(body.teamId);
+    const teamId = parseUint(body.teamId, 'teamId');
     const mineTier = body.mineTier;
 
     if (mineTier < 0 || mineTier > 3) {

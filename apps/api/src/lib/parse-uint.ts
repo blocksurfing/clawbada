@@ -15,3 +15,14 @@ export function parseUint(raw: unknown, name: string): bigint {
   if (typeof raw === 'string' && UINT_RE.test(raw)) return BigInt(raw);
   throw new ApiError('INVALID_INPUT', `${name} must be a non-negative whole number`);
 }
+
+/** The largest value a Postgres `bigint` column holds. */
+const INT64_MAX = 9_223_372_036_854_775_807n;
+
+/** An id that is looked up in a Postgres `bigint` column: `parseUint`, and small enough for the column — a larger
+ *  number cannot be a row, and would otherwise reach the database as an out-of-range error. */
+export function parseDbId(raw: unknown, name: string): bigint {
+  const id = parseUint(raw, name);
+  if (id > INT64_MAX) throw new ApiError('INVALID_INPUT', `${name} is out of range`);
+  return id;
+}

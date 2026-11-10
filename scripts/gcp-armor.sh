@@ -1,15 +1,19 @@
 #!/bin/zsh
 # Cloud Armor in front of the API (Battle Friends PR 4, owner 2026-10-29: "yes", ~$9–10/month at today's traffic).
 #
-# One security policy on the load balancer's backend (clawbada-api-bs), four per-IP rules — all GENEROUS next to the
-# app's own limits (apps/api/src/index.ts), so a real player never meets them; they stop floods at Google's edge before
+# One security policy on the load balancer's backend (clawbada-api-bs), five per-IP rules — all GENEROUS next to the
+# app's own limits (apps/api/src/app.ts), so a real player never meets them; they stop floods at Google's edge before
 # a single request reaches the one Cloud Run instance:
 #
 #   1000  /api/auth/guest                              over 60/min → 429; over 120/min → banned 10 min
 #   1100  /api/game/friend/rooms* + /combat/practice   over 300/min → 429
 #   1200  /ws  (socket upgrades)                       over 120/min → 429
 #   1300  any /api/*                                   over 1,200/min → 429; over 3,000/min → banned 10 min
+#   1400  everything else                              over 1,200/min → 429; over 3,000/min → banned 10 min
 #   (default rule: allow)
+#
+# 1400 is the catch-all (2026-11): rules match the path exactly as the client spelled it, so a path outside /api/
+# (/health, a 404) or a percent-encoded spelling of one above (/%61pi/…) matched nothing and was unlimited here.
 #
 #   scripts/gcp-armor.sh              dry run: prints what it would do (and the current state) — changes nothing
 #   scripts/gcp-armor.sh --preview    create/update the policy with every rule in PREVIEW (logged, never enforced)
@@ -66,6 +70,10 @@ rule 1100 "friend rooms + practice starts: 300/min" \
 rule 1200 "socket upgrades: 120/min" "request.path == '/ws'" \
   --action=throttle --rate-limit-threshold-count=120 --rate-limit-threshold-interval-sec=60
 rule 1300 "all API: 1200/min, ban 10 min over 3000/min" "request.path.startsWith('/api/')" \
+  --action=rate-based-ban --rate-limit-threshold-count=1200 --rate-limit-threshold-interval-sec=60 \
+  --ban-threshold-count=3000 --ban-threshold-interval-sec=60 --ban-duration-sec=600
+# Every path starts with '/': this matches whatever the rules above did not.
+rule 1400 "everything else: 1200/min, ban 10 min over 3000/min" "request.path.startsWith('/')" \
   --action=rate-based-ban --rate-limit-threshold-count=1200 --rate-limit-threshold-interval-sec=60 \
   --ban-threshold-count=3000 --ban-threshold-interval-sec=60 --ban-duration-sec=600
 

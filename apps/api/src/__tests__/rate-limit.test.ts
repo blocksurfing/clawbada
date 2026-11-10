@@ -151,6 +151,22 @@ describe('rateLimit middleware', () => {
     expect(res.status).toBe(429);
   });
 
+  test('a refused request is not recorded: hammering neither grows the window nor extends the wait', async () => {
+    const max = 3;
+    const windowMs = 300;
+    const app = createApp(max, windowMs);
+    const ip = uniqueIp();
+    const hit = async () => (await app.request('/test', { headers: { 'x-forwarded-for': ip } })).status;
+    const t0 = Date.now();
+    for (let i = 0; i < max; i++) expect(await hit()).toBe(200);
+    // Keep hammering for most of the window: every one is refused.
+    while (Date.now() - t0 < 200) expect(await hit()).toBe(429);
+    // Once the three accepted requests have left the window the caller is served again. (A limiter that recorded
+    // the refusals would still be counting the last 200 ms of them.)
+    await new Promise((r) => setTimeout(r, windowMs + 60 - (Date.now() - t0)));
+    expect(await hit()).toBe(200);
+  });
+
   test('X-Forwarded-For takes precedence over X-Real-IP', async () => {
     const max = 2;
     const app = createApp(max, 60_000);

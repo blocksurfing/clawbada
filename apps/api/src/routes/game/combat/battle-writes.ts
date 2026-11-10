@@ -32,6 +32,7 @@ import { db, battles } from '@clawbada/db';
 import { log as baseLog } from '../../../logger';
 import { walletAuth } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
+import { parseDbId, parseUint } from '../../../lib/parse-uint';
 import { readBattle, serializeBigInts } from '../../../lib/chain';
 import { buildCalldata, singleStep, multiStep, chainId } from '../../../lib/calldata';
 
@@ -101,7 +102,7 @@ battleWriteRoutes.post(
   catchErrors(async (c) => {
     const address = (c.get('address') as string).toLowerCase();
     const { battleId } = c.req.param();
-    const id = BigInt(battleId);
+    const id = parseDbId(battleId, 'battleId');
     // D-13: the team commit rides in the deposit. Either send the hash you built yourself
     // (BattleArena.teamCommitHash: keccak256(abi.encodePacked(chainid, arena, battleId, you, teamId,
     // salt)) — keep the salt for /reveal-team), or send teamId + salt and the server builds it (and
@@ -138,7 +139,7 @@ battleWriteRoutes.post(
       if (!body.teamId || !body.salt || !/^\d+$/.test(body.teamId) || !BYTES32_RE.test(body.salt)) {
         throw new ApiError('INVALID_INPUT', 'teamId (decimal) and salt (bytes32 hex) are both required to build the commit');
       }
-      const teamId = BigInt(body.teamId);
+      const teamId = parseUint(body.teamId, 'teamId');
       // D-17: commit only the team you queued with — it is the only one the reveal will open.
       const queued = address === row!.playerA.toLowerCase() ? row!.queuedTeamA : row!.queuedTeamB;
       if (queued === null || queued === undefined || BigInt(queued) !== teamId) {
@@ -244,7 +245,7 @@ battleWriteRoutes.post(
       throw new ApiError('INVALID_INPUT', 'teamId and salt required');
     }
 
-    const id = BigInt(battleId);
+    const id = parseDbId(battleId, 'battleId');
     const battle = await readBattle(id);
 
     // Must be a participant, and the battle must be in the TeamReveal phase.
@@ -260,7 +261,7 @@ battleWriteRoutes.post(
     // Fail fast: verify the salt+teamId against this player's on-chain commit, so a bad
     // reveal is rejected here instead of reverting the engine's revealTeams tx later. The
     // commit hash binds (chain, arena, battleId, player, teamId, salt), so a match authenticates all.
-    const teamId = BigInt(body.teamId);
+    const teamId = parseUint(body.teamId, 'teamId');
     const salt = body.salt as `0x${string}`;
     const expected = teamCommitHash(chainId, addresses.battleArena as `0x${string}`, id, address as `0x${string}`, teamId, salt);
     const onChainCommit = isPlayerA ? battle.teamCommitA : battle.teamCommitB;
@@ -325,7 +326,7 @@ battleWriteRoutes.post(
   catchErrors(async (c) => {
     const address = (c.get('address') as string).toLowerCase();
     const { battleId } = c.req.param();
-    const id = BigInt(battleId);
+    const id = parseDbId(battleId, 'battleId');
     const body = (await c.req.json().catch(() => ({}))) as { teamId?: string; salt?: string };
     if (!body.teamId || !body.salt || !/^\d+$/.test(body.teamId) || !BYTES32_RE.test(body.salt)) {
       throw new ApiError('INVALID_INPUT', 'teamId (decimal) and salt (bytes32 hex) required');
@@ -338,7 +339,7 @@ battleWriteRoutes.post(
     if (!(isA ? battle.accusedA : battle.accusedB)) {
       throw new ApiError('BATTLE_PHASE_ERROR', 'Your commit has not been reported unopenable; POST /reveal-team instead');
     }
-    const teamId = BigInt(body.teamId);
+    const teamId = parseUint(body.teamId, 'teamId');
     const salt = body.salt as `0x${string}`;
     const onChainCommit = isA ? battle.teamCommitA : battle.teamCommitB;
     if (teamCommitHash(chainId, addresses.battleArena as `0x${string}`, id, address as `0x${string}`, teamId, salt).toLowerCase() !== String(onChainCommit).toLowerCase()) {
@@ -371,7 +372,7 @@ battleWriteRoutes.post(
       addresses.battleArena,
       BattleArenaAbi as any,
       'handleTimeout',
-      [BigInt(battleId)],
+      [parseDbId(battleId, 'battleId')],
     );
 
     return c.json(singleStep('Handle timeout (cancel / pay out / expire a stuck battle)', calldata));

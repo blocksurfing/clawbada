@@ -18,21 +18,11 @@
   }
 }
 
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { eq } from 'drizzle-orm';
-import { createHonoLogger } from '@clawbada/logger';
 import { db, battles } from '@clawbada/db';
 import { log } from './logger';
-import { gameRoutes } from './routes/game';
-import { agentRoutes } from './routes/agent';
-import { faucetRoutes } from './routes/faucet';
-import { leaderboardRoutes } from './routes/leaderboard';
-import { activityRoutes } from './routes/activity';
-import { walletAuth, verifyWalletSignature, assertGuestScope, WS_AUTH_LIFETIME_SEC } from './middleware/auth';
-import { authRoutes } from './routes/auth';
-import { verifySessionToken } from './lib/session-token';
-import { rateLimit } from './middleware/rate-limit';
+import { app } from './app';
+import { verifyWalletSignature, assertGuestScope } from './middleware/auth';
 import { ApiError } from './lib/errors';
 import { battleWS } from './lib/ws';
 import { startMatchmakerTicker } from './lib/matchmaker/tick';
@@ -42,66 +32,14 @@ import { installShutdownHandlers, rememberServer } from './lib/shutdown';
 import { installProcessGuards } from './lib/process-guards';
 import { wsTickets } from './lib/ws-ticket';
 import { allowedWsOrigins, wsOriginAllowed } from './lib/ws-origin';
+import { SocketBudget, socketLimitsFromEnv } from './lib/socket-budget';
+import { MAX_REQUEST_BODY_BYTES } from './lib/server-limits';
 
 // Before anything that can start a timer or a promise: a stray rejection or a throw in a callback is logged, and the
 // process — every live battle with it — keeps running (lib/process-guards.ts).
 installProcessGuards(log);
 
-const app = new Hono();
-
-app.use('*', createHonoLogger());
-app.use('*', cors());
-
-// Global error handler for ApiError thrown from middleware
-app.onError((err, c) => {
-  if (err instanceof ApiError) {
-    return c.json({ error: err.code, message: err.message }, err.status as any);
-  }
-  log.error({ err }, 'Unhandled error');
-  return c.json({ error: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }, 500);
-});
-
-// Rate limiting — applied before auth so we limit by IP for unauthenticated routes
-// Playing a live battle over REST (agents without a socket, 2026-10-29: GET …/events long-poll, …/legal, POST …/turn)
-// gets the socket's budget — 40 frames per 10 s = 240/min — instead of the general 100/min, which a fast agent-vs-agent
-// battle (a turn a second, both sides) used to run into. Everything else keeps 100/min.
-const LIVE_PLAY_PATH = /^\/api\/game\/combat\/[^/]+\/(events|legal|turn|state)$/;
-const generalLimit = rateLimit(100);
-const livePlayLimit = rateLimit(240, 60_000, 'play');
-app.use('/api/*', (c, next) => (LIVE_PLAY_PATH.test(c.req.path) ? livePlayLimit(c, next) : generalLimit(c, next)));
-// The 5/min faucet budget guards the WRITE routes (claim calldata). Since D-10 a lobster claim is
-// two steps and clients poll GET /api/faucet/status/:address until the keeper has minted, so the
-// read gets a budget of its own — at 5/min a wallet that polled every 2 s was locked out of its
-// own claim within ten seconds.
-const faucetWrites = rateLimit(5);
-const faucetReads = rateLimit(60);
-app.use('/api/faucet/*', (c, next) => (c.req.method === 'GET' ? faucetReads(c, next) : faucetWrites(c, next)));
-// The 30/min budget guards matchmaking; live-battle turns (V3) can legitimately
-// exceed it (a bot answers in under a second), so they stay on the /api/* default.
-app.use('/api/game/combat/queue', rateLimit(30));
-app.use('/api/game/combat/queue/*', rateLimit(30));
-app.use('/api/game/combat/pool-depth', rateLimit(30));
-// Guest sessions (the Dojo without a wallet) make a practice battle free to start: the token is an HMAC,
-// the battle behind it is a bot and a Postgres row. Ten a minute per IP on the mint and on the start, on
-// top of the practice route's own cap on live battles (PRACTICE_MAX_LIVE).
-app.use('/api/auth/guest', rateLimit(10, 60_000, 'guest'));
-app.use('/api/game/combat/practice', rateLimit(10, 60_000, 'practice'));
-// Battle Friends: creating invites is the spammable step; the lobby polls GET /rooms/:id every couple of seconds.
-app.use('/api/game/friend/rooms', rateLimit(10, 60_000, 'friend-create'));
-app.use('/api/game/friend/rooms/*', rateLimit(90, 60_000, 'friend'));
-// One ticket per socket (re)connect; reconnect storms are already bounded by the /ws attempt limit below.
-app.use('/api/auth/ws-ticket', rateLimit(60, 60_000, 'ws-ticket'));
-
-app.get('/health', (c) =>
-  c.json({ status: 'ok', timestamp: Date.now(), version: '0.0.1' }),
-);
-
-app.route('/api/auth', authRoutes);
-app.route('/api/game', gameRoutes);
-app.route('/api/agent', agentRoutes);
-app.route('/api/faucet', faucetRoutes);
-app.route('/api/leaderboard', leaderboardRoutes);
-app.route('/api/activity', activityRoutes);
+// The HTTP app — middleware order, rate limits, routes — is assembled in ./app.
 
 // Cloud Run injects PORT (the value of its `--port`); API_PORT stays the local/compose override and wins when both are set.
 const port = Number(process.env.API_PORT ?? process.env.PORT ?? 3001);
@@ -122,15 +60,16 @@ if (process.env.BATTLE_SESSIONS_ENABLED !== 'false') {
 // SIGTERM (a Cloud Run rollout, `docker stop`) and SIGINT (ctrl-C): drain instead of dying mid-turn — lib/shutdown.ts.
 installShutdownHandlers();
 
-// F-2B: WS-specific rate limiting. The Hono `rateLimit('/api/*')` middleware
-// doesn't cover `/ws` (handled in this top-level fetch before delegating).
+// F-2B: WS-specific rate limiting. The Hono limiters don't cover `/ws` (handled in this top-level fetch before
+// delegating).
 // Caps:
 //   - per IP, max 30 upgrade ATTEMPTS per rolling minute (covers reconnect)
-//   - per address, max 8 CONCURRENT live sockets (covers tabs + dev tools)
+//   - CONCURRENT live sockets per address, per IP and in total (lib/socket-budget.ts): attempts a minute do not
+//     bound sockets that stay open for the life of a session
 // Counters are process-local; horizontal scaling will need a shared store.
 const WS_PER_IP_MAX_PER_MIN = 30;
 const WS_PER_IP_WINDOW_MS = 60_000;
-const WS_PER_ADDRESS_MAX_CONCURRENT = 8;
+const sockets = new SocketBudget(socketLimitsFromEnv());
 const wsAttemptsByIp = new Map<string, number[]>();
 /** Browser pages allowed to open sockets (lib/ws-origin.ts), resolved once at boot. */
 const WS_ORIGINS = allowedWsOrigins();
@@ -139,8 +78,6 @@ const WS_ORIGINS = allowedWsOrigins();
 const WS_MSG_WINDOW_MS = 10_000;
 const WS_MSG_SOFT_MAX = 40;
 const WS_MSG_HARD_MAX = 120;
-const wsLiveByAddress = new Map<string, number>();
-
 // F-2I/F-2O: client-IP resolution moved to `./lib/client-ip` so the same
 // trust policy applies to BOTH the WS upgrade handler and the REST rate
 // limiter. The previous implementation lived only in this file and the REST
@@ -172,21 +109,6 @@ setInterval(() => {
   }
 }, WS_ATTEMPTS_GC_INTERVAL_MS).unref?.();
 
-function tryReserveAddressSlot(address: string): boolean {
-  const lower = address.toLowerCase();
-  const live = wsLiveByAddress.get(lower) ?? 0;
-  if (live >= WS_PER_ADDRESS_MAX_CONCURRENT) return false;
-  wsLiveByAddress.set(lower, live + 1);
-  return true;
-}
-
-function releaseAddressSlot(address: string): void {
-  const lower = address.toLowerCase();
-  const live = wsLiveByAddress.get(lower) ?? 0;
-  if (live <= 1) wsLiveByAddress.delete(lower);
-  else wsLiveByAddress.set(lower, live - 1);
-}
-
 interface WsData {
   /** Lowercase wallet; empty string for spectators. */
   address: string;
@@ -199,6 +121,8 @@ interface WsData {
   role: 'player' | 'spectator';
   /** A guest session (POST /api/auth/guest): one practice battle, no address room. */
   guest: boolean;
+  /** The client IP the upgrade came from ('unknown' if unresolved) — what the per-IP socket cap counts. */
+  ip: string;
 }
 
 /** Spectator sockets carry no signature; cap their lifetime anyway. */
@@ -213,7 +137,7 @@ const SPECTATOR_LIFETIME_SEC = 60 * 60;
 // Privacy note: WSS encrypts the URL in transit; only this endpoint sees the
 // raw query string. The signature embeds a 5-minute timestamp window, so a
 // leaked signature is only useful for that window.
-async function authenticateWsUpgrade(url: URL): Promise<WsData> {
+async function authenticateWsUpgrade(url: URL): Promise<Omit<WsData, 'ip'>> {
   const address = url.searchParams.get('address');
   const signature = url.searchParams.get('signature');
   const timestampStr = url.searchParams.get('timestamp');
@@ -245,18 +169,14 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
   // instead of the 5-minute signature window, which is what used to drop the connection — and pop
   // a signing modal — in the middle of a battle. Agents can still pass a signature.
   // The normal path since 2026-10-28: a single-use 30-second ticket from POST /api/auth/ws-ticket, so no
-  // long-lived token sits in a URL (lib/ws-ticket.ts). `?token=` still works for clients and agents built
-  // before it, and is logged so we know when it is safe to remove.
+  // long-lived token sits in a URL (lib/ws-ticket.ts). The session token itself is no longer accepted here
+  // (`?token=`, removed 2026-11: the logs showed nobody using it) — a URL is where proxies and logs keep things.
   const ticketParam = url.searchParams.get('ticket');
-  const tokenParam = url.searchParams.get('token');
   let checksumAddress: string;
   let expiresAt: number;
   let guest = false;
   if (ticketParam) {
     ({ checksumAddress, authExpiresAt: expiresAt, guest } = wsTickets.consume(ticketParam, battleIdParam));
-  } else if (tokenParam) {
-    ({ checksumAddress, expiresAt, guest } = verifySessionToken(tokenParam));
-    log.info({ guest, battleId: battleIdParam }, 'ws_token_param_used');
   } else {
     if (!address || !signature || !timestampStr) {
       throw new ApiError(
@@ -325,6 +245,8 @@ async function authenticateWsUpgrade(url: URL): Promise<WsData> {
 
 export default {
   port,
+  // Bodies are a few hundred bytes of JSON; Bun's default (128 MB) is read and parsed in full (lib/server-limits.ts).
+  maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
   async fetch(req: Request, server: any) {
     rememberServer(server);   // the only place Bun's auto-serve hands us the Server (no-op after the first call)
     const url = new URL(req.url);
@@ -353,7 +275,7 @@ export default {
 
       let data: WsData;
       try {
-        data = await authenticateWsUpgrade(url);
+        data = { ...(await authenticateWsUpgrade(url)), ip };
       } catch (err) {
         if (err instanceof ApiError) {
           return new Response(
@@ -402,7 +324,7 @@ export default {
         data?: WsData;
         // F-2A: per-socket lifetime timer attached at open, cleared at close.
         __authTimer?: ReturnType<typeof setTimeout>;
-        // F-Y2: track whether this socket reserved an address-room slot so
+        // F-Y2: track whether this socket holds a slot in the socket budget so
         // close() releases at most once.
         __reserved?: boolean;
       },
@@ -411,29 +333,27 @@ export default {
       if (!data) return;
       const { battleId, address, authExpiresAt, role, guest } = data;
 
-      // F-Y2: per-address concurrent socket cap. Moved post-upgrade so we
-      // can signal exhaustion via close code 1013 ("Try Again Later",
-      // IANA-registered) instead of a pre-upgrade 429 the browser hides
-      // from JS. Client's `useBattleWs` distinguishes 1013 from generic
-      // pre-open closes and does NOT count it toward F-2N's terminal
-      // classifier — it's a transient signal that closing other tabs will
-      // resolve.
-      // F-Y6: idempotent. If Bun ever fires `open` twice for the same WS
-      // instance (defensive), the early-return prevents double-reservation
-      // (which would later under-release one capacity slot via __reserved
-      // tracking only one increment).
+      // F-Y2: concurrent socket caps — per address, per IP and in total (lib/socket-budget.ts). Checked
+      // post-upgrade so exhaustion can be signalled with close code 1013 ("Try Again Later",
+      // IANA-registered) instead of a pre-upgrade 429 the browser hides from JS. Client's `useBattleWs`
+      // distinguishes 1013 from generic pre-open closes and does NOT count it toward F-2N's terminal
+      // classifier — it's a transient signal (closing other tabs resolves the address and IP caps).
+      // F-Y6: idempotent. If Bun ever fires `open` twice for the same WS instance (defensive), the
+      // early-return prevents a double reservation (close() releases only once).
       if (ws.__reserved) {
         return;
       }
-      if (role === 'player' && !tryReserveAddressSlot(address)) {
+      const refused = sockets.reserve({ address: role === 'player' ? address : null, ip: data.ip });
+      if (refused) {
+        if (refused !== 'address') log.warn({ cap: refused, ...sockets.counts() }, 'ws_capacity_refused');
         try {
-          ws.close(1013, 'address-capacity');
+          ws.close(1013, `${refused}-capacity`);
         } catch {
           // already closed; nothing to do
         }
         return;
       }
-      ws.__reserved = role === 'player';
+      ws.__reserved = true;
 
       // Battle-room subscription (post-match / spectator): battleId present.
       if (battleId) {
@@ -496,15 +416,12 @@ export default {
       if (battleId) {
         battleWS.leave(battleId, ws);
       }
-      if (address) {
-        if (!guest) battleWS.leaveAddressRoom(address, ws);   // guests never joined one (open)
-        // F-Y2: only release if open() actually reserved. A capacity-rejected
-        // socket calls close() too but never reserved, so unconditional
-        // release would underflow the per-address counter.
-        if (ws.__reserved) {
-          releaseAddressSlot(address);
-          ws.__reserved = false;
-        }
+      if (address && !guest) battleWS.leaveAddressRoom(address, ws);   // guests and spectators never joined one (open)
+      // F-Y2: only release if open() actually reserved. A capacity-rejected socket calls close() too but never
+      // reserved, so an unconditional release would underflow the counters.
+      if (ws.__reserved) {
+        sockets.release({ address: data.role === 'player' ? address : null, ip: data.ip });
+        ws.__reserved = false;
       }
       if (ws.__authTimer) {
         clearTimeout(ws.__authTimer);

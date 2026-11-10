@@ -121,9 +121,11 @@ export const DEFAULT_POLL_MS = 2_000;
 export const RESUME_MIN_CLOCK_MS = 5_000;
 /** How often live sessions' leases are renewed (the lease itself holds LEASE_TTL_SEC = 20 s). */
 export const LEASE_RENEW_MS = 5_000;
-/** Long-poll (GET …/events): open waits per battle and in total. Past either cap a poll answers at once (busy). */
-export const MAX_WAITERS_PER_BATTLE = 16;
-export const MAX_WAITERS = 4_000;
+/** Long-poll (GET …/events): open waits per battle and in total. Past either cap a poll answers at once (busy).
+ *  Each open wait holds one of the instance's 1000 request slots for up to 25 s, so the total stays well under that
+ *  (sockets take up to 600 — lib/socket-budget.ts); a battle has two players, so four waits cover a retry each. */
+export const MAX_WAITERS_PER_BATTLE = 4;
+export const MAX_WAITERS = 300;
 export type WaitResult = 'changed' | 'timeout' | 'gone' | 'busy';
 /** Extra time on each side's first human turn of a fresh battle — covers the browser loading the arena. */
 export const DEFAULT_FIRST_TURN_GRACE_MS = 15_000;

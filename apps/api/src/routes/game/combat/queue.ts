@@ -30,6 +30,7 @@ import {
 } from '@clawbada/db';
 import { walletAuth } from '../../../middleware/auth';
 import { catchErrors, ApiError } from '../../../lib/errors';
+import { parseUint } from '../../../lib/parse-uint';
 import { readTeam, readLobster, readStakeQuote, serializeBigInts } from '../../../lib/chain';
 import { battleWS } from '../../../lib/ws';
 import {
@@ -104,7 +105,7 @@ queueRoutes.post(
       );
     }
 
-    const teamId = BigInt(body.teamId);
+    const teamId = parseUint(body.teamId, 'teamId');
 
     // Validate team ownership.
     const team = await readTeam(teamId);
