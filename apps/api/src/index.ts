@@ -39,8 +39,13 @@ import { startMatchmakerTicker } from './lib/matchmaker/tick';
 import { battleSessions, parseClientMessage, isOffChainId, CHAIN_ID_RE } from './lib/battle-session';
 import { getClientIp } from './lib/client-ip';
 import { installShutdownHandlers, rememberServer } from './lib/shutdown';
+import { installProcessGuards } from './lib/process-guards';
 import { wsTickets } from './lib/ws-ticket';
 import { allowedWsOrigins, wsOriginAllowed } from './lib/ws-origin';
+
+// Before anything that can start a timer or a promise: a stray rejection or a throw in a callback is logged, and the
+// process — every live battle with it — keeps running (lib/process-guards.ts).
+installProcessGuards(log);
 
 const app = new Hono();
 

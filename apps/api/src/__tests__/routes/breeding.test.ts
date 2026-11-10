@@ -117,6 +117,23 @@ describe('breeding routes', () => {
       const res = await app.request('/breeding/preview?parentA=1');
       expect(res.status).toBe(400);
     });
+
+    // Both ids are checked before either lobster is read: a bad id is a 400, whichever parent it is, and no read
+    // is left in flight behind the answer.
+    test.each([
+      ['parentA=1&parentB=x'],
+      ['parentA=x&parentB=1'],
+      ['parentA=0x10&parentB=1'],
+      ['parentA=1&parentB=-2'],
+      ['parentA=1&parentB=1.5'],
+      [`parentA=1&parentB=${'9'.repeat(79)}`],
+    ])('returns 400 for a malformed id and starts no read (%s)', async (query) => {
+      mockReadLobster.mockImplementation(() => Promise.reject(new Error('chain read must not start')));
+      const res = await app.request(`/breeding/preview?${query}`);
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe('INVALID_INPUT');
+      expect(mockReadLobster).not.toHaveBeenCalled();
+    });
   });
 
   // ──────────── GET /breeding/cooldowns/:lobsterId ────────────

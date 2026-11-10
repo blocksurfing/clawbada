@@ -14,6 +14,7 @@ import { walletAuth } from '../../middleware/auth';
 import { catchErrors, ApiError } from '../../lib/errors';
 import { readLobster, readCooldownEnd, readBreedCost, serializeBigInts } from '../../lib/chain';
 import { buildCalldata, multiStep } from '../../lib/calldata';
+import { parseUint } from '../../lib/parse-uint';
 
 export const breedingRoutes = new Hono();
 
@@ -86,10 +87,10 @@ breedingRoutes.get(
       throw new ApiError('INVALID_INPUT', 'parentA and parentB query parameters required');
     }
 
-    const [parentA, parentB] = await Promise.all([
-      readLobster(BigInt(parentAId)),
-      readLobster(BigInt(parentBId)),
-    ]);
+    // Both ids are parsed before either read starts, so a bad one is a 400 and never leaves a read in flight.
+    const idA = parseUint(parentAId, 'parentA');
+    const idB = parseUint(parentBId, 'parentB');
+    const [parentA, parentB] = await Promise.all([readLobster(idA), readLobster(idB)]);
 
     const costA = breedCostPerParent(parentA.breedCount, parentA.generation);
     const costB = breedCostPerParent(parentB.breedCount, parentB.generation);
