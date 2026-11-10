@@ -132,7 +132,9 @@ export function WalletPanel() {
     paintUserPanel(amountRef.current);
   }, [paintUserPanel]);
 
-  const setProfileMenu = useCallback((open: boolean) => {
+  /** `focusFirst`: opened from the keyboard, so focus moves onto Profile. A mouse open leaves focus alone — moving it
+   *  drew the keyboard ring around Profile after a click (owner 2026-11-10). */
+  const setProfileMenu = useCallback((open: boolean, focusFirst = false) => {
     const menu = menuRef.current, label = labelRef.current;
     if (!menu || menuOpenRef.current === open) return;
     menuOpenRef.current = open;
@@ -155,7 +157,8 @@ export function WalletPanel() {
       animation.cancel();
       menuAnimation.current = null;
     };
-    if (open) menu.querySelector('button')?.focus({ preventScroll: true });
+    if (open) sizeProfileActionsRef.current();   // measured now that it renders (its label widths need the real font)
+    if (open && focusFirst) menu.querySelector('button')?.focus({ preventScroll: true });
   }, []);
 
   const closeProfileMenu = useCallback((restoreFocus = false) => {
@@ -219,13 +222,19 @@ export function WalletPanel() {
       const label = button.querySelector('.profile-action-label');
       const icon = button.querySelector('.profile-action-icon');
       if (!label || !icon) return;
-      const textWidth = ctx.measureText(label.textContent ?? '').width;
+      // The canvas measure ignores letter-spacing (Upheaval runs tracked), so DISCONNECT outgrew its plank
+      // (owner 2026-11-10): add the tracking, and trust the rendered label when the menu is showing.
+      const text = label.textContent ?? '';
+      const tracking = parseFloat(getComputedStyle(label).letterSpacing) || 0;
+      const textWidth = Math.max(ctx.measureText(text).width + tracking * text.length, (label as HTMLElement).scrollWidth);
       const iconWidth = parseFloat(getComputedStyle(icon).width);
       const contentWidth = iconWidth + parseFloat(style.getPropertyValue('--action-label-gap')) + textWidth
         + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
       button.style.setProperty('--action-open-width', `${Math.ceil(contentWidth / scale) * scale}px`);
     });
   }, []);
+  const sizeProfileActionsRef = useRef(sizeProfileActions);
+  sizeProfileActionsRef.current = sizeProfileActions;
 
   const paintProfileButton = useCallback((button: HTMLButtonElement) => {
     const img = buttonImage.current;
@@ -233,7 +242,9 @@ export function WalletPanel() {
     const art = button.querySelector('canvas');
     if (!art) return;
     const scale = pixelScale();
-    art.width = Math.ceil(button.getBoundingClientRect().width / scale);
+    // Layout width, not getBoundingClientRect: on the Dojo the whole wallet is scaled with the room, and the on-screen
+    // width drew the plank that much shorter than the button (DISCONNECT ran off its end, owner 2026-11-10).
+    art.width = Math.ceil(button.offsetWidth / scale);
     art.height = PROFILE_CONFIG.sheetHeight;
     art.style.width = `${art.width * scale}px`;
     const ctx = art.getContext('2d');
@@ -378,10 +389,10 @@ export function WalletPanel() {
         aria-label={connecting ? 'Connecting wallet' : undefined}
         className="connect-wallet"
         disabled={connecting}
-        onClick={() => {
+        onClick={(e) => {
           if (busyRef.current || !openRef.current) return;
           if (!connected) { setPicking(true); openWalletPicker(true); return; }
-          setProfileMenu(!menuOpenRef.current);
+          setProfileMenu(!menuOpenRef.current, e.detail === 0);   // detail 0: Enter / Space, not a click
         }}
         title={connecting ? 'Connecting wallet' : connected ? label : 'Connect Wallet'}
         type="button"
@@ -399,7 +410,7 @@ export function WalletPanel() {
           <span aria-hidden="true" className="profile-action-icon" />
           <span className="profile-action-label">Profile</span>
         </button>
-        <button aria-label="Disconnect" data-profile-action="disconnect" onClick={onDisconnect} title="Disconnect" type="button">
+        <button aria-label="Disconnect" data-profile-action="disconnect" onClick={onDisconnect} type="button">
           <canvas aria-hidden="true" />
           <span aria-hidden="true" className="profile-action-icon" />
           <span className="profile-action-label">Disconnect</span>

@@ -489,7 +489,7 @@ body.sidebar-compact .menu-separator { overflow: hidden; }
 }
 .profile-menu button:is(:hover, :focus-visible) { width: var(--action-open-width, 54px); }
 .profile-menu button:is(:hover, :focus-visible) .profile-action-label {
-  max-width: 140px; opacity: 1; margin-left: var(--action-label-gap);
+  max-width: 220px; opacity: 1; margin-left: var(--action-label-gap);
 }
 @media (prefers-reduced-motion: reduce) {
   .profile-menu button, .profile-action-label { transition: none; }
