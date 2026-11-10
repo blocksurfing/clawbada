@@ -27,18 +27,8 @@ describe('playbackEstimateMs', () => {
     expect(v3.playbackEstimateMs(result({ skipped: 'stun', action: null }, s), s)).toBe(m(v3.PLAYBACK_GAP_MS + v3.PLAYBACK_STUN_SKIP_MS));
     const kill = { targetId: s.lobsters[3].id, amount: 99n, kind: 'attack' as const, killed: true };
     expect(v3.playbackEstimateMs(result({ action: 'attack', damage: [kill] }, s), s))
-      .toBe(m(v3.PLAYBACK_GAP_MS + v3.PLAYBACK_ATTACK_MS[LobsterClass.Tempest] + v3.PLAYBACK_HITSTOP_MS + v3.PLAYBACK_DEATH_MS + v3.PLAYBACK_HITSTOP_KILL_MS));
+      .toBe(m(v3.PLAYBACK_GAP_MS + v3.PLAYBACK_ATTACK_MS[LobsterClass.Tempest] + v3.PLAYBACK_DEATH_MS));
     expect(v3.playbackEstimateMs(result({ lobsterId: '' }, s), s)).toBe(0);
-  });
-
-  test('hit feel: a damaging hit holds, a crit holds longer (2026-11-09)', () => {
-    const s = battle();
-    const hit = { targetId: s.lobsters[3].id, amount: 40n, kind: 'attack' as const, killed: false };
-    const base = v3.PLAYBACK_GAP_MS + v3.PLAYBACK_ATTACK_MS[LobsterClass.Tempest];
-    expect(v3.playbackEstimateMs(result({ action: 'attack', damage: [hit] }, s), s)).toBe(m(base + v3.PLAYBACK_HITSTOP_MS));
-    expect(v3.playbackEstimateMs(result({ action: 'attack', damage: [{ ...hit, isCrit: true }] }, s), s))
-      .toBe(m(base + v3.PLAYBACK_HITSTOP_MS + v3.PLAYBACK_HITSTOP_CRIT_MS));
-    expect(v3.playbackEstimateMs(result({ action: 'attack', damage: [{ ...hit, amount: 0n }] }, s), s)).toBe(m(base));
   });
 
   test('one turn never adds more than the cap', () => {

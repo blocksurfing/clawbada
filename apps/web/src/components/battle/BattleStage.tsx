@@ -286,7 +286,7 @@ function UnityStage(props: BattleStageProps) {
   // Site-wide audio preferences → Unity, on init and whenever they change (floating toggle,
   // options-menu echo, another tab). Unity applies SFX and refreshes its menu labels.
   // reduceMotion rides along (hit feel, 2026-11-09): the player's OS "reduce motion" setting turns off the battle's
-  // screen shakes, hit flashes and recoil.
+  // screen shakes and hit flashes.
   const pushAudioPrefs = useCallback(() => send(UNITY_METHODS.SET_AUDIO_PREFS, {
     music: getBattleMusicPref(), sfx: getSfxPref(), musicVol: getBattleMusicVolume(), sfxVol: getSfxVolume(),
     reduceMotion: typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,

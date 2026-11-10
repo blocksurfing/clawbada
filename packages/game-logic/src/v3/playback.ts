@@ -21,11 +21,6 @@ export const PLAYBACK_DEATH_MS = 1200;
 export const PLAYBACK_GAP_MS = 200;
 export const PLAYBACK_DEFEND_MS = 450;   // measured: every class's in-place Defend plays in 450 ms
 export const PLAYBACK_PASS_MS = 200;
-/** Hit feel (2026-11-09, Unity HitFeel): the attacker and target hold on the contact frame — about 85 ms for a hit,
- *  170 ms for a crit — and a killing blow holds 250 ms and starts the fall in slow motion (+300 ms). */
-export const PLAYBACK_HITSTOP_MS = 100;
-export const PLAYBACK_HITSTOP_CRIT_MS = 100;
-export const PLAYBACK_HITSTOP_KILL_MS = 550;
 /** Safety margin on the total, and the most one turn can add. */
 export const PLAYBACK_MARGIN = 1.15;
 export const PLAYBACK_TURN_CAP_MS = 8000;
@@ -65,8 +60,6 @@ export function playbackEstimateMs(result: TurnResult, state: AtbBattleState): n
       default: break;
     }
   }
-  if (result.damage.some(d => d.amount > 0n)) ms += PLAYBACK_HITSTOP_MS;
-  if (result.damage.some(d => d.isCrit)) ms += PLAYBACK_HITSTOP_CRIT_MS;
-  if (result.damage.some(d => d.killed)) ms += PLAYBACK_DEATH_MS + PLAYBACK_HITSTOP_KILL_MS;
+  if (result.damage.some(d => d.killed)) ms += PLAYBACK_DEATH_MS;
   return Math.min(PLAYBACK_TURN_CAP_MS, Math.round(ms * PLAYBACK_MARGIN));
 }

@@ -150,7 +150,7 @@ public class BattleBridge : MonoBehaviour
     {
         var d = JsonUtility.FromJson<AudioPrefsData>(json) ?? new AudioPrefsData();
         BattleSfx.Enabled = d.sfx;
-        HitFeel.ReduceMotion = d.reduceMotion;   // the OS "reduce motion" setting: no shakes, flashes or recoil
+        HitFeel.ReduceMotion = d.reduceMotion;   // the OS "reduce motion" setting: no shakes or flashes
         if (d.sfxVol >= 0) BattleSfx.Volume = d.sfxVol / 100f;
         var hud = FindFirstObjectByType<BattleHud>();
         hud?.Options?.SetAudioState(d.music, d.sfx, d.musicVol, d.sfxVol);
