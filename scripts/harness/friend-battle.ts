@@ -151,6 +151,13 @@ export default async function (host: Browser, h: { connect(host: string): Promis
     ok(!!backH2 && !!backF2, 'both back in the Dojo again', `host ${await host.eval('location.pathname + location.search')}, friend ${await friend.eval('location.pathname + location.search')}`);
     if (!backH2 || !backF2) for (const [n, b] of [['host', host], ['friend', friend]] as const) for (const l of b.allLogs.filter((x) => /LiveBattle\] (result|closing)|BattlePage|error|exception/i.test(x)).slice(-5)) console.log(`   ${n}: ${l.slice(0, 170)}`);
 
+    // ── "New invite link" after a battle: back to the rules picker, set to the last rules; no link made yet ──
+    ok(!!(await host.waitFor(`document.querySelector('[data-testid=friend-lobby]')?.getAttribute('data-state') === 'after'`, 20000)), 'host: "Good game!" after the rematch');
+    await click(host, '[data-testid=friend-new-link]');
+    ok(!!(await host.waitFor(`document.querySelector('[data-testid=friend-lobby]')?.getAttribute('data-state') === 'none' && !!document.querySelector('[data-testid=friend-rules]')`, 5000)), 'host: New invite link opens the match-rules picker');
+    const picked = await host.eval(`[document.querySelector('[data-testid=friend-rules-tier] [aria-pressed=true]')?.textContent, document.querySelector('[data-testid=friend-rules-purity] [aria-pressed=true]')?.textContent].join('/')`);
+    ok(picked === 'Elite/3' && !(await host.eval(`!!document.querySelector('[data-testid=friend-link]')`)), 'host: the picker starts at the last rules, and no link is made until Create', String(picked));
+
     // ── a broken link ──
     await friend.goto(`${BASE}/battle-friends/join#r_00000000-0000-4000-8000-000000000000.AAAAAAAAAAAAAAAAAAAAAA`);
     ok(!!(await friend.waitFor(`/expired|already used/i.test(document.querySelector('[data-testid=friend-join-error]')?.textContent || '')`, 30000)), 'a dead link gets the friendly message');

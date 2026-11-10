@@ -40,6 +40,9 @@ export interface FriendLobbyProps {
   onShare: () => void;
   onLeave: () => void;
   onRematch: () => void;
+  /** "New invite link" after a battle: back to the start, where the match-rules picker sets up the new link
+   *  (owner 2026-11-10 — it used to make the link at the last rules without asking). */
+  onNewLink: () => void;
   onDeclineRematch: () => void;
 }
 
@@ -80,7 +83,7 @@ export function FriendLobby(p: FriendLobbyProps) {
           )}
           {offered
             ? <button type="button" className="dojo-choice" data-testid="friend-decline" disabled={p.busy} onClick={p.onDeclineRematch}>No thanks</button>
-            : <button type="button" className="dojo-choice" data-testid="friend-create" disabled={p.busy} onClick={p.onCreate}>New invite link</button>}
+            : <button type="button" className="dojo-choice" data-testid="friend-new-link" disabled={p.busy} onClick={p.onNewLink}>New invite link</button>}
         </div>
       </div>
     );

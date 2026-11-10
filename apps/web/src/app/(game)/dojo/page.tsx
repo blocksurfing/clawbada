@@ -304,6 +304,14 @@ export default function DojoPage() {
     if (roomTier && (TIERS as readonly string[]).includes(roomTier)) setTier(roomTier as Tier);
     if (roomPurity !== null && roomPurity !== undefined) setPurity(roomPurity);
   }, [roomTier, roomPurity]);
+  // Back from a friend battle ("Good game!"): the finished room's rules are the last rules, so a New invite link's
+  // picker starts there (owner 2026-11-10) instead of at the Dojo's defaults.
+  const afterTier = after?.tier ?? null, afterPurity = after?.purity ?? null;
+  useEffect(() => {
+    if (roomLive) return;
+    if (afterTier && (TIERS as readonly string[]).includes(afterTier)) setTier(afterTier as Tier);
+    if (afterPurity !== null && afterPurity !== undefined) setPurity(afterPurity);
+  }, [afterTier, afterPurity, roomLive]);
 
   // The lobby's news: the battle started (the friend pressed second), or the room closed.
   useEffect(() => {
@@ -437,6 +445,7 @@ export default function DojoPage() {
         <FriendLobby roomId={roomId} view={room} after={roomId ? null : after} inviteLink={inviteLink} busy={friendBusy} error={friendErr} note={friendNote}
           tier={tier} purity={purity} onTier={setTier} onPurity={setPurity}
           onRematch={() => { void rematch(); }} onDeclineRematch={() => { void declineRematch(); }}
+          onNewLink={() => { setAfterId(null); setFriendErr(null); setFriendNote(null); }}
           shareLabel={shareLabel} canShare={canShare}
           onCreate={() => { void createLink(); }} onCopy={() => { void copyLink(); }} onShare={() => { void shareLink(); }} onLeave={() => { void leaveRoom(); }} />
       }
