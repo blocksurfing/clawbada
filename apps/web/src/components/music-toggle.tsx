@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
-import { isArenaMusicActive } from '@/lib/arena-music';
+import { bringThemeBackAfterBattle, isArenaMusicActive, isThemeDueBack } from '@/lib/arena-music';
 import { getMusicPref, setMusicPref, MUSIC_EVENT } from '@/lib/audio-prefs';
+import { musicPress, siteMusicOn } from '@/lib/site-music';
 
 /**
  * Persistent music player — lives in the root layout so audio continues
@@ -31,44 +32,47 @@ export function getThemeAudio(): HTMLAudioElement {
 /** Marketing routes keep the floating button at every width; everything else carries the pixel chrome at ≥ lg. */
 const MARKETING_PATHS = ['/', '/agents', '/faucet'];
 
+/** Is the theme on, as the buttons show it — wanted, and playing or only silenced for a battle (lib/site-music.ts)? */
+const themeOn = () => siteMusicOn(getMusicPref(), !getThemeAudio().paused, isThemeDueBack());
+
 /** The site theme's state + toggle, shared by every music button. */
 export function useSiteMusic() {
   const [playing, setPlaying] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (_initialized) {
-      // Reconnect state on re-mount (page navigation)
-      setPlaying(getMusicPref());
-      setReady(true);
-      return;
-    }
-    _initialized = true;
     const audio = getThemeAudio();
-
-    // Restore preference
-    const saved = localStorage.getItem('clawbada_music');
-    if (saved === 'on') {
-      audio.play().then(() => setPlaying(true)).catch(() => {});
+    if (!_initialized) {
+      _initialized = true;
+      // Restore preference. Most browsers refuse to play before the visitor has interacted with the page: the theme
+      // then stays off, and shows as off, until a button is pressed.
+      const saved = localStorage.getItem('clawbada_music');
+      if (saved === 'on') audio.play().catch(() => {});
     }
-
-    setReady(true);
-  }, []);
-
-  // Follow changes made elsewhere (the in-battle options menu, another tab).
-  useEffect(() => {
-    const sync = () => setPlaying(getMusicPref());
+    // Follow the theme itself (it starts, a battle silences it, it comes back) and a press on the other button.
+    const sync = () => setPlaying(themeOn());
+    audio.addEventListener('play', sync);
+    audio.addEventListener('pause', sync);
     window.addEventListener(MUSIC_EVENT, sync);
-    return () => window.removeEventListener(MUSIC_EVENT, sync);
+    sync();
+    setReady(true);
+    return () => {
+      audio.removeEventListener('play', sync);
+      audio.removeEventListener('pause', sync);
+      window.removeEventListener(MUSIC_EVENT, sync);
+    };
   }, []);
 
   const toggle = useCallback(() => {
     const audio = getThemeAudio();
-    const on = !getMusicPref();
-    setMusicPref(on);          // the SITE theme only — battle music is its own control (in-battle options menu)
-    setPlaying(on);
-    if (!on) audio.pause();
-    else if (!isArenaMusicActive()) audio.play().catch(() => {}); // never inside a battle view
+    // A press reverses what the button shows, not the stored preference: on a new browser, or one that refused to
+    // autoplay a stored "on", nothing is playing and the first press must start the theme (lib/site-music.ts).
+    const press = musicPress(themeOn(), isArenaMusicActive());
+    if (press === 'stop') audio.pause();
+    else if (press === 'start') audio.play().catch(() => {});
+    else bringThemeBackAfterBattle();   // never inside a battle view
+    // Stored last: storing announces the change, and every button then reads the state the lines above left.
+    setMusicPref(press !== 'stop');   // the SITE theme only — battle music is its own control (in-battle options menu)
   }, []);
 
   return { playing, ready, toggle };

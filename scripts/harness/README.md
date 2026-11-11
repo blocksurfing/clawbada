@@ -78,6 +78,8 @@ failure shows up, check that column for the turn first.
 | `movedefend.ts` | the reported freeze: click a move hex, let the preview walk, press Defend in the Unity bar — the turn goes out and resolves; `OFFLINE_TURN=n` closes the socket for real before the press on own turn *n* and checks the press is queued, "Sending…" shows in the canvas, and it is sent on reconnect | `PRESET` `TURNS` `OFFLINE_TURN` |
 | `autoclose.ts` | after the result banner the view closes itself: countdown under the result, Unity quit, music faded, back on `/dojo`; `STAY=1` checks the `?stay=1` opt-out | `PRESET` `SPEED` `STAY` |
 | `movecheck.ts` | measured seconds per hex hop | — |
+| `music-button.ts` | the site music buttons (2026-11-11): one press does what the button shows — a stored "on" the browser would not autoplay, a new browser on the landing page and in the Dojo (button shows off, one press starts the theme, the next stops it); switched off inside a battle it does not come back, switched on inside a battle it comes in afterwards. Muted at the source; resigns its two practice battles | `BASE` `API` `NO_BATTLE=1` (first three only, no API) |
+| `theme-return.ts` | the site theme around a battle: playing in the Dojo, silent during the battle, back 3 s after leaving it with a 3 s ease-in. Muted at the source | `BASE` |
 | `timing.ts` / `reconnect-probe.ts` | full battle to the banner; reconnect keeps the active-turn ring honest | — |
 | `arena-shot.ts` / `dpr-probe.ts` / `resize-probe.ts` / `fs-probe.ts` / `layout-probe.ts` | screenshots and geometry dumps for layout work | — |
 | `smoke-cdp.ts` | the driver itself works | — |

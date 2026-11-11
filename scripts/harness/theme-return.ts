@@ -44,9 +44,12 @@ export default async function (b: Browser) {
   await b.sleep(2000);
   const duringBattle = await b.eval(`window.__theme ? !window.__theme.paused : null`);
   ok('theme silent during the battle', duringBattle !== true, `theme ${duringBattle === null ? 'never started' : duringBattle ? 'playing' : 'paused'}`);
-  // Out of the battle: EXIT leaves fullscreen, then the sidebar's Dojo link navigates away (client-side, like a player).
-  await rectClick(b, 'button, a', 'exit');
-  await b.sleep(1500);
+  // Out of the battle: EXIT leaves fullscreen if the stage took it (it opens windowed now), then the sidebar's Dojo
+  // link navigates away (client-side, like a player).
+  if (await b.eval(`Array.from(document.querySelectorAll('button, a')).some((e) => (e.textContent || '').trim().toLowerCase().includes('exit'))`)) {
+    await rectClick(b, 'button, a', 'exit');
+    await b.sleep(1500);
+  }
   const dojo = await b.eval(`(() => { const a = document.querySelector('a[data-menu="dojo"]'); if (!a) return null; const q = a.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`) as { x: number; y: number } | null;
   ok('sidebar Dojo link reachable after leaving fullscreen', !!dojo);
   if (dojo) await b.clickAt(dojo.x, dojo.y);

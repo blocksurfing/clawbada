@@ -66,6 +66,13 @@ let inBattleView = false;
 /** True while a battle view is open (the theme stays off, whatever its toggle says). */
 export function isArenaMusicActive(): boolean { return activeTier !== null || inBattleView; }
 
+/** True while the theme is silent because of a battle and due back by itself afterwards, if the site music stays on —
+ *  the music buttons keep showing it as on (lib/site-music.ts). */
+export function isThemeDueBack(): boolean { return themeWasPlaying || themeReturn.wait !== null; }
+
+/** The site music was switched on inside a battle view: nothing starts now — the theme comes in when the battle is over. */
+export function bringThemeBackAfterBattle() { themeWasPlaying = true; }
+
 /** A battle view opened: fade the site theme out now — before Unity loads — and remember to bring it back. */
 export function enterBattleView() {
   inBattleView = true;
