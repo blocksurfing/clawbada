@@ -25,6 +25,7 @@ Status column on `battle_sessions`: `active` → `finished` (practice) or `settl
 | `PRACTICE_PRESETS` | on outside production | Lets dev environments start a practice battle without owning lobsters. `team_*` rosters (the `/dojo` team builder) stay open even when this is off. |
 | `GUEST_SESSIONS_ENABLED` | `true` | `POST /api/auth/guest`: a wallet-less session that only the practice surface accepts (the Dojo without a wallet). Also off whenever `PRACTICE_ENABLED=false`. Minting and `POST /practice` are each limited to 10 a minute per IP. |
 | `PRACTICE_MAX_LIVE` | `500` | Ceiling on live practice battles; past it `POST /practice` answers `429 RATE_LIMITED` until battles end (an abandoned one ends itself in about four minutes). Lower it from the environment if memory climbs. |
+| `OFFCHAIN_RETENTION_DAYS` | `30` | How long a finished practice or friend battle (with its turns) and an old invite room are kept — see "Housekeeping". `0` or `off` switches the deletes off. |
 | `DRAND_CHAIN_URL` | League of Entropy quicknet (3 s rounds) | The public half of a real battle's seed — see "How a staked battle's randomness is fixed". |
 | `BATTLE_SEED_SECRET` | none — **required in production**, identical on API and engine | The secret half. ≥ 32 chars. Guard it like a key: whoever holds it can foresee every roll of every live battle. |
 
@@ -262,3 +263,17 @@ credit, no wallet needed on either side (guest sessions welcome). Lobby rules li
 - Log lines (counted by `scripts/gcp-observability.sh`): `friend_room_created / _joined / _cancelled / _expired`,
   `friend_battle_started {rematch}`, `friend_rematch_offered / _accepted`, `rate_limited {scope, path}`.
 
+## Housekeeping: old practice and friend battles — 2026-11-11
+
+- `lib/retention.ts` (policy + timer) and `lib/retention-store.ts` (the SQL). A pass runs 3 minutes after boot and
+  then every 6 hours, and deletes what was last written more than `OFFCHAIN_RETENTION_DAYS` (30) ago:
+  `battle_sessions` of kind `practice` / `friend` with status `finished` / `abandoned`, their `battle_turns`, and
+  `friend_rooms` (any status, except a room whose battle is still `active`).
+- **Never touched:** `kind = 'real'` — a real battle's session and turn log are the evidence behind its on-chain
+  settlement — and any battle that is still `active`, however old its row.
+- A pass works in batches of 500 with a pause between them and stops after 20 (10,000 battles, then 10,000 rooms);
+  a bigger backlog carries over to the next pass (`capped: true`). Shutdown ends a pass after its current batch.
+- Log lines: `retention_purged {sessions, turns, rooms, capped, days, ms}` (only when something was deleted),
+  `retention_failed` (the next pass tries again). After it, a link to a deleted battle answers as an unknown battle.
+- Check the SQL against a real Postgres (CI has none; the test works in a throwaway schema):
+  `TEST_DATABASE_URL=postgresql://… bun test src/__tests__/real/retention-db.test.ts` from `apps/api`.

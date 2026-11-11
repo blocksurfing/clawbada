@@ -5,7 +5,8 @@
  * container (the Dockerfile CMD `exec`s it) and PID 1 ignores SIGTERM unless a handler is installed, so
  * without this file every rollout is a hard kill: shot clocks and queued turn writes die mid-flight and
  * every socket sees an abrupt close. With it:
- *   1. stop taking new work — the listener (best effort, see rememberServer) and the matchmaker ticker;
+ *   1. stop taking new work — the listener (best effort, see rememberServer), the matchmaker ticker and the
+ *      housekeeping passes;
  *   2. tell every WebSocket to go away (1001) BEFORE the sessions stop, so no turn can be accepted that
  *      would never be persisted (BattleSession.submit refuses after stop() as a second line);
  *   3. stop every session's clocks, then await each session's persist queue — the per-turn writeTurns()
@@ -20,6 +21,7 @@ import { closeDb } from '@clawbada/db';
 import { log } from '../logger';
 import { battleWS } from './ws';
 import { stopMatchmakerTicker } from './matchmaker/tick';
+import { stopRetentionTicker } from './retention';
 import { battleSessions } from './battle-session';
 
 const HARD_EXIT_MS = 8_000;
@@ -68,6 +70,7 @@ export async function shutdown(signal: string): Promise<void> {
       log.warn({ err }, 'shutdown_server_stop_failed');
     }
     stopMatchmakerTicker();
+    stopRetentionTicker();
     const closed = battleWS.closeAll(1001, 'Server restarting');
     battleSessions.stop();
     await battleSessions.flushed();

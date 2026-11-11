@@ -26,6 +26,8 @@ import { verifyWalletSignature, assertGuestScope } from './middleware/auth';
 import { ApiError } from './lib/errors';
 import { battleWS } from './lib/ws';
 import { startMatchmakerTicker } from './lib/matchmaker/tick';
+import { startRetentionTicker } from './lib/retention';
+import { DbRetentionStore } from './lib/retention-store';
 import { battleSessions, parseClientMessage, isOffChainId, CHAIN_ID_RE } from './lib/battle-session';
 import { getClientIp } from './lib/client-ip';
 import { installShutdownHandlers, rememberServer } from './lib/shutdown';
@@ -56,6 +58,10 @@ startMatchmakerTicker();
 if (process.env.BATTLE_SESSIONS_ENABLED !== 'false') {
   void battleSessions.start();
 }
+
+// Housekeeping: finished practice and friend battles and old invite rooms are deleted after
+// OFFCHAIN_RETENTION_DAYS (lib/retention.ts). Real battles are never touched.
+startRetentionTicker(new DbRetentionStore());
 
 // SIGTERM (a Cloud Run rollout, `docker stop`) and SIGINT (ctrl-C): drain instead of dying mid-turn — lib/shutdown.ts.
 installShutdownHandlers();
