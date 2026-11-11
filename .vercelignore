@@ -26,3 +26,8 @@ node_modules
 /hermes_backups
 # Music masters (WAV, ~35–70 MB each; gitignored): only the encoded /apps/web/public/audio/music/*.m4a ship.
 /audio-masters
+# Unity writes its own demo page next to the build; the game loads only Build/* through React. And an internal
+# asset spec that lives beside the art it describes. Neither belongs on the public site.
+/apps/web/public/unity-build/index.html
+/apps/web/public/unity-build/TemplateData
+/apps/web/public/assets/ASSET_SPEC.md

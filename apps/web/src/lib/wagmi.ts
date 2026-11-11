@@ -22,6 +22,9 @@ const defaults = getDefaultConfig({
   walletConnectProjectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID ?? '',
   appName: 'Clawbada',
   appDescription: 'Agent-first idle game on Base',
+  // ConnectKit adds the Family wallet by default, which loads a frame from app.family.co on every page for every
+  // visitor — guests included. Nobody signs in with it here.
+  enableFamily: false,
 });
 
 // Dev-only burner wallet (local playtesting / automation) — never set in production.

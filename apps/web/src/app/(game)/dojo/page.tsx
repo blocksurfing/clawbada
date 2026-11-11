@@ -19,6 +19,7 @@ import {
   canNativeShare, copyText, forgetRoom, inviteUrl, isRoomId, isTerminal, rememberBattleRoom, saveRoom, savedInvite, savedRoomId, shareInvite, useFriendRoom,
 } from '@/lib/friend-room';
 import type { ArenaTier } from '@/lib/arena-music.generated';
+import { reviewParams } from '@/lib/review-mode';
 
 /** Dev review rosters (moved here from the old /game/battle Practice tab when Battle became a modal on the Shell,
  *  2026-10-11): every Special whose VFX is finished, random/fixed trios per tier, and the storm-review trio. The
@@ -224,8 +225,7 @@ export default function DojoPage() {
       const res = await start;
       rememberPracticeOwner(res.battleId, res.snapshot?.session?.playerA);
       const q = new URLSearchParams(window.location.search);
-      const carry = new URLSearchParams();
-      for (const k of ['auto', 'autodelay', 'speed', 'stay', 'perf']) { const v = q.get(k); if (v) carry.set(k, v); }
+      const carry = reviewParams();   // the review tools, only in a browser that opted in to them (lib/review-mode.ts)
       if (coach || q.get('coach') === '1') carry.set('coach', '1');   // Master Lob coaches practice battles only
       // Navigate once the loading loop is fully open, so the page switch (a main-thread freeze) never lands mid-iris.
       await entryRevealed();
@@ -259,9 +259,7 @@ export default function DojoPage() {
       rememberPracticeOwner(battleId, identity ?? undefined);
       if (roomId) rememberBattleRoom(battleId, roomId);   // the way back offers a rematch from this room
       forgetRoom(roomId);
-      const q = new URLSearchParams(window.location.search);
-      const carry = new URLSearchParams();
-      for (const k of ['auto', 'autodelay', 'speed', 'stay', 'perf']) { const v = q.get(k); if (v) carry.set(k, v); }
+      const carry = reviewParams();   // the review tools, only in a browser that opted in to them (lib/review-mode.ts)
       await entryRevealed();
       router.push(`/battle/${battleId}${carry.size ? `?${carry}` : ''}`);
     } catch (e) {

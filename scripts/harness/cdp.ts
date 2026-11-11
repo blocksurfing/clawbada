@@ -183,6 +183,14 @@ const browser = await connect();
 //    with `export const keepAudio = true` (or AUDIO=1).
 //  • Forfeit: after the probe, a still-live battle page is resigned through the options menu, so no
 //    practice battle is left running on the API. Opt out with `export const keepBattle = true` (or KEEP=1).
+// The review tools (?auto ?autodelay ?speed ?stay ?perf) work only in a browser that opted in locally — a link alone
+// must not switch them on for a player (apps/web/src/lib/review-mode.ts). Every probe opts in.
+// A probe about the browser that has NOT opted in sets `export const noReviewMode = true`.
+if (!mod.noReviewMode) {
+  await browser.send('Page.addScriptToEvaluateOnNewDocument', {
+    source: "try { localStorage.setItem('clawbada.review', '1'); } catch (e) {}",
+  });
+}
 if (!mod.keepAudio && !process.env.AUDIO) {
   await browser.send('Page.addScriptToEvaluateOnNewDocument', {
     source: "try { localStorage.setItem('clawbada_music', 'off'); localStorage.setItem('clawbada_battle_music', 'off'); localStorage.setItem('clawbada_sfx', 'off'); } catch (e) {}",

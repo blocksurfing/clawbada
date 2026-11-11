@@ -101,7 +101,9 @@ const ROOM_ID_RE = /^r_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const SECRET_RE = /^[A-Za-z0-9_-]{22,64}$/;
 export const isRoomId = (id: string) => ROOM_ID_RE.test(id);
 
-/** What a player sees: their own team, and of the other player only whether they're here, locked in, ready. */
+/** What a player sees: their own team, and of the other player only whether they're here, locked in, ready — not who
+ *  they are. Opening an invite seats you at once, so the lobby must not tell the host which wallet opened it; the
+ *  two addresses are exchanged when both press Battle (the battle snapshot), which each player chooses to do. */
 export interface FriendRoomView {
   id: string;
   status: FriendRoomStatus;
@@ -113,7 +115,7 @@ export interface FriendRoomView {
   expiresAt: string;
   battleId: string | null;
   you: { team: FriendTeam | null; ready: boolean };
-  opponent: { joined: boolean; address: string | null; lockedIn: boolean; ready: boolean };
+  opponent: { joined: boolean; lockedIn: boolean; ready: boolean };
   /** After the battle: the rematch room if either player asked for one (and its state: a 'cancelled' one was declined). */
   rematch: { roomId: string; offeredBy: 'you' | 'opponent'; status: FriendRoomStatus } | null;
   /** On a rematch room: the room it follows. */
@@ -289,7 +291,6 @@ export class FriendRoomService {
       you: { team: host ? row.hostTeam : row.guestTeam, ready: host ? row.hostReady : row.guestReady },
       opponent: {
         joined: host ? row.guest !== null : true,
-        address: host ? row.guest : row.host,
         lockedIn: !!(host ? row.guestTeam : row.hostTeam),
         ready: host ? row.guestReady : row.hostReady,
       },

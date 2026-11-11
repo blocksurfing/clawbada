@@ -75,9 +75,14 @@ describe('friend routes', () => {
     const team = { classes: ['kraken', 'ember', 'abyss'], tier: 'elite', purity: 3 };   // the room's default rules
     expect((await app.request(`/api/game/friend/rooms/${created.roomId}/team`, json(authHeaders(), { team }))).status).toBe(200);
     expect((await app.request(`/api/game/friend/rooms/${created.roomId}/team`, json(guestHeaders(), { team: { ...team, classes: ['bulwark', 'mantis', 'sentinel'] } }))).status).toBe(200);
-    // The host's view never carries the friend's classes.
-    const hostView = await (await app.request(`/api/game/friend/rooms/${created.roomId}`, { headers: authHeaders() })).json();
+    // The host's view never carries the friend's classes — nor who the friend is: opening an invite must not tell
+    // the host which address opened it (the two are exchanged when both press Battle).
+    const hostView = await (await app.request(`/api/game/friend/rooms/${created.roomId}`, { headers: authHeaders() })).json() as { opponent: Record<string, unknown> };
     expect(JSON.stringify(hostView)).not.toContain('bulwark');
+    expect(hostView.opponent).toEqual({ joined: true, lockedIn: true, ready: false });
+    expect(JSON.stringify(hostView).toLowerCase()).not.toContain(GUEST.toLowerCase());
+    const friendView = await (await app.request(`/api/game/friend/rooms/${created.roomId}`, { headers: guestHeaders() })).json();
+    expect(JSON.stringify(friendView).toLowerCase()).not.toContain(TEST_ADDRESS.toLowerCase());
     await app.request(`/api/game/friend/rooms/${created.roomId}/ready`, json(authHeaders()));
     const done = await (await app.request(`/api/game/friend/rooms/${created.roomId}/ready`, json(guestHeaders()))).json() as { battleId: string; status: string };
     expect(done.battleId).toMatch(/^f_/);

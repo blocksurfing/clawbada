@@ -13,6 +13,10 @@ export const keepAudio = true;   // muted at the source below, on both browsers
 
 const MUTE = `{ const p = HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play = function () { this.muted = true; return p.call(this); }; }
 try { localStorage.setItem('clawbada_music', 'off'); localStorage.setItem('clawbada_battle_music', 'off'); localStorage.setItem('clawbada_sfx', 'off'); } catch (e) {}`;
+/** Both browsers autoplay their turns (?auto=1), and that works only in a browser that opted in locally — the
+ *  friend's is this probe's own second Chrome, which cdp.ts never touches. On a production build an invite link
+ *  carrying ?auto=1 does nothing for a friend who has not (review-optin.ts covers that side). */
+const REVIEW = `try { localStorage.setItem('clawbada.review', '1'); } catch (e) {}`;
 /** Any wallet / connect / signature dialog on screen (ConnectKit's modal or anything like it). The chrome's own
  *  "Connect Wallet" plank is not a dialog and does not count. */
 const WALLET_DIALOG = `(() => [...document.querySelectorAll('[role=dialog], [aria-modal=true]')].some((d) => d.offsetParent !== null && /wallet|connect|sign/i.test(d.textContent || '')))()`;
@@ -40,6 +44,7 @@ export default async function (host: Browser, h: { connect(host: string): Promis
   try {
     for (const b of [host, friend]) {
       await b.send('Page.addScriptToEvaluateOnNewDocument', { source: MUTE });
+      await b.send('Page.addScriptToEvaluateOnNewDocument', { source: REVIEW });
       await b.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 755, deviceScaleFactor: 1, mobile: false });
     }
 

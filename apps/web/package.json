@@ -18,7 +18,7 @@
     "clsx": "^2.1.1",
     "connectkit": "^1.9.1",
     "lucide-react": "^0.574.0",
-    "next": "^15.1.0",
+    "next": "^15.5.29",
     "radix-ui": "^1.4.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -142,6 +142,17 @@ function clearStoredSession(lowerAddr: string): void {
   }
 }
 
+/**
+ * Drop everything this browser holds for a wallet: its cached signature and its stored session. Called when the
+ * wallet disconnects, however that happened (providers/web3-provider.tsx) — a session is good for up to a day, and
+ * on a shared device it must not outlive the wallet that signed for it.
+ */
+export function forgetWalletSession(address: string): void {
+  const lowerAddr = address.toLowerCase();
+  cached.delete(lowerAddr);
+  clearStoredSession(lowerAddr);
+}
+
 const toSession = (r: { token: string; address: string; expiresAt: number; sessionEndsAt: number; guest?: boolean }): Session => ({
   token: r.token,
   address: r.address,

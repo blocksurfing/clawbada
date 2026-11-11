@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { isFriendId, isOffChainId } from '@/lib/battle-protocol';
 import { readPracticeOwner } from '@/lib/practice-owner';
 import { roomOfBattle } from '@/lib/friend-room';
+import { reviewParams } from '@/lib/review-mode';
 import { Badge } from '@/components/ui/badge';
 import { FrostedPanel } from '@/components/ui/frosted-panel';
 import { PageBackground } from '@/components/ui/page-background';
@@ -67,12 +68,14 @@ export default function BattlePage() {
   }
   // Review tools (designer VFX passes, harness): ?auto=1 lets the bot policy play this wallet's (?auto=special casts every Special it can)
   // turns; ?speed=2 scales Unity playback; ?stay=1 keeps the view open after the result instead
-  // of returning to the arena page. Read after mount to avoid a Suspense boundary.
+  // of returning to the arena page. Read after mount to avoid a Suspense boundary. They are obeyed only in a browser
+  // that opted in to them locally (lib/review-mode.ts) — a link alone cannot make someone's battle play itself.
   const [review, setReview] = useState<{ autoPlay: boolean | 'special'; speed: number; stay: boolean; coach: boolean }>({ autoPlay: false, speed: 1, stay: false, coach: false });
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    const speed = Number(q.get('speed') ?? '1');
-    setReview({ autoPlay: q.get('auto') === 'special' ? 'special' : q.get('auto') === '1', speed: Number.isFinite(speed) && speed > 0 ? speed : 1, stay: q.get('stay') === '1', coach: q.get('coach') === '1' });
+    const r = reviewParams();
+    const speed = Number(r.get('speed') ?? '1');
+    const coach = new URLSearchParams(window.location.search).get('coach') === '1';   // Master Lob: a player's choice, not a review tool
+    setReview({ autoPlay: r.get('auto') === 'special' ? 'special' : r.get('auto') === '1', speed: Number.isFinite(speed) && speed > 0 ? speed : 1, stay: r.get('stay') === '1', coach });
   }, []);
   // After the result the view closes itself and comes back here. A practice session is gone
   // once it ends (in-memory), so Back must not lead into it: replace. A chain battle keeps its
@@ -99,11 +102,44 @@ export default function BattlePage() {
     },
   });
 
+  // A wallet whose session has run out has to sign before it can play — and a signature is never asked for on a
+  // page load: anyone can send somebody a link to this page, and the wallet prompt would open by itself (and again
+  // every few seconds if refused). Like the Dojo and the invite page, the player gets one button instead. A guest,
+  // or a wallet with a live session, goes straight in. Decided once: a session that runs out mid-battle renews
+  // itself without unmounting the battle.
+  const lowerAddress = address?.toLowerCase();
+  const playsAsWallet = !!lowerAddress && lowerAddress === walletAddress?.toLowerCase();
+  const chainPlayer = !practice && !!lowerAddress && !!battleData?.chain
+    && (battleData.chain.playerA.toLowerCase() === lowerAddress || battleData.chain.playerB.toLowerCase() === lowerAddress);
+  const mustBeSignedIn = playsAsWallet && (practice || chainPlayer);
+  const entered = useRef(false);
+  const [signIn, setSignIn] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
+  const needsSignIn = mustBeSignedIn && !entered.current && !identity.hasLiveSession();
+  if (address && !needsSignIn) entered.current = true;
+  const onSignIn = useCallback(async () => {
+    setSignIn({ busy: true, error: null });
+    try {
+      await identity.getSessionToken();
+      setSignIn({ busy: false, error: null });   // re-render: the session is live now
+    } catch (e) {
+      setSignIn({ busy: false, error: e instanceof Error ? e.message : 'Could not sign in' });
+    }
+  }, [identity]);
+  const signInPanel = (
+    <FrostedPanel className="py-10 text-center text-sm text-text-secondary space-y-3" data-testid="battle-sign-in">
+      <p>Your wallet is connected. Sign in once to rejoin this battle.</p>
+      <button type="button" className="underline underline-offset-2 hover:text-foreground disabled:opacity-60" data-testid="battle-sign-in-button" disabled={signIn.busy} onClick={() => void onSignIn()}>
+        {signIn.busy ? 'Check your wallet…' : 'Sign in to rejoin'}
+      </button>
+      {signIn.error && <p data-testid="battle-sign-in-error">{signIn.error}</p>}
+    </FrostedPanel>
+  );
+
   // The entry loading screen (lib/battle-entry.ts). The Train click started it before navigating here; a page
   // opened directly (a reload, a shared link) starts it itself, so every visit gets the same sequence (owner
   // decision). It covers the page only while the live view is about to mount — never a "belongs to another
-  // session" notice or the on-chain prep steps — and leaving the page drops it.
-  const liveNow = practice ? !!address : (battleData?.chain?.phase ?? 0) >= 4;
+  // session" notice, the sign-in button or the on-chain prep steps — and leaving the page drops it.
+  const liveNow = (practice ? !!address : (battleData?.chain?.phase ?? 0) >= 4) && !needsSignIn;
   const identityUndecided = practice && !address && identityPending;
   useEffect(() => {
     if (liveNow) { if (getEntryState().phase === 'idle') startBattleEntry({ kind: practice ? 'practice' : 'battle' }); }
@@ -114,7 +150,7 @@ export default function BattlePage() {
   if (practice) {
     return (
       <BattleBackdrop kind="dojo">
-          {address ? (
+          {address && needsSignIn ? signInPanel : address ? (
             <LiveBattle battleId={battleId} address={address} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} coach={review.coach} onClose={leave} />
           ) : identityPending ? (
             <FrostedPanel className="py-10 text-center text-sm text-text-secondary flex items-center justify-center gap-2">
@@ -164,7 +200,9 @@ export default function BattlePage() {
   if (live) {
     return (
       <BattleBackdrop kind="shell">
-        <LiveBattle battleId={battleId} address={address} spectate={!participant} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} coach={review.coach} onClose={leave} />
+        {participant && needsSignIn ? signInPanel : (
+          <LiveBattle battleId={battleId} address={address} spectate={!participant} autoPlay={review.autoPlay} speed={review.speed} stay={review.stay} coach={review.coach} onClose={leave} />
+        )}
         {/* Result in review (5) or frozen for review (8): say so — players have nothing to do */}
         {chain && (phase === 5 || phase === 8) && participant && address && (
           <div className="mt-4 max-w-6xl mx-auto"><BattleMoves battleId={battleId} address={address} battleData={battleData} /></div>

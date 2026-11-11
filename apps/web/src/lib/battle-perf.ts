@@ -7,6 +7,8 @@
  *   · everything is reachable at `window.__clawbadaPerf` — `pageReport()`, `requestUnity()` (resolves with Unity's
  *     JSON), `reset()`.
  */
+import { reviewParams } from './review-mode';
+
 export interface PerfStats { n: number; mean: number; p50: number; p95: number; p99: number; max: number; over25: number; over50: number; over100: number }
 
 const CAP = 60 * 60 * 15;
@@ -21,7 +23,7 @@ let unitySend: ((method: string, json: string) => void) | null = null;
 
 export function perfEnabled(): boolean {
   if (typeof window === 'undefined') return false;
-  try { return new URLSearchParams(window.location.search).get('perf') === '1'; } catch { return false; }
+  try { return reviewParams().get('perf') === '1'; } catch { return false; }
 }
 
 function stats(values: Float32Array | number[], n: number): PerfStats {

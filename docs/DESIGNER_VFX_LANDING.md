@@ -191,7 +191,10 @@ On a build with practice presets enabled, open
 ```
 
 `preset` picks the roster, `auto=1` lets the bot policy play your side so the battle runs
-itself, and `speed=2` scales Unity's playback (any value 0.25–4). Both params carry through
+itself, and `speed=2` scales Unity's playback (any value 0.25–4). On a deployed site (clawbada.com, a preview)
+these review switches — `auto`, `autodelay`, `speed`, `stay`, `perf` — do nothing until that browser has opted in,
+once, in its console: `localStorage.setItem('clawbada.review', '1')`. A local dev stack needs no opt-in. (A link
+alone must not be able to make a player's battle play itself.) Both params carry through
 "Start practice" to the battle page and can also be added to an existing `/battle/p_…` URL
 and refreshed.
 

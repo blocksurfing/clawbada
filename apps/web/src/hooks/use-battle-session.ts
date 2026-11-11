@@ -27,6 +27,21 @@ import type {
 import { api, battleSocketUrl } from '@/lib/api';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3001/ws';
+
+/** Connection attempts before a battle that was never reached is given up on (1 + 2 + 4 + 8 + 10 × 4 ≈ 55 s). */
+export const FIRST_CONNECT_ATTEMPTS = 8;
+
+/** Did the player refuse the request in their wallet? (EIP-1193 code 4001; viem's UserRejectedRequestError; the
+ *  message wallets and wagmi use.) The error may be wrapped, so the causes are walked too. */
+export function isWalletRejection(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; e && depth < 6; depth++) {
+    const x = e as { code?: unknown; name?: unknown; message?: unknown; cause?: unknown };
+    if (x.code === 4001 || x.name === 'UserRejectedRequestError') return true;
+    if (typeof x.message === 'string' && /user (rejected|denied)|rejected the request|request rejected/i.test(x.message)) return true;
+    e = x.cause;
+  }
+  return false;
+}
 const LOG_KEEP = 80;
 
 export type Connection = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
@@ -183,8 +198,13 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
     if (!battleId || opts.enabled === false) return;
     if (!opts.spectate && !opts.getSessionToken) return;
     let attempt = 0;
+    let everOpened = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     closedByUs.current = false;
+    /** A battle this client has never reached (no socket, no snapshot) is given up on after a while: a tab left on
+     *  a battle id that is not this player's must not ask for tickets every ten seconds for ever. A battle that WAS
+     *  reached keeps reconnecting for as long as it takes (an API rollout, a lost network). */
+    const givenUp = () => !everOpened && !snapshotRef.current && attempt >= FIRST_CONNECT_ATTEMPTS;
 
     const connect = async () => {
       dispatch({ type: 'connection', value: 'connecting' });
@@ -198,6 +218,15 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
       } catch (err) {
         dispatch({ type: 'connection', value: 'error' });
         if (closedByUs.current) return;
+        // The player said no to the wallet: asking again by ourselves would be a prompt nobody clicked for.
+        if (isWalletRejection(err)) {
+          console.warn('[BattleSession] sign-in was refused in the wallet — not retrying');
+          return;
+        }
+        if (givenUp()) {
+          console.warn(`[BattleSession] could not reach this battle after ${attempt} attempts — giving up`);
+          return;
+        }
         // The ticket request (or the token renewal) failed — usually a network blip or an API restart mid-battle:
         // keep trying on the same backoff as a dropped socket instead of leaving the battle disconnected.
         const delay = Math.min(10_000, 1_000 * 2 ** Math.min(attempt++, 3));
@@ -209,6 +238,7 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
       const ws = new WebSocket(url);
       wsRef.current = ws;
       ws.onopen = () => {
+        everOpened = true;
         console.log(`[BattleSession] socket open${attempt > 0 ? ` (reconnect #${attempt})` : ''}`);
         // A live battle answers the join with its snapshot at once. Silence means it is not in the server's memory —
         // over already (or on another replica): read the stored state, which says how it ended.
@@ -274,6 +304,11 @@ export function useBattleSession(battleId: string | null, opts: UseBattleSession
         wsRef.current = null;
         if (closedByUs.current) return;
         dispatch({ type: 'connection', value: 'closed' });
+        if (givenUp()) {
+          dispatch({ type: 'connection', value: 'error' });
+          console.warn(`[BattleSession] could not reach this battle after ${attempt} attempts — giving up`);
+          return;
+        }
         // Auth expiry (1008) and drops: reconnect with backoff; the session token renews silently.
         const delay = Math.min(10_000, 1_000 * 2 ** Math.min(attempt++, 3));
         console.warn(`[BattleSession] socket closed code=${ev.code}${ev.reason ? ` reason=${ev.reason}` : ''} — reconnecting in ${delay} ms`);

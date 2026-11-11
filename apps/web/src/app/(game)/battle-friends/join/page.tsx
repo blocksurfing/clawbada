@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { parseInvite, saveRoom } from '@/lib/friend-room';
+import { reviewParams } from '@/lib/review-mode';
 import { BattleBackdrop } from '@/components/battle/battle-backdrop';
 
 /**
@@ -19,11 +20,11 @@ import { BattleBackdrop } from '@/components/battle/battle-backdrop';
  */
 type Phase = 'joining' | 'needs-sign-in' | 'failed';
 
-/** The lobby, carrying the review params (?auto ?speed ?stay — the harness and designer tools) through. */
+/** The lobby. Review params (?auto ?speed ?stay — the harness and designer tools) ride along only in a browser that
+ *  opted in to them locally: an invite link cannot switch them on for the friend who opens it (lib/review-mode.ts). */
 function dojoUrl(roomId: string): string {
-  const q = new URLSearchParams(window.location.search);
   const out = new URLSearchParams({ room: roomId });
-  for (const k of ['auto', 'speed', 'stay', 'perf']) { const v = q.get(k); if (v) out.set(k, v); }
+  for (const [k, v] of reviewParams()) out.set(k, v);
   return `/dojo?${out}`;
 }
 

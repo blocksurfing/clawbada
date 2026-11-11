@@ -20,6 +20,7 @@ import { EXIT_IRIS_CLOSE_MS, startBattleExit } from '@/lib/battle-exit';
 import { isOffChainId, type Side, type TurnCommand } from '@/lib/battle-protocol';
 import { v3 } from '@clawbada/game-logic';
 import { useMasterLob } from '@/lib/master-lob/use-master-lob';
+import { reviewParams } from '@/lib/review-mode';
 import { BattleStage, type BattleStageControls } from './BattleStage';
 import { selectionToData } from './unity-bridge';
 import { HexBoard } from './HexBoard';
@@ -57,7 +58,7 @@ const RETURN_SECONDS = 8;
  *  (e.g. 9000) lets Master Lob finish his tip in review clips. */
 function autoDelayMs(): number {
   if (typeof window === 'undefined') return 350;
-  const v = Number(new URLSearchParams(window.location.search).get('autodelay'));
+  const v = Number(reviewParams().get('autodelay'));
   return Number.isFinite(v) && v > 0 ? Math.min(v, 30_000) : 350;
 }
 

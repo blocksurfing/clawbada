@@ -655,7 +655,7 @@ export interface FriendRoomView {
   expiresAt: string;
   battleId: string | null;
   you: { team: FriendTeamBody | null; ready: boolean };
-  opponent: { joined: boolean; address: string | null; lockedIn: boolean; ready: boolean };
+  opponent: { joined: boolean; lockedIn: boolean; ready: boolean };
   /** After the battle: a rematch either player asked for (a 'cancelled' one was turned down). */
   rematch: { roomId: string; offeredBy: 'you' | 'opponent'; status: FriendRoomStatus } | null;
   /** On a rematch room: the room it follows. */
