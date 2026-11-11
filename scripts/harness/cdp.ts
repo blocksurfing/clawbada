@@ -182,7 +182,8 @@ const browser = await connect();
 //    survives the Storage.clearDataForOrigin most probes start with. A probe that tests audio opts out
 //    with `export const keepAudio = true` (or AUDIO=1).
 //  • Forfeit: after the probe, a still-live battle page is resigned through the options menu, so no
-//    practice battle is left running on the API. Opt out with `export const keepBattle = true` (or KEEP=1).
+//    practice battle is left running on the API. If the menu cannot be driven, the page's own session resigns
+//    through the API (API=… as for the probes). Opt out with `export const keepBattle = true` (or KEEP=1).
 // The review tools (?auto ?autodelay ?speed ?stay ?perf) work only in a browser that opted in locally — a link alone
 // must not switch them on for a player (apps/web/src/lib/review-mode.ts). Every probe opts in.
 // A probe about the browser that has NOT opted in sets `export const noReviewMode = true`.
@@ -197,37 +198,77 @@ if (!mod.keepAudio && !process.env.AUDIO) {
   });
 }
 
-/** Resign a live battle through the in-canvas options menu (gear → Forfeit battle → Yes). */
+const API = process.env.API ?? 'http://127.0.0.1:3011';
+
+/**
+ * Resign with the session the page itself holds. The fallback for a battle whose options menu cannot be driven: the
+ * canvas logs its button rects only once the HUD is up, and a probe that ends early (or a build that logs less)
+ * leaves nothing to click — the battle then ran on until the shot clock gave up on it.
+ */
+async function forfeitThroughApi(b: Browser, battleId: string): Promise<number> {
+  return b.eval(`(async () => {
+    let last = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith('clawbada.session.')) continue;
+      let token;
+      try { token = JSON.parse(localStorage.getItem(key)).token; } catch (e) { continue; }
+      if (!token) continue;
+      const r = await fetch(${JSON.stringify(`${API}/api/game/combat/${encodeURIComponent(battleId)}/forfeit`)}, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+      last = r.status;
+      if (r.ok) return 200;
+    }
+    return last;
+  })()`);
+}
+
+/** Resign a live battle: through the in-canvas options menu (gear → Forfeit battle → Yes), else through the API. */
 async function forfeitIfLive(b: Browser) {
   try {
     if (!(await b.eval(`/^\\/battle\\//.test(location.pathname)`))) return;
     if (b.allLogs.some((l) => /\[BattleHud\] banner|forfeit accepted/.test(l))) return;
-    const g = await b.eval(`(() => { const c = document.querySelector('canvas'); if (!c) return null; const r = c.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bw: c.width, bh: c.height }; })()`);
-    if (!g) return;
-    const rect = (key: string) => {
-      const all = b.allLogs;
-      for (let i = all.length - 1; i >= 0; i--) {
-        const m = all[i].match(new RegExp(`\\[BattleHud\\] options .*?${key}=\\((-?\\d+),(-?\\d+),(\\d+),(\\d+)\\)`));
-        if (m) return { x: g.x + (+m[1] + +m[3] / 2) * g.w / g.bw, y: g.y + (g.bh - (+m[2] + +m[4] / 2)) * g.h / g.bh };
-      }
-      return null;
-    };
-    const step = async (key: string) => {
-      const t0 = Date.now();
-      let r = rect(key);
-      while (!r && Date.now() - t0 < 5000) { await b.sleep(250); r = rect(key); }
-      if (!r) throw new Error(`no ${key} button logged`);
-      await b.clickAt(r.x, r.y);
-      await b.sleep(500);
-    };
-    await step('gear');
-    await step('forfeit');
-    await step('yes');
-    const ok = await b.waitFor(`/by forfeit|DEFEAT/i.test(document.body.innerText)`, 15000, 300);
-    console.log(ok ? '[harness] battle forfeited' : '[harness] forfeit sent, no result seen');
+    // Taken now: a forfeit that did land sends the page back to the Dojo while the menu steps are still waiting.
+    const battleId = String(await b.eval(`location.pathname.split('/').pop()`));
+    try {
+      await forfeitThroughMenu(b);
+      return;
+    } catch (e) {
+      console.log(`[harness] menu forfeit failed (${(e as Error).message}) — resigning through the API`);
+    }
+    const status = await forfeitThroughApi(b, battleId);
+    if (status === 200) console.log('[harness] battle forfeited (API)');
+    else if (status === 409) console.log('[harness] nothing to forfeit: the API says the battle is not live');
+    else console.log(`[harness] could not forfeit: the API answered ${status || 'nothing — the page holds no session'}`);
   } catch (e) {
     console.log(`[harness] could not forfeit: ${(e as Error).message}`);
   }
+}
+
+/** Gear → Forfeit battle → Yes, clicked at the rects the canvas logged. Throws when a step cannot be taken. */
+async function forfeitThroughMenu(b: Browser) {
+  const g = await b.eval(`(() => { const c = document.querySelector('canvas'); if (!c) return null; const r = c.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bw: c.width, bh: c.height }; })()`);
+  if (!g) throw new Error('no canvas');
+  const rect = (key: string) => {
+    const all = b.allLogs;
+    for (let i = all.length - 1; i >= 0; i--) {
+      const m = all[i].match(new RegExp(`\\[BattleHud\\] options .*?${key}=\\((-?\\d+),(-?\\d+),(\\d+),(\\d+)\\)`));
+      if (m) return { x: g.x + (+m[1] + +m[3] / 2) * g.w / g.bw, y: g.y + (g.bh - (+m[2] + +m[4] / 2)) * g.h / g.bh };
+    }
+    return null;
+  };
+  const step = async (key: string) => {
+    const t0 = Date.now();
+    let r = rect(key);
+    while (!r && Date.now() - t0 < 5000) { await b.sleep(250); r = rect(key); }
+    if (!r) throw new Error(`no ${key} button logged`);
+    await b.clickAt(r.x, r.y);
+    await b.sleep(500);
+  };
+  await step('gear');
+  await step('forfeit');
+  await step('yes');
+  if (!(await b.waitFor(`/by forfeit|DEFEAT/i.test(document.body.innerText)`, 15000, 300))) throw new Error('no result seen after the menu forfeit');
+  console.log('[harness] battle forfeited');
 }
 
 // A probe that throws must say so: `process.exit` inside `finally` used to swallow the exception (exit 0, no

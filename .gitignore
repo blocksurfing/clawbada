@@ -5,13 +5,18 @@ cache/
 # Dependencies
 /contracts/lib/
 
-# Environment
+# Environment: every env file, at any depth (.env.sepolia would hold a deployer key). Only the template is tracked.
 .env
-.env.local
+.env.*
+!.env.example
 
 # IDE
 .vscode/
 .idea/
+
+# Claude Code's per-machine approvals (which commands may run without asking). Local by name and by nature: tracked,
+# a branch could change what the tool is allowed to do on the machine that checks it out.
+.claude/settings.local.json
 
 # OS
 .DS_Store

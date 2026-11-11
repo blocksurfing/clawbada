@@ -5,8 +5,10 @@
 node_modules
 .next
 *.tsbuildinfo
+# Every env file, at any depth: the CLI uploads whatever this file does not name, and the build needs none of them
+# (the web app's settings live in the Vercel project).
 .env
-.env.local
+.env.*
 .DS_Store
 /packages/battle-engine
 /out

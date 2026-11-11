@@ -111,7 +111,7 @@ Ran 2 tests across 1 file. [74.01s]
 
 D-01's player leg is demonstrated: both tests pass. The battle seed is an already-public drand number, and the PoC shows that knowing it turns a fair 50% game into a 67.5% win rate for the exploiter. The hot-key grinding leg and the salt-veto leg are not demonstrated.
 
-The defect is off-chain, so this is a bun test, not a Foundry test. The file is `/Users/you/Clawbada-engine/scripts/audit-poc/D-01.test.ts` and it is the only file added. It runs the real `BattleSessionManager`, the real `DrandBeaconClient`, and the real `@clawbada/game-logic` v3 engine, bots and `clientView`. The only fake is the HTTP transport: a deterministic stand-in for the public drand chain, which the server and the attacker both read.
+The defect is off-chain, so this is a bun test, not a Foundry test. The file is `scripts/audit-poc/D-01.test.ts` and it is the only file added. It runs the real `BattleSessionManager`, the real `DrandBeaconClient`, and the real `@clawbada/game-logic` v3 engine, bots and `clientView`. The only fake is the HTTP transport: a deterministic stand-in for the public drand chain, which the server and the attacker both read.
 
 **Test 1: seed recovery and foresight against a live real-battle session**
 - `pollOnce()` runs the real `startReal()`. The seed is `fetchLatest()` randomness, unmodified.

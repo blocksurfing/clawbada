@@ -4,7 +4,7 @@
  * Shared between the API matchmaker and the frontend Team Builder so a player
  * can preview their power score before queueing without round-tripping the API.
  *
- * Design (locked in `~/.claude/projects/-Users-you-Clawbada/memory/project_battle_v2_redesign.md`):
+ * Design (locked in `~/.claude/projects/<project>/memory/project_battle_v2_redesign.md`):
  *  - Power score = sum of EvolutionTier weights across the 3 lobsters on a team.
  *    Evolved=1, Elite=2, Apex=3. Possible scores: 3..9 (Base=0 lobsters can't enter battle).
  *  - Sub-pools keyed by (stakeBracket, powerScore). Up to 7 powers × 3 stakes = 21 buckets.

@@ -1,4 +1,7 @@
-FROM oven/bun:1 AS deps
+# Pinned like docker/api.Dockerfile: a build must never double as a Bun or Node upgrade. Bump deliberately.
+ARG BUN_VERSION=1.3.14
+ARG NODE_VERSION=20.20.2
+FROM oven/bun:${BUN_VERSION} AS deps
 
 WORKDIR /app
 
@@ -27,7 +30,7 @@ RUN bun install --frozen-lockfile
 # @tanstack/react-query, @tailwindcss/postcss ...), so a node-only stage that received just
 # the root node_modules could not resolve them. Re-running the frozen install after the
 # source copy re-creates those per-workspace directories.
-FROM oven/bun:1 AS build
+FROM oven/bun:${BUN_VERSION} AS build
 
 WORKDIR /app
 
@@ -39,7 +42,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN bun run --filter @clawbada/web build
 
 # ── Run stage ──
-FROM node:20-slim
+FROM node:${NODE_VERSION}-slim
 
 WORKDIR /app
 
@@ -51,6 +54,10 @@ COPY --from=build /app/apps/web/.next/standalone ./
 COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build /app/apps/web/public ./apps/web/public
 
+# The image's unprivileged `node` user (uid/gid 1000). The server reads what was copied in and writes one thing:
+# the image optimizer's cache, so that folder alone is handed over.
+RUN mkdir -p apps/web/.next/cache && chown node:node apps/web/.next/cache
+USER node
 EXPOSE 3000
 
 CMD ["node", "apps/web/server.js"]

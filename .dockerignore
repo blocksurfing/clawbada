@@ -4,8 +4,11 @@
 node_modules
 **/node_modules
 .git
+# Env files at the root AND in any workspace (a bare `.env` here is root-only).
 .env
 .env.*
+**/.env
+**/.env.*
 lib/
 contracts/
 docs/

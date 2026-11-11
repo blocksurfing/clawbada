@@ -1,0 +1,170 @@
+{
+  "about": "Advisories `bun audit` reported when this list was last reviewed. scripts/audit-check.ts fails on anything not listed here. Listed does not mean harmless. Regenerate with `bun scripts/audit-check.ts --update`, review the diff.",
+  "reviewed": "2026-11-11",
+  "advisories": {
+    "@babel/core": {
+      "GHSA-4x5r-pxfx-6jf8": "low — @babel/core: Arbitrary File Read via sourceMappingURL Comment"
+    },
+    "axios": {
+      "GHSA-35jp-ww65-95wh": "high — axios Vulnerable to Full Man-in-the-Middle via Prototype Pollution Gadget in `config.proxy`",
+      "GHSA-3g43-6gmg-66jw": "high — axios Vulnerable to Credential Theft and Response Hijacking via Prototype Pollution Gadget in Config Merge",
+      "GHSA-3p68-rc4w-qgx5": "moderate — Axios has a NO_PROXY Hostname Normalization Bypass that Leads to SSRF",
+      "GHSA-3pq3-5fj3-cg6v": "high — Axios: HTTP/2 adapter bypasses configured DNS lookup and proxy controls",
+      "GHSA-3w6x-2g7m-8v23": "moderate — Axios: Invisible JSON Response Tampering via Prototype Pollution Gadget in `parseReviver`",
+      "GHSA-42h9-826w-cgv3": "moderate — Axios: Excessive recursion in formDataToJSON can cause denial of service",
+      "GHSA-445q-vr5w-6q77": "moderate — Axios: CRLF Injection in multipart/form-data body via unsanitized blob.type in formDataToStream",
+      "GHSA-4hqw-qxg8-jxx2": "moderate — Axios: Fetch Adapter Header Injection via Inherited FormData getHeaders",
+      "GHSA-542g-h47m-68v8": "high — Axios: Denial of Service via Unhandled 'error' Event in HTTP/2 ClientHttp2Session Initialization",
+      "GHSA-5c9x-8gcm-mpgx": "moderate — Axios' HTTP adapter-streamed uploads bypass maxBodyLength when maxRedirects: 0",
+      "GHSA-62hf-57xw-28j9": "moderate — Axios: unbounded recursion in toFormData causes DoS via deeply nested request data",
+      "GHSA-6chq-wfr3-2hj9": "high — Axios: Header Injection via Prototype Pollution",
+      "GHSA-777c-7fjr-54vf": "high — Allocation of Resources Without Limits or Throttling in Axios",
+      "GHSA-7q8q-rj6j-mhjq": "moderate — Axios: Nested axios option objects can consume polluted prototype values",
+      "GHSA-898c-q2cr-xwhg": "moderate — axios has DoS & Header Injection via Prototype Pollution Read-Side Gadgets in axios merge functions",
+      "GHSA-9fr6-4gfg-395g": "moderate — Axios: Prototype-Pollution Gadget in the Default Instance Allows Inherited Object.prototype.method to Override HTTP Method",
+      "GHSA-fvcv-3m26-pcqx": "moderate — Axios has Unrestricted Cloud Metadata Exfiltration via Header Injection Chain",
+      "GHSA-hfxv-24rg-xrqf": "high — Axios: Regular Expression Denial of Service (ReDoS) via Cookie Name Injection",
+      "GHSA-j5f8-grm9-p9fc": "high — Axios: Proxy-Authorization header leaks to redirect target when proxy is re-evaluated to direct connection",
+      "GHSA-j8rh-479h-cp32": "moderate — Axios: Header Injection via Inherited headers After Minimal Interceptor",
+      "GHSA-jqh4-m9w3-8hp9": "moderate — Axios: Fetch adapter `ReadableStream` uploads bypass `maxBodyLength`",
+      "GHSA-m7pr-hjqh-92cm": "moderate — Axios: no_proxy bypass via IP alias allows SSRF",
+      "GHSA-mmx7-hfxf-jppx": "moderate — Axios: Prototype pollution gadgets can alter axios request construction",
+      "GHSA-mwf2-3pr3-8698": "moderate — Axios: HTTP/2 streamed uploads bypass `maxBodyLength`",
+      "GHSA-p92q-9vqr-4j8v": "high — Axios: Proxy-Authorization Credential Leak to Origin Server Across HTTP-to-HTTPS Redirect in Axios Node.js HTTP Adapter",
+      "GHSA-pf86-5x62-jrwf": "high — Axios: Prototype Pollution Gadgets - Response Tampering, Data Exfiltration, and Request Hijacking",
+      "GHSA-pmv8-rq9r-6j72": "moderate — Axios: Deep formToJSON Key Recursion Can Cause Denial of Service",
+      "GHSA-pmwg-cvhr-8vh7": "high — Axios: Incomplete Fix for CVE-2025-62718 — NO_PROXY Protection Bypassed via RFC 1122 Loopback Subnet (127.0.0.0/8) in Axios 1.15.0",
+      "GHSA-q8qp-cvcw-x6jj": "high — Axios has prototype pollution read-side gadgets in HTTP adapter that allow credential injection and request hijacking",
+      "GHSA-vf2m-468p-8v99": "moderate — Axios: HTTP adapter streamed responses bypass maxContentLength",
+      "GHSA-vh66-26gq-q6x8": "moderate — Axios: Prototype pollution gadget in fetch adapter can alter outbound requests",
+      "GHSA-w9j2-pvgh-6h63": "moderate — Axios: Authentication Bypass via Prototype Pollution Gadget in `validateStatus` Merge Strategy",
+      "GHSA-xhjh-pmcv-23jw": "low — Axios: Null Byte Injection via Reverse-Encoding in AxiosURLSearchParams",
+      "GHSA-xx6v-rp6x-q39c": "moderate — Axios: XSRF Token Cross-Origin Leakage via Prototype Pollution Gadget in `withXSRFToken` Boolean Coercion"
+    },
+    "baseline-browser-mapping": {
+      "GHSA-w5vr-8v7q-w6rv": "moderate — baseline-browser-mapping process termination on invalid input causes denial of service"
+    },
+    "bn.js": {
+      "GHSA-378v-28hj-76wf": "moderate — bn.js affected by an infinite loop"
+    },
+    "browserslist": {
+      "GHSA-73wf-gq98-2v4g": "high — Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats)",
+      "GHSA-c83g-rgw3-j3cx": "high — Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM"
+    },
+    "decode-uri-component": {
+      "GHSA-qr28-fpjm-wq7f": "high — decode-uri-component vulnerable to denial of service via quadratic replacement of percent-encoded runs",
+      "GHSA-vcc3-ghjq-m6fr": "moderate — decode-uri-component: Denial of service via exponential decoding of malformed percent-encoded input"
+    },
+    "defu": {
+      "GHSA-737v-mqg7-c878": "high — defu: Prototype pollution via `__proto__` key in defaults argument"
+    },
+    "drizzle-orm": {
+      "GHSA-gpj5-g38j-94v9": "high — Drizzle ORM has SQL injection via improperly escaped SQL identifiers"
+    },
+    "esbuild": {
+      "GHSA-67mh-4wv8-2f99": "moderate — esbuild enables any website to send any requests to the development server and read the response"
+    },
+    "fast-copy": {
+      "GHSA-jggr-w7fw-pc2j": "moderate — fast-copy: Stack exhaustion in fast-copy when copying deeply-nested values"
+    },
+    "follow-redirects": {
+      "GHSA-r4q5-vmmm-2653": "moderate — follow-redirects leaks Custom Authentication Headers to Cross-Domain Redirect Targets"
+    },
+    "form-data": {
+      "GHSA-hmw2-7cc7-3qxx": "high — form-data: CRLF injection in form-data via unescaped multipart field names and filenames"
+    },
+    "h3": {
+      "GHSA-22cc-p3c6-wpvm": "high — h3 has a Server-Sent Events Injection via Unsanitized Newlines in Event Stream Fields",
+      "GHSA-4hxc-9384-m385": "moderate — h3: SSE Event Injection via Unsanitized Carriage Return (`\\r`) in EventStream Data and Comment Fields (Bypass of CVE Fix)",
+      "GHSA-72gr-qfp7-vwhw": "moderate — h3: Double Decoding in `serveStatic` Bypasses `resolveDotSegments` Path Traversal Protection via `%252e%252e`",
+      "GHSA-wr4h-v87w-p3r7": "moderate — h3 has a Path Traversal via Percent-Encoded Dot Segments in serveStatic Allows Arbitrary File Read"
+    },
+    "hono": {
+      "GHSA-26pp-8wgv-hjvm": "moderate — Hono missing validation of cookie name on write path in setCookie()",
+      "GHSA-2gcr-mfcq-wcc3": "moderate — Hono: app.mount() strips mount prefix using undecoded path, causing incorrect routing for percent-encoded paths",
+      "GHSA-3hrh-pfw6-9m5x": "moderate — Hono: Cookie helper does not sanitize sameSite and priority, allowing Set-Cookie injection",
+      "GHSA-458j-xx4x-4375": "moderate — hono Improperly Handles JSX Attribute Names Allows HTML Injection in hono/jsx SSR",
+      "GHSA-5pq2-9x2x-5p6w": "moderate — Hono Vulnerable to Cookie Attribute Injection via Unsanitized domain and path in setCookie()",
+      "GHSA-69xw-7hcm-h432": "moderate — hono/jsx has Unvalidated JSX Tag Names that May Allow HTML Injection",
+      "GHSA-79qm-7rj5-m7r9": "low — Hono: Proxy Helper does not remove response headers listed in the `Connection` header",
+      "GHSA-88fw-hqm2-52qc": "high — hono: CORS Middleware reflects any Origin with credentials when `origin` defaults to the wildcard",
+      "GHSA-8j4g-w8fx-2239": "moderate — Hono: ReDoS in CORS middleware via Access-Control-Request-Headers",
+      "GHSA-9vqf-7f2p-gf9v": "moderate — Hono: bodyLimit() can be bypassed for chunked / unknown-length requests",
+      "GHSA-crvj-82cr-hjcx": "moderate — Hono: Query parser reads parameters after the URL fragment, causing cache-key and proxy interpretation differentials",
+      "GHSA-f23p-vx2j-j53r": "moderate — Hono: `memo()` retains SSR output across requests, leading to cross-user data disclosure",
+      "GHSA-f577-qrjj-4474": "moderate — Hono: JWT middleware accepts any Authorization scheme, not only Bearer",
+      "GHSA-g6gw-c38x-mqfc": "moderate — Hono: Unbounded dot-notation nesting in `parseBody()` can cause memory exhaustion",
+      "GHSA-gq3j-xvxp-8hrf": "low — Hono added timing comparison hardening in basicAuth and bearerAuth",
+      "GHSA-gqvv-2mrq-wpjv": "moderate — Hono: Incomplete fix for CVE-2026-39408: `toSSG()` still writes files outside the output directory",
+      "GHSA-hm8q-7f3q-5f36": "low — Hono has improper validation of NumericDate claims (exp, nbf, iat) in JWT verify()",
+      "GHSA-hvrm-45r6-mjfj": "moderate — hono/jsx does not isolate context per request, leading to cross-request data disclosure",
+      "GHSA-hxh3-vqpv-xpqv": "moderate — hono/jsx renders plain strings unescaped in boundary components, leading to XSS",
+      "GHSA-j6c9-x7qj-28xf": "moderate — hono: AWS Lambda adapter merges multiple `Set-Cookie` headers into one value, dropping cookies on ALB single-header and Lattice",
+      "GHSA-p6xx-57qc-3wxr": "moderate — Hono Vulnerable to SSE Control Field Injection via CR/LF in writeSSE()",
+      "GHSA-p77w-8qqv-26rm": "moderate — Hono's Cache Middleware ignores Vary: Authorization / Vary: Cookie leading to cross-user cache leakage",
+      "GHSA-q5qw-h33p-qvwr": "high — Hono vulnerable to arbitrary file access via serveStatic vulnerability",
+      "GHSA-qp7p-654g-cw7p": "moderate — Hono has CSS Declaration Injection via Style Object Values in JSX SSR",
+      "GHSA-r5rp-j6wh-rvv4": "moderate — Hono: Non-breaking space prefix bypass in cookie name handling in getCookie()",
+      "GHSA-rv63-4mwf-qqc2": "moderate — hono: Body Limit Middleware can be bypassed on AWS Lambda by understating `Content-Length`",
+      "GHSA-v8w9-8mx6-g223": "moderate — Hono vulnerable to Prototype Pollution possible through __proto__ key allowed in parseBody({ dot: true })",
+      "GHSA-w62v-xxxg-mg59": "moderate — Hono: Server-Side XSS via JSX Escaping Bypass in cx() Utility",
+      "GHSA-wgpf-jwqj-8h8p": "moderate — hono: Lambda@Edge adapter keeps only the last value of a repeated request header, dropping the rest",
+      "GHSA-wmmm-f939-6g9c": "moderate — Hono: Middleware bypass via repeated slashes in serveStatic",
+      "GHSA-wwfh-h76j-fc44": "moderate — hono: Path traversal in `serve-static` on Windows via encoded backslash (`%5C`)",
+      "GHSA-xf4j-xp2r-rqqx": "moderate — Hono: Path traversal in toSSG() allows writing files outside the output directory",
+      "GHSA-xgm2-5f3f-mvvc": "moderate — Hono: API Gateway v1 adapter can drop a distinct repeated request header value during de-duplication",
+      "GHSA-xpcf-pg52-r92g": "moderate — Hono has incorrect IP matching in ipRestriction() for IPv4-mapped IPv6 addresses",
+      "GHSA-xrhx-7g5j-rcj5": "moderate — Hono: IP Restriction bypasses static deny rules for non-canonical IPv6"
+    },
+    "lodash": {
+      "GHSA-f23m-r3pf-42rh": "moderate — lodash vulnerable to prototype pollution via array-path bypass in `_.unset`, `_.omit`, and `_.pullAt",
+      "GHSA-r5fr-rjxr-66jc": "high — lodash vulnerable to Code Injection via `_.template` imports key names"
+    },
+    "nanoid": {
+      "GHSA-28wg-ghj8-5hjv": "high — nanoid: non-secure generators can loop indefinitely with negative size",
+      "GHSA-2v37-7h3g-55p8": "high — nanoid: custom generators can loop indefinitely when size is zero",
+      "GHSA-xwg4-73v4-xw9w": "high — nanoid: Integer Overflow or Wraparound"
+    },
+    "picomatch": {
+      "GHSA-3v7f-55p6-f55p": "moderate — Picomatch: Method Injection in POSIX Character Classes causes incorrect Glob Matching",
+      "GHSA-c2c7-rcm5-vvqj": "high — Picomatch has a ReDoS vulnerability via extglob quantifiers"
+    },
+    "postcss": {
+      "GHSA-6g55-p6wh-862q": "high — PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments",
+      "GHSA-fxqj-rqcc-2cmp": "moderate — PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+      "GHSA-qx2v-qp2m-jg93": "moderate — PostCSS has XSS via Unescaped </style> in its CSS Stringify Output",
+      "GHSA-r28c-9q8g-f849": "high — PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure"
+    },
+    "sharp": {
+      "GHSA-f88m-g3jw-g9cj": "high — sharp inherited vulnerabilities in libvips: CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591",
+      "GHSA-rgj7-g3m4-5g8c": "high — sharp: Vulnerabilities in libheif: GHSA-g89c-p67h-r497 and GHSA-2jg2-4ch7-h545",
+      "GHSA-wq5f-xc86-pv6w": "high — sharp : Vulnerability in librsvg dependency CVE-2026-96889"
+    },
+    "shell-quote": {
+      "GHSA-395f-4hp3-45gv": "high — shell-quote: Quadratic-complexity Denial of Service in `parse()` (CWE-407)",
+      "GHSA-w7jw-789q-3m8p": "critical — shell-quote quote() does not escape newlines in object .op values"
+    },
+    "socket.io-parser": {
+      "GHSA-2m8v-j782-fhvr": "high — Socket.IO: Zero-attachment Memory Exhaustion",
+      "GHSA-677m-j7p3-52f9": "high — socket.io allows an unbounded number of binary attachments"
+    },
+    "source-map-js": {
+      "GHSA-68fv-2mgg-jv7q": "high — source-map-js allows event-loop denial of service through indexed source-map section offsets"
+    },
+    "stream-json": {
+      "GHSA-528h-pc64-c93x": "moderate — stream-json: pick/ignore/filter/replace filters are O(depth²) on nested input — small crafted JSON blocks the event loop for seconds→minutes (DoS)",
+      "GHSA-hqr4-qq8f-hg3x": "moderate — stream-json: JSONC parser and verifier re-scan the whole accumulated comment on every input chunk",
+      "GHSA-mjw6-4jj6-33hc": "moderate — stream-json has a prototype pollution issue: Assembler writes this.current[this.key] on plain objects"
+    },
+    "uuid": {
+      "GHSA-w5hq-g745-h8pq": "moderate — uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided"
+    },
+    "ws": {
+      "GHSA-58qx-3vcg-4xpx": "moderate — ws: Uninitialized memory disclosure",
+      "GHSA-96hv-2xvq-fx4p": "high — ws: Memory exhaustion DoS from tiny fragments and data chunks"
+    },
+    "zod": {
+      "GHSA-mrhx-c7xc-m3w5": "high — Zod can exhaust memory while validating oversized constrained collections"
+    }
+  }
+}

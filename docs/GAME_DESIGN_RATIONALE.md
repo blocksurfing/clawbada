@@ -611,7 +611,7 @@ The original Battle Mode V2 design used **two-phase commit-reveal per round**: p
 3. **Bots beat humans at hidden-info anyway**. Mixed-strategy mathematics favors bots over humans, undercutting the "humans can still play" goal.
 4. **Spectators couldn't follow battles**. 14-minute commit-window-heavy matches don't replay well; ATB battles produce continuous watchable action.
 
-**Replaced with**: ATB initiative-bar combat with full information during play (LOKR-style). Strategic depth now lives in positioning, ability sequencing, status effect stacking, and Speed manipulation — closer to online chess with 3 pieces per side. Commit-reveal is preserved at the team composition layer (where it actually pays — preventing counter-picking). Trust is reinforced by an on-chain review window in which the game's watchdog replays every result and freezes any it cannot reproduce (no player disputes since 2026-10-01). See Section 5 and `~/.claude/projects/-Users-you-Clawbada/memory/project_battle_v2_redesign.md` for the full V3 spec.
+**Replaced with**: ATB initiative-bar combat with full information during play (LOKR-style). Strategic depth now lives in positioning, ability sequencing, status effect stacking, and Speed manipulation — closer to online chess with 3 pieces per side. Commit-reveal is preserved at the team composition layer (where it actually pays — preventing counter-picking). Trust is reinforced by an on-chain review window in which the game's watchdog replays every result and freezes any it cannot reproduce (no player disputes since 2026-10-01). See Section 5 and `~/.claude/projects/<project>/memory/project_battle_v2_redesign.md` for the full V3 spec.
 
 ---
 

@@ -5,7 +5,7 @@
 > This document describes the **V2 battle system** (two-phase commit-reveal per round, 7-round cap, simultaneous resolution). The battle system has since been redesigned to **V3**: LOKR-style ATB initiative-bar combat with full information during play, server-authoritative trust model with on-chain dispute resolution.
 >
 > **For current spec, see**:
-> - Project memory: `~/.claude/projects/-Users-you-Clawbada/memory/project_battle_v2_redesign.md`
+> - Project memory: `~/.claude/projects/<project>/memory/project_battle_v2_redesign.md`
 > - Project context: `.claude/CLAUDE.md` → Battle Mode section
 > - Design rationale: `docs/GAME_DESIGN_RATIONALE.md` → Section 5 (Why ATB / Trust Model / V3 Anti-Griefing) and Section 13 (Two-Phase Commit-Reveal Rounds — Replaced in V3 Redesign)
 >

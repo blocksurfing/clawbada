@@ -9,7 +9,7 @@
 > - Part 7 = active backlog and prioritized path to launch. Drives day-to-day work.
 > - Part 8 = operating procedures (memory, sweeps, commits, deployments).
 >
-> **Truthfulness contract.** This document is accurate as of **2026-05-19**. Where the doc says "DONE", the corresponding code is in the working tree. Where it says "DEFERRED" or "OPEN", the corresponding work has not started or has partial coverage as noted. Status fields are mirrored from `~/.claude/projects/-Users-you-Clawbada/memory/launch-blockers.md`, which is the live tracker.
+> **Truthfulness contract.** This document is accurate as of **2026-05-19**. Where the doc says "DONE", the corresponding code is in the working tree. Where it says "DEFERRED" or "OPEN", the corresponding work has not started or has partial coverage as noted. Status fields are mirrored from `~/.claude/projects/<project>/memory/launch-blockers.md`, which is the live tracker.
 
 ---
 
@@ -600,13 +600,13 @@ Migrations under `packages/db/drizzle/`: `0000_steep_shadowcat.sql` (base), `000
 - **ABI extraction**: `packages/chain/scripts/extract-abis.ts` reads from `out/<Contract>.sol/<Contract>.json` (Foundry). Run after `forge build`. The ABI drift caused the A11 HIGH finding — Hermes should add the A12 CI gate.
 - **Tests use `bun:test`** with `mock.module(...)` for module-level mocks. Real-DB integration tests are tracked as X9.
 - **Code style**: terse, no over-engineering. Default to no comments unless the WHY is non-obvious. Don't reference current task/fix in code comments — that belongs in PR descriptions.
-- **Memory system**: `~/.claude/projects/-Users-you-Clawbada/memory/` is the persistent memory. `MEMORY.md` is the index (one-line entries). Topic files are stored alongside. See Part 8.2 for the operating procedure.
+- **Memory system**: `~/.claude/projects/<project>/memory/` is the persistent memory. `MEMORY.md` is the index (one-line entries). Topic files are stored alongside. See Part 8.2 for the operating procedure.
 
 ---
 
 ## Part 5 — What "DONE" actually means — campaign artifacts
 
-The Clawbada codebase has been hardened via an aggressive multi-PR audit campaign over April–May 2026. Each PR carried adversarial Codex sweeps after every fix bundle until the floor was reached. The campaign's findings are tracked in `~/.claude/projects/-Users-you-Clawbada/memory/launch-blockers.md`.
+The Clawbada codebase has been hardened via an aggressive multi-PR audit campaign over April–May 2026. Each PR carried adversarial Codex sweeps after every fix bundle until the floor was reached. The campaign's findings are tracked in `~/.claude/projects/<project>/memory/launch-blockers.md`.
 
 Hermes should:
 
@@ -833,7 +833,7 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 
 ## Part 7 — Path to launch — prioritized backlog
 
-> Live tracker: `~/.claude/projects/-Users-you-Clawbada/memory/launch-blockers.md`.
+> Live tracker: `~/.claude/projects/<project>/memory/launch-blockers.md`.
 
 ### 7.1 Project-wide biggest blocker — Unity / assets / playtesting
 
@@ -898,7 +898,7 @@ Each subsection follows the **Desired Outcome / Current State / Open Items** tem
 
 ### 8.1 Memory system — how Hermes should use it
 
-The persistent memory at `~/.claude/projects/-Users-you-Clawbada/memory/` is the project's long-term brain. Hermes inherits it. Conventions:
+The persistent memory at `~/.claude/projects/<project>/memory/` is the project's long-term brain. Hermes inherits it. Conventions:
 
 - **`MEMORY.md` is an index** of one-line pointers. ≤ 200 lines. Anything longer goes in a topic file.
 - **Topic files** are stored alongside, named `project_*.md`, `feedback_*.md`, `reference_*.md`, or by section (e.g. `launch-blockers.md`).
@@ -1000,8 +1000,8 @@ In order:
 1. This document.
 2. `.claude/CLAUDE.md` (project conventions for AI agents).
 3. `.claude/AGENTS.md`, `.claude/SOUL.md`, `.claude/COMMANDS.md`, `.claude/LEARNED.md`.
-4. `~/.claude/projects/-Users-you-Clawbada/memory/launch-blockers.md` (live tracker).
-5. `~/.claude/projects/-Users-you-Clawbada/memory/MEMORY.md` (index → topic files).
+4. `~/.claude/projects/<project>/memory/launch-blockers.md` (live tracker).
+5. `~/.claude/projects/<project>/memory/MEMORY.md` (index → topic files).
 6. `contracts/BattleArena.sol` (the most complex contract; understand the H-01 challenge window + V3 dispute bonding).
 7. `apps/engine/src/operator/{worker,errors,types,jobs/create-battle,jobs/resolve-round}.ts` (the operator-worker series).
 8. `apps/indexer/src/watchers/battle-watcher.ts` (full battle lifecycle indexer).

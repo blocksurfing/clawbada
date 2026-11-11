@@ -1,4 +1,6 @@
-FROM oven/bun:1 AS deps
+# Pinned like docker/api.Dockerfile: a build must never double as a Bun upgrade. Bump all four together.
+ARG BUN_VERSION=1.3.14
+FROM oven/bun:${BUN_VERSION} AS deps
 
 WORKDIR /app
 
@@ -22,7 +24,7 @@ COPY scripts/e2e/package.json scripts/e2e/
 RUN bun install --frozen-lockfile
 
 # ── Run stage ──
-FROM oven/bun:1
+FROM oven/bun:${BUN_VERSION}
 
 WORKDIR /app
 
@@ -32,6 +34,8 @@ COPY . .
 RUN bun install --frozen-lockfile
 
 ENV NODE_ENV=production
+# The image's unprivileged `bun` user (uid/gid 1000): the build above ran as root, the service only reads /app.
+USER bun
 EXPOSE 3003
 
 CMD ["bun", "run", "--filter", "@clawbada/indexer", "start"]

@@ -2,3 +2,5 @@
 # gitignored Unity WebGL build (public/unity-build/) ships with `npx vercel deploy`.
 node_modules
 .next
+.env
+.env.*
