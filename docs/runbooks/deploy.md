@@ -27,11 +27,17 @@ curl https://api.clawbada.com/health
 ## Web → Vercel (`clawbada-web`)
 
 ```
-# one-time per checkout: copy .vercel/project.json + vercel.json from the primary checkout
+# one-time per checkout: copy .vercel/project.json from the primary checkout
 vercel deploy --yes            # preview (behind Vercel SSO)
-vercel deploy --prod --yes     # production → https://clawbada-web.vercel.app
+scripts/deploy-web.sh          # production → https://clawbada.com
 ```
 
+- `scripts/deploy-web.sh` is the production deploy. It refuses a Unity build made with placeholder audio, and a
+  folder with changes that are not in a commit — the CLI uploads the folder as it stands, so those would go live
+  unreviewed. `--allow-dirty` deploys them anyway and lists them.
+- The build settings are the committed `vercel.json` (build command, output folder, `bun install --frozen-lockfile`),
+  for CLI deploys and for the preview Vercel builds for every pull request. The frozen install fails the build when
+  `bun.lock` does not match the `package.json` files, as CI does.
 - Build the Unity WebGL player first (`BuildScript.BuildWebGL`, see
   `packages/battle-engine/README.md`); it lands in `apps/web/public/unity-build/`
   (gitignored) and ships because `.vercelignore` (tracked, root) replaces `.gitignore`

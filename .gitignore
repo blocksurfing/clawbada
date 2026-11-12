@@ -80,3 +80,6 @@ scripts/harness/chrome-gpu-profile/
 scripts/harness/chrome-gpu.log
 scripts/harness/chrome.log
 scripts/harness/*.out
+
+# husky writes its hooks folder on install; git-lfs puts its own hooks there before that has run in a new worktree
+.husky/_/
