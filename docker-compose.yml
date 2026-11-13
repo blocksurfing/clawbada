@@ -60,6 +60,8 @@ services:
       DRAND_CHAIN_URL: ${DRAND_CHAIN_URL:-https://api.drand.sh}
       BATTLE_SHOT_CLOCK_MS: ${BATTLE_SHOT_CLOCK_MS:-60000}
       BOT_THINK_MS: ${BOT_THINK_MS:-450}
+      # Lobster images are off unless switched on (apps/api/src/lib/render-gate.ts); a local stack draws them.
+      LOBSTER_RENDER_ENABLED: ${LOBSTER_RENDER_ENABLED:-true}
     depends_on:
       migrate:
         condition: service_completed_successfully

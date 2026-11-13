@@ -11,7 +11,8 @@
  * (docs/runbooks/testnet-deploy.md §6). CHAIN_ROUTES=on|off overrides, for a stack that needs it either way.
  *
  * Not behind this gate: combat (its chain routes share `/:battleId/…` with the live practice and friend battles,
- * and its reads are database reads) and rendering (a lobster drawn from its DNA needs art, not contracts).
+ * and its reads are database reads) and rendering (a lobster drawn from its DNA needs art, not contracts; it has a
+ * switch of its own, lib/render-gate.ts).
  */
 import type { MiddlewareHandler } from 'hono';
 import { ApiError } from './errors';

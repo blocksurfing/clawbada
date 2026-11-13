@@ -98,6 +98,19 @@ describe('render routes', () => {
       const res = await app.request('/render/dna/12345?tier=5');
       expect(res.status).toBe(400);
     });
+
+    test('returns 400 for a DNA that is not a uint256 or names a class that does not exist', async () => {
+      const classFifteen = 15n << 252n;
+      const affinityFifteen = 0xf0n << 232n;   // the first part's dominant allele
+      for (const dna of ['abc', '-1', String(1n << 256n), String(classFifteen), String(affinityFifteen)]) {
+        for (const path of [`/render/dna/${dna}`, `/render/sprite/dna/${dna}`]) {
+          const res = await app.request(path);
+          expect(res.status).toBe(400);
+          expect((await res.json()).message).toBe('Invalid DNA value');
+        }
+      }
+      expect(mockHasArt).not.toHaveBeenCalled();
+    });
   });
 
   // ──────────── GET /render/:tokenId ────────────
