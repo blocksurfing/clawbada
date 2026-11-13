@@ -24,7 +24,21 @@ jobs:
       # No personal home-directory paths in tracked files (scripts/identity-guard.ts).
       - run: bun scripts/identity-guard.ts --tree
       # The repo's own tooling, which no workspace test run covers.
-      - run: bun test scripts/identity-guard.test.ts scripts/audit-check.test.ts
+      - run: bun test scripts/identity-guard.test.ts scripts/audit-check.test.ts scripts/pre-push.test.ts
+      # The history this repository replaced on 2026-11-12 must not come back (docs/runbooks/repo-hygiene.md).
+      # Red only when GitHub finds that history's first commit here; an API hiccup is not a finding.
+      - name: Previous history is absent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$REPO/commits/7fe113eee24b26443226e36fb6678d4debc2eb94")
+          echo "GitHub answered $code"
+          if [ "$code" = 200 ]; then
+            echo "::error::The replaced history is in this repository. See docs/runbooks/repo-hygiene.md, section History."
+            exit 1
+          fi
 
   typecheck:
     name: Typecheck
