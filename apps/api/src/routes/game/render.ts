@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { renderLobsterPng, renderIdleSpriteSheetPng, hasArt, VALID_SIZES } from '@clawbada/asset-gen';
+import { isValidDNA } from '@clawbada/game-logic';
 import { readLobster } from '../../lib/chain';
 import { ApiError, catchErrors, pathParam } from '../../lib/errors';
 import { parseUint } from '../../lib/parse-uint';
@@ -54,12 +55,18 @@ async function requireArt(dna: bigint, tier: number): Promise<void> {
   }
 }
 
+const DNA_END = 1n << 256n;
+
+/** A DNA in the URL is anyone's number: it must be a uint256 whose class and class affinities exist. */
 function parseDna(raw: string): bigint {
+  let dna: bigint;
   try {
-    return BigInt(raw);
+    dna = BigInt(raw);
   } catch {
     throw new ApiError('INVALID_INPUT', 'Invalid DNA value');
   }
+  if (dna < 0n || dna >= DNA_END || !isValidDNA(dna)) throw new ApiError('INVALID_INPUT', 'Invalid DNA value');
+  return dna;
 }
 
 /**

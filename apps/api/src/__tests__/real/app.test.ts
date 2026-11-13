@@ -1,6 +1,7 @@
 /**
  * The HTTP app as assembled (src/app.ts). What is under test is the ORDER of what stands in front of the handlers:
- * the request ceiling, CORS, the closed chain-era routes, and the body limit the server is started with.
+ * the request ceiling, CORS, the closed chain-era routes, the closed render routes, and the body limit the server is
+ * started with.
  *
  * This folder runs in its own process (`test:real`) with nothing mocked. No database and no chain are touched: only
  * requests that are answered before either would be are sent.
@@ -13,9 +14,11 @@ process.env.LOG_LEVEL = 'silent';
 process.env.AUTH_SESSION_SECRET = 'test-secret-at-least-32-characters-long!!';
 delete process.env.CHAIN_ROUTES;
 delete process.env.LOBSTER_NFT_ADDRESS;
+delete process.env.LOBSTER_RENDER_ENABLED;
 const { app, GLOBAL_REQUESTS_PER_MIN } = await import('../../app');
 const { MAX_REQUEST_BODY_BYTES } = await import('../../lib/server-limits');
 const { CHAIN_ROUTES_CLOSED_MESSAGE } = await import('../../lib/chain-gate');
+const { RENDER_ROUTES_CLOSED_MESSAGE } = await import('../../lib/render-gate');
 
 const GAME = 'https://clawbada.com';
 const ELSEWHERE = 'https://evil.example';
@@ -120,6 +123,38 @@ describe('the chain-era routes are closed until the contracts are configured', (
     }
     expect((await app.request('/api/auth/guest', { method: 'POST' }, fromFreshIp())).status).toBe(200);
     expect((await app.request('/api/auth/params', {}, fromFreshIp())).status).toBe(200);
+  });
+});
+
+describe('lobster images are closed until they are switched on', () => {
+  const CLOSED = [
+    '/api/game/render/dna/0',
+    '/api/game/render/sprite/dna/0?size=320&frames=16',
+    '/api/game/render/1',
+    '/api/game/render/sprite/1',
+    '/api/game/render/dna/not-a-number',
+  ];
+
+  test.each(CLOSED)('GET %s answers 404 before anything is parsed or drawn', async (path) => {
+    const res = await app.request(path, {}, fromFreshIp());
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'NOT_FOUND', message: RENDER_ROUTES_CLOSED_MESSAGE });
+  });
+
+  test('LOBSTER_RENDER_ENABLED=true opens them: a lobster is drawn from the installed art', async () => {
+    process.env.LOBSTER_RENDER_ENABLED = 'true';
+    try {
+      const res = await app.request('/api/game/render/dna/0?size=64', {}, fromFreshIp());
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('image/png');
+      const png = new Uint8Array(await res.arrayBuffer());
+      expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+      const bad = await app.request('/api/game/render/dna/not-a-number', {}, fromFreshIp());
+      expect(bad.status).toBe(400);
+    } finally {
+      delete process.env.LOBSTER_RENDER_ENABLED;
+    }
   });
 });
 

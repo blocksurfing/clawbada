@@ -17,6 +17,7 @@ import { rateLimit } from './middleware/rate-limit';
 import { ApiError } from './lib/errors';
 import { allowedWsOrigins, wsOriginAllowed } from './lib/ws-origin';
 import { CHAIN_ONLY_PATHS, chainRoutesOnly } from './lib/chain-gate';
+import { RENDER_PATH, renderRoutesOnly } from './lib/render-gate';
 
 export const app = new Hono();
 
@@ -85,6 +86,9 @@ app.use('/api/auth/ws-ticket', rateLimit(60, 60_000, 'ws-ticket'));
 // 3. The parts of the game that need the contracts are closed until the contracts are configured — answered here,
 //    before any authentication or body parsing (lib/chain-gate.ts).
 for (const path of CHAIN_ONLY_PATHS) app.use(path, chainRoutesOnly);
+
+// 4. Drawing lobsters is closed until it is switched on (lib/render-gate.ts).
+app.use(RENDER_PATH, renderRoutesOnly);
 
 app.get('/health', (c) =>
   c.json({ status: 'ok', timestamp: Date.now(), version: '0.0.1' }),
