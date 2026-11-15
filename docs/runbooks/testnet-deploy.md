@@ -73,7 +73,7 @@ Add the 13 `*_ADDRESS` values and the real `MATCHMAKER_ADDRESS` (not the placeho
 
 ## 7. The engine and the indexer on Cloud Run (new services)
 
-Both run from the same repo with `docker/engine.Dockerfile` / `docker/indexer.Dockerfile` (same shape as the API's; the same `.dockerignore` applies), each as its own always-on Cloud Run service (min = max = 1, CPU always allocated, the same Cloud SQL binding and service-account pattern as `cloud-run.md`; no port is served, so use a Cloud Run *worker pool* or a service with a trivial health listener). Variables:
+Both run from the same repo with `docker/engine.Dockerfile` / `docker/indexer.Dockerfile` (same shape as the API's; the same `.dockerignore` applies), each as its own always-on Cloud Run service (min = max = 1, CPU always allocated, the same Cloud SQL binding and service-account pattern as `cloud-run.md`; no port is served, so use a Cloud Run *worker pool* or a service with a trivial health listener). Cost: nothing calls these two, so they need the CPU always allocated — at the API's size (1 vCPU / 1 GiB) that is about CAD 73 a month each, whether or not anybody plays (`cloud-run.md`, "CPU mode and standing cost"); settle their size before creating them. Variables:
 
 | Service | Variables |
 |---|---|
