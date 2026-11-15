@@ -2,5 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "cd apps/web && bun next build",
   "outputDirectory": "apps/web/.next",
-  "installCommand": "bun install --frozen-lockfile"
+  "installCommand": "bun install --frozen-lockfile",
+  "git": {
+    "deploymentEnabled": {
+      "design/vfx-specials": false,
+      "design/website": false
+    }
+  }
 }
