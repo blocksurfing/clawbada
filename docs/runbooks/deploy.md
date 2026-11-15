@@ -48,3 +48,9 @@ scripts/deploy-web.sh          # production → https://clawbada.com
   time — change them, then redeploy.
 - Pushes to `main` do NOT deploy production (Ignored Build Step); the CLI deploy is
   the production path.
+- Pushes to `design/vfx-specials` and `design/website` build no preview (`git.deploymentEnabled` in `vercel.json`):
+  both are brought level with `main` after every merge, and each of those pushes used to pay for a build nobody
+  opened. A pull request opened from one of them gets no preview either; to look at work that lives on a design
+  branch, run `vercel deploy --yes` from it.
+- Builds run on the Standard machine (4 CPUs; project setting, Settings → Build and Deployment). Vercel bills build
+  minutes × CPUs, so the 30-CPU Turbo machine cost about seven times as much per minute.
