@@ -1,6 +1,7 @@
 # The API on Google Cloud Run (`clawbada-api`)
 
-Since 2026-10-22 the API runs on Cloud Run in `us-east4` as one always-on instance (CPU always allocated), with
+Since 2026-10-22 the API runs on Cloud Run in `us-east4` as one instance that is always kept warm (since
+2026-11-15 its CPU is allocated only while a request or connection is open — see "CPU mode and standing cost"), with
 Cloud SQL for PostgreSQL reached over Cloud Run's built-in connector (a unix socket, no public database
 address) and secrets in Secret Manager. It replaced Railway after the 2026-10-21 Railway breach.
 
@@ -20,7 +21,7 @@ The service's runtime configuration lives on the service itself and is inherited
 |---|---|
 | `docker/cloud-run.api.env.yaml` (committed) | non-secret env: chain, RPC, auth domains, practice flags, pool size, proxy hops |
 | Secret Manager | `DATABASE_URL` (socket form), `AUTH_SESSION_SECRET`, `BATTLE_SEED_SECRET` |
-| the service template | `--port 3001`, 1 vCPU / 1 GiB, CPU always allocated, min = max = 1 instance, concurrency 1000, timeout 3600 s, session affinity, the Cloud SQL binding, the service account |
+| the service template | `--port 3001`, 1 vCPU / 1 GiB, CPU allocated only while a request or connection is open (`--cpu-throttling`), min = max = 1 instance, concurrency 1000, timeout 3600 s, session affinity, the Cloud SQL binding, the service account |
 
 Change config with `gcloud run services update … --env-vars-file docker/cloud-run.api.env.yaml` (after editing the
 file) or `--update-secrets NAME=secret:version`; the `--set-*` forms replace the whole set.
@@ -57,21 +58,71 @@ gcloud run deploy clawbada-api --project $PROJECT --region $REGION \
   --platform managed --execution-environment gen2 \
   --service-account "clawbada-api@${PROJECT}.iam.gserviceaccount.com" \
   --add-cloudsql-instances "${PROJECT}:${REGION}:clawbada-pg" \
-  --port 3001 --cpu 1 --memory 1Gi --no-cpu-throttling \
+  --port 3001 --cpu 1 --memory 1Gi --cpu-throttling \
   --min-instances 1 --max-instances 1 --concurrency 1000 --timeout 3600 --session-affinity \
   --allow-unauthenticated \
   --env-vars-file docker/cloud-run.api.env.yaml \
   --set-secrets DATABASE_URL=clawbada-api-database-url:latest,AUTH_SESSION_SECRET=clawbada-auth-session-secret:latest,BATTLE_SEED_SECRET=clawbada-battle-seed-secret:latest
 ```
 
-Why these flags: `--no-cpu-throttling` keeps the matchmaker ticker, shot clocks and bot timers running with no
-request in flight; `--min-instances 1 --max-instances 1` because live battles are in memory (persisted per turn
+Why these flags: `--cpu-throttling` bills the CPU only while a request, a WebSocket or a long-poll is open (the
+service ran with `--no-cpu-throttling` until 2026-11-15 — "CPU mode and standing cost" says what the switch changes
+and when to switch back); `--min-instances 1 --max-instances 1` because live battles are in memory (persisted per turn
 and resumed on boot — one instance by design); `--timeout 3600` is the WebSocket ceiling (clients reconnect and
 re-sync from the server's snapshot); never `--use-http2` (WebSockets need HTTP/1.1).
 
 The `DATABASE_URL` socket form: postgres.js cannot take Cloud SQL's socket from a URL, so the URL keeps a
 placeholder `localhost` and `?host=/cloudsql/…`; `packages/db/src/connection.ts` turns that into the client's
 `path` option. No `sslmode` on the socket form.
+
+## CPU mode and standing cost — 2026-11-15
+
+Nearly everything this setup costs is charged whether or not anybody plays. List prices in CAD for a 30-day month
+(us-east4, 2026-11):
+
+| Item | About | |
+|---|---|---|
+| Cloud Run, 1 vCPU / 1 GiB, one instance kept warm | 73 with the CPU always allocated; about 20 with `--cpu-throttling` while traffic is light | the only line the CPU mode changes |
+| Load balancer (the :443 and :80 forwarding rules) | 28 | |
+| Cloud Armor (policy + rules) | 15 | |
+| Cloud SQL (`db-f1-micro`, 10 GB SSD) | 14 | |
+| Requests, data out, logs, builds, image storage | 1–2 | the only line that grows with use |
+
+That is about 130 a month with the CPU always allocated and about 80 with `--cpu-throttling`, from zero players up
+to what one instance can hold. In November 2026 the API answered ~5,800 requests a day, 4,320 of them the uptime
+check. There is no billing export: the real figures are in Console → Billing → Reports, grouped by SKU.
+
+Since 2026-11-15 the service runs with `--cpu-throttling` (Cloud Run's request-based billing): the instance stays
+warm, but its CPU is allocated — and billed at the full rate — only while a request, a WebSocket or a long-poll is
+open. Before the switch something was open about 2% of the day (11% on the busiest day). Once something is open more
+than roughly 70% of the time, this mode costs more than `--no-cpu-throttling`.
+
+What it changes: with nothing open, the server's timers (shot clocks, bot moves, the matchmaker tick, lease renewal,
+the retention pass) wait until the instance next gets CPU — a request from anybody, at the latest the uptime check,
+three times a minute (keep that check while in this mode). Measured against the live API before and after the
+switch, with practice battles:
+
+| Check | Before | After |
+|---|---|---|
+| A whole battle over the socket: move sent → resolved (median / worst) | 83 / 114 ms | 85 / 148 ms |
+| A turn left untouched with the socket open: timeout after its deadline | 22 ms | 11 ms |
+| An agent battle on the long-poll (`GET …/events?wait=20`) | plays through | plays through |
+| Socket closed for 150 s with nobody connected, then reconnect | two timeouts and a bot move in the gap; reconnect 165 ms | the same progress, the timeouts up to 9 s late; reconnect 237 ms |
+| An agent that polls once a second and holds nothing open | not measured | its next turn is there at the next poll |
+| `/health` (median / worst of 40) | 93 / 190 ms | 94 / 208 ms |
+
+In short: a battle somebody is connected to runs on time; a battle nobody is connected to runs a few seconds late.
+
+Go back to always-allocated CPU with one command (a new revision rolls, nothing else changes, and deploys keep
+whichever mode is set):
+
+```
+gcloud run services update clawbada-api --region us-east4 --no-cpu-throttling
+```
+
+- before real (staked) battles can be played: battle leases are renewed by a timer (see "Shutdown contract"), so
+  they are only dependable while the CPU is always allocated;
+- before an opening that keeps connections open most of the day — past ~70% it is the cheaper mode as well.
 
 ## Hostname: `api.clawbada.com` through the global external Application Load Balancer
 
